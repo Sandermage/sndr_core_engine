@@ -4604,6 +4604,23 @@ def apply_patch_1_2_fp8_dispatcher() -> PatchResult:
     )
 
 
+@register_patch("PN14 GPU-aware DP load balancing")
+def apply_patch_N14_dp_gpu_aware_lb() -> PatchResult:
+    """Patch N14: GPU utilization-aware DP load balancing.
+
+    Replaces vLLM's hardcoded `waiting*4 + running` DP scoring formula with
+    a hybrid metric that includes per-engine GPU utilization (via pynvml).
+    Weights configurable via GENESIS_DP_LB_WEIGHTS env var (default: 10,4,1).
+
+    Patches 3 files: core.py (publish gpu_util), coordinator.py (pass-through),
+    core_client.py (hybrid scoring).
+    """
+    return _wiring_text_patch(
+        "PN14 GPU-aware DP load balancing",
+        "patch_N14_dp_gpu_aware_lb",
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #                             MAIN ORCHESTRATOR
 # ═══════════════════════════════════════════════════════════════════════════
