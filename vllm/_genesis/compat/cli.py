@@ -63,6 +63,8 @@ _SUBCOMMAND_MAP: dict[str, str] = {
     "preflight":       "vllm._genesis.compat.preflight_checks",
     # Benchmarking
     "bench":           "vllm._genesis.compat.bench",
+    # Vetted model configs (single-source-of-truth for launch+verify)
+    "model-config":    "vllm._genesis.compat.model_config_cli",
 }
 
 
@@ -90,6 +92,7 @@ _DESCRIPTIONS: dict[str, str] = {
     "verify":           "post-install smoke test (--quick / --boot / --full)",
     "preflight":        "preflight checks: PN60 quant validator + club#34/#43 rules",
     "bench":            "Genesis benchmark suite (decode TPOT, wall TPS, stress)",
+    "model-config":     "vetted model launch configs — list/show/render/launch/verify",
 }
 
 
