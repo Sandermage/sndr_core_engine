@@ -346,7 +346,13 @@ def welch_t(a: list[float], b: list[float]) -> dict:
     va = sum((x - ma) ** 2 for x in a) / (len(a) - 1)
     vb = sum((x - mb) ** 2 for x in b) / (len(b) - 1)
     se = math.sqrt(va / len(a) + vb / len(b))
-    if se == 0:
+    # Guard against zero variance — both samples constant.
+    # Python 3.10 vs 3.12 sum() reorder can produce float noise variance of ~1e-30
+    # for synthetic constant arrays (CI flake we hit in actions/runs/25364558589).
+    # Treat any near-zero standard error as IDENTICAL — there is no statistical
+    # signal to distinguish two distributions with no within-sample spread.
+    scale = max(abs(ma), abs(mb), 1.0)
+    if se < 1e-9 * scale:
         return dict(t=0.0, df=None, p_two_sided=1.0, verdict="IDENTICAL")
     t = (ma - mb) / se
     num = (va / len(a) + vb / len(b)) ** 2
