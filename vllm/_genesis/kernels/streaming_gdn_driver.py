@@ -377,7 +377,28 @@ def _streaming_path(
     )
 
     # Phase B: pre-allocate output o (B, T, H_v, V) — same shape as v
-    o_full = torch.empty_like(v)
+    # Level 2C+D fix (club-3090#22): route via GdnScratchPool so the
+    # buffer is shared across all 64 GDN layers + all windows + all
+    # forward passes. Eliminates the per-call `torch.empty_like(v)`
+    # allocation churn that fragments the PyTorch caching allocator.
+    # First call allocates one buffer of `next_pow2(T)` size; subsequent
+    # calls slice down. Falls back to `torch.empty_like` if pool is
+    # unavailable (e.g. is_production_eligible() returned False).
+    try:
+        if GdnScratchPool.is_production_eligible():
+            o_full = GdnScratchPool.acquire_o_output(
+                B=v.shape[0], T=v.shape[1], H=v.shape[2], V=v.shape[3],
+                dtype=v.dtype, device=v.device,
+            )
+        else:
+            o_full = torch.empty_like(v)
+    except Exception as e:
+        log.warning(
+            "[PN59] GdnScratchPool.acquire_o_output failed (%s) — falling "
+            "back to torch.empty_like; pool wiring not active for this call",
+            type(e).__name__,
+        )
+        o_full = torch.empty_like(v)
 
     # State chained across windows (float32 per kernel signature)
     state = initial_state

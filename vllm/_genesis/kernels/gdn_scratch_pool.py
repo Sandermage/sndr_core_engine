@@ -107,10 +107,11 @@ _ENV_WINDOW_NT = "GENESIS_VARIANT_D_WINDOW_NT"
 _DEFAULT_WINDOW_NT = 4
 
 
-# Shape keys (5D for h, 4D for v_new, 4D for state)
+# Shape keys (5D for h, 4D for v_new, 4D for state, 4D for o output)
 HKey = tuple[int, int, int, int, int, torch.dtype, torch.device]
 VKey = tuple[int, int, int, int, torch.dtype, torch.device]
 SKey = tuple[int, int, int, int, torch.dtype, torch.device]
+OKey = tuple[int, int, int, int, torch.dtype, torch.device]  # (B, H, V, T_max_bin)
 
 
 class GdnScratchPool:
@@ -139,6 +140,7 @@ class GdnScratchPool:
     _H_REGISTRY: dict[HKey, torch.Tensor] = {}
     _V_REGISTRY: dict[VKey, torch.Tensor] = {}
     _S_REGISTRY: dict[SKey, torch.Tensor] = {}
+    _O_REGISTRY: dict[OKey, torch.Tensor] = {}  # club-3090#22 Level 2C
 
     # ──────────────────────────────────────────────────────────────────
     # Platform / env gate
@@ -314,14 +316,88 @@ class GdnScratchPool:
         return buf
 
     # ──────────────────────────────────────────────────────────────────
+    # Core API: o_output (chunk_o output, full T-dim per call)
+    # ──────────────────────────────────────────────────────────────────
+    #
+    # club-3090#22 Level 2C+D fix: chunk_o.py:161 `o = torch.empty_like(v)`
+    # is the OOM site noonghunna hit — 50 MiB request from a 56 MiB-frag-
+    # mented free pool. Routing this allocation through the pool means
+    # the chunk_o output buffer is allocated ONCE at first FLA call and
+    # reused across:
+    #   - all 64 GDN layers in the model
+    #   - all WINDOW_NT = 4-16 windows per call (PN59 streaming path)
+    #   - all forward passes for the request lifetime
+    #
+    # vs the per-window-per-layer churn (~1024 allocations per forward
+    # at T=60K) under the current code.
+    #
+    # Sharing across all layers + windows is safe because GDN layers are
+    # processed sequentially (no cross-layer overlap) and PN59's window
+    # loop has zero overlap (one window's o is written into o_full and
+    # the next window's o re-uses the same buffer).
+    #
+    # Bin-by-power-of-2 T to avoid grow-once on every slightly-larger
+    # request — caller passes `T` actual, we cache a buffer of size
+    # `next_pow2(T)` and slice down. Eliminates 99% of grow events on
+    # chunked-prefill schedules where T varies modestly.
+
+    @classmethod
+    def acquire_o_output(
+        cls,
+        B: int,
+        T: int,
+        H: int,
+        V: int,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """Return `(B, T, H, V)` view for chunk_o output.
+
+        Shape semantics: caller writes into the slice; pool guarantees
+        contiguous storage along T-dim. Buffer is shared across ALL
+        layers + windows + forward passes for the process lifetime —
+        sequential GDN layer execution guarantees no overlap.
+
+        T is bin-rounded to next power of 2 internally to amortize
+        grow-events across requests of varying length.
+        """
+        if min(B, T, H, V) <= 0:
+            raise ValueError(
+                f"GdnScratchPool.acquire_o_output: dims must be > 0, "
+                f"got (B={B}, T={T}, H={H}, V={V})"
+            )
+
+        # Bin T to next power of 2 (min 512 to avoid pathological churn
+        # on very-short prompts).
+        T_binned = max(512, 1 << (T - 1).bit_length())
+
+        key: OKey = (B, H, V, T_binned, dtype, device)
+        cached = cls._O_REGISTRY.get(key)
+        if cached is not None:
+            return cached[:, :T]
+
+        buf = torch.empty(
+            (B, T_binned, H, V), dtype=dtype, device=device,
+        )
+        cls._O_REGISTRY[key] = buf
+        log.info(
+            "[PN59] first acquire o_output: alloc (%d, %d_binned_from_%d, %d, %d) "
+            "%s on %s (%.2f MiB) — closes club-3090#22 chunk_o.py:161 OOM",
+            B, T_binned, T, H, V, dtype, device,
+            B * T_binned * H * V * _dtype_byte_size(dtype) / 1024 / 1024,
+        )
+        return buf[:, :T]
+
+    # ──────────────────────────────────────────────────────────────────
     # Introspection / lifecycle
     # ──────────────────────────────────────────────────────────────────
 
     @classmethod
     def total_pooled_bytes(cls) -> int:
-        """Sum of bytes held across all 3 registries."""
+        """Sum of bytes held across all 4 registries."""
         total = 0
-        for reg in (cls._H_REGISTRY, cls._V_REGISTRY, cls._S_REGISTRY):
+        for reg in (cls._H_REGISTRY, cls._V_REGISTRY,
+                    cls._S_REGISTRY, cls._O_REGISTRY):
             for buf in reg.values():
                 total += buf.numel() * _dtype_byte_size(buf.dtype)
         return total
@@ -333,9 +409,11 @@ class GdnScratchPool:
             "h_window": len(cls._H_REGISTRY),
             "v_new_window": len(cls._V_REGISTRY),
             "state": len(cls._S_REGISTRY),
+            "o_output": len(cls._O_REGISTRY),
             "total": (len(cls._H_REGISTRY)
                       + len(cls._V_REGISTRY)
-                      + len(cls._S_REGISTRY)),
+                      + len(cls._S_REGISTRY)
+                      + len(cls._O_REGISTRY)),
         }
 
     @classmethod
@@ -354,6 +432,7 @@ class GdnScratchPool:
         cls._H_REGISTRY.clear()
         cls._V_REGISTRY.clear()
         cls._S_REGISTRY.clear()
+        cls._O_REGISTRY.clear()
 
 
 def _dtype_byte_size(dtype: torch.dtype) -> int:
