@@ -1952,6 +1952,15 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 41674,
         "applies_to": {},
     },
+    "PN70": {
+        "title": "Tool schema subset filter (combined `anyOf` xgrammar-clean) — companion to P68 v7.72.1",
+        "env_flag": "GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER",
+        "default_on": False,
+        "category": "structured_output",
+        "credit": "Genesis-original — implements lexhoefsloot's option-3 fix for noonghunna/club-3090#57. Wraps `vllm.tool_parsers.utils._get_json_schema_from_tools` and filters tools containing xgrammar-unsupported JSON Schema keys (patternProperties / propertyNames / $ref / oneOf / etc.) BEFORE the combined `anyOf` is built and handed to xgrammar. Companion to P68's option-1 skip: where P68 refuses to upgrade tool_choice on dirty catalogs, PN70 keeps the upgrade and filters dirty tools out of grammar enforcement (model can still SEE all tools in context but grammar restricts callable subset). Reuses P68's `_scan_schema_for_unsupported_key` so the unsupported-key set is single-sourced. Off by default; enable per workload.",
+        "applies_to": {},
+        "composes_with": ["P68"],
+    },
 }
 
 

@@ -1755,6 +1755,37 @@ def apply_patch_N67_thinking_budget_inverted_bool() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN70 tool schema subset filter (combined `anyOf` xgrammar-clean)")
+def apply_patch_N70_tool_schema_subset_filter() -> PatchResult:
+    """Patch PN70: filter xgrammar-incompat tools out of vllm's combined
+    `anyOf` schema build path.
+
+    Companion to v7.72.1 P68 fix (option-1 skip). Where P68 refuses to
+    upgrade tool_choice on dirty catalogs, PN70 keeps the upgrade and
+    filters dirty tools out of grammar enforcement (model can still SEE
+    all tools in context but grammar restricts callable subset).
+
+    Closes lexhoefsloot's option-3 path from noonghunna/club-3090#57.
+
+    Status: opt-in via GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER=1.
+    """
+    name = "PN70 tool schema subset filter (club-3090#57 option-3)"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: class-rebind wrapper ready")
+    try:
+        from vllm._genesis.wiring.structured_output import (
+            patch_N70_tool_schema_subset_filter,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_N70_tool_schema_subset_filter.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN65 Genesis structured API access log middleware (operator UX)")
 def apply_patch_N65_access_log() -> PatchResult:
     """Patch PN65: structured API access log middleware.

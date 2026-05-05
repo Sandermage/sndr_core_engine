@@ -22,6 +22,39 @@ loud-and-clear in the per-release notes.
 > sprint (PN59-PN67 + audit hardening). All on `dev` branch only (main
 > promotion deferred until cross-rig validation completes).
 
+### v7.72.2 — PN70 tool schema subset filter + Proxmox VE installer caveat (2026-05-05 12:30 EEST)
+
+**Two complementary improvements landed together: a Genesis-original patch that closes the third (and most general) fix path from [noonghunna/club-3090#57](https://github.com/noonghunna/club-3090/issues/57), and an installer-side caveat for [club-3090#49](https://github.com/noonghunna/club-3090/issues/49).**
+
+**PN70 — Tool schema subset filter** (`GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER=1`):
+
+- Companion to v7.72.1's option-1 P68 fix (which **skips** the upgrade on dirty catalogs). PN70 implements lexhoefsloot's option-3: keep the upgrade, **filter** dirty tools out of the combined `anyOf` xgrammar schema.
+- Wraps `vllm.tool_parsers.utils._get_json_schema_from_tools` and pre-filters tools whose JSON Schema contains xgrammar-unsupported keys before the combined schema is built and handed to xgrammar. Reuses P68's `_scan_schema_for_unsupported_key` so the unsupported-key set is single-sourced (no drift between option-1 and option-3 paths).
+- Behavior matrix:
+  - **all tools clean** → wrapper passes through unchanged
+  - **subset compat** → wrapper builds schema from compat subset only; logs a WARN naming the filtered-out tools
+  - **all tools incompat** → returns `None` (no enforcement, parser handles tool calls at output)
+  - **any unexpected exception during filter** → falls back to original (defensive — PN70 never breaks a request that would have succeeded under stock)
+- Composability with P68 declared via new `composes_with: ["P68"]` registry field. Recommended combo: P68 ON + PN70 ON → P68 upgrades `tool_choice` on long prompts, PN70 keeps grammar enforcement on the compat subset.
+- Tests: +28 TDD (`test_pn70_tool_schema_subset_filter.py`) covering the compat helper, name extractor, env-flag matrix (5 truthy variants), filter behavior (clean / mixed / all-incompat / empty), defensive fallback, dispatcher registration, P68 composability regression. Schema validator extended to accept `composes_with` field. PATCHES.md sync gate updated (header 125 → 126).
+- Full local suite: **1958 pass + 73 skipped + 0 failures** (was 1930).
+
+**install.sh — Proxmox VE caveat + `--bare-metal` flag** ([club-3090#49](https://github.com/noonghunna/club-3090/issues/49) lexhoefsloot):
+
+- New `detect_proxmox_runtime()` step runs after vLLM detection. Checks `uname -r` for `pve`/`proxmox` substring AND `/etc/pve` directory presence.
+- On detection: WARN with link to club-3090#49 explaining the upstream `vllm/vllm-openai:nightly` × PVE 8.x kernel 6.17.x uvloop crash that was empirically isolated to the docker image (bare `docker run` reproduces, native venv on the same host runs clean). Auto-enables `--bare-metal`.
+- New `--bare-metal` flag (or `GENESIS_BARE_METAL=1`) tells `print_next_steps()` to point operator at native `pip install vllm==0.20.x` + `vllm serve` instead of docker-compose presets. Auto-enabled on PVE; manually settable for any operator running microk8s / podman / k8s / bare-metal.
+
+**Wiring + dispatcher hygiene:**
+
+- New patch file: `vllm/_genesis/wiring/structured_output/patch_N70_tool_schema_subset_filter.py`
+- New apply_all entry: `apply_patch_N70_tool_schema_subset_filter` (placed before PN65 access log)
+- Dispatcher PATCH_REGISTRY entry: `PN70` with `composes_with: ["P68"]`
+- Schema validator: `composes_with` added to `_KNOWN_FIELDS`
+- PATCHES.md: PN70 row added to "Structured-output / Qwen3 parser" category, header count bumped 125 → 126
+- docs/CONFIGURATION.md: `GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER` documented under structured-output section
+- Tests badge bumped 1930 → 1958
+
 ### v7.72.1 — P68 xgrammar-incompat tool skip (2026-05-05 11:30 EEST)
 
 **Bug fix from cross-rig report — [noonghunna/club-3090#57](https://github.com/noonghunna/club-3090/issues/57) (lexhoefsloot).**

@@ -4,7 +4,7 @@ This file is the **single source of truth** for every Genesis runtime patch.
 For each patch you get: ID, title, what it does, status (ON / opt-in / deprecated),
 env flag to toggle, upstream PR (if backported), and credit.
 
-**Total PATCH_REGISTRY entries:** 125 (range P1–P107 + PN8–PN67 + sub-patches P5b/P7b/P15B/P18b/P38B/P39a/P67b/P67c/PN26b/PN40-classifier + library/diagnostic P51/P79d/P102). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
+**Total PATCH_REGISTRY entries:** 126 (range P1–P107 + PN8–PN67 + PN70 + sub-patches P5b/P7b/P15B/P18b/P38B/P39a/P67b/P67c/PN26b/PN40-classifier + library/diagnostic P51/P79d/P102). The dispatcher's `PATCH_REGISTRY` is the schema-validated, lifecycle-tracked, opt-in surface — `genesis self-test` and the schema validator gate this set on every commit.
 
 **Total apply_all `@register_patch`:** 113 entries. P68/P69 share one `apply_patch_68_long_ctx_tool_adherence` function but are registered as two `PATCH_REGISTRY` entries; that's the reason for the 1-entry delta. As of v7.65 (2026-05-02) all legacy P1–P46 patches are first-class registry entries with `lifecycle: legacy` — historical pre-dispatcher patches with minimal metadata, kept default-on for compatibility.
 
@@ -129,6 +129,7 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 | **P61b** | Qwen3 streaming partial-tag overlap guard | opt-in | `GENESIS_ENABLE_P61B_STREAMING_OVERLAP` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | ExtReMLapin (vllm#40783) |
 | **P61** | Qwen3 multi-tool first-occurrence | opt-in | `GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | ExtReMLapin (vllm#40783) |
 | **P68/P69** | long-context tool-call adherence | opt-in | `GENESIS_ENABLE_P68_AUTO_FORCE_TOOL` | — | Genesis-original (long-ctx tool adherence mitigation) |
+| **PN70** | Tool schema subset filter (companion to P68 v7.72.1) | opt-in | `GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER` | — | Genesis-original (closes [club-3090#57](https://github.com/noonghunna/club-3090/issues/57) option-3) |
 | **P59** | Qwen3 reasoning embedded tool_call recovery | opt-in | `GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY` | [#39055](https://github.com/vllm-project/vllm/pull/39055) | ZenoAFfectionate (vllm#39055) |
 | **P40** | TurboQuant GQA-grouped decode stage1 (opt-in) | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P24** | fused_moe num_warps/num_stages overlay | opt-in | — | — | Genesis (see source / CHANGELOG) |

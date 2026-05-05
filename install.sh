@@ -44,6 +44,7 @@ GENESIS_WORKLOAD="${GENESIS_WORKLOAD:-}" # one of: long_context, high_throughput
 GENESIS_NON_INTERACTIVE="${GENESIS_NON_INTERACTIVE:-0}"
 GENESIS_NO_VERIFY="${GENESIS_NO_VERIFY:-0}"
 GENESIS_NO_PLUGIN_INSTALL="${GENESIS_NO_PLUGIN_INSTALL:-0}"
+GENESIS_BARE_METAL="${GENESIS_BARE_METAL:-0}"      # 1 = skip Docker hints, point operator at native vllm serve
 GENESIS_UNINSTALL=0
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
@@ -86,6 +87,7 @@ while [[ $# -gt 0 ]]; do
     --python) PYTHON_BIN="$2"; shift 2 ;;
     --no-verify) GENESIS_NO_VERIFY=1; shift ;;
     --no-plugin) GENESIS_NO_PLUGIN_INSTALL=1; shift ;;
+    --bare-metal) GENESIS_BARE_METAL=1; shift ;;
     --system) PIP_INSTALL_FLAGS=""; shift ;;
     --uninstall) GENESIS_UNINSTALL=1; shift ;;
     -y|--yes) GENESIS_NON_INTERACTIVE=1; shift ;;
@@ -110,6 +112,12 @@ Flags:
   --no-plugin          Skip pip install of tools/genesis_vllm_plugin
                        (Genesis still works via PYTHONPATH but won't
                         auto-load in vllm spawn workers)
+  --bare-metal         Skip docker-related preset hints; point operator at
+                       native `pip install vllm==0.20.x` + `vllm serve`.
+                       Auto-enabled if Proxmox VE host is detected (the
+                       official vllm/vllm-openai:nightly image has a known
+                       uvloop crash on PVE 8.x kernel 6.17.x — see
+                       noonghunna/club-3090#49).
   --system             Use system pip (default: --user)
   --uninstall          Remove Genesis and the entry-point plugin
   -y, --yes            Non-interactive (use defaults)
@@ -269,6 +277,54 @@ detect_vllm() {
   if [ "$VLLM_VERSION" != "?" ] && [[ "$VLLM_VERSION" != *"0.20"* ]]; then
     warn "Genesis is pinned to vllm 0.20.x — your $VLLM_VERSION may have anchor drift."
     hint "See docs/COMPATIBILITY.md or run \`genesis doctor\` after install."
+  fi
+}
+
+# ─── Proxmox VE / container-runtime caveat detection ─────────────────
+#
+# Background: noonghunna/club-3090#49 (lexhoefsloot 2026-05-04) — the
+# official `vllm/vllm-openai:nightly-7a1eb8ac2…` image crashes at boot
+# with `RuntimeError: this event loop is already running` (uvloop) on
+# Proxmox VE 8.x kernel 6.17.x hosts. The crash happens BEFORE GPU init
+# in bare `docker run` — Genesis is not in the picture. Workaround:
+# native `pip install vllm==0.20.x` venv on the same host launches
+# cleanly past the failure point.
+#
+# This detector runs after vLLM detection. If we see a PVE host, we WARN
+# and auto-enable --bare-metal so the operator gets the venv-path hints
+# instead of docker-compose hints in the next-steps printout.
+
+detect_proxmox_runtime() {
+  step "Container-runtime caveat probe (Proxmox VE)"
+
+  local on_pve=0
+  # Heuristic 1: kernel string contains 'pve' (Proxmox-built kernel)
+  if uname -r 2>/dev/null | grep -qE 'pve|proxmox'; then
+    on_pve=1
+  fi
+  # Heuristic 2: /etc/pve directory exists (Proxmox host config)
+  if [ -d /etc/pve ]; then
+    on_pve=1
+  fi
+
+  if [ "$on_pve" = "0" ]; then
+    ok "no Proxmox VE markers — docker path should be safe"
+    return
+  fi
+
+  warn "Proxmox VE host detected (kernel: $(uname -r 2>/dev/null || echo '?'))"
+  hint "club-3090#49 (lexhoefsloot 2026-05-04): the official"
+  hint "  vllm/vllm-openai:nightly image hits a uvloop"
+  hint "  'event loop already running' crash on PVE 8.x + kernel 6.17.x"
+  hint "  during \`vllm serve\` (BEFORE Genesis runs — bare docker repros)."
+  hint "Workaround validated by lexhoefsloot: native venv ≡ \"pip install"
+  hint "  vllm==0.20.1\" + Genesis on the same host runs clean."
+
+  if [ "$GENESIS_BARE_METAL" = "0" ]; then
+    GENESIS_BARE_METAL=1
+    info "auto-enabled --bare-metal (you can override with --bare-metal=0)"
+  else
+    ok "--bare-metal already set; no action needed"
   fi
 }
 
@@ -540,7 +596,21 @@ print_next_steps() {
   fi
   echo
   echo "Next:"
-  if [ -n "${LAUNCH_SCRIPT:-}" ]; then
+  if [ "$GENESIS_BARE_METAL" = "1" ]; then
+    echo "  Bare-metal mode (--bare-metal or auto-enabled by Proxmox detect):"
+    echo "      $PYTHON_BIN -m pip install --user vllm==0.20.1   # if not already"
+    echo "      genesis verify                                   # full smoke test"
+    echo "      vllm serve <model> --tensor-parallel-size <N> ...  # standard vllm CLI"
+    echo
+    echo "  Generated launch scripts in $GENESIS_HOME/scripts/ are docker-based"
+    echo "  by default. To bare-metal-ify any of them, replace the"
+    echo "    docker run ... vllm/vllm-openai:nightly ... vllm serve ..."
+    echo "  block with a direct \`vllm serve\` invocation using the same flags."
+    echo
+    if [ -n "${LAUNCH_SCRIPT:-}" ]; then
+      echo "  Reference (your detected preset):  $LAUNCH_SCRIPT"
+    fi
+  elif [ -n "${LAUNCH_SCRIPT:-}" ]; then
     echo "  Edit the launch script (set MODEL_PATH if needed), then:"
     echo "      bash $LAUNCH_SCRIPT"
   else
@@ -604,6 +674,7 @@ main() {
   preflight
   detect_gpu
   detect_vllm
+  detect_proxmox_runtime
   pick_workload
   resolve_pin
   clone_genesis

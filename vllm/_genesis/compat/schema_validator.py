@@ -58,7 +58,7 @@ _KNOWN_FIELDS = {
     "credit", "deprecation_note", "experimental_note", "research_note",
     "community_credit", "stable_since", "since_version", "deprecated_since",
     "removal_planned", "deprecated", "superseded_by", "upstream_pr",
-    "applies_to", "requires_patches", "conflicts_with",
+    "applies_to", "requires_patches", "conflicts_with", "composes_with",
     # Pin-bump retirement metadata (added 2026-05-05 alongside vllm#39931
     # P4 supersede). When `superseded_by` is set, `retire_after_pin` says
     # which vllm pin contains the upstream merge — operator can drop the

@@ -9,7 +9,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.20.2rc1.dev9-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/patches-123-green.svg)](docs/PATCHES.md)
-[![Tests](https://img.shields.io/badge/tests-1930%20pass-brightgreen.svg)](vllm/_genesis/tests/)
+[![Tests](https://img.shields.io/badge/tests-1958%20pass-brightgreen.svg)](vllm/_genesis/tests/)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000%20Blackwell-purple.svg)](docs/HARDWARE.md)
 [![PROD](https://img.shields.io/badge/PROD%20uptime-24%2F7-blue.svg)](docs/BENCHMARKS.md)
 
@@ -136,6 +136,16 @@ genesis lifecycle-audit          # patches near retirement
 
 For everything else, see [`docs/COMMANDS.md`](docs/COMMANDS.md) — the
 single-page command reference.
+
+---
+
+## 🚑 v7.72.2 hotfix (2026-05-05 12:30 EEST) — PN70 schema subset filter + Proxmox VE installer caveat
+
+**Two complementary improvements landed together.**
+
+**PN70 — Tool schema subset filter** (Genesis-original, opt-in via `GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER=1`): companion to v7.72.1's P68 fix. Closes lexhoefsloot's option-3 from [club-3090#57](https://github.com/noonghunna/club-3090/issues/57). Where P68 **skips** the `tool_choice` upgrade on dirty tool catalogs, PN70 keeps the upgrade and **filters** xgrammar-incompatible tools out of the combined `anyOf` schema. Recommended combo: P68 ON + PN70 ON → grammar enforcement on the compat subset, no 400 error from one dirty tool. Reuses P68's scanner so the unsupported-key list is single-sourced. **+28 TDD**, full suite **1958 pass + 73 skip + 0 fail** (was 1930). Details: [CHANGELOG §v7.72.2](CHANGELOG.md).
+
+**install.sh — Proxmox VE caveat + `--bare-metal` flag** ([club-3090#49](https://github.com/noonghunna/club-3090/issues/49)): new `detect_proxmox_runtime()` step warns operators on PVE 8.x kernel 6.17.x hosts about the upstream `vllm/vllm-openai:nightly` image's uvloop crash and auto-enables `--bare-metal` so the next-steps printout points at native `pip install vllm==0.20.x` + `vllm serve` instead of docker-compose. Manual flag also available for microk8s / podman / k8s users.
 
 ---
 
