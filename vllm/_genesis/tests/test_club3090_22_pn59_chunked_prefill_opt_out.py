@@ -74,14 +74,17 @@ class TestDispatchStrictGateOn:
 
         # Stub pool eligibility to True so the gate we're testing
         # (metadata) is the one that fires
-        m.GdnScratchPool.is_production_eligible = staticmethod(lambda: True)
-        m.GdnScratchPool.get_window_nt = staticmethod(lambda: 4)
+        # Use monkeypatch (auto-cleaned) — direct class writes leak.
+        monkeypatch.setattr(m.GdnScratchPool, "is_production_eligible",
+                            staticmethod(lambda: True))
+        monkeypatch.setattr(m.GdnScratchPool, "get_window_nt",
+                            staticmethod(lambda: 4))
 
         called = {"vanilla": 0, "streaming": 0}
-        original_vanilla = m._vanilla_path
-        original_streaming = m._streaming_path
-        m._vanilla_path = lambda *a, **kw: (called.update(vanilla=called["vanilla"] + 1)) or "vanilla-result"
-        m._streaming_path = lambda *a, **kw: (called.update(streaming=called["streaming"] + 1)) or "streaming-result"
+        monkeypatch.setattr(m, "_vanilla_path",
+            lambda *a, **kw: (called.update(vanilla=called["vanilla"] + 1)) or "vanilla-result")
+        monkeypatch.setattr(m, "_streaming_path",
+            lambda *a, **kw: (called.update(streaming=called["streaming"] + 1)) or "streaming-result")
 
         # Synthetic args that pass everything EXCEPT metadata gate
         import torch
@@ -117,9 +120,7 @@ class TestDispatchStrictGateOn:
         warns = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert any("chunk metadata present" in r.message for r in warns)
         assert any("club-3090#22" in r.message for r in warns)
-        # restore
-        m._vanilla_path = original_vanilla
-        m._streaming_path = original_streaming
+        # monkeypatch.setattr handles teardown; no manual restore needed
 
 
 # ─── Dispatch behavior — strict OFF (operator opt-in for 24GB) ─────────
@@ -135,12 +136,16 @@ class TestDispatchStrictGateOff:
         m = _fresh_module()
 
         # Stub GdnScratchPool eligibility to True (avoid module-level flake)
-        m.GdnScratchPool.is_production_eligible = staticmethod(lambda: True)
-        m.GdnScratchPool.get_window_nt = staticmethod(lambda: 4)
+        monkeypatch.setattr(m.GdnScratchPool, "is_production_eligible",
+                            staticmethod(lambda: True))
+        monkeypatch.setattr(m.GdnScratchPool, "get_window_nt",
+                            staticmethod(lambda: 4))
 
         called = {"vanilla": 0, "streaming": 0}
-        m._vanilla_path = lambda *a, **kw: (called.update(vanilla=called["vanilla"] + 1)) or "vanilla"
-        m._streaming_path = lambda *a, **kw: (called.update(streaming=called["streaming"] + 1)) or "streaming"
+        monkeypatch.setattr(m, "_vanilla_path",
+            lambda *a, **kw: (called.update(vanilla=called["vanilla"] + 1)) or "vanilla")
+        monkeypatch.setattr(m, "_streaming_path",
+            lambda *a, **kw: (called.update(streaming=called["streaming"] + 1)) or "streaming")
 
         import torch
         T = 60_000
@@ -183,11 +188,20 @@ class TestBypassWarnOnce:
         monkeypatch.setenv("GENESIS_PN59_STRICT_NO_METADATA", "1")
         monkeypatch.setenv("GENESIS_PN59_DEBUG", "0")
         m = _fresh_module()
-        m.GdnScratchPool.is_production_eligible = staticmethod(lambda: True)
-        m.GdnScratchPool.get_window_nt = staticmethod(lambda: 4)
+        # Use monkeypatch.setattr (auto-cleaned) instead of direct assignment
+        # — direct attr write on a class leaks between tests in the same
+        # module; previous version polluted test_window_nt_env_override etc.
+        monkeypatch.setattr(
+            m.GdnScratchPool, "is_production_eligible",
+            staticmethod(lambda: True),
+        )
+        monkeypatch.setattr(
+            m.GdnScratchPool, "get_window_nt",
+            staticmethod(lambda: 4),
+        )
 
         # Stub vanilla path so we don't crash on missing kernels
-        m._vanilla_path = lambda *a, **kw: "v"
+        monkeypatch.setattr(m, "_vanilla_path", lambda *a, **kw: "v")
 
         import torch
         q = torch.zeros(1, 60_000, 4, 4)
