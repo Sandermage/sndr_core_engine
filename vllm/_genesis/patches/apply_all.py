@@ -4960,6 +4960,38 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
         log.info("[Genesis compile-watchdog] apply_all elapsed: %.1fs", _elapsed)
     stats.compile_elapsed_sec = _elapsed
 
+    # ─────────────────────────────────────────────────────────────────
+    # [v7.72.2 fix 2026-05-05] Structured boot summary emit point.
+    #
+    # MUST live in run() (not main()) — vllm's plugin loader calls run()
+    # via the genesis_v7 entry point, never main(). Putting the summary
+    # only in main() meant it appeared on `python3 -m vllm._genesis.
+    # patches.apply_all` CLI runs but NEVER on real production boot.
+    # This regression silently shipped between v7.70 and v7.72.2.
+    #
+    # Falls back to v7.13 apply matrix on any error so boot keeps
+    # working. Errors logged at WARN so operators see them (not the old
+    # silent debug log that hid the bug).
+    # ─────────────────────────────────────────────────────────────────
+    try:
+        from vllm._genesis.dispatcher import log_structured_boot_summary
+        log_structured_boot_summary()
+    except Exception as e:
+        log.warning(
+            "[Genesis] structured boot summary unavailable (%s: %s) — "
+            "falling back to v7.13 apply matrix. Check "
+            "dispatcher.dump_structured_boot_summary().",
+            type(e).__name__, e,
+        )
+        try:
+            from vllm._genesis.dispatcher import log_apply_matrix
+            log_apply_matrix()
+        except Exception as e2:
+            log.warning(
+                "[Genesis] v7.13 apply matrix fallback also unavailable: %s: %s",
+                type(e2).__name__, e2,
+            )
+
     return stats
 
 
@@ -5061,30 +5093,9 @@ def main() -> int:
         log.exception("Genesis orchestrator setup error: %s", e)
         return 2
 
-    # [v7.70 structured boot summary] system info + categorized tables +
-    # per-category counters + skip-reason classes. Replaces bare apply matrix.
-    # Falls back to v7.13 apply matrix on any error so boot keeps working.
-    try:
-        from vllm._genesis.dispatcher import log_structured_boot_summary
-        log_structured_boot_summary()
-    except Exception as e:
-        # Audit fix 2026-05-05: surface the actual exception at WARN so
-        # operators don't silently fall back to the v7.13 apply matrix.
-        # Was log.debug — invisible at default INFO level. If the structured
-        # summary breaks (drift in PATCH_REGISTRY shape, missing field in
-        # gpu_profile, etc.) we want to KNOW, not hide it.
-        log.warning(
-            "[Genesis] structured boot summary unavailable (%s: %s) — "
-            "falling back to v7.13 apply matrix. This is an unexpected "
-            "regression; check dispatcher.dump_structured_boot_summary().",
-            type(e).__name__, e,
-        )
-        try:
-            from vllm._genesis.dispatcher import log_apply_matrix
-            log_apply_matrix()
-        except Exception as e2:
-            log.warning("[Genesis] v7.13 apply matrix fallback also unavailable: %s: %s",
-                        type(e2).__name__, e2)
+    # NOTE: structured boot summary already emitted by run() above.
+    # (v7.72.2 fix moved the call from main() into run() so the plugin
+    # entry point — which only invokes run() — also gets the summary.)
 
     exit_code = 1 if stats.failed_count > 0 else 0
 
