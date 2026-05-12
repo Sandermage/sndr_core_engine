@@ -66,3 +66,43 @@ grok_*.md
 todos-log-*.md
 .README_*backup*.md
 .README_v*_backup*.md
+
+# ─── P1-9 (audit 2026-05-08): personal infra outside public surface ──
+# `internal/` is the parking lot for files that mirror operator-specific
+# deployment (compose with personal IPs/paths, profiling launch scripts
+# tied to specific NUMA topology, etc.). Public repo ships only generic
+# templates in `compose/` and `scripts/` — anything operator-specific
+# moves here.
+internal/
+
+# ─── P0-5 (audit 2026-05-08): protect commercial engine boundary ──────
+# vllm/sndr_engine/ is the COMMERCIAL package. Ignoring it locally
+# prevents accidental `git add .` from publishing private kernels +
+# patch wiring to the public Apache repo.
+#
+# For a real release: move sndr_engine to a SEPARATE private repo
+# entirely. This .gitignore rule is defense-in-depth, not the primary
+# boundary.
+vllm/sndr_engine/
+pyproject-engine.toml
+
+# Audit / plan files at repo root (also catches sndr_*_audit_*.md)
+sndr_*_audit_*.md
+sndr_*_plan_*.md
+sndr_repeat_*.md
+
+# Audit P1-B closure 2026-05-12: additional generated/transient artifacts.
+.ruff_cache/
+.mypy_cache/
+# Internal research artifacts (transient bench-time analysis)
+.research_marlin_moe_*.py
+
+# Etap 1.6/1.7 (audit 2026-05-12 dual-state cleanup):
+# Runtime bench artifacts — output of `tools/genesis_bench_suite.py`.
+# Содержат endpoint/model details, не должны жить в git tracking.
+# Для archive bench evidence используйте `docs/_internal/bench_results/`.
+benchmarks/runs/
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
+

@@ -7,7 +7,9 @@ covering Qwen3.6-35B-A3B-FP8 (1 variant) and Qwen3.6-27B-int4-Lorbus
 - `start_*.sh` — **Docker** (recommended for reproducibility; bind-mounts
   Genesis patches into stock `vllm/vllm-openai:nightly`)
 - `bare_metal_*.sh` — **Native** (assumes vLLM installed via pip on the host;
-  symlinks Genesis `_genesis` package into the existing vllm install)
+  symlinks Genesis `sndr_core` package в существующий vllm install. Старые
+  скрипты могут ссылаться на `_genesis` — это back-compat alias, работает,
+  но канон с v11.0.0 — `vllm.sndr_core`.)
 
 Plus 3 utility scripts and an `_archive/` of historical / research arms.
 
@@ -148,15 +150,14 @@ Linux side. Docker-in-WSL2 also works but adds one virtualization layer
 
 ## Customization
 
-The Docker scripts hardcode `MODELS_DIR=/nfs/genesis/models` and similar paths
-because they were extracted from Sander's homelab. **Override via env or edit
-the file** — there's no clever templating.
+Archived Docker scripts may contain old homelab paths. Active launches should
+prefer `sndr launch <config-key>` or a model config with explicit mounts.
 
 Common overrides:
 
 ```bash
-# Most-common edits at the top of any start_*.sh:
-- v /nfs/genesis/models:/models:ro                  # → your model dir
+# Most-common edits at the top of any archived start_*.sh:
+- v ${HOME}/models:/models:ro                       # → your model dir
 - e CONTAINER_NAME=vllm-server-mtp-test             # → name you prefer
 - e PORT=8000                                       # → port if 8000 occupied
 
@@ -169,7 +170,7 @@ Common overrides:
 
 For per-GPU recommendations (which patches to enable) see the
 [per-GPU table in the main README](../../README.md#per-gpu-recommendations) and
-the auto-detection at boot via `vllm/_genesis/gpu_profile.py`.
+the auto-detection at boot via `vllm/sndr_core/gpu_profile.py`.
 
 ---
 

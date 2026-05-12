@@ -1,0 +1,218 @@
+# Upstream vLLM watchlist for Genesis drift detection.
+#
+# DA-019 (audit 2026-05-08): structured replacement for hardcoded notes
+# scattered across `tools/check_upstream_drift.py` + per-patch
+# docstrings. Each entry maps an upstream issue/PR to the local Genesis
+# patches that track it, and what action to take when state changes.
+#
+# Format:
+#
+#   - upstream: vllm#<NUMBER>            # PR or issue identifier
+#     status: open | merged | closed     # last known upstream status
+#     local_patches: [P67, P67b]         # affected Genesis patch IDs
+#     action: drift-check | a-b-test |   # what to do when status changes
+#             retire | watch | port
+#     since: 2026-05-08                  # when entry was added
+#     notes: |                           # free-form context
+#       Multi-line context — what to look for, expected outcome.
+#
+# `tools/check_upstream_drift.py` reads this file (as YAML), queries
+# GitHub for current status of each `upstream:` entry, and emits:
+#
+#   - WARN if `status` field drifted (e.g. open → merged).
+#   - PORT_CANDIDATE if action=port and PR is now merged.
+#   - RETIRE_CANDIDATE if action=retire and an upstream marker matches
+#     a Genesis patch's `marker` field.
+#   - DRIFT if action=drift-check and anchor md5 changed in upstream.
+
+watch:
+  # ─── TurboQuant family ─────────────────────────────────────────────
+  - upstream: vllm#38479
+    status: merged
+    local_patches: [P3, P4, P5, P6, P22, P26, P28, P36, P38, P44, P46]
+    action: a-b-test
+    since: 2026-04-15
+    notes: |
+      Upstream merged TurboQuant KV cache compression. Genesis stack
+      (P3..P46) overlaps significantly. Need A/B vs upstream's
+      `--kv-cache-dtype turboquant_k8v4` to confirm Genesis advantage
+      on hybrid (Mamba/DeltaNet) models that upstream excludes per
+      §10.10 audit note.
+
+  - upstream: vllm#40914
+    status: open
+    local_patches: [P67, P67b]
+    action: a-b-test
+    since: 2026-05-08
+    notes: |
+      Routes uniform K+1 spec-verify batches through the multi-query
+      kernel. P67/P67b are Genesis's own implementation. After upstream
+      merge: A/B comparison required — keep Genesis path if it
+      outperforms (likely so on Ampere; uncertain on Hopper+).
+
+  - upstream: vllm#40069
+    status: open
+    local_patches: [P4, P5, P67, P67b, P78, P98, P99, P101, PN57]
+    action: drift-check
+    since: 2026-05-08
+    notes: |
+      TurboQuant/HIGGS attention follow-up tracking issue. Genesis stack
+      should auto-retire patches as their corresponding bullet points
+      land in upstream PRs.
+
+  # ─── Speculative decode ────────────────────────────────────────────
+  - upstream: vllm#40269
+    status: open
+    local_patches: [P77, PN40]
+    action: port
+    since: 2026-05-08
+    notes: |
+      Probabilistic draft rejection — passes draft_probs from drafter
+      to verifier. Genesis P77 (adaptive ngram K) is orthogonal but
+      complementary. Port as PN90 when upstream merges.
+
+  - upstream: vllm#36138
+    status: merged
+    local_patches: [P59, P62, P64]
+    action: drift-check
+    since: 2026-04-25
+    notes: |
+      Grammar ignored when reasoning ended in speculated tokens.
+      Already integrated as P62 + structured-output fixes. Verify
+      anchor md5 not drifted after upstream pin bump.
+
+  # ─── KV cache / memory ─────────────────────────────────────────────
+  - upstream: vllm#40270
+    status: open
+    local_patches: []
+    action: port
+    since: 2026-05-08
+    notes: |
+      Pluggable GPU KV cache eviction (LRU/2Q/ARC). Critical for
+      agent/RAG workloads. Port as PN91 when merged.
+
+  - upstream: vllm#37160
+    status: open
+    local_patches: []
+    action: port
+    since: 2026-05-08
+    notes: |
+      CPU KV offload connector. Compatibility: NOT compatible with
+      hybrid Mamba (Qwen3.5/3.6 GDN). Port as PN92 with `applies_to.is_hybrid: [False]`
+      hard guard.
+
+  - upstream: vllm#37190
+    status: open
+    local_patches: []
+    action: watch
+    since: 2026-05-08
+    notes: |
+      MoE expert CPU offloading. Allow fitting 35B-A3B (256 experts)
+      on single 24GB. High throughput cost (30-60% TPS hit). Port as
+      experimental-only PN93.
+
+  - upstream: vllm#38330
+    status: open
+    local_patches: []
+    action: port
+    since: 2026-05-08
+    notes: |
+      Multimodal encoder cache. Cache vision embeddings across
+      requests. Port as PN94 with preprocessor-version key.
+
+  - upstream: vllm#37951
+    status: open
+    local_patches: []
+    action: watch
+    since: 2026-05-08
+    notes: |
+      KV cache memory error at 262K context. Padding waste in hybrid
+      layers. Genesis memory explain (DA-018) should surface this.
+
+  # ─── Model-specific ────────────────────────────────────────────────
+  - upstream: vllm#39998
+    status: open
+    local_patches: [P14]
+    action: watch
+    since: 2026-05-08
+    notes: |
+      Qwen3 + TurboQuant 4-bit KV + high concurrency + 32K context
+      index out of bounds. P14 (block_table tail zero-fill) related;
+      verify it covers the index path upstream is fixing.
+
+  - upstream: vllm#40281
+    status: closed
+    local_patches: []
+    action: watch
+    since: 2026-05-08
+    notes: |
+      Gemma4 support — closed unmerged. Wait for replacement PR.
+      When Gemma4 lands upstream, create patch family + preset.
+
+  - upstream: vllm#39133
+    status: open
+    local_patches: []
+    action: watch
+    since: 2026-05-08
+    notes: |
+      Gemma 4 31B INT4 KV/cache limits on 2x24GB. SWA underutilized.
+      Will need Gemma-specific config profile (memory estimator).
+
+  # ─── FLA / GDN ─────────────────────────────────────────────────────
+  - upstream: vllm#40265
+    status: closed
+    local_patches: [P7, P7b]
+    action: drift-check
+    since: 2026-05-08
+    notes: |
+      FLA TP device index overflow — closed unmerged. Pattern matters.
+      Add regression guard in P7/P7b ensuring int64 device-index dtype.
+
+  # ─── Sandermage / Genesis user issues ──────────────────────────────
+  - upstream: Sandermage/genesis-vllm-patches#1
+    status: open
+    local_patches: []
+    action: cookbook
+    since: 2026-05-08
+    notes: |
+      OOM with long context. See docs/COOKBOOK.md §1. Memory explain
+      (DA-018) should preflight detect and warn.
+
+  - upstream: vllm#40124
+    status: open
+    local_patches: [P3, P4, P5, P6, P14, P15, P22, P26, P28, P31, P36, P38, P44, P46, P67, P67b, P95]
+    action: drift-check
+    since: 2026-05-08
+    notes: |
+      Sander's own master tracking issue: Ampere FP8 + TurboQuant +
+      Qwen3.6-35B-A3B + hybrid MoE. Every Genesis patch in this list
+      should map to a sub-bullet of the issue.
+
+  # ─── S4.1 (audit P4-1, 2026-05-12): DFlash + quantized target KV ───
+  - upstream: vllm#42102
+    status: open
+    local_patches: [PN21, PN23, PN24, PN38, PN40]
+    action: port
+    since: 2026-05-12
+    notes: |
+      DFlash drafter coexistence with quantized target KV. Upstream
+      предлагает три механизма:
+        1. partition DFlash draft KV specs before page-size unify
+           (draft and target живут в разных KV groups).
+        2. drafter cache_dtype="auto" когда target global KV dtype
+           quantized (drafter inherits либо fp16/bf16).
+        3. per-spec dtype в FlashAttention metadata scheduler.
+
+      Genesis уже имеет PN21..PN40 для DFlash на Ampere. Релевантный
+      backport target — гибридный path где target KV = turboquant_k8v4
+      а drafter держит fp16 (head_size=256 constraint).
+
+      Backport plan: см. docs/_internal/research/upstream_42102_dflash_
+      independent_kv_groups_plan_2026-05-12.md (S4.1 closure).
+
+      Critical compatibility check: refined COMPAT-001 (qwen-next only)
+      освобождает Qwen3.6-27B Lorbus + DFlash для дальнейшей разработки.
+
+# Sentinel — never remove. tools/check_upstream_drift.py uses this to
+# verify the YAML loaded fully (vs truncated read).
+__sentinel__: complete

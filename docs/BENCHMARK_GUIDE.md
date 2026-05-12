@@ -2,7 +2,7 @@
 
 A reproducible, environment-agnostic guide for measuring Genesis vLLM Patches performance on your own hardware and sharing the numbers with the community.
 
-> Source of truth: `tools/genesis_bench_suite.py --help` (or, equivalently, `python3 -m vllm._genesis.compat.cli bench --help`). This guide describes the intended interface and the reasoning behind each metric. When the script's CLI flags drift from the table below, the script wins — open an issue or PR if you spot a mismatch.
+> Source of truth: `tools/genesis_bench_suite.py --help` (or, equivalently, `python3 -m vllm.sndr_core.compat.cli bench --help`). This guide describes the intended interface and the reasoning behind each metric. When the script's CLI flags drift from the table below, the script wins — open an issue or PR if you spot a mismatch.
 
 ---
 
@@ -88,7 +88,7 @@ vllm serve \
 # 4. Wait for "Application startup complete" (usually 60-180s on first launch).
 # 5. Run the bench. Either of these works:
 python3 tools/genesis_bench_suite.py --quick --out my_first_run.json
-python3 -m vllm._genesis.compat.cli bench --quick --out my_first_run.json
+python3 -m vllm.sndr_core.compat.cli bench --quick --out my_first_run.json
 ```
 
 The two forms are equivalent — the unified CLI is a thin shim over
@@ -112,9 +112,9 @@ cd genesis-vllm-patches
 docker pull vllm/vllm-openai:nightly
 
 # 2. Pick a launch script and adjust paths to YOUR machine.
-#    The reference scripts mount /nfs/genesis/models — change to wherever your weights live.
+#    The reference scripts mount your model directory into /models.
 #    Edit:
-#       -v /nfs/genesis/models:/models:ro                 → your model directory
+#       -v ${HOME}/models:/models:ro                      → your model directory
 #       -v /home/sander/.cache/huggingface:/root/...      → your HF cache (or remove)
 #       -v /home/sander/genesis-vllm-patches/...:/...:ro  → your repo path
 #
@@ -136,20 +136,20 @@ You don't need to install the Genesis Python plugin on the host to run the bench
 Same as Scenario 1 or 2, with extra hypervisor concerns:
 
 - **GPU passthrough** must be working. `lspci | grep -i nvidia` inside the VM must show your card(s); `nvidia-smi` inside the VM must succeed. If either fails, fix passthrough first — IOMMU groups, PCIe ACS override, `vfio-pci` claim — none of which the bench can help with.
-- **Networking**. The bench can run inside the same VM as vLLM (use `--host 127.0.0.1`), or from another machine on your LAN (use `--host 192.168.1.10` or whatever the VM's IP is). The latter is useful when you want to bench from a stable workstation while the VM reboots between arms.
+- **Networking**. The bench can run inside the same VM as vLLM (use `--host 127.0.0.1`), or from another machine on your LAN (use `--host gpu-vm.local` or the VM's IP/DNS name). The latter is useful when you want to bench from a stable workstation while the VM reboots between arms.
 
 Sample cross-VM bench command:
 
 ```bash
 # From your workstation, against vLLM on a Proxmox VM:
 python3 tools/genesis_bench_suite.py \
-  --host 192.168.1.10 --port 8000 \
+  --host gpu-vm.local --port 8000 \
   --api-key genesis-local \
   --mode standard --ctx 8k \
   --out vm_run.json
 ```
 
-Genesis production runs on Proxmox VM 100 (192.168.1.10) and the bench is invoked from the Mac workstation. This path is well-trodden.
+Use the same command shape for Proxmox, bare-metal Ubuntu, or a routed lab host; only the host profile changes.
 
 ### Scenario 4 — WSL2
 
@@ -403,7 +403,7 @@ The 4 PROD-ready configs ship in two flavors each — Docker (`start_*.sh`) and 
 | **27B-INT4-Lorbus** + TurboQuant k8v4 (P98 required) | [`start_27b_int4_TQ_k8v4.sh`](../scripts/launch/start_27b_int4_TQ_k8v4.sh) | [`bare_metal_27b_int4_TQ_k8v4.sh`](../scripts/launch/bare_metal_27b_int4_TQ_k8v4.sh) |
 
 The Docker variants bind-mount Genesis into a stock `vllm/vllm-openai:nightly` image (recommended for reproducibility).
-The bare-metal variants assume vLLM is installed via `pip install vllm` and symlink Genesis `_genesis` into the existing vllm package on first run.
+The bare-metal variants assume vLLM is installed via `pip install vllm` and symlink Genesis `sndr_core` into the existing vllm package on first run. Pre-v11 скрипты могли использовать имя `_genesis` — back-compat alias всё ещё работает, но канон с v11.0.0 — `vllm.sndr_core`.
 
 Internal building blocks (used by the bench suite, also runnable standalone):
 

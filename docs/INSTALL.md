@@ -1,10 +1,46 @@
 # Genesis vLLM Patches — Installation Guide
 
-Step-by-step setup for running Genesis-patched vLLM on NVIDIA Ampere (validated on 2× RTX A5000) for Qwen3.6-class long-context inference.
+Step-by-step setup for running Genesis-patched vLLM on NVIDIA Ampere/Ada/
+Hopper/Blackwell. Validated primarily on 2× RTX A5000 PROD, cross-rig
+verified on 1×/2× RTX 3090, RTX 5090, and consumer-grade Blackwell.
 
 ---
 
-## Quick start
+## Quick start (canonical, v11.0.0+)
+
+The fastest path is the bootstrap one-liner. It installs Python deps,
+clones the repo into `~/.sndr`, registers the `vllm.general_plugins`
+entry point, picks a preset, and runs a smoke test:
+
+```bash
+# Interactive (one question: workload). Three minutes, working system.
+curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+
+# Fully unattended.
+curl -sSL .../install.sh | bash -s -- --pin v11.0 --workload tool_agent -y
+
+# Bare-metal mode (auto-set on Proxmox VE 8.x kernels).
+curl -sSL .../install.sh | bash -s -- --bare-metal
+```
+
+After bootstrap:
+
+```bash
+sndr launch a5000-2x-35b-prod --dry-run    # render + preview
+sndr launch a5000-2x-35b-prod              # apply patches + exec vllm
+sndr doctor                                # full system diagnostic
+sndr verify                                # post-apply smoke
+```
+
+Behind the scenes the wizard runs 11 steps — see
+[README §Steps the installer runs (in order)](../README.md#steps-the-installer-runs-in-order).
+
+---
+
+## Quick start (legacy docker-compose, pre-v11)
+
+For operators on existing v7.x docker-compose deployments who haven't
+yet migrated to `sndr launch`, the old workflow still works:
 
 ```bash
 # 1. Clone this repo
@@ -14,14 +50,18 @@ cd genesis-vllm-patches
 # 2. Pull a recent vLLM nightly image
 docker pull vllm/vllm-openai:nightly
 
-# 3. Download Qwen3.6-35B-A3B-FP8 weights to /nfs/genesis/models (or adapt path)
-huggingface-cli download Qwen/Qwen3.6-35B-A3B-FP8 --local-dir /nfs/genesis/models/Qwen3.6-35B-A3B-FP8
+# 3. Download Qwen3.6-35B-A3B-FP8 weights to a host path of your choice.
+#    Set MODELS_DIR in your host.yaml (or via $SNDR_HOME/host.yaml) so the
+#    model_config docker.mounts variable resolves correctly.
+huggingface-cli download Qwen/Qwen3.6-35B-A3B-FP8 \
+    --local-dir "$MODELS_DIR/Qwen3.6-35B-A3B-FP8"
 
-# 4. Run with our example compose
-docker compose -f compose/docker-compose.example.yml up -d
+# 4. Render a launch script from a builtin preset
+sndr launch --dry-run a5000-2x-35b-prod > start_35b.sh
+chmod +x start_35b.sh
 
-# 5. Watch boot (5-8 min for cold compile cache; 1-2 min warm)
-docker logs -f vllm-genesis | grep -E "Genesis|HEALTHY|Started"
+# 5. Run it (5-8 min cold compile cache; 1-2 min warm)
+./start_35b.sh
 
 # 6. Health check
 curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
@@ -58,54 +98,98 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 ## Step-by-step setup
 
-### 1. Repository layout
+### 1. Repository layout (v11.0.0)
 
 ```
 genesis-vllm-patches/
-├── README.md                          # Overview + changelog
-├── INSTALL.md                         # This file
-├── MODELS.md                          # Supported models + selection guide
-├── QUICKSTART.md                      # Quick-start launch guide
-├── CONFIGURATION.md                   # Every env var documented
-├── PATCHES.md                         # Patch metadata + credits
-├── CREDITS.md                         # Attributions
-├── compose/                           # Docker-compose definitions
-│   ├── docker-compose.example.yml         # Default (Qwen3.6-35B-A3B-FP8 MTP)
-│   ├── docker-compose.qwen3-5-dense.yml   # Qwen3.6-27B dense variant
-│   ├── docker-compose.gemma4-26b-moe.yml  # Gemma 4 (experimental)
-│   ├── docker-compose.integration*.yml    # Integration test variants
-│   └── docker-compose.unit.yml            # Unit-test compose (CPU only)
-├── vllm/_genesis/                     # The Genesis package (bind-mounted into container)
-│   ├── dispatcher.py                  # Patch registry + dispatch logic
-│   ├── kernels/                       # Custom Triton kernels + helpers
-│   ├── wiring/<category>/             # Text-patch definitions, organized by category
-│   ├── compat/                        # CLI tools + version-gating + recipe / plugins / etc.
-│   ├── patches/apply_all.py           # Patch orchestrator (called at container start)
-│   └── tests/                         # Patch unit + integration tests
-├── tools/                             # genesis_bench_suite.py + drift checker
-├── scripts/                           # Launch scripts + validation harnesses
-│   ├── validate_unit.sh                   # CPU-only pytest gate
-│   ├── validate_integration.sh            # GPU integration gate
-│   └── launch/                            # Per-model launch scripts
-├── tools/external_probe/                    # Pre-Genesis startup probes (tolist bypass etc.)
-├── tools/genesis_vllm_plugin/               # vLLM plugin entry-point (for compose to mount)
-├── tools/examples/                          # Reference plugins + recipes
+├── README.md                          # Overview + benchmarks
+├── CHANGELOG.md                       # Version history (v7.0 → v11.0)
+├── LICENSE                            # Apache 2.0 (core)
+├── NOTICE                             # Authorship attribution
+├── pyproject.toml                     # Core wheel build (Apache 2.0)
+├── pyproject-engine.toml              # Engine wheel build (commercial; gitignored)
+├── install.sh                         # 106-line bootstrap → exec sndr install
+│
+├── vllm/
+│   ├── sndr_core/                     # ◄── Public Apache 2.0 package
+│   │   ├── cli/                       # sndr install / launch / doctor / verify
+│   │   ├── dispatcher/                # registry · spec · decision · audit
+│   │   ├── apply/                     # orchestrator · shadow · per-patch dispatch
+│   │   ├── integrations/              # 136 community patches (lazy __init__.py)
+│   │   │   ├── attention/{flash,gdn,turboquant}/
+│   │   │   ├── compile_safety/  kv_cache/  loader/  lora/  memory/
+│   │   │   ├── middleware/  moe/  multimodal/  observability/  quantization/
+│   │   │   ├── reasoning/  scheduler/  serving/  spec_decode/
+│   │   │   └── tool_parsing/  worker/  kernels/
+│   │   ├── kernels/                   # public helpers (+ 1 redirect to engine)
+│   │   ├── core/  detection/  env/  locations/  bundles/
+│   │   ├── compat/                    # legacy CLI / model_detect / fingerprints
+│   │   ├── manifests/                 # anchor_manifest.json (PN79 today)
+│   │   ├── model_configs/             # YAML schema + builtin/community presets
+│   │   ├── license.py                 # Ed25519-signed token gate
+│   │   ├── plugin.py                  # vllm.general_plugins entry point
+│   │   ├── version.py                 # SNDR_CORE_VERSION = "11.0.0"
+│   │   └── wiring/                    # patcher_registry + anchor_manifest builder
+│   │
+│   └── sndr_engine/                   # ◄── Commercial package (gitignored)
+│       ├── kernels/                   # private helpers (ngram_frequency_filter)
+│       ├── patches/spec_decode/       # PN72 frequency ngram drafter
+│       ├── version.py                 # matches sndr_core major
+│       └── LICENSE-NOTICE             # commercial scope
+│
+├── tests/                             # ◄── Single canonical test root
+│   ├── unit/{core,dispatcher,env,detection,infra,patches/<family>}/
+│   ├── installer/                     # sndr install dry-run smoke
+│   ├── bundles/                       # umbrella-flag bundle smoke
+│   └── legacy/                        # pre-v11 tests (153 migrated with import rewrites)
+│
+├── tools/
+│   ├── genesis_vllm_plugin/           # back-compat thin re-export from sndr_core.plugin
+│   ├── check_upstream_drift.py        # drift watcher (walks iter_patch_specs)
+│   ├── examples/genesis-plugin-hello-world/
+│   └── external_probe/                # pre-vllm startup probes
+│
+├── scripts/                           # Public bash helpers
+│   ├── launch.sh                      # universal model launcher
+│   ├── verify-full.sh                 # 7-stage smoke test (localhost defaults)
+│   ├── probe_max_ctx.sh               # binary-search max context
+│   ├── fetch_models.sh                # SHA-verified HF download
+│   ├── moe_lookup_helper.sh           # MoE config staging
+│   └── build_anchor_manifest.py       # build the Site Map manifest
+│
+├── compose/                           # Generic docker-compose templates
+│   └── docker-compose.example.yml     # variable-driven, no hardcoded paths
+│
+├── assets/                            # Logo + 12 README charts
+│   └── charts/_generate.py            # matplotlib chart regenerator
+│
 ├── docs/                              # Long-form documentation
-│   ├── BENCHMARK_GUIDE.md, PLUGINS.md, SELF_TEST.md
-│   └── upstream_refs/                     # Diff studies of relevant upstream PRs
-├── schemas/                           # JSON schemas (PATCH_REGISTRY entry shape)
-└── patch_genesis_unified.py           # Backwards-compat shim for old compose mounts
+│   ├── INSTALL.md (this file)  COMMANDS.md  PATCHES.md  QUICKSTART.md
+│   ├── BENCHMARKS.md  HARDWARE.md  COMPATIBILITY.md  GLOSSARY.md
+│   ├── upstream/                      # PR-decision docs + STABLE_PROMOTION_CHECKLIST.md
+│   └── _internal/                     # Operator-private notes (gitignored)
+│
+├── pytest.ini                         # single canonical test root
+└── .github/workflows/                 # test.yml + upstream_drift_watcher.yml
 ```
+
+**Removed in v11.0.0**:
+
+- `vllm/_genesis/` — directory deleted entirely (235 files; tests
+  migrated, code consolidated into `sndr_core`).
+- `patch_genesis_unified.py` — back-compat shim, no longer needed.
+- `vllm/sndr_core/wiring/patch_*.py` — replaced by canonical
+  `vllm/sndr_core/integrations/<family>/<patch>.py` layout.
 
 ### 2. Container architecture
 
-The Genesis approach: **bind-mount our `_genesis/` package into a stock vLLM image**, run `apply_all.py` at container start to text-patch upstream files, then `exec vllm serve`.
+The Genesis approach: **bind-mount our `sndr_core/` package into a stock vLLM image**, runtime dispatcher applies registered integrations at container start, then `exec vllm serve`.
 
 This means:
 - No need to fork or rebuild vLLM
 - Patches apply transparently — visible to operator via boot logs
 - New vLLM nightly versions can be tried without recompiling — pull image, restart container, observe drift markers
-- `_genesis/` is the only thing under version control we ship
+- `sndr_core/` is the only thing under version control we ship (pre-v11 scripts may still reference `_genesis/` — это back-compat alias)
 
 ### 3. Pre-flight checks
 
@@ -118,7 +202,7 @@ nvidia-smi
 docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi -L
 
 # Verify model weights
-ls -lh /nfs/genesis/models/Qwen3.6-35B-A3B-FP8
+ls -lh ~/models/Qwen3.6-35B-A3B-FP8
 # Expect: ~40GB across multiple safetensors shards + config.json + tokenizer files
 ```
 
@@ -173,7 +257,7 @@ This path installs vLLM + Genesis directly on the host (Ubuntu 24.04 / Debian 12
 **Trade-offs vs Docker:**
 
 - ✅ No `docker compose down/up` cycle — just restart the Python process
-- ✅ Source-level edits to `_genesis/` apply on next process restart (no bind-mount needed)
+- ✅ Source-level edits to `sndr_core/` apply on next process restart (no bind-mount needed)
 - ✅ Easier to debug with `pdb` / `py-spy` / `nsys` — no container PID translation
 - ❌ You manage the Python environment, NVIDIA driver, CUDA, Triton, PyTorch versions yourself
 - ❌ vLLM's CI builds and tests primarily on the official Docker image; bare-metal is your responsibility to keep in sync
@@ -255,7 +339,7 @@ print(f'cuda devices: {torch.cuda.device_count()}')
 
 ### 3. Install Genesis package into vLLM's `site-packages`
 
-Genesis is a Python module at `vllm/_genesis/`. We need to drop it into the **same `vllm/` package directory** that vLLM itself installed.
+Genesis is a Python module at `vllm/sndr_core/`. We need to drop it into the **same `vllm/` package directory** that vLLM itself installed.
 
 ```bash
 # Find where vLLM lives
@@ -267,21 +351,27 @@ echo "vLLM installed at: $VLLM_DIR"
 git clone https://github.com/Sandermage/genesis-vllm-patches.git
 cd genesis-vllm-patches
 
-# Symlink _genesis/ into vLLM's package directory
+# Symlink sndr_core/ into vLLM's package directory
 # (symlink, not copy — so `git pull` updates the live install in place)
-ln -s "$(pwd)/vllm/_genesis" "$VLLM_DIR/_genesis"
+ln -s "$(pwd)/vllm/sndr_core" "$VLLM_DIR/sndr_core"
 
 # Verify import works
-python3 -c "from vllm import _genesis; print(_genesis.__file__)"
-# Expect: .../site-packages/vllm/_genesis/__init__.py
+python3 -c "from vllm import sndr_core; print(sndr_core.__file__)"
+# Expect: .../site-packages/vllm/sndr_core/__init__.py
 ```
 
 If you prefer **copy over symlink** (e.g., for a frozen production install):
 
 ```bash
-cp -r vllm/_genesis "$VLLM_DIR/_genesis"
-# After updating the patcher repo: rsync -a vllm/_genesis/ "$VLLM_DIR/_genesis/"
+cp -r vllm/sndr_core "$VLLM_DIR/sndr_core"
+# After updating the patcher repo: rsync -a vllm/sndr_core/ "$VLLM_DIR/sndr_core/"
 ```
+
+> Pre-v11 layout used `vllm/_genesis/` as the package directory; that
+> namespace has been removed since v11.0.0 (rename to `sndr_core/` with
+> back-compat alias inside `vllm.sndr_core.__getattr__`). Older guides
+> referring to `_genesis` paths still work via the alias for the v11.x
+> series, but new operators should use `sndr_core` everywhere.
 
 ### 4. Install Genesis runtime extras
 
@@ -329,7 +419,7 @@ export GENESIS_BUFFER_MODE=shared
 # (See CONFIGURATION.md for the full list)
 
 # Apply patches (text-modifies $VLLM_DIR/v1/sample/rejection_sampler.py etc.)
-python3 -m vllm._genesis.patches.apply_all
+python3 -m vllm.sndr_core.apply
 # Watch for: "Genesis Dispatcher" matrix output, [P82] applied, etc.
 ```
 
@@ -390,7 +480,7 @@ export GENESIS_BUFFER_MODE=shared
 # (... full list — see CONFIGURATION.md)
 
 # Apply patches (idempotent)
-python3 -m vllm._genesis.patches.apply_all
+python3 -m vllm.sndr_core.apply
 
 # Launch
 exec vllm serve --model "${MODEL_PATH:-/path/to/Qwen3.6-35B-A3B-FP8}" \
@@ -446,11 +536,11 @@ journalctl -u genesis-vllm -f
 cd ~/vllm-genesis/genesis-vllm-patches
 git pull origin main
 
-# If you symlinked _genesis/, the live install is already updated — just restart vLLM:
+# If you symlinked sndr_core/, the live install is already updated — just restart vLLM:
 sudo systemctl restart genesis-vllm
 
 # If you copied (not symlinked), re-sync first:
-rsync -a vllm/_genesis/ "$(python3 -c 'import vllm,os; print(os.path.dirname(vllm.__file__))')/_genesis/"
+rsync -a vllm/sndr_core/ "$(python3 -c 'import vllm,os; print(os.path.dirname(vllm.__file__))')/sndr_core/"
 sudo systemctl restart genesis-vllm
 ```
 
@@ -467,7 +557,7 @@ pip install --upgrade --pre vllm \
   --extra-index-url https://wheels.vllm.ai/nightly
 
 # 3. Re-apply Genesis (it's idempotent + drift-aware)
-python3 -m vllm._genesis.patches.apply_all
+python3 -m vllm.sndr_core.apply
 # Watch the dispatcher matrix — newly-merged-upstream patches will show:
 #   PXX | SKIP | <title> | upstream may have absorbed this fix
 # That's correct — drop the corresponding GENESIS_ENABLE_PXX=1 flag from your env.
@@ -480,7 +570,7 @@ sudo systemctl restart genesis-vllm
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `ImportError: No module named 'vllm._genesis'` | Symlink missing or wrong path | Re-run step 3 (`ln -s` into `$VLLM_DIR`) |
+| `ImportError: No module named 'vllm.sndr_core'` (or `vllm._genesis` on pre-v11 scripts) | Symlink missing or wrong path | Re-run step 3 (`ln -s` into `$VLLM_DIR`). `_genesis` resolves through the v11 back-compat alias when `sndr_core` is installed. |
 | Boot hangs on `Capturing CUDA graphs` | Driver mismatch (570 instead of 580) or stale Triton cache | `apt install nvidia-driver-580-server`, reboot. `rm -rf ~/.triton/cache/*` |
 | `apply_all` reports `required_anchor_missing` for many patches | vLLM nightly drifted from Genesis pin | Pin to the SHA in [`Production baseline`](README.md#production-baseline), or accept that some patches will skip (read each SKIP reason) |
 | Patches re-apply on every restart and accumulate | You're running `apply_all` from multiple processes simultaneously | Add a lockfile, or run apply_all once at boot before launching workers |
@@ -498,8 +588,6 @@ All Genesis patches are opt-in by default. Set the matching env var to `1` to en
 
 | Env var | Patch | What it does |
 |---|---|---|
-| `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD` | P56 | Spec-decode safe-path guard (deprecated workaround) |
-| `GENESIS_ENABLE_P57_SPEC_DECODE_CAPTURE_SAFE` | P57 | Capture-safe buffer expansion for spec-decode (experimental) |
 | `GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX` | P58 | Async-scheduler `[-1]` placeholder fix (root cause for #40831) |
 | `GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY` | P59 | Backport of vllm#39055 (qwen3 reasoning embedded tool_call). **Currently superseded by upstream PR #35687 in our pin — keep disabled** |
 | `GENESIS_ENABLE_P60_GDN_NGRAM_FIX` | P60 | GDN+ngram SSM state recovery (Phase 1) |
@@ -687,4 +775,4 @@ If a patch you rely on now skips with "drift marker found", congrats — upstrea
 - See [README.md](README.md) for changelog + benchmark history
 - See [../docs/MODELS.md](../docs/MODELS.md) for supported models + how to choose
 - See [../docs/QUICKSTART.md](../docs/QUICKSTART.md) for the original quick-start guide
-- See `vllm/_genesis/wiring/patch_*.py` for individual patch source — each file has a detailed docstring explaining the bug it fixes
+- See `vllm/sndr_core/wiring/patch_*.py` for individual patch source — each file has a detailed docstring explaining the bug it fixes

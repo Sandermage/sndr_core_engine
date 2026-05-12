@@ -1,0 +1,88 @@
+# Genesis pre-commit hooks — runs the same gates as CI locally before push.
+# Saves CI minutes + faster feedback for contributors.
+#
+# Install:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run manually:
+#   pre-commit run --all-files
+#
+# Skip (only when you absolutely must):
+#   git commit --no-verify
+#
+# The 4 Genesis-specific gates (the ones the CI test.yml workflow gates on):
+#   1. Pin-gate adoption test — KNOWN_GOOD_VLLM_PINS drift + version range
+#   2. Iron-rule-#11 meta-test — retire provenance discipline
+#   3. Doc-sync check — patch counts consistent across 5 docs
+#   4. Audit upstream (skip-network) — basic registry sanity offline
+#
+# Plus standard hygiene hooks (whitespace, EOF, YAML syntax).
+
+repos:
+  # ─── Standard hygiene ───────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'  # CHANGELOG entries may have trailing whitespace in tables
+      - id: end-of-file-fixer
+        exclude: '\.md$|tests/legacy/pristine_fixtures/'
+      - id: check-yaml
+        exclude: 'docs/_internal/'  # may have YAML-like blocks in markdown
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=2048']  # 2 MB limit (bench JSONs can be ~20 KB)
+      - id: check-merge-conflict
+
+  # ─── Genesis-specific gates (local, no external deps) ──────────────────
+  - repo: local
+    hooks:
+      - id: genesis-pin-gate
+        name: Genesis pin-gate adoption test
+        entry: python3 -m pytest tests/unit/dispatcher/test_pin_gate.py -q
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/(dispatcher/registry|detection/guards)\.py|tests/unit/dispatcher/test_pin_gate\.py)$'
+
+      - id: genesis-iron-rule-11
+        name: Genesis iron rule #11 enforcement (retire provenance)
+        entry: python3 -m pytest tests/unit/dispatcher/test_iron_rule_11_enforcement.py -q
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/dispatcher/registry\.py|tests/unit/dispatcher/test_iron_rule_11_enforcement\.py)$'
+
+      - id: genesis-doc-sync
+        name: Genesis doc-sync (patch count consistency)
+        entry: python3 scripts/check_doc_sync.py --strict
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/dispatcher/registry\.py|README\.md|docs/(PATCHES|INSTALL|MODELS|BENCHMARKS)\.md)$'
+
+      - id: genesis-patches-md-sync
+        name: Genesis docs/PATCHES_AUTO.md in sync with registry
+        entry: python3 scripts/generate_patches_md.py --check
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/dispatcher/registry\.py|docs/PATCHES_AUTO\.md)$'
+
+      - id: genesis-configs-md-sync
+        name: Genesis docs/CONFIGS_AUTO.md in sync with builtin YAMLs
+        entry: python3 scripts/generate_configs_md.py --check
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/model_configs/builtin/.*\.yaml|docs/CONFIGS_AUTO\.md)$'
+
+      - id: genesis-upstream-audit-offline
+        name: Genesis upstream-status audit (offline registry sanity)
+        entry: python3 scripts/audit_upstream_status.py --skip-network
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/dispatcher/registry\.py|scripts/audit_upstream_status\.py)$'
+
+      - id: genesis-family-contracts-touched
+        name: Genesis family contracts (when integrations/ touched)
+        entry: python3 -m pytest tests/unit/integrations/ -q --tb=short
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/integrations/.*\.py|tests/unit/integrations/.*\.py)$'

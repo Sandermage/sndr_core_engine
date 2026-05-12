@@ -12,7 +12,8 @@ Order (fast → slow):
 Exit code: 0 if all P0 gates pass; 1 if any P0 fails; 2 on setup error.
 
 Usage:
-  python -m benchmarks.harness.run_all --endpoint http://192.168.1.10:8000/v1
+  python -m benchmarks.harness.run_all --endpoint http://127.0.0.1:8000/v1
+  # Or set GENESIS_BENCH_ENDPOINT env var to a remote rig.
 
 Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
 """
@@ -43,7 +44,9 @@ def main() -> int:
         "--endpoint",
         default=os.environ.get(
             "GENESIS_BENCH_ENDPOINT",
-            "http://192.168.1.10:8000/v1",
+            # Default to localhost; set GENESIS_BENCH_ENDPOINT for remote rigs.
+            # Audit closure 2026-05-08 (P2-1): replaced hardcoded LAN IP.
+            "http://127.0.0.1:8000/v1",
         ),
     )
     parser.add_argument(
