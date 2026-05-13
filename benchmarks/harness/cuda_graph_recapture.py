@@ -16,8 +16,8 @@ in this harness; emit a `gate=skipped` result with reason).
 
 Usage:
   python -m benchmarks.harness.cuda_graph_recapture \\
-      --endpoint http://192.168.1.10:8000/v1 \\
-      --metrics-url http://192.168.1.10:8000/metrics
+      --endpoint http://127.0.0.1:8000/v1 \\
+      --metrics-url http://127.0.0.1:8000/metrics
 
 Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
 """

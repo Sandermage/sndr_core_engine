@@ -6,7 +6,7 @@ Implements the Part 11.1 pre-deploy validation checklist from the master plan.
 
 ```bash
 # Point at the integration container (VM 100)
-export GENESIS_BENCH_ENDPOINT="http://192.168.1.10:8000/v1"
+export GENESIS_BENCH_ENDPOINT="http://127.0.0.1:8000/v1"
 export GENESIS_BENCH_API_KEY="genesis-local"
 export GENESIS_BENCH_MODEL="qwen3.6-35b-a3b-integration"
 
@@ -30,7 +30,7 @@ Each harness writes a JSON report to
 ```json
 {
   "name": "gsm8k_regression",
-  "endpoint": "http://192.168.1.10:8000/v1",
+  "endpoint": "http://127.0.0.1:8000/v1",
   "model": "qwen3.6-35b-a3b-integration",
   "started_at": "2026-04-24T12:00:00Z",
   "finished_at": "2026-04-24T12:05:00Z",

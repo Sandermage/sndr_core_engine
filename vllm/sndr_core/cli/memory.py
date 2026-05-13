@@ -125,14 +125,52 @@ def _resolve_preset_v1_or_v2(key: str):
         ) from e
 
 
+_CRITICAL_COMPONENT_PREFIXES = ("Model weights", "KV cache")
+
+
+def _has_critical_low_confidence(estimate) -> tuple[bool, list[str]]:
+    """Return (flag, missing_inputs).
+
+    A component is "critical low-confidence" when it sits in the
+    Model-weights or KV-cache buckets, reports zero bytes, and was
+    tagged `confidence="low"` by the estimator. In that state the
+    estimator has no signal for the two largest VRAM consumers, so
+    the verdict must NOT claim safety.
+
+    Returns the list of probable missing inputs so the CLI / JSON
+    consumer can surface an actionable fix.
+    """
+    missing: list[str] = []
+    bad = False
+    for c in getattr(estimate, "components", []):
+        if not c.name.startswith(_CRITICAL_COMPONENT_PREFIXES):
+            continue
+        if c.bytes_ == 0 and c.confidence == "low":
+            bad = True
+            if c.name.startswith("Model weights"):
+                missing.append("model safetensors not readable")
+            elif c.name.startswith("KV cache"):
+                missing.append("KV shape (num_hidden_layers / head_dim) not derivable")
+    # Dedup while preserving order.
+    seen = set()
+    missing_unique = [m for m in missing if not (m in seen or seen.add(m))]
+    return bad, missing_unique
+
+
 def _compute_verdict(estimate, p95_factor: float = 1.15,
                      worst_factor: float = 1.35) -> dict:
-    """Phase 4.7 MVP — derive median/p95/worst-case totals + verdict.
+    """Derive median / p95 / worst-case totals + verdict.
 
     Components carry confidence bands; we approximate p95 ≈ median × 1.15
     and worst-case ≈ median × 1.35 (calibration data ships in Phase 4.7
-    advanced; this MVP uses conservative factors). Verdict thresholds:
+    advanced; this MVP uses conservative factors).
 
+    Verdict thresholds:
+
+      UNKNOWN   — Model weights or KV cache estimated as 0 bytes with
+                  low confidence: no defensible capacity statement can
+                  be made. Recommendations must NOT propose raising
+                  context / batch in this state.
       SAFE      — p95 ≤ vram_budget
       TIGHT     — median ≤ budget < p95
       OOM_RISK  — median > budget OR worst > budget × 1.05
@@ -142,17 +180,27 @@ def _compute_verdict(estimate, p95_factor: float = 1.15,
     p95_mib = int(median_mib * p95_factor)
     worst_mib = int(median_mib * worst_factor)
 
-    if median_mib > budget_mib:
+    low_conf, missing_inputs = _has_critical_low_confidence(estimate)
+    if low_conf:
+        verdict = "UNKNOWN"
+        actionable = False
+    elif median_mib > budget_mib:
         verdict = "OOM_RISK"
+        actionable = True
     elif worst_mib > int(budget_mib * 1.05):
         verdict = "OOM_RISK"
+        actionable = True
     elif p95_mib > budget_mib:
         verdict = "TIGHT"
+        actionable = True
     else:
         verdict = "SAFE"
+        actionable = True
 
     return {
         "verdict": verdict,
+        "actionable": actionable,
+        "missing_inputs": missing_inputs,
         "total_median_mib_per_gpu": median_mib,
         "total_p95_mib_per_gpu": p95_mib,
         "total_worst_mib_per_gpu": worst_mib,
@@ -190,7 +238,7 @@ def _run_explain(opts: argparse.Namespace) -> int:
     )
     from vllm.sndr_core.model_configs.schema import SchemaError
 
-    # Phase 4.7: accept both V1 preset keys AND V2 aliases.
+    # accept both V1 preset keys AND V2 aliases.
     try:
         cfg = _resolve_preset_v1_or_v2(opts.preset)
     except SchemaError as e:
@@ -292,18 +340,31 @@ def _run_explain(opts: argparse.Namespace) -> int:
             )
         estimate = _replace(estimate, recommendations=tuple(recs))
 
-    # Phase 4.7 MVP: compute verdict with explicit uncertainty bands.
+    # Compute verdict with explicit uncertainty bands. When critical
+    # components (Model weights / KV cache) come back zero with low
+    # confidence the verdict becomes UNKNOWN — recommendations must be
+    # demoted to "we cannot say" rather than the dangerous default
+    # "you can raise max_model_len" that the utilization heuristic
+    # would otherwise emit.
     verdict_info = _compute_verdict(estimate)
+    if verdict_info["verdict"] == "UNKNOWN":
+        from dataclasses import replace as _replace
+        missing = verdict_info.get("missing_inputs") or ["model/KV inputs missing"]
+        warn = (
+            "Cannot make a capacity recommendation: critical components "
+            f"have zero-byte low-confidence estimates ({'; '.join(missing)})."
+        )
+        estimate = _replace(estimate, recommendations=(warn,))
 
     if opts.json:
         payload = _estimate_to_dict(estimate)
-        # Phase 4.7 — verdict + uncertainty bands always present in JSON.
+        # verdict + uncertainty bands always present in JSON.
         payload.update(verdict_info)
         print(json.dumps(payload, indent=2, default=str))
         return 0
 
     print(render_waterfall(estimate, use_color=sys.stdout.isatty()))
-    # Phase 4.7 — render verdict line after the waterfall.
+    # render verdict line after the waterfall.
     v = verdict_info["verdict"]
     sym = {"SAFE": "✓", "TIGHT": "⚠", "OOM_RISK": "✗"}.get(v, "·")
     print()

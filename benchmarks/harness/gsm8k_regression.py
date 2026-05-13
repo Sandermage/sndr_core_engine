@@ -14,7 +14,7 @@ Design:
 
 Usage:
   python -m benchmarks.harness.gsm8k_regression \\
-      --endpoint http://192.168.1.10:8000/v1 \\
+      --endpoint http://127.0.0.1:8000/v1 \\
       --baseline-accuracy 0.70 --num-problems 200
 
 Datasets:

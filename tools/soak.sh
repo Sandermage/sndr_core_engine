@@ -3,7 +3,7 @@
 # Records latency, error rate, and VRAM drift; flags allocator growth.
 #
 # Usage:
-#   DURATION_S=3600 HOST=http://192.168.1.10:8101 MODEL=qwen3.6-27b \
+#   DURATION_S=3600 HOST=http://127.0.0.1:8101 MODEL=qwen3.6-27b \
 #     tools/soak.sh
 #
 # Defaults: 1h soak against 27B PROD. For 8h: DURATION_S=28800.
@@ -11,8 +11,8 @@
 
 set -euo pipefail
 
-# По умолчанию идём в localhost. Hardcoded LAN IP в публичных smoke-tools
-# опасен — community-операторы могут случайно стучаться в чей-то rig.
+# Default to localhost. A hardcoded LAN IP in public smoke-tools is
+# dangerous — community operators could accidentally hit someone else's rig.
 PORT="${PORT:-8101}"
 HOST="${HOST:-http://127.0.0.1:${PORT}}"
 API_KEY="${API_KEY:-genesis-local}"

@@ -57,7 +57,7 @@ def make_arg_parser(prog: str) -> argparse.ArgumentParser:
         "--endpoint",
         default=os.environ.get(
             "GENESIS_BENCH_ENDPOINT",
-            "http://192.168.1.10:8000/v1",
+            "http://127.0.0.1:8000/v1",
         ),
         help="OpenAI-compatible endpoint base URL (no trailing slash).",
     )

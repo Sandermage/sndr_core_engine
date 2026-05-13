@@ -12,7 +12,7 @@ Design:
 
 Usage:
   python -m benchmarks.harness.tgs_decode \\
-      --endpoint http://192.168.1.10:8000/v1 \\
+      --endpoint http://127.0.0.1:8000/v1 \\
       --context-tokens 160000 --gen-tokens 256 --threshold 49
 
 Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa

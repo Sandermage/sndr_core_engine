@@ -14,7 +14,7 @@ production traffic patterns, but this verifies the cliff identified in
 
 Usage:
   python -m benchmarks.harness.long_context_oom \\
-      --endpoint http://192.168.1.10:8000/v1 \\
+      --endpoint http://127.0.0.1:8000/v1 \\
       --context-tokens 262000 --gen-tokens 128
 
 Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa

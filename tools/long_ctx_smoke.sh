@@ -6,7 +6,7 @@
 # survives the full window). One-shot bench; complements the soak.
 #
 # Usage:
-#   HOST=http://192.168.1.10:8101 API_KEY=genesis-local MODEL=qwen3.6-27b \
+#   HOST=http://127.0.0.1:8101 API_KEY=genesis-local MODEL=qwen3.6-27b \
 #     tools/long_ctx_smoke.sh
 #
 # Defaults target 27B PROD on the homelab rig. Override env vars for
@@ -14,9 +14,9 @@
 
 set -euo pipefail
 
-# По умолчанию идём в localhost; community-операторы должны явно задать
-# HOST=http://<host>:<port>. Хардкод приватного LAN IP в публичных
-# инструментах ломает их (бьём в чей-то rig вместо своего).
+# Default to localhost; community operators must explicitly set
+# HOST=http://<host>:<port>. Hardcoding a private LAN IP in public
+# tools breaks them (hits someone else's rig instead of your own).
 PORT="${PORT:-8101}"
 HOST="${HOST:-http://127.0.0.1:${PORT}}"
 API_KEY="${API_KEY:-genesis-local}"

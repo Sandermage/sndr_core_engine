@@ -3,7 +3,7 @@
 
 A collection of scripts that implement the Part 11.1 pre-deploy validation
 checklist from the master plan. Run each script against a live vLLM
-endpoint (default: http://192.168.1.10:8000 / integration container) and
+endpoint (default: http://127.0.0.1:8000 / integration container) and
 write results to `benchmarks/results/<timestamp>/` in JSON for later diff
 against a baseline.
 

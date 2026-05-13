@@ -118,23 +118,38 @@ def _resolve(key: str):
 
 
 def _load_host_paths() -> dict[str, str]:
-    """Reads host.yaml to resolve mount paths. Does not fail if the file is missing."""
+    """Read host.yaml and return the substitution table.
+
+    `HostConfig` exposes the operator-tunable paths under the `paths`
+    attribute (model_configs/host.py). The previous reference to
+    `symbolic_mounts` matched no attribute and was silently swallowed
+    by the bare except, leaving compose render with an empty table
+    and producing literal `${var}` mount strings.
+    """
     try:
         from vllm.sndr_core.model_configs.host import load_host_config
+    except ImportError:
+        return {}
+    try:
         hc = load_host_config()
-        if hc is None:
-            return {}
-        return hc.symbolic_mounts or {}
     except Exception:
         return {}
+    if hc is None:
+        return {}
+    return dict(getattr(hc, "paths", {}) or {})
 
 
-# Etap 2.2 (audit 2026-05-12): strict substitution. Previously unresolved
+# strict substitution. Previously unresolved
 # `${var}` placeholders silently passed through → Docker mount attempted
 # to use the literal `${unknown}` as hostpath → cryptic boot failure.
 # Now we raise on any remaining unresolved placeholders.
+#
+# Pattern is intentionally `${var}` only (not bare `$var`) — the schema
+# contract in model_configs/schema.py uses brace form exclusively, so
+# matching `$FOO` would generate false unresolved-placeholder alerts on
+# shell-style env references that pass through to the runtime.
 import re as _re
-_UNRESOLVED_PLACEHOLDER_RE = _re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
+_UNRESOLVED_PLACEHOLDER_RE = _re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 def _resolve_mount(mount_spec: str, host_paths: dict[str, str]) -> str:
@@ -209,7 +224,7 @@ def render_compose_yaml(cfg, host_paths: Optional[dict[str, str]] = None) -> str
         env[str(k)] = str(v)
     for k, v in cfg.genesis_env.items():
         env[str(k)] = str(v)
-    # Etap 0.4 (audit 2026-05-12): VLLM_API_KEY is rendered as a compose
+    # VLLM_API_KEY is rendered as a compose
     # interpolation reference `${VLLM_API_KEY:?...}`, not a literal value.
     # Docker Compose will resolve it from shell env / `.env` file at
     # `compose up` time. The literal no longer appears in YAML → no leak

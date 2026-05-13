@@ -282,12 +282,18 @@ class TestCtxSweep:
         assert payload["ctx_sweep"] == [4096, 16384, 65536]
         assert len(payload["rows"]) == 3
         for row in payload["rows"]:
-            assert row["verdict"] in {"SAFE", "TIGHT", "OOM_RISK"}
-            assert row["median_mib"] > 0
+            # UNKNOWN is the correct verdict when the dev box has no
+            # readable safetensors for prod-35b — the estimator's critical
+            # components (Model weights / KV cache) come back zero-byte
+            # low-confidence and refusing to claim safety is the whole
+            # point of P0.4. The other three verdicts are valid when
+            # safetensors are present.
+            assert row["verdict"] in {"SAFE", "TIGHT", "OOM_RISK", "UNKNOWN"}
+            assert row["median_mib"] >= 0
             assert row["p95_mib"] >= row["median_mib"]
             assert row["worst_mib"] >= row["p95_mib"]
             assert row["budget_mib"] > 0
-        # rc=0 because prod-35b SAFE at all tested contexts
+        # rc=0 unless any verdict is OOM_RISK
         assert rc == 0
 
     def test_run_explain_sweep_text_mode(self, capsys):
