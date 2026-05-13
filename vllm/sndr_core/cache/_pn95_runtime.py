@@ -760,6 +760,74 @@ def pn95_materialize_virtual_block(
         return None
 
 
+def pn95_block_is_physical_resident(pool: Any, block_id: int) -> bool:
+    """Return True iff `block_id` exists in the physical KV pool range.
+
+    Used by Anchor #14 (defensive guard at get_new_blocks) to detect a
+    virtual block leaked out before the runtime is ready to materialize
+    it. A virtual block_id >= physical_num_blocks would index past the
+    KVCacheTensor → CUDA illegal memory access, which we want to convert
+    into a clean ValueError instead of a worker-process crash.
+
+    For pools without Phase-5 metadata (which is the normal case while
+    VIRT_ENABLE=0) every block is physical by definition; we return True.
+    """
+    pool_id = id(pool)
+    physical_num = _PN95_POOL_LOGICAL_NUM_BLOCKS.get(pool_id, -1)
+    if physical_num <= 0:
+        return True  # no virtual blocks ever created on this pool
+    return 0 <= block_id < physical_num
+
+
+def pn95_guard_get_new_blocks(pool: Any, blocks: list) -> None:
+    """Phase 5 Anchor #14 — defensive guard: reject virtual blocks before
+    they reach the GPU.
+
+    Walks the just-popped block list; if any block has a block_id >=
+    physical_num_blocks AND Phase-5 materialization is not ready (no
+    donor available, VIRT disabled, etc.) — raise ValueError so the
+    scheduler retries / preempts instead of letting the worker dereference
+    invalid GPU memory.
+
+    Best-effort materialization is still attempted for each suspicious
+    block via pn95_materialize_virtual_block — only if THAT also fails
+    do we surface the error. On normal (VIRT=0) deployments this is a
+    fast no-op (the pool has no virtual blocks).
+    """
+    if not _enabled() or _TM is None:
+        return
+    pool_id = id(pool)
+    if _PN95_POOL_LOGICAL_NUM_BLOCKS.get(pool_id, -1) <= 0:
+        return  # no Phase-5 inflation on this pool
+    for blk in blocks:
+        bid = getattr(blk, "block_id", -1)
+        if pn95_block_is_physical_resident(pool, bid):
+            continue
+        # Attempt materialization (swap with a donor physical).
+        new_phys = pn95_materialize_virtual_block(pool, blk, exclude=blocks)
+        if new_phys is None:
+            _PN95_STATS["virtual_block_unmaterialized_total"] = (
+                _PN95_STATS.get("virtual_block_unmaterialized_total", 0) + 1
+            )
+            raise ValueError(
+                f"[Genesis PN95 Anchor #14] virtual block_id={bid} could "
+                f"not be materialized (no free donor available). This is "
+                f"the documented 'Phase 5 VIRT without scheduler "
+                f"preemption' failure mode — set "
+                f"GENESIS_PN95_VIRT_ENABLE=0 to disable, or wait for "
+                f"scheduler-preemption work to land."
+            )
+        # Adopt donor's physical block_id.
+        try:
+            blk.block_id = new_phys
+        except Exception:
+            raise ValueError(
+                f"[Genesis PN95 Anchor #14] materialization succeeded "
+                f"(donor phys_id={new_phys}) but block_id assignment "
+                f"failed; refusing to return virtual block to engine."
+            )
+
+
 def pn95_anchor12_post_popleft(pool: Any, popped_blocks: list) -> bool:
     """Path C v1.0 Phase 5 Anchor #12 — post-process popped blocks list.
 
@@ -1063,8 +1131,52 @@ def notify_admit(request: Any, prev_n_cached: int, new_n_cached: int,
             key = (rid, gid_str, blk_idx)
             _TM.admit(key, mm_origin=(blk_idx in mm_block_set),
                        group_id=gid_str)
+
+        # Auto-warm L1 from L2/disk for predicted-near neighbors. The admit
+        # call just observed a real prefix-cache event, which is the cheapest
+        # signal we have that this request stream will keep traversing the
+        # adjacent block_hashes. We pull the trailing N entries from
+        # _admit_order — those are the freshest hits, most likely co-locality
+        # candidates — and ask pn95_prefetch_blocks to move them L2->L1.
+        # Pure host-side memcpy; no GPU touch. Skipped when env-gated off.
+        if _pn95_prefetch_neighbors_enabled():
+            window = _pn95_prefetch_window()
+            if window > 0:
+                try:
+                    tail = _TM._admit_order[-window:]
+                    if tail:
+                        pn95_prefetch_blocks(list(tail))
+                except Exception:
+                    pass
     except Exception as e:  # pragma: no cover — defensive
         log.warning("[PN95] notify_admit failed silently: %s", e)
+
+
+def _pn95_prefetch_neighbors_enabled() -> bool:
+    """Env gate: GENESIS_PN95_PREFETCH_NEIGHBORS=1 enables auto-warm.
+
+    When a vllm prefix-cache hit lands in notify_touch, we know the
+    request will likely traverse adjacent block_hashes next. If any of
+    those neighbors are in L2 / disk (not yet in L1 pinned), pre-warm
+    them into the pinned pool so the next promote_on_miss is fast.
+    Default OFF — operators turn on when running multi-stream workloads
+    where adjacency matters more than one-shot.
+    """
+    return os.environ.get(
+        "GENESIS_PN95_PREFETCH_NEIGHBORS", "0",
+    ).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _pn95_prefetch_window() -> int:
+    """How many trailing block_hashes from the admit-order tail to pre-warm
+    around a touch event. Default 8 — small enough that the warm-up cost
+    stays under typical attention compute time.
+    """
+    try:
+        return max(0, min(64, int(os.environ.get(
+            "GENESIS_PN95_PREFETCH_WINDOW", "8"))))
+    except (ValueError, TypeError):
+        return 8
 
 
 def notify_touch(block_hash: Any, group_ids: list,
