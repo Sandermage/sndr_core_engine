@@ -929,6 +929,31 @@ def apply_patch_sndr_workspace_001() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN97 KV tensor physical-cap (Phase 7 PoC)")
+def apply_patch_pn97_tensor_physical_cap() -> PatchResult:
+    """PN97: cap KVCacheTensor.size to physical GPU budget when VIRT=1
+    inflates logical num_blocks. Prevents CUDA OOM at allocation; full
+    156K support also needs PN98 (attention block_id translation).
+
+    Default OFF; opt-in via GENESIS_ENABLE_PN97_TENSOR_PHYSICAL_CAP=1.
+    """
+    name = "PN97 KV tensor physical-cap"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.kv_cache import (
+            pn97_tensor_physical_cap as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN96 emergency-demote hook (Phase 6 PoC)")
 def apply_patch_pn96_emergency_demote() -> PatchResult:
     """PN96: Phase 6 PoC — intercept get_new_blocks before its

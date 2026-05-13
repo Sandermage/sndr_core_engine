@@ -1217,6 +1217,32 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
     },
+    "PN97": {
+        "title": "PN97 — physical-cap on KV tensor allocation (Phase 7 PoC)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN97_TENSOR_PHYSICAL_CAP",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "memory",
+        "apply_module": "vllm.sndr_core.integrations.kv_cache.pn97_tensor_physical_cap",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original Phase 7 PoC — missing Anchor #10. Caps "
+            "each KVCacheTensor.size to physical GPU budget so VIRT=1 "
+            "inflation does NOT cause CUDA OOM. Per-tensor cap derived "
+            "from torch.cuda.mem_get_info(0) × 0.80 / n_tensors, or "
+            "operator override via GENESIS_PN97_PHYSICAL_CAP_GIB. "
+            "Prerequisite for 156K+ single-card via virtual block "
+            "addressing — full support also requires PN98 (attention "
+            "block_id translation) which is future work."
+        ),
+        "applies_to": {
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
     "PN96": {
         "title": "PN96 — emergency-demote hook (Phase 6 PoC; allocator intercept)",
         "tier": "community",

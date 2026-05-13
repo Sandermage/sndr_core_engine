@@ -760,6 +760,50 @@ def pn95_materialize_virtual_block(
         return None
 
 
+def pn97_physical_cap_bytes(n_tensors: int) -> Optional[int]:
+    """Return per-KVCacheTensor byte cap for PN97 (Phase 7 PoC).
+
+    Called from the PN97 anchor at `_allocate_kv_cache_tensors`. We
+    compute the maximum bytes that fit in the physical GPU KV budget
+    (gpu_memory_utilization × VRAM − model_weights − workspace),
+    divided evenly across the `n_tensors` KVCacheTensor entries.
+
+    Returns None when PN97 disabled OR VIRT_ENABLE off (no inflation
+    happening, no cap needed) OR torch unavailable.
+
+    Operator can override via `GENESIS_PN97_PHYSICAL_CAP_GIB` (single
+    value, total across all tensors).
+    """
+    if os.environ.get("GENESIS_ENABLE_PN97_TENSOR_PHYSICAL_CAP", "0").strip().lower() not in (
+        "1", "true", "yes", "on",
+    ):
+        return None
+    if n_tensors <= 0:
+        return None
+
+    # Operator override (total bytes across all tensors).
+    env_total = os.environ.get("GENESIS_PN97_PHYSICAL_CAP_GIB", "").strip()
+    if env_total:
+        try:
+            total_bytes = int(float(env_total) * (1 << 30))
+            return total_bytes // n_tensors
+        except (ValueError, TypeError):
+            pass
+
+    # Auto-derive: query torch for free GPU memory and reserve 80% for KV.
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return None
+        free_bytes, _total = torch.cuda.mem_get_info(0)
+        # 80% of currently-free memory goes to KV (rest = workspace/activations).
+        # This is conservative — operator may bump via env override.
+        per_tensor = int(free_bytes * 0.80) // n_tensors
+        return max(per_tensor, 1 << 30)  # at least 1 GiB per tensor entry
+    except Exception:
+        return None
+
+
 def pn96_emergency_rescue(pool: Any, deficit: int) -> int:
     """Phase 6 PoC — emergency rescue when get_new_blocks would crash.
 
