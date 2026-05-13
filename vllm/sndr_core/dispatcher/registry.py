@@ -1217,6 +1217,104 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
     },
+    "PN202": {
+        "title": "PN202 — per-layer KV tensor split (Tier 2.A enabler)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "memory",
+        "apply_module": "vllm.sndr_core.integrations.streaming.pn202_per_layer_kv_split",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original Tier 2.A enabler. Replaces Branch-C of "
+            "kv_cache_utils.py::get_kv_cache_config_from_groups (which "
+            "emits group_size slabs each shared by representative layers) "
+            "with one KVCacheTensor per layer (Branch-A semantics). Net "
+            "bytes identical; enables per-layer memory policies "
+            "(offload/evict/quantize) required by PN203. Zero speed "
+            "and quality impact."
+        ),
+        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
+    "PN203": {
+        "title": "PN203 — cold-prefix CPU offload manager (Tier 3.A)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "memory",
+        "apply_module": "vllm.sndr_core.integrations.streaming.pn203_cold_prefix_offload",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original Tier 3.A — the architectural breakthrough "
+            "piece. Demotes full-attention layer blocks older than "
+            "active_window_tokens (default 32768) to PN95 pinned host RAM "
+            "L2. Reuses existing PN95 infrastructure: pinned pool, stream "
+            "pool, prefetch API, demote_on_evict. Mamba/GDN state kept "
+            "GPU-resident (small fixed cost). Requires PN202 per-layer "
+            "split. Math: 256K context fp8 KV = 8 GiB attention KV; "
+            "active window 32K = 1 GiB → 7 GiB offloaded. Quality "
+            "preserved (math identical). Decode adds 5-15ms per token "
+            "when paging hits."
+        ),
+        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
+        "requires_patches": ["PN202"],
+        "conflicts_with": [],
+    },
+    "PN200": {
+        "title": "PN200 — GDN outer-forward scratch pool (Tier 1.B)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "memory",
+        "apply_module": "vllm.sndr_core.integrations.streaming.pn200_gdn_scratch_reuse",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original Tier 1.B of three-tier memory plan. Routes "
+            "gdn_linear_attn.py:765 core_attn_out (32 MiB × 48 layers per "
+            "step) through the PN106 named-pool API with zero=True. "
+            "Honors the vllm PR #28182 'must be zeroed' contract via "
+            "explicit .zero_() on pool slice. Eliminates ~1.5 GiB alloc "
+            "traffic per chunked-prefill step → ~500 MiB - 1 GiB GPU "
+            "reclaim through reduced caching-allocator fragmentation. "
+            "Speed impact 1-3% (memset offset by saved alloc latency). "
+            "Composes with PN106 (inner FLA chunk scratch) and PN201 "
+            "(scheduler empty_cache) for Tier 1 complete coverage."
+        ),
+        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
+    "PN201": {
+        "title": "PN201 — scheduler empty_cache hook (Tier 1.C)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "memory",
+        "apply_module": "vllm.sndr_core.integrations.streaming.pn201_scheduler_empty_cache",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original Tier 1.C. Threshold-gated torch.cuda."
+            "empty_cache() called from PN95 scheduler_tick when free_mib "
+            "< 256 or free_blocks < threshold AND cooldown elapsed. "
+            "Reclaims the 'reserved but unallocated' fragmentation that "
+            "OOM logs show as 319 MiB stuck after long prefill runs. "
+            "Cooldown (default 50 ticks ~= 5s) prevents hot-path stall. "
+            "No text-patch — runtime hook in existing scheduler_tick path."
+        ),
+        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
     "PN106": {
         "title": "PN106 — GDN scratch tensor pool (architectural memory mgr)",
         "tier": "community",

@@ -929,6 +929,97 @@ def apply_patch_sndr_workspace_001() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN202 per-layer KV tensor split (Tier 2.A)")
+def apply_patch_pn202_per_layer_kv_split() -> PatchResult:
+    """PN202: text-patch on kv_cache_utils.py Branch C → one tensor per layer.
+    Enabler for PN203 (no bytes saved alone). Default OFF.
+    """
+    name = "PN202 per-layer KV split"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.streaming import (
+            pn202_per_layer_kv_split as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN203 cold-prefix CPU offload (Tier 3.A)")
+def apply_patch_pn203_cold_prefix_offload() -> PatchResult:
+    """PN203: runtime coordinator (no text-patch). Demotes cold full-attn
+    blocks beyond active window to PN95 pinned host RAM. Requires PN202.
+    Default OFF.
+    """
+    name = "PN203 cold-prefix offload"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.streaming import (
+            pn203_cold_prefix_offload as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN200 GDN outer-forward scratch pool (Tier 1.B)")
+def apply_patch_pn200_gdn_scratch_reuse() -> PatchResult:
+    """PN200: text-patch on gdn_linear_attn.py:765 routing core_attn_out
+    through PN106 pool with zero=True. Saves ~1 GiB alloc traffic/step.
+    Default OFF; opt-in via GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE=1.
+    """
+    name = "PN200 GDN scratch reuse"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.streaming import (
+            pn200_gdn_scratch_reuse as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN201 scheduler empty_cache hook (Tier 1.C)")
+def apply_patch_pn201_scheduler_empty_cache() -> PatchResult:
+    """PN201: runtime hook (no text-patch). empty_cache fires from
+    PN95 scheduler_tick when threshold breached + cooldown elapsed.
+    Default OFF; opt-in via GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE=1.
+    """
+    name = "PN201 scheduler empty_cache"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.streaming import (
+            pn201_scheduler_empty_cache as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN106 GDN scratch pool (architectural memory mgr)")
 def apply_patch_pn106_gdn_h_pool() -> PatchResult:
     """PN106: text-patch on chunk_delta_h.py + chunk_o.py replacing

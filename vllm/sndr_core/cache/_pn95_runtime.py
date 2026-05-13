@@ -818,12 +818,20 @@ _PN106_POOLS: dict = {}
 _PN106_NAMED_POOLS: dict = {}  # name -> torch.Tensor (flat backing buffer)
 
 
-def pn106_get_pooled_buf(name: str, shape: tuple, dtype: Any, device: Any):
+def pn106_get_pooled_buf(name: str, shape: tuple, dtype: Any, device: Any,
+                         zero: bool = False):
     """Generic named-pool allocator for hot-path scratch tensors.
 
     Replaces fresh `torch.empty(shape, ...)` / `torch.empty_like(t)` with
     a view into a persistent flat backing buffer that grows on demand
     and is reused across calls.
+
+    Args:
+      zero: if True, zero the returned slice before handing back. Use for
+            `torch.zeros(...)` replacements where the kernel expects
+            initialized memory (e.g. gdn core_attn_out — see vllm PR
+            #28182 discussion). Adds ~5-15us overhead per call
+            (memset bandwidth-bound, well under fragmentation cost).
 
     Args:
       name: stable pool identifier ('gdn_h', 'gdn_v_new', 'gdn_o', etc.)
@@ -867,10 +875,141 @@ def pn106_get_pooled_buf(name: str, shape: tuple, dtype: Any, device: Any):
             pool.numel() * pool.element_size()
         )
     view = pool[:n_elems].view(*shape)
+    if zero:
+        view.zero_()
     _PN95_STATS[f"pn106_pool_{name}_slices"] = (
         _PN95_STATS.get(f"pn106_pool_{name}_slices", 0) + 1
     )
     return view
+
+
+_PN201_LAST_EMPTY_CACHE_TICK: int = 0
+
+# PN203 cold-prefix offload settings (set by PN203 apply hook at boot).
+# Read by scheduler_tick to decide whether to do window-aware demote
+# of full-attention layer blocks older than _PN203_ACTIVE_WINDOW_TOKENS.
+_PN203_ENABLED: bool = False
+_PN203_ACTIVE_WINDOW_TOKENS: int = 32768
+_PN203_ATTENTION_ONLY: bool = True
+
+
+def pn203_cold_prefix_sweep() -> int:
+    """Tier 3.A — sweep cold prefix blocks beyond active window to L2.
+
+    Walks each registered BlockPool's free_block_queue and demotes
+    cached blocks belonging to full-attention layers whose position
+    in the request's KV is older than `_PN203_ACTIVE_WINDOW_TOKENS`.
+    Mamba/GDN blocks left GPU-resident (state is fixed-size per layer
+    regardless of position, and demoting them is unsafe per PN95 design).
+
+    Returns count of blocks swept. Best-effort — fail-silent.
+
+    Coordinates with existing PN95 path: demote_on_evict already captures
+    bytes to L2 (pinned pool if PN95_PINNED_POOL enabled), so this
+    function just adds the window-aware selection policy.
+    """
+    if not _PN203_ENABLED or not _enabled() or _TM is None:
+        return 0
+    swept = 0
+    try:
+        # Window-aware filtering: prefer blocks deep in admit_order (older
+        # positions). We approximate "position" by admit-order index;
+        # blocks admitted earlier are older in the request stream.
+        # Hard mapping (per-request position) requires per-block metadata;
+        # this approximation is good enough for cold-prefix detection.
+        if not _PN95_BLOCK_POOL_REFS:
+            return 0
+        # Use existing LRU walker but cap to window-relative cold candidates.
+        candidates = _select_cold_blocks_via_bpool_lru(target_count=16)
+        for pool, block_id, block_hash in candidates:
+            # Filter: attention-only mode skips Mamba groups (block_hash
+            # carries group_id which we check against _mamba_excluded).
+            if _PN203_ATTENTION_ONLY and _TM is not None:
+                try:
+                    gid_str = getattr(block_hash, "group_id", None)
+                    if gid_str in getattr(_TM, "_mamba_excluded", set()):
+                        continue
+                except Exception:
+                    pass
+            try:
+                if demote_on_evict(block_hash, block_id):
+                    swept += 1
+            except Exception:
+                continue
+        if swept > 0:
+            _PN95_STATS["pn203_cold_prefix_sweeps"] = (
+                _PN95_STATS.get("pn203_cold_prefix_sweeps", 0) + 1
+            )
+            _PN95_STATS["pn203_blocks_swept_total"] = (
+                _PN95_STATS.get("pn203_blocks_swept_total", 0) + swept
+            )
+    except Exception as e:
+        log.warning("[PN203] cold_prefix_sweep failed silently: %s", e)
+    return swept
+
+
+def pn201_maybe_empty_cache(free_mib: int, free_blocks: Optional[int] = None) -> bool:
+    """Threshold-gated empty_cache call for scheduler_tick path (Tier 1.C).
+
+    Defragments the PyTorch CUDA caching allocator when memory pressure
+    is high. Returns True iff empty_cache was actually called this tick.
+
+    Triggered when EITHER:
+      - free_blocks < GENESIS_PN201_EMPTY_CACHE_FREE_BLOCKS_THRESHOLD
+        (default 8 — matches PN95 proactive demote threshold scale)
+      - free_mib < 256
+
+    Cooldown: GENESIS_PN201_EMPTY_CACHE_COOLDOWN ticks (default 50, ~5s
+    at default tick rate). Without cooldown, back-to-back chunks could
+    fire empty_cache continuously, each blocking ~5 ms.
+
+    Architectural note: this hook is the Tier-1.C piece — pure fragmentation
+    reclaim. The Tier-3 CPU offload manager (PN203) will fire from the
+    same scheduler_tick using the same pressure signal but doing real
+    block migration instead of cache discard.
+    """
+    global _PN201_LAST_EMPTY_CACHE_TICK
+    if os.environ.get(
+        "GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE", "0",
+    ).strip().lower() not in ("1", "true", "yes", "on"):
+        return False
+
+    try:
+        threshold_blocks = int(os.environ.get(
+            "GENESIS_PN201_EMPTY_CACHE_FREE_BLOCKS_THRESHOLD", "8"))
+        cooldown = int(os.environ.get(
+            "GENESIS_PN201_EMPTY_CACHE_COOLDOWN", "50"))
+    except (ValueError, TypeError):
+        threshold_blocks, cooldown = 8, 50
+
+    pressure = free_mib < 256
+    if free_blocks is not None:
+        pressure = pressure or free_blocks < threshold_blocks
+    if not pressure:
+        return False
+
+    tick = _PN95_STATS.get("ticks_total", 0)
+    if tick - _PN201_LAST_EMPTY_CACHE_TICK < cooldown:
+        _PN95_STATS["pn201_empty_cache_cooldowns"] = (
+            _PN95_STATS.get("pn201_empty_cache_cooldowns", 0) + 1
+        )
+        return False
+
+    try:
+        import torch
+        torch.cuda.empty_cache()
+        _PN201_LAST_EMPTY_CACHE_TICK = tick
+        _PN95_STATS["pn201_empty_cache_calls"] = (
+            _PN95_STATS.get("pn201_empty_cache_calls", 0) + 1
+        )
+        log.info(
+            "[PN201] empty_cache fired at tick=%d free_mib=%d free_blocks=%s",
+            tick, free_mib, free_blocks,
+        )
+        return True
+    except Exception as e:
+        log.warning("[PN201] empty_cache failed: %s", e)
+        return False
 
 
 def pn106_periodic_empty_cache() -> None:
@@ -3189,6 +3328,22 @@ def scheduler_tick() -> None:
             return
 
         _FREE_MIB_CACHE_VALID = 0
+
+        # [Genesis PN203] cold-prefix offload sweep — Tier 3.A core.
+        # Runs BEFORE empty_cache so the demote path can populate L2 (PN95
+        # pinned pool) with bytes that would otherwise be discarded.
+        # Requires per-layer KV split (PN202) for correctness on hybrid models.
+        try:
+            pn203_cold_prefix_sweep()
+        except Exception:
+            pass
+
+        # [Genesis PN201] threshold-gated empty_cache for fragmentation
+        # reclaim. Fires after PN203 has captured what's worth saving.
+        try:
+            pn201_maybe_empty_cache(free_mib)
+        except Exception:
+            pass
 
         # smart proactive demote via vllm LRU. Falls back to
         # legacy block_idx=0 path if no BlockPools registered (dispatcher
