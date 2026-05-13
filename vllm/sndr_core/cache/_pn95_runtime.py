@@ -172,6 +172,112 @@ def _pn95_gpu_to_cpu_bytes(view: Any) -> bytes:
     return bytes(cpu_tensor.numpy().tobytes())
 
 
+def _pn95_use_stream_pool() -> bool:
+    """Stream-pool mode (upstream PR #40020-style event polling).
+
+    When enabled, demote/promote submit work into the pooled-stream queue
+    in _pn95_stream_pool and synchronize via end_event.synchronize() on
+    that stream — no host-blocking torch.cuda.current_stream().synchronize()
+    on the default stream. The default stream stays free to dispatch the
+    next attention forward while PCIe DMA runs on the pooled stream.
+
+    Default OFF (singleton stream path stays exact). Set
+    GENESIS_PN95_USE_STREAM_POOL=1 to opt in.
+    """
+    return os.environ.get(
+        "GENESIS_PN95_USE_STREAM_POOL", "0",
+    ).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _pn95_gpu_to_cpu_bytes_batch_v2(views: list) -> list:
+    """Stream-pool variant of the batched demote copy.
+
+    Acquires a stream from the pool, queues all N copies on it, records
+    end_event, calls end_event.synchronize() (waits ONLY on that event —
+    default stream stays alive). Returns the bytes after sync.
+
+    This is identical in I/O behaviour to the singleton-stream version
+    but interoperable with submitted prefetch transfers (which use the
+    same pool). It also paves the way for the next step where caller
+    can submit() instead of synchronize() and check end_event.query()
+    non-blockingly.
+    """
+    if not views:
+        return []
+    import torch
+    from vllm.sndr_core.cache import _pn95_stream_pool as sp
+    st = sp._state()
+    stream = st.acquire_stream()
+    end_evt = st.acquire_event()
+    cpu_tensors = []
+    try:
+        with torch.cuda.stream(stream):
+            for v in views:
+                v_u8 = v.contiguous().view(torch.uint8).reshape(-1)
+                cpu_tensors.append(v_u8.to("cpu", non_blocking=True))
+            end_evt.record(stream)
+        # Event sync — does NOT block the default stream's launch queue.
+        end_evt.synchronize()
+        _PN95_STATS["async_demote_count"] = (
+            _PN95_STATS.get("async_demote_count", 0) + len(views)
+        )
+        _PN95_STATS["async_batch_demote_count"] = (
+            _PN95_STATS.get("async_batch_demote_count", 0) + 1
+        )
+        _PN95_STATS["stream_pool_batches"] = (
+            _PN95_STATS.get("stream_pool_batches", 0) + 1
+        )
+        return [bytes(t.numpy().tobytes()) for t in cpu_tensors]
+    finally:
+        st.release_stream(stream)
+        st.release_event(end_evt)
+
+
+def _pn95_cpu_to_gpu_copy_batch_v2(views: list, src_bytes_list: list) -> int:
+    """Stream-pool variant of batched promote copy.
+
+    Same correctness as v1 (default stream waits via wait_stream), but
+    uses a freshly-acquired pooled stream and pooled end_event for
+    interop with submit() prefetch work.
+    """
+    if not views or not src_bytes_list or len(views) != len(src_bytes_list):
+        return 0
+    import numpy as np
+    import torch
+    from vllm.sndr_core.cache import _pn95_stream_pool as sp
+    st = sp._state()
+    stream = st.acquire_stream()
+    end_evt = st.acquire_event()
+    n_total = 0
+    try:
+        with torch.cuda.stream(stream):
+            for view, src_bytes in zip(views, src_bytes_list):
+                src_arr = np.frombuffer(src_bytes, dtype=np.uint8).copy()
+                src_cpu = torch.from_numpy(src_arr)
+                src_u8 = src_cpu.to(view.device, non_blocking=True)
+                view_u8 = view.contiguous().view(torch.uint8).reshape(-1)
+                n = min(view_u8.numel(), src_u8.numel())
+                if n > 0:
+                    view_u8[:n].copy_(src_u8[:n], non_blocking=True)
+                    n_total += 1
+            end_evt.record(stream)
+        # Order: default stream consumes after our writes complete.
+        torch.cuda.current_stream().wait_stream(stream)
+        _PN95_STATS["async_promote_count"] = (
+            _PN95_STATS.get("async_promote_count", 0) + n_total
+        )
+        _PN95_STATS["async_batch_promote_count"] = (
+            _PN95_STATS.get("async_batch_promote_count", 0) + 1
+        )
+        _PN95_STATS["stream_pool_batches"] = (
+            _PN95_STATS.get("stream_pool_batches", 0) + 1
+        )
+        return n_total
+    finally:
+        st.release_stream(stream)
+        st.release_event(end_evt)
+
+
 def _pn95_gpu_to_cpu_bytes_batch(views: list) -> list:
     """Path C v1.0 Sprint Q1 B2 — batched async GPU→CPU byte copy.
 
@@ -189,6 +295,10 @@ def _pn95_gpu_to_cpu_bytes_batch(views: list) -> list:
     """
     if not views:
         return []
+    # Stream-pool mode (env-gated, default OFF) — routes to v2 which uses
+    # pooled streams + event-based sync. Interop with prefetch submit() work.
+    if _pn95_use_stream_pool() and _pn95_async_enabled():
+        return _pn95_gpu_to_cpu_bytes_batch_v2(views)
     import torch
     stream = _pn95_stream() if _pn95_async_enabled() else None
     if stream is None:
@@ -234,6 +344,9 @@ def _pn95_cpu_to_gpu_copy_batch(views: list, src_bytes_list: list) -> int:
     """
     if not views or not src_bytes_list or len(views) != len(src_bytes_list):
         return 0
+    # Stream-pool mode (env-gated, default OFF) — routes to v2.
+    if _pn95_use_stream_pool() and _pn95_async_enabled():
+        return _pn95_cpu_to_gpu_copy_batch_v2(views, src_bytes_list)
     import numpy as np
     import torch
     stream = _pn95_stream() if _pn95_async_enabled() else None
@@ -1710,6 +1823,73 @@ def _pn95_should_demote(block_hash: Any) -> bool:
     if thr <= 1:
         return True  # default: every block demotes
     return _PN95_HIT_COUNTS.get(block_hash, 0) >= thr
+
+
+# ── block_size_factor — PCIe transaction amortization ────────────────────
+#
+# Upstream PR #40020 lets the offload layer operate on `block_size_factor`
+# adjacent KV blocks as a single super-block. This amortizes the PCIe
+# transaction setup cost (~10-20us per DMA submit) over a larger payload,
+# critical when each KV block is small (Qwen3.6 fp8 32KB/block).
+#
+# At factor=4 we batch four ~32KB blocks into one ~128KB transfer:
+#   - submit/sync overhead drops 4×
+#   - PCIe is more BW-efficient on larger packets (closer to line rate)
+#   - tradeoff: the L1 pinned pool slot_size auto-derives from first
+#     super-block payload, so 4× larger slots → fewer slots within
+#     GENESIS_PN95_PINNED_POOL_MB budget
+#
+# Default 1 (no grouping). 2-4 typical sweet spots for production.
+def _pn95_block_size_factor() -> int:
+    try:
+        v = int(os.environ.get("GENESIS_PN95_BLOCK_SIZE_FACTOR", "1"))
+    except (ValueError, TypeError):
+        v = 1
+    # Clamp to sensible range; 8+ rarely helps and uses lots of pinned slots.
+    return max(1, min(8, v))
+
+
+def pn95_demote_batch(block_id_hash_pairs: list) -> int:
+    """Group-demote helper: batch `block_size_factor` (block_id, block_hash)
+    tuples into a single super-block demote call.
+
+    Caller (worker_side_proactive_demote, demote_on_evict-style hot path)
+    passes a list of pairs in admit-LRU order. Implementation slices into
+    groups of `factor` size and dispatches each via the per-block
+    `demote_on_evict` (which already does atomic two-phase commit).
+
+    Returns count of blocks successfully demoted.
+
+    Note: this is a helper, not a replacement for demote_on_evict. The
+    per-block path remains for vllm anchor-#9 entry points; this gives
+    the proactive scheduler a way to amortize when it knows N blocks
+    will be evicted as a batch.
+    """
+    if not block_id_hash_pairs:
+        return 0
+    factor = _pn95_block_size_factor()
+    n_demoted = 0
+    # Slice into super-block groups.
+    for i in range(0, len(block_id_hash_pairs), factor):
+        group = block_id_hash_pairs[i : i + factor]
+        for block_id, block_hash in group:
+            # store_threshold gate — skip blocks below admission threshold.
+            if not _pn95_should_demote(block_hash):
+                _PN95_STATS["store_threshold_skips"] = (
+                    _PN95_STATS.get("store_threshold_skips", 0) + 1
+                )
+                continue
+            try:
+                if demote_on_evict(block_hash, block_id):
+                    n_demoted += 1
+            except Exception:
+                pass
+    if factor > 1:
+        _PN95_STATS["super_block_demote_batches"] = (
+            _PN95_STATS.get("super_block_demote_batches", 0) + 1
+        )
+        _PN95_STATS["block_size_factor"] = factor
+    return n_demoted
 
 
 def _pn95_layer_aware_enabled() -> bool:
