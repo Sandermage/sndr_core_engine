@@ -144,6 +144,9 @@ GATES: tuple[Gate, ...] = (
     Gate("audit-v2-network-port-consistency", "audit-v2-network-port-consistency",
          "§4.2 V2 hardware.runtime.docker network/ports/shm valid",
          "gating"),
+    Gate("audit-runtime-hook-ratchet", "audit-runtime-hook-ratchet",
+         "§4.2 P2.3 stable patches declare stable_kind; runtime-hook requires ≥2 production pins",
+         "gating"),
     # ── Informational gates (warnings only) ────────────────────────────
     Gate("audit-docs-stale", "audit-docs-stale",
          "stale tokens in public docs (warning-only — pre-existing drift)",

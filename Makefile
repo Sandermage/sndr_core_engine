@@ -202,6 +202,9 @@ audit-v2-runtime-image-pin: ## §4.2 V2 hardware.runtime.docker.image_digest mus
 audit-v2-network-port-consistency: ## §4.2 V2 hardware.runtime.docker network ports + shm_size + network name valid
 	@$(PYTHON) scripts/audit_v2_network_port_consistency.py
 
+audit-runtime-hook-ratchet: ## §4.2 P2.3: every stable patch declares stable_kind; runtime-hook kind requires production_validated_pins ≥2
+	@$(PYTHON) scripts/audit_runtime_hook_ratchet.py
+
 audit-all-referents: ## §8 open item: F822 pure-Python gate — every `__all__` name must resolve
 	@$(PYTHON) scripts/lint_all_referents.py
 
