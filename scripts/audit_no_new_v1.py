@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""Phase 9 release gate — `make audit-no-new-v1`.
+
+V1 freeze: no new monolithic preset YAML may land at
+`vllm/sndr_core/model_configs/builtin/*.yaml` (top-level, not subdirs).
+The existing 11 V1 files are frozen as legacy; any addition forces the
+new preset to land as a V2 layered triplet (model + hardware + profile)
+under the corresponding subdir.
+
+The frozen baseline list is hardcoded below. Adding to it requires a
+PR that updates BOTH this file AND the new V1 yaml, signalling that
+the operator explicitly chose to extend the legacy path (e.g. for a
+back-port that V2 layered shape can't express cleanly yet).
+
+Exit code:
+  0 — top-level builtin/*.yaml matches the frozen baseline.
+  1 — drift detected (new V1 file added OR baseline file deleted).
+  2 — internal error.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+
+# Phase 9 frozen baseline — the 11 V1 monolithic presets that existed at
+# freeze time (2026-05-12). New V1 entries require explicit baseline bump.
+FROZEN_V1_BASELINE: frozenset[str] = frozenset({
+    "a5000-1x-27b-int4-tested.yaml",
+    "a5000-2x-27b-dflash-true.yaml",
+    "a5000-2x-27b-int4-long-ctx.yaml",
+    "a5000-2x-27b-int4-tested.yaml",
+    "a5000-2x-27b-int4-tq-k8v4-dflash.yaml",
+    "a5000-2x-27b-int4-tq-k8v4.yaml",
+    "a5000-2x-35b-fp8-dflash.yaml",
+    "a5000-2x-35b-prod.yaml",
+    "a5000-2x-tier-aware-EXAMPLE.yaml",
+    "single-3090-dense-cpu-offload-EXAMPLE.yaml",
+    "single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml",
+})
+
+
+def _current_v1_files() -> set[str]:
+    """Top-level *.yaml under builtin/ — that's the V1 monolithic tier.
+    Subdirs (model/, hardware/, profile/, presets/) are V2 layered."""
+    if not BUILTIN_DIR.is_dir():
+        return set()
+    return {p.name for p in BUILTIN_DIR.glob("*.yaml") if p.is_file()}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--json", action="store_true")
+    args = ap.parse_args()
+
+    current = _current_v1_files()
+    added = current - FROZEN_V1_BASELINE
+    removed = FROZEN_V1_BASELINE - current
+
+    failures = bool(added or removed)
+
+    if args.json:
+        print(json.dumps(
+            {
+                "frozen_baseline": sorted(FROZEN_V1_BASELINE),
+                "current": sorted(current),
+                "added": sorted(added),
+                "removed": sorted(removed),
+                "passed": not failures,
+            },
+            indent=2, sort_keys=True,
+        ))
+    else:
+        print(f"audit-no-new-v1: {len(current)} V1 file(s) currently present")
+        print(f"                 {len(FROZEN_V1_BASELINE)} in frozen baseline")
+        print("─" * 70)
+        if added:
+            print(f"  ✗ NEW V1 file(s) added since freeze ({len(added)}):")
+            for f in sorted(added):
+                print(f"      + {f}")
+            print()
+            print("  Action: either")
+            print("    (a) migrate to a V2 layered triplet under builtin/{model,hardware,profile}/")
+            print("        + a preset alias under builtin/presets/, then delete the new V1 file; OR")
+            print("    (b) update FROZEN_V1_BASELINE in scripts/audit_no_new_v1.py")
+            print("        in the same PR, signalling explicit V1-tier extension.")
+        if removed:
+            print(f"  ✗ baseline V1 file(s) MISSING ({len(removed)}):")
+            for f in sorted(removed):
+                print(f"      - {f}")
+            print()
+            print("  Action: either restore the file or update FROZEN_V1_BASELINE.")
+        if not failures:
+            print(f"  ✓ V1 frozen — top-level builtin/*.yaml matches the {len(FROZEN_V1_BASELINE)}-entry baseline")
+
+    return 0 if not failures else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

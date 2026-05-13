@@ -112,6 +112,18 @@ audit-configs: ## Phase 7 gate: every V2 preset alias composes cleanly
 audit-public-docs: ## Phase 7 / §6.10 gate: public docs boundary (no _internal links, IPs, paths, retired verbs)
 	@$(PYTHON) scripts/audit_public_docs.py
 
+audit-no-stub: ## §10.3 #2 / §10.5 no-stub gate: bare `raise NotImplementedError` / `TODO(...)` / sentinel pass in vllm/sndr_core
+	@$(PYTHON) scripts/audit_no_stub.py
+
+audit-engine-boundary: ## §10.3 #5 engine boundary: only optional-discovery `vllm.sndr_engine` imports in sndr_core
+	@$(PYTHON) scripts/audit_engine_boundary.py
+
+audit-config-keys: ## §10.3 #4 / §6.7 canonical env-key registry: every committed YAML's Genesis/SNDR keys in canonical union
+	@$(PYTHON) scripts/audit_config_keys.py
+
+audit-evidence-freshness: ## §10.3 #3 evidence ledger freshness (operator-tier; skipped on CI when ledger absent)
+	@$(PYTHON) scripts/audit_evidence_freshness.py
+
 audit-artifacts: ## Phase 7 / §6.11 gate: artefact storage policy (ledger, patch-proof, rollback playbook)
 	@$(PYTHON) scripts/audit_artifacts.py
 
@@ -133,8 +145,11 @@ audit-patches-prove-all: ## §6.8 release gate: run static checks on every PATCH
 audit-proof-status: ## §6.8 read-side: bucket summary of every patch's proof-artefact state (informational)
 	@$(PYTHON) -m vllm.sndr_core.cli patches proof-status
 
-audit-release-check: ## §6.8 release-gate consumer (informational by default — operator picks mode)
-	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode report
+audit-release-check: ## §6.8 release-gate consumer (gating: require-static; release strictens to require-baseline)
+	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-static
+
+audit-release-check-strict: ## §6.8 strict release gate — every patch must have a bench-with-baseline proof
+	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-baseline
 
 audit-model-baselines: ## Phase 7 supplement: every V2 model's reference_metrics_ref must point at an existing JSON file
 	@$(PYTHON) scripts/audit_model_baselines.py

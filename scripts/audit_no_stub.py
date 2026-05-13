@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""Release-tier no-stub scan (Consolidated Roadmap §10.3 item 2, §10.5 boundary).
+
+Catches unresolved code stubs in production code paths:
+
+  • Bare `raise NotImplementedError(...)` statements (AST-detected,
+    so docstring / string-literal references like the ones describing
+    a patch that REPLACES an upstream `NotImplementedError` are
+    correctly ignored).
+  • `# TODO(<name>): ...` comments (§10.5 says TODOs require name + date;
+    comments without a `(...)` form are advisory only and not flagged).
+  • `pass  # placeholder` / `pass  # scaffold` / `pass  # FIXME` sentinel
+    lines that indicate skeleton code.
+
+The scan runs over `vllm/sndr_core/**/*.py`. Patches live there; CLI,
+runtime, and discovery code is included. Tests (`tests/`, `**/_test_*`,
+`**/test_*.py`) are NOT scanned — they legitimately use these idioms.
+
+Allowlist:
+
+  • Lines containing `audit-no-stub: allow` are skipped (operator
+    escape hatch for genuinely intentional cases, e.g. an interface
+    method that subclasses must override).
+  • `__pycache__/` and `*.pyc` are skipped by glob.
+
+Exit codes:
+  0 — clean.
+  1 — at least one violation found.
+"""
+from __future__ import annotations
+
+import argparse
+import ast
+import json
+import re
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCAN_ROOT = REPO_ROOT / "vllm" / "sndr_core"
+
+# Test-style filenames + dirs that are exempt by design.
+TEST_PATH_RE = re.compile(r"(^|/)(tests?|_test|test_)")
+
+ALLOW_MARKER = "audit-no-stub: allow"
+
+TODO_RE = re.compile(r"#\s*TODO\(([^)]*)\)")  # only the (name) form counts
+SENTINEL_RE = re.compile(r"\bpass\b\s*#\s*(placeholder|scaffold|FIXME)\b")
+
+
+def _is_test_path(p: Path) -> bool:
+    rel = p.relative_to(REPO_ROOT).as_posix()
+    return bool(TEST_PATH_RE.search(rel))
+
+
+def _gather_files() -> list[Path]:
+    out: list[Path] = []
+    for fp in SCAN_ROOT.rglob("*.py"):
+        if "__pycache__" in fp.parts:
+            continue
+        if _is_test_path(fp):
+            continue
+        out.append(fp)
+    return sorted(out)
+
+
+def _check_ast_raises(path: Path, source: str) -> list[str]:
+    """AST scan: report `raise NotImplementedError(...)` that aren't on
+    a line with `audit-no-stub: allow`."""
+    out: list[str] = []
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError as e:
+        return [f"{path.relative_to(REPO_ROOT).as_posix()}:{e.lineno}: SYNTAX ERROR"]
+    lines = source.splitlines()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Raise):
+            continue
+        exc = node.exc
+        # Unwrap `raise NotImplementedError(...)` (with or without args).
+        name = None
+        if isinstance(exc, ast.Call) and isinstance(exc.func, ast.Name):
+            name = exc.func.id
+        elif isinstance(exc, ast.Name):
+            name = exc.id
+        if name != "NotImplementedError":
+            continue
+        # Check allow marker on the line.
+        lineno = node.lineno
+        line = lines[lineno - 1] if 0 < lineno <= len(lines) else ""
+        if ALLOW_MARKER in line:
+            continue
+        # Look one line back too — common to put the marker above the raise.
+        prev = lines[lineno - 2] if lineno >= 2 else ""
+        if ALLOW_MARKER in prev:
+            continue
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        out.append(f"{rel}:{lineno}: raise NotImplementedError ({line.strip()[:80]})")
+    return out
+
+
+def _check_textual_markers(path: Path, source: str) -> list[str]:
+    """Textual scan: TODO with name, sentinel `pass  # placeholder|scaffold|FIXME`.
+    """
+    out: list[str] = []
+    rel = path.relative_to(REPO_ROOT).as_posix()
+    for i, line in enumerate(source.splitlines(), 1):
+        if ALLOW_MARKER in line:
+            continue
+        if TODO_RE.search(line):
+            out.append(f"{rel}:{i}: TODO marker ({line.strip()[:80]})")
+            continue
+        if SENTINEL_RE.search(line):
+            out.append(f"{rel}:{i}: sentinel pass ({line.strip()[:80]})")
+    return out
+
+
+def audit() -> dict[str, list[str]]:
+    findings = {"raise_notimplemented": [], "textual_markers": []}
+    for fp in _gather_files():
+        try:
+            src = fp.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        findings["raise_notimplemented"].extend(_check_ast_raises(fp, src))
+        findings["textual_markers"].extend(_check_textual_markers(fp, src))
+    return findings
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--json", action="store_true")
+    args = ap.parse_args(argv)
+    findings = audit()
+    total = sum(len(v) for v in findings.values())
+    if args.json:
+        print(json.dumps(
+            {"findings": findings, "total": total},
+            indent=2, sort_keys=True,
+        ))
+    else:
+        print("audit-no-stub: scanning vllm/sndr_core/**/*.py")
+        print("─" * 70)
+        for name, hits in findings.items():
+            label = name.replace("_", " ")
+            if hits:
+                print(f"  ✗ {label}: {len(hits)} hit(s)")
+                for h in hits[:5]:
+                    print(f"      {h}")
+                if len(hits) > 5:
+                    print(f"      ... ({len(hits) - 5} more)")
+            else:
+                print(f"  ✓ {label}: clean")
+        print()
+        if total:
+            print(f"  FAIL — {total} total violation(s)")
+        else:
+            print("  OK — no unresolved stubs in production code")
+    return 0 if total == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
