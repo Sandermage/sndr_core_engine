@@ -1268,15 +1268,15 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
     },
-    "PN72": {
-        "title": "PN72 — `developer` role pre-render normalizer (OpenAI Responses API compat)",
+    "PN91": {
+        "title": "PN91 — `developer` role pre-render normalizer (OpenAI Responses API compat)",
         "tier": "community",
         "family": "serving",
-        "env_flag": "GENESIS_ENABLE_PN72_DEVELOPER_ROLE",
+        "env_flag": "GENESIS_ENABLE_PN91_DEVELOPER_ROLE",
         "default_on": False,
         "lifecycle": "experimental",
         "category": "compat",
-        "apply_module": "vllm.sndr_core.integrations.serving.pn72_developer_role_normalizer",
+        "apply_module": "vllm.sndr_core.integrations.serving.pn91_developer_role_normalizer",
         "source": "genesis_original",
         "credit": (
             "Genesis-original fix for OpenAI Responses API `role=developer` "

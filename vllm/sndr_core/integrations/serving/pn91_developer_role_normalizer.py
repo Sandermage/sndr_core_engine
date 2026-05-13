@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN72 — `developer` role pre-render normalizer.
+"""PN91 — `developer` role pre-render normalizer.
 
 Modern OpenAI Responses API sends `role="developer"` for the equivalent
 of a system message (it's the "developer-side" instructions distinct
@@ -13,7 +13,7 @@ helps when the operator explicitly mounts an enhanced template via
 `--chat-template`. The default model-bundled template (from the model
 weights tokenizer_config.json) keeps the original behavior.
 
-PN72 normalizes at the parser layer — BEFORE template render — so the
+PN91 normalizes at the parser layer — BEFORE template render — so the
 fix holds regardless of which chat template is active. Maps both the
 local `role` variable AND `message["role"]` because downstream parts
 of vLLM read from both surfaces.
@@ -22,7 +22,7 @@ Anchor: `vllm/entrypoints/chat_utils.py::_parse_chat_message_content`
 at the `role = message["role"]` line (stable across dev9..dev209
 inspected pins).
 
-Env gate: `GENESIS_ENABLE_PN72_DEVELOPER_ROLE=1` (default OFF — opt-in
+Env gate: `GENESIS_ENABLE_PN91_DEVELOPER_ROLE=1` (default OFF — opt-in
 during the rollout window, will flip to default-on after PROD soak).
 """
 from __future__ import annotations
@@ -35,25 +35,25 @@ from vllm.sndr_core.core import TextPatch, TextPatcher
 
 log = logging.getLogger("genesis.wiring.pn72_developer_role_normalizer")
 
-GENESIS_MARKER = "Genesis PN72 developer-role normalizer (pre-render)"
+GENESIS_MARKER = "Genesis PN91 developer-role normalizer (pre-render)"
 
 
 def _enabled() -> bool:
     return os.environ.get(
-        "GENESIS_ENABLE_PN72_DEVELOPER_ROLE", "0",
+        "GENESIS_ENABLE_PN91_DEVELOPER_ROLE", "0",
     ).strip().lower() in ("1", "true", "yes", "on")
 
 
 # Stable anchor on dev209+g5536fc0c0 inspected 2026-05-13 in
 # vllm/entrypoints/chat_utils.py::_parse_chat_message_content. The
 # function-body opens with these exact two lines.
-PN72_OLD = (
+PN91_OLD = (
     "    role = message[\"role\"]\n"
     "    content = message.get(\"content\")\n"
 )
-PN72_NEW = (
+PN91_NEW = (
     "    role = message[\"role\"]\n"
-    "    # [Genesis PN72] developer→system role normalizer. OpenAI\n"
+    "    # [Genesis PN91] developer→system role normalizer. OpenAI\n"
     "    # Responses API sends role='developer' as the developer-side\n"
     "    # instructions surface. Default Qwen templates raise on it.\n"
     "    # Map to 'system' BEFORE downstream parsers/template see it.\n"
@@ -74,28 +74,28 @@ def _make_patcher() -> TextPatcher | None:
     if target is None:
         return None
     return TextPatcher(
-        patch_name="PN72 developer-role pre-render normalizer",
+        patch_name="PN91 developer-role pre-render normalizer",
         target_file=str(target),
         marker=GENESIS_MARKER,
         sub_patches=[
             TextPatch(
                 name="pn72_developer_role_normalize",
-                anchor=PN72_OLD,
-                replacement=PN72_NEW,
+                anchor=PN91_OLD,
+                replacement=PN91_NEW,
                 required=True,
             ),
         ],
         upstream_drift_markers=[
-            "Genesis PN72",
+            "Genesis PN91",
             "developer→system role normalizer",
         ],
     )
 
 
 def apply() -> tuple[str, str]:
-    """Apply PN72 text-patch. Returns (wiring_status, message)."""
+    """Apply PN91 text-patch. Returns (wiring_status, message)."""
     if not _enabled():
-        return "skipped", "PN72 disabled (set GENESIS_ENABLE_PN72_DEVELOPER_ROLE=1)"
+        return "skipped", "PN91 disabled (set GENESIS_ENABLE_PN91_DEVELOPER_ROLE=1)"
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
     patcher = _make_patcher()
@@ -114,6 +114,6 @@ def apply() -> tuple[str, str]:
     from vllm.sndr_core.core import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
-        applied_message="PN72 developer→system role normalized at parser layer",
+        applied_message="PN91 developer→system role normalized at parser layer",
         patch_name=patcher.patch_name,
     )
