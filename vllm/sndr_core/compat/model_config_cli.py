@@ -1232,8 +1232,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("list", help="enumerate all configs").set_defaults(
-        func=cmd_list)
+    p_list = sub.add_parser("list", help="enumerate all configs")
+    p_list.add_argument(
+        "--include-tested", action="store_true",
+        help="Show tested/QA configs alongside working ones "
+             "(default: tested entries are hidden so they don't "
+             "pollute the 'what should I actually launch' view).",
+    )
+    p_list.add_argument(
+        "--json", action="store_true",
+        help="Emit machine-readable JSON instead of the human table.",
+    )
+    p_list.set_defaults(func=cmd_list)
 
     p_show = sub.add_parser("show", help="print full YAML")
     p_show.add_argument("key")
