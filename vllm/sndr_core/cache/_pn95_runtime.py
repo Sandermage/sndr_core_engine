@@ -1367,6 +1367,12 @@ def get_pn95_stats() -> dict:
         round((lookups_total - cold_misses) / lookups_total, 3)
         if lookups_total > 0 else 0.0
     )
+    # Prefetch API stats — visibility into batched warm-up activity.
+    # If prefetch_calls > 0, L2→L1 hits/misses indicate whether the
+    # caller is correctly predicting near-future block accesses.
+    for k, v in _PN95_PREFETCH_STATS.items():
+        snapshot[k] = v
+
     # Layer-aware demote priority — top-5 hottest layer access counts.
     # Useful for diagnosing whether some attention layers monopolize the
     # promote path (which justifies more aggressive cold-layer demote)
@@ -1504,6 +1510,139 @@ def _pn95_l1_pool(slot_size_hint: int = 0):
     except ImportError:
         return None
     return _ppool.get_pool(slot_size_hint)
+
+
+# ── Prefetch / warmup API ───────────────────────────────────────────────
+# Inspired by SGLang HiCache layer-by-layer prefetch overlap: the engine
+# tells PN95 which block_hashes are about to be needed; PN95 warms up the
+# fast L1 pinned pool from the slow L2 OrderedDict (or, if not in L2, the
+# disk tier) so the actual `promote_on_miss` call lands in L1.
+#
+# Without prefetch the path on a cold block is:
+#   promote_on_miss → L2 OrderedDict.get → numpy.frombuffer → torch.from_numpy
+#   → .to(cuda, non_blocking=True from pageable mem) → bounce-buffer copy
+#   ~400 μs for a 32 KB block (single attention layer's K+V for one block).
+#
+# With prefetch the L1 slot is already pinned by the time vllm calls
+# promote_on_miss; the GPU read is a single pinned-host DMA at PCIe Gen4
+# line rate, ~80 μs.
+#
+# Stats track hits/misses so operators can see whether prefetch is paying
+# off (vs raw L1 demote-side fills).
+_PN95_PREFETCH_STATS = {
+    "prefetch_calls": 0,
+    "prefetch_block_hashes": 0,
+    "prefetch_l2_hits_promoted": 0,  # L2 entry copied into L1 pinned
+    "prefetch_l2_already_in_l1": 0,  # L1 already warm — no-op
+    "prefetch_missing": 0,           # not in L2 or disk — nothing to do
+    "prefetch_disk_hits_promoted": 0,
+    "prefetch_pool_full_skips": 0,
+}
+
+
+def pn95_prefetch_blocks(block_hashes: list) -> dict:
+    """Warm up the L1 pinned pool for the given block_hashes BEFORE the
+    engine needs them. Returns a stats delta dict.
+
+    Strategy per block_hash:
+      1. If L1 already has it → no-op (count as already-warm).
+      2. If L2 OrderedDict has it → pack + put into L1 pinned pool.
+      3. If disk tier has it → pull from disk into L2 (re-fill RAM cache),
+         then pack + put into L1.
+      4. If none → record as miss; nothing to do.
+
+    Cheap on the happy path: dict lookup + pickle.dumps + memcpy into
+    pinned slot. Steps 2/3 do NOT touch the GPU — pure host-side moves.
+    The slow GPU DMA happens later on `promote_on_miss`, but from the
+    pinned slot (3-5× faster than pageable bytes).
+
+    Safe to call from any thread; the pool is mutex-protected internally.
+    Returns {} when PN95 disabled or pool unavailable.
+    """
+    if not _enabled():
+        return {}
+    pool = _pn95_l1_pool()
+    if pool is None:
+        return {}
+
+    delta = {
+        "blocks_warmed_from_l2": 0,
+        "blocks_already_warm": 0,
+        "blocks_missing": 0,
+        "blocks_warmed_from_disk": 0,
+        "blocks_pool_full": 0,
+    }
+
+    _PN95_PREFETCH_STATS["prefetch_calls"] += 1
+    _PN95_PREFETCH_STATS["prefetch_block_hashes"] += len(block_hashes)
+
+    # Lazy disk import — only when we actually need disk fallback below.
+    _disk = None
+
+    for h in block_hashes:
+        # 1) Already in L1?
+        if pool.has(h):
+            delta["blocks_already_warm"] += 1
+            _PN95_PREFETCH_STATS["prefetch_l2_already_in_l1"] += 1
+            continue
+
+        # 2) In L2?
+        layer_data = _PN95_PREFIX_STORE.get(h)
+
+        # 3) Else try disk.
+        if layer_data is None:
+            if _disk is None:
+                try:
+                    from vllm.sndr_core.cache import _pn95_disk_tier as _disk_mod
+                    _disk = _disk_mod
+                except ImportError:
+                    _disk = False
+            if _disk and _disk._enabled():
+                try:
+                    layer_data = _disk.disk_tier_get(h)
+                except Exception:
+                    layer_data = None
+            if layer_data is not None:
+                # Re-insert into L2 so future direct hits stay fast too.
+                # (Doesn't run the regular evict path — caller may not
+                # have room budget; but L1 fill below benefits anyway.)
+                try:
+                    global _PN95_PREFIX_STORE_BYTES_USED
+                    total_bytes = sum(len(b) for _n, b in layer_data)
+                    if total_bytes <= _prefix_store_max_bytes():
+                        _PN95_PREFIX_STORE[h] = layer_data
+                        _PN95_PREFIX_STORE_BYTES_USED += total_bytes
+                except Exception:
+                    pass
+                delta["blocks_warmed_from_disk"] += 1
+                _PN95_PREFETCH_STATS["prefetch_disk_hits_promoted"] += 1
+
+        if layer_data is None:
+            delta["blocks_missing"] += 1
+            _PN95_PREFETCH_STATS["prefetch_missing"] += 1
+            continue
+
+        # 4) Pack + put into L1 pinned slot.
+        try:
+            blob = _pn95_pack_layer_data(layer_data)
+            if pool.put(h, blob):
+                if delta["blocks_warmed_from_disk"]:
+                    pass  # already counted as disk
+                else:
+                    delta["blocks_warmed_from_l2"] += 1
+                    _PN95_PREFETCH_STATS["prefetch_l2_hits_promoted"] += 1
+            else:
+                delta["blocks_pool_full"] += 1
+                _PN95_PREFETCH_STATS["prefetch_pool_full_skips"] += 1
+        except Exception:
+            pass
+
+    return delta
+
+
+def pn95_get_prefetch_stats() -> dict:
+    """Snapshot of prefetch API counters — surfaced via sndr patches pn95-status."""
+    return dict(_PN95_PREFETCH_STATS)
 
 
 # ── Layer-aware demote priority ──────────────────────────────────────────
