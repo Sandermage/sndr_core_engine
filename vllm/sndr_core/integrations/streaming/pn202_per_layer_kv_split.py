@@ -1,5 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN202 — per-layer KV tensor split (Tier 2.A enabler).
+"""PN202 — per-layer KV tensor split + contiguous arena allocation.
+
+Two-anchor architectural patch:
+  Part A: kv_cache_utils.py Branch C → A (one KVCacheTensor per layer)
+  Part B: gpu_model_runner.py _allocate_kv_cache_tensors → contiguous arena
+
+WHY BOTH ARE NEEDED:
+  Part A alone caused CUDA OOM at cudagraph capture (b0zx15a8y test, 366 MiB
+  fail with 309 MiB free). Root cause: 65 separate `torch.zeros` calls
+  create 65 distinct cudaMalloc segments. PyTorch caching allocator does
+  not coalesce them, and cudagraph capture needs large contiguous reservation
+  for graph private pool → fragmentation OOM.
+
+  Part B fixes this: allocate ONE contiguous arena (sum of all sizes),
+  then hand out per-layer views via slicing. Single cudaMalloc, zero
+  fragmentation. Downstream `_reshape_kv_cache_tensors` uses `as_strided`
+  on tensor.storage() which is transparent to views.
 
 vllm's Branch-C allocation in `kv_cache_utils.py::get_kv_cache_config_from_groups`
 emits `group_size` slabs, each shared by one representative layer from
@@ -95,14 +111,70 @@ PN202_NEW = (
 )
 
 
-def _make_patcher() -> TextPatcher | None:
-    if not _enabled():
-        return None
+# Part B: contiguous arena anchor in gpu_model_runner.py:6643
+# `_allocate_kv_cache_tensors` originally does:
+#     for kv_cache_tensor in kv_cache_config.kv_cache_tensors:
+#         tensor = torch.zeros(kv_cache_tensor.size, dtype=torch.int8, device=...)
+#         for layer_name in kv_cache_tensor.shared_by:
+#             kv_cache_raw_tensors[layer_name] = tensor
+#
+# When PN202 Part A splits to 65 small tensors, the 65 separate torch.zeros
+# calls fragment the allocator. Part B replaces the loop with a single
+# big arena allocation + slice views.
+
+PN202B_OLD = (
+    "        kv_cache_raw_tensors: dict[str, torch.Tensor] = {}\n"
+    "        for kv_cache_tensor in kv_cache_config.kv_cache_tensors:\n"
+    "            tensor = torch.zeros(\n"
+    "                kv_cache_tensor.size, dtype=torch.int8, device=self.device\n"
+    "            )\n"
+    "            for layer_name in kv_cache_tensor.shared_by:\n"
+    "                kv_cache_raw_tensors[layer_name] = tensor\n"
+)
+PN202B_NEW = (
+    "        kv_cache_raw_tensors: dict[str, torch.Tensor] = {}\n"
+    "        # [Genesis PN202 Part B] contiguous arena allocation. When Part A\n"
+    "        # is active (per-layer KVCacheTensor), 65 separate torch.zeros\n"
+    "        # fragment the CUDA caching allocator and cudagraph capture OOMs.\n"
+    "        # Single big alloc + per-layer views = zero fragmentation, same\n"
+    "        # downstream semantics (kv_cache_raw_tensors[layer_name] still\n"
+    "        # returns a tensor; _reshape_kv_cache_tensors operates on storage).\n"
+    "        import os as _g_pn202b_os\n"
+    "        _g_pn202b_on = _g_pn202b_os.environ.get(\n"
+    "            \"GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT\", \"0\",\n"
+    "        ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\")\n"
+    "        if _g_pn202b_on and kv_cache_config.kv_cache_tensors:\n"
+    "            _g_pn202b_total = sum(t.size for t in kv_cache_config.kv_cache_tensors)\n"
+    "            _g_pn202b_arena = torch.zeros(\n"
+    "                _g_pn202b_total, dtype=torch.int8, device=self.device\n"
+    "            )\n"
+    "            _g_pn202b_offset = 0\n"
+    "            for kv_cache_tensor in kv_cache_config.kv_cache_tensors:\n"
+    "                _g_pn202b_view = _g_pn202b_arena[\n"
+    "                    _g_pn202b_offset : _g_pn202b_offset + kv_cache_tensor.size\n"
+    "                ]\n"
+    "                for layer_name in kv_cache_tensor.shared_by:\n"
+    "                    kv_cache_raw_tensors[layer_name] = _g_pn202b_view\n"
+    "                _g_pn202b_offset += kv_cache_tensor.size\n"
+    "            # Pin arena reference on self so it survives the function.\n"
+    "            self._pn202_arena = _g_pn202b_arena\n"
+    "        else:\n"
+    "            for kv_cache_tensor in kv_cache_config.kv_cache_tensors:\n"
+    "                tensor = torch.zeros(\n"
+    "                    kv_cache_tensor.size, dtype=torch.int8, device=self.device\n"
+    "                )\n"
+    "                for layer_name in kv_cache_tensor.shared_by:\n"
+    "                    kv_cache_raw_tensors[layer_name] = tensor\n"
+)
+
+
+def _make_part_a_patcher() -> TextPatcher | None:
+    """Part A: per-layer KVCacheTensor split in kv_cache_utils.py."""
     target = resolve_vllm_file("v1/core/kv_cache_utils.py")
     if target is None:
         return None
     return TextPatcher(
-        patch_name="PN202 per-layer KV tensor split",
+        patch_name="PN202-A per-layer KV tensor split",
         target_file=str(target),
         marker=GENESIS_MARKER,
         sub_patches=[
@@ -120,14 +192,40 @@ def _make_patcher() -> TextPatcher | None:
     )
 
 
-def apply() -> tuple[str, str]:
+def _make_part_b_patcher() -> TextPatcher | None:
+    """Part B: contiguous arena allocation in gpu_model_runner.py."""
+    target = resolve_vllm_file("v1/worker/gpu_model_runner.py")
+    if target is None:
+        return None
+    return TextPatcher(
+        patch_name="PN202-B contiguous arena allocation",
+        target_file=str(target),
+        marker=GENESIS_MARKER + " (arena)",
+        sub_patches=[
+            TextPatch(
+                name="pn202_contiguous_arena",
+                anchor=PN202B_OLD,
+                replacement=PN202B_NEW,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=[
+            "Genesis PN202",
+            "_g_pn202b_arena",
+        ],
+    )
+
+
+def _make_patcher() -> TextPatcher | None:
+    """Legacy single-patcher entry — kept for back-compat."""
     if not _enabled():
-        return "skipped", "PN202 disabled (set GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT=1)"
-    if vllm_install_root() is None:
-        return "skipped", "vllm install root not discoverable"
-    patcher = _make_patcher()
+        return None
+    return _make_part_a_patcher()
+
+
+def _apply_one(patcher) -> tuple[str, str]:
     if patcher is None:
-        return "skipped", "target file kv_cache_utils.py not resolvable"
+        return "skipped", "patcher None (target file not found)"
     if not os.path.isfile(patcher.target_file):
         return "skipped", f"target disappeared: {patcher.target_file}"
     with open(patcher.target_file) as fh:
@@ -141,6 +239,28 @@ def apply() -> tuple[str, str]:
     from vllm.sndr_core.core import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
-        applied_message="PN202 per-layer KV split active — enables Tier-3 per-layer offload",
+        applied_message=f"{patcher.patch_name}: applied",
         patch_name=patcher.patch_name,
+    )
+
+
+def apply() -> tuple[str, str]:
+    if not _enabled():
+        return "skipped", "PN202 disabled (set GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT=1)"
+    if vllm_install_root() is None:
+        return "skipped", "vllm install root not discoverable"
+
+    # Apply BOTH parts. Part A alone causes fragmentation; Part B alone is a
+    # no-op (gated on the same env which only Part A actually uses).
+    part_a_status, part_a_msg = _apply_one(_make_part_a_patcher())
+    part_b_status, part_b_msg = _apply_one(_make_part_b_patcher())
+
+    applied = sum(1 for s in (part_a_status, part_b_status) if s == "applied")
+    if applied == 0:
+        return "skipped", (
+            f"both parts skipped — A:{part_a_msg[:60]} B:{part_b_msg[:60]}"
+        )
+    return "applied", (
+        f"PN202 per-layer split + contiguous arena active "
+        f"(A:{part_a_status}, B:{part_b_status})"
     )
