@@ -1,35 +1,54 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN105 — fix vllm PrefetchOffloader assertion for AutoRound INT4 models.
+"""PN105 v3 — make vllm PrefetchOffloader compatible with AutoRound INT4.
 
-Problem (verified empirically on Qwen3.6-27B-INT4-AutoRound + dcacdf9a):
-PrefetchOffloader.start_onload_to_static (prefetch.py:531) asserts that
-EVERY offloaded param's cpu_storage is pinned. AutoRound's
-`process_weights_after_loading` replaces param.data with new non-pinned
-CPU tensors (g_idx, qzeros, scales — INT tensors). Although vllm has
-`_update_cpu_storage_from_param` specifically to re-pin those, the
-assertion fires before/instead of the repair in some loader paths,
-killing engine startup:
+Background (Qwen3.6-27B-INT4-AutoRound + vllm nightly dcacdf9a):
+PrefetchOffloader iterates every parameter of an offloaded module and copies
+its CPU storage into a rolling GPU StaticBufferPool slot via non_blocking H2D
+on a shared copy_stream. Two correctness invariants underpin the design:
+
+  (1) every offloaded cpu_storage MUST be pinned, so non_blocking copies do
+      not implicitly synchronise the stream;
+  (2) every offloaded slot MUST be refreshed each cycle, because slots are
+      reused round-robin and stale data would be read as the layer's weights.
+
+AutoRound INT4 publishes four tensors per linear: weight, g_idx, qzeros,
+scales. `process_weights_after_loading` replaces param.data AFTER the initial
+offload registration with newly allocated CPU tensors. Some of those tensors
+(notably the int32 g_idx and qzeros with a specific strided layout) cannot be
+pinned by PyTorch — `pin_memory()` raises or silently fails. That breaks
+invariant (1) and the upstream assert kills startup:
 
   AssertionError: CPU storage for linear_attn.in_proj_qkvz.g_idx is not pinned!
 
-Fix strategy: replace the assertion with a **conditional copy** —
-non-blocking when pinned (fast path), blocking when not pinned
-(slow fallback for AutoRound INT tensors). Blocking copy from
-pageable memory works correctly; the original assertion was a
-performance guardrail, not a correctness guardrail.
+v1 (commit 91a8560) replaced the assert with an inline blocking-copy fallback.
+Boot succeeded but at runtime one blocking copy on the shared copy_stream
+serialised every following non_blocking copy → ~24× slowdown.
 
-Impact:
-  - cpu_offload_gb now WORKS on AutoRound INT4 models
-  - Per-layer cost: ~2-5 ms slower copy for non-pinned INT tensors (small)
-  - Most layers (fp16 weights) still hit fast async path
-  - Net: ~3-7% slower offloaded prefill, vs the alternative of UVA
-    backend which is 24x slower OR no offload at all
+v2 added a bulk pre-pin pass at start_onload entry plus an in-loop "skip if
+still not pinned" branch. Boot worked, but skipping a transfer leaves the
+StaticBufferPool slot holding stale data from a previous layer's weights —
+silent correctness violation.
 
-Combined with PN104 (cpu_offload → Prefetch redirect) + Tier 1 GDN
-scratch pool, this unlocks the path:
-  cpu_offload_gb=8 → free 5 GB GPU → KV pool grows from 4 GB → 9-10 GB
-  → 156K-176K context on a single A5000 24 GB
-  → quality preserved (no sliding window, no quantization beyond fp8 KV)
+v3 (this patch) fixes the root cause: AutoRound INT4 metadata tensors are
+tiny (g_idx + qzeros + scales for 27B ≈ 30-50 MB total) and there is no
+reason to offload them at all. We patch `wrap_modules` to filter those names
+out of the offload whitelist, so they stay resident on GPU like normal
+fp16 weights. Only large fp16/quant weight tensors enter the prefetch
+pipeline, and those CAN be pinned — invariant (1) holds without compromise,
+the upstream assert stays in place, and full async transfer speed is
+preserved.
+
+Defence in depth: we keep the one-time bulk pre-pin pass at start_onload
+entry (cheap, idempotent) to cover any future tensor type that lands on
+the non-pinned path; and we keep the loop assert exactly as upstream wrote
+it (no skip, no fallback) so any future regression fails loudly instead of
+silently corrupting output.
+
+Combined with PN104 (cpu_offload_gb → Prefetch backend) and Tier 1 GDN
+scratch pooling (PN106/PN200/PN201), this unlocks:
+  cpu_offload_gb=8 → free ~5 GB GPU → KV pool 4 GB → 9-10 GB
+  → 156K-176K context on a single A5000 24 GB with full quality
+  (no sliding window, no aggressive quantisation beyond fp8/TQ KV).
 
 Env gate: GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT=1 (default OFF).
 """
@@ -43,7 +62,7 @@ from vllm.sndr_core.core import TextPatch, TextPatcher
 
 log = logging.getLogger("genesis.wiring.pn105_prefetch_autoround_compat")
 
-GENESIS_MARKER = "Genesis PN105 PrefetchOffloader AutoRound pin-assert relax"
+GENESIS_MARKER = "Genesis PN105 v3 PrefetchOffloader AutoRound metadata exclusion"
 
 
 def _enabled() -> bool:
@@ -52,40 +71,112 @@ def _enabled() -> bool:
     ).strip().lower() in ("1", "true", "yes", "on")
 
 
-# Anchor verified on vllm nightly dcacdf9a (2026-05-14).
-# prefetch.py:~531 — the assertion + copy inside start_onload_to_static.
-PN105_OLD = (
-    "                assert cpu_storage is not None, \"CPU storage not initialized\"\n"
-    "                assert gpu_buffer is not None, \"GPU buffer not assigned\"\n"
-    "                assert not should_pin_memory() or cpu_storage.is_pinned(), (\n"
-    "                    f\"CPU storage for {name} is not pinned! \"\n"
-    "                    \"non_blocking=True H2D copy from non-pinned memory \"\n"
-    "                    \"causes stream synchronization that breaks \"\n"
-    "                    \"event-based fork synchronization.\"\n"
-    "                )\n"
-    "                gpu_buffer.copy_(cpu_storage, non_blocking=True)\n"
+# Anchor 1: wrap_modules whitelist construction.
+# Exclude AutoRound INT4 metadata suffixes from the offload whitelist so
+# those tensors stay resident on the GPU and never enter the Prefetch
+# pipeline. Single source-of-truth list; trivial to extend if a future
+# quantisation scheme adds new non-pinnable suffixes.
+PN105_WRAP_OLD = (
+    "                if self.offload_params:\n"
+    "                    whitelist = [\n"
+    "                        name\n"
+    "                        for name, _ in module.named_parameters()\n"
+    "                        if any(f\".{p}.\" in f\".{name}.\" for p in self.offload_params)\n"
+    "                    ]\n"
+    "                else:\n"
+    "                    whitelist = [name for name, _ in module.named_parameters()]\n"
 )
-PN105_NEW = (
-    "                assert cpu_storage is not None, \"CPU storage not initialized\"\n"
-    "                assert gpu_buffer is not None, \"GPU buffer not assigned\"\n"
-    "                # [Genesis PN105] AutoRound INT4 compat: g_idx/qzeros/scales\n"
-    "                # are re-created non-pinned by process_weights_after_loading.\n"
-    "                # Use blocking copy for those instead of asserting. Blocking\n"
-    "                # copy from pageable memory IS correct (just slower); the\n"
-    "                # original assert was a perf guardrail.\n"
-    "                _g_pn105_pinned_ok = (\n"
-    "                    not should_pin_memory() or cpu_storage.is_pinned()\n"
-    "                )\n"
-    "                if not _g_pn105_pinned_ok:\n"
-    "                    # Last-chance repin attempt — uses the helper vllm\n"
-    "                    # itself provides for this case.\n"
+PN105_WRAP_NEW = (
+    "                if self.offload_params:\n"
+    "                    whitelist = [\n"
+    "                        name\n"
+    "                        for name, _ in module.named_parameters()\n"
+    "                        if any(f\".{p}.\" in f\".{name}.\" for p in self.offload_params)\n"
+    "                    ]\n"
+    "                else:\n"
+    "                    whitelist = [name for name, _ in module.named_parameters()]\n"
+    "                # [Genesis PN105 v3] Exclude AutoRound INT4 metadata\n"
+    "                # tensors (g_idx, qzeros, scales) from offload — PyTorch\n"
+    "                # cannot pin their specific strided int32 layout, and\n"
+    "                # the upstream pipeline requires pinned CPU storage for\n"
+    "                # correct async H2D. They are small (~30-50 MB total\n"
+    "                # for 27B) so keeping them resident on GPU is free.\n"
+    "                import os as _g_pn105_os\n"
+    "                if _g_pn105_os.environ.get(\n"
+    "                    \"GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT\", \"0\",\n"
+    "                ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\"):\n"
+    "                    _g_pn105_blacklist = (\n"
+    "                        \".g_idx\", \".qzeros\", \".scales\",\n"
+    "                        \".q_scale\", \".kv_scale\", \".weight_scale\",\n"
+    "                        \".input_scale\", \".azp\",\n"
+    "                    )\n"
+    "                    _g_pn105_before = len(whitelist)\n"
+    "                    whitelist = [\n"
+    "                        _g_pn105_n for _g_pn105_n in whitelist\n"
+    "                        if not any(_g_pn105_n.endswith(_g_pn105_s)\n"
+    "                                   for _g_pn105_s in _g_pn105_blacklist)\n"
+    "                    ]\n"
+    "                    _g_pn105_dropped = _g_pn105_before - len(whitelist)\n"
+    "                    if _g_pn105_dropped > 0:\n"
+    "                        import logging as _g_pn105_log\n"
+    "                        _g_pn105_log.getLogger(\"genesis.pn105\").info(\n"
+    "                            \"[PN105 v3] module_index=%d: kept %d params on GPU \"\n"
+    "                            \"(AutoRound INT4 metadata), offloading %d params\",\n"
+    "                            module_index, _g_pn105_dropped, len(whitelist),\n"
+    "                        )\n"
+)
+
+# Anchor 2: defence-in-depth bulk pre-pin pass at start_onload entry.
+# Cheap idempotent guard against future tensor types landing on the
+# non-pinned path. With PN105 v3's whitelist filter this is normally a
+# no-op; we keep it so a regression manifests as a tiny startup pin-pass
+# rather than a hard assert.
+PN105_PREPIN_OLD = (
+    "        assert self._buffer_pool is not None, \"Buffer pool not assigned\"\n"
+    "\n"
+    "        # Track if this prefetch is being captured (for _wait_for_layer logic)\n"
+    "        self._prefetch_in_capture = torch.cuda.is_current_stream_capturing()\n"
+)
+PN105_PREPIN_NEW = (
+    "        assert self._buffer_pool is not None, \"Buffer pool not assigned\"\n"
+    "\n"
+    "        # [Genesis PN105 v3] One-time bulk pre-pin pass.\n"
+    "        # AutoRound's process_weights_after_loading replaces param.data\n"
+    "        # with non-pinned CPU tensors AFTER initial offload registration.\n"
+    "        # PN105 v3's whitelist filter already excludes the known\n"
+    "        # non-pinnable suffixes — this pass is defence-in-depth for any\n"
+    "        # other tensor that may need re-pinning. Runs once per offloader.\n"
+    "        if not getattr(self, \"_g_pn105_pre_pinned\", False):\n"
+    "            import os as _g_pn105_os\n"
+    "            if _g_pn105_os.environ.get(\n"
+    "                \"GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT\", \"0\",\n"
+    "            ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\"):\n"
+    "                import logging as _g_pn105_log\n"
+    "                _g_pn105_lg = _g_pn105_log.getLogger(\"genesis.pn105\")\n"
+    "                _g_pn105_repinned = 0\n"
+    "                _g_pn105_failed = 0\n"
+    "                for _g_pn105_name, _g_pn105_off in self._param_offloaders.items():\n"
+    "                    _g_pn105_cs = _g_pn105_off._cpu_storage\n"
+    "                    if _g_pn105_cs is None or _g_pn105_cs.is_pinned():\n"
+    "                        continue\n"
     "                    try:\n"
-    "                        offloader._update_cpu_storage_from_param()\n"
-    "                        cpu_storage = offloader._cpu_storage\n"
-    "                        _g_pn105_pinned_ok = cpu_storage.is_pinned()\n"
+    "                        _g_pn105_off._update_cpu_storage_from_param()\n"
+    "                        if (_g_pn105_off._cpu_storage is not None\n"
+    "                                and _g_pn105_off._cpu_storage.is_pinned()):\n"
+    "                            _g_pn105_repinned += 1\n"
+    "                        else:\n"
+    "                            _g_pn105_failed += 1\n"
     "                    except Exception:\n"
-    "                        pass\n"
-    "                gpu_buffer.copy_(cpu_storage, non_blocking=_g_pn105_pinned_ok)\n"
+    "                        _g_pn105_failed += 1\n"
+    "                if _g_pn105_repinned or _g_pn105_failed:\n"
+    "                    _g_pn105_lg.info(\n"
+    "                        \"[PN105 v3] one-time bulk pre-pin: repinned=%d, failed=%d\",\n"
+    "                        _g_pn105_repinned, _g_pn105_failed,\n"
+    "                    )\n"
+    "            self._g_pn105_pre_pinned = True\n"
+    "\n"
+    "        # Track if this prefetch is being captured (for _wait_for_layer logic)\n"
+    "        self._prefetch_in_capture = torch.cuda.is_current_stream_capturing()\n"
 )
 
 
@@ -96,20 +187,27 @@ def _make_patcher() -> TextPatcher | None:
     if target is None:
         return None
     return TextPatcher(
-        patch_name="PN105 PrefetchOffloader AutoRound pin-assert relax",
+        patch_name="PN105 v3 PrefetchOffloader AutoRound metadata exclusion",
         target_file=str(target),
         marker=GENESIS_MARKER,
         sub_patches=[
             TextPatch(
-                name="pn105_start_onload_pin_relax",
-                anchor=PN105_OLD,
-                replacement=PN105_NEW,
+                name="pn105_v3_whitelist_filter",
+                anchor=PN105_WRAP_OLD,
+                replacement=PN105_WRAP_NEW,
+                required=True,
+            ),
+            TextPatch(
+                name="pn105_v3_bulk_pre_pin",
+                anchor=PN105_PREPIN_OLD,
+                replacement=PN105_PREPIN_NEW,
                 required=True,
             ),
         ],
         upstream_drift_markers=[
             "Genesis PN105",
-            "_g_pn105_pinned_ok",
+            "_g_pn105_pre_pinned",
+            "_g_pn105_blacklist",
         ],
     )
 
@@ -135,6 +233,6 @@ def apply() -> tuple[str, str]:
     from vllm.sndr_core.core import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
-        applied_message="PN105 AutoRound pin-assert relaxed — Prefetch backend now works on AutoRound INT4",
+        applied_message="PN105 v3 — AutoRound INT4 metadata kept on GPU, large weights offload via Prefetch",
         patch_name=patcher.patch_name,
     )
