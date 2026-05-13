@@ -69,6 +69,22 @@
       "type": "string",
       "description": "Genesis version where this patch reached stable lifecycle (e.g. 'v7.62.18')."
     },
+    "stable_kind": {
+      "type": "string",
+      "enum": ["text-patch", "runtime-hook"],
+      "description": "Required when lifecycle == 'stable'. Selects which ratchet rules apply: text-patch uses TextPatcher + anchor_manifest path; runtime-hook uses production_validated_pins (min 2). See Consolidated Roadmap §8.3."
+    },
+    "production_validated_pins": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {"type": "string", "minLength": 1}
+      },
+      "minItems": 2,
+      "description": "Required when stable_kind == 'runtime-hook'. List of (genesis_pin, vllm_pin) tuples proving the runtime-hook fires correctly across ≥2 independently-validated combinations."
+    },
     "since_version": {
       "type": "string",
       "description": "Genesis version where this patch was first introduced."
@@ -110,6 +126,27 @@
       "type": "array",
       "items": {"type": "string"},
       "description": "Patch IDs that MUST NOT be applied at the same time. Validated by A3/D2 validator at boot."
+    },
+    "tier": {
+      "type": "string",
+      "enum": ["community", "engine"],
+      "description": "Stage 5 (2026-05-07): commercial-license tier. 'community' = MIT/Apache, lives in vllm/sndr_core/; 'engine' = commercial license, lives in vllm/sndr_engine/. The dispatcher.decision tier-gate skips tier='engine' entries when sndr_engine package is not installed."
+    },
+    "family": {
+      "type": "string",
+      "enum": [
+        "tool_parsing", "reasoning", "serving",
+        "attention.gdn", "attention.turboquant", "attention.flash",
+        "spec_decode", "scheduler", "worker", "kv_cache",
+        "moe", "quantization", "kernels", "compile_safety",
+        "loader", "middleware", "memory", "observability",
+        "lora", "multimodal", "model_specific"
+      ],
+      "description": "Stage 5 (2026-05-07): engine subsystem the patch belongs to. Used by Stage 6 reorg (subsystem-first taxonomy of vllm/sndr_core/integrations/) and by `sndr family <X> status` CLI."
+    },
+    "enables_upstream_feature": {
+      "type": "boolean",
+      "description": "Iron-rule-#11 case (c) — 'different approach'. When True, the linked upstream PR adds a new experimental feature OFF by default and this Genesis patch turns it ON (with extra Genesis-side wiring). Not a retire candidate when upstream merges; excluded from the NEWLY-MERGED audit queue."
     }
   },
   "allOf": [
