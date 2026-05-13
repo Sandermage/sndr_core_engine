@@ -60,36 +60,37 @@ log = logging.getLogger("genesis.license")
 
 # ─── Trust anchor ────────────────────────────────────────────────────────
 #
-# Public key (Ed25519, raw 32 bytes, base64url). Replace with the real
-# production key once the offline signing rig is set up. Until then the
-# placeholder zero-key is documented as "rejects all signatures" — so
-# anything not a legacy plain key falls through to NO_KEY.
+# The current public-repo build ships a development-only Ed25519
+# anchor (32 raw bytes, base64url-encoded, no padding). Production
+# release MUST replace this constant with a production-only key
+# generated under the offline ceremony described in
+# docs/security/TRUST_ANCHOR_CEREMONY.md, AND the
+# `audit-license-anchor` gate refuses any release whose fingerprint
+# still matches `_DEV_ANCHOR_FINGERPRINT_FORBIDDEN` below.
 #
-# To rotate: generate `(sk, pk)` offline, ship the new pk in the next
-# sndr_core release, re-sign all outstanding customer tokens, distribute
-# new tokens. Old tokens stop verifying as soon as the wheel updates —
-# this is the intended trust-rotation pattern.
-
-# DEV/TEST trust anchor — Ed25519 public key (32 bytes base64url, без
-# padding). Сгенерирован 2026-05-12 на homelab сервере; private key
-# был exposed в stdout по старому flow (до Etap 0.2 hardening), поэтому
-# **этот anchor считается development-only**. Production deployment
-# должен:
+# Rotation flow:
 #
-#   1. Запустить `scripts/generate_trust_anchor.py --out <secure-path>
-#      --update-license` на air-gapped machine (private key никогда
-#      не уходит в stdout по новому security-first default).
-#   2. Сохранить private key offline (YubiKey / paper / safe).
-#   3. Обновить эту константу новым public key, пересоздать все active
-#      customer tokens, отшипить wheel.
-#
-# Подробности процесса: docs/security/TRUST_ANCHOR_CEREMONY.md.
+#   1. Run `scripts/generate_trust_anchor.py --out <secure-path>
+#      --update-license` on an air-gapped machine. The private key
+#      never reaches stdout under the security-first default.
+#   2. Store the private key offline (YubiKey / paper / safe).
+#   3. Update this constant with the new public key, re-issue all
+#      active customer tokens, ship the wheel.
+#   4. Old tokens stop verifying as soon as the wheel updates — that
+#      is the intended trust-rotation pattern.
 _TRUST_ANCHOR_PUBKEY_B64URL = (
     "iSk29MUb9HldKokPRyOG7bAjwYaQdgqYsS17yfskE8s"
 )
-# Wave 4.4 (audit closure 2026-05-09): boot-time warning when the
-# placeholder zero-key is loaded. Emit once per process so operators
-# notice the unsigned-mode posture in their startup logs.
+
+# Fingerprint of the development-only anchor. The release-gate audit
+# blocks any production build that ships this value verbatim; rotate
+# via the ceremony before flipping to public release.
+_DEV_ANCHOR_FINGERPRINT_FORBIDDEN: frozenset[str] = frozenset({
+    "iSk29MUb9HldKokPRyOG7bAjwYaQdgqYsS17yfskE8s",
+})
+
+# Boot-time warning latch — when set we emit once per process so
+# operators notice the unsigned-mode posture in their startup logs.
 _TRUST_ANCHOR_PLACEHOLDER_DETECTED = False
 
 
@@ -256,17 +257,17 @@ def _versions_compatible(core_v: str, engine_v: str) -> bool:
 class TokenVerification:
     """Result of `verify_token()` / `_verify_signed_token()`.
 
-    Public API: используйте `verify_token(token)` для проверки signed
-    license tokens против trust anchor. Возвращает structured outcome
-    с `status` (LicenseStatus), `payload` (dict с customer_id и пр.)
-    и `detail` (operator-readable объяснение).
+    Public API: use `verify_token(token)` to verify signed
+    license tokens against the trust anchor. Returns a structured outcome
+    with `status` (LicenseStatus), `payload` (dict with customer_id etc.),
+    and `detail` (operator-readable explanation).
     """
     status: LicenseStatus
     payload: Optional[dict[str, Any]]
     detail: str
 
 
-# Back-compat alias — внутренний код раньше импортировал приватное имя.
+# Back-compat alias — internal code previously imported the private name.
 _TokenVerification = TokenVerification
 
 
@@ -281,12 +282,12 @@ def _looks_signed(key: str) -> bool:
     return key.count(".") == 1 and len(key) > 16
 
 
-# Etap 0.1 (audit 2026-05-12): strict payload contract.
+# strict payload contract.
 #
-# Без этого silent-pass: подписанный token без `expires_at` валидировался
-# как LICENSED и становился бессрочным. Каждое поле обязательно, типы
-# строгие, bool отвергается для числовых полей (Python `True/False` —
-# subclass int, может проскочить isinstance check).
+# Without this, silent-pass: a signed token without `expires_at` validated
+# as LICENSED and became indefinite. Every field is required, types are
+# strict, bool is rejected for numeric fields (Python `True/False` is a
+# subclass of int and can slip past isinstance checks).
 _PAYLOAD_CONTRACT: dict[str, tuple[type, ...]] = {
     "customer_id":  (str,),
     "issued_at":    (int, float),
@@ -302,11 +303,11 @@ def _validate_payload_contract(
     """Strict contract gate. Returns error message or None when valid.
 
     Checks (in order):
-      1. Все required fields присутствуют.
-      2. Каждое поле правильного типа.
-      3. bool не принимается за int/float (Python quirk).
-      4. customer_id — непустая строка после strip.
-      5. issued_at / expires_at — положительные epoch seconds.
+      1. All required fields are present.
+      2. Each field has the correct type.
+      3. bool is not accepted as int/float (Python quirk).
+      4. customer_id is a non-empty string after strip.
+      5. issued_at / expires_at are positive epoch seconds.
       6. expires_at > issued_at (sane interval).
       7. issued_at <= now + skew (token issued in the future = clock attack
          or misconfigured signer).
@@ -315,7 +316,7 @@ def _validate_payload_contract(
         if field not in payload:
             return f"missing required field {field!r}"
         value = payload[field]
-        # bool — subclass of int, отвергаем явно для numeric полей.
+        # bool is a subclass of int; reject it explicitly for numeric fields.
         if isinstance(value, bool) and (int in types or float in types):
             return f"field {field!r} must not be bool"
         if not isinstance(value, types):
@@ -425,8 +426,8 @@ def _verify_signed_token(
 
     now = now_epoch if now_epoch is not None else time.time()
 
-    # Etap 0.1: strict payload contract — отвергаем missing/wrong-type
-    # поля ДО expires check, иначе bug "missing expires_at = unlimited".
+    # Etap 0.1: strict payload contract — reject missing/wrong-type
+    # fields BEFORE the expires check, otherwise bug "missing expires_at = unlimited".
     contract_error = _validate_payload_contract(payload, now_epoch=now)
     if contract_error:
         return _TokenVerification(
@@ -435,7 +436,7 @@ def _verify_signed_token(
             detail=f"payload contract: {contract_error}",
         )
 
-    exp = payload["expires_at"]  # type гарантирован validator'ом выше
+    exp = payload["expires_at"]  # type guaranteed by the validator above
     if exp < now:
         return _TokenVerification(
             status=LicenseStatus.EXPIRED,
@@ -457,10 +458,10 @@ def _verify_signed_token(
 
 
 def is_placeholder_anchor() -> bool:
-    """Возвращает True если trust anchor — 32-нулевой placeholder.
+    """Return True if the trust anchor is the 32-zero placeholder.
 
-    Operator-facing alias для `_is_placeholder_anchor`. Используется в
-    CI gates и ceremony doc, чтобы не зависеть от приватных имён.
+    Operator-facing alias for `_is_placeholder_anchor`. Used in
+    CI gates and the ceremony doc to avoid depending on private names.
     """
     return _is_placeholder_anchor()
 
@@ -473,20 +474,20 @@ def verify_token(
 ) -> TokenVerification:
     """Verify an Ed25519-signed Genesis license token.
 
-    Etap 0.5 (audit 2026-05-12): public API для ceremony doc и custom
-    licensing integrations. Раньше документация ссылалась на эту
-    функцию, но реально существовал только приватный `_verify_signed_token`.
+    Etap 0.5 (audit 2026-05-12): public API for the ceremony doc and custom
+    licensing integrations. Previously the documentation referenced this
+    function, but in reality only the private `_verify_signed_token` existed.
 
     Args:
         token: signed token string `<base64url-payload>.<base64url-signature>`.
-        pubkey_b64url: override the bundled trust anchor (testing / альтернативный
-            anchor). None → используется встроенная константа
+        pubkey_b64url: override the bundled trust anchor (testing / alternative
+            anchor). None → uses the built-in constant
             `_TRUST_ANCHOR_PUBKEY_B64URL`.
-        now_epoch: override wall-clock для проверки expiry (testing).
+        now_epoch: override the wall clock for expiry checks (testing).
 
     Returns:
-        TokenVerification со status, payload (dict если decoded), detail.
-        Status может быть: LICENSED / BAD_SIGNATURE / BAD_PAYLOAD / EXPIRED.
+        TokenVerification with status, payload (dict if decoded), detail.
+        Status may be: LICENSED / BAD_SIGNATURE / BAD_PAYLOAD / EXPIRED.
     """
     if pubkey_b64url is None:
         pubkey_b64url = _TRUST_ANCHOR_PUBKEY_B64URL
@@ -670,4 +671,150 @@ __all__ = [
     "check_engine_tier_eligible",
     "verify_token",
     "is_placeholder_anchor",
+    # public/private boundary CLI surface (not engine-tier gate)
+    "EngineDetection",
+    "CoreLicenseStatus",
+    "LicenseVerifyResult",
+    "is_engine_installed",
+    "core_license_status",
+    "verify_license_file",
 ]
+
+
+# ─── Phase 4.6 — public/private boundary CLI surface ───────────────────
+#
+# These are operator-facing helpers for `sndr license status` / `verify`
+# and the `audit-security` release gate. They are intentionally SEPARATE
+# from the per-patch engine-tier eligibility above (`check_engine_tier_eligible`)
+# because they answer a different question:
+#
+#   - check_engine_tier_eligible(patch_id) → "is THIS patch allowed to run?"
+#   - core_license_status()                → "is the engine installed at all?
+#                                             what does the boundary look like?"
+#
+# Public core NEVER blocks on `core_license_status()` — it always reports
+# the core as "public (unlicensed)" and surfaces engine detection if
+# present. This preserves the invariant that public core is fully
+# functional without any license file.
+
+
+@dataclass(frozen=True)
+class EngineDetection:
+    """Result of optional private engine discovery (Phase 4.6 boundary)."""
+    installed: bool
+    module_name: Optional[str] = None
+    version: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class CoreLicenseStatus:
+    """Returned by `core_license_status()`. Stable shape for tooling.
+
+    Distinct from `EligibilityResult` (per-patch gate) and from the
+    legacy `LicenseStatus` enum (token verification states). This is the
+    public boundary view consumed by `sndr license status`.
+    """
+    core: str                            # always "public (unlicensed)"
+    engine: Optional[EngineDetection]
+    license_path: Optional[str] = None
+    license_subject: Optional[str] = None
+    license_tier: Optional[str] = None
+    license_expires: Optional[str] = None
+    license_signature_valid: Optional[bool] = None
+    premium_patches_enabled: int = 0
+
+
+@dataclass(frozen=True)
+class LicenseVerifyResult:
+    """Returned by `verify_license_file()` (Phase 4.6 boundary)."""
+    valid: bool
+    reason: str
+    subject: Optional[str] = None
+    expires: Optional[str] = None
+
+
+def is_engine_installed() -> EngineDetection:
+    """Detect whether `vllm.sndr_engine` is importable (Phase 4.6).
+
+    Uses `importlib.util.find_spec` so the engine module is NOT actually
+    imported here (importing could trigger engine-side initialization
+    that public core does not own).
+    """
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("vllm.sndr_engine")
+    except (ModuleNotFoundError, ImportError, ValueError):
+        return EngineDetection(installed=False)
+
+    if spec is None:
+        return EngineDetection(installed=False)
+
+    # Read version metadata without importing the engine module.
+    version: Optional[str] = None
+    try:
+        from importlib.metadata import PackageNotFoundError, version as _ver
+        try:
+            version = _ver("vllm-sndr-engine")
+        except PackageNotFoundError:
+            version = None
+    except Exception:
+        version = None
+
+    return EngineDetection(
+        installed=True,
+        module_name="vllm.sndr_engine",
+        version=version,
+    )
+
+
+def core_license_status() -> CoreLicenseStatus:
+    """Return the public-core view of license status.
+
+    INVARIANT: always reports the public core as `"public (unlicensed)"`.
+    License-related fields are populated only when the engine declares
+    itself active AND has loaded a license. Public core never blocks
+    on this function.
+    """
+    engine = is_engine_installed()
+    if not engine.installed:
+        return CoreLicenseStatus(core="public (unlicensed)", engine=None)
+    # Engine present — public core only reports its presence. Reading the
+    # license file is the engine's responsibility, not ours.
+    return CoreLicenseStatus(
+        core="public (unlicensed)",
+        engine=engine,
+    )
+
+
+def verify_license_file(path: str) -> LicenseVerifyResult:
+    """Offline license-file signature verification (Phase 4.6 boundary).
+
+    Public-core stub: returns `deferred` because real verification needs
+    the private engine's pub-key + canonical message format. When the
+    engine is absent, this function refuses to invent a verification
+    result — that's the correct behavior.
+    """
+    engine = is_engine_installed()
+    if not engine.installed:
+        return LicenseVerifyResult(
+            valid=False,
+            reason=(
+                "verification deferred — public core cannot verify "
+                "license signatures. Install vllm-sndr-engine to enable "
+                "offline signature verification."
+            ),
+        )
+    # Engine present — delegate. Public core does NOT directly import the
+    # engine's internals; the engine registers its hook via the standard
+    # entry-point mechanism at install time.
+    try:
+        from vllm.sndr_engine.license import verify_license_file as _engine_verify
+    except ImportError:
+        return LicenseVerifyResult(
+            valid=False,
+            reason=(
+                "engine module detected but missing license.verify_license_file "
+                "hook — likely engine version mismatch"
+            ),
+        )
+    return _engine_verify(path)

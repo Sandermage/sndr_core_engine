@@ -124,6 +124,12 @@ audit-config-keys: ## §10.3 #4 / §6.7 canonical env-key registry: every commit
 audit-evidence-freshness: ## §10.3 #3 evidence ledger freshness (operator-tier; skipped on CI when ledger absent)
 	@$(PYTHON) scripts/audit_evidence_freshness.py
 
+audit-license-anchor: ## P1-6: warn when development-only trust anchor still active
+	@$(PYTHON) scripts/audit_license_anchor.py
+
+audit-license-anchor-release: ## P1-6 strict: refuse release when development-only trust anchor still active
+	@$(PYTHON) scripts/audit_license_anchor.py --release
+
 audit-artifacts: ## Phase 7 / §6.11 gate: artefact storage policy (ledger, patch-proof, rollback playbook)
 	@$(PYTHON) scripts/audit_artifacts.py
 
