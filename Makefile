@@ -205,6 +205,9 @@ audit-v2-network-port-consistency: ## §4.2 V2 hardware.runtime.docker network p
 audit-runtime-hook-ratchet: ## §4.2 P2.3: every stable patch declares stable_kind; runtime-hook kind requires production_validated_pins ≥2
 	@$(PYTHON) scripts/audit_runtime_hook_ratchet.py
 
+cold-install-smoke: ## Phase 8a: non-destructive smoke (CLI/imports/audit) — operator runs after `git clone` + `pip install -e .`
+	@bash scripts/cold_install_smoke.sh $(ARGS)
+
 audit-all-referents: ## §8 open item: F822 pure-Python gate — every `__all__` name must resolve
 	@$(PYTHON) scripts/lint_all_referents.py
 
