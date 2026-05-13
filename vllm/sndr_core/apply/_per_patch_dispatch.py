@@ -3409,6 +3409,47 @@ def apply_patch_N32_gdn_chunked_prefill() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN108 GDN fused_recurrent prefill dispatch (Cliff 2 memory-bound fix)")
+def apply_patch_N108_fused_recurrent_prefill() -> PatchResult:
+    """Patch N108: dispatch long single-seq GDN prefill to fla
+    fused_recurrent_gated_delta_rule (no chunk-state h buffer).
+
+    For T > GENESIS_PN108_FUSED_RECURRENT_THRESHOLD (default 32768)
+    AND single-seq prefill, the `chunk_gated_delta_rule` call is
+    swapped for `fused_recurrent_gated_delta_rule`. Same output
+    contract (B,T,HV,V), but the recurrent kernel allocates no
+    `h(B, T//64, HV, K, V)` buffer — closing Cliff 2 unconditionally
+    on memory-bound single-GPU rigs at any T.
+
+    Trade-off: prefill is ~3-8x slower above threshold. Below
+    threshold the original chunkwise-parallel path runs unchanged
+    (zero regression on normal workloads).
+
+    Mutually exclusive with PN32 v2 (both patch the same prefill
+    branch in gdn_linear_attn.py::_forward_core). Also conflicts
+    with P28 (legacy persistent buffer pool on same path). The
+    dispatcher's conflicts_with declaration enforces this at boot.
+
+    Status: opt-in via GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL=1.
+    Default OFF.
+    """
+    name = "PN108 GDN fused_recurrent prefill dispatch (Cliff 2 memory-bound fix)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.attention.gdn import (
+            pn108_fused_recurrent_prefill,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = pn108_fused_recurrent_prefill.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN31 FA varlen persistent out buffer (issue #15, sister to P38)")
 def apply_patch_N31_fa_varlen_persistent_out() -> PatchResult:
     """Patch N31: persistent `out` buffer for `_flash_attn_varlen` to

@@ -1886,6 +1886,53 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["P28"],
         "lifecycle": "experimental",
     },
+    "PN108": {
+        "title": "GDN fused_recurrent prefill dispatch (Cliff 2 memory-bound fix)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL",
+        "default_on": False,
+        "category": "hybrid",
+        # PN108 takes a different approach from PN32 / PN59. Instead of
+        # chunking the chunk_gated_delta_rule call (PN32) or the inner
+        # kernel orchestrator (PN59), PN108 switches BACKENDS for long
+        # single-sequence prefill: it dispatches to fla's
+        # fused_recurrent_gated_delta_rule, which has NO chunk-state h
+        # buffer at all (the Cliff 2 OOM trigger).
+        #
+        # Trade-off: fused_recurrent is purely token-recurrent compute,
+        # so prefill is ~3-8× slower above the threshold. In exchange:
+        # zero h-tensor allocation, predictable memory across any T,
+        # no fragmentation from a chunked-dispatch loop. For long-context
+        # workflows on memory-constrained single-GPU rigs (1×A5000 24GB,
+        # 1×3090, 1×4090), this is the only path that achieves stable
+        # 150-200K prefill without TP=2.
+        #
+        # Mutually exclusive with PN32 (both patch the same _forward_core
+        # prefill branch in gdn_linear_attn.py). PN108 also conflicts
+        # with P28 for the same reason as PN32 — operator must disable
+        # P28 before enabling PN108.
+        "credit": (
+            "Genesis-original 2026-05-14 — Cliff 2 memory-bound fix on "
+            "single 24GB GPU. PN32/PN59 attempted to keep the chunkwise-"
+            "parallel kernel and chunk dispatch around it; both either "
+            "hit anchor drift (PN59, upstream added `core_attn_out` "
+            "param) or added a torch.cat memory peak that didn't fit on "
+            "saturated single-card budget (PN32). PN108 sidesteps by "
+            "switching to fla.fused_recurrent_gated_delta_rule for long "
+            "single-seq prefill — same output contract (B,T,HV,V), no "
+            "chunk-state h buffer. Threshold env-tunable via GENESIS_"
+            "PN108_FUSED_RECURRENT_THRESHOLD (default 32768)."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            # Hybrid GDN/DeltaNet models with single-sequence long prefill.
+            # NULL on non-GDN paths or short prompts.
+        },
+        "requires_patches": [],
+        "conflicts_with": ["P28", "PN32"],
+        "lifecycle": "experimental",
+    },
     "PN31": {
         "title": "FA varlen persistent out buffer (issue #15, sister to P38)",
         "tier": "community",
