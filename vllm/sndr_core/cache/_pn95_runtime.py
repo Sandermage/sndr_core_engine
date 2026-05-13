@@ -1664,6 +1664,54 @@ _PN95_LAYER_ACCESS_COUNTS: dict = {}
 _PN95_LAYER_ACCESS_RESET_THRESHOLD = 10_000_000
 
 
+# ── store_threshold reuse-frequency gate (upstream PR #40020 pattern) ─────
+#
+# Tracks how many times each block_hash has been *looked up* during
+# promote_on_miss. Blocks with hits below GENESIS_PN95_STORE_THRESHOLD
+# are NOT demoted on evict — the engine pays no compression/copy cost
+# on a block that's about to disappear from the request stream forever.
+#
+# Inspired by upstream `FilterReusedOffloadingManager` in cpu/manager.py
+# (only stores keys observed `store_threshold` times via lookup).
+#
+# Default off (threshold=0). Operators set >=2 when serving chat workloads
+# where most prefill blocks are one-shot.
+_PN95_HIT_COUNTS: dict = {}
+_PN95_HIT_TRACKER_MAX = 64_000
+
+
+def _pn95_store_threshold() -> int:
+    try:
+        return max(0, int(os.environ.get("GENESIS_PN95_STORE_THRESHOLD", "0")))
+    except (ValueError, TypeError):
+        return 0
+
+
+def _pn95_record_lookup(block_hash: Any) -> int:
+    """Bump hit counter for a block_hash on every promote query. Returns
+    post-bump count. Bounded by _PN95_HIT_TRACKER_MAX (LRU eviction)."""
+    global _PN95_HIT_COUNTS
+    n = _PN95_HIT_COUNTS.get(block_hash, 0) + 1
+    if n == 1 and len(_PN95_HIT_COUNTS) >= _PN95_HIT_TRACKER_MAX:
+        # FIFO drop — keep tracker bounded, lose oldest counter.
+        try:
+            oldest = next(iter(_PN95_HIT_COUNTS))
+            _PN95_HIT_COUNTS.pop(oldest, None)
+        except StopIteration:
+            pass
+    _PN95_HIT_COUNTS[block_hash] = n
+    return n
+
+
+def _pn95_should_demote(block_hash: Any) -> bool:
+    """Apply store_threshold gate: skip demote if block hasn't reached
+    threshold lookups yet. Returns True when demote should proceed."""
+    thr = _pn95_store_threshold()
+    if thr <= 1:
+        return True  # default: every block demotes
+    return _PN95_HIT_COUNTS.get(block_hash, 0) >= thr
+
+
 def _pn95_layer_aware_enabled() -> bool:
     return os.environ.get(
         "GENESIS_ENABLE_PN95_LAYER_AWARE_DEMOTE", "0",
@@ -2066,23 +2114,37 @@ def demote_on_evict(block_hash: Any, block_id: int) -> bool:
             global _PN95_PREFIX_STORE_BYTES_USED
             _PN95_PREFIX_STORE_BYTES_USED -= sum(len(b) for _n, b in old)
 
-        # L1 pinned pool attempt — single packed blob via pickle. If accepted
-        # by the pool we still also keep an entry in the L2 OrderedDict for
-        # LRU bookkeeping and disk-tier spillover, but mark it as L1-resident
-        # via a lightweight sentinel value so the L2 path knows the actual
-        # bytes live in pinned memory. On promote we look in L1 first.
+        # Two-phase commit (upstream PR #40020 prepare_store/complete_store
+        # pattern): L1 write first, L2 write second, rollback L1 if L2 fails.
+        # Keeps the two tiers from desyncing — a stale L1 slot pointing at
+        # bytes whose L2 LRU position was never updated would let promote
+        # return inconsistent data on next access.
+        l1_acquired = False
+        l1_pool = None
         try:
             blob = _pn95_pack_layer_data(layer_data)
-            pool = _pn95_l1_pool(slot_size_hint=len(blob))
-            if pool is not None and pool.put(block_hash, blob):
+            l1_pool = _pn95_l1_pool(slot_size_hint=len(blob))
+            if l1_pool is not None and l1_pool.put(block_hash, blob):
+                l1_acquired = True
                 _PN95_STATS.setdefault("l1_demote_writes", 0)
                 _PN95_STATS["l1_demote_writes"] += 1
         except Exception:
-            # Any failure in L1 path is non-fatal — fall through to L2 only.
-            pass
+            l1_acquired = False  # L1 refused — proceed L2-only
 
-        _PN95_PREFIX_STORE[block_hash] = layer_data
-        _PN95_PREFIX_STORE_BYTES_USED += total_bytes
+        try:
+            _PN95_PREFIX_STORE[block_hash] = layer_data
+            _PN95_PREFIX_STORE_BYTES_USED += total_bytes
+        except Exception:
+            # L2 insert failed — rollback L1 to keep tiers consistent.
+            if l1_acquired and l1_pool is not None:
+                try:
+                    l1_pool.evict(block_hash)
+                except Exception:
+                    pass
+            _PN95_STATS["demote_rollback_count"] = (
+                _PN95_STATS.get("demote_rollback_count", 0) + 1
+            )
+            return False
 
         _PN95_STATS["prefix_demote_count"] = (
             _PN95_STATS.get("prefix_demote_count", 0) + 1

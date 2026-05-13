@@ -617,6 +617,59 @@ class TierManager:
             eligible.sort(key=lambda m: (not m.mm_origin, ))
         return [m.key for m in eligible]
 
+    # ─── Atomic demote selection (upstream PR #40020 inspired) ───────────
+
+    def demote_candidates_atomic(
+        self, n: int, protected: Optional[set] = None,
+    ) -> Optional[list[Hashable]]:
+        """All-or-nothing variant of _demote_candidates.
+
+        Returns exactly `n` keys eligible for demote (skipping mamba groups,
+        the spec-decode hot ring, active TTL, AND any key in `protected`).
+        Returns None when fewer than `n` candidates can be found without
+        violating the protection rules — caller MUST NOT proceed with
+        partial demote in that case (the alternative — silently partial —
+        leaves L1/L2/L3 in an inconsistent state where some block bytes
+        are out of GPU but their hashes never made it to the prefix store).
+
+        Mirrors upstream `vllm.v1.kv_offload.cpu.policies.base.evict`
+        contract from PR #40020 — atomic eviction with `protected` set.
+        """
+        if n <= 0:
+            return []
+        protected_set = protected or set()
+        hot_ring = set(self._admit_order[-self.spec_decode_hot_ring:]) \
+            if self.spec_decode_hot_ring > 0 else set()
+        out: list[Hashable] = []
+        # Iterate in admit order (LRU first) — same ordering as
+        # _demote_candidates so vision_demote_first still implicitly works
+        # through the meta lookup pattern; here we sort by mm_origin if
+        # vision_demote_first is set and we have headroom in our walk.
+        candidates_pool: list[Hashable] = []
+        for key in self._admit_order:
+            meta = self._pages.get(key)
+            if meta is None or meta.tier_idx != 0:
+                continue
+            if meta.group_id in self._mamba_excluded:
+                continue
+            if key in hot_ring or key in protected_set:
+                continue
+            if self.is_active(key):
+                continue
+            candidates_pool.append(key)
+        if self.vision_demote_first:
+            # mm_origin first, then LRU within each bucket
+            candidates_pool.sort(
+                key=lambda k: (not self._pages[k].mm_origin,
+                               self._admit_order.index(k)
+                               if k in self._admit_order else 1 << 30),
+            )
+        for key in candidates_pool[:n]:
+            out.append(key)
+        if len(out) < n:
+            return None  # cannot satisfy atomically
+        return out
+
 
 # ─── Factory helper ─────────────────────────────────────────────────────
 
