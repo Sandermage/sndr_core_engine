@@ -1367,6 +1367,20 @@ def get_pn95_stats() -> dict:
         round((lookups_total - cold_misses) / lookups_total, 3)
         if lookups_total > 0 else 0.0
     )
+    # Layer-aware demote priority — top-5 hottest layer access counts.
+    # Useful for diagnosing whether some attention layers monopolize the
+    # promote path (which justifies more aggressive cold-layer demote)
+    # or whether access is uniform (then ordering is a no-op).
+    snapshot["layer_aware_demote_enabled"] = _pn95_layer_aware_enabled()
+    if _PN95_LAYER_ACCESS_COUNTS:
+        top_hot = sorted(
+            _PN95_LAYER_ACCESS_COUNTS.items(), key=lambda kv: -kv[1],
+        )[:5]
+        snapshot["layer_access_top5_hot"] = {k: v for k, v in top_hot}
+        snapshot["layer_access_distinct"] = len(_PN95_LAYER_ACCESS_COUNTS)
+        snapshot["layer_access_total_observations"] = sum(
+            _PN95_LAYER_ACCESS_COUNTS.values()
+        )
     # L1 pinned pool stats — surfaces hit-rate of the fast PCIe DMA path
     # vs the pageable L2 fallback. Operator can spot "pool too small" via
     # high l1_full_skips, or "no demote pressure" via zero l1_demote_writes.
@@ -1490,6 +1504,61 @@ def _pn95_l1_pool(slot_size_hint: int = 0):
     except ImportError:
         return None
     return _ppool.get_pool(slot_size_hint)
+
+
+# ── Layer-aware demote priority ──────────────────────────────────────────
+# Tracks per-layer access frequency from the promote path so demote can
+# prioritize cold layers when capacity is constrained. Implementation is a
+# small dict keyed by layer_name; on a 17-attention-layer Qwen3.6 27B model
+# the structure stays trivial (<200 bytes). Single-process, single-rank —
+# no cross-worker sync needed (each rank decides its own demote order).
+#
+# Update on every promote restoration; read on every demote sort. The
+# heuristic is intentionally simple: layers with the highest cumulative
+# promote-read count are deemed "hot" and pushed to the end of the demote
+# queue. Cold layers (low counts) are demoted first, freeing GPU memory
+# along the path the GPU's attention forward least frequently touches.
+#
+# Bounded growth: counts are reset on overflow (>10M) to prevent integer
+# bloat. The relative ordering is what matters, not absolute values.
+_PN95_LAYER_ACCESS_COUNTS: dict = {}
+_PN95_LAYER_ACCESS_RESET_THRESHOLD = 10_000_000
+
+
+def _pn95_layer_aware_enabled() -> bool:
+    return os.environ.get(
+        "GENESIS_ENABLE_PN95_LAYER_AWARE_DEMOTE", "0",
+    ).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _pn95_record_layer_promote(layer_name: str) -> None:
+    """Bump access count for a layer on promote read. Cheap dict op."""
+    global _PN95_LAYER_ACCESS_COUNTS
+    n = _PN95_LAYER_ACCESS_COUNTS.get(layer_name, 0) + 1
+    if n > _PN95_LAYER_ACCESS_RESET_THRESHOLD:
+        # Halve all counters to preserve relative ordering without overflow.
+        _PN95_LAYER_ACCESS_COUNTS = {
+            k: v // 2 for k, v in _PN95_LAYER_ACCESS_COUNTS.items()
+        }
+        n = _PN95_LAYER_ACCESS_COUNTS.get(layer_name, 0) + 1
+    _PN95_LAYER_ACCESS_COUNTS[layer_name] = n
+
+
+def _pn95_sort_layers_cold_first(eligible_layers: list) -> list:
+    """Sort (layer_name, tensor_view) tuples by ascending access count.
+
+    Layers never observed in promote stay at the front (cold by default).
+    Stable sort preserves the original block-pool ordering as the tiebreaker
+    so behavior is deterministic when no promote history exists.
+
+    No-op if GENESIS_ENABLE_PN95_LAYER_AWARE_DEMOTE != 1.
+    """
+    if not _pn95_layer_aware_enabled() or not _PN95_LAYER_ACCESS_COUNTS:
+        return eligible_layers
+    return sorted(
+        eligible_layers,
+        key=lambda lv: _PN95_LAYER_ACCESS_COUNTS.get(lv[0], 0),
+    )
 
 # Path C v1.0 Quality-First Sprint Q1 A1 — lossless CPU prefix compression.
 # Reduces effective CPU tier capacity 2-3× via zstd (or 1.5-2× via lz4).
@@ -1814,6 +1883,14 @@ def demote_on_evict(block_hash: Any, block_id: int) -> bool:
         if not eligible_layers:
             return False
 
+        # Layer-aware demote priority: when enabled, sort eligible_layers
+        # ascending by promote-access count so cold layers go to CPU first.
+        # No effect on the per-block all-or-nothing semantic (we still copy
+        # every layer for this block); the ordering only matters when the
+        # downstream pool is byte-budget capped (L1 pinned pool slot limit,
+        # or future per-layer demote skip).
+        eligible_layers = _pn95_sort_layers_cold_first(eligible_layers)
+
         # ONE batched async copy для all N layer views (~16× less sync overhead).
         layer_views = [v for _name, v in eligible_layers]
         raw_bytes_list = _pn95_gpu_to_cpu_bytes_batch(layer_views)
@@ -1994,6 +2071,10 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
                 view = tensor[new_block_id]
                 eligible_views.append(view)
                 eligible_bytes.append(cpu_bytes)
+                # Layer-aware demote bookkeeping: record that this layer
+                # was actually restored to GPU from PN95 — feeds the
+                # cold/hot heatmap consumed by demote_on_evict ordering.
+                _pn95_record_layer_promote(layer_name)
             except Exception:
                 continue
 
