@@ -1217,6 +1217,34 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
     },
+    "PN106": {
+        "title": "PN106 — GDN scratch tensor pool (architectural memory mgr)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN106_GDN_H_POOL",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "memory",
+        "apply_module": "vllm.sndr_core.integrations.kv_cache.pn106_gdn_h_pool",
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original architectural memory manager. Replaces the "
+            "per-call torch.empty / torch.empty_like patterns inside the "
+            "48-GDN-layer hot path (chunk_delta_h.py, chunk_o.py) with "
+            "slice views into named persistent pools. Eliminates 2.4-5.7 GiB "
+            "of alloc/free traffic per chunked-prefill step and 200-400 MiB "
+            "of steady-state fragmentation. Includes generic "
+            "pn106_get_pooled_buf(name, shape, dtype, device) API for "
+            "extending to other hot-path allocations (Marlin scratch, "
+            "FlashAttention k_full/v_full, etc). Targets the exact crash "
+            "site observed at chunk_o.py:168 on Qwen3.6-27B + 156K context."
+        ),
+        "applies_to": {
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+    },
     "PN104": {
         "title": "PN104 — redirect --cpu-offload-gb from UVA to Prefetch backend",
         "tier": "community",

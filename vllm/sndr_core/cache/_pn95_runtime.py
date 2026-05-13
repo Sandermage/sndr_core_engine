@@ -760,6 +760,152 @@ def pn95_materialize_virtual_block(
         return None
 
 
+def pn106_get_gdn_h_buf(B: int, NT: int, H: int, V: int, K: int,
+                         dtype: Any, device: Any):
+    """Legacy entry-point — delegates to generic named-pool allocator."""
+    return pn106_get_pooled_buf("gdn_h", (B, NT, H, V, K), dtype, device)
+
+
+def _pn106_legacy_h_impl(B: int, NT: int, H: int, V: int, K: int,
+                         dtype: Any, device: Any):
+    """Return a view of the singleton GDN h-state pool sized (B, NT, H, V, K).
+
+    The pool itself is grown on demand to the max (NT × H × V × K) seen
+    so far. Same-shape requests reuse the same backing storage; bigger
+    NT triggers a one-time pool re-grow (PyTorch caching allocator
+    typically reuses the slab even on grow).
+
+    Reused across all 48 GDN layers within a step AND across steps.
+    Saves ~50-120 MiB alloc/free traffic per layer per call (Qwen3.6-27B
+    has 48 GDN layers, so net ~2.4-5.7 GiB allocator traffic eliminated
+    per chunked-prefill step). Steady-state ~200-400 MiB fragmentation
+    reclaimed.
+
+    Safety: this returns a VIEW into a shared buffer. Caller MUST
+    fully overwrite via the downstream Triton kernel (which it does —
+    `chunk_gated_delta_rule_fwd_kernel_h_blockdim64` writes the full
+    h tensor). No stale data risk because the kernel does not read
+    h on input.
+    """
+    import torch
+    elem_per_slot = B * NT * H * V * K
+    elem_bytes = torch.empty(0, dtype=dtype).element_size()
+    bytes_needed = elem_per_slot * elem_bytes
+
+    key = (str(device), str(dtype))
+    pool = _PN106_POOLS.get(key)
+    if pool is None or pool.numel() * pool.element_size() < bytes_needed:
+        # Grow (or allocate). Round up to 1.25x for headroom.
+        target_elems = int(elem_per_slot * 1.25)
+        try:
+            pool = torch.empty(target_elems, dtype=dtype, device=device)
+            _PN106_POOLS[key] = pool
+            _PN95_STATS["pn106_pool_grows"] = (
+                _PN95_STATS.get("pn106_pool_grows", 0) + 1
+            )
+            _PN95_STATS["pn106_pool_bytes"] = pool.numel() * pool.element_size()
+        except Exception:
+            return None
+
+    view = pool[: elem_per_slot].view(B, NT, H, V, K)
+    _PN95_STATS["pn106_h_slices_served"] = (
+        _PN95_STATS.get("pn106_h_slices_served", 0) + 1
+    )
+    return view
+
+
+_PN106_POOLS: dict = {}
+_PN106_NAMED_POOLS: dict = {}  # name -> torch.Tensor (flat backing buffer)
+
+
+def pn106_get_pooled_buf(name: str, shape: tuple, dtype: Any, device: Any):
+    """Generic named-pool allocator for hot-path scratch tensors.
+
+    Replaces fresh `torch.empty(shape, ...)` / `torch.empty_like(t)` with
+    a view into a persistent flat backing buffer that grows on demand
+    and is reused across calls.
+
+    Args:
+      name: stable pool identifier ('gdn_h', 'gdn_v_new', 'gdn_o', etc.)
+      shape: requested tensor shape (any rank)
+      dtype: torch.dtype
+      device: torch.device
+
+    Returns:
+      A view-tensor of `shape` backed by the named pool, or None if
+      allocation fails.
+
+    Each (name, device, dtype) gets an independent backing buffer.
+    Growth is by 1.25x to amortize re-alloc on slowly-growing peaks.
+
+    Caller MUST overwrite the returned view before reading any element
+    (which is the case for all our patched sites — Triton kernels are
+    write-only on these scratch tensors). No correctness loss.
+    """
+    import torch
+    import math
+    n_elems = 1
+    for d in shape:
+        n_elems *= int(d)
+    if n_elems <= 0:
+        return None
+    key = (name, str(device), str(dtype))
+    pool = _PN106_NAMED_POOLS.get(key)
+    if pool is None or pool.numel() < n_elems:
+        target = max(n_elems, int(n_elems * 1.25))
+        # Round up to 4K elements to dampen growth churn
+        target = ((target + 4095) // 4096) * 4096
+        try:
+            pool = torch.empty(target, dtype=dtype, device=device)
+        except Exception:
+            return None
+        _PN106_NAMED_POOLS[key] = pool
+        _PN95_STATS[f"pn106_pool_{name}_grows"] = (
+            _PN95_STATS.get(f"pn106_pool_{name}_grows", 0) + 1
+        )
+        _PN95_STATS[f"pn106_pool_{name}_bytes"] = (
+            pool.numel() * pool.element_size()
+        )
+    view = pool[:n_elems].view(*shape)
+    _PN95_STATS[f"pn106_pool_{name}_slices"] = (
+        _PN95_STATS.get(f"pn106_pool_{name}_slices", 0) + 1
+    )
+    return view
+
+
+def pn106_periodic_empty_cache() -> None:
+    """Call `torch.cuda.empty_cache()` to defragment the allocator.
+
+    Invoked sparingly (every Nth scheduler tick) to reclaim "reserved but
+    unallocated" memory observed in the OOM crash log (~319 MiB
+    fragmentation). The CUDA caching allocator does not give back
+    reserved-but-free slabs until empty_cache is called. Critical for
+    long-running deployments — fragmentation accumulates as variable-
+    sized chunks pass through the GDN/attention path.
+
+    Env-driven cadence: GENESIS_PN106_EMPTY_CACHE_EVERY_N_TICKS
+    (default 0 = disabled — operator opts in when fragmentation
+    actually hurts).
+    """
+    try:
+        n = int(os.environ.get("GENESIS_PN106_EMPTY_CACHE_EVERY_N_TICKS", "0"))
+    except (ValueError, TypeError):
+        n = 0
+    if n <= 0:
+        return
+    tick = _PN95_STATS.get("ticks_total", 0)
+    if tick == 0 or tick % n != 0:
+        return
+    try:
+        import torch
+        torch.cuda.empty_cache()
+        _PN95_STATS["pn106_empty_cache_calls"] = (
+            _PN95_STATS.get("pn106_empty_cache_calls", 0) + 1
+        )
+    except Exception:
+        pass
+
+
 def pn97_physical_cap_bytes(n_tensors: int) -> Optional[int]:
     """Return per-KVCacheTensor byte cap for PN97 (Phase 7 PoC).
 
