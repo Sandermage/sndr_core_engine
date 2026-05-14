@@ -57,6 +57,31 @@ class SpecDecodeConfig:
     # None — vllm uses the target model's own MTP head / its own n-gram cache.
     model: Optional[str] = None
 
+    # Probabilistic draft-probs propagation (vllm dev338+ native).
+    #
+    # The upstream rejection_sampler now natively supports the
+    # `min(1, target_p / draft_p)` accept rule when both fields below are
+    # set on the SpeculativeConfig — there is a runtime gate at
+    # `LLMBaseProposer._enable_probabilistic_draft_probs` that requires
+    # BOTH `rejection_sample_method == "standard"` AND
+    # `draft_sample_method == "probabilistic"`. Without those, the
+    # drafter falls back to greedy sampling and the verifier gets
+    # `None` for draft_probs, so the accept rule degrades to the
+    # straight equality check and we lose ~7 % accept_rate / TPS on
+    # MTP K=3.
+    #
+    # This is the upstream-merged replacement for our Genesis PN90
+    # backport (which text-patched the rejection_sampler call site
+    # itself). PN90 self-retired on dev338 because upstream
+    # restructured the anchor — exposing these fields here is the
+    # supported migration path.
+    #
+    # Defaults stay None to keep V1 configs that do not set them
+    # bit-identical to their prior behaviour. Operators opt-in via
+    # the model YAML's `spec_decode:` block.
+    rejection_sample_method: Optional[str] = None  # "standard" | None
+    draft_sample_method: Optional[str] = None      # "probabilistic" | None
+
     def validate(self) -> None:
         valid_methods = {"mtp", "eagle", "ngram", "dflash"}
         if self.method not in valid_methods:
@@ -73,6 +98,23 @@ class SpecDecodeConfig:
                 f"SpecDecodeConfig.model is required for method='{self.method}' "
                 f"(drafter is a separate checkpoint from the target model)"
             )
+        # The native probabilistic draft path is documented in
+        # vllm.v1.spec_decode.llm_base_proposer at the
+        # `_enable_probabilistic_draft_probs` gate. The known-good values
+        # at the dev338 pin are listed below; new values become possible
+        # if upstream extends the enum without our knowing.
+        valid_rejection = {None, "standard"}
+        valid_draft_sample = {None, "probabilistic"}
+        if self.rejection_sample_method not in valid_rejection:
+            raise SchemaError(
+                "SpecDecodeConfig.rejection_sample_method must be one of "
+                f"{valid_rejection}, got {self.rejection_sample_method!r}"
+            )
+        if self.draft_sample_method not in valid_draft_sample:
+            raise SchemaError(
+                "SpecDecodeConfig.draft_sample_method must be one of "
+                f"{valid_draft_sample}, got {self.draft_sample_method!r}"
+            )
 
     def to_vllm_arg(self) -> str:
         """Format for --speculative-config flag."""
@@ -82,6 +124,13 @@ class SpecDecodeConfig:
         }
         if self.model:
             d["model"] = self.model
+        # Probabilistic draft-probs path — only emit when both halves of
+        # the gate are set, so older vllm pins that lack the upstream
+        # native path do not see unknown keys in the config blob.
+        if self.rejection_sample_method is not None:
+            d["rejection_sample_method"] = self.rejection_sample_method
+        if self.draft_sample_method is not None:
+            d["draft_sample_method"] = self.draft_sample_method
         return json.dumps(d)
 
 
