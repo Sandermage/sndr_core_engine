@@ -113,19 +113,35 @@ PN90_MARKER_RUNNER = (
 
 # Drift markers — when upstream lands its own probabilistic-draft
 # propagation, these symbols would appear and PN90 must self-retire.
+#
+# 2026-05-15 update: vllm#40269 merged 2026-05-14 with a different
+# implementation than this backport assumed. Upstream lands the feature as:
+#   - `self._enable_probabilistic_draft_probs` (gate, set from
+#      speculative_config.draft_sample_method == "probabilistic")
+#   - `self._last_draft_probs` (captured tensor)
+#   - `take_last_draft_probs()` accessor (returns probs to gpu_model_runner)
+# We add these as drift markers so PN90 auto-skips on pins that contain
+# the upstream feature (operator gets the native path; we don't double-
+# patch).
 _PROPOSER_DRIFT_MARKERS = (
-    "_pn90_step_probs_buf",     # our marker
-    "_pn90_draft_probs",        # our marker
-    # Upstream-side likely shape if vllm#40269 lands:
+    "_pn90_step_probs_buf",                  # our marker
+    "_pn90_draft_probs",                     # our marker
+    # Upstream-native symbols (vllm#40269 merged 2026-05-14):
+    "_enable_probabilistic_draft_probs",
+    "_last_draft_probs",
+    "take_last_draft_probs",
+    # Older speculative naming we considered before merge:
     "draft_token_probs",
     "draft_logprobs",
     "self.drafter._draft_probs",
 )
 _RUNNER_DRIFT_MARKERS = (
-    "_pn90_draft_probs",        # our marker
-    # Upstream-side: if line 3416 stops passing literal None, PN90 retires
+    "_pn90_draft_probs",                     # our marker
+    # Upstream-side: if line 3416 stops passing literal None, PN90 retires.
     "draft_probs=getattr",
     "draft_probs=self.drafter",
+    # Upstream-native (vllm#40269): runner calls .take_last_draft_probs()
+    "take_last_draft_probs",
 )
 
 

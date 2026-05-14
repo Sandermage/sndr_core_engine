@@ -1215,9 +1215,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "apply_module": "vllm.sndr_core.integrations.spec_decode.pn90_probabilistic_draft_rejection",
         "credit": (
-            "Backport of vllm-project/vllm#40269 (OPEN as of 2026-05-09). "
-            "Stock vLLM dev93 passes literal `None` for draft_probs in "
-            "gpu_model_runner.py:3416 → rejection_sampler falls back to "
+            "Backport of vllm-project/vllm#40269 (MERGED upstream 2026-05-14). "
+            "Stock vLLM dev93 passed literal `None` for draft_probs in "
+            "gpu_model_runner.py:3416 → rejection_sampler fell back to "
             "argmax-or-bonus rule. PN90 captures softmax probs in "
             "_greedy_sample (proposer side), accumulates per K-step, "
             "stacks into [total_drafts, vocab] 2D layout, and feeds to "
@@ -1228,7 +1228,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Genesis contribution: full text-patch implementation across "
             "llm_base_proposer.py (3 anchors) + gpu_model_runner.py "
             "(1 anchor), MultiFilePatchTransaction atomicity, drift "
-            "markers, env-gated for safe back-compat."
+            "markers, env-gated for safe back-compat. "
+            "POST-MERGE NOTE (2026-05-15): upstream landed the same "
+            "feature via `speculative_config.draft_sample_method = "
+            "\"probabilistic\"` + `take_last_draft_probs()`. PN90 drift "
+            "markers detect upstream-native symbols and self-skip on "
+            "pins ≥dev338. Prefer the native path: set draft_sample_method "
+            "(see commit 0e877eaf exposing the knob on SpecDecodeConfig) "
+            "instead of GENESIS_ENABLE_PN90_*."
         ),
         "upstream_pr": 40269,
         "applies_to": {
