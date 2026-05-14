@@ -5,7 +5,7 @@ Hooks `record_dispatch(matched)` into the vllm v1 cudagraph dispatcher
 call sites in `gpu_model_runner.py`. The wrapper is fail-silent (any
 error is swallowed so no production breakage) and only fires when
 GENESIS_CUDAGRAPH_DISPATCH_TRACE=1 in the env. Registry env_flag is
-`GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE` (dispatcher-gated; default
+`GENESIS_ENABLE_PN122_CG_DISPATCH_TRACE` (legacy `GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE` accepted; dispatcher-gated; default
 OFF unless opted in for instrumentation).
 
 Two anchors (both at known dispatcher.dispatch() call sites):

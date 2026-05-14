@@ -71,7 +71,7 @@ import logging
 import os
 import threading
 
-log = logging.getLogger("genesis.wiring.pn96_marlin_persistent_workspace")
+log = logging.getLogger("genesis.wiring.pn96b_marlin_persistent_workspace")  # renamed from pn96_ 2026-05-14
 
 GENESIS_PN96_MARKER = (
     "Genesis PN96 Marlin persistent workspace v1 (Wave 9 dev209 perf-restore)"
