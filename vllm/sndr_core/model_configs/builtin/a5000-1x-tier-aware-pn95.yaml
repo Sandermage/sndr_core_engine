@@ -1,0 +1,155 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis single-A5000 tier-aware config — Qwen3.6-27B + fp8 + PN95 offload.
+#
+# Goal: serve max_model_len 200K on ONE A5000 24 GB card via PN95 multi-tier
+# offload (GPU hot + CPU pinned warm + disk cold). vLLM's pre-flight KV check
+# would refuse boot at 200K otherwise (only ~3-4 GiB GPU KV after model+
+# workspace, vs ~7 GiB needed for 200K nominal); GENESIS_PN95_VIRT_ENABLE=1
+# inflates vLLM's view of available memory by the CPU tier capacity so the
+# pre-flight passes. Physical GPU allocation is still capped to the real
+# value by anchor #10.
+
+key: a5000-1x-tier-aware-pn95
+title: Single A5000 — Qwen3.6-27B-INT4 fp8 + PN95 multi-tier offload
+description: >-
+  Single-card variant of the Wave 9 27B PROD config. Trades concurrency
+  for ~3× context reach via PN95 demote→CPU-pinned-warm→disk-cold.
+schema_version: 1
+maintainer: sandermage
+last_validated: '2026-05-13'
+genesis_pin: v11.0.0+wave9+pn95_pinned_l1+layer_aware
+vllm_pin_required: 0.20.2rc1.dev209+g5536fc0c0
+lifecycle: experimental
+workload_tag: long-context-single-card
+
+hardware:
+  gpu_match_keys: [rtx a5000]
+  n_gpus: 1
+  min_vram_per_gpu_mib: 22000
+  cuda_capability_min: [8, 6]
+
+model_path: /models/Qwen3.6-27B-int4-AutoRound
+served_model_name: qwen3.6-27b
+quantization: null
+kv_cache_dtype: fp8_e5m2
+
+max_model_len: 200000
+gpu_memory_utilization: 0.92
+max_num_seqs: 1
+max_num_batched_tokens: 2048
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE
+enforce_eager: false
+disable_custom_all_reduce: true
+language_model_only: true
+trust_remote_code: true
+
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+spec_decode:
+  method: mtp
+  num_speculative_tokens: 3
+
+cache_config:
+  eviction_policy: lru
+  tiers:
+    - device: gpu
+      capacity_gib: 5.0
+      eviction_policy: lru
+      promote_on_hit: true
+      demote_threshold_pct: 0.92
+      low_water_pct: 0.75
+    - device: cpu
+      capacity_gib: 32.0
+      eviction_policy: lru
+      promote_on_hit: true
+      vision_first: false
+      pinned: true
+      notes: >-
+        32 GiB pinned host RAM as PN95 L2 tier. Backed by the new
+        _pn95_pinned_pool L1 (env GENESIS_PN95_PINNED_POOL_MB) which
+        sits on top as a fast PCIe DMA path. Layer-aware demote
+        prioritises cold layers when free pressure hits.
+  exclude_mamba_ssm: true
+  vision_demote_first: false
+  tier_low_water_pct: 0.05
+  async_demote: true
+
+genesis_env:
+  # Quality patches (Wave 8/9 stable set for 27B fp8 + MTP)
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1'
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'
+  GENESIS_ENABLE_P95: '1'
+  GENESIS_ENABLE_P99: '1'
+  GENESIS_ENABLE_P101: '1'
+  GENESIS_ENABLE_P103: '1'
+  GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'
+  GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL: '1'
+  GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP: '1'
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'
+  GENESIS_PN16_TOOL_THINK_BUDGET: '200'
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'
+  GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'
+  GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'
+  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'
+  GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK: '1'
+  GENESIS_ENABLE_PN59_STREAMING_GDN: '1'
+  GENESIS_ENABLE_PN66: '1'
+  GENESIS_ENABLE_PN67: '1'
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'
+  GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO: '1'
+  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'
+  # New genesis-original (this branch)
+  GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'
+  GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'
+  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'
+  GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'
+  # PN95 + this-session memory stack
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'
+  GENESIS_PN95_VIRT_ENABLE: '1'
+  GENESIS_PN95_CONFIG_KEY: a5000-1x-tier-aware-pn95
+  GENESIS_PN95_TICK_EVERY: '10'
+  GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD: '512'
+  GENESIS_PN95_PROACTIVE_FREE_BLOCKS_THRESHOLD: '32'
+  GENESIS_PN95_DISK_TIER_ENABLE: '1'
+  GENESIS_PN95_DISK_TIER_CAPACITY_GIB: '50'
+  GENESIS_PN95_DISK_TIER_DIR: /root/.sndr/cache/pn95_disk_1card
+  GENESIS_ENABLE_PN95_PINNED_POOL: '1'
+  GENESIS_PN95_PINNED_POOL_MB: '512'
+  GENESIS_ENABLE_PN95_LAYER_AWARE_DEMOTE: '1'
+
+system_env:
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_LOGGING_LEVEL: WARNING
+  VLLM_FLOAT32_MATMUL_PRECISION: high
+  VLLM_SSM_CONV_STATE_LAYOUT: DS
+  VLLM_USE_FLASHINFER_SAMPLER: '1'
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+  VLLM_MARLIN_USE_ATOMIC_ADD: '1'
+  VLLM_WORKER_MULTIPROC_METHOD: spawn
+
+api_key: genesis-local
+host: 0.0.0.0
+
+notes:
+  - "Single-A5000 PN95 multi-tier offload. fp8 KV. MTP K=3."
+  - "VIRT_ENABLE=1 inflates vLLM pre-flight available_memory by CPU tier so 200K passes."
+  - "Expect significantly slower prefill than 2×A5000 (no TP). Decode similar."
