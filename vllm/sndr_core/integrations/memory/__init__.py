@@ -14,8 +14,8 @@ __all__ = [
     "p15b_fa_varlen_clamp",
     "p38b_compile_safe_hook",
     "p5b_page_size_pad_smaller",
-    "pn19_scoped_max_split",
-    "pn78_post_warmup_cache_release",
+    # "pn19_scoped_max_split",  # moved to _retired/ 2026-05-14
+    # "pn78_post_warmup_cache_release",  # moved to _retired/ 2026-05-14
 ]
 
 def __getattr__(name: str):

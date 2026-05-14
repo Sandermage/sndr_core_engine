@@ -1,0 +1,278 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""Audit registry contract — aggregate validator for PATCH_REGISTRY drift.
+
+Single CI-friendly gate that asserts six invariants in one pass:
+
+  1. conflicts_with symmetry — if A conflicts_with B, then B conflicts_with A.
+  2. category enum — every patch.category in VALID_CATEGORIES.
+  3. family ↔ integrations path consistency — wiring file lives under
+     `integrations/<family>/` (`.` in family → `/` in path).
+  4. apply_module coverage — every non-retired patch with on-disk wiring
+     has a resolvable apply_module reference.
+  5. retired provenance — retired patches have superseded_by + vllm_version_range
+     (or explicit waiver flag).
+  6. pin gate — patch.applies_to.vllm_pin entries are in KNOWN_GOOD_VLLM_PINS.
+
+Exit codes:
+  0 — all invariants hold (CI green)
+  1 — at least one drift case detected (CI red)
+  2 — internal error / registry not loadable
+
+Modes:
+  python3 scripts/audit_registry_contract.py            # human-readable
+  python3 scripts/audit_registry_contract.py --json     # machine-readable
+  python3 scripts/audit_registry_contract.py --strict   # exit 1 on warnings too
+
+The script is intentionally read-only — no edits to registry.py or tests.
+Add this to `make evidence` after audit-no-stub for an aggregate gate.
+"""
+from __future__ import annotations
+
+import argparse
+import importlib
+import json
+import sys
+from collections import defaultdict
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+
+def _check_conflicts_symmetry(registry: dict[str, dict[str, Any]]) -> list[str]:
+    """Invariant 1: conflicts_with must be symmetric."""
+    issues: list[str] = []
+    for pid, meta in registry.items():
+        conflicts = meta.get("conflicts_with") or []
+        for other in conflicts:
+            other_meta = registry.get(other)
+            if other_meta is None:
+                issues.append(
+                    f"conflicts: {pid}.conflicts_with includes {other!r} "
+                    "which is not in registry"
+                )
+                continue
+            reverse = other_meta.get("conflicts_with") or []
+            if pid not in reverse:
+                issues.append(
+                    f"conflicts: {pid} → {other} not symmetric "
+                    f"({other}.conflicts_with = {reverse})"
+                )
+    return issues
+
+
+def _check_category_enum(registry: dict[str, dict[str, Any]]) -> list[str]:
+    """Invariant 2: every category in VALID_CATEGORIES."""
+    try:
+        from vllm.sndr_core.dispatcher.spec import VALID_CATEGORIES
+    except ImportError as e:
+        return [f"category: cannot import VALID_CATEGORIES ({e})"]
+    issues: list[str] = []
+    for pid, meta in registry.items():
+        cat = meta.get("category")
+        if cat is None:
+            continue  # category is optional in some entries
+        if cat not in VALID_CATEGORIES:
+            issues.append(
+                f"category: {pid}.category={cat!r} not in VALID_CATEGORIES "
+                f"({len(VALID_CATEGORIES)} valid values)"
+            )
+    return issues
+
+
+def _check_family_path(registry: dict[str, dict[str, Any]]) -> list[str]:
+    """Invariant 3: registry family ↔ integrations subdir consistency."""
+    try:
+        from vllm.sndr_core.compat.categories import module_for
+    except ImportError as e:
+        return [f"family-path: cannot import module_for ({e})"]
+    issues: list[str] = []
+    for pid, meta in registry.items():
+        fam = meta.get("family")
+        if not fam or fam == "model_specific":
+            continue
+        # Retired patches live in `_retired/` by design — family stays
+        # informational (original wiring family), location is `_retired/`.
+        if meta.get("lifecycle") == "retired":
+            continue
+        mod = module_for(pid)
+        if mod is None or "integrations." not in mod:
+            continue
+        after_int = mod.split("integrations.", 1)[1]
+        subdir = after_int.rsplit(".", 1)[0].replace(".", "/")
+        expected = fam.replace(".", "/")
+        if subdir != expected:
+            issues.append(
+                f"family-path: {pid} registry family={fam!r} "
+                f"(→ integrations/{expected}/) but wiring at "
+                f"integrations/{subdir}/"
+            )
+    return issues
+
+
+def _check_apply_module_coverage(
+    registry: dict[str, dict[str, Any]],
+) -> tuple[list[str], list[str]]:
+    """Invariant 4: every active patch resolves to importable apply_module.
+
+    Returns (errors, warnings) — errors for missing modules, warnings
+    for patches lacking apply_module entirely (informational).
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+    for pid, meta in registry.items():
+        lifecycle = meta.get("lifecycle", "experimental")
+        if lifecycle == "retired":
+            continue
+        am = meta.get("apply_module") or ""
+        if not am:
+            warnings.append(f"apply_module: {pid} has no apply_module")
+            continue
+        try:
+            importlib.import_module(am)
+        except (ImportError, ModuleNotFoundError) as e:
+            errors.append(
+                f"apply_module: {pid}.apply_module={am!r} not importable ({e})"
+            )
+    return errors, warnings
+
+
+def _check_retired_provenance(registry: dict[str, dict[str, Any]]) -> list[str]:
+    """Invariant 5: retired patches have provenance (superseded_by + version range
+    or waiver)."""
+    issues: list[str] = []
+    for pid, meta in registry.items():
+        if meta.get("lifecycle") != "retired":
+            continue
+        has_superseded = bool(meta.get("superseded_by"))
+        has_version = bool(meta.get("vllm_version_range"))
+        has_waiver = bool(meta.get("retired_waiver"))
+        if has_waiver:
+            continue
+        if has_superseded and not has_version:
+            issues.append(
+                f"retired: {pid}.superseded_by set but vllm_version_range "
+                "missing (cannot prove safe drift)"
+            )
+        elif not has_superseded and not has_version:
+            issues.append(
+                f"retired: {pid} has no superseded_by, vllm_version_range, "
+                "or retired_waiver — provenance incomplete"
+            )
+    return issues
+
+
+def _check_pin_gate(registry: dict[str, dict[str, Any]]) -> list[str]:
+    """Invariant 6: any applies_to.vllm_pin entry is in KNOWN_GOOD_VLLM_PINS."""
+    try:
+        from vllm.sndr_core.detection.guards import KNOWN_GOOD_VLLM_PINS
+    except ImportError as e:
+        return [f"pin-gate: cannot import KNOWN_GOOD_VLLM_PINS ({e})"]
+    known = set(KNOWN_GOOD_VLLM_PINS)
+    issues: list[str] = []
+    for pid, meta in registry.items():
+        applies_to = meta.get("applies_to") or {}
+        pins = applies_to.get("vllm_pin")
+        if not pins:
+            continue
+        if isinstance(pins, str):
+            pins = [pins]
+        for p in pins:
+            if p not in known:
+                issues.append(
+                    f"pin-gate: {pid}.applies_to.vllm_pin={p!r} not in "
+                    "KNOWN_GOOD_VLLM_PINS"
+                )
+    return issues
+
+
+def run_audit(strict: bool = False) -> dict[str, Any]:
+    """Run all 6 invariants. Returns dict with errors/warnings per check."""
+    try:
+        from vllm.sndr_core.dispatcher import PATCH_REGISTRY as registry
+    except ImportError as e:
+        return {"_internal_error": f"cannot import PATCH_REGISTRY ({e})"}
+
+    apply_errors, apply_warnings = _check_apply_module_coverage(registry)
+    results = {
+        "conflicts_symmetry": _check_conflicts_symmetry(registry),
+        "category_enum": _check_category_enum(registry),
+        "family_path": _check_family_path(registry),
+        "apply_module": apply_errors,
+        "apply_module_warnings": apply_warnings,
+        "retired_provenance": _check_retired_provenance(registry),
+        "pin_gate": _check_pin_gate(registry),
+        "_count": len(registry),
+    }
+    return results
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json", action="store_true", help="JSON output")
+    parser.add_argument(
+        "--strict", action="store_true",
+        help="exit non-zero on warnings (e.g. apply_module missing)",
+    )
+    args = parser.parse_args(argv)
+
+    results = run_audit(strict=args.strict)
+    if "_internal_error" in results:
+        if args.json:
+            print(json.dumps(results, indent=2))
+        else:
+            print(f"INTERNAL ERROR: {results['_internal_error']}", file=sys.stderr)
+        return 2
+
+    total_errors = sum(
+        len(v) for k, v in results.items()
+        if k not in ("_count", "apply_module_warnings")
+        and isinstance(v, list)
+    )
+    total_warnings = len(results.get("apply_module_warnings", []))
+
+    if args.json:
+        print(json.dumps(results, indent=2, default=str))
+    else:
+        print("╭──────────────────────────────────────────────────────────╮")
+        print(f"│  audit_registry_contract: {results['_count']:>3} entries{' ' * 19}│")
+        print("╰──────────────────────────────────────────────────────────╯")
+        for check in (
+            "conflicts_symmetry",
+            "category_enum",
+            "family_path",
+            "apply_module",
+            "retired_provenance",
+            "pin_gate",
+        ):
+            items = results.get(check, [])
+            status = "✓" if not items else "✗"
+            print(f"  {status} {check:<22} {len(items):>3} issue(s)")
+            for it in items[:5]:
+                print(f"      - {it}")
+            if len(items) > 5:
+                print(f"      ... +{len(items) - 5} more")
+        if total_warnings:
+            print(f"\n  ⚠ {total_warnings} apply_module warning(s) "
+                  "(informational; use --strict to fail)")
+        print()
+        if total_errors == 0 and (not args.strict or total_warnings == 0):
+            print("  ✓ REGISTRY CONTRACT CLEAN")
+        else:
+            print(f"  ✗ {total_errors} error(s)"
+                  + (f" + {total_warnings} warning(s)" if args.strict else "")
+                  + " — drift detected")
+
+    if total_errors > 0:
+        return 1
+    if args.strict and total_warnings > 0:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -717,7 +717,7 @@ def apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import (
+        from vllm.sndr_core.integrations._retired import (
             pn9_independent_drafter_attn_backend as _wiring,
         )
     except Exception as e:
@@ -802,27 +802,15 @@ def apply_patch_N62_text_only_vit_skip() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("P94 Spec-decode prepare_next_token zero-alloc (vllm#41043)")
-def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
-    """P94: backport of vllm#41043 — eliminate per-step allocation in
-    prepare_next_token under spec-decode. Default OFF; opt in via
-    GENESIS_ENABLE_P94=1.
-    """
-    name = "P94 Spec-decode prepare_next_token zero-alloc (vllm#41043)"
-    if not _state._APPLY_MODE:
-        return _applied(name, "dry-run: text-patch ready")
-    try:
-        from vllm.sndr_core.integrations.spec_decode import (
-            p94_spec_decode_zero_alloc as _wiring,
-        )
-    except Exception as e:
-        return _failed(name, f"wiring import failed: {e}")
-    status, reason = _wiring.apply()
-    if status == "applied":
-        return _applied(name, reason)
-    if status == "skipped":
-        return _skipped(name, reason)
-    return _failed(name, reason)
+# DEDUPE 2026-05-14: P94 duplicate hook removed (registered both as short
+# "P94 Spec-decode prepare_next_token zero-alloc" and detailed
+# "P94 Spec-decode prepare_next_token_ids_padded zero-alloc" — see line ~2979).
+# Kept def for git blame continuity; @register_patch removed so dispatcher
+# only sees the detailed-name version.
+def _dedupe_apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
+    """DEDUPE'd 2026-05-14 — see canonical hook at apply_patch_94_spec_decode_zero_alloc."""
+    name = "P94 Spec-decode prepare_next_token zero-alloc (vllm#41043) [DEDUPE]"
+    return _skipped(name, "deduplicated 2026-05-14")
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -917,6 +905,98 @@ def apply_patch_n111_skip_mamba_postprocess_sync() -> PatchResult:
     try:
         from vllm.sndr_core.integrations.attention.gdn import (
             pn111_skip_mamba_postprocess_sync as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
+    "PN116 TurboQuant prefill max_seq_len fallback fix (regressor: vllm#41434)"
+)
+def apply_patch_n116_tq_prefill_maxseq_fallback() -> PatchResult:
+    """PN116: Genesis-original fix for vllm#41434 fallback path on Ampere.
+
+    The upstream PR replaced a `.tolist()` GPU→CPU sync in TurboQuant
+    `_prefill_attention` with a CPU-mirror lookup that falls back to
+    the inflated full-batch `max_seq_len` when `seq_lens_cpu` is None.
+    On Hopper the new shape is a net win; on Ampere the inflated
+    fallback regresses 35B-A3B-FP8 TPS by ~10 %. Patch makes the
+    fallback compute the correct prefill-slice max via the original
+    `.tolist()` call. HW-aware: skips itself on SM≥9.0 unless
+    `GENESIS_PN116_FORCE=1` is set.
+    """
+    name = "PN116 TurboQuant prefill max_seq_len fallback fix (regressor: vllm#41434)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            pn116_tq_prefill_maxseq_fallback as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
+    "PN118 TurboQuant workspace graceful-fallback (backport: vllm#42551, P99-compat)"
+)
+def apply_patch_n118_tq_workspace_fallback() -> PatchResult:
+    """PN118: P99-compatible backport of vllm#42551 (jasonboukheir, OPEN).
+
+    Adds WorkspaceManager.{try_get_simultaneous, reserve} methods
+    (P99 memoization preserved on get_simultaneous), and updates
+    TurboQuant __init__ to reserve decode scratch + _decode_attention
+    to use try_get_simultaneous with torch.empty fallback. Closes the
+    AssertionError on first decode request for partial-TQ models
+    (16/64 TQ layers, Lorbus 27B AutoRound case named in the PR).
+    """
+    name = "PN118 TurboQuant workspace graceful-fallback (backport: vllm#42551, P99-compat)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            pn118_tq_workspace_fallback as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
+    "PN119 TurboQuant k8v4 GQA head grouping kernel (backport: vllm#40792)"
+)
+def apply_patch_n119_tq_gqa_grouping() -> PatchResult:
+    """PN119: backport of vllm#40792 (hoseung2, OPEN).
+
+    Adds the GQA-grouped variant of TurboQuant decode stage-1 kernel
+    (~195 lines) and updates dispatch to select it when GQA-ratio > 1.
+    Upstream measured +16-27% TPS on A100/H100 GQA-{4,8,24}. Our 27B
+    + 35B both run GQA-ratio 8 so expected win is near the high end.
+    Applied via bundled diff + `patch` subprocess with md5 pre-patch
+    guard; self-retires on drift.
+    """
+    name = "PN119 TurboQuant k8v4 GQA head grouping kernel (backport: vllm#40792)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            pn119_tq_gqa_grouping as _wiring,
         )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
@@ -1434,7 +1514,7 @@ def apply_patch_N52_prompt_logprobs_eviction() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.worker import pn52_prompt_logprobs_eviction
+        from vllm.sndr_core.integrations._retired import pn52_prompt_logprobs_eviction  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn52_prompt_logprobs_eviction.apply()
@@ -1497,7 +1577,7 @@ def apply_patch_N51_qwen3_streaming_thinking_disabled() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.reasoning import pn51_qwen3_streaming_thinking_disabled
+        from vllm.sndr_core.integrations._retired import pn51_qwen3_streaming_thinking_disabled  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn51_qwen3_streaming_thinking_disabled.apply()
@@ -1557,7 +1637,7 @@ def apply_patch_61_qwen3_multi_tool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.reasoning import p61_qwen3_multi_tool_first_occurrence
+        from vllm.sndr_core.integrations._retired import p61_qwen3_multi_tool_first_occurrence  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p61_qwen3_multi_tool_first_occurrence.apply()
@@ -1685,7 +1765,7 @@ def apply_patch_63_mtp_gdn_state_recovery() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import p63_mtp_gdn_state_recovery
+        from vllm.sndr_core.integrations._retired import p63_mtp_gdn_state_recovery  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p63_mtp_gdn_state_recovery.apply()
@@ -2022,7 +2102,7 @@ def apply_patch_N80_lora_tensorizer_device() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: 1-line LoRA tensorizer device kwarg")
     try:
-        from vllm.sndr_core.integrations.lora import pn80_lora_tensorizer_device
+        from vllm.sndr_core.integrations._retired import pn80_lora_tensorizer_device  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn80_lora_tensorizer_device.apply()
@@ -2124,7 +2204,7 @@ def apply_patch_N78_post_warmup_cache_release() -> PatchResult:
             "would be redundant 3rd call. Runtime apply() returns skipped."
         ))
     try:
-        from vllm.sndr_core.integrations.memory import pn78_post_warmup_cache_release
+        from vllm.sndr_core.integrations._retired import pn78_post_warmup_cache_release  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn78_post_warmup_cache_release.apply()
@@ -2520,22 +2600,11 @@ def apply_patch_N65_access_log() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("PN62 text-only ViT scratch skip MARKER-ONLY (real hook pending)")
-def apply_patch_N62_text_only_vit_skip() -> PatchResult:
-    """Patch PN62: skip visual-tower scratch alloc when text-only.
-
-    Backport of apnar club-3090#51 KV-cache cliff pattern. After PN61
-    auto-sets language_model_only=True, vLLM's _dummy_run still reserves
-    3-5 GiB ViT-tower scratch on a single 32 GB card. PN62 wraps
-    _dummy_run with a text-only-mode guard that signals the inner alloc
-    helper to skip.
-
-    Sister to PN35 (text-only inputs_embeds skip — already merged
-    upstream as vllm#35975).
-
-    Status: opt-in via GENESIS_ENABLE_PN62=1.
-    """
-    name = "PN62 text-only ViT scratch skip MARKER-ONLY (real hook pending)"
+# DEDUPE 2026-05-14: PN62 duplicate (MARKER-ONLY placeholder) removed.
+# Canonical hook is "PN62 Text-only ViT scratch skip" at line ~780.
+def _dedupe_apply_patch_N62_text_only_vit_skip_marker() -> PatchResult:
+    """DEDUPE'd 2026-05-14 — see canonical hook at line ~780."""
+    name = "PN62 text-only ViT scratch skip MARKER-ONLY [DEDUPE]"
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: class-rebind ready")
     try:
@@ -2907,7 +2976,7 @@ def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import p94_spec_decode_zero_alloc
+        from vllm.sndr_core.integrations._retired import p94_spec_decode_zero_alloc  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p94_spec_decode_zero_alloc.apply()
@@ -3078,9 +3147,17 @@ def apply_patch_N8_mtp_draft_online_quant_propagation() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("PN9 independent drafter attention backend (vllm#39930 backport)")
-def apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
-    """Patch N9: backport of vllm#39930 (MatthewBonanni, MERGED upstream) —
+# DEDUPE 2026-05-14: PN9 duplicate hook removed (had two registrations:
+# short "PN9 Independent drafter attention backend (vllm#39930)" at line ~709
+# and detailed-name backport variant here). Canonical: short-name version
+# at line ~709. Both pointed to same module (now in _retired/).
+def _dedupe_apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
+    """DEDUPE'd 2026-05-14 — see canonical at line ~709."""
+    return _skipped("PN9 [DEDUPE]", "deduplicated 2026-05-14")
+
+
+def _legacy_apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
+    """Patch N9 LEGACY VARIANT (kept for git blame): backport of vllm#39930 (MatthewBonanni, MERGED upstream) —
     allow the spec-decode drafter to use a different attention backend
     than the target model.
 
@@ -3110,7 +3187,7 @@ def apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import pn9_independent_drafter_attn_backend
+        from vllm.sndr_core.integrations._retired import pn9_independent_drafter_attn_backend  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn9_independent_drafter_attn_backend.apply()
@@ -3449,32 +3526,44 @@ def apply_patch_N33_spec_decode_warmup_k() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("PN96 Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore)")
-def apply_patch_N96_marlin_persistent_workspace() -> PatchResult:
-    """PN96 — eliminate per-call marlin_make_workspace_new alloc on the
+@register_patch("PN96b Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore)")
+def apply_patch_N96b_marlin_persistent_workspace() -> PatchResult:
+    """PN96b — eliminate per-call marlin_make_workspace_new alloc on the
     A3B-FP8 MoE hot path. Runtime monkey-patch of
     `experts/marlin_moe.py::MarlinExperts.apply` + `fused_marlin_moe`.
 
-    See `integrations/moe/pn96_marlin_persistent_workspace.py` for the
+    See `integrations/moe/pn96b_marlin_persistent_workspace.py` for the
     full motivation (Wave 9 dev209 35B regression RCA — 2026-05-12).
+    Renamed from PN96 → PN96b on 2026-05-14 to avoid registry collision
+    with kv_cache/PN96 emergency-demote (companion to PN95). Operators
+    should switch `GENESIS_ENABLE_PN96=1` to `GENESIS_ENABLE_PN96B=1`.
     Default ON for 35B PROD; auto-skips on dev93-era layout and on
     non-CUDA platforms.
     """
-    name = "PN96 Marlin persistent workspace"
+    name = "PN96b Marlin persistent workspace"
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
         from vllm.sndr_core.integrations.moe import (
-            pn96_marlin_persistent_workspace,
+            pn96b_marlin_persistent_workspace,
         )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    status, reason = pn96_marlin_persistent_workspace.apply()
+    status, reason = pn96b_marlin_persistent_workspace.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":
         return _skipped(name, reason)
     return _failed(name, reason)
+
+
+# DEDUPE 2026-05-14: PN96 renamed to PN96b above (line ~3529). Original
+# function name kept as alias for ONE release cycle for community plugin
+# back-compat — operators using `apply_patch_N96_marlin_persistent_workspace`
+# in custom scripts get a deprecation warning rather than ImportError.
+def apply_patch_N96_marlin_persistent_workspace() -> PatchResult:  # noqa: D401
+    """Deprecated alias — use apply_patch_N96b_marlin_persistent_workspace."""
+    return apply_patch_N96b_marlin_persistent_workspace()
 
 
 @register_patch("PN32 GDN chunked-prefill (Cliff 2 fix for single-24GB-GPU OOM)")
@@ -3620,7 +3709,7 @@ def apply_patch_N108_fused_recurrent_prefill() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import (
+        from vllm.sndr_core.integrations._retired import (  # moved to _retired/ 2026-05-14
             pn108_fused_recurrent_prefill,
         )
     except Exception as e:
@@ -4087,7 +4176,7 @@ def apply_patch_N13_cuda_graph_lambda_arity() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.compile_safety import pn13_cuda_graph_lambda_arity
+        from vllm.sndr_core.integrations._retired import pn13_cuda_graph_lambda_arity  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn13_cuda_graph_lambda_arity.apply()
@@ -4270,9 +4359,17 @@ def apply_patch_N17_fa2_softmax_lse_clamp() -> PatchResult:
     )
 
 
-@register_patch("PN16 Lazy-reasoner request hook (per-request enable_thinking)")
-def apply_patch_N16_lazy_reasoner() -> PatchResult:
-    """Patch N16: Genesis-original 2026-04-29 — per-request decision on
+# DEDUPE 2026-05-14: PN16 duplicate (3rd hook copy) removed. Canonical
+# pair is "PN16 Lazy reasoner request hook" (line ~733) + "PN16 V6 streaming
+# <think> token-budget enforcer" (line ~756). This 3rd registration was a
+# copy-paste duplicate with same target as line 733.
+def _dedupe_apply_patch_N16_lazy_reasoner() -> PatchResult:
+    """DEDUPE'd 2026-05-14 — see canonical at line ~733."""
+    return _skipped("PN16 [DEDUPE]", "deduplicated 2026-05-14")
+
+
+def _legacy_apply_patch_N16_lazy_reasoner() -> PatchResult:
+    """Patch N16 LEGACY VARIANT (kept for git blame): Genesis-original 2026-04-29 — per-request decision on
     whether the `<think>` reasoning block adds value.
 
     Hybrid policy:

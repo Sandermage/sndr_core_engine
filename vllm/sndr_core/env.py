@@ -99,6 +99,9 @@ class Flags:
     PN204_DUAL_STREAM_INPROJ = "PN204_DUAL_STREAM_INPROJ"
     P103 = "P103"  # FLA Cliff 2 chunked
     PN111 = "PN111"  # skip-mamba-postprocess sync (align-mode only; vllm#42574)
+    PN116 = "PN116"  # TurboQuant prefill max_seq_len fallback fix (regressor vllm#41434)
+    PN119 = "PN119"  # TurboQuant k8v4 GQA head grouping kernel (backport vllm#40792)
+    PN118 = "PN118"  # TurboQuant workspace graceful-fallback (backport vllm#42551, P99-compat)
 
     # GDN spec-decode subfamily
     P60_GDN_NGRAM_FIX = "P60_GDN_NGRAM_FIX"

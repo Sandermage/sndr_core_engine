@@ -51,6 +51,23 @@ def _check_id(value: str, field_name: str) -> None:
         )
 
 
+# Patch IDs follow Genesis convention: P or PN, then digits, optional suffix.
+# Examples: P67, P67b, PN116, PN119, PN16_V6. Uppercase distinguishes from
+# model/hardware/profile IDs which use kebab-case lowercase.
+_PATCH_ID_RE = re.compile(r"^P[N]?[0-9]+[A-Za-z0-9_]*$")
+
+
+def _check_patch_id(value: str, field_name: str) -> None:
+    """Patch IDs use uppercase P[N]?\\d+ convention (P67, PN119, PN16_V6)."""
+    if not value:
+        raise SchemaError(f"{field_name} required")
+    if not _PATCH_ID_RE.match(value):
+        raise SchemaError(
+            f"{field_name}={value!r} must match pattern P[N]?\\d+[A-Za-z0-9_]* "
+            "(e.g. P67, P67b, PN119, PN16_V6)"
+        )
+
+
 def _check_kind(value: str, expected: str) -> None:
     if value != expected:
         raise SchemaError(
@@ -499,7 +516,7 @@ class PatchManifest:
     def validate(self) -> None:
         _check_schema_version(self.schema_version)
         _check_kind(self.kind, "patch")
-        _check_id(self.id, "patch.id")
+        _check_patch_id(self.id, "patch.id")
         if not self.namespace.startswith("community/") and self.namespace not in (
             "official", "core",
         ):

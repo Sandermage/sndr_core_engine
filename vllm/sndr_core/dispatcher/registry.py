@@ -63,7 +63,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "ZenoAFfectionate (vllm#39055)",
         "upstream_pr": 39055,
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "lifecycle": "experimental",
     },
     "P60": {
@@ -101,7 +101,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "ExtReMLapin (vllm#40783) — P61 was supposed to flip P12's LAST-occurrence to FIRST via post-anchor replacement, but its anchor 'tool_call_index = ...' never matched P12-emitted 'idx = ...' form, so it silent-skipped when P12 was active. v7.62.5 (2026-04-28): P12 emit updated to FIRST directly; P61 retired. Setting GENESIS_ENABLE_P61=1 is now a harmless no-op (anchor not found vs already-FIRST P12 output).",
         "upstream_pr": 40783,
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
+        "apply_module": "vllm.sndr_core.integrations._retired.p61_qwen3_multi_tool_first_occurrence",
+        "retired_waiver": True,  # P12 v2 directly emits FIRST-occurrence; P61 anchor never matched in active form. Harmless no-op.
     },
     "P62": {
         "title": "Structured-output spec-decode reasoning-end timing fix",
@@ -153,7 +155,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "ExtReMLapin (vllm#40783)",
         "upstream_pr": 40783,
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "lifecycle": "experimental",
     },
     "P63": {
@@ -163,6 +165,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_P63_MTP_GDN_STATE_RECOVERY",
         "default_on": False,
         "lifecycle": "retired",  # migrated from `deprecated: True`. Hypothesis disproven empirically; safety-gated.
+        "retired_waiver": True,  # Genesis-original hypothesis disproven 2026-04-25; no upstream supersession (not a backport)
+        "apply_module": "vllm.sndr_core.integrations._retired.p63_mtp_gdn_state_recovery",
         "category": "spec_decode",
         "credit": "Genesis-original (hypothesis disproven 2026-04-25)",
         "upstream_pr": None,
@@ -184,20 +188,24 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "kotori-yan (vllm#39598)",
         "upstream_pr": 39598,
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "lifecycle": "experimental",
     },
     "P65": {
-        "title": "TurboQuant spec-decode cudagraph downgrade",
+        "title": "TurboQuant spec-decode cudagraph downgrade (FALLBACK — see P67 root-cause fix)",
         "tier": "community",
         "family": "attention.turboquant",
         "env_flag": "GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE",
         "default_on": False,
         "category": "spec_decode",
-        "credit": "Genesis-original (root cause for noonghunna #40880)",
+        "credit": "Genesis-original (root cause for noonghunna #40880). Fallback safety-net workaround that downgrades cudagraph PIECEWISE → ~30% TPS hit. SUPERSEDED by P67/P67b root-cause fix (TurboQuant multi-query kernel for spec-decode K+1 verify). Default OFF; opt-in only when P67 unavailable or unstable.",
         "upstream_pr": None,
         "applies_to": {"is_turboquant": [True]},
         "conflicts_with": ["P67", "P67b"],
+        # NOTE: P67/P67b is the root-cause fix (multi-query kernel) and
+        # P65 is the safety-net fallback. Relationship explained in
+        # `credit`. Not using `superseded_by` because P65 has no pin-gate
+        # boundary (it's a runtime fallback choice, not version retire).
         "lifecycle": "experimental",
     },
     "P66": {
@@ -220,7 +228,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "Genesis-original (long-ctx tool adherence mitigation)",
         "upstream_pr": None,
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "lifecycle": "experimental",
     },
     "P69": {
@@ -232,7 +240,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "structured_output",
         "credit": "Genesis-original (long-ctx tool adherence mitigation)",
         "upstream_pr": None,
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "lifecycle": "experimental",
     },
     "P70": {
@@ -308,6 +316,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN80_LORA_TENSORIZER_DEVICE",
         "default_on": False,
         "lifecycle": "retired",  # 2026-05-11 v2 audit: byte-equivalent in dev209
+        "vllm_version_range": ">=0.20.1rc1.dev16+g7a1eb8ac2,<0.20.2rc1.dev209+g5536fc0c0",  # active before upstream merge in dev209
+        "apply_module": "vllm.sndr_core.integrations._retired.pn80_lora_tensorizer_device",
         "category": "memory_savings",
         "credit": (
             "Backport of vllm#41845 (Or Ozeri @ IBM, MERGED 2026-05-07 main "
@@ -388,6 +398,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN78_POST_WARMUP_CACHE_RELEASE",
         "default_on": False,
         "lifecycle": "retired",  # migrated from "deprecated" — upstream pin handles cache release internally; this wrap is permanent no-op.
+        "vllm_version_range": ">=0.20.1rc1.dev16+g7a1eb8ac2,<0.20.2rc1.dev9+g01d4d1ad3",  # active before upstream pin handles cache release
+        "apply_module": "vllm.sndr_core.integrations._retired.pn78_post_warmup_cache_release",
         "category": "memory_savings",
         "credit": (
             "DEPRECATED 2026-05-07: see deprecation_note. Patch retained "
@@ -492,7 +504,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "compile_safety",
         "credit": "Genesis-original (zero-VRAM-cost prealloc-overflow safety net for P72-unblocked batched_tokens>4096)",
         "upstream_pr": None,
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_moe", "qwen3_next"]},
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "requires_patches": ["P72"],
         "lifecycle": "experimental",
     },
@@ -742,6 +754,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 39930,
         "superseded_by": "vllm#39930 (merged 2026-04-28, in dev9+) — upstream provides full feature including SpeculativeConfig.attention_backend pydantic field; our PN9 backported only the env-driven subset (less invasive at runtime). Upstream is strictly more capable on dev9+.",
+        "vllm_version_range": "<0.20.2rc1.dev9+g01d4d1ad3",  # active before upstream merge in dev9
+        "apply_module": "vllm.sndr_core.integrations._retired.pn9_independent_drafter_attn_backend",
         "applies_to": {
             # Patch only takes effect inside _create_draft_vllm_config which
             # is only called when spec-decode is active. No additional gate.
@@ -1066,11 +1080,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "applies_to": {},
     },
-    "PN96": {
+    "PN96b": {
         "title": "Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore)",
         "tier": "community",
         "family": "moe",
-        "env_flag": "GENESIS_ENABLE_PN96",
+        "env_flag": "GENESIS_ENABLE_PN96B",  # renamed from PN96 2026-05-14 to avoid collision with kv_cache/PN96 emergency demote
         "default_on": True,
         "category": "perf_hotfix",
         "credit": (
@@ -1231,7 +1245,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
     "PN202": {
         "title": "PN202 — per-layer KV tensor split (Tier 2.A enabler)",
         "tier": "community",
-        "family": "kv_cache",
+        "family": "streaming",  # was "kv_cache"; integration lives at integrations/streaming/
         "env_flag": "GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT",
         "default_on": False,
         "lifecycle": "experimental",
@@ -1254,7 +1268,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
     "PN203": {
         "title": "PN203 — cold-prefix CPU offload manager (Tier 3.A)",
         "tier": "community",
-        "family": "kv_cache",
+        "family": "streaming",  # was "kv_cache"; integration lives at integrations/streaming/
         "env_flag": "GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD",
         "default_on": False,
         "lifecycle": "experimental",
@@ -1280,7 +1294,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
     "PN200": {
         "title": "PN200 — GDN outer-forward scratch pool (Tier 1.B)",
         "tier": "community",
-        "family": "kv_cache",
+        "family": "streaming",  # was "kv_cache"; integration lives at integrations/streaming/
         "env_flag": "GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE",
         "default_on": False,
         "lifecycle": "experimental",
@@ -1306,7 +1320,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
     "PN201": {
         "title": "PN201 — scheduler empty_cache hook (Tier 1.C)",
         "tier": "community",
-        "family": "kv_cache",
+        "family": "streaming",  # was "kv_cache"; integration lives at integrations/streaming/
         "env_flag": "GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE",
         "default_on": False,
         "lifecycle": "experimental",
@@ -1361,7 +1375,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT",
         "default_on": False,
         "lifecycle": "experimental",
-        "category": "compat",
+        "category": "stability",  # was "compat"; normalize to existing VALID_CATEGORIES (AutoRound INT4 compat / pin-assert relax)
         "apply_module": "vllm.sndr_core.integrations.offload.pn105_prefetch_autoround_compat",
         "source": "genesis_original",
         "credit": (
@@ -1389,7 +1403,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT",
         "default_on": False,
         "lifecycle": "experimental",
-        "category": "perf_critical",
+        "category": "kernel",  # was "perf_critical"; normalize (kernel-level redirect from UVA to Prefetch backend)
         "apply_module": "vllm.sndr_core.integrations.offload.pn104_offload_backend_redirect",
         "source": "genesis_original",
         "credit": (
@@ -1475,7 +1489,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT",
         "default_on": False,
         "lifecycle": "experimental",
-        "category": "compat",
+        "category": "loader",  # was "compat"; normalize (trial-import guard for nixl_ep/deep_ep/mori loader-time)
         "apply_module": "vllm.sndr_core.integrations.worker.pn92_nixl_ep_trial_import",
         "source": "genesis_original",
         "credit": (
@@ -1501,7 +1515,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE",
         "default_on": False,
         "lifecycle": "experimental",
-        "category": "compat",
+        "category": "reasoning",  # was "compat"; normalize (reasoning-subsystem thinking-tag hallucination normalizer)
         "apply_module": "vllm.sndr_core.integrations.reasoning.pn71_thinking_token_hallucination",
         "source": "genesis_original",
         "credit": (
@@ -1528,7 +1542,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE",
         "default_on": False,
         "lifecycle": "experimental",
-        "category": "compat",
+        "category": "tool_parsing",  # was "compat"; normalize (tool_calls.arguments string→dict normalization)
         "apply_module": "vllm.sndr_core.integrations.serving.pn73_tool_args_safe_normalize",
         "source": "genesis_original",
         "credit": (
@@ -1552,7 +1566,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN91_DEVELOPER_ROLE",
         "default_on": False,
         "lifecycle": "experimental",
-        "category": "compat",
+        "category": "request_middleware",  # was "compat"; normalize (OpenAI `developer` role pre-render normalizer in request path)
         "apply_module": "vllm.sndr_core.integrations.serving.pn91_developer_role_normalizer",
         "source": "genesis_original",
         "credit": (
@@ -1687,6 +1701,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 41411,
         "superseded_by": "vllm#41411 (merged 2026-05-04, byte-equivalent on dev209+g5536fc0c0)",
+        "vllm_version_range": "<0.20.2rc1.dev209+g5536fc0c0",  # active before upstream merge
+        "apply_module": "vllm.sndr_core.integrations._retired.pn52_prompt_logprobs_eviction",
         "applies_to": {
             # [Genesis pin-gate 2026-05-11 iron rule #11] Deep-diff'd
             # upstream code in dev209: both fixes from PN52 now in vllm
@@ -1724,6 +1740,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 40816,
         "superseded_by": "vllm serving-layer fix via prompt_is_reasoning_end (in dev209+; issue #40816 closed). Upstream chose to handle at serving layer rather than parser entry — different impl, same outcome. Our PN51 entry-point guard no longer needed.",
+        "vllm_version_range": "<0.20.2rc1.dev209+g5536fc0c0",  # active before serving-layer fix in dev209
+        "apply_module": "vllm.sndr_core.integrations._retired.pn51_qwen3_streaming_thinking_disabled",
         "applies_to": {
             # [Iron rule #11 retire 2026-05-11 v2 audit] Issue #40816
             # closed. dev209 qwen3_reasoning_parser.py docstring
@@ -1808,6 +1826,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": ["PN33"],
         "superseded_by": "SNDR_WORKSPACE_001",
         "lifecycle": "retired",  # 2026-05-14 PR sweep audit — duplicate of SNDR_WORKSPACE_001
+        "vllm_version_range": ">=0.20.1rc1.dev16+g7a1eb8ac2,<0.20.2rc1.dev338+gbf0d2dc6d",  # was active on dev16-dev209; retired on dev338 pin in favor of SNDR_WORKSPACE_001
     },
     "PN33": {
         "title": "Spec-decode warmup K-aware sizing (vllm#37521 extended to MTP/ngram)",
@@ -1900,7 +1919,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # NULL on non-GDN paths (no GDN layers in 35B Qwen3MoE).
         },
         "requires_patches": [],
-        "conflicts_with": ["P28"],
+        "conflicts_with": ["P28", "PN108"],  # PN32+PN108 both touch GDN chunked prefill orchestrator — incompatible
         "lifecycle": "experimental",
     },
     "PN102": {
@@ -1909,7 +1928,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "offload",
         "env_flag": "GENESIS_ENABLE_PN102_PARAM_POOL",
         "default_on": False,
-        "category": "performance",
+        "category": "memory_pool",  # was "performance"; normalize (PrefetchOffloader pinned-allocator prewarm pool)
         # Relevant only when --cpu-offload-gb > 0. Without prewarm,
         # vllm's PrefetchOffloader calls torch.empty_strided(pin_memory=True)
         # once per offloaded param: 27B INT4 Qwen3.6 with cpu_offload_gb=8
@@ -1940,7 +1959,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "attention.gdn",
         "env_flag": "GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ",
         "default_on": False,
-        "category": "performance",
+        "category": "kernel_perf",  # was "performance"; normalize (GDN dual-stream input projection kernel-level perf win)
         # PN204 replaces retired P7 (status=skipped, deferred — raw
         # torch.cuda.Stream not SymPy-graphable inside torch.compile
         # fullgraph). PN204 uses upstream vllm.utils.multi_stream_utils
@@ -2017,7 +2036,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": ["P28", "PN32"],
-        "lifecycle": "experimental",
+        "lifecycle": "retired",  # docstring says TOMBSTONED — fla recurrent kernel design conflict; synced to registry 2026-05-14
+        "apply_module": "vllm.sndr_core.integrations._retired.pn108_fused_recurrent_prefill",
+        "retired_waiver": True,  # design conflict — see docstring tombstone
     },
     "PN31": {
         "title": "FA varlen persistent out buffer (issue #15, sister to P38)",
@@ -2212,6 +2233,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 41268,
         "superseded_by": "vllm#41268 (merged 2026-04-30, byte-equivalent on dev209+g5536fc0c0)",
+        "vllm_version_range": "<0.20.2rc1.dev209+g5536fc0c0",  # active before upstream merge in dev209
+        "apply_module": "vllm.sndr_core.integrations._retired.pn19_scoped_max_split",
         "applies_to": {
             # Always applicable on CUDA. Self-detects torch < 2.11 lack
             # of _accelerator_setAllocatorSettings and falls through
@@ -2703,6 +2726,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport of vllm#41043 (wangluochao902, MERGED 2026-04-29). Removes GPU->CPU .tolist() sync + list-comp Python objects + np.array allocation in LLMBaseProposer.prepare_next_token_ids_padded hot path. PR author measured P99 TPOT -9.3% on Llama-3.1-8B + Eagle3 TP=4. For our MTP K=3 single-stream: expected +2-4% wall TPS + tighter CV. SUPERSEDED-ON-MERGE: when our pin advances past the merge SHA the patch will SKIP cleanly via drift detection on the original .tolist() anchor — at that point delete the wiring file + this entry.",
         "upstream_pr": 41043,
         "superseded_by": "vllm#41043 (merged 2026-04-29, byte-identical with deep-diff confirmed Wave 8 audit) — patch retained as audit trail",
+        "vllm_version_range": "<0.20.2rc1.dev93+g51f22dcfd",  # active before upstream merge in dev93
+        "apply_module": "vllm.sndr_core.integrations._retired.p94_spec_decode_zero_alloc",
         "applies_to": {
             # Applies whenever spec-decode is active. All spec methods.
 
@@ -2826,6 +2851,102 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "implementation_status": "full",
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn111_skip_mamba_postprocess_sync",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
+    "PN116": {
+        "title": "TurboQuant prefill max_seq_len fallback fix (regressor: vllm#41434)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_PN116",
+        "default_on": True,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis-original fix for an Ampere-specific regression "
+            "introduced by vllm#41434 (Perf 3/n: eliminate GPU<->CPU "
+            "syncs in attention impls, merged 2026-05-08). The PR's "
+            "new TurboQuant prefill fast path uses a CPU-resident "
+            "seq_lens upper bound when populated and falls back to "
+            "`attn_metadata.max_seq_len` otherwise — but max_seq_len is "
+            "the FULL-BATCH max (includes decodes), so the fallback "
+            "feeds the attention kernel an inflated upper bound. On "
+            "Hopper GB200 the PR measured +4.8% TPS (fast path "
+            "dominant). On 2× A5000 Ampere + 35B-A3B-FP8 + TurboQuant "
+            "k8v4 + MTP K=3 we measure −9.7% wall_TPS (241→218 between "
+            "dev93 and dev209+). 27B INT4 + GDN is unaffected. "
+            "HW-aware: applies on SM<9.0 only by default; on Hopper "
+            "and newer the upstream behaviour wins and we self-skip "
+            "(GENESIS_PN116_FORCE=1 to override)."
+        ),
+        "upstream_pr": 41434,  # this is the regressor — patch self-retires when upstream re-fixes fallback
+        "applies_to": {
+            "is_turboquant": True,  # patch site is turboquant_attn.py
+        },
+        "implementation_status": "full",
+        "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn116_tq_prefill_maxseq_fallback",
+        "source": "genesis_original",
+        "lifecycle": "experimental",
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
+    "PN118": {
+        "title": "TurboQuant workspace graceful-fallback (vllm#42551, P99-compat)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_PN118",
+        "default_on": True,
+        "category": "stability",
+        "credit": (
+            "P99-compatible backport of vllm#42551 (jasonboukheir, OPEN "
+            "2026-05-14). Closes an AssertionError on first decode request "
+            "for partial-TQ models (16/64 TQ layers, e.g. Lorbus/Qwen3.6-"
+            "27B-int4-AutoRound — named in the PR). Adds two new methods "
+            "to WorkspaceManager: try_get_simultaneous (returns None on "
+            "locked-undersized instead of raising) and reserve (pre-"
+            "allocates every ubatch slot before lock_workspace snapshot). "
+            "TurboQuant __init__ calls reserve, _decode_attention uses "
+            "try_get_simultaneous with torch.empty fallback. Composes with "
+            "our P99 memoization on get_simultaneous (P99 stays intact)."
+        ),
+        "upstream_pr": 42551,
+        "applies_to": {
+            "is_turboquant": True,  # patch sites are TQ-specific
+        },
+        "implementation_status": "full",
+        "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn118_tq_workspace_fallback",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
+    "PN119": {
+        "title": "TurboQuant k8v4 GQA head grouping kernel (vllm#40792)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_PN119",
+        "default_on": True,
+        "category": "kernel_perf",
+        "credit": (
+            "Backport of vllm#40792 (hoseung2, OPEN 2026-05-11). Adds "
+            "_tq_grouped_decode_stage1 Triton kernel that loads K once "
+            "per BLOCK_H q-head tile (sharing across the GQA group) and "
+            "uses tl.dot (tensor cores) instead of element-wise scoring. "
+            "Updates dispatch in triton_turboquant_decode_attention to "
+            "route GQA-ratio>1 traffic to the grouped kernel. Upstream "
+            "measured +16.5–27.2 % TPS on A100/H100 with GQA-ratio "
+            "∈ {4, 8, 24}. Our 27B + 35B both run GQA-ratio 8 so the "
+            "expected win is at the high end on Ampere SM 8.6. Applied "
+            "via bundled diff + `patch` subprocess with md5 pre-patch "
+            "guard; self-retires on drift."
+        ),
+        "upstream_pr": 40792,
+        "applies_to": {
+            "is_turboquant": True,  # k8v4 decode path
+        },
+        "implementation_status": "full",
+        "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn119_tq_gqa_grouping",
         "source": "vllm_pr_backport",
         "lifecycle": "experimental",
         "conflicts_with": [],
@@ -3057,7 +3178,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "kernel_perf",
         "credit": "Pre-dispatcher legacy patch. Splits GDN in_proj across two CUDA streams so q/k/v projections overlap. Validated +8% decode on 35B.",
-        "conflicts_with": ["P7b"],
+        "conflicts_with": ["P7b", "PN204"],  # PN204 = port of vllm#42301, same site as P7
     },
     "P7b": {
         "title": "GDN dual-stream via torch.library.custom_op (opt-in)",
@@ -3094,6 +3215,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport of vllm#41235 by Roi Koren (NVIDIA). RETIRED — upstream natively fixes after vllm v0.20.2.",
         "upstream_pr": 41235,
         "superseded_by": "vllm#41235 (merged 2026-04-29, in commit c2fb013 / v0.20.2 — byte-equivalent on dev93+dev209)",
+        "vllm_version_range": "<0.20.2",  # active before upstream merge in v0.20.2
+        "apply_module": "vllm.sndr_core.integrations._retired.pn13_cuda_graph_lambda_arity",
         "applies_to": {
             # [Genesis pin-gate 2026-05-11] #41235 MERGED 2026-04-29 (in
             # commit c2fb013, vllm 0.20.2). Upper bound formalizes retire
@@ -3126,6 +3249,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kv_cache",
         "credit": "Pre-dispatcher legacy patch. Reports KV capacity per-token (not per-block) for hybrid models so scheduler doesn't over-admit. RETIRED upstream natively fixes after vllm v0.20.2.",
         "superseded_by": "vllm dev9 commit 01d4d1ad3 — get_max_concurrency_for_kv_cache_config refactor handles hybrid layouts natively (no specific PR captured; verified via anchor mismatch on dev9+)",
+        "vllm_version_range": "<0.20.2rc1.dev9+g01d4d1ad3",  # active before upstream refactor in dev9
+        "apply_module": "vllm.sndr_core.integrations._retired.p8_kv_hybrid_reporting",
         "applies_to": {
             # [Iron rule #11 formal retire 2026-05-11] Promoted from
             # waiver — notes already had identifiable supersession.
@@ -3282,7 +3407,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "memory_pool",
         "credit": "Pre-dispatcher legacy patch. Preallocates GDN core_attn_out as a layer-persistent buffer + zero()-on-reuse instead of torch.zeros() per-step. Reduces allocator pressure on GDN forward.",
-        "conflicts_with": ["PN32"],
+        "conflicts_with": ["PN32", "PN108"],  # PN108 = GDN fused_recurrent prefill switches backend; incompatible with P28 buffer reuse
     },
     "P29": {
         "title": "tool parser IndexError guard",

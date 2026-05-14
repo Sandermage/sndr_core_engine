@@ -15,7 +15,7 @@ Future patches expected here: any LoRA / PEFT / adapter loading fixes.
 from __future__ import annotations
 
 __all__ = [
-    "pn80_lora_tensorizer_device",
+    # "pn80_lora_tensorizer_device",  # moved to _retired/ 2026-05-14
 ]
 
 def __getattr__(name: str):

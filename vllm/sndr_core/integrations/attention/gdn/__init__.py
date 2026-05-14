@@ -17,7 +17,7 @@ __all__ = [
     "p46_gdn_gating_buffers",
     "p60_gdn_ngram_state_recovery",
     "p60b_gdn_ngram_triton_kernel",
-    "p63_mtp_gdn_state_recovery",
+    # "p63_mtp_gdn_state_recovery",  # moved to _retired/ 2026-05-14
     "p7_gdn_dual_stream",
     "p7b_gdn_dual_stream_customop",
     "pn11_gdn_a_b_contiguous",
@@ -28,7 +28,7 @@ __all__ = [
     "pn54_gdn_contiguous_dedup",
     "pn59_streaming_gdn",
     "pn79_inplace_ssm_state",
-    "pn108_fused_recurrent_prefill",
+    # "pn108_fused_recurrent_prefill",  # moved to _retired/ 2026-05-14
     "pn204_dual_stream_inproj",
 ]
 

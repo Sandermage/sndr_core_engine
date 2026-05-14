@@ -34,11 +34,11 @@ def apply() -> tuple[str, str]:
     from vllm.sndr_core.integrations.reasoning import p27_reasoning_before_think as _p27
     from vllm.sndr_core.integrations.reasoning import p59_qwen3_reasoning_tool_call_recovery as _p59
 
-    from vllm.sndr_core.integrations.reasoning import p61_qwen3_multi_tool_first_occurrence as _p61
+    from vllm.sndr_core.integrations._retired import p61_qwen3_multi_tool_first_occurrence as _p61  # moved to _retired/ 2026-05-14 — kept in bundle for legacy boot order, harmless no-op anchor
 
     from vllm.sndr_core.integrations.reasoning import p61b_qwen3_streaming_overlap_guard as _p61b
 
-    from vllm.sndr_core.integrations.reasoning import pn51_qwen3_streaming_thinking_disabled as _pn51
+    from vllm.sndr_core.integrations._retired import pn51_qwen3_streaming_thinking_disabled as _pn51  # moved to _retired/ 2026-05-14
     return run_bundle(
         name="reasoning_qwen3",
         umbrella_flag=Flags.BUNDLE_REASONING_QWEN3,

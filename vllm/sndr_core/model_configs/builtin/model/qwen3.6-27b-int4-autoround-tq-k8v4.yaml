@@ -79,7 +79,7 @@ patches:
   GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel; required for spec_decode + TQ k8v4
   GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing: '1'=upstream Genesis kernel, '0'=fork (DEFAULT 1)
   GENESIS_P67_NUM_KV_SPLITS: '32'                    # P67 split-K factor. Wave 8 sweep: P67=16 (132.28 TPS / TTFT 100.9) vs P67=32 (131.48 / TTFT 97.1, CV 4.76% more stable). 32 wins TTFT by 3.7% on 27B@131K. 35B@320K wants 48 — per-model.
-  GENESIS_ENABLE_P94: '1'                            # GroupAB: zero-alloc spec-decode prepare; +9.2% group component on 27B
+  GENESIS_ENABLE_P94: '1'
   GENESIS_ENABLE_P95: '1'                            # vllm#40385 — Marlin TP cudagraph cap on Ampere (TP=2 defensive)
   GENESIS_ENABLE_P98: '1'                            # CRITICAL: vllm#40941 WorkspaceManager race-condition lock fix (TQ + hybrid GDN combo)
   GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP: '1'       # GroupAB: out-of-bounds clamp in TQ decode; +9.2% group with PN12+P94
@@ -138,7 +138,10 @@ patches:
   GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases).
   GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI-style `developer` role passthrough for IDE agents (Cline / Claude Code / OpenCode).
   GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # Backport of vllm#40154 — trial-import guard for nixl_ep / deep_ep / mori.
-  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache — GPU hot + CPU pinned warm + disk cold.
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache: GPU hot + CPU pinned warm + (optional) disk cold tier. 11 anchor sites in vllm/v1 (admit, touch, mamba-init, register-kv-caches, scheduler-tick, blockpool-register, demote-on-evict, promote-on-miss, phase5 boot-check, BlockPool.__init__, get_new_blocks). Active only when CONFIG_KEY set below — without it lazy-init returns and TierManager stays None (noop).
+  GENESIS_PN95_CONFIG_KEY: a5000-2x-tier-aware-example  # Looks up tier spec from model_configs/builtin/a5000-2x-tier-aware-EXAMPLE.yaml. Defines GPU tier (22 GiB per card) + CPU pinned tier (8 GiB per worker). Mamba SSM groups hard-excluded (state cannot be moved). 27B-INT4-AutoRound: ~16 attention layers + ~16 SSM layers (excluded). Mamba state is large (~256 MiB/layer) so cache pressure higher than 35B.
+  GENESIS_PN95_TICK_EVERY: '100'                     # Tick frequency: scheduler-tick runs page-move evaluation every N decode steps (range 50-500). 100 = conservative, suitable for 8K-32K workloads. Lower N → faster demote response under sudden pressure but more overhead.
+  GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD: '2048'     # Trigger threshold: when free VRAM drops below 2 GiB on either card, start demoting pages to CPU pinned tier. 27B-INT4 ~13 GiB weights + Mamba state → smaller VRAM footprint than 35B but Mamba state cannot demote. On 8K + low concurrency: demote rarely fires. On 32K+ ctx or 12+seq: dominant memory mgmt path.
   GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'          # Companion to PN95 — emergency demote on scheduler free-blocks threshold.
   GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT: '0' # cpu_offload → Prefetch redirect. OFF — only used when `--cpu-offload-gb > 0`.
   GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT: '0' # AutoRound INT4 + Prefetch compat. OFF — tied to PN104.

@@ -73,7 +73,7 @@ patches:
   # ── TQ kernel + MoE optimisation ──
   GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel for spec-decode K+1 verify (+32% TPS on 35B PROD)
   GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing flag: '1'=upstream Genesis kernel, '0'=Genesis fork (DEFAULT 1; fork was quality mirage 2026-04-28)
-  GENESIS_P67_NUM_KV_SPLITS: '48'                    # P67 split-K factor. Sprint 1 sweep on 35B PROD: 48 optimal at 320K context (+3.85% wall_TPS, -6.4% TTFT vs 32). 32 was optimum at 256K — longer context shifts optimum to 48.
+  GENESIS_P67_NUM_KV_SPLITS: '48'                    # P67 split-K factor. Sprint 1 sweep on 35B PROD: 48 optimal at 320K context (+3.85% wall_TPS, -6.4% TTFT vs 32). 32 was optimum at 256K — longer context shifts optimum to 48.                    # P67 split-K factor. Sprint 1 sweep on 35B PROD: 48 optimal at 320K context (+3.85% wall_TPS, -6.4% TTFT vs 32). 32 was optimum at 256K — longer context shifts optimum to 48.
   GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'    # Genesis-original — FP8 block-scaled MM optimization for M≤8 (spec-decode K+1 batch shape)
   GENESIS_ENABLE_P95: '1'                            # vllm#40385 backport — Marlin TP cudagraph cap on Ampere (TP=2 + Marlin defensive)
   # ── Tool-call safety net ──
@@ -122,7 +122,10 @@ patches:
   GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser.
   GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI `developer` role passthrough for IDE agents.
   GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # vllm#40154 backport — trial-import guard for nixl_ep / deep_ep / mori.
-  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache (GPU + CPU pinned + disk).
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache: GPU hot + CPU pinned warm + (optional) disk cold tier. Anchored at 11 sites in vllm/v1 (admit, touch, mamba-init, register-kv-caches, scheduler-tick, blockpool-register, demote-on-evict, promote-on-miss, phase5 boot-check, BlockPool.__init__, get_new_blocks). Active only when CONFIG_KEY set below — without it lazy-init returns and TierManager stays None (noop).
+  GENESIS_PN95_CONFIG_KEY: a5000-2x-tier-aware-example  # Looks up tier spec from model_configs/builtin/a5000-2x-tier-aware-EXAMPLE.yaml. Defines GPU tier (22 GiB per card) + CPU pinned tier (8 GiB per worker). Mamba SSM groups hard-excluded (state cannot be moved). 35B-A3B: 30 of 41 layers Mamba (excluded), 11 attention + 1 MTP eligible for demote.
+  GENESIS_PN95_TICK_EVERY: '100'                     # Tick frequency: scheduler-tick runs page-move evaluation every N decode steps (range 50-500). 100 = conservative, suitable for 8K-32K workloads. Lower N → faster demote response under sudden pressure but more overhead.
+  GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD: '2048'     # Trigger threshold: when free VRAM drops below 2 GiB on either card, start demoting pages to CPU pinned tier. On 8K+8seq workloads VRAM rarely drops below 4 GiB → demote never fires → PN95 is a noop tax (~1% TPS). On 32K+ ctx or 12+seq mixed-batch this becomes the dominant memory mgmt mechanism.
   GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'          # Emergency demote companion to PN95.
   GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT: '0' # cpu_offload → Prefetch redirect — OFF on 35B PROD (no weight offload).
   GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT: '0' # AutoRound INT4 compat — OFF on FP8 35B; declared for cross-config consistency.

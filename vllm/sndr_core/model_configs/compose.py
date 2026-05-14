@@ -234,9 +234,17 @@ def compose(
         vllm_extra_args.extend(["--chat-template", model.chat_template])
 
     # 5. Composed key for downstream identification.
+    # V1 ModelConfig.key requires strict kebab-case `^[a-z0-9-]+$` —
+    # no dots, no underscores. V2 IDs allow dots (e.g. `qwen3.6-fp8`),
+    # so we sanitize by replacing `.` and `_` with `-` and joining
+    # segments with `--`. Result for V2 ID `qwen3.6-fp8` + hardware
+    # `a5000-2x` + profile `wave9-test` is `qwen3-6-fp8--a5000-2x--wave9-test`.
+    def _v1_key(segment: str) -> str:
+        return segment.replace(".", "-").replace("_", "-")
+
     composed_key = (
-        f"{model.id}__{hardware.id}"
-        + (f"__{profile.id}" if profile is not None else "")
+        f"{_v1_key(model.id)}--{_v1_key(hardware.id)}"
+        + (f"--{_v1_key(profile.id)}" if profile is not None else "")
     )
 
     # 6. Build the V1 ModelConfig. Keeping field assignment explicit so
