@@ -226,9 +226,41 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
             if bare_flag.startswith(_prefix):
                 bare_flag = bare_flag[len(_prefix):]
                 break
+        from vllm.sndr_core.env import is_disabled as _is_disabled
         from vllm.sndr_core.env import is_enabled as _is_enabled
         env_truthy = _is_enabled(bare_flag)
+        env_disabled = _is_disabled(bare_flag)
         env_value = "1" if env_truthy else ""
+
+        # F-2026-05-14: explicit operator opt-out via
+        # SNDR_DISABLE_<bare>=1 / GENESIS_DISABLE_<bare>=1.
+        #
+        # Before this gate, the only knobs `should_apply()` consulted were
+        # the ENABLE variants. For `default_on=True` patches that meant
+        # the community had no way to A/B-test the patch's contribution
+        # (or temporarily disable a regressing patch) without editing
+        # `registry.py` — the very workflow operators use during bench
+        # validation. `env.is_disabled()` has existed for a while but
+        # was never wired here.
+        #
+        # Precedence: DISABLE wins over ENABLE when both are set. Intent-
+        # clear opt-out semantics are what operators expect from a kill-
+        # switch — "I said disable, I meant disable, even if some other
+        # env still says enable." A WARNING is emitted on the conflict so
+        # the contradiction is visible.
+        if env_disabled:
+            if env_truthy:
+                log.warning(
+                    "[Genesis dispatcher] %s: both ENABLE and DISABLE env "
+                    "flags set for %s — DISABLE wins. Drop one of the env "
+                    "vars to clear the conflict.",
+                    patch_id, bare_flag,
+                )
+            return False, (
+                f"explicitly disabled by operator (SNDR_DISABLE_{bare_flag}=1 "
+                f"or GENESIS_DISABLE_{bare_flag}=1). Drop the env var to "
+                f"re-engage."
+            )
     else:
         env_truthy = False
         env_value = ""
