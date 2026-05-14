@@ -50,6 +50,9 @@ def _gather_files() -> list[Path]:
     for fp in SCAN_ROOT.rglob("*.py"):
         if "__pycache__" in fp.parts:
             continue
+        if fp.name.startswith("._"):
+            # macOS AppleDouble resource fork: not Python source.
+            continue
         out.append(fp)
     return sorted(out)
 
