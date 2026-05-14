@@ -124,13 +124,23 @@ def _check_apply_module_coverage(
     """
     errors: list[str] = []
     warnings: list[str] = []
+    # implementation_status values that legitimately have no apply_module
+    # (advisory entries, placeholders, exploratory wrappers).
+    NO_WIRING_OK = {"metadata_only", "placeholder", "advisory", "research"}
     for pid, meta in registry.items():
         lifecycle = meta.get("lifecycle", "experimental")
         if lifecycle == "retired":
             continue
+        impl_status = meta.get("implementation_status", "")
         am = meta.get("apply_module") or ""
         if not am:
-            warnings.append(f"apply_module: {pid} has no apply_module")
+            # Suppress warning when entry is explicitly informational.
+            if impl_status in NO_WIRING_OK:
+                continue
+            warnings.append(
+                f"apply_module: {pid} has no apply_module"
+                f" (consider implementation_status: metadata_only/placeholder)"
+            )
             continue
         try:
             importlib.import_module(am)

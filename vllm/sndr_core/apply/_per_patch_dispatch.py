@@ -1022,7 +1022,7 @@ def apply_patch_sprint26_cudagraph_dispatch_trace() -> PatchResult:
         return _applied(name, "dry-run: text-patch ready")
     try:
         from vllm.sndr_core.integrations.observability import (
-            sprint26_cudagraph_dispatch_trace as _wiring,
+            pn122_sprint26_cudagraph_dispatch_trace as _wiring,  # renamed 2026-05-14 (was sprint26_*)
         )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")

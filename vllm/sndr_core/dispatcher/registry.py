@@ -826,6 +826,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "spec_method": ["dflash", "mtp"],
         },
+        "apply_module": "vllm.sndr_core.integrations.spec_decode.pn40_workload_classifier_hook",  # explicit ref — file exists but auto-derivation can't infer from PN40-classifier ID
         "lifecycle": "experimental",
     },
     "PN40": {
@@ -3543,6 +3544,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "kv_cache",
         "env_flag": "GENESIS_ENABLE_P102",
         "default_on": False,
+        "implementation_status": "metadata_only",  # exploratory design entry, no on-disk wiring
         "category": "spec_decode",
         "credit": "Genesis-original (Sander 2026-04-29). First-class spec_meta module that wraps spec-decode metadata into a unified object + tracks predicate disagreement (e.g. should_dispatch_p67 disagreements between proposer and verify paths). Diagnostic-only opt-in observability layer; emits log lines when divergence detected. Future hook for unified spec-decode dispatcher refactor.",
         "upstream_pr": None,
@@ -3554,6 +3556,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "compile_safety",
         "env_flag": "GENESIS_ENABLE_PN60",
         "default_on": True,
+        "implementation_status": "metadata_only",  # advisory validation, registered as recommendation
         "category": "stability",
         "credit": "Genesis-original 2026-05-05 (apnar club-3090#51 finding). Cross-checks operator's --quantization CLI arg against the model's config.json:quantization_config.quant_method BEFORE vLLM loads. Emits one-line remediation hint instead of a 30-line pydantic ValidationError. Doctor extension; runs at preflight, no monkey-patch.",
         "upstream_pr": None,
@@ -3591,6 +3594,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "compile_safety",
         "env_flag": "GENESIS_ENABLE_PN63",
         "default_on": True,
+        "implementation_status": "metadata_only",  # advisory only, no patch site
         "category": "stability",
         "credit": "Genesis-original 2026-05-05 (apnar club-3090#51 empirical). Adds a per-GPU advisory entry to gpu_profile.PATCH_RECOMMENDATIONS that recommends --kv-cache-dtype fp8_e5m2 over fp8_e4m3 on consumer Blackwell (sm 12.0) until vLLM e4m3 codepath matures. Suggest-only; operator passes via CLI.",
         "upstream_pr": None,
@@ -3602,6 +3606,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "kernels",
         "env_flag": "GENESIS_ENABLE_PN64",
         "default_on": False,
+        "implementation_status": "placeholder",  # SM 12.0 stub, awaiting empirical Blackwell measurement
         "category": "kernel_perf",
         "credit": "Genesis-original 2026-05-05 (apnar club-3090#51 — boot log shows `[Genesis] skipped: P17/P18 Marlin MoE per-SM tuning — no tuning entry for SM (12, 0)`). PN64 adds a placeholder entry copying SM (9, 0) Hopper config until empirical sweep data lands from sm_120. Author-blocked: needs real 5090 sweep — solicit from apnar/jhsmith409.",
         "upstream_pr": None,
