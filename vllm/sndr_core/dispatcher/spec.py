@@ -109,11 +109,13 @@ VALID_IMPLEMENTATION_STATUSES = (
     "runtime_hook",      # class/method monkey-patch
     "middleware",        # FastAPI/ASGI/logging middleware
     "metadata_only",     # informational entry, no apply
+    "marker_only",       # alias of metadata_only — operator-facing doctor uses this name
     "placeholder",       # entry exists but apply path TBD
     "partial",           # honest "Phase 1 of 2" — instrumentation/wire-in present
                          # but full feature pending next phase. Used by PN95 v0.5.
     "scaffold",          # код есть, но без production validation — research-tier
     "coordinator",       # bundles/forward-shim, без apply (P5b паттерн)
+    "experimental",      # impl exists but lacks A/B / cross-rig validation
     "retired",           # superseded by another patch
     "research",          # opt-in research path, not for PROD
     "blocked",           # known-broken / waiting on upstream

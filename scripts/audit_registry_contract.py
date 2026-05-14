@@ -194,16 +194,26 @@ def _check_docstring_lifecycle_sync(registry: dict[str, dict[str, Any]]) -> list
       4. If marker found but registry lifecycle != retired → drift
 
     Skips registry entries whose lifecycle IS retired (already in sync).
+
+    Patterns must declare THIS patch retired — not merely mention other
+    patches' retirement. Use file-level markers (TOMBSTONED at start,
+    "lifecycle: retired" assertion) rather than casual word matches.
     """
     import importlib
     import re
 
+    # File-level/self-declaration markers only. Word "RETIRED" alone is
+    # not enough — docstrings frequently mention OTHER patches being
+    # retired (e.g. "replaces retired P7", "intended for retired after
+    # evidence", "self-retired when upstream lands"). Use phrases that
+    # unambiguously assert THIS patch's state.
     DOCSTRING_RETIRED_PATTERNS = (
-        r"\bTOMBSTONED\b",
-        r"\bRETIRED\b",
-        r"\blifecycle[\s:=]+retired\b",
-        r"\bharmless\s+no-op\s+now\b",
-        r"\bduplicate\s+of\b",
+        r"\bTOMBSTONED\b",                         # all-caps file marker
+        r"\blifecycle[\s:=]+retired\b",            # explicit lifecycle assertion
+        r"\bstatus:\s*retired\b",                  # explicit status assertion
+        r"\bthis\s+patch\s+is\s+retired\b",        # self-declaration prose
+        r"\bharmless\s+no-op\s+now\b",             # PN108-style tombstone phrase
+        r"\bduplicate\s+of\s+(?:patch|sndr_|p[n]?\d+)",  # PN34-style
     )
     issues: list[str] = []
     for pid, meta in registry.items():
