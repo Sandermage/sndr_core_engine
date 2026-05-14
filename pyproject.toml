@@ -1,0 +1,187 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Root `pyproject.toml` for SNDR Core — Phase 3 (F-003 audit fix, 2026-05-08).
+#
+# This makes the project pip-installable as `sndr-core` (alias `genesis-vllm-patches`)
+# with a `sndr` console entry point. The legacy `genesis` console name from
+# `tools/genesis_vllm_plugin/pyproject.toml` continues to work as an alias
+# for the transition window.
+#
+# Build-time intent
+# ─────────────────
+# This package ships:
+#   - `vllm/sndr_core/` — all canonical implementation (Apache 2.0)
+#
+# It does NOT ship:
+#   - `vllm/sndr_engine/` — commercial tier; built as a SEPARATE wheel
+#     from `pyproject-engine.toml` (E-04 fix, 2026-05-08).
+#   - `tests/` — pytest suite stays out of the wheel
+#   - Internal docs / benchmarks / dev scripts
+#
+# Usage
+# ─────
+#   pip install -e .                 # editable install for development
+#   pip install vllm-sndr-core       # from PyPI when published
+#
+# After install:
+#   sndr install                     # interactive setup wizard
+#   sndr launch <preset>             # launch vllm with a preset
+#   sndr doctor                      # health check
+#   sndr verify                      # post-apply verification
+#
+# Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa.
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "vllm-sndr-core"
+# Source of truth: vllm/sndr_core/version.py SNDR_CORE_VERSION.
+# Bump there + here together on each release.
+version = "11.0.0"
+description = "SNDR Core / Genesis runtime patcher for vLLM — Apache-licensed community tier."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Sandermage(Sander)-Barzov Aleksandr", email = "sander.odessa@gmail.com"},
+]
+keywords = ["vllm", "llm", "inference", "patches", "turboquant", "genesis", "sndr"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# DA-007 (audit 2026-05-08): minimum self-contained runtime deps.
+# Previously `dependencies = []` assumed PyYAML came in via vllm — but
+# `pip install vllm-sndr-core` in a clean venv (without vllm yet
+# installed) would fail at first `import yaml`. Now declare the bare
+# minimum so the wheel is genuinely self-contained.
+#
+# Optional deps (HTTP probes, telemetry, license signing) are surfaced
+# as extras under [project.optional-dependencies].
+dependencies = [
+    "pyyaml>=6.0",      # model_configs YAML loader, host.yaml parser
+    "packaging>=23.0",  # version compat checks in license + drift watcher
+]
+
+[project.optional-dependencies]
+# `pip install vllm-sndr-core[dev]` for development tooling.
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "cryptography>=41.0",  # signed-license token verification
+]
+# `pip install vllm-sndr-core[http]` for upstream PR drift watcher,
+# image-digest verification, and outbound telemetry signals.
+http = [
+    "requests>=2.28",
+]
+# `pip install vllm-sndr-core[telemetry]` for opt-in usage reporting.
+# Telemetry stays opt-in — base install does not include it.
+telemetry = [
+    "requests>=2.28",
+]
+# `pip install vllm-sndr-core[license]` for signed-token verification.
+license = [
+    "cryptography>=41.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Sandermage/genesis-vllm-patches"
+Issues = "https://github.com/Sandermage/genesis-vllm-patches/issues"
+Changelog = "https://github.com/Sandermage/genesis-vllm-patches/blob/main/CHANGELOG.md"
+
+[project.scripts]
+# Phase 3 (F-003 audit fix, 2026-05-08): canonical CLI entry point.
+# `sndr` is the new name; `genesis` is preserved as a back-compat alias
+# (operators trained on the legacy command keep using it without a
+# rename). The plugin package `tools/genesis_vllm_plugin/` also maps
+# `genesis` → `vllm.sndr_core.compat.cli:main` since v11.0.0.
+sndr = "vllm.sndr_core.cli:cli_main"
+genesis = "vllm.sndr_core.compat.cli:main"
+
+[project.entry-points."vllm.general_plugins"]
+# P0-6 fix (audit 2026-05-08): canonical entry point lives in the core
+# package. Previously this said `genesis_v7:register`, but the
+# `genesis_v7` package was NOT in the core wheel — it shipped only
+# from `tools/genesis_vllm_plugin/`. After `pip install vllm-sndr-core`
+# the entry point pointed at a non-existent module and vllm logged a
+# plugin-failed-to-load warning at boot.
+#
+# `vllm.sndr_core.plugin:register` is canonical; the standalone
+# `tools/genesis_vllm_plugin/` package now thin-re-exports from this
+# module for back-compat with v7.x operators who installed it
+# separately.
+genesis_v7 = "vllm.sndr_core.plugin:register"
+
+
+# ─── Setuptools package layout ────────────────────────────────────────────
+
+[tool.setuptools.packages.find]
+where = ["."]
+# E-04 fix (audit 2026-05-08): the Apache wheel no longer includes
+# `vllm.sndr_engine*`. Engine code is built separately via
+# `pyproject-engine.toml` under a commercial license.
+include = [
+    "vllm.sndr_core*",
+]
+# Explicit exclusions: tests, internal docs, dev scripts, engine pkg,
+# archived legacy folders.
+exclude = [
+    "tests*",
+    "docs*",
+    "scripts*",
+    "snapshots*",
+    "vllm.sndr_engine*",
+    "tools.genesis_vllm_plugin.tests*",
+]
+
+[tool.setuptools.package-data]
+"vllm.sndr_core" = [
+    "model_configs/builtin/*.yaml",
+    "model_configs/community/*.yaml.sample",
+    "manifests/*.json",
+    "configs/moe_tuning/*.yaml",
+    "configs/moe_tuning/*.json",
+    # P1-2 (audit 2026-05-08): JSON schema for PATCH_REGISTRY entries.
+    # Was at repo-root `schemas/`; relocated into the package so wheel
+    # installs work without the source tree present.
+    "schemas/*.json",
+]
+
+
+# ─── Pytest config (mirrors the standalone pytest.ini at repo root) ──────
+
+[tool.pytest.ini_options]
+# Discovery roots — two during the v11 transition:
+#   tests/              — canonical layout (post-Phase-2 relocation)
+#   tests/legacy/       — pre-v11 tests not yet relocated (~63 files
+#                          remain; cosmetic-only relocation is deferred)
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "cuda_required: test requires NVIDIA CUDA device",
+    "rocm_required: test requires AMD ROCm device",
+    "gpu_required: test requires any GPU (CUDA or ROCm)",
+    "slow: test takes >5 seconds",
+    "requires_torch: test imports torch — auto-skipped without torch (audit A-15)",
+    "integration: end-to-end with live container",
+]
+addopts = [
+    "-ra",
+    "--tb=short",
+    "--strict-markers",
+]
