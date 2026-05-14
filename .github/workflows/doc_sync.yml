@@ -1,0 +1,59 @@
+# Genesis doc-sync gate — enforces PATCHES.md / CONFIGS.md auto-gen consistency
+# and patch-count claims across README/INSTALL/MODELS/BENCHMARKS.
+#
+# Theme 5 starter (audit 2026-05-11):
+#   - check_doc_sync.py: registry.py count vs doc count claims (134 currently)
+#   - generate_patches_md.py --check: docs/PATCHES_AUTO.md in sync с registry
+#   - generate_configs_md.py --check: docs/CONFIGS_AUTO.md in sync с YAML configs
+#
+# Triggered on push to main + every PR. Lightweight (no torch, no GPU).
+# Operator workflow: run these locally before commit; CI is safety net.
+
+name: Doc-Sync Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  doc-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify patch counts in README/PATCHES/INSTALL/MODELS/BENCHMARKS
+        run: python3 scripts/check_doc_sync.py --strict
+
+      - name: Verify docs/PATCHES_AUTO.md is in sync with PATCH_REGISTRY
+        run: python3 scripts/generate_patches_md.py --check
+
+      - name: Verify docs/CONFIGS_AUTO.md is in sync with builtin YAML configs
+        run: python3 scripts/generate_configs_md.py --check
+
+      - name: Summary on success
+        if: success()
+        run: |
+          echo "✓ All doc-sync gates passed."
+          echo "  - check_doc_sync.py: counts match registry"
+          echo "  - generate_patches_md.py --check: PATCHES_AUTO.md in sync"
+          echo "  - generate_configs_md.py --check: CONFIGS_AUTO.md in sync"
+
+      - name: Summary on failure
+        if: failure()
+        run: |
+          echo "✗ Doc-sync gate failed."
+          echo "Fix locally:"
+          echo "  python3 scripts/generate_patches_md.py"
+          echo "  python3 scripts/generate_configs_md.py"
+          echo "  # then update README/PATCHES/INSTALL/MODELS/BENCHMARKS patch counts to match registry"
+          exit 1

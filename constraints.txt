@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# constraints.txt — pinned transitive dependencies for `vllm-sndr-core`.
+#
+# T1.7 (audit closure 2026-05-09 / production roadmap §P1-2). This file
+# locks the upper bounds of indirect dependencies so a clean-venv
+# install (`pip install -c constraints.txt vllm-sndr-core`) always
+# converges to a known-tested version graph.
+#
+# Direct dependencies are declared in `pyproject.toml` (`pyyaml>=6.0`,
+# `packaging>=23.0`). This file constrains them PLUS any transitive
+# dep that has shown deserialization / API drift in the past.
+#
+# Update protocol:
+#   1. Run `scripts/run_clean_venv_test.sh` to confirm install + smoke-test pass.
+#   2. Bump the upper bound here only after pytest -k "smoke" goes green
+#      against the new version.
+#   3. Record the bump rationale in CHANGELOG.md.
+#
+# Why an explicit constraints file vs. just version specifiers in
+# pyproject.toml? Because constraints.txt only AFFECTS resolution if
+# the operator opts in via `-c constraints.txt`. This way packagers
+# (Conda, NixOS, distros) can build against newer versions without
+# fighting a hard pin in our pyproject.
+
+# ─── Core direct deps (mirrors pyproject.toml) ────────────────────────
+pyyaml>=6.0,<7.0
+packaging>=23.0,<26.0
+
+# ─── HTTP optional (extras=http) ──────────────────────────────────────
+# Pinned because requests had subtle behavior changes around timeout
+# semantics in the 2.30 → 2.32 window that affected our boot probe.
+requests>=2.28,<3.0
+
+# ─── Cryptography for license tokens (optional engine extra) ──────────
+# cryptography ≥41 introduced the rust-backend default; bump triggers
+# a system openssl recompile on some distros. Hold to known-good band.
+cryptography>=41.0,<46.0
+
+# ─── Test-only deps (extras=dev) ──────────────────────────────────────
+pytest>=7.0,<9.0
+pytest-cov>=4.0,<7.0
+
+# Notes on intentionally UNCONSTRAINED dependencies:
+#   - vllm: NOT a runtime dep of sndr_core — operators install it
+#     themselves and we drift-detect via KNOWN_GOOD_VLLM_PINS.
+#   - torch: NOT a runtime dep — same rationale.
+#   - triton: NOT a runtime dep — comes through torch/vllm.

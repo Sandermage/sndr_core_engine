@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# requirements-dev.lock — exact pins for sndr-core development install.
+#
+# T5 (UNIFIED_CONFIG plan 2026-05-09): superset of requirements-runtime.lock
+# with the [dev] / [http] / [license] extras pinned exactly. Used by
+# CI (.github/workflows/test.yml) and `make test`.
+#
+# Update protocol matches requirements-runtime.lock — bump in lockstep
+# when bumping pyproject.toml [project.optional-dependencies].
+#
+# Pinned 2026-05-09. Validated under pytest 8.x + cryptography 43.x.
+
+# Inherit runtime
+-r requirements-runtime.lock
+
+# Test runner
+pytest==8.3.3
+pytest-cov==5.0.0
+
+# Signed-license token verification (optional in prod, required in dev)
+cryptography==43.0.1
+
+# HTTP probes (upstream drift watcher, image digest verification)
+requests==2.32.3
