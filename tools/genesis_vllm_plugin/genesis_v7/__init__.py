@@ -74,11 +74,11 @@ def register() -> None:
             )
 
     try:
-        from vllm._genesis.patches.apply_all import run
+        from vllm.sndr_core.apply.orchestrator import run
     except ImportError as e:
         log.warning(
-            "[Genesis plugin] vllm._genesis package not importable — skipping. "
-            "Cause: %s. Check mount of vllm/_genesis into vLLM site-packages.",
+            "[Genesis plugin] vllm.sndr_core not importable — skipping. "
+            "Cause: %s. Check mount of vllm/sndr_core into vLLM site-packages.",
             e,
         )
         return

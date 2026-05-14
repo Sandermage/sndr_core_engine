@@ -37,34 +37,32 @@ import warnings
 
 
 def main() -> int:
-    """Run the modular Genesis patch suite (v7.14+ entrypoint)."""
+    """Run the Genesis patch suite (v11+ entrypoint via sndr_core)."""
     warnings.warn(
-        "patch_genesis_unified.py is deprecated since Genesis v7.14. "
-        "Update your launch invocation to: "
-        "python3 -m vllm._genesis.patches.apply_all\n"
-        "See: https://github.com/Sandermage/genesis-vllm-patches#migration-from-v713-monolith",
+        "patch_genesis_unified.py is deprecated since Genesis v7.14 and "
+        "the underlying _genesis package was migrated to vllm.sndr_core in "
+        "v11. Update your launch invocation to: "
+        "python3 -m vllm.sndr_core.apply",
         DeprecationWarning,
         stacklevel=2,
     )
     try:
-        from vllm._genesis.patches.apply_all import main as _modular_main
+        from vllm.sndr_core.apply import apply_all as _modular_main
     except ImportError as e:
         print(
-            "ERROR: cannot import vllm._genesis.patches.apply_all — the modular "
-            "Genesis package was not found in this vLLM install.\n"
+            "ERROR: cannot import vllm.sndr_core.apply — Genesis sndr_core "
+            "was not found in this vLLM install.\n"
             f"Reason: {e}\n\n"
             "Migration:\n"
-            "  - Mount the modular package into vLLM's site-packages:\n"
-            "      -v <genesis-repo>/vllm/_genesis:/usr/local/lib/python3.12/dist-packages/vllm/_genesis:ro\n"
+            "  - Mount sndr_core into vLLM's site-packages:\n"
+            "      -v <repo>/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro\n"
             "  - Then call:\n"
-            "      python3 -m vllm._genesis.patches.apply_all\n"
-            "  - See README 'Migration from v7.13 monolith' section.",
+            "      python3 -m vllm.sndr_core.apply",
             file=sys.stderr,
         )
         return 1
 
-    # The modular `apply_all.main` returns the patch dispatch matrix list.
-    # Returning 0 to keep shell exit semantics compatible with old script.
+    # apply_all returns the patch dispatch matrix list; keep shell exit 0.
     _modular_main()
     return 0
 

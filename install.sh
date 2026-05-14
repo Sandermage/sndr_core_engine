@@ -210,7 +210,7 @@ detect_gpu() {
   ok "GPU: $GPU_NAME × $N_GPUS"
 
   # Map nvidia-smi name → gpu_profile.GPU_SPECS key (lowercase substring)
-  # Mirror of the keys in vllm/_genesis/gpu_profile.py:GPU_SPECS
+  # Mirror of the keys in vllm/sndr_core/compat/gpu_profile.py:GPU_SPECS
   case "$(echo "$GPU_NAME" | tr '[:upper:]' '[:lower:]')" in
     *"rtx 3060"*) GPU_CLASS_HINT="rtx 3060" ;;
     *"rtx 3070"*) GPU_CLASS_HINT="rtx 3070" ;;
@@ -448,7 +448,7 @@ clone_genesis() {
   ok "Genesis at $sha (ref: $GENESIS_PIN_RESOLVED)"
 
   # Sanity: required files
-  for f in vllm/_genesis/__init__.py vllm/_genesis/patches/apply_all.py vllm/_genesis/compat/cli.py; do
+  for f in vllm/sndr_core/__init__.py vllm/sndr_core/apply/__init__.py vllm/sndr_core/compat/cli.py; do
     if [ ! -f "$GENESIS_HOME/$f" ]; then
       die "Genesis tree at $GENESIS_PIN_RESOLVED is missing $f — wrong pin?"
     fi
@@ -488,13 +488,13 @@ install_plugin() {
   fi
 }
 
-# ─── Add Genesis to PYTHONPATH (so `import vllm._genesis` works) ──────
+# ─── Add Genesis to PYTHONPATH (so `import vllm.sndr_core` works) ─────
 
 setup_pythonpath() {
-  step "Wire vllm._genesis into PYTHONPATH"
+  step "Wire vllm.sndr_core into PYTHONPATH"
 
   # Two strategies:
-  # 1. If vllm is in a writeable site-packages → symlink/copy _genesis there (most reliable)
+  # 1. If vllm is in a writeable site-packages → symlink/copy sndr_core there (most reliable)
   # 2. Otherwise → emit a profile.d hint with PYTHONPATH
 
   local vllm_path
@@ -505,16 +505,22 @@ setup_pythonpath() {
     return
   fi
 
-  if [ -L "$vllm_path/_genesis" ] || [ -d "$vllm_path/_genesis" ]; then
-    # Existing symlink or dir — replace with current
-    if [ -L "$vllm_path/_genesis" ]; then
-      rm -f "$vllm_path/_genesis"
+  # Clean up the legacy `_genesis` symlink/dir if present (v11 migration —
+  # all code lives in vllm.sndr_core now). Harmless if absent.
+  if [ -L "$vllm_path/_genesis" ]; then
+    rm -f "$vllm_path/_genesis"
+  fi
+
+  # Replace any prior `sndr_core` symlink with the current source tree.
+  if [ -L "$vllm_path/sndr_core" ] || [ -d "$vllm_path/sndr_core" ]; then
+    if [ -L "$vllm_path/sndr_core" ]; then
+      rm -f "$vllm_path/sndr_core"
     fi
   fi
 
   if [ -w "$vllm_path" ]; then
-    ln -sf "$GENESIS_HOME/vllm/_genesis" "$vllm_path/_genesis"
-    ok "symlinked $vllm_path/_genesis → $GENESIS_HOME/vllm/_genesis"
+    ln -sf "$GENESIS_HOME/vllm/sndr_core" "$vllm_path/sndr_core"
+    ok "symlinked $vllm_path/sndr_core → $GENESIS_HOME/vllm/sndr_core"
   else
     warn "$vllm_path not writeable — set PYTHONPATH manually"
     hint "Add to your shell rc:  export PYTHONPATH=\"$GENESIS_HOME:\${PYTHONPATH:-}\""
@@ -528,7 +534,7 @@ generate_launch_script() {
 
   if [ -z "$GPU_CLASS_HINT" ] || [ "$N_GPUS" = "0" ]; then
     warn "no GPU detected — skipping launch script generation"
-    hint "Pick a preset manually:  python3 -m vllm._genesis.compat.cli preset list"
+    hint "Pick a preset manually:  python3 -m vllm.sndr_core.compat.cli preset list"
     return
   fi
 
@@ -537,7 +543,7 @@ generate_launch_script() {
   local out_file="$out_dir/start_${GPU_CLASS_HINT// /_}_${N_GPUS}x_${GENESIS_WORKLOAD}.sh"
 
   # Try matching with GENESIS_HOME on PYTHONPATH so the new clone takes precedence
-  if PYTHONPATH="$GENESIS_HOME:${PYTHONPATH:-}" "$PYTHON_BIN" -m vllm._genesis.compat.cli preset match \
+  if PYTHONPATH="$GENESIS_HOME:${PYTHONPATH:-}" "$PYTHON_BIN" -m vllm.sndr_core.compat.cli preset match \
       --gpu "$GPU_CLASS_HINT" \
       --n-gpus "$N_GPUS" \
       --workload "$GENESIS_WORKLOAD" \
@@ -546,7 +552,7 @@ generate_launch_script() {
     ok "wrote launch script: $out_file"
   else
     # Fallback to balanced workload
-    if PYTHONPATH="$GENESIS_HOME:${PYTHONPATH:-}" "$PYTHON_BIN" -m vllm._genesis.compat.cli preset match \
+    if PYTHONPATH="$GENESIS_HOME:${PYTHONPATH:-}" "$PYTHON_BIN" -m vllm.sndr_core.compat.cli preset match \
         --gpu "$GPU_CLASS_HINT" \
         --n-gpus "$N_GPUS" \
         --workload balanced \
@@ -556,7 +562,7 @@ generate_launch_script() {
       ok "wrote launch script: $out_file"
     else
       warn "no preset matches your hardware combination — pick manually:"
-      hint "  python3 -m vllm._genesis.compat.cli preset list"
+      hint "  python3 -m vllm.sndr_core.compat.cli preset list"
       rm -f "$out_file"
       return
     fi
@@ -575,9 +581,9 @@ run_verify() {
 
   step "Verify install"
 
-  if ! PYTHONPATH="$GENESIS_HOME:${PYTHONPATH:-}" "$PYTHON_BIN" -m vllm._genesis.compat.cli verify --quick 2>&1 | sed 's/^/    /'; then
+  if ! PYTHONPATH="$GENESIS_HOME:${PYTHONPATH:-}" "$PYTHON_BIN" -m vllm.sndr_core.compat.cli verify --quick 2>&1 | sed 's/^/    /'; then
     warn "verify reported issues — check output above. Genesis is installed but may not be fully functional."
-    hint "Diagnose:  python3 -m vllm._genesis.compat.cli doctor"
+    hint "Diagnose:  python3 -m vllm.sndr_core.compat.cli doctor"
     return 0  # Don't fail install on verify warnings
   fi
 }
@@ -615,8 +621,8 @@ print_next_steps() {
     echo "      bash $LAUNCH_SCRIPT"
   else
     echo "  Browse presets and pick one for your rig:"
-    echo "      python3 -m vllm._genesis.compat.cli preset list"
-    echo "      python3 -m vllm._genesis.compat.cli preset show <key> --script"
+    echo "      python3 -m vllm.sndr_core.compat.cli preset list"
+    echo "      python3 -m vllm.sndr_core.compat.cli preset show <key> --script"
   fi
   echo
   echo "Useful commands:"

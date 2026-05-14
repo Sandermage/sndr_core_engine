@@ -390,33 +390,60 @@ def _run_docker_pull(cfg) -> int:
 def _run_check_deps(cfg, key: str) -> int:
     """`--check-deps`: run host dep inspection and abort on missing required deps.
 
-    Delegates to `vllm.sndr_core.deps.checkers.inspect_host` and the
-    preset's caveat matcher; if any 'error' severity surfaces, fail.
-    Degrades to a no-op when either dependency is unavailable (CI without
-    deps installed, sandboxed dev box, etc.) rather than blocking launch.
+    Uses the canonical `vllm.sndr_core.deps` planner — the same code path
+    that drives `sndr deps plan` — as the primary signal. Returns
+    non-zero whenever `plan.blockers()` is non-empty (Docker / NVIDIA
+    runtime / model directory / Python deps / vLLM pin).
+
+    The legacy caveat matcher (env-flag combinations etc.) is kept as a
+    secondary check; either signal can fail the preflight.
+
+    Degrades to a WARN when the deps module isn't importable (e.g. CI
+    container without `psutil`, sandboxed dev box) rather than blocking
+    launch — the caller still sees the diagnostic.
     """
     _io.step(0, 0, "Checking host dependencies")
+
+    # ─── Canonical planner check (same path as `sndr deps plan`) ──────
+    plan = None
     try:
-        from vllm.sndr_core.deps.checkers import inspect_host
-        from vllm.sndr_core.caveats import match_caveats
-        facts = inspect_host().to_dict()
+        from vllm.sndr_core.deps import inspect_host, plan_changes
+        inv = inspect_host()
+        plan = plan_changes(cfg, inv)
     except Exception as e:
-        _io.warn(f"--check-deps: deps collector unavailable ({e}); skipping")
-        return 0
-    facts.setdefault("genesis_env", dict(getattr(cfg, "genesis_env", {}) or {}))
+        _io.warn(f"--check-deps: deps planner unavailable ({e}); skipping planner path")
+        plan = None
+
+    plan_blockers: list = []
+    if plan is not None:
+        plan_blockers = list(plan.blockers())
+        for item in plan_blockers:
+            _io.error(f"[{item.scope}] {item.target}")
+            _io.error(f"    {item.reason}")
+            if item.suggested_command:
+                _io.error(f"    hint: {item.suggested_command}")
+
+    # ─── Legacy caveat matcher (secondary; env-flag combos etc.) ──────
     try:
+        from vllm.sndr_core.deps.checkers import inspect_host as _inspect_host
+        from vllm.sndr_core.caveats import match_caveats
+        facts = _inspect_host().to_dict()
+        facts.setdefault("genesis_env", dict(getattr(cfg, "genesis_env", {}) or {}))
         triggered = match_caveats(facts)
     except Exception as e:
-        _io.warn(f"--check-deps: caveats matcher unavailable ({e}); skipping")
-        return 0
-    errs = [c for c in triggered if c.severity == "error"]
-    for c in errs:
+        _io.warn(f"--check-deps: caveats matcher unavailable ({e}); skipping legacy path")
+        triggered = []
+
+    caveat_errs = [c for c in triggered if c.severity == "error"]
+    for c in caveat_errs:
         _io.error(f"[{c.id}] {c.title}")
         _io.error(f"    {c.message}")
-    if errs:
+
+    total_problems = len(plan_blockers) + len(caveat_errs)
+    if total_problems:
         _io.error(
-            f"--check-deps: {len(errs)} required dependency error(s); "
-            "fix host before launching"
+            f"--check-deps: {len(plan_blockers)} planner blocker(s) + "
+            f"{len(caveat_errs)} caveat error(s); fix host before launching"
         )
         return 2
     return 0
