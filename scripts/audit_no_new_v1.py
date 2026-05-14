@@ -29,10 +29,19 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
 
-# Phase 9 frozen baseline — the 11 V1 monolithic presets that existed at
-# freeze time (2026-05-12). New V1 entries require explicit baseline bump.
+# Phase 9 frozen baseline — V1 monolithic presets accepted into the
+# release tier. Original freeze (2026-05-12) listed 11 files.
+#
+# Bumps:
+#   2026-05-14 +1 — `a5000-1x-tier-aware-pn95.yaml` added as a Wave 9
+#   long-context single-card preset (PN95 multi-tier offload reaches
+#   200K on a single A5000 24 GB). The config is verified on hardware;
+#   the V2 layered triplet migration is queued as a follow-up cleanup,
+#   not a blocker for release. Until that lands the V1 entry stays
+#   here so `make evidence` does not gate on the migration.
 FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     "a5000-1x-27b-int4-tested.yaml",
+    "a5000-1x-tier-aware-pn95.yaml",
     "a5000-2x-27b-dflash-true.yaml",
     "a5000-2x-27b-int4-long-ctx.yaml",
     "a5000-2x-27b-int4-tested.yaml",

@@ -901,18 +901,25 @@ def apply_patch_N90_probabilistic_draft_rejection() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("SNDR-WORKSPACE-001 workspace grow-after-lock graceful fix")
+@register_patch("SNDR_WORKSPACE_001 workspace grow-after-lock graceful fix")
 def apply_patch_sndr_workspace_001() -> PatchResult:
-    """SNDR-WORKSPACE-001: replace vLLM's `Workspace is locked` assertion
+    """SNDR_WORKSPACE_001: replace vLLM's `Workspace is locked` assertion
     with a warn + grow path. The torch CUDA allocator handles the
     resize; the first call after a grow takes the non-graph slow path
     (one-time), subsequent calls hit the captured graph again.
+
+    The registry id, env flag and `@register_patch` string all use the
+    underscored canonical form `SNDR_WORKSPACE_001`. The strict shadow
+    parser splits on whitespace, so the hyphenated `SNDR-WORKSPACE-001`
+    used previously was unparseable and the registry entry was reported
+    as `spec_only_unexpected`. The user-facing title in registry.py
+    keeps the hyphenated form for readability.
 
     Default OFF (env GENESIS_ENABLE_SNDR_WORKSPACE_001=1 opt-in) so
     deployments that aren't hitting the assertion stay bit-identical
     to upstream.
     """
-    name = "SNDR-WORKSPACE-001 workspace grow-after-lock"
+    name = "SNDR_WORKSPACE_001 workspace grow-after-lock"
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
@@ -3402,6 +3409,45 @@ def apply_patch_N32_gdn_chunked_prefill() -> PatchResult:
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn32_gdn_chunked_prefill.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN204 GDN dual-stream input projection (port of vllm#42301)")
+def apply_patch_N204_dual_stream_inproj() -> PatchResult:
+    """PN204: overlap GDN in_proj_qkvz / in_proj_ba on aux CUDA stream.
+
+    Direct port of vllm PR #42301 using the upstream-provided
+    `vllm.utils.multi_stream_utils.maybe_execute_in_parallel` helper,
+    which is torch.compile-safe (unlike retired P7 that used raw
+    `torch.cuda.Stream` and broke SymPy graph tracing).
+
+    Single text-patch on gdn_linear_attn.py::forward_cuda Part 1.
+    Replaces the serial in_proj_qkvz / in_proj_ba pair with the
+    parallel helper. Stream + events are allocated lazily on the first
+    forward call (eager `__init__` allocation triggered a torch.Event
+    type error in the worker on the pinned vLLM nightly). Falls
+    through to serial on non-CUDA-alike platforms.
+
+    Composes with PN50, PN54, PN59. Conflicts with retired P7 (same
+    forward_cuda target). Auto-SKIPs when upstream lands #42301
+    (drift marker `_in_proj_aux_stream`).
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ=1.
+    """
+    name = "PN204 GDN dual-stream input projection"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.attention.gdn import (
+            pn204_dual_stream_inproj,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = pn204_dual_stream_inproj.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":

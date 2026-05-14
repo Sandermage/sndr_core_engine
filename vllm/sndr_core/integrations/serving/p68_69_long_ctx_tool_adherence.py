@@ -67,40 +67,28 @@ log = logging.getLogger("genesis.wiring.p68_69_long_ctx_tool_adherence")
 GENESIS_P6869_MARKER = "Genesis P68/P69 long-context tool-call adherence v7.13"
 
 
-# ─── Sub-patch: insert hook call at top of create_chat_completion ───────────
-# Anchor on the docstring closing + "# Streaming response" comment +
-# tokenizer fetch. Insert hook call AFTER docstring but BEFORE first action.
+# ─── Sub-patch: insert hook call at top of create_chat_completion body ─────
+#
+# Anchor strategy (post-refactor — verified on vllm nightly dcacdf9a):
+# Upstream split `create_chat_completion` into a thin wrapper that calls
+# `_create_chat_completion(...)`. The real body now lives in the latter.
+# An anchor on the docstring of `create_chat_completion` (the old strategy)
+# no longer matches anything.
+#
+# The robust anchor is the two-line pair `# Streaming response\n        ` +
+# `tokenizer = self.renderer.tokenizer\n` which sits at the top of the
+# body in both pre- and post-refactor upstream. This anchor is also
+# order-independent against PN16 (PN16 injects its own hook before the
+# `# Streaming response` comment; the comment + tokenizer line stay
+# unique below the PN16 block, so P68/P69 can apply before or after
+# PN16 without conflict).
 
 P6869_OLD = (
-    "    async def create_chat_completion(\n"
-    "        self,\n"
-    "        request: ChatCompletionRequest,\n"
-    "        raw_request: Request | None = None,\n"
-    "    ) -> AsyncGenerator[str, None] | ChatCompletionResponse | ErrorResponse:\n"
-    "        \"\"\"\n"
-    "        Chat Completion API similar to OpenAI's API.\n"
-    "\n"
-    "        See https://platform.openai.com/docs/api-reference/chat/create\n"
-    "        for the API specification. This API mimics the OpenAI\n"
-    "        Chat Completion API.\n"
-    "        \"\"\"\n"
     "        # Streaming response\n"
     "        tokenizer = self.renderer.tokenizer\n"
 )
 
 P6869_NEW = (
-    "    async def create_chat_completion(\n"
-    "        self,\n"
-    "        request: ChatCompletionRequest,\n"
-    "        raw_request: Request | None = None,\n"
-    "    ) -> AsyncGenerator[str, None] | ChatCompletionResponse | ErrorResponse:\n"
-    "        \"\"\"\n"
-    "        Chat Completion API similar to OpenAI's API.\n"
-    "\n"
-    "        See https://platform.openai.com/docs/api-reference/chat/create\n"
-    "        for the API specification. This API mimics the OpenAI\n"
-    "        Chat Completion API.\n"
-    "        \"\"\"\n"
     "        # [Genesis P68/P69 long-ctx tool-call adherence] Mutate request\n"
     "        # in-place if conditions met (env-gated). No-op when env flags\n"
     "        # off, when no tools, or when prompt below threshold.\n"
@@ -182,8 +170,8 @@ def apply() -> tuple[str, str]:
         if patcher.sub_patches[0].anchor not in content:
             return (
                 "skipped",
-                "required anchor (create_chat_completion docstring + tokenizer "
-                "fetch) not found — P68/P69 cannot apply (upstream drift).",
+                "required anchor (`# Streaming response` + tokenizer fetch) "
+                "not found — P68/P69 cannot apply (upstream drift).",
             )
 
     result, failure = patcher.apply()

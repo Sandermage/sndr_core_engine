@@ -1886,6 +1886,44 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["P28"],
         "lifecycle": "experimental",
     },
+    "PN204": {
+        "title": "GDN dual-stream input projection (port of vllm#42301)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ",
+        "default_on": False,
+        "category": "performance",
+        # PN204 replaces retired P7 (status=skipped, deferred — raw
+        # torch.cuda.Stream not SymPy-graphable inside torch.compile
+        # fullgraph). PN204 uses upstream vllm.utils.multi_stream_utils
+        # .maybe_execute_in_parallel which is torch.compile-safe and
+        # available in the pinned nightly dcacdf9a.
+        #
+        # Direct port of vllm PR #42301. Single text-patch anchor on
+        # gdn_linear_attn.py::forward_cuda Part 1: replaces the serial
+        # in_proj_qkvz/in_proj_ba pair with the parallel helper. Stream
+        # and events are created lazily on the first forward call (naive
+        # __init__ allocation crashed worker with a torch.Event type
+        # error in our pinned vLLM). Auto-SKIPs when upstream lands
+        # #42301 (drift marker `_in_proj_aux_stream`).
+        "credit": (
+            "Port of vllm-project/vllm#42301 (open as of 2026-05-14). "
+            "Upstream measures -2.9% TPOT at qps=0.5 on Qwen3.5-35B-A3B "
+            "via overlapping in_proj_qkvz/in_proj_ba GEMMs on an aux "
+            "CUDA stream. PN204 ports the same change as a Genesis "
+            "text-patch to unblock the win without waiting for upstream "
+            "merge."
+        ),
+        "upstream_pr": 42301,
+        "applies_to": {
+            # Hybrid GDN models (Qwen3.5/3.6) on CUDA-alike platforms.
+        },
+        "requires_patches": [],
+        # Mutually exclusive with retired P7 (same forward_cuda Part 1
+        # target). Operator must keep P7 disabled when enabling PN204.
+        "conflicts_with": ["P7"],
+        "lifecycle": "experimental",
+    },
     "PN108": {
         "title": "GDN fused_recurrent prefill dispatch (Cliff 2 memory-bound fix)",
         "tier": "community",

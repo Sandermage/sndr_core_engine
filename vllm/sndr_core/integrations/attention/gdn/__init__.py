@@ -29,6 +29,7 @@ __all__ = [
     "pn59_streaming_gdn",
     "pn79_inplace_ssm_state",
     "pn108_fused_recurrent_prefill",
+    "pn204_dual_stream_inproj",
 ]
 
 def __getattr__(name: str):

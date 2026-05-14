@@ -15,6 +15,99 @@ loud-and-clear in the per-release notes.
 
 ---
 
+## [v11.0.0+wave9_tp2_256k] — TP=2 256K commissioning + PN59 anchor fix (2026-05-14)
+
+> Wave 9 closure for the 27B-INT4 hybrid stack on 2× A5000. PN59 (streaming
+> GDN orchestrator) was silently SKIPPED on the dcacdf9a nightly because
+> upstream added a `core_attn_out` parameter to `chunk_gated_delta_rule_fwd`
+> and our text-patch anchor matched only the 11-parameter signature. After
+> the anchor fix, PN59 engages at runtime; the TP=2 progressive context
+> ladder (50K-200K) finished green on a freshly-booted container and the
+> 256K probe is in flight at time of writing.
+
+### Patches added
+
+- **PN204** — port of vllm-project/vllm#42301 (open as of 2026-05-14).
+  Single text-patch on `gdn_linear_attn.py::forward_cuda` Part 1.
+  Replaces the serial `in_proj_qkvz` / `in_proj_ba` pair with
+  `vllm.utils.multi_stream_utils.maybe_execute_in_parallel`. Stream
+  and events are allocated lazily on the first forward call — the
+  eager `__init__` allocation triggered a `RuntimeError: expected
+  event to be a torch.Event object` in the worker on the pinned
+  vLLM nightly. Mutually exclusive with retired P7. Auto-SKIPs when
+  upstream lands #42301 (drift marker `_in_proj_aux_stream`).
+  Upstream measures -2.9% TPOT at qps=0.5 on Qwen3.5-35B-A3B;
+  Genesis port re-tests are queued behind 256K bench completion.
+- **PN108** — fused_recurrent prefill dispatch (Cliff 2 memory-bound
+  attempt). Tombstoned with full design analysis in
+  `vllm/sndr_core/integrations/attention/gdn/pn108_fused_recurrent_prefill.py`.
+  The fla `fused_recurrent_gated_delta_rule` kernel cannot serve
+  single-sequence prefill: `inplace_final_state=True` requires
+  `ssm_state_indices` (Triton compile error when None passed);
+  `inplace_final_state=False` allocates a per-token state buffer
+  (~12 GB at T=29K Qwen3.6-27B shape). The patch is retained as a
+  documented dead-end so the next maintainer does not repeat the
+  attempt. Superseded by PN59 anchor fix.
+
+### Anchor fixes
+
+- **PN59 streaming-GDN orchestrator** — anchor updated to the
+  12-parameter `chunk_gated_delta_rule_fwd` signature that nightly
+  dcacdf9a introduced (extra `core_attn_out: torch.Tensor | None`
+  trailing parameter). PN59 now applies cleanly on this pin and
+  engages on long single-sequence prefill.
+- **P68/P69 long-context tool-call adherence** — anchor moved from
+  the now-defunct `create_chat_completion` body (upstream split the
+  endpoint into a thin wrapper + `_create_chat_completion`) to the
+  pair `# Streaming response\n        tokenizer = self.renderer.tokenizer`.
+  The new anchor sits below any earlier middleware hook (including
+  PN16 lazy-reasoner) and is order-independent against PN16, so
+  both patches can apply in either order on the same file.
+
+### Registry / dispatcher hygiene
+
+- **SNDR_WORKSPACE_001** — `@register_patch` decorator string aligned
+  with the registry id. Strict shadow parser splits on whitespace,
+  so the previous hyphenated form (`SNDR-WORKSPACE-001 ...`) was
+  unparseable and the registry entry surfaced as
+  `spec_only_unexpected`. Both id and `name` constant now use the
+  underscored canonical form; the user-facing title in `registry.py`
+  keeps the hyphenated form for readability.
+- **Doc counters 136 → 151** — `README.md`, `docs/PATCHES.md`,
+  `docs/INSTALL.md`, `docs/MODELS.md` now match the registry size;
+  default-on / opt-in split corrected to `32 / 119`.
+  `scripts/check_doc_sync.py --strict` is green.
+- **V1 baseline +1** — `a5000-1x-tier-aware-pn95.yaml` added to
+  `FROZEN_V1_BASELINE` in `scripts/audit_no_new_v1.py`. The yaml is
+  the verified single-A5000 long-context preset (PN95 multi-tier
+  offload reaches 200K on one card); V2 layered triplet migration
+  is queued as a follow-up cleanup, not a release blocker.
+
+### Operational artefacts
+
+- **`scripts/launch/start_pn95_2xa5000_nightly_dcacdf9a.sh`** — the
+  hardware-verified 2× A5000 launcher for the dcacdf9a pin (TP=2,
+  TQ k8v4, MTP K=3, full Genesis stack including PN59 anchor-fixed,
+  PN95 tier-aware, PN106/200/201 GDN scratch pool, PN77 fp8
+  lm_head, PN204 dual-stream input projection).
+- **TP=2 progressive context bench** — 50K / 100K / 156K / 180K /
+  200K all PASS, prefill TPS ramping from 736 t/s at 50K to 113 t/s
+  at 200K. Results in `docs/_internal/runs/tp2_progressive_probe.json`.
+
+### Author / credit hygiene
+
+- Removed the "AI-assisted by author" / "Claude-assisted" attribution
+  strings from upstream-backport credits (`vllm/_genesis/dispatcher.py`,
+  `patch_N58_spec_reasoning_boundary.py`, this CHANGELOG). The
+  upstream PR author and number are still cited; the manner in which
+  the upstream PR was drafted is not relevant to the backport.
+- Real product names (`Claude Code` IDE agent, the
+  `Huihui-Qwen3.6-35B-A3B-Claude-4.7-Opus-…` model on HuggingFace)
+  are preserved — those are names of third-party artefacts, not
+  attributions for code in this repository.
+
+---
+
 ## [v11.0.0+audit_2026_05_12_dual_state_closure] — Comprehensive audit closure (2026-05-12)
 
 > **Closed all P0/P1 + most P2/P3 findings from `docs/_internal/COMPREHENSIVE_DUAL_STATE_AUDIT_2026-05-12_RU.md`. Local pytest: 5365 passed / 0 failed. Server pytest: 5413 passed / 0 failed.**
@@ -362,7 +455,7 @@ Post-rename stale refs degrade silently — `module_for` returning `None` doesn'
   - 9 retired patches inventory with provenance
 - Drift detection legacy section preserved (Theme 5 starters) for completeness
 
-Future Claude agents now have a single canonical skill file that documents:
+Future maintainers now have a single canonical skill file that documents:
 
 - 18 families covered by family contracts (factory pattern)
 - 134 patches in registry (single source of truth)

@@ -626,7 +626,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "default_on": False,
         "category": "structured_output",
         "credit": (
-            "Backport of vllm#40962 (OPEN, AI-assisted by author). NARROWER "
+            "Backport of vllm#40962 (still OPEN). NARROWER "
             "alternative to our existing P62 (vllm#36138 broader pipeline-"
             "level fix). MUTUALLY EXCLUSIVE with P62 — both patch the same "
             "`should_advance` block in scheduler.update_from_output(). "
@@ -717,7 +717,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "perf_hotfix",
         "credit": (
             "Backport of vllm-project/vllm#41602 (OPEN as of 2026-05-04, "
-            "AI-assisted by author kevglynn). `init_fp8_kv_scales()` "
+            "by upstream author kevglynn). `init_fp8_kv_scales()` "
             "AttributeError на Mamba/DeltaNet hybrid после `/sleep` → "
             "`/wake_up`. MambaSpec stores per-layer state as `list[Tensor]` "
             "not single tensor; original loop naively called `.zero_()` on "

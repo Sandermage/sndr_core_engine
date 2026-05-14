@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for PN58 — vllm#40962 backport: spec-decode reasoning boundary validation.
 
-Backport of upstream PR #40962 (OPEN, AI-assisted by author). Narrower
-opt-in safety net for spec-decode + reasoning + structured output.
+Backport of upstream PR #40962 (still OPEN at the time of writing).
+Narrower opt-in safety net for spec-decode + reasoning + structured
+output.
 
 ## Engineering rationale (read before enabling)
 
@@ -62,7 +63,7 @@ Default OFF. Requires:
 - GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING=0 (mutual exclusion)
 - VLLM_SPEC_REASONING_BOUNDARY_VALIDATION=1 (upstream native flag)
 
-Author: Sandermage backport (ToastyTheBot/Claude-assisted, vllm#40962).
+Author: Sandermage backport. Upstream PR #40962 by ToastyTheBot.
 """
 from __future__ import annotations
 
