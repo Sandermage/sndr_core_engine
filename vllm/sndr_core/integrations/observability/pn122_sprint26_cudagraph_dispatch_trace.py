@@ -88,10 +88,10 @@ def _make_patcher() -> TextPatcher | None:
 
 
 def apply() -> tuple[str, str]:
-    """Apply Sprint 2.6 v2 cudagraph dispatch trace wire-in."""
+    """Apply PN122 cudagraph dispatch trace wire-in (formerly SPRINT26_CG_DISPATCH_TRACE)."""
     from vllm.sndr_core.dispatcher import should_apply, log_decision
-    decision, reason = should_apply("SPRINT26_CG_DISPATCH_TRACE")
-    log_decision("SPRINT26_CG_DISPATCH_TRACE", decision, reason)
+    decision, reason = should_apply("PN122")  # renamed from SPRINT26_CG_DISPATCH_TRACE 2026-05-14
+    log_decision("PN122", decision, reason)
     if not decision:
         return "skipped", reason
 

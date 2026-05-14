@@ -166,6 +166,143 @@ def _check_retired_provenance(registry: dict[str, dict[str, Any]]) -> list[str]:
     return issues
 
 
+def _check_docstring_lifecycle_sync(registry: dict[str, dict[str, Any]]) -> list[str]:
+    """Invariant 8: docstring TOMBSTONED/RETIRED markers ↔ registry lifecycle.
+
+    Catches drift where a patch module's docstring declares itself retired
+    (e.g. "TOMBSTONED — fla recurrent kernel cannot serve single-seq
+    prefill") but the registry entry still says `lifecycle: experimental`.
+    This bug class was hit by PN108 (caught during Phase 2.1 manual sync).
+
+    For each registry entry with apply_module pointing to integrations/:
+      1. Try import the module
+      2. Read its docstring (`module.__doc__`)
+      3. Search for markers: TOMBSTONED, RETIRED, lifecycle.*retired
+      4. If marker found but registry lifecycle != retired → drift
+
+    Skips registry entries whose lifecycle IS retired (already in sync).
+    """
+    import importlib
+    import re
+
+    DOCSTRING_RETIRED_PATTERNS = (
+        r"\bTOMBSTONED\b",
+        r"\bRETIRED\b",
+        r"\blifecycle[\s:=]+retired\b",
+        r"\bharmless\s+no-op\s+now\b",
+        r"\bduplicate\s+of\b",
+    )
+    issues: list[str] = []
+    for pid, meta in registry.items():
+        if meta.get("lifecycle") == "retired":
+            continue  # already in sync
+        am = meta.get("apply_module") or ""
+        if not am or "integrations." not in am:
+            continue
+        try:
+            mod = importlib.import_module(am)
+        except (ImportError, ModuleNotFoundError):
+            continue  # apply_module check handles importability separately
+        doc = (mod.__doc__ or "").upper()
+        if not doc:
+            continue
+        for pat in DOCSTRING_RETIRED_PATTERNS:
+            if re.search(pat, doc, re.IGNORECASE):
+                issues.append(
+                    f"docstring-lifecycle: {pid} docstring contains "
+                    f"retired/tombstoned marker ({pat!r}) but registry "
+                    f"lifecycle={meta.get('lifecycle')!r}"
+                )
+                break  # one match per patch is enough
+    return issues
+
+
+def _check_dict_dup_keys() -> list[str]:
+    """Invariant 7: PATCH_REGISTRY dict literal in registry.py has no
+    duplicate keys.
+
+    Python dict literals silently override on duplicate keys — last one
+    wins, first is shadowed. This bug class was hit by PN96 collision
+    (Marlin MoE workspace + emergency demote both keyed "PN96" — only
+    second loaded in production despite default_on=True on first).
+
+    Approach: parse registry.py via AST, walk PATCH_REGISTRY dict
+    literal, count occurrences of each string key. Any count > 1 is a
+    shadowing bug.
+    """
+    import ast
+    import sys
+
+    issues: list[str] = []
+    registry_path = (
+        REPO_ROOT
+        / "vllm"
+        / "sndr_core"
+        / "dispatcher"
+        / "registry.py"
+    )
+    try:
+        source = registry_path.read_text()
+        tree = ast.parse(source)
+    except (OSError, SyntaxError) as e:
+        return [f"dict-dup: cannot parse registry.py ({e})"]
+
+    # Find the PATCH_REGISTRY = { ... } assignment. The current registry
+    # uses annotated assignment: `PATCH_REGISTRY: dict[...] = {...}`
+    # which is ast.AnnAssign, not ast.Assign. Handle both forms.
+    patch_registry_dict = None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AnnAssign):
+            if (
+                isinstance(node.target, ast.Name)
+                and node.target.id == "PATCH_REGISTRY"
+                and isinstance(node.value, ast.Dict)
+            ):
+                patch_registry_dict = node.value
+                break
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if (
+                    isinstance(target, ast.Name)
+                    and target.id == "PATCH_REGISTRY"
+                    and isinstance(node.value, ast.Dict)
+                ):
+                    patch_registry_dict = node.value
+                    break
+            if patch_registry_dict is not None:
+                break
+
+    if patch_registry_dict is None:
+        return ["dict-dup: PATCH_REGISTRY = {...} not found in registry.py"]
+
+    # Walk all string-literal keys; count occurrences.
+    from collections import Counter
+
+    keys_seen = []
+    for key_node in patch_registry_dict.keys:
+        # Use ast.unparse to get the literal key (Python 3.9+).
+        if isinstance(key_node, ast.Constant) and isinstance(key_node.value, str):
+            keys_seen.append((key_node.value, key_node.lineno))
+        else:
+            # Non-literal key (computed expression) — skip but note.
+            issues.append(
+                f"dict-dup: non-literal key at line {key_node.lineno} "
+                "(audit cannot deduplicate)"
+            )
+
+    counts = Counter(k for k, _ in keys_seen)
+    for key, count in counts.items():
+        if count > 1:
+            lines = [ln for k, ln in keys_seen if k == key]
+            issues.append(
+                f"dict-dup: PATCH_REGISTRY[{key!r}] appears {count}× "
+                f"at lines {lines} — Python dict will silently shadow all "
+                "but the LAST occurrence"
+            )
+
+    return issues
+
+
 def _check_pin_gate(registry: dict[str, dict[str, Any]]) -> list[str]:
     """Invariant 6: any applies_to.vllm_pin entry is in KNOWN_GOOD_VLLM_PINS."""
     try:
@@ -206,6 +343,8 @@ def run_audit(strict: bool = False) -> dict[str, Any]:
         "apply_module_warnings": apply_warnings,
         "retired_provenance": _check_retired_provenance(registry),
         "pin_gate": _check_pin_gate(registry),
+        "dict_dup_keys": _check_dict_dup_keys(),
+        "docstring_lifecycle": _check_docstring_lifecycle_sync(registry),
         "_count": len(registry),
     }
     return results
@@ -248,6 +387,8 @@ def main(argv: list[str] | None = None) -> int:
             "apply_module",
             "retired_provenance",
             "pin_gate",
+            "dict_dup_keys",
+            "docstring_lifecycle",
         ):
             items = results.get(check, [])
             status = "✓" if not items else "✗"

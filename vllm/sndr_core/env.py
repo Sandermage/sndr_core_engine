@@ -169,7 +169,8 @@ class Flags:
     # Path C v7.73.x / club-3090 #58 — tier-aware KV cache (PN95)
     PN95_TIER_AWARE_CACHE = "PN95_TIER_AWARE_CACHE"
     # Sprint 2.6 v2 — CUDA graph dispatch trace wire-in
-    SPRINT26_CG_DISPATCH_TRACE = "SPRINT26_CG_DISPATCH_TRACE"
+    PN122_CG_DISPATCH_TRACE = "PN122"  # renamed 2026-05-14 from SPRINT26_CG_DISPATCH_TRACE
+    SPRINT26_CG_DISPATCH_TRACE = "PN122"  # legacy alias for backward compat (1 release)
 
     # kv_cache family
     P5B = "P5B"  # page size pad smaller

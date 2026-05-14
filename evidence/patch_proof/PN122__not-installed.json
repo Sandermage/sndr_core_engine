@@ -1,0 +1,37 @@
+{
+  "bench_delta": null,
+  "commit_sha": "05f07ece",
+  "genesis_pin": "11.0.0",
+  "host": "MacBook-Pro.local",
+  "measured_at": "2026-05-14T22:08:29+00:00",
+  "patch_id": "PN122",
+  "static_checks": [
+    {
+      "message": "patch 'PN122' present in registry",
+      "passed": true,
+      "rule": "P-1"
+    },
+    {
+      "message": "apply_module resolved: vllm.sndr_core.integrations.observability.pn122_sprint26_cudagraph_dispatch_trace",
+      "passed": true,
+      "rule": "P-2"
+    },
+    {
+      "message": "apply_module 'vllm.sndr_core.integrations.observability.pn122_sprint26_cudagraph_dispatch_trace' imports cleanly",
+      "passed": true,
+      "rule": "P-3"
+    },
+    {
+      "message": "patch is in KNOWN_SPEC_ONLY allowlist",
+      "passed": true,
+      "rule": "P-4"
+    },
+    {
+      "message": "env_flag 'GENESIS_ENABLE_PN122_CG_DISPATCH_TRACE' is canonical",
+      "passed": true,
+      "rule": "P-5"
+    }
+  ],
+  "static_passed": true,
+  "vllm_pin": "not-installed"
+}

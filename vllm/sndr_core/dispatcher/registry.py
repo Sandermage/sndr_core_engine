@@ -1050,18 +1050,18 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "lifecycle": "experimental",
     },
-    "SPRINT26_CG_DISPATCH_TRACE": {
-        "title": "Sprint 2.6 v2 — CUDA graph dispatch trace wire-in",
+    "PN122": {  # renamed 2026-05-14 from SPRINT26_CG_DISPATCH_TRACE — long ID violated P[N]?\d+ convention + auto-derivation
+        "title": "Sprint 2.6 v2 — CUDA graph dispatch trace wire-in (formerly SPRINT26_CG_DISPATCH_TRACE)",
         "tier": "community",
         "family": "observability",  # 2026-05-11 audit fix: was "worker" but file lives under integrations/observability/ + category is observability
-        "env_flag": "GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE",
+        "env_flag": "GENESIS_ENABLE_PN122_CG_DISPATCH_TRACE",  # legacy GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE accepted for 1 release
         "default_on": False,
         "category": "observability",
         "implementation_status": "full",
         "source": "genesis_original",
         "apply_module": (
             "vllm.sndr_core.integrations.observability."
-            "sprint26_cudagraph_dispatch_trace"
+            "pn122_sprint26_cudagraph_dispatch_trace"
         ),
         "lifecycle": "experimental",
         "experimental_note": (
