@@ -252,19 +252,19 @@ def model_configs_user_dir() -> Path:
 # ─────────────────────────────────────────────────────────────────────
 
 def moe_tuning_dir() -> Path:
-    """Directory containing TQ k8v4 MoE tuning YAML data.
+    """Directory containing fused-MoE Triton kernel tuning configs.
 
-    v10 (2026-05-07): canonical home is `sndr_core/configs/moe_tuning/`;
-    legacy `_genesis/configs/moe_tuning/` kept as fallback.
+    Canonical home: `sndr_core/configs/moe_tuning/`. The legacy
+    `_genesis/configs/moe_tuning/` fallback was removed in v11 along
+    with the rest of `vllm/_genesis/` (commit 776aa32b). Override via
+    `SNDR_MOE_TUNING_DIR` if operators want to ship their own tuned
+    configs from outside the package.
     """
     p = _env_path("SNDR_MOE_TUNING_DIR")
     if p is not None:
         return p
     vllm = _vllm_namespace_root()
-    canonical = vllm / "sndr_core" / "configs" / "moe_tuning"
-    if canonical.is_dir():
-        return canonical
-    return vllm / "_genesis" / "configs" / "moe_tuning"
+    return vllm / "sndr_core" / "configs" / "moe_tuning"
 
 
 # ─────────────────────────────────────────────────────────────────────

@@ -123,7 +123,7 @@ genesis-vllm-patches/
 │   │   │   └── tool_parsing/  worker/  kernels/
 │   │   ├── kernels/                   # public helpers (+ 1 redirect to engine)
 │   │   ├── core/  detection/  env/  locations/  bundles/
-│   │   ├── compat/                    # legacy CLI / model_detect / fingerprints
+│   │   ├── compat/                    # legacy CLI / model_detect / model-pull
 │   │   ├── manifests/                 # anchor_manifest.json (PN79 today)
 │   │   ├── model_configs/             # YAML schema + builtin/community presets
 │   │   ├── license.py                 # Ed25519-signed token gate

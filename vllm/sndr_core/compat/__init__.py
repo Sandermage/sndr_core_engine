@@ -24,7 +24,6 @@ Modules
 - models.registry : SUPPORTED_MODELS dict + utilities
 - models.pull     : `genesis pull <key>` — HF download + verify + launch
                     script generator
-- fingerprints/   : reference benchmark JSONs per (hardware × model × patch_set)
 
 Backwards compatibility
 -----------------------
