@@ -3,4 +3,4 @@
 
 model: qwen3.6-27b-dflash
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: wave9-27b-dflash
+profile: 27b-dflash

@@ -4,7 +4,7 @@
 
 schema_version: 2
 kind: profile
-id: path-c-3090-tier-aware-example               # path-c- prefix = Path C tier-aware reference
+id: tier-aware-3090               # path-c- prefix = Path C tier-aware reference
 parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent: 27B TQ k8v4 (single-card validated)
 maintainer: sandermage
 status: experimental                             # values: experimental|validated|deprecated

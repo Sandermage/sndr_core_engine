@@ -6,7 +6,7 @@
 
 schema_version: 2
 kind: profile
-id: path-c-2x-tier-aware-example                 # path-c- prefix = Path C tier-aware reference
+id: tier-aware-2x                 # path-c- prefix = Path C tier-aware reference
 parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent: existing TQ k8v4 model
 maintainer: sandermage
 status: experimental                             # values: experimental|validated|deprecated

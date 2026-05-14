@@ -13,7 +13,7 @@
 
 schema_version: 2
 kind: profile
-id: experimental-27b-tq-dflash-ab                # experimental- prefix marks A/B-only lifecycle
+id: ab-27b-tq-dflash                # experimental- prefix marks A/B-only lifecycle
 parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent: TQ k8v4 model (NOT the DFlash model)
 maintainer: sandermage
 status: experimental                             # values: experimental|validated|deprecated

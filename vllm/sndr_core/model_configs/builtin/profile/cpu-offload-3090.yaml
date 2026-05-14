@@ -4,7 +4,7 @@
 
 schema_version: 2
 kind: profile
-id: path-a-3090-cpu-offload-example              # path-a- prefix = Path A DENSE+CPU-offload reference
+id: cpu-offload-3090              # path-a- prefix = Path A DENSE+CPU-offload reference
 parent_model: qwen3.6-7b-dense                   # parent: DENSE 7B model (NOT hybrid GDN)
 maintainer: sandermage
 status: experimental                             # values: experimental|validated|deprecated

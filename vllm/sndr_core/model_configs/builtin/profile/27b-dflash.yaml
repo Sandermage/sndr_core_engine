@@ -3,7 +3,7 @@
 
 schema_version: 2
 kind: profile
-id: wave9-27b-dflash                             # canonical wave9 reference for 27B DFlash
+id: 27b-dflash                             # canonical wave9 reference for 27B DFlash
 parent_model: qwen3.6-27b-dflash                 # parent model file (DFlash variant)
 maintainer: sandermage
 status: validated                                # values: experimental|validated|deprecated

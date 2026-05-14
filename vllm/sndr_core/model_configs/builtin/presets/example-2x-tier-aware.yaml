@@ -3,4 +3,4 @@
 
 model: qwen3.6-27b-int4-autoround-tq-k8v4
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: path-c-2x-tier-aware-example
+profile: tier-aware-2x

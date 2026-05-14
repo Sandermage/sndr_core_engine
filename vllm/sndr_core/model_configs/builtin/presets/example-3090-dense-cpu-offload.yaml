@@ -3,4 +3,4 @@
 
 model: qwen3.6-7b-dense
 hardware: single-3090-24gbvram
-profile: path-a-3090-cpu-offload-example
+profile: cpu-offload-3090

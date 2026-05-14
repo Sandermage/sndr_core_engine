@@ -6,7 +6,7 @@
 
 schema_version: 2
 kind: profile
-id: qa-27b-fp8kv-tested                          # QA regression profile (qa- prefix marks non-prod lifecycle)
+id: qa-27b-fp8kv                          # QA regression profile (qa- prefix marks non-prod lifecycle)
 parent_model: qwen3.6-27b-int4-autoround-fp8kv   # parent model file (fp8_e5m2 KV variant)
 maintainer: sandermage
 status: validated                                # validated as QA-only — NOT production

@@ -3,4 +3,4 @@
 
 model: qwen3.6-27b-int4-autoround-fp8kv
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: wave9-27b-fp8kv-long-ctx
+profile: 27b-long-ctx

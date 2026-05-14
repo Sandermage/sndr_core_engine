@@ -4,7 +4,7 @@
 
 schema_version: 2
 kind: profile
-id: qa-27b-tq-1x-tested                          # single-card QA profile for 27B TQ k8v4
+id: qa-27b-tq-1x                          # single-card QA profile for 27B TQ k8v4
 parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent model file (shared with 2× sister)
 maintainer: sandermage
 status: validated                                # validated as single-card QA — NOT 2× production

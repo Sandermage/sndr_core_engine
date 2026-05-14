@@ -6,7 +6,7 @@
 
 schema_version: 2
 kind: profile
-id: wave9-balanced                               # canonical wave9 reference (no delta — model.patches IS the wave9 set)
+id: 35b-balanced                               # canonical wave9 reference (no delta — model.patches IS the wave9 set)
 parent_model: qwen3.6-35b-a3b-fp8                # parent model file this profile targets
 maintainer: sandermage
 status: validated                                # values: experimental|validated|deprecated; validated = bench-and-update passed

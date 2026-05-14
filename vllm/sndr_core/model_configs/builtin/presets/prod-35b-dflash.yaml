@@ -4,4 +4,4 @@
 
 model: qwen3.6-35b-a3b-fp8-dflash
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: wave9-35b-fp8-dflash
+profile: 35b-dflash

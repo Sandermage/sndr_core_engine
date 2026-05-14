@@ -5,7 +5,7 @@
 
 schema_version: 2
 kind: profile
-id: wave9-35b-fp8-dflash                         # canonical wave9 reference for 35B DFlash
+id: 35b-dflash                         # canonical wave9 reference for 35B DFlash
 parent_model: qwen3.6-35b-a3b-fp8-dflash         # parent model file (DFlash variant of 35B)
 maintainer: sandermage
 status: validated                                # values: experimental|validated|deprecated
