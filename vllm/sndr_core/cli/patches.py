@@ -533,9 +533,13 @@ def _run_plan(opts: argparse.Namespace) -> int:
     if not opts.preset:
         _io.fatal("--preset is required for `sndr patches plan`", 2)
 
+    # Phase B (2026-05-16): accept either V1 monolithic key or V2 alias
+    # so `sndr patches plan --preset prod-35b` works alongside the legacy
+    # `--preset a5000-2x-35b-prod`. memory.py already exports the same
+    # resolver — re-use to avoid divergent lookup paths.
     try:
-        from vllm.sndr_core.model_configs.registry import get as get_config
-        cfg = get_config(opts.preset)
+        from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
+        cfg = _resolve_preset_v1_or_v2(opts.preset)
     except Exception as e:
         _io.fatal(f"preset {opts.preset!r} not found ({e})", 2)
     if cfg is None:
@@ -618,8 +622,42 @@ def _run_plan(opts: argparse.Namespace) -> int:
                     "reasons": reasons,
                 })
 
+    # Phase B (2026-05-16): optional patch_plan resolver layer.
+    # Decoupled from the dispatcher simulator above — operators can
+    # request both views in one JSON payload by passing --policy.
+    resolver_payload = None
+    policy = getattr(opts, "policy", None)
+    if policy is not None:
+        from vllm.sndr_core.model_configs.patch_plan import (
+            resolve_patch_plan,
+        )
+        plan = resolve_patch_plan(cfg, policy=policy)
+        explain = bool(getattr(opts, "explain", False))
+
+        def _decision_dict(d) -> dict[str, Any]:
+            base = {
+                "patch_id": d.patch_id,
+                "env_flag": d.env_flag,
+                "value": d.value,
+                "decision": d.decision,
+                "role": d.role,
+                "reason": d.reason,
+            }
+            if explain:
+                base["note"] = d.note
+                base["bench_evidence"] = d.bench_evidence
+            return base
+
+        resolver_payload = {
+            "policy": plan.policy,
+            "included": [_decision_dict(d) for d in plan.included],
+            "excluded": [_decision_dict(d) for d in plan.excluded],
+            "warnings": list(plan.warnings),
+            "env": plan.env,
+        }
+
     if opts.json:
-        print(json.dumps({
+        out = {
             "preset": opts.preset,
             "profile": profile,
             "apply_count": len(apply_rows),
@@ -629,7 +667,10 @@ def _run_plan(opts: argparse.Namespace) -> int:
             "apply": apply_rows,
             "skip": skip_rows,
             "errors": error_rows,
-        }, indent=2, default=str))
+        }
+        if resolver_payload is not None:
+            out["resolver"] = resolver_payload
+        print(json.dumps(out, indent=2, default=str))
         return 2 if profile_violations else 0
 
     _io.banner(f"Plan: preset={opts.preset}",
@@ -682,6 +723,30 @@ def _run_plan(opts: argparse.Namespace) -> int:
             "`--profile production` to allow this plan."
         )
         return 2
+
+    # Phase B human renderer — only when --policy was passed.
+    if resolver_payload is not None:
+        _io.info("")
+        _io.banner(
+            f"Resolver: policy={resolver_payload['policy']}",
+            f"{len(resolver_payload['included'])} included · "
+            f"{len(resolver_payload['excluded'])} excluded",
+        )
+        for d in resolver_payload["included"]:
+            line = f"  + {d['patch_id']:<10} role={d['role']:<22} {d['env_flag']}"
+            _io.info(line)
+            if explain and d.get("note"):
+                _io.info(f"      note: {d['note'][:160]}")
+            if explain and d.get("bench_evidence"):
+                _io.info(f"      bench: {d['bench_evidence'][:160]}")
+        if resolver_payload["excluded"]:
+            _io.info("")
+            _io.info("  ⊘ excluded by policy:")
+            for d in resolver_payload["excluded"]:
+                _io.info(
+                    f"    - {d['patch_id']:<10} role={d['role']:<22} "
+                    f"{d['env_flag']} — {d['reason'][:80]}"
+                )
     return 0
 
 
@@ -1104,6 +1169,26 @@ def add_argparser(subparsers: Any) -> None:
             "implementation_status ∈ {partial, placeholder} or lifecycle "
             "∈ {research, retired}. Use before live launch to guarantee "
             "no half-finished code reaches PROD."
+        ),
+    )
+    p_plan.add_argument(
+        "--policy",
+        choices=("compat", "safe", "minimal"),
+        default=None,
+        help=(
+            "Phase B (2026-05-16): run the patch_plan resolver alongside "
+            "the dispatcher simulator. compat passes every truthy "
+            "genesis_env flag through; safe drops role=='no_op'; minimal "
+            "additionally drops role in {suspected_regression, unknown}. "
+            "Omit the flag to keep legacy output (simulator only)."
+        ),
+    )
+    p_plan.add_argument(
+        "--explain",
+        action="store_true",
+        help=(
+            "Include role / note / bench_evidence from patches_attribution "
+            "in the resolver output. No effect without --policy."
         ),
     )
     p_plan.set_defaults(func=_run_plan)

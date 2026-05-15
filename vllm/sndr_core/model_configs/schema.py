@@ -1819,6 +1819,68 @@ class VerifyTolerances:
             )
 
 
+# ─── PatchAttribution — structured rationale for ModelDef.patches ─────
+#
+# Phase A (2026-05-16) introduced patches_attribution on V2 ModelDef.
+# Phase B (this commit) lifts the dataclass into V1 schema.py so V1
+# ModelConfig can also carry it through compose() into the runtime
+# pipeline (patch_plan resolver, sndr patches plan --explain,
+# sndr compose render --policy). The dataclass is the same one V2
+# uses — schema_v2.py re-exports for back-compat.
+
+_PATCH_ROLES: tuple[str, ...] = (
+    "load_bearing",
+    "defensive",
+    "optional_perf",
+    "suspected_regression",
+    "no_op",
+    "unknown",
+)
+
+
+@dataclass
+class PatchAttribution:
+    """Why a patch is in the model's canonical set.
+
+    Keyed by registry patch ID (e.g. ``PN204``), not by env-flag name.
+    Stored on both ModelDef (authoring) and V1 ModelConfig (after compose)
+    so the resolver in `patch_plan.py` can run on the same object the
+    rest of the runtime pipeline already consumes.
+
+    Role-conditional required fields (validated at .validate() time):
+
+      load_bearing | suspected_regression  →  ``note`` required
+      optional_perf                        →  ``bench_evidence`` required
+      defensive | no_op | unknown          →  no auxiliary fields required
+    """
+    role: str
+    note: Optional[str] = None
+    bench_evidence: Optional[str] = None
+    candidate_when: Optional[dict[str, Any]] = None
+
+    def validate(self, *, key: str) -> None:
+        if self.role not in _PATCH_ROLES:
+            raise SchemaError(
+                f"patches_attribution[{key!r}].role={self.role!r} not in "
+                f"{_PATCH_ROLES}"
+            )
+        if self.role in ("load_bearing", "suspected_regression") and not self.note:
+            raise SchemaError(
+                f"patches_attribution[{key!r}]: role={self.role!r} requires "
+                f"a non-empty `note` (reviewers need to see the rationale)"
+            )
+        if self.role == "optional_perf" and not self.bench_evidence:
+            raise SchemaError(
+                f"patches_attribution[{key!r}]: role='optional_perf' requires "
+                f"a non-empty `bench_evidence` (perf claims need an anchor)"
+            )
+        if self.candidate_when is not None and not isinstance(self.candidate_when, dict):
+            raise SchemaError(
+                f"patches_attribution[{key!r}].candidate_when must be dict | None "
+                f"(got {type(self.candidate_when).__name__})"
+            )
+
+
 # ─── Top-level ModelConfig ────────────────────────────────────────────
 
 
@@ -1870,6 +1932,14 @@ class ModelConfig:
 
     # Genesis env (P*, PN*, GENESIS_*)
     genesis_env: dict[str, str] = field(default_factory=dict)
+
+    # Phase B (2026-05-16) — structured rationale for entries in
+    # genesis_env, keyed by registry patch ID (e.g. ``PN204``). Carried
+    # through compose() from ModelDef.patches_attribution so the
+    # patch_plan resolver and `sndr patches plan --explain` can read
+    # role/note/bench_evidence without re-loading the V2 layer. Empty
+    # dict is the default for legacy configs that pre-date Phase A.
+    patches_attribution: dict[str, "PatchAttribution"] = field(default_factory=dict)
 
     # System env (PYTORCH_*, VLLM_*, NCCL_*, OMP_*, CUDA_*, TRITON_*)
     system_env: dict[str, str] = field(default_factory=dict)

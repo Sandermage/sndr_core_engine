@@ -294,6 +294,12 @@ def compose(
 
         # Patches matrix
         genesis_env=patches,
+        # Phase B (2026-05-16) — copy attribution from ModelDef so the V1
+        # ModelConfig and downstream patch_plan resolver share the same
+        # metadata. Shallow copy guards against downstream mutation
+        # corrupting the original ModelDef dict; PatchAttribution itself
+        # is a frozen-by-convention dataclass (no mutating methods).
+        patches_attribution=dict(model.patches_attribution),
         system_env=dict(hardware.system_env),
 
         # Extra CLI flags (currently only --chat-template; see 4c above)

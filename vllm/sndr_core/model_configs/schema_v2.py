@@ -23,11 +23,19 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
-# Reuse V1 helper types where possible (HardwareSpec, SpecDecodeConfig, etc.).
-# This keeps a single source of truth for sub-component validation rules.
-from .schema import HardwareSpec, SchemaError, SpecDecodeConfig
+# Reuse V1 helper types where possible (HardwareSpec, SpecDecodeConfig,
+# PatchAttribution, ...). This keeps a single source of truth for
+# sub-component validation rules. PatchAttribution is imported through
+# the V1 module so V1 ModelConfig and V2 ModelDef share the same dataclass
+# — the same instance survives `compose()` without round-tripping.
+from .schema import (
+    HardwareSpec,
+    PatchAttribution,
+    SchemaError,
+    SpecDecodeConfig,
+)
 
 SCHEMA_VERSION_V2 = 2
 
@@ -131,63 +139,9 @@ class ModelVersions:
     reference_metrics_ref: Optional[str] = None
 
 
-_PATCH_ROLES = (
-    "load_bearing",
-    "defensive",
-    "optional_perf",
-    "suspected_regression",
-    "no_op",
-    "unknown",
-)
-# Phase A — PatchAttribution role taxonomy. Stored as plain str so YAML
-# round-trips cleanly through `_dataclass_from_dict()`; validated against
-# the tuple above at .validate() time. The taxonomy is intentionally
-# small (6 values) to keep operator UX simple.
-# See `docs/_internal/PATCH_ATTRIBUTION_COMPOSE_GENERATOR_INTEGRATION_PLAN_2026-05-16_RU.md`
-# § 5.3 for the full design and § 6 for resolver policy mapping.
-
-
-@dataclass
-class PatchAttribution:
-    """Why a patch is in the model's canonical set.
-
-    Keyed by registry patch ID (e.g. `PN204`), not by env-flag name. The
-    Phase A schema is intentionally minimal: store + validate metadata,
-    no resolver behavior change. Phase B reads these entries from
-    `sndr patches plan --explain` and `sndr compose render --policy …`.
-
-    Role-conditional required fields (validated at .validate() time):
-
-      load_bearing | suspected_regression  →  `note` required
-      optional_perf                        →  `bench_evidence` required
-      defensive | no_op | unknown          →  no auxiliary fields required
-    """
-    role: str
-    note: Optional[str] = None
-    bench_evidence: Optional[str] = None
-    candidate_when: Optional[dict[str, Any]] = None
-
-    def validate(self, *, key: str) -> None:
-        if self.role not in _PATCH_ROLES:
-            raise SchemaError(
-                f"patches_attribution[{key!r}].role={self.role!r} not in "
-                f"{_PATCH_ROLES}"
-            )
-        if self.role in ("load_bearing", "suspected_regression") and not self.note:
-            raise SchemaError(
-                f"patches_attribution[{key!r}]: role={self.role!r} requires "
-                f"a non-empty `note` (reviewers need to see the rationale)"
-            )
-        if self.role == "optional_perf" and not self.bench_evidence:
-            raise SchemaError(
-                f"patches_attribution[{key!r}]: role='optional_perf' requires "
-                f"a non-empty `bench_evidence` (perf claims need an anchor)"
-            )
-        if self.candidate_when is not None and not isinstance(self.candidate_when, dict):
-            raise SchemaError(
-                f"patches_attribution[{key!r}].candidate_when must be dict | None "
-                f"(got {type(self.candidate_when).__name__})"
-            )
+# PatchAttribution + _PATCH_ROLES live in V1 schema.py (re-exported above)
+# so V1 ModelConfig and V2 ModelDef share the exact same dataclass.
+# Phase A moved the definition into V2; Phase B lifted it into V1.
 
 
 @dataclass

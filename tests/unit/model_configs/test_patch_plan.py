@@ -1,0 +1,288 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Phase B — resolver tests for `resolve_patch_plan(cfg, policy)`.
+
+Phase A schema work (commit 1bf8415e) put `patches_attribution` on
+ModelDef. Phase B builds the resolver layer that consumes it:
+
+  PolicyName       What it filters out
+  ───────────────  ───────────────────────────────────────────────────
+  "compat"         nothing — current behaviour for legacy operators
+  "safe"           role == "no_op"        (drop patches that don't fire)
+  "minimal"        role in {"no_op", "suspected_regression", "unknown"}
+
+Patches without attribution default to role="unknown" — kept in
+compat/safe, dropped in minimal. The asymmetry is deliberate:
+"unknown" means "we don't yet know whether this is needed", so safe
+keeps it (conservative), minimal drops it (lean / for advanced ops
+who know what they're doing).
+
+The compose() integration test verifies that ModelDef.patches_attribution
+survives the V2→V1 collapse — without it the resolver has nothing
+to read at runtime.
+
+See `docs/_internal/PATCH_ATTRIBUTION_COMPOSE_GENERATOR_INTEGRATION_PLAN_2026-05-16_RU.md`
+§ 6 for the resolver algorithm and § 7.2 for the inline-attribution
+decision that makes this compose hand-off possible.
+"""
+from __future__ import annotations
+
+import pytest
+
+from vllm.sndr_core.model_configs.patch_plan import (
+    PatchPlan,
+    PatchDecision,
+    resolve_patch_plan,
+)
+from vllm.sndr_core.model_configs.schema import (
+    HardwareSpec,
+    ModelConfig,
+    PatchAttribution,
+)
+
+
+# ─── Builders ────────────────────────────────────────────────────────────
+
+
+def _make_cfg(
+    genesis_env: dict[str, str] | None = None,
+    patches_attribution: dict[str, PatchAttribution] | None = None,
+) -> ModelConfig:
+    """Minimal ModelConfig builder for resolver tests — only the
+    fields the resolver reads, everything else gets a stub default."""
+    return ModelConfig(
+        key="test-key",
+        title="Test",
+        description="Resolver test stub",
+        schema_version=1,
+        maintainer="x",
+        model_path="/m",
+        hardware=HardwareSpec(
+            gpu_match_keys=["test-gpu"], n_gpus=1, min_vram_per_gpu_mib=8000,
+        ),
+        last_validated=None, genesis_pin=None, vllm_pin_required=None,
+        served_model_name=None, quantization=None, kv_cache_dtype=None,
+        max_model_len=8192, gpu_memory_utilization=0.9,
+        max_num_seqs=1, max_num_batched_tokens=2048,
+        enable_chunked_prefill=False, dtype="float16",
+        enforce_eager=False, disable_custom_all_reduce=False,
+        language_model_only=True, trust_remote_code=True,
+        enable_auto_tool_choice=False,
+        tool_call_parser=None, reasoning_parser=None, spec_decode=None,
+        genesis_env=genesis_env or {}, system_env={},
+        vllm_extra_args=[], cudagraph_mode="auto",
+        docker=None,
+        patches_attribution=patches_attribution or {},
+    )
+
+
+# ─── PatchPlan shape ─────────────────────────────────────────────────────
+
+
+class TestPatchPlanShape:
+    def test_empty_cfg_returns_empty_plan(self):
+        cfg = _make_cfg()
+        plan = resolve_patch_plan(cfg, policy="compat")
+        assert plan.policy == "compat"
+        assert plan.included == ()
+        assert plan.excluded == ()
+        assert plan.env == {}
+
+    def test_included_decision_carries_env_flag_and_value(self):
+        cfg = _make_cfg(genesis_env={"GENESIS_ENABLE_PN17": "1"})
+        plan = resolve_patch_plan(cfg, policy="compat")
+        assert len(plan.included) == 1
+        d = plan.included[0]
+        assert d.env_flag == "GENESIS_ENABLE_PN17"
+        assert d.value == "1"
+        assert d.decision == "include"
+
+    def test_env_property_round_trips(self):
+        cfg = _make_cfg(genesis_env={
+            "GENESIS_ENABLE_PN17": "1",
+            "GENESIS_ENABLE_PN132": "1",
+        })
+        plan = resolve_patch_plan(cfg, policy="compat")
+        assert plan.env == {
+            "GENESIS_ENABLE_PN17": "1",
+            "GENESIS_ENABLE_PN132": "1",
+        }
+
+
+# ─── Policy: compat ──────────────────────────────────────────────────────
+
+
+class TestCompatPolicy:
+    def test_compat_includes_all_truthy_flags(self):
+        cfg = _make_cfg(genesis_env={
+            "GENESIS_ENABLE_PN17": "1",
+            "GENESIS_ENABLE_PN204": "0",
+            "GENESIS_ENABLE_PN132": "1",
+        })
+        plan = resolve_patch_plan(cfg, policy="compat")
+        included_flags = {d.env_flag for d in plan.included}
+        excluded_flags = {d.env_flag for d in plan.excluded}
+        assert included_flags == {
+            "GENESIS_ENABLE_PN17", "GENESIS_ENABLE_PN132",
+        }
+        # value "0" patches surface as excluded with reason "operator-disabled".
+        assert excluded_flags == {"GENESIS_ENABLE_PN204"}
+
+    def test_compat_keeps_no_op_patches(self):
+        """compat is the legacy-bridge policy; it must not change
+        behaviour just because attribution declares no_op."""
+        cfg = _make_cfg(
+            genesis_env={"GENESIS_ENABLE_PN32": "1"},
+            patches_attribution={"PN32": PatchAttribution(role="no_op")},
+        )
+        plan = resolve_patch_plan(cfg, policy="compat")
+        included_ids = {d.patch_id for d in plan.included}
+        assert "PN32" in included_ids
+
+
+# ─── Policy: safe ────────────────────────────────────────────────────────
+
+
+class TestSafePolicy:
+    def test_safe_drops_no_op(self):
+        cfg = _make_cfg(
+            genesis_env={
+                "GENESIS_ENABLE_PN17": "1",
+                "GENESIS_ENABLE_PN32": "1",
+            },
+            patches_attribution={
+                "PN17": PatchAttribution(role="defensive"),
+                "PN32": PatchAttribution(role="no_op"),
+            },
+        )
+        plan = resolve_patch_plan(cfg, policy="safe")
+        included_ids = {d.patch_id for d in plan.included}
+        excluded_ids = {d.patch_id for d in plan.excluded}
+        assert "PN17" in included_ids
+        assert "PN32" in excluded_ids
+        # And the excluded decision carries the role-based reason
+        pn32 = [d for d in plan.excluded if d.patch_id == "PN32"][0]
+        assert "no_op" in pn32.reason
+
+    def test_safe_keeps_suspected_regression(self):
+        """safe is conservative — only drops definitive no-ops.
+        suspected_regression is one tier more aggressive (minimal)."""
+        cfg = _make_cfg(
+            genesis_env={"GENESIS_ENABLE_PN134": "1"},
+            patches_attribution={
+                "PN134": PatchAttribution(
+                    role="suspected_regression",
+                    note="-25% TPS bench regressor",
+                ),
+            },
+        )
+        plan = resolve_patch_plan(cfg, policy="safe")
+        included_ids = {d.patch_id for d in plan.included}
+        assert "PN134" in included_ids
+
+    def test_safe_keeps_unknown(self):
+        """No attribution → role='unknown' → kept in safe."""
+        cfg = _make_cfg(genesis_env={"GENESIS_ENABLE_PN17": "1"})
+        plan = resolve_patch_plan(cfg, policy="safe")
+        d = plan.included[0]
+        assert d.role == "unknown"
+        assert "PN17" in {x.patch_id for x in plan.included}
+
+
+# ─── Policy: minimal ─────────────────────────────────────────────────────
+
+
+class TestMinimalPolicy:
+    def test_minimal_drops_no_op_and_regression_and_unknown(self):
+        cfg = _make_cfg(
+            genesis_env={
+                "GENESIS_ENABLE_PN17": "1",          # defensive — kept
+                "GENESIS_ENABLE_PN32": "1",          # no_op — dropped
+                "GENESIS_ENABLE_PN134": "1",         # suspected_regression — dropped
+                "GENESIS_ENABLE_PN204": "1",         # optional_perf — kept
+                "GENESIS_ENABLE_PN99_UNKNOWN": "1",  # no attribution → unknown — dropped
+            },
+            patches_attribution={
+                "PN17": PatchAttribution(role="defensive"),
+                "PN32": PatchAttribution(role="no_op"),
+                "PN134": PatchAttribution(
+                    role="suspected_regression", note="-25% TPS",
+                ),
+                "PN204": PatchAttribution(
+                    role="optional_perf", bench_evidence="conc=8 +5%",
+                ),
+            },
+        )
+        plan = resolve_patch_plan(cfg, policy="minimal")
+        included_ids = {d.patch_id for d in plan.included}
+        excluded_ids = {d.patch_id for d in plan.excluded}
+        assert included_ids == {"PN17", "PN204"}
+        assert "PN32" in excluded_ids
+        assert "PN134" in excluded_ids
+
+    def test_minimal_keeps_load_bearing(self):
+        cfg = _make_cfg(
+            genesis_env={"GENESIS_ENABLE_PN95": "1"},
+            patches_attribution={
+                "PN95": PatchAttribution(
+                    role="load_bearing",
+                    note="Tier-aware KV cache — VRAM-critical at long ctx",
+                ),
+            },
+        )
+        plan = resolve_patch_plan(cfg, policy="minimal")
+        assert "PN95" in {d.patch_id for d in plan.included}
+
+
+# ─── Decision metadata ───────────────────────────────────────────────────
+
+
+class TestDecisionMetadata:
+    def test_decision_carries_role_and_note(self):
+        cfg = _make_cfg(
+            genesis_env={"PN204_FLAG": "1"},
+            patches_attribution={
+                "PN204": PatchAttribution(
+                    role="optional_perf",
+                    bench_evidence="dev371 35B conc=8: 689 TPS",
+                    note="Hopper-future-proof",
+                ),
+            },
+        )
+        plan = resolve_patch_plan(cfg, policy="compat")
+        # Without registry coupling the resolver falls back to env-flag
+        # parsing; for unmatched flags role stays 'unknown'. The test
+        # below uses a real GENESIS_ENABLE_<PID> pattern so the resolver
+        # can derive PN204 → its attribution entry.
+        cfg2 = _make_cfg(
+            genesis_env={"GENESIS_ENABLE_PN204": "1"},
+            patches_attribution={
+                "PN204": PatchAttribution(
+                    role="optional_perf",
+                    bench_evidence="dev371 35B conc=8: 689 TPS",
+                    note="Hopper-future-proof",
+                ),
+            },
+        )
+        plan2 = resolve_patch_plan(cfg2, policy="compat")
+        pn204 = [d for d in plan2.included if d.patch_id == "PN204"][0]
+        assert pn204.role == "optional_perf"
+        assert "689" in pn204.bench_evidence
+        assert pn204.note == "Hopper-future-proof"
+
+    def test_decision_role_unknown_when_no_attribution(self):
+        cfg = _make_cfg(genesis_env={"GENESIS_ENABLE_PN17": "1"})
+        plan = resolve_patch_plan(cfg, policy="compat")
+        d = plan.included[0]
+        assert d.role == "unknown"
+        assert d.note == ""
+        assert d.bench_evidence == ""
+
+
+# ─── Invalid policy ──────────────────────────────────────────────────────
+
+
+class TestInvalidPolicy:
+    def test_unknown_policy_raises(self):
+        cfg = _make_cfg()
+        with pytest.raises(ValueError, match="policy"):
+            resolve_patch_plan(cfg, policy="bogus")
