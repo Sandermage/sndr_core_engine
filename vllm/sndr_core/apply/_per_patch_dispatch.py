@@ -1808,7 +1808,7 @@ def apply_patch_N51_qwen3_streaming_thinking_disabled() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations._retired import pn51_qwen3_streaming_thinking_disabled  # moved to _retired/ 2026-05-14
+        from vllm.sndr_core.integrations.reasoning import pn51_qwen3_streaming_thinking_disabled  # reactivated 2026-05-15 after retired-audit gap confirm
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn51_qwen3_streaming_thinking_disabled.apply()

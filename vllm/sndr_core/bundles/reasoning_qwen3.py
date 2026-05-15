@@ -38,7 +38,7 @@ def apply() -> tuple[str, str]:
 
     from vllm.sndr_core.integrations.reasoning import p61b_qwen3_streaming_overlap_guard as _p61b
 
-    from vllm.sndr_core.integrations._retired import pn51_qwen3_streaming_thinking_disabled as _pn51  # moved to _retired/ 2026-05-14
+    from vllm.sndr_core.integrations.reasoning import pn51_qwen3_streaming_thinking_disabled as _pn51  # reactivated 2026-05-15 after retired-audit gap confirm
     return run_bundle(
         name="reasoning_qwen3",
         umbrella_flag=Flags.BUNDLE_REASONING_QWEN3,

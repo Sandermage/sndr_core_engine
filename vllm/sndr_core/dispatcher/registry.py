@@ -2169,22 +2169,23 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Genesis 27B/35B + reasoning-parser qwen3."
         ),
         "upstream_pr": 40816,
-        "superseded_by": "vllm serving-layer fix via prompt_is_reasoning_end (in dev209+; issue #40816 closed). Upstream chose to handle at serving layer rather than parser entry — different impl, same outcome. Our PN51 entry-point guard no longer needed.",
-        "vllm_version_range": "<0.20.2rc1.dev209+g5536fc0c0",  # active before serving-layer fix in dev209
-        "apply_module": "vllm.sndr_core.integrations._retired.pn51_qwen3_streaming_thinking_disabled",
+        "experimental_note": (
+            "REACTIVATED 2026-05-15 after retired-patch audit of pin "
+            "bf610c2f5 (dev371). Upstream PR #40816 is STILL OPEN and the "
+            "streaming entry-point `extract_reasoning_streaming` (line 226 "
+            "of qwen3_reasoning_parser.py) has NO `not self.thinking_enabled` "
+            "short-circuit. The serving-layer `prompt_is_reasoning_end` "
+            "bypass works for the common case (prompt has the pre-baked "
+            "empty <think>\\n\\n</think>\\n\\n block), but defensive parser-"
+            "entry recovery is still valuable when the bypass misses for "
+            "any reason. Risk: zero — guard False for thinking-enabled "
+            "(dominant case) and for legacy templates with </think> token."
+        ),
+        "apply_module": "vllm.sndr_core.integrations.reasoning.pn51_qwen3_streaming_thinking_disabled",
         "applies_to": {
-            # [Iron rule #11 retire 2026-05-11 v2 audit] Issue #40816
-            # closed. dev209 qwen3_reasoning_parser.py docstring
-            # explicitly notes "serving layer detects via
-            # prompt_is_reasoning_end and routes deltas as content
-            # without calling this method" — upstream handled at
-            # higher architectural level. PN51 wiring drift detector
-            # may still apply (entry-point hook unchanged), but the
-            # serving-layer guard short-circuits before PN51 fires.
-            # Functionally redundant.
-            "vllm_version_range": "<0.20.2rc1.dev209",
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
-        "lifecycle": "retired",  # 2026-05-11 v2 audit: serving-layer fix superseded
+        "lifecycle": "experimental",  # 2026-05-15 reactivated after retired-audit (gap confirmed in upstream parser)
     },
     "PN35": {
         "title": "Skip inputs_embeds buffer for text-only models (vllm#35975 backport)",
