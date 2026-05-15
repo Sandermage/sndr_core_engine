@@ -1123,6 +1123,65 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "applies_to": {},
     },
+    "PN126": {
+        "title": "V1 decode + spec-decode kernel warmup orchestrator (fixes JIT spikes on first request)",
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN126_V1_DECODE_WARMUP",
+        "default_on": False,  # bench-gate required
+        "category": "perf_hotfix",
+        "implementation_status": "full",
+        "source": "genesis_original",
+        "apply_module": (
+            "vllm.sndr_core.integrations.compile_safety."
+            "pn126_v1_decode_kernel_warmup"
+        ),
+        "lifecycle": "experimental",
+        "experimental_note": (
+            "Genesis-original 2026-05-15. Closes V1 vs V2 model runner gap: "
+            "V2 calls warmup_kernels() at end of compile_or_warm_up_model "
+            "which exercises decode + spec-decode + TQ kernels at boot; "
+            "V1 only runs a sampler-only dummy_run with cudagraph_mode=NONE. "
+            "Result on V1: vLLM jit_monitor warns 8-10 kernel JIT events "
+            "on FIRST user request, causing TTFT spike of 5-25 s. "
+            "PN126 wraps Worker.compile_or_warm_up_model to add 2 extra "
+            "_dummy_run() passes after the original sampler warmup: "
+            "(Pass 1) prefill at max_num_batched_tokens with PIECEWISE "
+            "cudagraph dispatch — covers Mamba causal_conv1d at large T + "
+            "prefill attention; (Pass 2) uniform decode at "
+            "max_num_seqs × (1 + num_speculative_tokens) with FULL "
+            "cudagraph dispatch — covers decode attention + TQ kernels + "
+            "spec-decode draft prep kernels. Expected TTFT CV drop "
+            "30%→~15% post-warmup. Auto-skips when VLLM_USE_V2_MODEL_RUNNER=1 "
+            "(V2 native) or enforce_eager=True (no cudagraphs). "
+            "Default OFF until bench: 35B 8K TPS unchanged, TTFT CV < 20%, "
+            "boot time +3-10s acceptable."
+        ),
+        "credit": (
+            "Genesis-original — Sandermage 2026-05-15. Pattern from V2 "
+            "warmup_kernels (vllm/v1/worker/gpu/warmup.py in dev338+) "
+            "adapted to V1 model runner via wrapped "
+            "compile_or_warm_up_model. Related: PR #39822 (SSD kernel "
+            "warmup at profile_run — landed upstream but only covers "
+            "MambaMixer2 path, not GDN+spec_decode+TQ kernels that fire "
+            "on first user request)."
+        ),
+        "upstream_pr": None,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            # Hybrid models with spec_decode benefit most. Dense models
+            # (Llama, Mistral) still benefit from prefill+decode warmup
+            # but the gap there is smaller (no Mamba JIT, no TQ).
+            "model_arch": [
+                "Qwen3_5ForConditionalGeneration",
+                "Qwen3_5MoeForConditionalGeneration",
+                "Qwen3NextForCausalLM",
+                "Qwen3MoeForCausalLM",
+            ],
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+        },
+    },
     "PN125": {
         "title": "Hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE cudagraph_mode (redundant on dev338+)",
         "tier": "community",

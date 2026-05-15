@@ -1034,6 +1034,34 @@ def apply_patch_sprint26_cudagraph_dispatch_trace() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN126 V1 decode kernel warmup orchestrator")
+def apply_patch_pn126_v1_decode_kernel_warmup() -> PatchResult:
+    """PN126: extends V1 compile_or_warm_up_model with 2 extra
+    dummy_run passes (prefill PIECEWISE + uniform decode FULL) so
+    decode + spec-decode + TQ Triton kernels JIT-compile at boot
+    instead of on first user request. Closes V1 vs V2 model
+    runner gap (V2 has warmup_kernels native).
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN126_V1_DECODE_WARMUP=1.
+    Auto-skips when VLLM_USE_V2_MODEL_RUNNER=1 or enforce_eager=True.
+    """
+    name = "PN126 V1 decode kernel warmup orchestrator"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn126_v1_decode_kernel_warmup as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN125 hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE cudagraph_mode")
 def apply_patch_pn125_hybrid_full_and_piecewise() -> PatchResult:
     """PN125: closes upstream gap where Qwen3.5/3.6 hybrid_gdn models

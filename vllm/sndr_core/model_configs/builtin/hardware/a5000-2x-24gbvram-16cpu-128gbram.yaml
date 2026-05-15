@@ -18,7 +18,7 @@ hardware:
 
 # ─── Sizing knobs operator-tuned for this rig ──────────────────────────
 sizing:
-  max_model_len: 320000                          # max context length in tokens (320K — Wave 9 reference; profile may override)
+  max_model_len: 280000                          # 2026-05-15: trimmed 320K→280K. Restored ~3-4 GiB VRAM headroom per card for FULL_AND_PIECEWISE cudagraph capture (v1 default) on hybrid_gdn_moe; still serves above model's 256K published context (VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 in system_env). Profile may override; GENESIS_TQ_MAX_MODEL_LEN must match.
   gpu_memory_utilization: 0.90                   # vLLM KV cache budget fraction (range 0.5-0.95; 0.90 = ~21.6 GiB on 24 GiB card)
   max_num_seqs: 2                                # max concurrent sequences (range 1-N; 2 = 35B+TQ k8v4 production reference)
   max_num_batched_tokens: 4096                   # chunked prefill chunk size (must equal GENESIS_PROFILE_RUN_CAP_M)
@@ -67,7 +67,7 @@ system_env:
   # ── Triton kernel cache ──
   TRITON_CACHE_DIR: '/root/.triton/cache'        # Triton kernel cache location (mounted as docker volume to persist across restarts)
   # ── vLLM core knobs ──
-  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'             # allow max_model_len > model's published context (we run 320K on a 256K-trained model)
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'             # allow max_model_len > model's published context (we run 280K on a 256K-trained model — 2026-05-15 trim from 320K)
   VLLM_FLOAT32_MATMUL_PRECISION: 'high'          # values: 'highest'|'high'|'medium'; 'high' uses TF32 on Ampere+ (~3-4× faster, bit-identical for our shapes)
   VLLM_LOGGING_LEVEL: 'WARNING'                  # log level: DEBUG/INFO/WARNING/ERROR; WARNING = clean PROD output
   VLLM_LOG_MODEL_INSPECTION: '1'                 # at boot, log transformers-style hierarchical view of the model with quantization + attention backends. Free observability — fires once, zero hot-path cost. Diagnoses MoE routing + hybrid layer split + TQ vs Marlin tier confusion.
