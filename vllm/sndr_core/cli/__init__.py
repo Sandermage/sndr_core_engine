@@ -70,6 +70,17 @@ from .compose import add_argparser as _compose_argparser  # S3.1 audit P3-1 2026
 from .quadlet import add_argparser as _quadlet_argparser  # S3.2 audit P3-2 2026-05-12
 from . import bench_compare as _bench_compare  # S2.5
 
+# Wave 10 (2026-05-16) — close P1-1 CLI contract drift from production-
+# readiness audit. These modules had `add_argparser()` factories but
+# were not registered in this `__init__.py`, so the subcommands returned
+# argparse `invalid choice` errors despite live code, tests, and docs.
+from .bench import add_argparser as _bench_argparser  # Phase 6 bench-validate / bench-methodology
+from .config_keys import add_argparser as _config_keys_argparser  # config-keys-list (env var registry)
+from .findings import add_argparser as _findings_argparser  # findings (bench evidence audit)
+from .hardware import add_argparser as _hardware_argparser  # hardware (V2 hardware registry)
+from .license import add_argparser as _license_argparser  # license (key generation + check)
+from .profile import add_argparser as _profile_argparser  # profile (V2 profile registry)
+
 __all__ = ["cli_main"]
 
 
@@ -209,6 +220,18 @@ def cli_main(argv: list[str] | None = None) -> int:
     _host_argparser(subparsers)  # P3-B audit 2026-05-12 — host profile manager
     _compose_argparser(subparsers)  # S3.1 audit P3-1 2026-05-12 — docker-compose renderer
     _quadlet_argparser(subparsers)  # S3.2 audit P3-2 2026-05-12 — podman quadlet renderer
+
+    # Wave 10 (2026-05-16) — P1-1 CLI contract drift fix. These six
+    # native subparsers had factories under cli/* but were never
+    # registered here, so `sndr profile list`, `sndr config-keys-list`,
+    # etc. failed with `invalid choice` despite live code + tests + docs
+    # expecting them.
+    _bench_argparser(subparsers)         # bench-validate, bench-methodology (Phase 6)
+    _config_keys_argparser(subparsers)   # config-keys-list (env var registry dump)
+    _findings_argparser(subparsers)      # findings (bench evidence audit)
+    _hardware_argparser(subparsers)      # hardware (V2 hardware list/show)
+    _license_argparser(subparsers)       # license (key generation + check)
+    _profile_argparser(subparsers)       # profile (V2 profile list/show)
 
     # S2.5 (audit closure 2026-05-08): bench-compare A.json B.json
     p_bcmp = subparsers.add_parser(
