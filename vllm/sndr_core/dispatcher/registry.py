@@ -1123,6 +1123,54 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "applies_to": {},
     },
+    "PN127": {
+        "title": "Qwen 3.5/3.6 enhanced chat-template auto-install (closes club-3090#53/#72)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE",
+        "default_on": False,
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "genesis_original",
+        "apply_module": (
+            "vllm.sndr_core.integrations.serving."
+            "pn127_chat_template_qwen36"
+        ),
+        "lifecycle": "experimental",
+        "experimental_note": (
+            "Genesis-original 2026-05-15. Закрывает operator pain: enhanced "
+            "chat-template для Qwen 3.5/3.6 hybrid_gdn_moe (interleaved-"
+            "thinking + XML tool_call) ранее жил в HF репозиториях froggeric/"
+            "Sandermage/club-3090 и operator должен был knew где искать и "
+            "копировать .jinja вручную. PN127 запекает enhanced template как "
+            "Genesis asset (vllm/sndr_core/assets/chat_templates/qwen3.6_"
+            "enhanced.jinja) и на apply() копирует в writable location "
+            "(/tmp/genesis/chat_templates/ или GENESIS_CHAT_TEMPLATE_DIR). "
+            "Operator получает каноничный путь через log line; запускает "
+            "vllm с --chat-template <path>. Закрывает 7 bugs в дефолтном "
+            "template: empty <think></think>, </thinking> hallucination, "
+            "unclosed think pre tool_call, no-user-query crash, developer "
+            "role, multi-turn tool-call SSE deadlock (club-3090#72), think→"
+            "tool_call boundary truncation."
+        ),
+        "credit": (
+            "Genesis-original — Sandermage. Combines Sandermage v7.62 "
+            "interleaved-thinking template + 7 froggeric fixes + "
+            "club-3090 live-verify (30/30 tool regression PASS)."
+        ),
+        "upstream_pr": None,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            "model_arch": [
+                "Qwen3_5ForConditionalGeneration",
+                "Qwen3_5MoeForConditionalGeneration",
+                "Qwen3NextForCausalLM",
+                "Qwen3MoeForCausalLM",
+            ],
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+        },
+    },
     "PN126": {
         "title": "V1 decode + spec-decode kernel warmup orchestrator (fixes JIT spikes on first request)",
         "tier": "community",

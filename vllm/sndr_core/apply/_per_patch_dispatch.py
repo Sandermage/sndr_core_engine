@@ -1034,6 +1034,32 @@ def apply_patch_sprint26_cudagraph_dispatch_trace() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN127 Qwen 3.5/3.6 chat-template auto-install")
+def apply_patch_pn127_chat_template_qwen36() -> PatchResult:
+    """PN127: запекает enhanced chat-template для Qwen 3.5/3.6 как
+    Genesis asset + на apply() копирует в writable location.
+    Закрывает operator-pain (никто не должен искать template-файл).
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE=1.
+    Operator получает path через log + использует в --chat-template arg.
+    """
+    name = "PN127 Qwen 3.5/3.6 chat-template auto-install"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: asset ready")
+    try:
+        from vllm.sndr_core.integrations.serving import (
+            pn127_chat_template_qwen36 as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN126 V1 decode kernel warmup orchestrator")
 def apply_patch_pn126_v1_decode_kernel_warmup() -> PatchResult:
     """PN126: extends V1 compile_or_warm_up_model with 2 extra

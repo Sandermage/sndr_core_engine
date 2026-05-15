@@ -503,34 +503,30 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     #     ready after ~275s; inference 1.50s, content "60".
     # See CHANGELOG "[v11.0.0+wave9_dev338]" for the upgrade summary.
     "0.20.2rc1.dev338+gbf0d2dc6d",
-    # 2026-05-15 — v0.21.1rc0 (sha d735968f6d63) — adds 41 commits over
-    # dev338. Notable changes for our stack:
-    #   - vllm#42660 fix incorrect chat template format for Qwen3.5 —
-    #     directly applicable to our 35B (Qwen3_5MoeForConditionalGeneration).
-    #     Validate Genesis P64 (Qwen3-coder MTP streaming) against new
-    #     template form before promoting.
-    #   - vllm#41674 fix inverted thinking_token_budget condition — our
-    #     PN67 backports this. Genesis PN67 should now self-skip on this
-    #     pin (upstream_merged). Verify drift markers fire as expected.
-    #   - vllm#42604 DSV4-Pro enable cuda graph full and piecewise —
-    #     not us (DeepSeek), but reinforces FULL_AND_PIECEWISE is the
-    #     V1 default path for hybrid models (validates PN125 doc note).
-    #   - vllm#41869 PD disagg NIXL Connector GDN support (Qwen3.5) —
-    #     we don't use disagg, but proves Qwen3.5 GDN paths are
-    #     actively maintained.
-    # NOT validated yet on our PROD config — bench cycle pending. Add
-    # entry now so audit-pin-gate doesn't refuse the bump when operators
-    # try the new image. Mark PROMOTION_PENDING below.
-    "0.21.1rc0",  # tag form
-    "0.21.1rc0+gd735968f6d63",  # canonical dev-pin form
+    # 2026-05-15 — v0.21.0 RELEASE + freshest nightly bf610c2f. The
+    # `vllm/vllm-openai:nightly-bf610c2f56764e1b30bc6065f4ceace3d6e59036`
+    # image on Docker Hub is the actionable form (pushed 2026-05-15,
+    # CUDA-13 native). Commit bf610c2f IS vllm#41674 (thinking_token_budget
+    # bool inversion fix — what our PN67 backports). Other notable:
+    #   - vllm#42660 Qwen3.5 chat template format fix
+    #   - vllm#42604 DSV4-Pro FULL_AND_PIECEWISE (validates PN125 doc note)
+    #   - vllm#41869 PD disagg NIXL GDN for Qwen3.5 (active maintenance)
+    # Add three entries: v0.21.0 release tag, v0.21.1rc0 git tag form,
+    # commit-sha form. PROMOTION_PENDING below until first bench cycle.
+    "0.21.0",  # release tag
+    "0.21.1rc0",  # git tag form
+    "0.21.1rc0+gd735968f6d63",  # canonical dev-pin form (gh tag)
+    "0.21.1rc0+gbf610c2f5676",  # docker hub nightly SHA (12-char)
 )
 
 
 # Pins that are in allowlist but not yet bench-validated. Audit gate
 # tolerates them but logs a CAVEAT until promoted.
 PROMOTION_PENDING_VLLM_PINS: tuple[str, ...] = (
+    "0.21.0",
     "0.21.1rc0",
     "0.21.1rc0+gd735968f6d63",
+    "0.21.1rc0+gbf610c2f5676",
 )
 
 
