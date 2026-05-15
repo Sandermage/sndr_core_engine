@@ -517,6 +517,13 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     "0.21.1rc0",  # git tag form
     "0.21.1rc0+gd735968f6d63",  # canonical dev-pin form (gh tag)
     "0.21.1rc0+gbf610c2f5676",  # docker hub nightly SHA (12-char)
+    # Реальная version string которую vllm рапортует когда image
+    # `nightly-bf610c2f56764e1b30bc6065f4ceace3d6e59036` запущен:
+    # `0.20.2rc1.dev371+gbf610c2f5`. Это означает internal version
+    # стрингу build-script'а собирает в `0.20.2rc1.dev<NNN>+g<SHA[:10]>`
+    # формате, не tag-based. Добавляю обе формы (commit-based +
+    # nightly-tag-based) чтобы pin-gate не warning'овался.
+    "0.20.2rc1.dev371+gbf610c2f5",
 )
 
 

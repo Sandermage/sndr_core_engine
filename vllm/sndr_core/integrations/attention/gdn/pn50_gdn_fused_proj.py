@@ -48,39 +48,47 @@ def _is_enabled() -> bool:
     ).strip().lower() in ("1", "true", "yes", "on")
 
 
-# Pristine upstream anchor — Qwen3.5/3.6 contiguous-projection branch
+# Upstream anchor — Qwen3.5/3.6 contiguous-projection branch.
+#
+# Note 2026-05-15: as of vllm dev371 (nightly bf610c2f) the `forward()`
+# method uses 8/12-space indentation (one less nesting level than the
+# original 12/16-space block this patch was written for). The earlier
+# indentation was likely from an outdated upstream snapshot. The
+# Qwen3.5 contiguous branch only matches in `forward()` — `forward_cpu()`
+# has the same comment but lacks the trailing `.contiguous()` calls, so
+# our anchor remains unique (single match in the file).
 ANCHOR_OLD = (
-    "            else:\n"
-    "                # Qwen3.5: weights are already in [q, k, v, z] and [b, a] order\n"
-    "                qkv_size = (self.key_dim * 2 + self.value_dim) // self.tp_size\n"
-    "                z_size = self.value_dim // self.tp_size\n"
-    "                mixed_qkv, z = mixed_qkvz.split([qkv_size, z_size], dim=-1)\n"
-    "                z = z.reshape(z.size(0), -1, self.head_v_dim)\n"
-    "                b, a = ba.chunk(2, dim=-1)\n"
-    "                b = b.contiguous()\n"
-    "                a = a.contiguous()"
+    "        else:\n"
+    "            # Qwen3.5: weights are already in [q, k, v, z] and [b, a] order\n"
+    "            qkv_size = (self.key_dim * 2 + self.value_dim) // self.tp_size\n"
+    "            z_size = self.value_dim // self.tp_size\n"
+    "            mixed_qkv, z = mixed_qkvz.split([qkv_size, z_size], dim=-1)\n"
+    "            z = z.reshape(z.size(0), -1, self.head_v_dim)\n"
+    "            b, a = ba.chunk(2, dim=-1)\n"
+    "            b = b.contiguous()\n"
+    "            a = a.contiguous()"
 )
 
 ANCHOR_NEW = (
-    "            else:\n"
-    "                # Qwen3.5: weights are already in [q, k, v, z] and [b, a] order\n"
-    "                # [Genesis PN50 SGLang#21019] fused Triton kernel for\n"
-    "                # split/reshape/cat/.contiguous(); replaces 5-6 launches +\n"
-    "                # 2 explicit copies. Wrapper falls through to original\n"
-    "                # PyTorch chain on any constraint violation (non-contig,\n"
-    "                # non-pow2 head_dim, kernel failure, etc.) — strict no-regression.\n"
-    "                from vllm.sndr_core.kernels.pn50_gdn_fused_proj import (\n"
-    "                    fused_qkvzba_split_reshape_cat_contiguous as _pn50_fused,\n"
-    "                )\n"
-    "                _pn50_num_heads_qk = (self.key_dim // self.head_k_dim) // self.tp_size\n"
-    "                _pn50_num_heads_v = (self.value_dim // self.head_v_dim) // self.tp_size\n"
-    "                mixed_qkv, z, b, a = _pn50_fused(\n"
-    "                    mixed_qkvz, ba,\n"
-    "                    num_heads_qk=_pn50_num_heads_qk,\n"
-    "                    num_heads_v=_pn50_num_heads_v,\n"
-    "                    head_qk=self.head_k_dim,\n"
-    "                    head_v=self.head_v_dim,\n"
-    "                )"
+    "        else:\n"
+    "            # Qwen3.5: weights are already in [q, k, v, z] and [b, a] order\n"
+    "            # [Genesis PN50 SGLang#21019] fused Triton kernel for\n"
+    "            # split/reshape/cat/.contiguous(); replaces 5-6 launches +\n"
+    "            # 2 explicit copies. Wrapper falls through to original\n"
+    "            # PyTorch chain on any constraint violation (non-contig,\n"
+    "            # non-pow2 head_dim, kernel failure, etc.) — strict no-regression.\n"
+    "            from vllm.sndr_core.kernels.pn50_gdn_fused_proj import (\n"
+    "                fused_qkvzba_split_reshape_cat_contiguous as _pn50_fused,\n"
+    "            )\n"
+    "            _pn50_num_heads_qk = (self.key_dim // self.head_k_dim) // self.tp_size\n"
+    "            _pn50_num_heads_v = (self.value_dim // self.head_v_dim) // self.tp_size\n"
+    "            mixed_qkv, z, b, a = _pn50_fused(\n"
+    "                mixed_qkvz, ba,\n"
+    "                num_heads_qk=_pn50_num_heads_qk,\n"
+    "                num_heads_v=_pn50_num_heads_v,\n"
+    "                head_qk=self.head_k_dim,\n"
+    "                head_v=self.head_v_dim,\n"
+    "            )"
 )
 
 

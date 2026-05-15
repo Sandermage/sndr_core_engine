@@ -2,7 +2,29 @@
 """PN134 — torch.compile fullgraph patch для PyTorch 2.11 (backport vllm#42686).
 
 ================================================================
-ПРОБЛЕМА
+!!! RETIRED 2026-05-15 — BENCH-VALIDATED REGRESSOR !!!
+================================================================
+
+DO NOT ENABLE on Qwen3.6-35B-A3B-FP8 / hybrid_gdn_moe.
+
+Bench result (dev371 nightly-bf610c2f, 2× A5000 TP=2):
+  baseline       : wall_TPS 211.38, TPOT 4.33 ms, TTFT 85 ms
+  with PN134=1   : wall_TPS 158.00, TPOT 5.93 ms, TTFT 196 ms
+  delta          : -25.2% TPS, +37% TPOT, +130% TTFT
+
+Root cause: StorageBox.should_realize_on_reuse monkey-patch affects
+the ENTIRE Inductor compilation graph (not just the attention path it
+was designed for). The size-aware cost model materializes too many
+intermediates for hybrid_gdn_moe layout (30 GDN layers + 11 attention
+layers + 128 MoE experts), blowing Inductor's compile cache and
+forcing recompilation on every batch shape variant.
+
+Module kept on disk for future investigation on dense-attention models
+where the cost model may behave correctly. Lifecycle in registry is
+"retired" with retired_waiver=True.
+
+================================================================
+ORIGINAL PROBLEM STATEMENT (for context)
 ================================================================
 
 vLLM issue #27828 + pytorch/pytorch#176994: Inductor materialization
@@ -128,15 +150,36 @@ def _patched_should_realize_on_reuse(self, users: int) -> bool:
     return False
 
 
+_ENV_OVERRIDE_REGRESSION = "GENESIS_PN134_FORCE_DESPITE_REGRESSION"
+
+
 def apply() -> tuple[str, str]:
-    """Monkey-patch StorageBox.should_realize_on_reuse для PyTorch 2.11."""
+    """Monkey-patch StorageBox.should_realize_on_reuse для PyTorch 2.11.
+
+    RETIRED 2026-05-15: bench-validated -25% TPS regression on
+    hybrid_gdn_moe. The monkey-patch affects the ENTIRE Inductor
+    compilation graph, not just attention. Use of this patch requires
+    an explicit override env var to make accidental enablement loud.
+    """
     global _APPLIED, _ORIGINAL_FN
 
     if not _env_enabled():
         return "skipped", (
-            f"PN134 disabled (set {_ENV_ENABLE}=1 — backport vllm#42686 "
-            f"torch.compile materialization heuristic fix для 2.11; "
-            f"closes vLLM issue #27828)"
+            f"PN134 RETIRED (bench-validated -25% TPS regression on "
+            f"hybrid_gdn_moe; set {_ENV_ENABLE}=1 AND "
+            f"{_ENV_OVERRIDE_REGRESSION}=1 only if testing on dense "
+            f"attention models — see module docstring for bench data)"
+        )
+
+    if os.environ.get(_ENV_OVERRIDE_REGRESSION, "").strip().lower() not in (
+        "1", "true", "yes", "on",
+    ):
+        return "skipped", (
+            f"PN134 enabled but {_ENV_OVERRIDE_REGRESSION} not set — "
+            f"refusing to apply (PN134 is bench-validated regressor on "
+            f"hybrid_gdn_moe, -25% TPS). Set "
+            f"{_ENV_OVERRIDE_REGRESSION}=1 ONLY when explicitly "
+            f"experimenting on dense-attention models."
         )
 
     if _APPLIED:

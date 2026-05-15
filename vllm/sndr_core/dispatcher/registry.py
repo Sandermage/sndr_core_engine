@@ -1188,7 +1188,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
     },
     "PN134": {
-        "title": "torch.compile fullgraph patch для PyTorch 2.11 (backport vllm#42686)",
+        "title": "torch.compile fullgraph patch для PyTorch 2.11 (backport vllm#42686) — BENCH-VALIDATED REGRESSOR, DO NOT ENABLE",
         "tier": "community",
         "family": "compile_safety",
         "env_flag": "GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211",
@@ -1200,17 +1200,32 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm.sndr_core.integrations.compile_safety."
             "pn134_torch_compile_fullgraph_211"
         ),
-        "lifecycle": "experimental",
+        "lifecycle": "retired",
+        "retired_waiver": True,
+        "retired_reason": (
+            "Bench 2026-05-15 on Qwen3.6-35B-A3B-FP8 (dev371 nightly-bf610c2f, "
+            "2× A5000 TP=2): enabling PN134 caused -25% TPS regression "
+            "(211.38 → 158.0), TPOT +37%, TTFT 85→196 ms. Monkey-patching "
+            "torch._inductor.ir.StorageBox.should_realize_on_reuse affects "
+            "the ENTIRE model compilation graph, not just attention path — "
+            "the size-aware cost model materializes too many intermediates "
+            "for hybrid_gdn_moe layout, blowing the Inductor cache and "
+            "forcing recompilation on every batch shape variant. "
+            "DO NOT ENABLE on this model class. Module kept on disk for "
+            "future investigation on dense-attention models where the "
+            "cost model may behave correctly. See plan section 12.x for "
+            "regression report."
+        ),
         "experimental_note": (
-            "Backport vllm#42686 (OPEN). Closes vLLM issue #27828. "
+            "RETIRED 2026-05-15 — bench-validated regressor. Original "
+            "design backport vllm#42686 (OPEN), closes vLLM issue #27828. "
             "Patches torch._inductor.ir.StorageBox.should_realize_on_reuse "
             "с size-aware cost model для PyTorch 2.11 (fix landed в "
-            "torch 2.12). Без fix Inductor inline'ит residual в "
+            "torch 2.12). Theory: без fix Inductor inline'ит residual в "
             "fused_add_rms_norm каждый раз → cascade re-computation. "
-            "Expected: -2..-8 ms prefill, fewer inductor recompiles. "
-            "Auto-skip когда torch != 2.11."
+            "Reality on hybrid_gdn_moe: -25% TPS regression."
         ),
-        "credit": "Backport vllm#42686 (pytorch#176994 simplified) by Sandermage 2026-05-15.",
+        "credit": "Backport vllm#42686 (pytorch#176994 simplified) by Sandermage 2026-05-15. Retired same day after bench regression.",
         "upstream_pr": 42686,
         "requires_patches": [],
         "conflicts_with": [],

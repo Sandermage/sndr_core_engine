@@ -61,11 +61,14 @@ log = logging.getLogger("genesis.wiring.p12_tool_call_reasoning")
 
 GENESIS_P12_MARKER = "Genesis P12 Qwen3 <tool_call> implicit reasoning end v7.0"
 
-UPSTREAM_DRIFT_MARKERS = [
-    "_tool_call_token_id",
-    "tool_call_end_token_id",
-    "is_reasoning_end_streaming",
-]
+# NOTE 2026-05-15: removed patcher-level drift markers. Upstream PR #35687
+# landed (token-id resolution, is_reasoning_end_streaming, extract_content_ids
+# in qwen3_reasoning_parser.py) but used LAST-occurrence semantics in
+# extract_content_ids — which silently drops earlier <tool_call> blocks in
+# multi-tool agentic flows. Legacy sub-patches now self-skip on upstream
+# merge (required=False); the new `p12_last_to_first_occurrence` sub-patch
+# applies the FIRST-occurrence flip on top of upstream code.
+UPSTREAM_DRIFT_MARKERS: list[str] = []
 
 
 # Sub 1: Add tool_call token lookups to __init__.
@@ -181,6 +184,29 @@ _NEW_METHODS_BLOCK = (
 )
 
 
+# Sub 3 (added 2026-05-15 for dev371+): flip upstream's LAST-occurrence
+# `extract_content_ids` body to FIRST-occurrence. Upstream PR #35687 landed
+# token-id resolution + the method, but uses LAST-occurrence — which drops
+# earlier <tool_call> blocks in multi-tool flows. The init / methods-block
+# sub-patches above self-skip on upstream merge (anchors absent); this
+# sub-patch then applies on top.
+_OLD_LAST_OCCURRENCE_BODY = (
+    "            tool_call_index = (\n"
+    "                len(input_ids) - 1 - input_ids[::-1].index(self._tool_call_token_id)\n"
+    "            )\n"
+    "            return input_ids[tool_call_index:]"
+)
+
+_NEW_FIRST_OCCURRENCE_BODY = (
+    "            # [Genesis P12 v2] FIRST-occurrence of <tool_call>.\n"
+    "            # Upstream PR #35687 used LAST-occurrence which silently drops\n"
+    "            # earlier <tool_call> blocks in multi-tool agentic flows. The\n"
+    "            # FIRST occurrence is the actual reasoning -> tool boundary.\n"
+    "            tool_call_index = input_ids.index(self._tool_call_token_id)\n"
+    "            return input_ids[tool_call_index:]"
+)
+
+
 def _make_patcher() -> TextPatcher | None:
     target = resolve_vllm_file("reasoning/qwen3_reasoning_parser.py")
     if target is None:
@@ -190,17 +216,30 @@ def _make_patcher() -> TextPatcher | None:
         target_file=target,
         marker=GENESIS_P12_MARKER,
         sub_patches=[
+            # Legacy sub-patches: targeted at the pre-#35687 file. On
+            # dev371 (post-merge) these anchors are gone — required=False
+            # lets them silently self-skip while sub 3 still applies the
+            # FIRST-occurrence flip on top of the merged upstream code.
             TextPatch(
                 name="p12_init_tool_call_tokens",
                 anchor=_OLD_INIT,
                 replacement=_NEW_INIT,
-                required=True,
+                required=False,
             ),
             TextPatch(
                 name="p12_serving_layer_hooks",
                 anchor=_OLD_METHODS_ANCHOR,
                 replacement=_NEW_METHODS_BLOCK,
-                required=True,
+                required=False,
+            ),
+            # dev371+ sub: required=False so older pins (still on legacy)
+            # don't fail. At least ONE of {init/methods, last_to_first}
+            # must match for the patch as a whole to count as applied.
+            TextPatch(
+                name="p12_last_to_first_occurrence",
+                anchor=_OLD_LAST_OCCURRENCE_BODY,
+                replacement=_NEW_FIRST_OCCURRENCE_BODY,
+                required=False,
             ),
         ],
         upstream_drift_markers=UPSTREAM_DRIFT_MARKERS,
