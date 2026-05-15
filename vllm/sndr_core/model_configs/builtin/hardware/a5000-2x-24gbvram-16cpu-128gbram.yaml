@@ -69,7 +69,7 @@ system_env:
   # ── vLLM core knobs ──
   VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'             # allow max_model_len > model's published context (we run 280K on a 256K-trained model — 2026-05-15 trim from 320K)
   VLLM_FLOAT32_MATMUL_PRECISION: 'high'          # values: 'highest'|'high'|'medium'; 'high' uses TF32 on Ampere+ (~3-4× faster, bit-identical for our shapes)
-  VLLM_LOGGING_LEVEL: 'WARNING'                  # log level: DEBUG/INFO/WARNING/ERROR; WARNING = clean PROD output
+  VLLM_LOGGING_LEVEL: 'WARNING'                  # 2026-05-15 bench validated: INFO → WARNING даёт -10ms TTFT на short prompt (95→85ms). INFO активировал uvicorn access log + verbose per-request stats в hot-path. WARNING оставляет ERROR/WARN-level (PN95/PN94 message etc), но убирает per-request log noise. Главный TTFT win — не трогать.
   VLLM_LOG_MODEL_INSPECTION: '1'                 # at boot, log transformers-style hierarchical view of the model with quantization + attention backends. Free observability — fires once, zero hot-path cost. Diagnoses MoE routing + hybrid layer split + TQ vs Marlin tier confusion.
   VLLM_NO_USAGE_STATS: '1'                       # disable telemetry ping (privacy + offline boots)
   # ── vLLM torch.compile / AOT ──
