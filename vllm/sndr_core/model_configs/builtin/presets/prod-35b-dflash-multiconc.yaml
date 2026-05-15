@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for 35B FP8 + DFlash N=3 MULTI-CONCURRENCY (Wave 10).
+# Companion to `prod-35b-dflash` (single-stream latency).
+# `sndr launch prod-35b-dflash-multiconc` resolves to (model, hardware, profile).
+#
+# Bench validated 2026-05-15 on dev371+bf610c2f5 (tools/multi_conc_bench.py):
+#   conc=1 : 153 TPS  TTFT  74 ms  (single-user, DFlash drafter overhead)
+#   conc=4 : 359 TPS  TTFT 154 ms
+#   conc=8 : 562 TPS  TTFT 162 ms ⭐ best DFlash agg
+#
+# vs MTP+TQ sibling `prod-35b-multiconc` (max_num_seqs=8, 280K ctx):
+#   MTP+TQ conc=8: 689 TPS / TTFT 243 ms  (throughput +23%, but TTFT +50%)
+#
+# Use this preset when TTFT < 200 ms is a hard requirement at multi-tenant
+# load. Trade-off: -18% aggregate TPS, lower context cap (100K vs 280K).
+
+model: qwen3.6-35b-a3b-fp8-dflash                # DFlash variant of 35B-A3B-FP8 (target FP8 + bf16 separate drafter)
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # same rig — 2× A5000 24GB
+profile: 35b-dflash-multiconc                    # MULTI-CONC profile (vs prod-35b-dflash's 35b-dflash single-stream)

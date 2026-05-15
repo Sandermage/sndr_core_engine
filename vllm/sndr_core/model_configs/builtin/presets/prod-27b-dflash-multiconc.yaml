@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for 27B INT4 + DFlash N=5 MULTI-CONCURRENCY (Wave 10).
+# Companion to `prod-27b-dflash` (single-stream code-gen).
+# `sndr launch prod-27b-dflash-multiconc` resolves to (model, hardware, profile).
+#
+# Bench validated 2026-05-15 on dev371+bf610c2f5 (tools/multi_conc_bench.py):
+#   conc=1 : 102 TPS  TTFT 102 ms
+#   conc=4 : 268 TPS  TTFT 160 ms
+#   conc=8 : 385 TPS  TTFT 190 ms ⭐ (3.76x scaling)
+#
+# vs MTP+TQ sibling `prod-27b-tq-multiconc`:
+#   MTP+TQ conc=8: 379 TPS / TTFT 189 ms — essentially TIED (Δ <2%)
+#
+# On 27B both methods are equivalent in throughput AND latency. Choose by:
+#   - context length cap: DFlash multi-conc 80K vs MTP+TQ multi-conc 262K
+#   - target weight quant: DFlash uses INT4 target, MTP+TQ uses INT4 target too
+#   - drafter availability: DFlash needs Qwen3.6-27B-DFlash on host disk
+
+model: qwen3.6-27b-dflash                        # DFlash variant of 27B (target INT4 + bf16 separate drafter)
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # same rig — 2× A5000 24GB
+profile: 27b-dflash-multiconc                    # MULTI-CONC profile (vs prod-27b-dflash's 27b-dflash single-stream)

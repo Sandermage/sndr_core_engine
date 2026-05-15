@@ -97,10 +97,27 @@ genesis_env:
   # ── DFlash family ──────────────────────────────
   GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX: '1'
   GENESIS_ENABLE_PN24_DFLASH_AUX_LAYER_FIX: '1'
-  GENESIS_ENABLE_PN40_DFLASH_OMNIBUS: '1'
-  GENESIS_ENABLE_P103: '1'
-  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'
-  GENESIS_BUFFER_MODE: shared
+  GENESIS_ENABLE_PN40_DFLASH_OMNIBUS: '1'             # DFlash N=3 omnibus optimization (sub-A fused per-layer K-norm).
+  GENESIS_ENABLE_P103: '1'                            # FLA Cliff 2 chunked prefill — applies to hybrid GDN layers in Qwen3.6 target.
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'                # Genesis prealloc framework — token budget for shared scratch pools.
+  GENESIS_BUFFER_MODE: shared                          # Genesis buffer manager mode (shared | exclusive | auto).
+
+  # ── Wave 10 (2026-05-15) — multi-conc unlock + correctness recoveries ──
+  # Symmetric to V2 model.patches in qwen3.6-35b-a3b-fp8-dflash.yaml.
+  # Bench validated: single-stream conc=1 = 153 TPS / TTFT 74 ms;
+  # multi-conc preset a5000-2x-35b-fp8-dflash-multiconc.yaml gives conc=8 = 562 TPS / TTFT 162 ms.
+  GENESIS_ENABLE_PN96B: '1'                            # Marlin persistent workspace (renamed from PN96 dict-key collision). +4-5% TPS recovery on Marlin MoE — was silently unloaded pre-rename.
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN) — defensive streaming guard for OpenAI clients reading delta.content (Open WebUI / LibreChat / Cline).
+  GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1'  # PyTorch blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on hybrid_gdn_moe target.
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'           # V1 decode kernel warmup orchestrator — pre-JITs decode kernels at boot.
+  GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'         # Qwen3.6 enhanced chat-template auto-install.
+  GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP: '1'         # vllm#41481 — pre-JITs eagle helper kernels. No-op on DFlash code path but cost zero (keep ON for cross-config consistency).
+  GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP: '1'        # vllm#42165 — pre-JITs _compute_slot_mapping_kernel. Applies on both MTP + DFlash decode paths.
+  GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP: '1'           # vllm#42215 — pre-JITs _tq_grouped_decode_stage1. No-op on DFlash (head_size=256 forbids TQ on Ampere) but cost zero.
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'       # vllm#42739 backport — Triton top-k/top-p contiguous fix (no-op when FlashInfer sampler active).
+  GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'       # vllm#42722 backport — MTP scheduler empty-output guard. No-op on DFlash spec-decode path but cost zero.
+  # GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # OFF in single-stream — ENABLE in DFlash multi-conc preset (v2 redesign safe).
+  # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor; affects all spec-decode paths via Inductor cache).
 
 system_env:
   PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'

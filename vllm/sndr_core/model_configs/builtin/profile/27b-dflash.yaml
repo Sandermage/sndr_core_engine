@@ -1,5 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 profile — single-stream sizing for 27B-DFlash on 2× A5000.
+# Genesis V2 profile — 27B-DFlash SINGLE-STREAM latency-mode sizing on 2× A5000.
+#
+# WAVE 10 (2026-05-15) INHERITANCE NOTE:
+# Model file qwen3.6-27b-dflash.yaml was updated 2026-05-15 with Wave 10
+# patches symmetric to MTP sibling. Empty patches_delta means full Wave 10
+# stack inherited automatically.
+#
+# For multi-concurrency throughput workloads (max_num_seqs=8, agg 385 TPS
+# at TTFT 190 ms), use companion profile `27b-dflash-multiconc.yaml` which
+# overrides sizing (max_num_seqs=8, max_model_len=80K, gpu_mem=0.85).
+#
+# Bench reference (dev371+bf610c2f5):
+#   This profile (max_num_seqs=1, 185K)  : single-stream, TTFT 102 ms
+#   27b-dflash-multiconc (max_num_seqs=8, 80K) : agg 385 TPS / TTFT 190 ms
+#
+# On 27B, DFlash and MTP+TQ are nearly TIED at conc=8 (Δ <2%). Choice
+# depends on context: MTP+TQ supports 262K, DFlash caps at 80K (multi-conc)
+# / 185K (single-stream).
 
 schema_version: 2
 kind: profile
