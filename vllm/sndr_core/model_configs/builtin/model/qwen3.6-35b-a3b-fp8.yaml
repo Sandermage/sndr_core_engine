@@ -147,8 +147,34 @@ patches:
   GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL: '0' # TOMBSTONED — fla recurrent kernel cannot serve single-seq prefill.
   GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: '0'        # OFF — anchor ordering dependency on P28.
   GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `empty_cache()` hook, threshold-gated.
-  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # vllm#42301 port — OFF (eager event allocation crashes).
+  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # vllm#42301 port — OFF in single-conc latency profile.
+                                                       # v1 history: eager event allocation crashed.
+                                                       # v1 lazy-init follow-up: dev371 profile_run crashed via
+                                                       #   torch/_inductor/runtime/static_triton_launcher.py:291 CUDA invalid argument.
+                                                       # v2 redesign 2026-05-15 (Sander): torch.compiler.is_compiling() guard +
+                                                       #   _PN204_ARMED arming hook (Worker.determine_available_memory wrap) +
+                                                       #   explicit device=hidden_states.device on Stream + per-layer single-strike
+                                                       #   fallback. Bench dev371 35B conc=8: neutral within CV (agg 675 vs 689,
+                                                       #   TTFT 240 vs 237 ms). Hardware-future-proof — Hopper SM 9.0+ gives
+                                                       #   +5-10% TPOT per upstream PR. Enabled in multi-conc preset (see
+                                                       #   model/qwen3.6-35b-a3b-fp8-multiconc.yaml).
+                                                       # Requires GENESIS_LEGACY_P7=0 when enabled (registry conflicts_with).
   GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix.
+
+  # ── Wave 10 (2026-05-15) — multi-concurrency + correctness recoveries ──
+  # All flags below verified via tools/multi_conc_bench.py on dev371+bf610c2f5.
+  # Impact at conc=1: neutral within CV. Impact at conc=8: aggregate 689 TPS (3.21x).
+  GENESIS_ENABLE_PN96B: '1'                          # Marlin persistent workspace (renamed 2026-05-15 from PN96 dict-key collision with kv_cache/PN96). +4-5% TPS recovery — was silently unloaded pre-rename.
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN). Reactivated after retired-audit 2026-05-15 confirmed upstream streaming entry-point still lacks thinking-disabled short-circuit. Defensive guard for OpenAI clients reading delta.content (Open WebUI, LibreChat, Cline, OpenCode). Zero risk: guard False for thinking-enabled (dominant case).
+  GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1' # PyTorch blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid_gdn_moe. dev371 v1 already does this by default, but kept ON for upstream-bypass insurance + older pins.
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'         # V1 decode kernel warmup orchestrator — pre-JITs decode + spec-decode kernels at boot. Lower TTFT spike on first user request after restart.
+  GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'       # Qwen3.5/3.6 enhanced chat-template auto-install at /tmp/genesis/chat_templates/qwen3.6_enhanced.jinja.
+  GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP: '1'       # vllm#41481 backport — pre-JITs 4 eagle helper kernels (closes 4 of 8 JIT spikes in jit_monitor on first request).
+  GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP: '1'      # vllm#42165 backport — pre-JITs _compute_slot_mapping_kernel + do_not_specialize='num_tokens' patch.
+  GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP: '1'         # vllm#42215 backport — pre-JITs _tq_grouped_decode_stage1 + workspace prealloc before lock.
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'     # vllm#42739 backport — Triton top-k/top-p contiguous fix. No-op when VLLM_USE_FLASHINFER_SAMPLER=1 (correctness defense for fallback path).
+  GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'     # vllm#42722 backport — MTP scheduler empty-output guard. Prevents num_accepted=-1 Prometheus ValueError on rare K=3 reject-all path.
+  # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor; StorageBox monkey-patch blows Inductor compile cache on hybrid_gdn_moe). See pn134_torch_compile_fullgraph_211.py docstring + iron-rule waiver.
 
 notes:
   - "POC migration from a5000-2x-35b-prod (2026-05-12). All 44 canonical

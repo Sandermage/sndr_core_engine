@@ -242,6 +242,43 @@ within the 256K budget. Raw run logs are kept as an internal artefact
 and are not published; the bench numbers above are reproducible from
 the commands in the next section.
 
+### Wave 10 — multi-concurrency throughput unlock (2026-05-15)
+
+Discovery: single-concurrency `wall_TPS` (215 on 35B-A3B FP8) was NOT
+the system ceiling. With `max_num_seqs=8`, the same hardware delivers
+**689 TPS aggregate** — a **3.21x scaling factor**. PN119 GQA-head
+grouping + cudagraph FULL_AND_PIECEWISE capture at `batch>1` are doing
+real work; they were just invisible at concurrency=1.
+
+Bench on `dev371+bf610c2f5` (`tools/multi_conc_bench.py sweep`):
+
+| Model | conc=1 | conc=4 | conc=8 | TTFT @ 1 | TTFT @ 8 |
+| --- | --- | --- | --- | --- | --- |
+| **35B-A3B FP8** | 215 TPS | 478 TPS | **689 TPS** | 65 ms | 243 ms |
+| **27B INT4** | 97 TPS | 265 TPS | **379 TPS** (3.89x) | 105 ms | 189 ms |
+
+Two production presets are now available:
+
+- **`a5000-2x-35b-prod.yaml`** — latency profile (`max_num_seqs=2`). Use
+  for single-user chat / IDE-agent clients where TTFT matters more than
+  aggregate throughput.
+- **`a5000-2x-35b-multiconc.yaml`** — throughput profile (`max_num_seqs=8`,
+  PN204 v2 dual-stream enabled). Use for agentic / batch / multi-tenant
+  workloads. 3.21x aggregate-TPS scaling at the cost of higher per-request
+  TTFT.
+
+Wave 10 also closed three retired-patch partial-merge gaps (P26 output
+pool, PN50 GDN fusion anchor drift, P12 v2 first-occurrence) and
+reactivated PN51 (Qwen3 streaming thinking-disabled defensive fix) —
+all detected by the retired-patch audit on `dev371`. PN134 was retired
+loud with a `-25% TPS` bench regression note. See [CHANGELOG.md](CHANGELOG.md)
+entry `[v11.0.0+wave10]` for full per-patch rationale.
+
+Architectural roadmap to break the 243 ms TTFT ceiling at `conc=8`:
+[docs/GDN_KERNEL_FUSION_DESIGN.md](docs/GDN_KERNEL_FUSION_DESIGN.md) —
+3-phase plan to fuse the 6 sequential GDN Triton kernels into ≤3
+(estimated -25..-36 % TTFT, +15..+30 % aggregate TPS).
+
 ### Visual comparison
 
 ![Sustained TPS — Genesis vs stock](assets/charts/tps_genesis_vs_stock.png)

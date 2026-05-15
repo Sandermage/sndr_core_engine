@@ -17,14 +17,32 @@ hardware:
   cuda_capability_min: [8, 6]                    # Ampere SM 8.6 minimum
 
 # ─── Sizing knobs operator-tuned for this rig ──────────────────────────
+# DEFAULT: latency-optimised single-conc profile (max_num_seqs=2).
+# Sizing knobs reference the LATENCY mode; for throughput workloads use the
+# multi-conc preset (vllm/sndr_core/model_configs/builtin/a5000-2x-35b-multiconc.yaml)
+# which inherits this hardware identity but overrides max_num_seqs=8.
+# Bench characterisation (Wave 10, dev371+bf610c2f5, tools/multi_conc_bench.py):
+#   max_num_seqs=2 (this default) : 215 TPS single / 339 TPS at conc=2  | TTFT 65ms / 64ms
+#   max_num_seqs=4 (alt)           : 478 TPS aggregate at conc=4         | TTFT 146ms  (good compromise)
+#   max_num_seqs=8 (multi-conc)    : 689 TPS aggregate at conc=8 ⭐ optimum | TTFT 243ms
+#   max_num_seqs=16                : 685 TPS (diminishing returns)        | TTFT 311ms+
+# Choose based on workload:
+#   - Latency-critical single-user agent / chat client → max_num_seqs=2 (this default)
+#   - Mixed agentic + multi-tenant workloads          → max_num_seqs=4-8 (preset override)
 sizing:
   max_model_len: 280000                          # 2026-05-15: trimmed 320K→280K. Restored ~3-4 GiB VRAM headroom per card for FULL_AND_PIECEWISE cudagraph capture (v1 default) on hybrid_gdn_moe; still serves above model's 256K published context (VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 in system_env). Profile may override; GENESIS_TQ_MAX_MODEL_LEN must match.
   gpu_memory_utilization: 0.90                   # vLLM KV cache budget fraction (range 0.5-0.95; 0.90 = ~21.6 GiB on 24 GiB card)
-  max_num_seqs: 2                                # max concurrent sequences (range 1-N; 2 = 35B+TQ k8v4 production reference)
-  max_num_batched_tokens: 4096                   # chunked prefill chunk size (must equal GENESIS_PROFILE_RUN_CAP_M)
+  max_num_seqs: 2                                # max concurrent sequences (range 1-N; 2 = single-conc latency reference; 8 = multi-conc throughput optimum — override via multi-conc preset)
+  max_num_batched_tokens: 4096                   # chunked prefill chunk size (must equal GENESIS_PROFILE_RUN_CAP_M). Bench 2026-05-15: 8192 regresses TTFT (240→683ms at conc=8), keep at 4096.
   enable_chunked_prefill: true                   # required for spec-decode + long ctx (avoids degenerate single-token chunks via P74)
   enforce_eager: false                           # false = cudagraph capture enabled (production); true = debug-only
   disable_custom_all_reduce: true                # disable custom all-reduce (NCCL fallback — required on consumer Ampere PCIe)
+  # Multi-conc throughput-mode additional flags (NOT enabled here — see preset):
+  #   scheduler_reserve_full_isl: false          # --no-scheduler-reserve-full-isl — Sprint 1 flag, allows packing more sequences
+  # Anti-patterns confirmed BAD on dev371 (do NOT enable):
+  #   enable_prefix_caching: true                # → -28.8% TPS (forces Mamba `align` mode incompatible with TQ k8v4)
+  #   performance_mode: interactivity            # → neutral to -3.5% TPS (Sprint 1-era flag, no benefit on dev371)
+  #   async_scheduling: true                     # → neutral at conc=8 (244ms TTFT vs 237ms baseline, in CV)
 
 # ─── Runtime block — docker default; podman / bare-metal can be added later ──
 runtime:

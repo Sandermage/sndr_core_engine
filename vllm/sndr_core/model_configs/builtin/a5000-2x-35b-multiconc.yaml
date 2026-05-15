@@ -1,0 +1,189 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis builtin model config — 35B-A3B FP8 multi-concurrency throughput preset.
+#
+# Sister config to a5000-2x-35b-prod.yaml (LATENCY profile).
+# Differs ONLY in: max_num_seqs, max_model_len (lowered for VRAM headroom on
+# batch=8 cudagraph capture), PN204=1 (dual-stream proven safe via v2 redesign
+# 2026-05-15), GENESIS_LEGACY_P7=0 (PN204 conflicts_with declared).
+#
+# All Genesis env flags, Genesis spec-decode setup, TQ k8v4 KV pool config
+# are inherited verbatim from prod (use this preset side-by-side, swap based
+# on workload).
+
+key: a5000-2x-35b-multiconc
+title: 2× RTX A5000 — 35B-A3B FP8 multi-conc throughput preset
+description: >-
+  Throughput-optimised companion to a5000-2x-35b-prod. Same model + KV +
+  patches, raised max_num_seqs=8 + PN204 v2 enabled. Validated 689 TPS
+  aggregate on dev371 nightly bf610c2f (vs 215 TPS single-conc). Use when
+  serving agentic / batch workloads — accepts TTFT 240ms@conc=8 for 3.21x
+  aggregate throughput. For latency-critical single-user, prefer
+  a5000-2x-35b-prod (TTFT 65ms@conc=1).
+schema_version: 1
+maintainer: sandermage
+last_validated: '2026-05-15'
+genesis_pin: v11.0.0+wave10
+vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5
+lifecycle: stable
+workload_tag: throughput
+
+hardware:
+  gpu_match_keys: [rtx a5000]
+  n_gpus: 2
+  min_vram_per_gpu_mib: 22000
+  cuda_capability_min: [8, 6]
+
+model_path: /models/Qwen3.6-35B-A3B-FP8
+served_model_name: qwen3.6-35b-a3b
+quantization: null
+kv_cache_dtype: turboquant_k8v4
+
+# Multi-conc-optimised dimensions (vs prod single-conc 320000/2):
+max_model_len: 280000           # lowered from 320K — frees 3-4 GiB headroom for batch=8 cudagraph capture
+gpu_memory_utilization: 0.90
+max_num_seqs: 8                 # 8 concurrent sequences. Sweet spot per bench: 3.21x scaling, diminishing returns at 16.
+max_num_batched_tokens: 4096
+enable_chunked_prefill: true
+dtype: float16
+cudagraph_mode: FULL_AND_PIECEWISE   # forced by PN125 on hybrid_gdn_moe; matches dev371 v1 default
+enforce_eager: false
+disable_custom_all_reduce: true
+language_model_only: true
+trust_remote_code: true
+
+# Scheduler tuning for throughput workload:
+scheduler_reserve_full_isl: false  # Sprint 1 flag — allows scheduler to pack more sequences (was implicit on dev93)
+
+enable_auto_tool_choice: true
+tool_call_parser: qwen3_coder
+reasoning_parser: qwen3
+
+spec_decode:
+  method: mtp
+  num_speculative_tokens: 3       # K=3 optimal (K=1 tested −29% TPS, K=3 holds 0.79 accept rate at conc=1, 0.78 at conc=8)
+
+# Bench reference 2026-05-15 (tools/multi_conc_bench.py sweep, n=2 warm):
+#   Non-streaming aggregate:
+#     conc=1  : 215 TPS  per-req 215
+#     conc=2  : 349 TPS  per-req 184  (1.62x scaling)
+#     conc=4  : 478 TPS  per-req 134  (2.22x scaling)
+#     conc=8  : 689 TPS  per-req  91  (3.21x scaling) ⭐ OPTIMUM
+#     conc=16 : 685 TPS  per-req  51  (diminishing returns)
+#   Streaming (real-user UX):
+#     conc=1  : TTFT  65 ms / TPOT 14.3 ms
+#     conc=4  : TTFT 146 ms / TPOT 22.4 ms
+#     conc=8  : TTFT 243 ms / TPOT 31.7 ms  (TTFT P95 563 ms — long-prefill outliers)
+# Bench artefact: tools/restart_35b_dev371_multiconc.sh (production-ready launcher)
+
+genesis_env:
+  # ── Inherited from a5000-2x-35b-prod.yaml (same patches, same defaults) ──
+  # See sibling config for full annotations. Only THROUGHPUT-mode-specific
+  # overrides are commented inline below; all other flags retain their
+  # latency-mode values.
+
+  GENESIS_BUFFER_MODE: shared
+
+  # GDN / hybrid attention
+  GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'
+  GENESIS_P67_USE_UPSTREAM: '1'
+  GENESIS_P67_NUM_KV_SPLITS: '48'
+  GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'
+  GENESIS_ENABLE_PN106_GDN_H_POOL: '1'
+
+  # ── THROUGHPUT-MODE DIFFS vs prod-latency ──────────────────────────
+  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '1'       # ENABLED 2026-05-15 (v2 redesign — is_compiling() guard + arming hook). Neutral within CV on A5000 (would give +5-10% on Hopper).
+  GENESIS_LEGACY_P7: '0'                             # P7 OFF — required when PN204=1 (registry conflicts_with declares mutual exclusivity).
+
+  # ── Reasoning / tool parsing — inherited from prod ──────────────────
+  GENESIS_ENABLE_P12: '1'
+  GENESIS_ENABLE_P27_REASONING_BEFORE_THINK: '1'
+  GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'
+  GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'
+  GENESIS_ENABLE_P60B_TRITON_KERNEL: '1'
+  GENESIS_ENABLE_P61B_STREAMING_OVERLAP: '1'
+  GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT: '1'
+  GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING: '1'
+  GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'
+  GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'
+  GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'
+  GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'
+  GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'
+  GENESIS_ENABLE_P71_BLOCK_VERIFY: '1'
+  GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'
+  GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'
+  GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'
+  GENESIS_ENABLE_P82: '1'
+  GENESIS_P82_THRESHOLD_SINGLE: '0.3'
+  GENESIS_ENABLE_P87: '1'
+  GENESIS_ENABLE_P91: '1'
+  GENESIS_ENABLE_P95: '1'
+  GENESIS_ENABLE_P99: '1'
+  GENESIS_ENABLE_P101: '1'
+  GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'
+
+  # Wave 8/9 stack — all inherited
+  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'
+  GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'
+  GENESIS_PN16_TOOL_THINK_BUDGET: '200'
+  GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'
+  GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'
+  GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION: '1'
+  GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK: '1'
+  GENESIS_ENABLE_PN66: '1'
+  GENESIS_ENABLE_PN67: '1'                            # thinking_token_budget inverted bool fix
+  GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'
+  GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'
+  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'        # self-retires on dev371 (upstream merged), kept on for older pins
+  GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'
+  GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'
+  GENESIS_PN95_CONFIG_KEY: a5000-2x-tier-aware-example
+  GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD: '2048'
+  GENESIS_PN95_TICK_EVERY: '100'
+  GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'
+  GENESIS_ENABLE_PN96B: '1'                           # Marlin persistent workspace (renamed 2026-05-15 from PN96 collision)
+  GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'
+  GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'
+
+  # Wave 10 (2026-05-15)
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 streaming defensive
+  GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1'         # PR-blog 2026-05 hybrid cudagraph forcing
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'                  # JIT decode warmup orchestrator
+  GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'                # Qwen3.6 chat-template auto-install
+  GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP: '1'                # vllm#41481 eagle helper kernel warmup
+  GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP: '1'               # vllm#42165 V1 slot mapping warmup
+  GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP: '1'                  # vllm#42215 TurboQuant decode warmup
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'              # vllm#42739 Triton top-k/top-p contiguous fix
+  GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'              # vllm#42722 MTP scheduler empty-output guard
+  # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor)
+
+  # Misc
+  GENESIS_OBSERVABILITY: '1'
+  GENESIS_TQ_MAX_MODEL_LEN: '280000'                  # matches max_model_len above
+  GENESIS_PREALLOC_TOKEN_BUDGET: '4096'
+  GENESIS_PROFILE_RUN_CAP_M: '4096'
+  GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'
+
+system_env:
+  # Inherited from prod with one tweak: PYTORCH_CUDA_ALLOC_CONF stays the same.
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'
+  VLLM_NO_USAGE_STATS: '1'
+  VLLM_LOGGING_LEVEL: WARNING                         # -10ms TTFT vs INFO (verified short-prompt bench)
+  VLLM_FLOAT32_MATMUL_PRECISION: high
+  VLLM_USE_FLASHINFER_SAMPLER: '1'                    # PN132 becomes no-op when this is on (intended belt-and-suspenders)
+  VLLM_USE_FUSED_MOE_GROUPED_TOPK: '1'
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: '1'
+  VLLM_WORKER_MULTIPROC_METHOD: spawn
+  VLLM_MARLIN_USE_ATOMIC_ADD: '1'
+  VLLM_MOE_USE_DEEP_GEMM: '0'                         # DeepGEMM is Hopper-only; Marlin path on Ampere
+  VLLM_USE_DEEP_GEMM: '0'
+  VLLM_USE_FLASHINFER_MOE_FP8: '0'
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'
+  TRITON_CACHE_DIR: /root/.triton/cache
+  NCCL_P2P_DISABLE: '1'                               # consumer Ampere has no NVLink P2P
+  NCCL_DEBUG: WARN
+  OMP_NUM_THREADS: '1'
+  CUDA_DEVICE_MAX_CONNECTIONS: '8'
+  CUDA_MODULE_LOADING: LAZY
