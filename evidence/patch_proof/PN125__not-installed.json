@@ -1,0 +1,37 @@
+{
+  "bench_delta": null,
+  "commit_sha": "f0f56623",
+  "genesis_pin": "11.0.0",
+  "host": "MacBook-Pro.local",
+  "measured_at": "2026-05-15T00:10:11+00:00",
+  "patch_id": "PN125",
+  "static_checks": [
+    {
+      "message": "patch 'PN125' present in registry",
+      "passed": true,
+      "rule": "P-1"
+    },
+    {
+      "message": "apply_module resolved: vllm.sndr_core.integrations.compile_safety.pn125_hybrid_full_and_piecewise",
+      "passed": true,
+      "rule": "P-2"
+    },
+    {
+      "message": "apply_module 'vllm.sndr_core.integrations.compile_safety.pn125_hybrid_full_and_piecewise' imports cleanly",
+      "passed": true,
+      "rule": "P-3"
+    },
+    {
+      "message": "patch present in legacy apply register",
+      "passed": true,
+      "rule": "P-4"
+    },
+    {
+      "message": "env_flag 'GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE' is canonical",
+      "passed": true,
+      "rule": "P-5"
+    }
+  ],
+  "static_passed": true,
+  "vllm_pin": "not-installed"
+}

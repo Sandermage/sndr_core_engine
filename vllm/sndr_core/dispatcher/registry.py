@@ -1123,6 +1123,59 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "applies_to": {},
     },
+    "PN125": {
+        "title": "Hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE cudagraph_mode (closes upstream gap)",
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE",
+        "default_on": False,  # bench-gate required before flip
+        "category": "perf_hotfix",
+        "implementation_status": "full",
+        "source": "genesis_original",
+        "apply_module": (
+            "vllm.sndr_core.integrations.compile_safety."
+            "pn125_hybrid_full_and_piecewise"
+        ),
+        "lifecycle": "experimental",
+        "experimental_note": (
+            "Closes a vLLM upstream gap: Qwen3_5ForConditionalGenerationConfig "
+            "(used by both Qwen3_5ForConditionalGeneration AND "
+            "Qwen3_5MoeForConditionalGeneration architectures) only updates "
+            "mamba_ssm_cache_dtype and never calls "
+            "MambaModelConfig.verify_and_update_config — so the "
+            "FULL_AND_PIECEWISE cudagraph_mode that other Mamba/Jamba "
+            "hybrids get for free is NOT applied to our 35B-A3B-FP8 "
+            "(hybrid_gdn_moe) or 27B-INT4-AutoRound (hybrid_gdn) builds. "
+            "PyTorch blog 'Hybrid Models as First-Class Citizens in vLLM' "
+            "(2026-05) measures up to 91% throughput / lower ITL on hybrid "
+            "models with FULL_AND_PIECEWISE. PN125 monkey-patches "
+            "Qwen3_5ForConditionalGenerationConfig.verify_and_update_config "
+            "to also call MambaModelConfig.verify_and_update_config. "
+            "Default OFF until bench: 35B 8K TPS ≥ 216 / VRAM headroom "
+            "≥ 1 GiB, 27B 8K TPS ≥ 130 / VRAM headroom ≥ 2 GiB."
+        ),
+        "credit": (
+            "Genesis-original 2026-05-15 — Sandermage. Source: "
+            "https://pytorch.org/blog/hybrid-models-as-first-class-citizens-in-vllm/. "
+            "Could also be fixed upstream by registering "
+            "HybridAttentionMambaModelConfig for Qwen3_5* architectures "
+            "(it exists in vllm/model_executor/models/config.py but is "
+            "currently unreferenced from _MODELS_CONFIG_MAP)."
+        ),
+        "upstream_pr": None,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            "model_arch": [
+                "Qwen3_5ForConditionalGeneration",
+                "Qwen3_5MoeForConditionalGeneration",
+                "Qwen3NextForCausalLM",
+                "Qwen3MoeForCausalLM",
+            ],
+            # Valid for pins where MambaModelConfig.verify_and_update_config exists.
+            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+        },
+    },
     "PN96b": {
         "title": "Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore)",
         "tier": "community",

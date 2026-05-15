@@ -1034,6 +1034,33 @@ def apply_patch_sprint26_cudagraph_dispatch_trace() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN125 hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE cudagraph_mode")
+def apply_patch_pn125_hybrid_full_and_piecewise() -> PatchResult:
+    """PN125: closes upstream gap where Qwen3.5/3.6 hybrid_gdn models
+    miss MambaModelConfig.verify_and_update_config — which sets
+    cudagraph_mode=FULL_AND_PIECEWISE. PyTorch blog 2026-05 reports
+    up to 91% throughput / lower ITL on hybrid models with this mode.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE=1.
+    Bench-gate before flipping default_on=True.
+    """
+    name = "PN125 hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn125_hybrid_full_and_piecewise as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN95 Tier-aware KV cache (Path C v7.73.x, club-3090 #58)")
 def apply_patch_N95_tier_aware_cache() -> PatchResult:
     """PN95 (Path C v7.73.x): tier-aware KV cache with vision sub-tier
