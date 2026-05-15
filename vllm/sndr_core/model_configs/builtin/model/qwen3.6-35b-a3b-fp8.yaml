@@ -182,3 +182,37 @@ notes:
   - "POC migration from a5000-2x-35b-prod (2026-05-12). All 44 canonical
     patches preserved. Profile-driven testing should not modify this file
     until a wave promotion ledger validates the delta."
+
+# ── patches_attribution (Phase A, 2026-05-16) ──────────────────────────
+# Structured rationale for patches that benefit from explicit documentation
+# beyond the inline comment next to each env flag. Keyed by registry patch ID
+# (e.g. PN204) — NOT the env-flag name. Phase A is metadata-only;
+# `sndr patches plan --explain` (Phase B) and `sndr compose render --policy …`
+# (Phase C) consume these fields.
+#
+# Role taxonomy:
+#   load_bearing          must stay on; removal causes correctness/OOM regression
+#   defensive             cheap safety guard; default-include
+#   optional_perf         conditional perf knob; needs bench_evidence to claim
+#   suspected_regression  on by default but recently flagged; needs note
+#   no_op                 included for cross-config consistency but inactive
+#   unknown               not yet classified (audit warning)
+patches_attribution:
+  PN204:
+    role: optional_perf
+    bench_evidence: "dev371 35B conc=8: agg 675 vs 689 TPS, TTFT 240 vs 237 ms (neutral within CV)"
+    note: |
+      OFF in single-conc latency profile (this file). Enabled in the
+      multi-conc preset via 35b-multiconc.yaml patches_delta.enable.
+      Hopper SM 9.0+ gives +5-10% TPOT per upstream PR. Requires
+      GENESIS_LEGACY_P7=0 when enabled (registry conflicts_with).
+    candidate_when:
+      max_num_seqs_gte: 4
+  PN134:
+    role: suspected_regression
+    note: |
+      Retired 2026-05-15 after bench showed -25% TPS regression — the
+      StorageBox monkey-patch blows the Inductor compile cache on
+      hybrid_gdn_moe. Iron-rule waiver attached. Do not re-enable
+      without a new evidence delta.
+

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 # Reuse V1 helper types where possible (HardwareSpec, SpecDecodeConfig, etc.).
 # This keeps a single source of truth for sub-component validation rules.
@@ -131,6 +131,65 @@ class ModelVersions:
     reference_metrics_ref: Optional[str] = None
 
 
+_PATCH_ROLES = (
+    "load_bearing",
+    "defensive",
+    "optional_perf",
+    "suspected_regression",
+    "no_op",
+    "unknown",
+)
+# Phase A — PatchAttribution role taxonomy. Stored as plain str so YAML
+# round-trips cleanly through `_dataclass_from_dict()`; validated against
+# the tuple above at .validate() time. The taxonomy is intentionally
+# small (6 values) to keep operator UX simple.
+# See `docs/_internal/PATCH_ATTRIBUTION_COMPOSE_GENERATOR_INTEGRATION_PLAN_2026-05-16_RU.md`
+# § 5.3 for the full design and § 6 for resolver policy mapping.
+
+
+@dataclass
+class PatchAttribution:
+    """Why a patch is in the model's canonical set.
+
+    Keyed by registry patch ID (e.g. `PN204`), not by env-flag name. The
+    Phase A schema is intentionally minimal: store + validate metadata,
+    no resolver behavior change. Phase B reads these entries from
+    `sndr patches plan --explain` and `sndr compose render --policy …`.
+
+    Role-conditional required fields (validated at .validate() time):
+
+      load_bearing | suspected_regression  →  `note` required
+      optional_perf                        →  `bench_evidence` required
+      defensive | no_op | unknown          →  no auxiliary fields required
+    """
+    role: str
+    note: Optional[str] = None
+    bench_evidence: Optional[str] = None
+    candidate_when: Optional[dict[str, Any]] = None
+
+    def validate(self, *, key: str) -> None:
+        if self.role not in _PATCH_ROLES:
+            raise SchemaError(
+                f"patches_attribution[{key!r}].role={self.role!r} not in "
+                f"{_PATCH_ROLES}"
+            )
+        if self.role in ("load_bearing", "suspected_regression") and not self.note:
+            raise SchemaError(
+                f"patches_attribution[{key!r}]: role={self.role!r} requires "
+                f"a non-empty `note` (reviewers need to see the rationale)"
+            )
+        if self.role == "optional_perf" and not self.bench_evidence:
+            raise SchemaError(
+                f"patches_attribution[{key!r}]: role='optional_perf' requires "
+                f"a non-empty `bench_evidence` (perf claims need an anchor)"
+            )
+        if self.candidate_when is not None and not isinstance(self.candidate_when, dict):
+            raise SchemaError(
+                f"patches_attribution[{key!r}].candidate_when must be dict | None "
+                f"(got {type(self.candidate_when).__name__})"
+            )
+
+
 @dataclass
 class ModelDef:
     """Identity + capabilities + canonical patches for a single model.
@@ -160,6 +219,15 @@ class ModelDef:
     # Canonical patches matrix — string-valued env knobs.
     # A profile delta can disable / enable / override entries here.
     patches: dict[str, str] = field(default_factory=dict)
+
+    # Phase A — optional structured rationale keyed by registry patch ID
+    # (e.g. `PN204`, not the env-flag name). Stored alongside `patches`
+    # so a model's "what" + "why" stay in one file. Empty dict is the
+    # default for legacy YAMLs that haven't been backfilled yet.
+    # Consumed by `sndr patches plan --explain` (Phase B) and the
+    # compose policy filter (Phase C). compose() itself ignores this
+    # field — Phase A is additive and non-breaking.
+    patches_attribution: dict[str, PatchAttribution] = field(default_factory=dict)
 
     # Optional Jinja chat-template override (`--chat-template <path>`).
     # When set, the launch renderer bind-mounts the host-resolved file
@@ -191,6 +259,17 @@ class ModelDef:
                 raise SchemaError(
                     f"model.patches[{k!r}] value must be str (got {type(v).__name__})"
                 )
+        for pid, attr in self.patches_attribution.items():
+            # Key must be a canonical Genesis patch ID (P{N}? + digits).
+            # Same validator the PatchManifest layer uses — keeps the
+            # cross-reference between attribution and registry tight.
+            _check_patch_id(pid, f"patches_attribution[{pid!r}]")
+            if not isinstance(attr, PatchAttribution):
+                raise SchemaError(
+                    f"patches_attribution[{pid!r}] must be PatchAttribution "
+                    f"(got {type(attr).__name__})"
+                )
+            attr.validate(key=pid)
         if self.chat_template is not None and not isinstance(self.chat_template, str):
             raise SchemaError(
                 f"model.chat_template must be str | None (got "
