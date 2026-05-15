@@ -6,9 +6,9 @@ on:
   pull_request:
     branches: ["main"]
     paths:
-      - "vllm/_genesis/**/*.py"
-      - "genesis_*.py"
-      - "tools/external_probe/**/*.py"
+      - "vllm/sndr_core/**/*.py"
+      - "scripts/**/*.py"
+      - "tools/**/*.py"
       - ".github/workflows/codeql.yml"
   schedule:
     # Weekly Monday 06:00 UTC
