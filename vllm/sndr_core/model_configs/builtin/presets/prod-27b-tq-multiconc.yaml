@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — operator shortcut for the 27B TQ k8v4 THROUGHPUT triplet (Wave 10).
+# Companion to `prod-27b-tq` (latency profile). `sndr launch prod-27b-tq-multiconc`
+# resolves this file to (model, hardware, profile).
+#
+# Bench validated 2026-05-15 on dev371+bf610c2f5 (tools/multi_conc_bench.py):
+#   conc=1 :  97 TPS  TTFT 105 ms  (single-user latency)
+#   conc=8 : 379 TPS  TTFT 189 ms  (aggregate throughput, 3.89x scaling) ⭐
+# Note: 27B INT4 has the BEST multi-conc scaling on this rig (3.89x vs 35B's
+# 3.21x) because INT4 weight fetch is cheaper, leaving more SM cycles for
+# parallel KV access. TTFT at conc=8 also lower than 35B (189 ms vs 243 ms).
+
+model: qwen3.6-27b-int4-autoround-tq-k8v4        # same model file as prod-27b-tq
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # same rig — Sander's 2× A5000 homelab
+profile: 27b-multiconc                           # THROUGHPUT profile (vs prod-27b-tq's 27b-tq-k8v4 LATENCY profile)

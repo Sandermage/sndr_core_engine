@@ -127,7 +127,7 @@ genesis_env:
   GENESIS_ENABLE_PN67: '1'                           # vllm#41674 backport — thinking_token_budget inverted-bool fix (1-line guard).
   GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE: '1'    # Malformed `<think>` tokenizer-drift normaliser.
   GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases).
-  # PN77_FP8_LM_HEAD NOT enabled here — 27B is INT4 not FP8; FP8 lm_head compression doesn't apply.
+  GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier FP8 lm_head compression — APPLIES on 27B INT4 + TQ k8v4 (lm_head is independent of weight quant). Proven +21% TPS + ~606 MiB/rank saving on 27B+TQ combo (Genesis bench 2026-04).
   GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # self-retires on dev371 (upstream merged); kept on for older pins.
   GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI `developer` role passthrough for IDE agent clients.
   GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # vllm#40154 backport — trial-import guard for nixl_ep / deep_ep / mori.
