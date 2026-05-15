@@ -29,13 +29,17 @@ added as a registry patch.
 | Total PATCH_REGISTRY entries | **169** |
 | Tier=community (Apache 2.0, sndr_core) | **169** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
-| Default-on at boot | 32 |
-| Lifecycle=legacy (pre-dispatcher) | 31 |
-| Lifecycle=retired / deprecated | 5 |
-| Lifecycle=experimental | 3 |
-| Lifecycle=stable | 0 (ratchet ready — see [STABLE_PROMOTION_CHECKLIST.md](upstream/STABLE_PROMOTION_CHECKLIST.md)) |
-| Apply-loop coverage (apply_module set) | 118 / 131 = 90% |
-| Spec-only (intentional, allow-listed) | 7 (P51, P69, P102, PN40-classifier, PN60, PN63, PN64) |
+| Default-on at boot | 39 |
+| Lifecycle=experimental | 117 |
+| Lifecycle=legacy (pre-dispatcher) | 33 |
+| Lifecycle=retired | 13 |
+| Lifecycle=research | 3 |
+| Lifecycle=stable | 2 (P5, PN95 — ratchet active; see [STABLE_PROMOTION_CHECKLIST.md](upstream/STABLE_PROMOTION_CHECKLIST.md)) |
+| Lifecycle=coordinator | 1 (P5b — env-flag-only, no real binding) |
+| Implementation status=full | 154 |
+| Implementation status=marker_only / placeholder / partial / retired | 15 |
+| Apply-loop coverage (apply_module set) | 157 / 169 = 92.9% |
+| Spec-only (intentional, allow-listed) | 12 (P1, P17, P18b, P20, P23, P29, P32, P51, P102, PN60, PN63, PN64) |
 
 ### Engine tier (the strict-AND boundary)
 

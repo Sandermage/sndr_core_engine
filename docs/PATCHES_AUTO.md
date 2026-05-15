@@ -4,31 +4,31 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-11T23:26:56Z
-Total entries: **136**
+Generated: 2026-05-15T22:58:13Z
+Total entries: **169**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **136**
+- `tier=community`: **169**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **1**
-- `lifecycle=experimental`: **86**
+- `lifecycle=experimental`: **117**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **3**
-- `lifecycle=retired`: **11**
+- `lifecycle=retired`: **13**
 - `lifecycle=stable`: **2**
 
-### Default-on at boot: **33** / 136
+### Default-on at boot: **39** / 169
 
 ### By family
 - `attention.flash`: 2
-- `attention.gdn`: 17
-- `attention.turboquant`: 24
-- `compile_safety`: 6
+- `attention.gdn`: 20
+- `attention.turboquant`: 27
+- `compile_safety`: 13
 - `kernels`: 7
-- `kv_cache`: 6
+- `kv_cache`: 10
 - `loader`: 2
 - `lora`: 1
 - `memory`: 5
@@ -36,13 +36,15 @@ Total entries: **136**
 - `moe`: 6
 - `multimodal`: 1
 - `observability`: 1
+- `offload`: 3
 - `quantization`: 4
-- `reasoning`: 8
+- `reasoning`: 9
 - `scheduler`: 8
-- `serving`: 5
-- `spec_decode`: 15
+- `serving`: 9
+- `spec_decode`: 17
+- `streaming`: 4
 - `tool_parsing`: 5
-- `worker`: 9
+- `worker`: 11
 
 ## Patches by family
 
@@ -53,7 +55,7 @@ Total entries: **136**
 | **P100** | `community` | `experimental` | · | `GENESIS_ENABLE_P100` | [#41127](https://github.com/vllm-project/vllm/pull/41127) | FlashInfer FULL CUDA graph for spec-decode (vllm#41127) |
 | **PN17** | `community` | `experimental` | · | `GENESIS_ENABLE_PN17_FA2_LSE_CLAMP` | — | "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue |
 
-### `attention.gdn` (17)
+### `attention.gdn` (20)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -71,11 +73,14 @@ Total entries: **136**
 | **PN54** | `community` | `experimental` | · | `GENESIS_ENABLE_PN54_GDN_CONTIGUOUS_DEDUP` | — | GDN contiguous-call deduplication (P0.7 Cliff 2b OOM mitigation) |
 | **PN59** | `community` | `experimental` | · | `GENESIS_ENABLE_PN59_STREAMING_GDN` | — | Streaming-GDN orchestrator (Variant D Phase 2) — true Cliff 2b OOM fix |
 | **PN79** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_INPLACE_SSM_STATE` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | In-place SSM state for GDN chunk prefill (vllm#41824 backport) |
+| **PN108** | `community` | `retired` | · | `GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL` | — | GDN fused_recurrent prefill dispatch (Cliff 2 memory-bound fix) |
+| **PN111** | `community` | `experimental` | · | `GENESIS_ENABLE_PN111` | [#42574](https://github.com/vllm-project/vllm/pull/42574) | Skip-mamba-postprocess GPU->CPU sync (align-mode; vllm#42574) |
+| **PN204** | `community` | `experimental` | · | `GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ` | [#42301](https://github.com/vllm-project/vllm/pull/42301) | GDN dual-stream input projection (port of vllm#42301) |
 | **P39a** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P39A` | — | FLA chunk_scaled_dot_kkt persistent A pool |
 | **P60b** | `community` | `experimental` | · | `GENESIS_ENABLE_P60B_TRITON_KERNEL` | [#40738](https://github.com/vllm-project/vllm/pull/40738) | GDN+ngram Triton kernel offset (Phase 2) |
 | **P7b** | `community` | `legacy` | · | `GENESIS_ENABLE_P7B` | — | GDN dual-stream via torch.library.custom_op (opt-in) |
 
-### `attention.turboquant` (24)
+### `attention.turboquant` (27)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -88,7 +93,7 @@ Total entries: **136**
 | **P40** | `community` | `legacy` | · | `GENESIS_ENABLE_P40` | — | TurboQuant GQA-grouped decode stage1 (opt-in) |
 | **P44** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P44` | — | TQ mixed-batch attn_out pool |
 | **P51** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P51` | — | TQ-active runtime layer-level guard |
-| **P65** | `community` | `experimental` | · | `GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE` | — | TurboQuant spec-decode cudagraph downgrade |
+| **P65** | `community` | `experimental` | · | `GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE` | — | TurboQuant spec-decode cudagraph downgrade (FALLBACK — see P67 root-cause fix) |
 | **P67** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL` | — | TurboQuant multi-query kernel for spec-decode K+1 |
 | **P78** | `community` | `experimental` | · | `GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD` | — | TurboQuant .tolist() capture-guard (adapted from noonghunna) |
 | **P98** | `community` | `experimental` | · | `GENESIS_ENABLE_P98` | [#40941](https://github.com/vllm-project/vllm/pull/40941) | TQ WorkspaceManager revert (vllm#40941 perf hotfix) |
@@ -97,14 +102,17 @@ Total entries: **136**
 | **PN14** | `community` | `experimental` | · | `GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP` | [#40074](https://github.com/vllm-project/vllm/pull/40074) | TQ decode IOOB safe_page_idx clamp (vllm#40074) |
 | **PN26** | `community` | `experimental` | · | `GENESIS_ENABLE_PN26_TQ_UNIFIED` | [#41418](https://github.com/vllm-project/vllm/pull/41418) | TQ unified perf pack (centroids prebake + sparse V scaffold) |
 | **PN31** | `community` | `experimental` | · | `GENESIS_ENABLE_PN31_FA_VARLEN_PERSISTENT_OUT` | — | "FA varlen persistent out buffer (issue |
-| **PN34** | `community` | `experimental` | · | `GENESIS_ENABLE_PN34_WORKSPACE_LOCK_RELAX` | [#40706](https://github.com/vllm-project/vllm/pull/40706) | WorkspaceManager runtime lock relaxation (PN33 companion for runtime decode) |
+| **PN34** | `community` | `retired` | · | `GENESIS_ENABLE_PN34_WORKSPACE_LOCK_RELAX` | [#42551](https://github.com/vllm-project/vllm/pull/42551) | WorkspaceManager runtime lock relaxation (PN33 companion for runtime decode) |
 | **PN57** | `community` | `experimental` | · | `GENESIS_ENABLE_PN57_TQ_CENTROIDS_DISK_CACHE` | [#41418](https://github.com/vllm-project/vllm/pull/41418) | TurboQuant centroids disk-persistent cache (vllm#41418-inspired) |
+| **PN116** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN116` | [#41434](https://github.com/vllm-project/vllm/pull/41434) | TurboQuant prefill max_seq_len fallback fix (regressor: vllm#41434) |
+| **PN118** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN118` | [#42551](https://github.com/vllm-project/vllm/pull/42551) | TurboQuant workspace graceful-fallback (vllm#42551, P99-compat) |
+| **PN119** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN119` | [#40792](https://github.com/vllm-project/vllm/pull/40792) | TurboQuant k8v4 GQA head grouping kernel (vllm#40792) |
 | **P18b** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P18B` | — | TurboQuant decode stage1 tune |
 | **P67b** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL` | — | TurboQuant spec-verify forward() routing (FULL CG enable) |
 | **P67c** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_SPARSE_V` | — | Per-row vote sparse-V integration into P67 split-M kernel |
 | **PN26b** | `community` | `research` | · | `GENESIS_ENABLE_PN26_SPARSE_V` | [#41422](https://github.com/vllm-project/vllm/pull/41422) | Sparse-V tile-skip Genesis kernel (BLASST λ=a/L for SM86) |
 
-### `compile_safety` (6)
+### `compile_safety` (13)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -114,6 +122,13 @@ Total entries: **136**
 | **PN13** | `community` | `retired` | · | `GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY` | [#41235](https://github.com/vllm-project/vllm/pull/41235) | CUDAGraphWrapper lambda arity (vllm#41235 backport) — RETIRED 2026-05-04 |
 | **PN60** | `community` | `legacy` | ✓ | `GENESIS_ENABLE_PN60` | — | Quant arg vs config.json validator (preflight DX) |
 | **PN63** | `community` | `legacy` | ✓ | `GENESIS_ENABLE_PN63` | — | fp8_e5m2 advisory for consumer Blackwell (gpu_profile recommendation) |
+| **PN125** | `community` | `experimental` | · | `GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE` | — | Hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE cudagraph_mode (redundant on dev338+) |
+| **PN126** | `community` | `experimental` | · | `GENESIS_ENABLE_PN126_V1_DECODE_WARMUP` | — | V1 decode + spec-decode kernel warmup orchestrator (fixes JIT spikes on first... |
+| **PN128** | `community` | `experimental` | · | `GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP` | [#41481](https://github.com/vllm-project/vllm/pull/41481) | Spec-decode helper kernel warmup (backport vllm#41481, 4 eagle kernels) |
+| **PN129** | `community` | `experimental` | · | `GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP` | [#42165](https://github.com/vllm-project/vllm/pull/42165) | V1 slot mapping kernel warmup (backport vllm#42165, 1 kernel + do_not_special... |
+| **PN130** | `community` | `experimental` | · | `GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP` | [#42215](https://github.com/vllm-project/vllm/pull/42215) | TurboQuant decode kernel warmup (backport vllm#42215, 1 kernel + workspace pr... |
+| **PN132** | `community` | `experimental` | · | `GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS` | [#42739](https://github.com/vllm-project/vllm/pull/42739) | Triton top-k/top-p contiguous logits fix (backport vllm#42739) |
+| **PN134** | `community` | `retired` | · | `GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211` | [#42686](https://github.com/vllm-project/vllm/pull/42686) | torch.compile fullgraph patch для PyTorch 2.11 (backport vllm#42686) — BENCH-... |
 
 ### `kernels` (7)
 
@@ -127,7 +142,7 @@ Total entries: **136**
 | **PN28** | `community` | `experimental` | · | `GENESIS_ENABLE_PN28_MERGE_ATTN_NAN_GUARD` | [#39148](https://github.com/vllm-project/vllm/pull/39148) | merge_attn_states NaN guard (vllm#39148 backport) |
 | **PN64** | `community` | `experimental` | · | `GENESIS_ENABLE_PN64` | — | Marlin MoE per-SM tuning placeholder for SM 12.0 (consumer Blackwell) |
 
-### `kv_cache` (6)
+### `kv_cache` (10)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -136,7 +151,11 @@ Total entries: **136**
 | **P83** | `community` | `research` | · | `GENESIS_ENABLE_P83` | — | MTP keep-last-cached-block (vllm#38182 downstream symptom — P84 is real fix) |
 | **P85** | `community` | `experimental` | · | `GENESIS_ENABLE_P85` | — | Hybrid fine-shadow prefix cache (vllm#38182 followup, MambaManager fix) |
 | **P102** | `community` | `experimental` | · | `GENESIS_ENABLE_P102` | — | Unified spec-decode metadata + disagreement tracker (TRT-LLM style) |
-| **PN95** | `community` | `experimental` | · | `GENESIS_ENABLE_PN95_TIER_AWARE_CACHE` | — | PN95 — Tier-aware KV cache + vision sub-tier + Mamba SSM exclusion (Path C v7... |
+| **PN95** | `community` | `experimental` | · | `GENESIS_ENABLE_PN95_TIER_AWARE_CACHE` | — | "PN95 — Tier-aware KV cache + CPU offload + boot-time expansion (Path C, club... |
+| **PN96** | `community` | `experimental` | · | `GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE` | — | PN96 — emergency-demote hook (Phase 6 PoC; allocator intercept) |
+| **PN97** | `community` | `experimental` | · | `GENESIS_ENABLE_PN97_TENSOR_PHYSICAL_CAP` | — | PN97 — physical-cap on KV tensor allocation (Phase 7 PoC) |
+| **PN106** | `community` | `experimental` | · | `GENESIS_ENABLE_PN106_GDN_H_POOL` | — | PN106 — GDN scratch tensor pool (architectural memory mgr) |
+| **PN110** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN110` | [#42615](https://github.com/vllm-project/vllm/pull/42615) | BlockPool.free_blocks deduplication (vllm#42615) |
 
 ### `loader` (2)
 
@@ -179,7 +198,7 @@ Total entries: **136**
 | **P31** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P31` | — | MoE router fp32 softmax |
 | **P37** | `community` | `legacy` | · | `GENESIS_ENABLE_P37` | — | MoE intermediate cache pool (opt-in) |
 | **PN27** | `community` | `experimental` | · | `GENESIS_ENABLE_PN27_REVERT_PLUGGABLE_MOE` | [#41440](https://github.com/vllm-project/vllm/pull/41440) | Revert MoERunnerInterface PluggableLayer (vllm#41440) |
-| **PN96** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN96` | — | Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore) |
+| **PN96b** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN96B` | — | Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore) |
 
 ### `multimodal` (1)
 
@@ -191,7 +210,15 @@ Total entries: **136**
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
-| **SPRINT26_CG_DISPATCH_TRACE** | `community` | `experimental` | · | `GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE` | — | Sprint 2.6 v2 — CUDA graph dispatch trace wire-in |
+| **PN122** | `community` | `experimental` | · | `GENESIS_ENABLE_PN122_CG_DISPATCH_TRACE` | — | Sprint 2.6 v2 — CUDA graph dispatch trace wire-in (formerly SPRINT26_CG_DISPA... |
+
+### `offload` (3)
+
+| ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
+|---|---|---|:---:|---|:---:|---|
+| **PN102** | `community` | `experimental` | · | `GENESIS_ENABLE_PN102_PARAM_POOL` | — | PrefetchOffloader pinned-allocator prewarm pool |
+| **PN104** | `community` | `experimental` | · | `GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT` | — | PN104 — redirect --cpu-offload-gb from UVA to Prefetch backend |
+| **PN105** | `community` | `experimental` | · | `GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT` | — | PN105 — PrefetchOffloader AutoRound INT4 compat (pin-assert relax) |
 
 ### `quantization` (4)
 
@@ -202,7 +229,7 @@ Total entries: **136**
 | **P91** | `community` | `experimental` | · | `GENESIS_ENABLE_P91` | [#39460](https://github.com/vllm-project/vllm/pull/39460) | AutoRound row-parallel group cdiv + start-idx fix (vllm#39460) |
 | **PN77** | `community` | `experimental` | · | `GENESIS_ENABLE_PN77_FP8_LM_HEAD` | — | FP8 lm_head compression (BF16→FP8 e4m3 + per-channel scale) |
 
-### `reasoning` (8)
+### `reasoning` (9)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -210,9 +237,10 @@ Total entries: **136**
 | **P27** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P27` | — | Qwen3 BEFORE-THINK fallback |
 | **P59** | `community` | `experimental` | · | `GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY` | [#39055](https://github.com/vllm-project/vllm/pull/39055) | Qwen3 reasoning embedded tool_call recovery |
 | **P61** | `community` | `retired` | · | `GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | Qwen3 multi-tool first-occurrence (RETIRED — fully superseded by P12 v2) |
-| **PN51** | `community` | `retired` | · | `GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED` | [#40816](https://github.com/vllm-project/vllm/pull/40816) | Qwen3 streaming `enable_thinking=false` content routing (vllm#40816 backport) |
+| **PN51** | `community` | `experimental` | · | `GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED` | [#40816](https://github.com/vllm-project/vllm/pull/40816) | Qwen3 streaming `enable_thinking=false` content routing (vllm#40816 backport) |
 | **PN58** | `community` | `experimental` | · | `GENESIS_ENABLE_PN58_SPEC_REASONING_BOUNDARY` | [#40962](https://github.com/vllm-project/vllm/pull/40962) | Spec-decode reasoning boundary validation — narrower alt to P62 (vllm#40962) |
 | **PN66** | `community` | `experimental` | · | `GENESIS_ENABLE_PN66` | [#41696](https://github.com/vllm-project/vllm/pull/41696) | Multiturn </think> leak fix in DelegatingParser (vllm#41696 backport) |
+| **PN71** | `community` | `experimental` | · | `GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE` | — | PN71 — `</thinking>` hallucination runtime normalizer |
 | **P61b** | `community` | `experimental` | · | `GENESIS_ENABLE_P61B_STREAMING_OVERLAP` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | Qwen3 streaming partial-tag overlap guard |
 
 ### `scheduler` (8)
@@ -228,7 +256,7 @@ Total entries: **136**
 | **P79c** | `community` | `experimental` | · | `GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP` | [#37629](https://github.com/vllm-project/vllm/pull/37629) | Stale spec_token_ids cleanup for unscheduled requests (vllm#37629) |
 | **P79d** | `community` | `experimental` | · | `GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD` | [#38624](https://github.com/vllm-project/vllm/pull/38624) | Preempt async-discard backport (vllm#38624) |
 
-### `serving` (5)
+### `serving` (9)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -236,9 +264,13 @@ Total entries: **136**
 | **P68** | `community` | `experimental` | · | `GENESIS_ENABLE_P68_AUTO_FORCE_TOOL` | — | Auto force tool_choice=required for long-context tool calls |
 | **P69** | `community` | `experimental` | · | `GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER` | — | Long-context tool-format reminder injection |
 | **P107** | `community` | `experimental` | · | `GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR` | [#41467](https://github.com/vllm-project/vllm/pull/41467) | MTP truncation detector at reasoning→tool_call boundary (vllm#41467) |
+| **P109** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_P109` | [#42614](https://github.com/vllm-project/vllm/pull/42614) | sampling_params vocab-range validators (vllm#42614) |
 | **PN70** | `community` | `experimental` | · | `GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER` | — | Tool schema subset filter (combined `anyOf` xgrammar-clean) — companion to P6... |
+| **PN73** | `community` | `experimental` | · | `GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE` | — | PN73 — safe `tool_calls.arguments` string→dict normalization |
+| **PN91** | `community` | `experimental` | · | `GENESIS_ENABLE_PN91_DEVELOPER_ROLE` | — | PN91 — `developer` role pre-render normalizer (OpenAI Responses API compat) |
+| **PN127** | `community` | `experimental` | · | `GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE` | — | Qwen 3.5/3.6 enhanced chat-template auto-install (closes club-3090#53/#72) |
 
-### `spec_decode` (15)
+### `spec_decode` (17)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -249,6 +281,7 @@ Total entries: **136**
 | **P82** | `community` | `research` | · | `GENESIS_ENABLE_P82` | — | SGLang threshold_single OR-clause acceptance (BIASED — opt-in research) |
 | **P86** | `community` | `experimental` | · | `GENESIS_ENABLE_P86` | [#40876](https://github.com/vllm-project/vllm/pull/40876) | ngram batch_propose O(N*K) → O(N+K) direct-fill (vllm#40876) |
 | **P94** | `community` | `retired` | · | `GENESIS_ENABLE_P94` | [#41043](https://github.com/vllm-project/vllm/pull/41043) | Spec-decode prepare_next_token_ids_padded zero-alloc (vllm#41043) |
+| **P108** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_P108` | [#42603](https://github.com/vllm-project/vllm/pull/42603) | MTP draft-loop stream synchronization (vllm#42603) |
 | **PN9** | `community` | `retired` | · | `GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN` | [#39930](https://github.com/vllm-project/vllm/pull/39930) | Independent drafter attention backend (vllm#39930) |
 | **PN21** | `community` | `experimental` | · | `GENESIS_ENABLE_PN21_DFLASH_SWA` | [#40898](https://github.com/vllm-project/vllm/pull/40898) | DFlash SWA support partial backport (vllm#40898) |
 | **PN22** | `community` | `experimental` | · | `GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP` | [#39419](https://github.com/vllm-project/vllm/pull/39419) | Local argmax for TP draft (vllm#39419 backport) |
@@ -257,6 +290,16 @@ Total entries: **136**
 | **PN40** | `community` | `experimental` | · | `GENESIS_ENABLE_PN40_DFLASH_OMNIBUS` | — | Spec-decode omnibus (A DFlash K-norm + B pool + C adaptive K + D sentinel) |
 | **PN72** | `community` | `experimental` | · | `GENESIS_ENABLE_PN72_FREQUENCY_NGRAM_DRAFTER` | — | Frequency-based ngram draft post-filter (llama.cpp-style) |
 | **PN90** | `community` | `experimental` | · | `GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT` | [#40269](https://github.com/vllm-project/vllm/pull/40269) | Probabilistic draft rejection (vllm#40269 backport) — propagate draft_probs t... |
+| **PN133** | `community` | `experimental` | · | `GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX` | [#42722](https://github.com/vllm-project/vllm/pull/42722) | MTP scheduler empty-output accounting fix (backport vllm#42722) |
+
+### `streaming` (4)
+
+| ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
+|---|---|---|:---:|---|:---:|---|
+| **PN200** | `community` | `experimental` | · | `GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE` | — | PN200 — GDN outer-forward scratch pool (Tier 1.B) |
+| **PN201** | `community` | `experimental` | · | `GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE` | — | PN201 — scheduler empty_cache hook (Tier 1.C) |
+| **PN202** | `community` | `experimental` | · | `GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT` | — | PN202 — per-layer KV tensor split (Tier 2.A enabler) |
+| **PN203** | `community` | `experimental` | · | `GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD` | — | PN203 — cold-prefix CPU offload manager (Tier 3.A) |
 
 ### `tool_parsing` (5)
 
@@ -268,7 +311,7 @@ Total entries: **136**
 | **PN56** | `community` | `experimental` | · | `GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK` | [#41466](https://github.com/vllm-project/vllm/pull/41466) | Qwen3Coder XML parse fallback (vllm#41466 backport) |
 | **P61c** | `community` | `experimental` | · | `GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT` | — | Qwen3Coder deferred-commit until <function= header (club-3090#72) |
 
-### `worker` (9)
+### `worker` (11)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -280,7 +323,9 @@ Total entries: **136**
 | **PN55** | `community` | `experimental` | · | `GENESIS_ENABLE_PN55_WAKE_UP_HYBRID_KV` | [#41602](https://github.com/vllm-project/vllm/pull/41602) | wake_up nested KV cache crash fix — vllm#41602+#41896 unified backport |
 | **PN67** | `community` | `experimental` | · | `GENESIS_ENABLE_PN67` | [#41674](https://github.com/vllm-project/vllm/pull/41674) | thinking_token_budget inverted-bool fix (vllm#41674 backport, 1-line) |
 | **PN82** | `community` | `experimental` | · | `GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO` | [#41873](https://github.com/vllm-project/vllm/pull/41873) | Mamba CUDA-graph stale `is_prefilling` padded rows — vllm#41873 backport |
+| **PN92** | `community` | `experimental` | · | `GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT` | — | "PN92 — nixl_ep/deep_ep/mori trial-import guard (vllm PR |
 | **P79b** | `community` | `experimental` | · | `GENESIS_ENABLE_P79B_ASYNC_PROPOSER_SYNC` | [#40610](https://github.com/vllm-project/vllm/pull/40610) | Async × spec-decode proposer-sync backport (vllm#40610) |
+| **SNDR_WORKSPACE_001** | `community` | `experimental` | · | `GENESIS_ENABLE_SNDR_WORKSPACE_001` | [#42551](https://github.com/vllm-project/vllm/pull/42551) | SNDR-WORKSPACE-001 — workspace grow-after-lock graceful fix |
 
 ---
 
