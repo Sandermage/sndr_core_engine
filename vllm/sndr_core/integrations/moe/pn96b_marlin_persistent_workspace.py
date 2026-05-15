@@ -144,10 +144,16 @@ def _wrapped_marlin_experts_apply(self, *args, **kwargs):
                 log.debug("[PN96] workspace alloc failed (%s); fallback to per-call", e)
                 self._genesis_pn96_ws = False  # sentinel: don't retry
 
-    # Install on TLS for the duration of the original apply call
+    # Install on TLS for the duration of the original apply call.
+    # NOTE: `_genesis_pn96_ws` is a torch.Tensor when initialized; the
+    # `tensor not in (None, False)` form invokes Tensor.__eq__ during
+    # the `in` membership test which broadcasts a comparison and then
+    # `bool(tensor)` raises "Boolean value of Tensor with more than one
+    # value is ambiguous". Use identity tests instead.
     prev = getattr(_TLS, "default_workspace", None)
-    if self._genesis_pn96_ws not in (None, False):
-        _TLS.default_workspace = self._genesis_pn96_ws
+    ws = self._genesis_pn96_ws
+    if ws is not None and ws is not False:
+        _TLS.default_workspace = ws
     try:
         return _ORIGINAL_MARLIN_APPLY(self, *args, **kwargs)
     finally:
