@@ -248,9 +248,9 @@ If you have GPU headroom for two concurrent backends on different ports, see als
 | Topic | Where |
 |---|---|
 | Patch list and what each does | [README.md#patch-roster-v710](README.md#patch-roster-v710) |
-| Validation methodology and raw bench data | [benchmarks/v7_10_validation_20260424/](benchmarks/v7_10_validation_20260424/) |
+| Validation methodology and raw bench data | [benchmarks/v7_10_validation_20260424/](../benchmarks/v7_10_validation_20260424/) |
 | Upstream PR tracking and backport plan | [README.md#upstream-status-tracking](README.md#upstream-status-tracking) |
-| In-depth analysis of upstream PRs | [benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md](benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md) |
+| In-depth analysis of upstream PRs | [benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md](../benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md) |
 | Architecture overview | [README.md#architecture](README.md#architecture) |
 | Running unit tests (CPU only) | `./scripts/validate_unit.sh` |
 | Running integration tests (GPU required) | `./scripts/validate_integration.sh` |
@@ -471,9 +471,9 @@ Genesis патчи существенно уменьшают расход пам
 | Тема | Где |
 |---|---|
 | Список патчей и что каждый делает | [README.md#patch-roster-v710](README.md#patch-roster-v710) |
-| Методология валидации и сырые бенчи | [benchmarks/v7_10_validation_20260424/](benchmarks/v7_10_validation_20260424/) |
+| Методология валидации и сырые бенчи | [benchmarks/v7_10_validation_20260424/](../benchmarks/v7_10_validation_20260424/) |
 | Tracking upstream PR-ов и план backport | [README.md#upstream-status-tracking](README.md#upstream-status-tracking) |
-| Глубокий разбор upstream PR | [benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md](benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md) |
+| Глубокий разбор upstream PR | [benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md](../benchmarks/v7_10_validation_20260424/upstream_compare/PR_DEEP_DIVE.md) |
 | Обзор архитектуры | [README.md#architecture](README.md#architecture) |
 | Запуск unit тестов (только CPU) | `./scripts/validate_unit.sh` |
 | Запуск integration тестов (нужен GPU) | `./scripts/validate_integration.sh` |

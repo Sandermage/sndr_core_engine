@@ -70,10 +70,12 @@ cd genesis-vllm-patches
 # 2. (Optional) install Python deps for the bench
 python3 -m pip install --user requests
 
-# 3. Start vLLM. The simplest path is to crib args from one of our launch scripts:
-#       scripts/launch/start_35b_fp8_PROD.sh   (35B FP8 + spec-decode + TQ k8v4)
-#       scripts/launch/start_27b_int4_no_TQ_long_256K.sh   (27B INT4 + long-context)
-#    Replace --model with your local path, drop the docker bits, keep the vllm serve flags.
+# 3. Start vLLM via the unified preset launcher (Wave 10 canonical):
+#       sndr launch prod-35b           (35B FP8 + MTP K=3 + TQ k8v4, latency profile)
+#       sndr launch prod-35b-multiconc (35B FP8 + multi-conc throughput)
+#       sndr launch prod-27b-tq        (27B INT4 + TQ k8v4 + MTP, latency)
+#    To inspect the resolved vllm-serve args from a preset, run:
+#       sndr launch prod-35b --dry-run
 #
 #    Example (minimal):
 vllm serve \
@@ -119,7 +121,7 @@ docker pull vllm/vllm-openai:nightly
 #       -v ${HOME}/genesis-vllm-patches/...:/...:ro       → your repo path
 #
 #    Then run it:
-bash scripts/launch/start_35b_fp8_PROD.sh
+sndr launch prod-35b
 
 # 3. Watch logs until you see "Application startup complete":
 docker logs -f vllm-server
@@ -284,7 +286,7 @@ The community is actively interested in cross-rig data. Here's how to share well
    - **Hardware**: CPU model, RAM, motherboard, PSU, cooling
    - **GPU details**: driver version, CUDA version, link width (PCIe Gen3/4/5 x8/x16)
    - **Container/environment**: Docker / pip / WSL / VM
-   - **Patches active**: which `GENESIS_ENABLE_PXX` envs you set (or "all defaults from `start_35b_fp8_PROD.sh`")
+   - **Patches active**: which `GENESIS_ENABLE_PXX` envs you set (or "all defaults from `sndr launch prod-35b`")
 5. **Optionally attach the full JSON** as a code block or gist link. The JSON is small (a few hundred KB) and is the raw input for any future re-analysis.
 
 The community is **especially** interested in:
@@ -393,17 +395,31 @@ If you want to inspect the underlying decode-only TPOT methodology, read [`tools
 
 ## Reference: launch scripts cited in this guide
 
-The 4 PROD-ready configs ship in two flavors each — Docker (`start_*.sh`) and bare-metal (`bare_metal_*.sh`):
+The 4 PROD-ready configs are now launched through the unified `sndr launch`
+CLI which resolves V2 layered presets (Wave 10 cleanup 2026-05-15).
+The legacy per-config `start_*.sh` / `bare_metal_*.sh` shell scripts were
+moved to [`scripts/launch/_archive/superseded_by_model_configs/`](../scripts/launch/_archive/superseded_by_model_configs/)
+for archeology.
 
-| Config | Docker | Bare metal |
-|---|---|---|
-| **35B-A3B-FP8** PROD (TQ k8v4 + MTP K=3 + PN8, 320K) | [`start_35b_fp8_PROD.sh`](../scripts/launch/start_35b_fp8_PROD.sh) | [`bare_metal_35b_fp8_PROD.sh`](../scripts/launch/bare_metal_35b_fp8_PROD.sh) |
-| **27B-INT4-Lorbus** short-ctx (no TQ, fp8_e5m2, ≤8K, high TPS) | [`start_27b_int4_no_TQ_short.sh`](../scripts/launch/start_27b_int4_no_TQ_short.sh) | [`bare_metal_27b_int4_no_TQ_short.sh`](../scripts/launch/bare_metal_27b_int4_no_TQ_short.sh) |
-| **27B-INT4-Lorbus** long-ctx 256K (no TQ, util 0.90) | [`start_27b_int4_no_TQ_long_256K.sh`](../scripts/launch/start_27b_int4_no_TQ_long_256K.sh) | [`bare_metal_27b_int4_no_TQ_long_256K.sh`](../scripts/launch/bare_metal_27b_int4_no_TQ_long_256K.sh) |
-| **27B-INT4-Lorbus** + TurboQuant k8v4 (P98 required) | [`start_27b_int4_TQ_k8v4.sh`](../scripts/launch/start_27b_int4_TQ_k8v4.sh) | [`bare_metal_27b_int4_TQ_k8v4.sh`](../scripts/launch/bare_metal_27b_int4_TQ_k8v4.sh) |
+| Config | V2 preset (canonical) |
+|---|---|
+| **35B-A3B-FP8** PROD (TQ k8v4 + MTP K=3, latency profile) | `sndr launch prod-35b` |
+| **35B-A3B-FP8** multi-conc throughput (TQ k8v4 + max_num_seqs=8) | `sndr launch prod-35b-multiconc` |
+| **35B-A3B-FP8** + DFlash N=3 (single-stream latency) | `sndr launch prod-35b-dflash` |
+| **35B-A3B-FP8** + DFlash N=3 (multi-conc throughput) | `sndr launch prod-35b-dflash-multiconc` |
+| **27B-INT4-AutoRound** + TurboQuant k8v4 (latency) | `sndr launch prod-27b-tq` |
+| **27B-INT4-AutoRound** + TQ k8v4 (multi-conc throughput) | `sndr launch prod-27b-tq-multiconc` |
+| **27B-INT4-AutoRound** + DFlash N=5 (single-stream) | `sndr launch prod-27b-dflash` |
+| **27B-INT4-AutoRound** + DFlash N=5 (multi-conc) | `sndr launch prod-27b-dflash-multiconc` |
 
-The Docker variants bind-mount Genesis into a stock `vllm/vllm-openai:nightly` image (recommended for reproducibility).
-The bare-metal variants assume vLLM is installed via `pip install vllm` and symlink Genesis `sndr_core` into the existing vllm package on first run. The pre-v11 `vllm._genesis` namespace was removed in v11.0.0 with no back-compat alias — any pre-v11 launch scripts must be updated to import from `vllm.sndr_core` before they will run.
+V2 presets resolve to a (model, hardware, profile) triplet that lives
+under [`vllm/sndr_core/model_configs/builtin/`](../vllm/sndr_core/model_configs/builtin/).
+`sndr launch <preset>` does docker compose / podman quadlet / bare-metal
+emission depending on operator runtime preference.
+
+The pre-v11 `vllm._genesis` namespace was removed in v11.0.0 with no
+back-compat alias — any pre-v11 launch scripts must be updated to import
+from `vllm.sndr_core` before they will run.
 
 Internal building blocks (used by the bench suite, also runnable standalone):
 
@@ -415,9 +431,10 @@ Internal building blocks (used by the bench suite, also runnable standalone):
 
 To match the exact public-benchmark numbers in [README.md § Headline numbers](../README.md#headline-numbers), use:
 
-- 35B baseline: `start_35b_fp8_PROD.sh` or `bare_metal_35b_fp8_PROD.sh`
-- 27B short-ctx: `start_27b_int4_no_TQ_short.sh`
-- 27B long-ctx 256K: `start_27b_int4_no_TQ_long_256K.sh`
+- 35B baseline (latency): `sndr launch prod-35b`
+- 35B throughput (multi-conc): `sndr launch prod-35b-multiconc`
+- 27B + TQ k8v4 (latency): `sndr launch prod-27b-tq`
+- 27B + TQ k8v4 (multi-conc): `sndr launch prod-27b-tq-multiconc`
 - 27B + TurboQuant: `start_27b_int4_TQ_k8v4.sh`
 
 For correctness validation (apply matrix, smoke tests, pytest) — different purpose than performance bench — see [`validate_unit.sh`](../scripts/validate_unit.sh) (CPU 30 sec) / [`validate_integration.sh`](../scripts/validate_integration.sh) (GPU smoke + pytest) / [`scripts/run_validation_suite.sh`](../scripts/run_validation_suite.sh) (universal per-model).

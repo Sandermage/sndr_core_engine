@@ -29,7 +29,7 @@ If you're not sure whether your idea fits, open a Discussion first. Cheap to ask
 
 ## How to add a new patch
 
-Step-by-step. Read [../docs/PATCHES.md](../docs/PATCHES.md) and [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) first to understand the conventions.
+Step-by-step. Read [PATCHES.md](PATCHES.md) and [COMPATIBILITY.md](COMPATIBILITY.md) first to understand the conventions.
 
 ### 1. Pick the right directory
 
@@ -385,8 +385,8 @@ python3 -m pytest tests/unit/dispatcher/test_pin_gate.py -v
 
 ### Triton kernels
 
-- Power-of-2 dims wherever possible. If you must support non-power-of-2 (e.g., GQA=24/4=6 heads-per-KV), use `next_power_of_2` + a `lane_valid` mask. Document the cliff in [docs/CLIFFS.md](docs/CLIFFS.md).
-- Sanitize Inf/NaN at dequant boundaries. We've been bitten by silent NaN propagation through softmax — see the v7.22 P67 sanitized variant in [../docs/PATCHES.md](../docs/PATCHES.md).
+- Power-of-2 dims wherever possible. If you must support non-power-of-2 (e.g., GQA=24/4=6 heads-per-KV), use `next_power_of_2` + a `lane_valid` mask. Document the cliff in [CLIFFS.md](CLIFFS.md).
+- Sanitize Inf/NaN at dequant boundaries. We've been bitten by silent NaN propagation through softmax — see the v7.22 P67 sanitized variant in [PATCHES.md](PATCHES.md).
 - BLOCK_SIZE / num_warps / num_stages should be configurable via env override for sweep tuning.
 
 ### General Python
@@ -546,12 +546,12 @@ Please don't email for support questions — use Discussions so the answer helps
 
 ## Cross-references
 
-- [../docs/PATCHES.md](../docs/PATCHES.md) — full patch catalog with metadata
-- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) — supported vLLM pins, models, GPUs
-- [docs/CONFIGS.md](docs/CONFIGS.md) — adding your own model recipe
-- [docs/CLIFFS.md](docs/CLIFFS.md) — known performance and correctness cliffs
-- [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) — how to bench reproducibly
-- [docs/SELF_TEST.md](docs/SELF_TEST.md) — running the validation suite
-- [../docs/CREDITS.md](../docs/CREDITS.md) — attributions, including upstream PRs we ported
+- [PATCHES.md](PATCHES.md) — full patch catalog with metadata
+- [COMPATIBILITY.md](COMPATIBILITY.md) — supported vLLM pins, models, GPUs
+- [CONFIGS.md](CONFIGS.md) — adding your own model recipe
+- [CLIFFS.md](CLIFFS.md) — known performance and correctness cliffs
+- [BENCHMARK_GUIDE.md](BENCHMARK_GUIDE.md) — how to bench reproducibly
+- [SELF_TEST.md](SELF_TEST.md) — running the validation suite
+- [CREDITS.md](CREDITS.md) — attributions, including upstream PRs we ported
 
 Thanks for contributing.
