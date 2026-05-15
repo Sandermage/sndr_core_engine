@@ -27,7 +27,6 @@ from benchmarks.harness._common import (
     GateResult, HarnessReport, make_arg_parser, post_chat, probe_health,
     default_out_path, write_report, make_tokenizer_calibrated_filler,
 )
-from benchmarks.harness.tgs_decode import _make_filler
 
 
 def main() -> int:

@@ -29,11 +29,10 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any
 
 from benchmarks.harness._common import (
     GateResult, HarnessReport, make_arg_parser, post_chat, probe_health,
-    default_out_path, write_report, run_harness,
+    default_out_path, write_report,
 )
 
 DEFAULT_BASELINE = 0.70  # Qwen3.6-35B-A3B v5.14.1 measured
