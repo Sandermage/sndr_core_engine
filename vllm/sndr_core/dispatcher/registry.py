@@ -54,6 +54,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 40768,
         "apply_module": "vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P59": {
         "title": "Qwen3 reasoning embedded tool_call recovery",
@@ -67,6 +68,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "apply_module": "vllm.sndr_core.integrations.reasoning.p59_qwen3_reasoning_tool_call_recovery",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P60": {
         "title": "GDN+ngram state recovery (Phase 1: SSM pre-copy)",
@@ -80,6 +82,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"is_hybrid": [True]},
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.p60_gdn_ngram_state_recovery",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P60b": {
         "title": "GDN+ngram Triton kernel offset (Phase 2)",
@@ -94,6 +97,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": ["P60"],
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.p60b_gdn_ngram_triton_kernel",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P61": {
         "title": "Qwen3 multi-tool first-occurrence (RETIRED — fully superseded by P12 v2)",
@@ -108,6 +112,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "apply_module": "vllm.sndr_core.integrations._retired.p61_qwen3_multi_tool_first_occurrence",
         "retired_waiver": True,  # P12 v2 directly emits FIRST-occurrence; P61 anchor never matched in active form. Harmless no-op.
+        "implementation_status": "full",
     },
     "P62": {
         "title": "Structured-output spec-decode reasoning-end timing fix",
@@ -122,6 +127,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["PN58"],
         "apply_module": "vllm.sndr_core.integrations.serving.p62_structured_output_spec_decode_timing",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P61c": {
         "title": "Qwen3Coder deferred-commit until <function= header (club-3090#72)",
@@ -150,6 +156,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,  # club-3090 issue, not yet upstream PR
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P61b": {
         "title": "Qwen3 streaming partial-tag overlap guard",
@@ -163,6 +170,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "apply_module": "vllm.sndr_core.integrations.reasoning.p61b_qwen3_streaming_overlap_guard",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P63": {
         "title": "MTP/Eagle drafter GDN state recovery (RETIRED — hypothesis disproven 2026-04-25)",
@@ -184,6 +192,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "P63 may still be relevant for eagle/draft_model methods that use a separate "
             "drafter model with hybrid layers, but no such configuration is verified yet."
         ),
+        "implementation_status": "full",
     },
     "P64": {
         "title": "qwen3coder MTP streaming early-return fix",
@@ -197,6 +206,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "apply_module": "vllm.sndr_core.integrations.tool_parsing.p64_qwen3coder_mtp_streaming",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P65": {
         "title": "TurboQuant spec-decode cudagraph downgrade (FALLBACK — see P67 root-cause fix)",
@@ -215,6 +225,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # boundary (it's a runtime fallback choice, not version retire).
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p65_turboquant_spec_cg_downgrade",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P66": {
         "title": "cudagraph_capture_sizes spec-decode divisibility filter",
@@ -227,6 +238,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 23679,
         "apply_module": "vllm.sndr_core.integrations.compile_safety.p66_cudagraph_size_divisibility_filter",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P68": {
         "title": "Auto force tool_choice=required for long-context tool calls",
@@ -240,6 +252,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "apply_module": "vllm.sndr_core.integrations.serving.p68_69_long_ctx_tool_adherence",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P69": {
         "title": "Long-context tool-format reminder injection",
@@ -253,6 +266,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
         "apply_module": "vllm.sndr_core.integrations.serving.p68_69_long_ctx_tool_adherence",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P70": {
         "title": "Auto-strict-ngram (force prompt_lookup_min>=8)",
@@ -270,6 +284,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.spec_decode.p70_auto_strict_ngram",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN72": {
         "title": "Frequency-based ngram draft post-filter (llama.cpp-style)",
@@ -297,6 +312,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "apply_module": "vllm.sndr_core.integrations.spec_decode.pn72_frequency_ngram_drafter",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN77": {
         "title": "FP8 lm_head compression (BF16→FP8 e4m3 + per-channel scale)",
@@ -322,6 +338,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,  # PR #35696 OPEN; Genesis is preemptive backport
         "apply_module": "vllm.sndr_core.integrations.quantization.pn77_fp8_lm_head",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN80": {
         "title": "LoRA tensorizer device kwarg (vllm#41845 backport)",
@@ -356,6 +373,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN79": {
         "title": "In-place SSM state for GDN chunk prefill (vllm#41824 backport)",
@@ -405,6 +423,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"is_hybrid": [True]},
         "requires_patches": [],
         "conflicts_with": ["PN59", "PN54"],
+        "implementation_status": "full",
     },
     "PN78": {
         "title": "[RETIRED] One-shot empty_cache() after CG warmup",
@@ -463,6 +482,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["P65"],
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p67_tq_multi_query_kernel",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P67b": {
         "title": "TurboQuant spec-verify forward() routing (FULL CG enable)",
@@ -483,6 +503,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["P65"],
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p67b_spec_verify_routing",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P72": {
         "title": "profile_run M cap (unblocks --max-num-batched-tokens>4096 on MoE)",
@@ -501,6 +522,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.worker.p72_profile_run_cap",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P71": {
         "title": "Block-verify rejection sampler (Sun 2024 ICLR)",
@@ -513,6 +535,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 40819,
         "apply_module": "vllm.sndr_core.integrations.spec_decode.p71_block_verify",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P74": {
         "title": "Auto chunk-clamp via long_prefill_token_threshold (P72 companion)",
@@ -527,6 +550,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": ["P72"],
         "apply_module": "vllm.sndr_core.integrations.scheduler.p74_chunk_clamp",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P75": {
         "title": "Auto-enable Suffix Decoding (Arctic Inference, vllm#25784)",
@@ -545,6 +569,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # categorization. KEEP active — convenience value preserved.
         "apply_module": "vllm.sndr_core.integrations.spec_decode.p75_suffix_decoding_enable",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P77": {
         "title": "Adaptive ngram K controller (EMA + hysteresis + auto-disable)",
@@ -557,6 +582,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "apply_module": "vllm.sndr_core.integrations.spec_decode.p77_adaptive_ngram_k",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P78": {
         "title": "TurboQuant .tolist() capture-guard (adapted from noonghunna)",
@@ -573,6 +599,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p78_tolist_capture_guard",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P79b": {
         "title": "Async × spec-decode proposer-sync backport (vllm#40610)",
@@ -585,6 +612,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 40610,
         "apply_module": "vllm.sndr_core.integrations.worker.p79b_async_proposer_sync",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P79c": {
         "title": "Stale spec_token_ids cleanup for unscheduled requests (vllm#37629)",
@@ -597,6 +625,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 37629,
         "apply_module": "vllm.sndr_core.integrations.scheduler.p79c_stale_spec_token_cleanup",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P79d": {
         "title": "Preempt async-discard backport (vllm#38624)",
@@ -609,6 +638,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 38624,
         "apply_module": "vllm.sndr_core.integrations.scheduler.p79d_preempt_async_discard",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P81": {
         "title": "fp8 block-scaled MM low-M decode tuning (vllm#40925)",
@@ -624,6 +654,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.quantization.p81_fp8_block_scaled_m_le_8",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P82": {
         "title": "SGLang threshold_single OR-clause acceptance (BIASED — opt-in research)",
@@ -650,6 +681,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "promotion requires per-workload quality validation (tool-call "
             "score, JSON correctness, reasoning quality) — not just TPS."
         ),
+        "implementation_status": "full",
     },
     "P83": {
         "title": "MTP keep-last-cached-block (vllm#38182 downstream symptom — P84 is real fix)",
@@ -673,6 +705,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "future workloads where the pop site IS reachable (e.g. "
             "longer prompts that produce num_hashes>0 with smaller blocks)."
         ),
+        "implementation_status": "full",
     },
     "P84": {
         "title": "hash_block_size override (vllm#38182 actual root cause)",
@@ -686,6 +719,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"is_hybrid": [True]},
         "apply_module": "vllm.sndr_core.integrations.scheduler.p84_hash_block_size_override",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P85": {
         "title": "Hybrid fine-shadow prefix cache (vllm#38182 followup, MambaManager fix)",
@@ -700,6 +734,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": ["P84"],
         "apply_module": "vllm.sndr_core.integrations.kv_cache.p85_hybrid_fine_shadow_prefix_cache",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P86": {
         "title": "ngram batch_propose O(N*K) → O(N+K) direct-fill (vllm#40876)",
@@ -712,6 +747,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 40876,
         "apply_module": "vllm.sndr_core.integrations.spec_decode.p86_ngram_batch_propose_linear",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P87": {
         "title": "Marlin W4A16/W8A16 sub-tile output dim pad-on-load (vllm#40361)",
@@ -731,6 +767,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.kernels.p87_marlin_pad_sub_tile",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN8": {
         "title": "MTP/draft online-quant propagation (vllm#40849)",
@@ -761,6 +798,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.loader.pn8_mtp_draft_online_quant_propagation",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN9": {
         "title": "Independent drafter attention backend (vllm#39930)",
@@ -805,6 +843,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm_version_range": "<0.20.2rc1.dev9",
         },
         "lifecycle": "retired",  # 2026-05-11 v2 audit: upstream more capable, soft-retire formalized
+        "implementation_status": "full",
     },
     "PN38": {
         "title": "DFlash drafter quantization support (PR #40425 backport)",
@@ -835,6 +874,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.spec_decode.pn38_dflash_quant_drafter",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN40-classifier": {
         "title": "PN40 sub-D workload classifier (chat_completion middleware)",
@@ -863,6 +903,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.spec_decode.pn40_workload_classifier_hook",  # explicit ref — file exists but auto-derivation can't infer from PN40-classifier ID
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN40": {
         "title": "Spec-decode omnibus (A DFlash K-norm + B pool + C adaptive K + D sentinel)",
@@ -901,6 +942,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.spec_decode.pn40_workload_classifier_hook",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     # PN37 archived 2026-05-04 to vllm/_genesis/_not_used_artifact/.
     # Premise (FA2 dead-zone for tiny-Q non-causal) was disproved by
@@ -948,6 +990,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn50_gdn_fused_proj",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN59": {
         "title": "Streaming-GDN orchestrator (Variant D Phase 2) — true Cliff 2b OOM fix",
@@ -982,6 +1025,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["PN79"],
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn59_streaming_gdn",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN58": {
         "title": "Spec-decode reasoning boundary validation — narrower alt to P62 (vllm#40962)",
@@ -1013,6 +1057,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["P62"],
         "apply_module": "vllm.sndr_core.integrations.reasoning.pn58_spec_reasoning_boundary",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P107": {
         "title": "MTP truncation detector at reasoning→tool_call boundary (vllm#41467)",
@@ -1042,6 +1087,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.serving.p107_mtp_truncation_detector",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN56": {
         "title": "Qwen3Coder XML parse fallback (vllm#41466 backport)",
@@ -1067,6 +1113,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "apply_module": "vllm.sndr_core.integrations.tool_parsing.pn56_qwen3coder_xml_fallback",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN57": {
         "title": "TurboQuant centroids disk-persistent cache (vllm#41418-inspired)",
@@ -1092,6 +1139,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn57_tq_centroids_disk_cache",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN122": {  # renamed 2026-05-14 from SPRINT26_CG_DISPATCH_TRACE — long ID violated P[N]?\d+ convention + auto-derivation
         "title": "Sprint 2.6 v2 — CUDA graph dispatch trace wire-in (formerly SPRINT26_CG_DISPATCH_TRACE)",
@@ -1539,6 +1587,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # P18 is not a separate registry entry — it's the companion "B"
         # variant of P17 (Marlin MoE per-SM tuning) handled inline.
         "composes_with": ["P17", "P22", "P38"],
+        "implementation_status": "full",
     },
     "PN95": {
         "title": "PN95 — Tier-aware KV cache + CPU offload + boot-time expansion (Path C, club-3090 #58)",
@@ -1670,6 +1719,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "upstream_pr": 42551,  # 2026-05-14 PR sweep — pin-bump retire trigger
+        "implementation_status": "full",
     },
     "PN202": {
         "title": "PN202 — per-layer KV tensor split (Tier 2.A enabler)",
@@ -1693,6 +1743,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN203": {
         "title": "PN203 — cold-prefix CPU offload manager (Tier 3.A)",
@@ -1719,6 +1770,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
         "requires_patches": ["PN202"],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN200": {
         "title": "PN200 — GDN outer-forward scratch pool (Tier 1.B)",
@@ -1745,6 +1797,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN201": {
         "title": "PN201 — scheduler empty_cache hook (Tier 1.C)",
@@ -1768,6 +1821,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN106": {
         "title": "PN106 — GDN scratch tensor pool (architectural memory mgr)",
@@ -1796,6 +1850,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN105": {
         "title": "PN105 — PrefetchOffloader AutoRound INT4 compat (pin-assert relax)",
@@ -1824,6 +1879,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0")},
         "requires_patches": ["PN104"],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN104": {
         "title": "PN104 — redirect --cpu-offload-gb from UVA to Prefetch backend",
@@ -1855,6 +1911,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN97": {
         "title": "PN97 — physical-cap on KV tensor allocation (Phase 7 PoC)",
@@ -1881,6 +1938,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN96": {
         "title": "PN96 — emergency-demote hook (Phase 6 PoC; allocator intercept)",
@@ -1910,6 +1968,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN92": {
         "title": "PN92 — nixl_ep/deep_ep/mori trial-import guard (vllm PR #40154)",
@@ -1936,6 +1995,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN71": {
         "title": "PN71 — `</thinking>` hallucination runtime normalizer",
@@ -1963,6 +2023,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN73": {
         "title": "PN73 — safe `tool_calls.arguments` string→dict normalization",
@@ -1987,6 +2048,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN91": {
         "title": "PN91 — `developer` role pre-render normalizer (OpenAI Responses API compat)",
@@ -2010,6 +2072,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": [],
         "conflicts_with": [],
+        "implementation_status": "full",
     },
     "PN82": {
         "title": "Mamba CUDA-graph stale `is_prefilling` padded rows — vllm#41873 backport",
@@ -2037,6 +2100,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 41873,
         "applies_to": {"is_hybrid": [True]},
+        "implementation_status": "full",
     },
     "PN55": {
         "title": "wake_up nested KV cache crash fix — vllm#41602+#41896 unified backport",
@@ -2068,6 +2132,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "related_upstream_prs": [41896],
         "applies_to": {},
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN54": {
         "title": "GDN contiguous-call deduplication (P0.7 Cliff 2b OOM mitigation)",
@@ -2105,6 +2170,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["PN79"],
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn54_gdn_contiguous_dedup",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN52": {
         "title": "prompt_logprobs eviction fix during chunked prefill (vllm#41411 backport)",
@@ -2145,6 +2211,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm_version_range": "<0.20.2rc1.dev209",
         },
         "lifecycle": "retired",  # 2026-05-11: byte-equivalent with #41411 in dev209
+        "implementation_status": "full",
     },
     "PN51": {
         "title": "Qwen3 streaming `enable_thinking=false` content routing (vllm#40816 backport)",
@@ -2186,6 +2253,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
         "lifecycle": "experimental",  # 2026-05-15 reactivated after retired-audit (gap confirmed in upstream parser)
+        "implementation_status": "full",
     },
     "PN35": {
         "title": "Skip inputs_embeds buffer for text-only models (vllm#35975 backport)",
@@ -2227,6 +2295,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "stable",
         "stable_kind": "text-patch",
         "stable_since": "v11.0.0+wave9_dev209",
+        "implementation_status": "full",
     },
     "PN34": {
         "title": "WorkspaceManager runtime lock relaxation (PN33 companion for runtime decode)",
@@ -2259,6 +2328,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "superseded_by": "SNDR_WORKSPACE_001",
         "lifecycle": "retired",  # 2026-05-14 PR sweep audit — duplicate of SNDR_WORKSPACE_001
         "vllm_version_range": ">=0.20.1rc1.dev16+g7a1eb8ac2,<0.20.2rc1.dev338+gbf0d2dc6d",  # was active on dev16-dev209; retired on dev338 pin in favor of SNDR_WORKSPACE_001
+        "implementation_status": "retired",
     },
     "PN33": {
         "title": "Spec-decode warmup K-aware sizing (vllm#37521 extended to MTP/ngram)",
@@ -2305,6 +2375,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "stable",
         "stable_kind": "text-patch",
         "stable_since": "v11.0.0+wave9_dev209",
+        "implementation_status": "full",
     },
     "PN32": {
         "title": "GDN _forward_core chunked-prefill v2 (Cliff 2 fix for single-24GB-GPU OOM)",
@@ -2355,6 +2426,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["P28", "PN108"],  # PN32+PN108 both touch GDN chunked prefill orchestrator — incompatible
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn32_gdn_chunked_prefill",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN102": {
         "title": "PrefetchOffloader pinned-allocator prewarm pool",
@@ -2387,6 +2459,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "apply_module": "vllm.sndr_core.integrations.offload.pn102_pinned_alloc_pool",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN204": {
         "title": "GDN dual-stream input projection (port of vllm#42301)",
@@ -2426,6 +2499,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["P7"],
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn204_dual_stream_inproj",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN108": {
         "title": "GDN fused_recurrent prefill dispatch (Cliff 2 memory-bound fix)",
@@ -2475,6 +2549,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "retired",  # docstring says TOMBSTONED — fla recurrent kernel design conflict; synced to registry 2026-05-14
         "apply_module": "vllm.sndr_core.integrations._retired.pn108_fused_recurrent_prefill",
         "retired_waiver": True,  # design conflict — see docstring tombstone
+        "implementation_status": "full",
     },
     "PN31": {
         "title": "FA varlen persistent out buffer (issue #15, sister to P38)",
@@ -2501,6 +2576,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn31_fa_varlen_persistent_out",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN30": {
         "title": "DS conv state layout + spec-decode AL>1 fix (issue #17)",
@@ -2532,6 +2608,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn30_ds_layout_spec_decode_align",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P67c": {
         "title": "Per-row vote sparse-V integration into P67 split-M kernel",
@@ -2558,6 +2635,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p67c_sparse_v",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN29": {
         "title": "GDN chunk_o scale-fold (vllm#41446 pattern (c))",
@@ -2587,6 +2665,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn29_gdn_chunk_o_scale_fold",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN11": {
         "title": "GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142)",
@@ -2615,6 +2694,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn11_gdn_a_b_contiguous",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN12": {
         "title": "FFN intermediate scratch pool — Cliff 1 fix on TQ3 path",
@@ -2650,6 +2730,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.kernels.pn12_ffn_intermediate_pool",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN19": {
         "title": "Scoped max_split_size_mb during model load (vllm#41268)",
@@ -2695,6 +2776,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm_version_range": "<0.20.2rc1.dev93",
         },
         "lifecycle": "retired",  # 2026-05-11: byte-equivalent with #41268 in dev209
+        "implementation_status": "full",
     },
     "PN23": {
         "title": "DFlash combine_hidden_states dtype cast (vllm#40334)",
@@ -2719,6 +2801,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "apply_module": "vllm.sndr_core.integrations.spec_decode.pn23_dflash_combine_hidden_dtype",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN21": {
         "title": "DFlash SWA support partial backport (vllm#40898)",
@@ -2745,6 +2828,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],  # Pairs with PN24 but does not strictly require it
         "apply_module": "vllm.sndr_core.integrations.spec_decode.pn21_dflash_swa_support",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN22": {
         "title": "Local argmax for TP draft (vllm#39419 backport)",
@@ -2769,6 +2853,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "apply_module": "vllm.sndr_core.integrations.spec_decode.pn22_local_argmax_tp",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN24": {
         "title": "DFlash aux layer +1 indexing fix (vllm#40727)",
@@ -2790,6 +2875,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "apply_module": "vllm.sndr_core.integrations.worker.pn24_dflash_aux_layer_indexing",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN28": {
         "title": "merge_attn_states NaN guard (vllm#39148 backport)",
@@ -2814,6 +2900,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "apply_module": "vllm.sndr_core.integrations.kernels.pn28_merge_attn_states_nan_guard",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P15B": {
         "title": "FA varlen max_seqlen_k clamp on TQ path (Issue #15 fix)",
@@ -2840,6 +2927,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "apply_module": "vllm.sndr_core.integrations.memory.p15b_fa_varlen_clamp",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P38B": {
         "title": "P38 compile-safe in-source hook (Issue #14 fix)",
@@ -2867,6 +2955,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],  # P38 install order: P38 first (provides impl), P38B second (installs hook)
         "apply_module": "vllm.sndr_core.integrations.memory.p38b_compile_safe_hook",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN26b": {
         "title": "Sparse-V tile-skip Genesis kernel (BLASST λ=a/L for SM86)",
@@ -2915,6 +3004,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(a) 32k+ ctx bench data, (b) tool-call score ≥ 8/10 across "
             "3+ models, (c) decode_tpot regression < 2% on short-ctx."
         ),
+        "implementation_status": "full",
     },
     "PN27": {
         "title": "Revert MoERunnerInterface PluggableLayer (vllm#41440)",
@@ -2942,6 +3032,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "apply_module": "vllm.sndr_core.integrations.moe.pn27_revert_pluggable_moe",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN26": {
         "title": "TQ unified perf pack (centroids prebake + sparse V scaffold)",
@@ -2971,6 +3062,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn26_sparse_v_kernel",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN25": {
         "title": "SiluAndMul.forward_native opaque-op pool (Cliff 1 mech B compile path)",
@@ -2999,6 +3091,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],  # complements PN12 but does not require it
         "apply_module": "vllm.sndr_core.integrations.kernels.pn25_silu_inductor_safe_pool",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN17": {
         "title": "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11)",
@@ -3051,6 +3144,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # the empirical bench reversed the static-analysis hypothesis.
         # KEEP PN17 enabled on PROD. No optimization needed at this site;
         # the per-call .item() sync IS the cheap path here.
+        "implementation_status": "full",
     },
     "PN16": {
         "title": "Lazy-reasoner request hook v2 (cache-safe; V7 max_tokens cap)",
@@ -3096,6 +3190,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.middleware.pn16_v6_streaming_truncator",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN16_V6": {
         "title": "PN16 V6 — streaming `<think>` token-budget enforcer (Sprint 4)",
@@ -3167,6 +3262,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn14_tq_decode_oob_clamp",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     # PN13 entry moved to legacy/retired section below (lifecycle: retired_2026-05-04)
     # Reason: vllm 0.20.2 commit c2fb013 merged identical change (#41235).
@@ -3195,6 +3291,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "vllm_version_range": "<0.20.2rc1.dev9",
         },
         "lifecycle": "retired",  # 2026-05-11 v2 audit: formalized byte-identical retire
+        "implementation_status": "full",
     },
     # ════════════════════════════════════════════════════════════════════
     # 2026-05-14 — vLLM upstream PR sweep on dev338+gbf0d2dc6d nightly.
@@ -3420,6 +3517,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},  # FlashInfer auto-selected; gating via env_flag only
         "apply_module": "vllm.sndr_core.integrations.attention.flash.p100_flashinfer_full_cg_specdec",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P103": {
         "title": "FLA Cliff 2 chunked fwd_h+fwd_o orchestrator (qwen36-27b-single-3090#1)",
@@ -3442,6 +3540,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.attention.gdn.p103_fla_cliff2_chunked",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P101": {
         "title": "TQ continuation 64-token slicing (vllm#41123 SELECTIVE)",
@@ -3460,6 +3559,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p101_tq_continuation_slicing",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P99": {
         "title": "WorkspaceManager.get_simultaneous memoization (perf hotfix)",
@@ -3482,6 +3582,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},  # applies whenever WorkspaceManager is used
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p99_workspace_manager_memoize",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P98": {
         "title": "TQ WorkspaceManager revert (vllm#40941 perf hotfix)",
@@ -3500,6 +3601,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p98_tq_workspace_revert",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P95": {
         "title": "Marlin TP cudagraph cap on Ampere (vllm#40385)",
@@ -3519,6 +3621,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.compile_safety.p95_marlin_tp_cudagraph_cap",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P91": {
         "title": "AutoRound row-parallel group cdiv + start-idx fix (vllm#39460)",
@@ -3538,6 +3641,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "apply_module": "vllm.sndr_core.integrations.quantization.p91_autoround_row_group_cdiv",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
 
     # ─── Legacy patches (P1–P46 series, pre-dispatcher era) ─────────────
@@ -3574,6 +3678,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "quantization",
         "credit": "Pre-dispatcher legacy patch. Inserts BF16→FP8 cast on TQ ingress for SM86 where FP8 is software-emulated.",
+        "implementation_status": "full",
     },
     "P4": {
         "title": "TurboQuant hybrid model support",
@@ -3594,6 +3699,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # boots cleanly with P4 OFF before final retirement.
         "superseded_by": "vllm#39931 (merged 2026-05-05)",
         "retire_after_pin": "0.20.2rc1+",
+        "implementation_status": "full",
     },
     "P5": {
         "title": "KV cache page size unification",
@@ -3605,6 +3711,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "kv_cache",
         "credit": "Pre-dispatcher legacy patch. Unifies per-layer page size across hybrid attention layers so block manager doesn't fragment.",
+        "implementation_status": "full",
     },
     "P5b": {
         "title": "KV page-size pad-smaller-to-max (env-flag coordinator for P5)",
@@ -3626,6 +3733,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "coordinator",
         "category": "kv_cache",
         "credit": "Pre-dispatcher legacy patch. Opt-in companion to P5 — pads smaller pages up to max so all layers share one block-pool stride. Guarded by env (was always opt-in). Coordinator pattern: real binding in P5; this entry is a documented feature-flag handle.",
+        "implementation_status": "full",
     },
     "P6": {
         "title": "TurboQuant-aware attention page size",
@@ -3637,6 +3745,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "kv_cache",
         "credit": "Pre-dispatcher legacy patch. Selects TQ-aware page size (matches TQ packed slot stride) when TQ KV is active.",
+        "implementation_status": "full",
     },
     "P7": {
         "title": "GDN dual-stream in_proj parallelism",
@@ -3649,6 +3758,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kernel_perf",
         "credit": "Pre-dispatcher legacy patch. Splits GDN in_proj across two CUDA streams so q/k/v projections overlap. Validated +8% decode on 35B.",
         "conflicts_with": ["P7b", "PN204"],  # PN204 = port of vllm#42301, same site as P7
+        "implementation_status": "full",
     },
     "P7b": {
         "title": "GDN dual-stream via torch.library.custom_op (opt-in)",
@@ -3663,6 +3773,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kernel_perf",
         "credit": "Pre-dispatcher legacy patch. Custom-op variant of P7 dual-stream — opt-in alternative for cudagraph capture compatibility experiments.",
         "conflicts_with": ["P7"],
+        "implementation_status": "full",
     },
     "PN13": {
         "title": "CUDAGraphWrapper lambda arity (vllm#41235 backport) — RETIRED 2026-05-04",
@@ -3696,6 +3807,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # explicit for `genesis explain` and audit reports).
             "vllm_version_range": "<0.20.2",
         },
+        "implementation_status": "full",
     },
     "P8": {
         "title": "KV hybrid reporting (per-token capacity) — RETIRED 2026-05-04",
@@ -3730,6 +3842,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # but documents the supersession boundary for `genesis explain`.
             "vllm_version_range": "<0.20.2rc1.dev9",
         },
+        "implementation_status": "full",
     },
     "P12": {
         "title": "Qwen3 <tool_call> implicit reasoning end",
@@ -3748,6 +3861,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # </think> case natively (different impl but same outcome).
         # Lifecycle stays "legacy" (architectural — pre-dispatcher
         # auto-apply pattern); skip is correct + safe.
+        "implementation_status": "full",
     },
     "P14": {
         "title": "block_table tail zero-fill",
@@ -3759,6 +3873,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "kernel_safety",
         "credit": "Pre-dispatcher legacy patch. Zero-fills block_table tail past valid sequences so out-of-bounds prefetch doesn't read stale page indices.",
+        "implementation_status": "full",
     },
     "P15": {
         "title": "Qwen3 None/null tool arg parser",
@@ -3770,6 +3885,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "structured_output",
         "credit": "Pre-dispatcher legacy patch. Tolerates None / null tool arguments in Qwen3 parser instead of raising.",
+        "implementation_status": "full",
     },
     "P17": {
         "title": "Marlin MoE per-SM tuning (P17/P18)",
@@ -3828,6 +3944,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # is safe (no crash, just loses our improvement); investigation
         # queued — read dev209's gpu_model_runner.capture_model + the
         # current TurboQuantAttentionImpl class to design new hook site.
+        "implementation_status": "full",
     },
     "P23": {
         "title": "Marlin FP32_REDUCE env override",
@@ -3850,6 +3967,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "kernel_perf",
         "credit": "Pre-dispatcher legacy patch. Overlays SM86-tuned num_warps/num_stages on fused_moe kernel selection.",
+        "implementation_status": "full",
     },
     "P26": {
         "title": "TurboQuant prefill output prealloc",
@@ -3868,6 +3986,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # Different impl path (lazy hasattr check vs Genesis explicit
         # prealloc) but functionally equivalent for the regression P26
         # prevents. Lifecycle stays "legacy" (architectural).
+        "implementation_status": "full",
     },
     "P27": {
         "title": "Qwen3 BEFORE-THINK fallback",
@@ -3879,6 +3998,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "structured_output",
         "credit": "Pre-dispatcher legacy patch. Falls back to BEFORE-THINK parsing path when Qwen3 model emits tool_call before <think>.",
+        "implementation_status": "full",
     },
     "P28": {
         "title": "GDN core_attn_out prealloc",
@@ -3891,6 +4011,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "memory_pool",
         "credit": "Pre-dispatcher legacy patch. Preallocates GDN core_attn_out as a layer-persistent buffer + zero()-on-reuse instead of torch.zeros() per-step. Reduces allocator pressure on GDN forward.",
         "conflicts_with": ["PN32", "PN108"],  # PN108 = GDN fused_recurrent prefill switches backend; incompatible with P28 buffer reuse
+        "implementation_status": "full",
     },
     "P29": {
         "title": "tool parser IndexError guard",
@@ -3913,6 +4034,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "model_correctness",
         "credit": "Pre-dispatcher legacy patch. Upcasts MoE router softmax to fp32 (DeepSeek-V3 pattern, deepseek_v2.py:345 reference). Improves expert routing stability on consumer Ampere.",
+        "implementation_status": "full",
     },
     "P32": {
         "title": "TurboQuant cu_2 + synth_seq_lens preallocs (P32/P33)",
@@ -3935,6 +4057,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "stability",
         "credit": "Pre-dispatcher legacy patch. Guards against Mamba state collapse-to-zero deadlock when delta is exactly zero on hybrid models.",
+        "implementation_status": "full",
     },
     "P36": {
         "title": "TurboQuant shared decode buffers",
@@ -3946,6 +4069,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "memory_pool",
         "credit": "Pre-dispatcher legacy patch. Shared decode-stage scratch buffers across TQ layers to amortize allocation.",
+        "implementation_status": "full",
     },
     "P37": {
         "title": "MoE intermediate cache pool (opt-in)",
@@ -3961,6 +4085,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "memory_pool",
         "credit": "Pre-dispatcher legacy patch. Opt-in pool for MoE intermediate activations. noonghunna's club-3090 long-text recipe ships with this enabled.",
+        "implementation_status": "full",
     },
     "P38": {
         "title": "TQ _continuation_prefill persistent workspace",
@@ -3972,6 +4097,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "memory_pool",
         "credit": "Pre-dispatcher legacy patch. Persistent workspace tensor for TQ continuation-prefill, addresses VolandBerlioz's OOM site at turboquant_attn.py. Companion: P38B (compile-safe in-source hook, see PATCH_REGISTRY).",
+        "implementation_status": "full",
     },
     "P39a": {
         "title": "FLA chunk_scaled_dot_kkt persistent A pool",
@@ -3983,6 +4109,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "memory_pool",
         "credit": "Pre-dispatcher legacy patch. Persistent pool for FLA chunk_scaled_dot_kkt's A matrix to avoid per-step allocation in GDN backward.",
+        "implementation_status": "full",
     },
     "P40": {
         "title": "TurboQuant GQA-grouped decode stage1 (opt-in)",
@@ -3998,6 +4125,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "kernel_perf",
         "credit": "Pre-dispatcher legacy patch (vllm#40792 backport candidate). Opt-in GQA-grouped TQ decode stage1 kernel. Welch t-test on 2x A5000 single-stream: not significant (p=0.284 vs baseline 183 TPS) — kept opt-in pending Blackwell retest.",
+        "implementation_status": "full",
     },
     "P44": {
         "title": "TQ mixed-batch attn_out pool",
@@ -4009,6 +4137,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "memory_pool",
         "credit": "Pre-dispatcher legacy patch. Pool for TQ attn_out tensor under mixed prefill+decode batches.",
+        "implementation_status": "full",
     },
     "P46": {
         "title": "GDN gating buffer pool",
@@ -4020,6 +4149,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "memory_pool",
         "credit": "Pre-dispatcher legacy patch. Pool for GDN gating tensor to avoid per-layer allocation.",
+        "implementation_status": "full",
     },
     "P51": {
         "title": "TQ-active runtime layer-level guard",
@@ -4069,6 +4199,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_class": ["qwen3_vl"]},
         "apply_module": "vllm.sndr_core.integrations.loader.pn61_qwen3_vl_keyerror_guard",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN62": {
         "title": "Text-only ViT scratch skip via skip_mm_profiling flip (3-5 GiB save)",
@@ -4121,6 +4252,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "apply_module": "vllm.sndr_core.integrations.middleware.pn65_access_log",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN66": {
         "title": "Multiturn </think> leak fix in DelegatingParser (vllm#41696 backport)",
@@ -4134,6 +4266,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "apply_module": "vllm.sndr_core.integrations.reasoning.pn66_multiturn_think_leak",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN67": {
         "title": "thinking_token_budget inverted-bool fix (vllm#41674 backport, 1-line)",
@@ -4147,6 +4280,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "apply_module": "vllm.sndr_core.integrations.worker.pn67_thinking_budget_inverted_bool",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "PN70": {
         "title": "Tool schema subset filter (combined `anyOf` xgrammar-clean) — companion to P68 v7.72.1",
@@ -4160,6 +4294,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "composes_with": ["P68"],
         "apply_module": "vllm.sndr_core.integrations.serving.pn70_tool_schema_subset_filter",
         "lifecycle": "experimental",
+        "implementation_status": "full",
     },
 }
 
