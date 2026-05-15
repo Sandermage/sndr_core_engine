@@ -378,7 +378,7 @@ If you want to share a JSON file but feel uncertain about any field, scrub it ma
 
 ## Reference: relationship to internal Genesis test harness
 
-The community-facing `genesis_bench_suite.py` is a packaging of the same six tests our internal `tools/phase1_test_harness.sh` runs before promoting a Genesis patch tree:
+The community-facing `genesis_bench_suite.py` is a packaging of the same six tests our internal promotion harness runs before promoting a Genesis patch tree. The phase-1 harness (`tools/phase1_test_harness.sh`) was retired 2026-05-15 and moved to `tools/_retired/` — its functionality is now split across `genesis_bench_suite.py` (tests 1-5) and `tools/multi_conc_bench.py` (concurrency + TTFT sweep). The six tests are:
 
 1. `/v1/models` reachability
 2. Tool-call quality probe (4 cases)
@@ -408,9 +408,10 @@ The bare-metal variants assume vLLM is installed via `pip install vllm` and syml
 Internal building blocks (used by the bench suite, also runnable standalone):
 
 - [`tools/genesis_bench_suite.py`](../tools/genesis_bench_suite.py) — **flagship community-grade entrypoint** (this guide)
+- [`tools/multi_conc_bench.py`](../tools/multi_conc_bench.py) — Wave 10 multi-concurrency sweep (TTFT/TPOT/agg TPS at conc=1/2/4/8)
 - [`tools/bench_decode_tpot_clean_ab.py`](../tools/bench_decode_tpot_clean_ab.py) — decode-only TPOT building block (raw bench + Welch t-test compare)
 - [`tools/progressive_context_probe.py`](../tools/progressive_context_probe.py) — context-window scan with PASS/FAIL per level
-- [`tools/phase1_test_harness.sh`](../tools/phase1_test_harness.sh) — 6-test internal promotion gate
+- [`tools/_retired/phase1_test_harness.sh`](../tools/_retired/phase1_test_harness.sh) — RETIRED 2026-05-15 (kept for archeology; superseded by the two bench tools above)
 
 To match the exact public-benchmark numbers in [README.md § Headline numbers](../README.md#headline-numbers), use:
 
