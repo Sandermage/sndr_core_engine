@@ -1034,6 +1034,81 @@ def apply_patch_sprint26_cudagraph_dispatch_trace() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN132 Triton top-k/top-p contiguous fix (vllm#42739)")
+def apply_patch_pn132_triton_topk_topp_contiguous() -> PatchResult:
+    """PN132: backport vllm#42739 — correctness fix Triton top-k/top-p
+    kernel читает garbage на non-contiguous logits. Defense-in-depth
+    на FlashInfer-default path; fires только на Triton fallback.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS=1.
+    """
+    name = "PN132 Triton top-k/top-p contiguous"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn132_triton_topk_topp_contiguous as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN133 MTP scheduler empty-output fix (vllm#42722)")
+def apply_patch_pn133_mtp_scheduler_empty_output() -> PatchResult:
+    """PN133: backport vllm#42722 — fix permanently-stuck request
+    в MTP/spec-decode когда generated_token_ids empty.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX=1.
+    """
+    name = "PN133 MTP scheduler empty-output"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.spec_decode import (
+            pn133_mtp_scheduler_empty_output as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN134 torch.compile fullgraph 2.11 (vllm#42686)")
+def apply_patch_pn134_torch_compile_fullgraph_211() -> PatchResult:
+    """PN134: backport vllm#42686 — torch.compile materialization
+    heuristic fix для PyTorch 2.11. Closes vLLM #27828.
+    Expected: -2..-8 ms prefill latency.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211=1.
+    Auto-skip когда torch != 2.11.
+    """
+    name = "PN134 torch.compile fullgraph 2.11"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn134_torch_compile_fullgraph_211 as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN128 spec-decode helper kernel warmup (vllm#41481)")
 def apply_patch_pn128_spec_decode_helper_warmup() -> PatchResult:
     """PN128: backport vllm#41481 — warmup eagle helper kernels на boot.

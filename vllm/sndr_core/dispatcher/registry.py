@@ -1123,6 +1123,101 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "applies_to": {},
     },
+    "PN132": {
+        "title": "Triton top-k/top-p contiguous logits fix (backport vllm#42739)",
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS",
+        "default_on": False,
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": (
+            "vllm.sndr_core.integrations.compile_safety."
+            "pn132_triton_topk_topp_contiguous"
+        ),
+        "lifecycle": "experimental",
+        "experimental_note": (
+            "Backport vllm#42739 (OPEN). Correctness fix: Triton "
+            "top-k/top-p kernel computes row_ptr = base + row * VOCAB "
+            "assuming contiguous row-major. Non-contiguous views (from "
+            "index_select/slicing) → kernel reads garbage. PN132 wraps "
+            "apply_top_k_top_p_triton с contiguous() guarantee. "
+            "У нас VLLM_USE_FLASHINFER_SAMPLER=1 → Triton path обычно "
+            "не используется (FlashInfer первый), но fallback возможен "
+            "для unsupported combos. Defense-in-depth."
+        ),
+        "credit": "Backport vllm#42739 by Sandermage 2026-05-15.",
+        "upstream_pr": 42739,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+        },
+    },
+    "PN133": {
+        "title": "MTP scheduler empty-output accounting fix (backport vllm#42722)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX",
+        "default_on": False,
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": (
+            "vllm.sndr_core.integrations.spec_decode."
+            "pn133_mtp_scheduler_empty_output"
+        ),
+        "lifecycle": "experimental",
+        "experimental_note": (
+            "Backport vllm#42722 (OPEN). Fixes permanently-stuck request "
+            "in MTP/spec-decode when model_runner returns empty "
+            "generated_token_ids (request abortion, async race, OOM "
+            "partial output). Pre-fix: scheduler doesn't account "
+            "scheduled draft tokens as rejected → num_computed_tokens "
+            "stays caught up → scheduler stops issuing work для "
+            "unfinished request. Также fixes pre-existing crash через "
+            "len([])-1 = -1 → Prometheus counter ValueError."
+        ),
+        "credit": "Backport vllm#42722 by Sandermage 2026-05-15.",
+        "upstream_pr": 42722,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+        },
+    },
+    "PN134": {
+        "title": "torch.compile fullgraph patch для PyTorch 2.11 (backport vllm#42686)",
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": (
+            "vllm.sndr_core.integrations.compile_safety."
+            "pn134_torch_compile_fullgraph_211"
+        ),
+        "lifecycle": "experimental",
+        "experimental_note": (
+            "Backport vllm#42686 (OPEN). Closes vLLM issue #27828. "
+            "Patches torch._inductor.ir.StorageBox.should_realize_on_reuse "
+            "с size-aware cost model для PyTorch 2.11 (fix landed в "
+            "torch 2.12). Без fix Inductor inline'ит residual в "
+            "fused_add_rms_norm каждый раз → cascade re-computation. "
+            "Expected: -2..-8 ms prefill, fewer inductor recompiles. "
+            "Auto-skip когда torch != 2.11."
+        ),
+        "credit": "Backport vllm#42686 (pytorch#176994 simplified) by Sandermage 2026-05-15.",
+        "upstream_pr": 42686,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+        },
+    },
     "PN128": {
         "title": "Spec-decode helper kernel warmup (backport vllm#41481, 4 eagle kernels)",
         "tier": "community",
