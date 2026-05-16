@@ -90,6 +90,35 @@ def add_argparser(subparsers: Any) -> None:
     )
     p_render.set_defaults(func=run_compose_render)
 
+    # plan-diff (Phase D ext — A/B between policies)
+    p_diff = sub.add_parser(
+        "plan-diff",
+        help="Compare patch_plan resolver output between two policies.",
+        description=(
+            "Renders the patch_plan twice for the same preset and "
+            "reports which toggle flags are newly included / newly "
+            "excluded under --to compared with --from. Read-only — "
+            "doesn't render any YAML; useful before switching a real "
+            "launch from one policy to another."
+        ),
+    )
+    p_diff.add_argument("config", help="preset key (V1 or V2 alias)")
+    p_diff.add_argument(
+        "--from", dest="from_policy", required=True,
+        choices=("compat", "safe", "minimal"),
+        help="Baseline policy to diff against.",
+    )
+    p_diff.add_argument(
+        "--to", dest="to_policy", required=True,
+        choices=("compat", "safe", "minimal"),
+        help="Target policy.",
+    )
+    p_diff.add_argument(
+        "--json", action="store_true",
+        help="Machine-readable JSON output.",
+    )
+    p_diff.set_defaults(func=run_compose_plan_diff)
+
     # up
     p_up = sub.add_parser("up", help="docker compose up -d (renders inline)")
     p_up.add_argument("config", help="preset key")
@@ -360,6 +389,127 @@ def render_compose_yaml(
     )
     body = yaml.safe_dump(compose, sort_keys=False, default_flow_style=False)
     return header + body
+
+
+def run_compose_plan_diff(args: argparse.Namespace) -> int:
+    """A/B between two patch_plan policies for the same preset.
+
+    Read-only — never renders any compose YAML, never touches the
+    runtime. Returns a structured diff of:
+      - toggles newly excluded under --to
+      - toggles newly included under --to
+      - parameter passthrough additions / removals (should always be
+        empty in practice — passthrough is policy-independent — but
+        surfaced anyway for completeness)
+
+    Useful before flipping a real launch from one policy to another:
+    the operator sees the exact env-flag delta they'd be signing up
+    for, with role attribution attached for triage.
+    """
+    import json as _json
+    from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+
+    cfg = _resolve(args.config)
+    if cfg is None:
+        return 2
+
+    try:
+        plan_from = resolve_patch_plan(cfg, policy=args.from_policy)
+        plan_to = resolve_patch_plan(cfg, policy=args.to_policy)
+    except ValueError as e:
+        _io.error(str(e))
+        return 2
+
+    def _decision_summary(d) -> dict:
+        return {
+            "patch_id": d.patch_id,
+            "env_flag": d.env_flag,
+            "value": d.value,
+            "role": d.role,
+            "reason": d.reason,
+        }
+
+    from_included = {d.env_flag: d for d in plan_from.included}
+    from_excluded = {d.env_flag: d for d in plan_from.excluded}
+    to_included = {d.env_flag: d for d in plan_to.included}
+    to_excluded = {d.env_flag: d for d in plan_to.excluded}
+
+    # Cross-set deltas — what crossed the boundary in either direction.
+    newly_excluded = [
+        _decision_summary(to_excluded[k])
+        for k in to_excluded
+        if k in from_included
+    ]
+    newly_included = [
+        _decision_summary(to_included[k])
+        for k in to_included
+        if k in from_excluded
+    ]
+    unchanged_included = [
+        _decision_summary(to_included[k])
+        for k in to_included
+        if k in from_included
+    ]
+    unchanged_excluded = [
+        _decision_summary(to_excluded[k])
+        for k in to_excluded
+        if k in from_excluded
+    ]
+    pt_from_keys = set(plan_from.passthrough)
+    pt_to_keys = set(plan_to.passthrough)
+    passthrough_diff = {
+        "added": sorted(pt_to_keys - pt_from_keys),
+        "removed": sorted(pt_from_keys - pt_to_keys),
+    }
+
+    payload = {
+        "preset": args.config,
+        "from_policy": args.from_policy,
+        "to_policy": args.to_policy,
+        "diff": {
+            "newly_excluded": newly_excluded,
+            "newly_included": newly_included,
+            "unchanged_included": unchanged_included,
+            "unchanged_excluded": unchanged_excluded,
+            "passthrough_diff": passthrough_diff,
+        },
+    }
+
+    if args.json:
+        print(_json.dumps(payload, indent=2, default=str))
+        return 0
+
+    _io.banner(
+        f"Plan diff: {args.config}",
+        f"{args.from_policy} → {args.to_policy}",
+    )
+    _io.info(f"  newly excluded: {len(newly_excluded)} toggle(s)")
+    _io.info(f"  newly included: {len(newly_included)} toggle(s)")
+    _io.info(f"  unchanged included: {len(unchanged_included)}")
+    _io.info(f"  unchanged excluded: {len(unchanged_excluded)}")
+    if passthrough_diff["added"] or passthrough_diff["removed"]:
+        _io.info(
+            f"  passthrough: +{len(passthrough_diff['added'])} / "
+            f"-{len(passthrough_diff['removed'])}"
+        )
+    if newly_excluded:
+        _io.info("")
+        _io.info(f"  ⊘ Newly excluded under '{args.to_policy}':")
+        for d in newly_excluded[:25]:
+            _io.info(
+                f"    - {d['patch_id']:<10} role={d['role']:<22} {d['env_flag']}"
+            )
+        if len(newly_excluded) > 25:
+            _io.info(f"    … and {len(newly_excluded) - 25} more "
+                     f"(use --json for full list)")
+    if newly_included:
+        _io.info("")
+        _io.info(f"  + Newly included under '{args.to_policy}':")
+        for d in newly_included[:10]:
+            _io.info(
+                f"    + {d['patch_id']:<10} role={d['role']:<22} {d['env_flag']}"
+            )
+    return 0
 
 
 def run_compose_render(args: argparse.Namespace) -> int:
