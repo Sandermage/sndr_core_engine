@@ -103,13 +103,39 @@ def _matches_filters(
 
 
 def _spec_to_row(spec) -> dict[str, Any]:
-    """Convert PatchSpec → flat dict for table/json rendering."""
+    """Convert PatchSpec → flat dict for table/json rendering.
+
+    Adds a derived ``production_default`` field that flags entries
+    where ``default_on=True`` but the patch is only a marker
+    (``implementation_status='marker_only'``) — these have no
+    apply module, so the operator-facing label "Default-on" can
+    mislead. Honest values:
+
+      "applied"          default_on + full apply_module
+      "marker"           default_on + marker_only (no runtime effect)
+      "opt-in"           default_on=False
+      "blocked"          implementation_status in {partial, placeholder}
+                         or lifecycle in {retired, research}
+    """
+    impl = getattr(spec, "implementation_status", "full") or "full"
+    if impl in ("partial", "placeholder"):
+        prod_default = "blocked"
+    elif spec.lifecycle in ("retired", "research"):
+        prod_default = "blocked"
+    elif spec.default_on and impl == "marker_only":
+        prod_default = "marker"
+    elif spec.default_on:
+        prod_default = "applied"
+    else:
+        prod_default = "opt-in"
     return {
         "patch_id": spec.patch_id,
         "tier": spec.tier,
         "lifecycle": spec.lifecycle,
         "family": spec.family,
         "default_on": spec.default_on,
+        "production_default": prod_default,
+        "implementation_status": impl,
         "env_flag": spec.env_flag or "",
         "upstream_pr": spec.upstream_pr,
         "title": (spec.title or "")[:80],

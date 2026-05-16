@@ -1351,11 +1351,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_new.add_argument("--template", help="seed from existing builtin/user config")
     p_new.add_argument(
         "--from-running",
-        help=(
-            "[EXPERIMENTAL — Audit A-17 fix 2026-05-06: not yet "
-            "implemented; raises clean error. Use --template instead.] "
-            "(planned: capture from running docker container via inspect)"
-        ),
+        # Hidden from --help (argparse SUPPRESS) — the flag still parses
+        # for forward-compat scripts that pass it, but operators won't
+        # see it in `sndr model-config new --help` until the
+        # docker-inspect captor is implemented. Currently raises a
+        # clean error pointing at --template.
+        help=argparse.SUPPRESS,
     )
     p_new.add_argument("--force", action="store_true")
     p_new.set_defaults(func=cmd_new)

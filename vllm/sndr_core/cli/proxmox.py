@@ -164,6 +164,18 @@ def run_render(args: argparse.Namespace) -> int:
     if cfg is None:
         return 2
     p = cfg.proxmox
+    # Fail-fast on unknown mode. ProxmoxConfig.validate() already
+    # restricts mode to {lxc, vm, host} at schema load time, but a
+    # defensive guard here catches operator overrides that bypass
+    # the loader (e.g. constructing the dataclass programmatically).
+    _VALID_RENDER_MODES = ("lxc", "vm", "host")
+    if p.mode not in _VALID_RENDER_MODES:
+        _io.error(
+            f"sndr proxmox render: unsupported mode={p.mode!r}. "
+            f"Valid modes: {_VALID_RENDER_MODES}. Edit the preset's "
+            f"proxmox.mode field."
+        )
+        return 2
     print(f"# sndr proxmox render — preset {cfg.key!r}")
     print(f"# mode={p.mode} runtime={p.runtime}")
     print("# Generated commands — REVIEW before executing.")
@@ -234,9 +246,9 @@ def run_render(args: argparse.Namespace) -> int:
         print("python3.12 -m venv /opt/sndr-venv")
         print("/opt/sndr-venv/bin/pip install vllm-sndr-core")
         print(f"# Then: sndr launch {cfg.key}")
-    else:
-        _io.warn(f"mode={p.mode} — render not implemented")
-        return 1
+    # `else` removed — every mode reaching this point is in
+    # _VALID_RENDER_MODES (guarded above). Adding a new mode means
+    # updating both the tuple and adding its own branch.
     return 0
 
 

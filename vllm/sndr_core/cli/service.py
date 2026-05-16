@@ -188,11 +188,33 @@ def run_install(args: argparse.Namespace) -> int:
         return _systemctl("enable", f"sndr-{cfg.key}.service",
                            system=args.system, dry_run=False)
 
-    if backend in ("docker_compose", "podman_quadlet"):
-        _io.info(f"backend={backend} — install means: ensure compose/quadlet "
-                  f"file in place. Genesis does NOT generate compose files; "
-                  f"use `sndr launch --dry-run {cfg.key}` to render the docker run "
-                  f"line, then wrap it in your compose stack manually.")
+    if backend == "docker_compose":
+        # Render the compose YAML to the canonical path. The compose
+        # CLI already has render logic; service install delegates to
+        # it so the two surfaces stay aligned.
+        from vllm.sndr_core.cli.compose import render_compose_yaml
+        try:
+            yaml_body = render_compose_yaml(cfg)
+        except Exception as e:
+            _io.error(f"compose render failed: {type(e).__name__}: {e}")
+            return 1
+        target_dir = Path.home() / ".sndr" / "compose"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_file = target_dir / f"{cfg.key}.yml"
+        target_file.write_text(yaml_body)
+        _io.info(f"backend=docker_compose — wrote {target_file} "
+                 f"({len(yaml_body)} bytes)")
+        _io.info(f"  start with: docker compose -f {target_file} up -d")
+        _io.info(f"  or:         sndr compose up {cfg.key}")
+        return 0
+    if backend == "podman_quadlet":
+        # The `sndr quadlet` subcommand renders systemd / podman quadlet
+        # units when present; install path just points at it. Quadlet
+        # generation is a parallel CLI surface that hasn't been wired
+        # into this entry point yet — operator-driven for now.
+        _io.info(f"backend=podman_quadlet — render with "
+                 f"`sndr quadlet render {cfg.key}` and place under "
+                 f"~/.config/containers/systemd/.")
         return 0
 
     if backend == "kubernetes":
@@ -211,6 +233,11 @@ def run_install(args: argparse.Namespace) -> int:
 
 # ─── start / stop / status / logs / uninstall
 
+def _compose_file_path(cfg) -> Path:
+    """Where service install wrote the compose YAML for this preset."""
+    return Path.home() / ".sndr" / "compose" / f"{cfg.key}.yml"
+
+
 def run_start(args: argparse.Namespace) -> int:
     cfg = _resolve(args.config)
     if cfg is None:
@@ -219,9 +246,19 @@ def run_start(args: argparse.Namespace) -> int:
     if cfg.service.backend == "systemd":
         return _systemctl("start", f"sndr-{cfg.key}.service",
                            system=args.system, dry_run=dry_run)
-    if cfg.service.backend in ("docker_compose", "podman_quadlet"):
+    if cfg.service.backend == "docker_compose":
+        # Prefer compose-level lifecycle. Falls back to raw `docker start
+        # <container>` when the compose file isn't where install placed
+        # it (operator may have copied it elsewhere).
+        compose_file = _compose_file_path(cfg)
+        if compose_file.is_file():
+            return _docker_cmd("compose", "-f", str(compose_file), "up", "-d",
+                               dry_run=dry_run)
         container = cfg.docker.container_name if cfg.docker else f"sndr-{cfg.key}"
         return _docker_cmd("start", container, dry_run=dry_run)
+    if cfg.service.backend == "podman_quadlet":
+        return _systemctl("start", f"sndr-{cfg.key}.service",
+                           system=args.system, dry_run=dry_run)
     _io.info(f"backend={cfg.service.backend} — start not implemented; "
               f"run `sndr launch {cfg.key}` directly.")
     return 0
@@ -235,9 +272,16 @@ def run_stop(args: argparse.Namespace) -> int:
     if cfg.service.backend == "systemd":
         return _systemctl("stop", f"sndr-{cfg.key}.service",
                            system=args.system, dry_run=dry_run)
-    if cfg.service.backend in ("docker_compose", "podman_quadlet"):
+    if cfg.service.backend == "docker_compose":
+        compose_file = _compose_file_path(cfg)
+        if compose_file.is_file():
+            return _docker_cmd("compose", "-f", str(compose_file), "down",
+                               dry_run=dry_run)
         container = cfg.docker.container_name if cfg.docker else f"sndr-{cfg.key}"
         return _docker_cmd("stop", container, dry_run=dry_run)
+    if cfg.service.backend == "podman_quadlet":
+        return _systemctl("stop", f"sndr-{cfg.key}.service",
+                           system=args.system, dry_run=dry_run)
     _io.info(f"backend={cfg.service.backend} — stop not implemented")
     return 0
 
