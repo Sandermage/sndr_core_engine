@@ -10,6 +10,7 @@ never ship publicly.
 
 | If you want to... | Read |
 | --- | --- |
+| Single-page operator manual covering all four layers (installer / launcher / configs / patches) | [`USAGE.md`](USAGE.md) |
 | Install Genesis end-to-end | [`INSTALL.md`](INSTALL.md) → [`QUICKSTART.md`](QUICKSTART.md) |
 | Get running in 5 minutes + Day 1 acceptance | [`QUICKSTART.md`](QUICKSTART.md) |
 | Browse all `sndr` commands | [`CLI_REFERENCE.md`](CLI_REFERENCE.md) |
@@ -23,12 +24,13 @@ never ship publicly.
 | Browse the patch catalogue + compatibility matrix | [`PATCHES.md`](PATCHES.md) |
 | Read the technical design appendices (PN95, GDN, ...) | [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) |
 
-## File catalogue (21 markdown files)
+## File catalogue (22 markdown files)
 
 ### Installation & quickstart
 
 | Doc | Purpose |
 | --- | --- |
+| [`USAGE.md`](USAGE.md) | Single-page operator manual that threads through all four layers (installer → launcher → configs → patches) plus the production-readiness bench-proof workflow. |
 | [`INSTALL.md`](INSTALL.md) | Full installer walkthrough — `install.sh` flags, preflight checks, troubleshooting. |
 | [`QUICKSTART.md`](QUICKSTART.md) | 5-minute setup path plus the 6-step Day-1 acceptance walkthrough. |
 

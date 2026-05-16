@@ -24,19 +24,20 @@ dependencies = []
 genesis_v7 = "genesis_v7:register"
 
 [project.scripts]
-# `genesis` console command — works after `pip install` of this plugin.
-# Routes to the unified CLI dispatcher (compat/cli.py).
+# Two console commands are exposed, routing to the two CLI dispatchers:
 #
-# After install.sh runs (which does `pip install -e genesis_vllm_plugin/`),
-# users can run:
-#     genesis doctor
-#     genesis preset list
-#     genesis verify --quick
-#     genesis explain P103
-# instead of the long form `python3 -m vllm.sndr_core.compat.cli ...`.
+#   `sndr`     — canonical post-rebrand CLI (``vllm.sndr_core.cli``).
+#                Subcommands: launch, doctor, verify, model-config,
+#                patches, memory, install, deps, model, upstream, ...
+#                Operators should default to this command.
 #
-# Requires vllm.sndr_core on PYTHONPATH (install.sh symlinks it into
-# the vllm install dir; alternatively set PYTHONPATH manually).
+#   `genesis`  — legacy compat-layer CLI (``vllm.sndr_core.compat.cli``).
+#                Subcommands: doctor, verify, preset, explain, ...
+#                Kept for back-compat with v7.x operators and docs.
+#
+# Both require ``vllm.sndr_core`` on PYTHONPATH (install.sh wires it
+# in; alternatively set PYTHONPATH manually).
+sndr    = "vllm.sndr_core.cli:cli_main"
 genesis = "vllm.sndr_core.compat.cli:main"
 
 [tool.setuptools.packages.find]
