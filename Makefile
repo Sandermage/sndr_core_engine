@@ -72,7 +72,7 @@ audit-public-paths: ## Etap 6.7: forbid private LAN IPs / home paths / usernames
 	@echo "=== audit-public-paths ==="
 	@bad=$$(rg -n "192\.168\.1\.10|/home/sander|sander@|User=sander" \
 	    README.md docs/ scripts/ tools/ benchmarks/ vllm/ \
-	    --glob '!docs/_internal/**' \
+	    --glob '!sndr_private/**' \
 	    --glob '!**/_archive/**' \
 	    --glob '!**/_internal/**' \
 	    --glob '!tests/integration/baselines/**' \

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Capture full state snapshot BEFORE swapping a Phase 1/2 arm.
 # Saves: launch script copy, env vars, vllm version, container ID, GPU state, time.
-# Output: docs/_internal/snapshots/<timestamp>_<arm_name>/
+# Output: sndr_private/snapshots/<timestamp>_<arm_name>/
 #
 # Usage:  bash scripts/launch/snapshot_pre_arm.sh <arm_name>
 # Example: bash scripts/launch/snapshot_pre_arm.sh phase1_arm_a_baseline_refresh
@@ -11,7 +11,7 @@ set -euo pipefail
 ARM_NAME="${1:-unnamed}"
 TS=$(date -u +%Y%m%dT%H%M%SZ)
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-OUT_DIR="${REPO_ROOT}/docs/_internal/snapshots/${TS}_${ARM_NAME}"
+OUT_DIR="${REPO_ROOT}/sndr_private/snapshots/${TS}_${ARM_NAME}"
 mkdir -p "${OUT_DIR}"
 
 echo "Snapshot dir: ${OUT_DIR}"

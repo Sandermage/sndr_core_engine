@@ -36,11 +36,25 @@ htmlcov/
 *.key
 *.pem
 
-# Internal-only docs (private to maintainer; do not push to public)
-docs/_internal/
+# ─────────────────────────────────────────────────────────────────────
+# `sndr_private/` — single consolidated private maintainer tree.
+#
+# Everything that should not ship publicly lives under this one root:
+#   sndr_private/planning/   — RU planning + audit + roadmap notes
+#                              (was docs/_internal/)
+#   sndr_private/internal/   — operator-specific compose + scripts
+#                              (was internal/)
+#   sndr_private/snapshots/  — pre-arm state captures
+#                              (was snapshots/)
+#   sndr_private/runs/       — bench / probe outputs
+#   sndr_private/pyproject-engine.toml  — commercial-tier wheel template
+#
+# Single rule → easier to review, no scattered _internal / _private /
+# private patterns across the tree.
+# ─────────────────────────────────────────────────────────────────────
+sndr_private/
 
-# Snapshots / backups
-snapshots/
+# Backup / temp files (still allowed anywhere)
 *.bak
 *.backup-*
 *.tmp
@@ -91,24 +105,14 @@ todos-log-*.md
 .README_*backup*.md
 .README_v*_backup*.md
 
-# ─── P1-9 (audit 2026-05-08): personal infra outside public surface ──
-# `internal/` is the parking lot for files that mirror operator-specific
-# deployment (compose with personal IPs/paths, profiling launch scripts
-# tied to specific NUMA topology, etc.). Public repo ships only generic
-# templates in `compose/` and `scripts/` — anything operator-specific
-# moves here.
-internal/
-
-# ─── P0-5 (audit 2026-05-08): protect commercial engine boundary ──────
-# vllm/sndr_engine/ is the COMMERCIAL package. Ignoring it locally
-# prevents accidental `git add .` from publishing private kernels +
-# patch wiring to the public Apache repo.
-#
-# For a real release: move sndr_engine to a SEPARATE private repo
-# entirely. This .gitignore rule is defense-in-depth, not the primary
-# boundary.
+# ─── Commercial engine package boundary (defense-in-depth) ───────────
+# `vllm/sndr_engine/` is the COMMERCIAL package namespace. It lives
+# inside the `vllm/` import path (cannot be moved into sndr_private/
+# without breaking Python imports), so it gets its own gitignore rule.
+# Primary boundary: a real release moves sndr_engine to a SEPARATE
+# private repo. This rule is the safety net against accidental
+# `git add .` on a development checkout.
 vllm/sndr_engine/
-pyproject-engine.toml
 
 # Audit / plan files at repo root (also catches sndr_*_audit_*.md)
 sndr_*_audit_*.md
@@ -121,10 +125,9 @@ sndr_repeat_*.md
 # Internal research artifacts (transient bench-time analysis)
 .research_marlin_moe_*.py
 
-# Etap 1.6/1.7 (audit 2026-05-12 dual-state cleanup):
-# Runtime bench artifacts — output of `tools/genesis_bench_suite.py`.
-# Содержат endpoint/model details, не должны жить в git tracking.
-# Для archive bench evidence используйте `docs/_internal/bench_results/`.
+# Runtime bench artefacts — output of `tools/genesis_bench_suite.py`.
+# Contain endpoint / model details; not for git tracking.
+# Archive bench evidence belongs under `sndr_private/planning/bench_results/`.
 benchmarks/runs/
 # macOS Finder metadata
 .DS_Store

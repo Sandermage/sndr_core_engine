@@ -79,7 +79,9 @@ class TestScanFile:
 class TestAllowlist:
     def test_internal_allowlisted(self):
         mod = _import()
-        assert mod._is_allowlisted(REPO_ROOT / "docs" / "_internal" / "x.md")
+        # sndr_private/ is the consolidated private maintainer tree
+        # (replaces the retired docs/_internal/ namespace, 2026-05-16).
+        assert mod._is_allowlisted(REPO_ROOT / "sndr_private" / "x.md")
 
     def test_archive_allowlisted(self):
         mod = _import()

@@ -42,13 +42,20 @@ def _git_tracked_files() -> list[str]:
 
 
 def check_evidence_ledger_present() -> list[str]:
-    """A-1: at least one evidence ledger MD must exist under docs/_internal/."""
-    matches = list((REPO_ROOT / "docs" / "_internal").glob(
-        "ROADMAP_EVIDENCE_LEDGER_*.md"
-    ))
-    if not matches:
-        return ["A-1: no ROADMAP_EVIDENCE_LEDGER_*.md found under docs/_internal/"]
-    return []
+    """A-1: at least one evidence ledger MD must exist under the
+    private maintainer tree (sndr_private/planning/, replacing the
+    retired docs/_internal/ namespace)."""
+    candidates = [
+        REPO_ROOT / "sndr_private" / "planning",
+        REPO_ROOT / "docs" / "_internal",  # legacy fallback
+    ]
+    for base in candidates:
+        if base.is_dir() and list(base.glob("ROADMAP_EVIDENCE_LEDGER_*.md")):
+            return []
+    return [
+        "A-1: no ROADMAP_EVIDENCE_LEDGER_*.md found under "
+        "sndr_private/planning/ (or legacy docs/_internal/)"
+    ]
 
 
 def check_patch_proof_layout() -> list[str]:

@@ -7,7 +7,7 @@ namespaces or stale CLI commands. Users following the doc would run
 commands that no longer exist and reach for files that no longer live
 in the named path.
 
-Forbidden tokens (allowlisted in `docs/_internal/` and `**/_archive/**`):
+Forbidden tokens (allowlisted in `sndr_private/` and `**/_archive/**`):
 
   • `vllm/_genesis` / `vllm._genesis`  — pre-v11 namespace
   • `vllm/sndr_core/wiring/`           — pre-v10 layout (renamed to integrations)
@@ -55,7 +55,7 @@ SEARCH_PATHS: tuple[str, ...] = (
 # Allowlist: paths where references are intentional (archive, internal
 # planning docs, migration notes that explain the retirement).
 ALLOWLIST_SUBSTRINGS: tuple[str, ...] = (
-    "docs/_internal/",
+    "sndr_private/",
     "/_archive/",
     "docs/archive/",
     # docs/upstream_refs/ holds frozen upstream vLLM source code that
@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("Fix options:")
     print("  - Update the doc to use the current command/path/namespace.")
-    print("  - Move the doc into docs/_internal/ or docs/archive/ if it's historical.")
+    print("  - Move the doc into sndr_private/ or docs/archive/ if it's historical.")
     print("  - Mark the section as 'ARCHIVED / not current' and request allowlist.")
     return 1
 
