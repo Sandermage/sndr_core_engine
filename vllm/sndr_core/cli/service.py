@@ -158,6 +158,101 @@ def _docker_cmd(*args, dry_run: bool) -> int:
     return r.returncode
 
 
+def _kubectl(*args, dry_run: bool, timeout: int = 30) -> int:
+    """Run `kubectl <args>` against the cluster the operator's kubeconfig
+    points at. Honours dry-run + missing-binary fallback identically to
+    the docker / systemctl helpers above."""
+    cmd = ["kubectl"] + list(args)
+    if dry_run:
+        _io.info(f"[dry-run] would: {' '.join(cmd)}")
+        return 0
+    if shutil.which("kubectl") is None:
+        _io.error(
+            "kubectl not on PATH — install kubectl OR run `sndr k8s render "
+            "<preset> | kubectl apply -f -` from a node that has it"
+        )
+        return 1
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if r.stdout:
+        print(r.stdout.rstrip())
+    if r.stderr:
+        print(r.stderr.rstrip())
+    return r.returncode
+
+
+def _k8s_object_name(cfg) -> str:
+    """Return the Deployment / Service name used by the k8s renderer.
+    Matches the kebab-case derivation in
+    `compat/model_config_cli.py::_render_kubernetes` so kubectl can
+    target the resources without re-parsing the manifest."""
+    if cfg.docker is not None and cfg.docker.container_name:
+        return cfg.docker.container_name.replace("_", "-").lower()
+    return f"sndr-{cfg.key}".replace("_", "-").lower()
+
+
+def _k8s_manifest_path(cfg) -> Path:
+    """Where the operator's previous `sndr service install` wrote the
+    rendered Kubernetes manifest for this preset. Install puts it next
+    to the docker_compose YAML so both backends share `~/.sndr/`."""
+    return Path.home() / ".sndr" / "k8s" / f"{cfg.key}.yaml"
+
+
+def _k8s_namespace(cfg) -> str:
+    """Namespace declared by the operator on the Y10 service block, or
+    the cluster default ('default'). Service objects don't carry the
+    namespace today, so we look at service.options for an override and
+    fall back to 'default'."""
+    options = getattr(cfg.service, "options", None) or {}
+    ns = options.get("namespace") if isinstance(options, dict) else None
+    return ns if isinstance(ns, str) and ns else "default"
+
+
+def _pct(*args, dry_run: bool, timeout: int = 30) -> int:
+    """Proxmox VE container CLI. `pct` is only available on PVE hosts;
+    the helper checks for it and emits a clean error otherwise."""
+    cmd = ["pct"] + list(args)
+    if dry_run:
+        _io.info(f"[dry-run] would: {' '.join(cmd)}")
+        return 0
+    if shutil.which("pct") is None:
+        _io.error(
+            "pct not on PATH — run `sndr service <cmd>` on the Proxmox VE "
+            "host where the LXC container lives"
+        )
+        return 1
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if r.stdout:
+        print(r.stdout.rstrip())
+    if r.stderr:
+        print(r.stderr.rstrip())
+    return r.returncode
+
+
+def _proxmox_ctid(cfg) -> str:
+    """Resolve the operator-overridable Proxmox CTID for this preset.
+
+    Looks in three places, first hit wins:
+      1. `proxmox.container_id_or_vmid` on the Y6 ProxmoxConfig block.
+      2. `service.options.ctid` on the Y10 ServiceConfig block.
+      3. SNDR_CTID env var (mirrors the lxc_proxmox renderer's default).
+
+    Falls back to "200" — the same default used by the lxc_proxmox
+    renderer when nothing else is specified."""
+    import os
+    proxmox = getattr(cfg, "proxmox", None)
+    if proxmox is not None:
+        ctid = getattr(proxmox, "container_id_or_vmid", None)
+        if ctid is not None:
+            return str(ctid)
+    options = getattr(cfg.service, "options", None) or {}
+    if isinstance(options, dict) and "ctid" in options:
+        return str(options["ctid"])
+    env_ctid = os.environ.get("SNDR_CTID")
+    if env_ctid:
+        return env_ctid
+    return "200"
+
+
 # ─── install
 
 def run_install(args: argparse.Namespace) -> int:
@@ -218,9 +313,51 @@ def run_install(args: argparse.Namespace) -> int:
         return 0
 
     if backend == "kubernetes":
-        _io.info(f"backend=kubernetes — use `sndr k8s render {cfg.key}` "
-                  f"(when implemented) to generate manifests.")
-        return 0
+        # Render the Deployment+Service+ConfigMap manifest and either
+        # apply it directly (operator passed --yes) or write it next to
+        # the compose / quadlet artefacts under ~/.sndr/k8s/.
+        from vllm.sndr_core.compat.model_config_cli import _render_kubernetes
+        manifest = _render_kubernetes(cfg)
+        target_dir = Path.home() / ".sndr" / "k8s"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_file = target_dir / f"{cfg.key}.yaml"
+        target_file.write_text(manifest)
+        _io.info(f"backend=kubernetes — wrote {target_file} "
+                 f"({len(manifest)} bytes)")
+        if not args.yes:
+            _io.info(f"  apply with: kubectl apply -f {target_file}")
+            _io.info(f"  or re-run:  sndr service install {cfg.key} --yes")
+            return 0
+        ns = _k8s_namespace(cfg)
+        return _kubectl(
+            "apply", "-n", ns, "-f", str(target_file), dry_run=False,
+        )
+
+    if backend == "proxmox":
+        # Render the runnable LXC deployment script and either execute it
+        # (operator passed --yes, we run it on the local PVE host) or
+        # leave it on disk for the operator to scp + execute on their PVE
+        # box. The renderer is idempotent so re-runs are safe.
+        from vllm.sndr_core.compat.model_config_cli import _render_lxc_proxmox
+        script_body = _render_lxc_proxmox(cfg)
+        target_dir = Path.home() / ".sndr" / "proxmox"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_file = target_dir / f"{cfg.key}.sh"
+        target_file.write_text(script_body)
+        target_file.chmod(0o755)
+        _io.info(f"backend=proxmox — wrote {target_file} "
+                 f"({len(script_body)} bytes)")
+        if not args.yes:
+            _io.info(f"  run with:  bash {target_file}")
+            _io.info(f"  remote:    scp {target_file} pve-host: && "
+                     f"ssh pve-host bash $(basename {target_file})")
+            return 0
+        if shutil.which("pct") is None:
+            _io.error("pct not on PATH — this host is not Proxmox VE. "
+                      "Copy the script to your PVE host and run it there.")
+            return 1
+        r = subprocess.run(["bash", str(target_file)], timeout=600)
+        return r.returncode
 
     if backend == "bare_metal":
         _io.info(f"backend=bare_metal — no service unit; just run "
@@ -259,6 +396,18 @@ def run_start(args: argparse.Namespace) -> int:
     if cfg.service.backend == "podman_quadlet":
         return _systemctl("start", f"sndr-{cfg.key}.service",
                            system=args.system, dry_run=dry_run)
+    if cfg.service.backend == "kubernetes":
+        # Scale the Deployment from 0 → 1 replica. The first install puts
+        # the manifest under ~/.sndr/k8s/; if the operator skipped install
+        # they get a clear error from kubectl rather than from us.
+        ns = _k8s_namespace(cfg)
+        name = _k8s_object_name(cfg)
+        return _kubectl(
+            "scale", "-n", ns, f"deployment/{name}", "--replicas=1",
+            dry_run=dry_run,
+        )
+    if cfg.service.backend == "proxmox":
+        return _pct("start", _proxmox_ctid(cfg), dry_run=dry_run)
     _io.info(f"backend={cfg.service.backend} — start not implemented; "
               f"run `sndr launch {cfg.key}` directly.")
     return 0
@@ -282,6 +431,16 @@ def run_stop(args: argparse.Namespace) -> int:
     if cfg.service.backend == "podman_quadlet":
         return _systemctl("stop", f"sndr-{cfg.key}.service",
                            system=args.system, dry_run=dry_run)
+    if cfg.service.backend == "kubernetes":
+        # Scale Deployment down to 0; pods terminate, manifest stays.
+        ns = _k8s_namespace(cfg)
+        name = _k8s_object_name(cfg)
+        return _kubectl(
+            "scale", "-n", ns, f"deployment/{name}", "--replicas=0",
+            dry_run=dry_run,
+        )
+    if cfg.service.backend == "proxmox":
+        return _pct("stop", _proxmox_ctid(cfg), dry_run=dry_run)
     _io.info(f"backend={cfg.service.backend} — stop not implemented")
     return 0
 
@@ -312,13 +471,19 @@ def run_status(args: argparse.Namespace) -> int:
         return _systemctl("status", f"sndr-{cfg.key}.service",
                            system=args.system, dry_run=False)
     if backend == "kubernetes":
-        _io.warn("backend=kubernetes — `sndr k8s render` is the supported "
-                 "path; service-level status not wired yet (preview).")
-        return 0
+        # Show Deployment summary (replicas, age, image) + the bound
+        # Service so the operator can see the cluster-side state in one
+        # call. `kubectl get` is read-only.
+        ns = _k8s_namespace(cfg)
+        name = _k8s_object_name(cfg)
+        return _kubectl(
+            "get", "-n", ns, f"deployment/{name}", f"service/{name}",
+            "-o", "wide", dry_run=False,
+        )
     if backend == "proxmox":
-        _io.warn("backend=proxmox — render via `sndr proxmox render <preset>`; "
-                 "service-level status not wired (preview).")
-        return 0
+        # pct status returns "status: running|stopped|...". Same one-shot
+        # contract the docker-compose branch above provides.
+        return _pct("status", _proxmox_ctid(cfg), dry_run=False)
     _io.info(f"backend={backend} — status not implemented")
     return 0
 
@@ -358,13 +523,29 @@ def run_logs(args: argparse.Namespace) -> int:
         r = subprocess.run(cmd, timeout=10)
         return r.returncode
     if backend == "kubernetes":
-        _io.warn("backend=kubernetes — use `kubectl logs` against the "
-                 "rendered Deployment for now (preview).")
-        return 0
+        # `kubectl logs deployment/<name>` picks the most-recent pod by
+        # default, which matches the operator's mental model when they
+        # ran `sndr service status` and saw a single replica.
+        ns = _k8s_namespace(cfg)
+        name = _k8s_object_name(cfg)
+        return _kubectl(
+            "logs", "-n", ns, f"deployment/{name}",
+            "--tail", str(args.lines), dry_run=False, timeout=60,
+        )
     if backend == "proxmox":
-        _io.warn("backend=proxmox — logs not wired at service layer; "
-                 "exec into the LXC/VM and inspect manually (preview).")
-        return 0
+        # The LXC renderer writes the inner launch.sh to /opt/sndr-venv/
+        # inside the CT; journalctl picks up any systemd-wrapped variant.
+        # We try journalctl first (operator-friendly default) and fall
+        # back to a foreground `pct exec` log dump when systemd has no
+        # service unit registered.
+        ctid = _proxmox_ctid(cfg)
+        # Prefer journalctl inside the CT (one round-trip to PVE host).
+        return _pct(
+            "exec", ctid, "--", "bash", "-lc",
+            f"journalctl --no-pager -n {args.lines} -u 'vllm*' 2>/dev/null "
+            "|| journalctl --no-pager -n " + str(args.lines),
+            dry_run=False, timeout=30,
+        )
     _io.info(f"backend={backend} — logs not implemented")
     return 0
 
@@ -384,6 +565,70 @@ def run_uninstall(args: argparse.Namespace) -> int:
         if unit_path.exists():
             unit_path.unlink()
             _io.success(f"removed unit: {unit_path}")
+        return rc
+    if cfg.service.backend == "docker_compose":
+        # Compose `down --volumes` removes containers + named volumes but
+        # leaves the manifest on disk. Drop the rendered YAML too so the
+        # operator can re-install from scratch.
+        compose_file = _compose_file_path(cfg)
+        rc = 0
+        if compose_file.is_file():
+            rc = _docker_cmd("compose", "-f", str(compose_file), "down",
+                             "--volumes", dry_run=dry_run)
+            if not dry_run and rc == 0:
+                compose_file.unlink()
+                _io.success(f"removed compose manifest: {compose_file}")
+        return rc
+    if cfg.service.backend == "podman_quadlet":
+        # Quadlet units live under ~/.config/containers/systemd/ — disable
+        # them and remove the file. `daemon-reload` is the operator's
+        # responsibility (we don't run systemctl when --yes is absent).
+        if dry_run:
+            _io.info(f"[dry-run] would: systemctl disable sndr-{cfg.key}.service "
+                     "+ remove quadlet file under ~/.config/containers/systemd/")
+            return 0
+        rc = _systemctl("disable", f"sndr-{cfg.key}.service",
+                         system=args.system, dry_run=False)
+        quadlet_path = (
+            Path.home() / ".config" / "containers" / "systemd"
+            / f"sndr-{cfg.key}.container"
+        )
+        if quadlet_path.exists():
+            quadlet_path.unlink()
+            _io.success(f"removed quadlet: {quadlet_path}")
+        return rc
+    if cfg.service.backend == "kubernetes":
+        # Delete the Deployment + Service via `kubectl delete -f` to make
+        # the operation match the install-time apply contract exactly.
+        manifest = _k8s_manifest_path(cfg)
+        if not manifest.is_file():
+            _io.warn(f"no manifest at {manifest} — nothing to delete")
+            return 0
+        ns = _k8s_namespace(cfg)
+        rc = _kubectl(
+            "delete", "-n", ns, "-f", str(manifest),
+            "--ignore-not-found=true", dry_run=dry_run,
+        )
+        if not dry_run and rc == 0:
+            manifest.unlink()
+            _io.success(f"removed manifest: {manifest}")
+        return rc
+    if cfg.service.backend == "proxmox":
+        # `pct destroy` is destructive (drops the rootfs); we always
+        # stop first, then destroy. Skip when --yes is absent so dry-run
+        # cannot accidentally wipe a live container.
+        ctid = _proxmox_ctid(cfg)
+        if dry_run:
+            _io.info(f"[dry-run] would: pct stop {ctid} && pct destroy {ctid}")
+            return 0
+        # Best-effort stop (ignore failure when already stopped).
+        _pct("stop", ctid, dry_run=False)
+        rc = _pct("destroy", ctid, "--purge", dry_run=False)
+        # Drop the rendered launch script too so re-install starts clean.
+        script = Path.home() / ".sndr" / "proxmox" / f"{cfg.key}.sh"
+        if script.exists():
+            script.unlink()
+            _io.success(f"removed launch script: {script}")
         return rc
     _io.info(f"backend={cfg.service.backend} — uninstall noop")
     return 0
