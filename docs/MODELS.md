@@ -110,8 +110,7 @@ on 2× A5000).
 
 **Compose template:** `compose/docker-compose.gemma4-26b-moe.yml`
 (experimental). Needs new patches for Gemma 4-specific MoE layout —
-most Genesis patches skip via dispatcher. Tracking notes in
-[`upstream_refs/gemma4_tracking_2026-05-14.md`](upstream_refs/gemma4_tracking_2026-05-14.md).
+most Genesis patches skip via dispatcher.
 
 ## Models evaluated but NOT adopted
 

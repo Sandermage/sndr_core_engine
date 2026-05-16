@@ -80,6 +80,17 @@ sndr_private/
 !evidence/.gitkeep
 !benchmarks/cross_rig_reports/**/*.json
 
+# ─────────────────────────────────────────────────────────────────────
+# `evidence/patch_proof/` — static-proof JSONs are operator-generated
+# per host (carry host name + measured_at timestamp + commit SHA at
+# generation time). Operators run `sndr patches prove --all` after
+# clone — see `docs/INSTALL.md` and CI workflow. The directory itself
+# stays tracked via the `evidence/.gitkeep` exemption above.
+# ─────────────────────────────────────────────────────────────────────
+evidence/patch_proof/*.json
+!evidence/patch_proof/_waivers/
+!evidence/patch_proof/_waivers/*.yaml
+
 # vLLM compiled artifacts
 *.so
 .cache/

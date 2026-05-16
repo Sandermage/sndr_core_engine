@@ -15,9 +15,9 @@ def test_trust_anchor_is_not_placeholder():
 
     assert not _is_placeholder_anchor(), (
         "Trust anchor placeholder detected. Run "
-        "`scripts/generate_trust_anchor.py` offline, then update "
-        "`_TRUST_ANCHOR_PUBKEY_B64URL` in `vllm/sndr_core/license.py`. "
-        "See docs/security/TRUST_ANCHOR_CEREMONY.md."
+        "`sndr_private/scripts/generate_trust_anchor.py` offline "
+        "(private maintainer tree), then update "
+        "`_TRUST_ANCHOR_PUBKEY_B64URL` in `vllm/sndr_core/license.py`."
     )
 
 

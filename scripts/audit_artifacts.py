@@ -59,7 +59,10 @@ def check_evidence_ledger_present() -> list[str]:
 
 
 def check_patch_proof_layout() -> list[str]:
-    """A-2: if evidence/patch_proof/ exists, it contains *.json + _waivers/ only."""
+    """A-2: if evidence/patch_proof/ exists, it contains *.json + _waivers/
+    only. `.gitkeep` is exempt — it preserves the otherwise-gitignored
+    directory in a fresh clone so operators can run `sndr patches prove
+    --all` into it without first having to `mkdir -p`."""
     issues = []
     pp = REPO_ROOT / "evidence" / "patch_proof"
     if not pp.is_dir():
@@ -71,6 +74,8 @@ def check_patch_proof_layout() -> list[str]:
                     f"A-2: unexpected directory in evidence/patch_proof/: {child.name}"
                 )
         elif child.is_file():
+            if child.name == ".gitkeep":
+                continue
             if child.suffix != ".json":
                 issues.append(
                     f"A-2: non-JSON file in evidence/patch_proof/: {child.name}"

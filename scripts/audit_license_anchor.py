@@ -7,11 +7,11 @@ match any of the development-only fingerprints listed in
 The development anchor that ships in the public repo has its private
 key on the homelab; signing with it does not establish customer-tier
 trust. Before flipping a build to public release the operator MUST
-run the offline ceremony (`scripts/generate_trust_anchor.py
---update-license`) which rotates the constant in
-`vllm/sndr_core/license.py` to a production anchor. This audit fails
-the build until that rotation happens, so a stray release does not
-ship a dev key.
+run the offline ceremony (`sndr_private/scripts/generate_trust_anchor.py
+--update-license`, lives in the private maintainer tree) which rotates
+the constant in `vllm/sndr_core/license.py` to a production anchor.
+This audit fails the build until that rotation happens, so a stray
+release does not ship a dev key.
 
 Modes:
   python3 scripts/audit_license_anchor.py            # dev-tier (warn-only)
@@ -59,7 +59,8 @@ def main(argv: list[str] | None = None) -> int:
     if anchor in forbidden:
         msg = (
             f"audit-license-anchor: development-only trust anchor in use "
-            f"({anchor!r}). Rotate via `scripts/generate_trust_anchor.py "
+            f"({anchor!r}). Rotate via "
+            f"`sndr_private/scripts/generate_trust_anchor.py "
             f"--update-license` before public release."
         )
         if args.release:

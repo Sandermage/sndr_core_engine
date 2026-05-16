@@ -84,11 +84,11 @@ never ship publicly.
 
 | Folder | What's inside |
 | --- | --- |
-| [`upstream_refs/`](upstream_refs/) | Frozen upstream vLLM source snapshots that text-patch authors copy from when authoring or refreshing anchors. Reference material, not narrative docs — see the folder's own README for the refresh policy. |
 | [`img/`](img/) | Diagrams referenced from the narrative docs (DFlash vs MTP, patch impact, per-config perf). |
 
-The previous `reference/`, `security/`, and `upstream/`
-subdirectories were retired in the 2026-05-16 consolidation pass:
+The previous `reference/`, `security/`, `upstream/`, and
+`upstream_refs/` subdirectories were retired in the 2026-05-16
+consolidation pass:
 
 - Historical experiment / deferred-work logs from 2026-04-27
   (`reference/`) were preserved in git history and removed from
@@ -104,6 +104,13 @@ subdirectories were retired in the 2026-05-16 consolidation pass:
   because it is a data file, not narrative documentation.
 - `upstream/VLLM_PR_DECISION.md` was a historical 2026-04-26
   decision document preserved in git history.
+- `upstream_refs/` (frozen vLLM source snapshots used as
+  text-patch anchor references) was maintainer-side reference
+  material with no operator-facing value; moved off the public
+  tree entirely. Contributors authoring a new text-patch should
+  pull upstream code directly via
+  `git show vllm-project/vllm:<path>@<sha>` instead of reading
+  pre-saved snapshots.
 
 ## Top-level repo docs (one folder up)
 

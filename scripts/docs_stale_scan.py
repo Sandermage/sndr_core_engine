@@ -55,21 +55,15 @@ SEARCH_PATHS: tuple[str, ...] = (
 # Allowlist: paths where references are intentional (archive, internal
 # planning docs, migration notes that explain the retirement).
 ALLOWLIST_SUBSTRINGS: tuple[str, ...] = (
-    "sndr_private/",
+    "sndr_private/",  # entire private maintainer tree (incl. moved upstream_refs/)
     "/_archive/",
     "docs/archive/",
-    # docs/upstream_refs/ holds frozen upstream vLLM source code that
-    # operators copy from when authoring text-patch anchors. The
-    # snapshots are reference-only artefacts, not narrative docs —
-    # they intentionally carry whatever symbols upstream had at the
-    # snapshot SHA.
-    "docs/upstream_refs/",
     # Migration / design appendices that explicitly document the
     # retirement of the v10 `_genesis` namespace.
-    "docs/INSTALL.md",   # migration appendix referencing _genesis alias
+    "docs/INSTALL.md",       # migration appendix referencing _genesis alias
     "docs/CONTRIBUTING.md",  # logger back-compat note
-    "docs/BENCHMARKS.md",  # symlink back-compat note (post-2026-05-16 merge)
-    "docs/PATCH_DESIGNS.md",  # v10→v11 rename appendix lives here now
+    "docs/BENCHMARKS.md",    # symlink back-compat note (post-2026-05-16 merge)
+    "docs/PATCH_DESIGNS.md", # v10→v11 rename appendix lives here now
     # The scanner itself.
     "scripts/docs_stale_scan.py",
 )

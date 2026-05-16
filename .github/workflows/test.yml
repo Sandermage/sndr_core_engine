@@ -89,9 +89,19 @@ jobs:
         run: |
           python3 -m vllm.sndr_core.compat.cli self-test --quiet
 
-      - name: make evidence (41/41 audit gates)
-        # The release-gate aggregator. Runs all 41 gating audits including
-        # schema sync, methodology sync, no-stub scan, public-paths,
-        # cross-reference, etc. Must stay 41/41 green.
+      - name: Regenerate patch-proof artefacts
+        # `evidence/patch_proof/<id>__*.json` is operator-generated
+        # per host (carries hostname + measured_at + commit SHA). The
+        # files are gitignored — CI regenerates them once per build so
+        # the downstream `require-static` release gate has something to
+        # validate against. Takes <2 s for all 169 patches.
+        run: |
+          python3 -m vllm.sndr_core.cli patches prove --all
+
+      - name: make evidence (release-gate aggregator)
+        # Runs every gating audit (schema sync, methodology sync,
+        # no-stub scan, public-paths, cross-reference, …) plus the
+        # static-proof release check that consumes the artefacts
+        # regenerated in the previous step. Must stay all-green.
         run: |
           make evidence
