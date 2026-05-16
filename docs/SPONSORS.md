@@ -62,6 +62,25 @@ ratchet that tracks this expansion.
 | BTC | `bc1q9tau6xqgrv5jjgst63yjux550gslq6nm7y7q9f` |
 | PayPal | `sander.odessa@gmail.com` |
 
+These channels are personal and suit individual contributions.
+
+### Business sponsorship and invoicing
+
+Sponsors whose accounting or compliance workflows require a formal
+counterparty — invoices, a registered recipient, structured KYC —
+can write to `sander.odessa@gmail.com` to discuss options:
+
+- Routing through a Ukrainian sole-proprietor (ФОП) account is
+  available on request.
+- For larger engagements where the sponsor's requirements call for
+  it, registering an LLC in a jurisdiction agreeable to both sides
+  can be arranged.
+
+Exact terms (entity, jurisdiction, invoicing format, KYC documents)
+are agreed case by case via email. The maintainer is not a tax or
+legal advisor — each side is responsible for its own compliance
+and reporting obligations under its local law.
+
 ### Hardware loan or donation
 
 If you have a Hopper / Blackwell / RTX PRO 6000 / H100 / Intel XPU /
