@@ -305,10 +305,20 @@ class Flags:
     SNDR_WORKSPACE_001 = "SNDR_WORKSPACE_001"
 
     # ── Gemma 4 family (G4_NN — 2026-05-17) ────────────────────────────
-    # 13 patches covering: refusal guards, vendor backports, perf kernels,
-    # vision-tower management, and dual-RoPE diagnostics. Family lives at
+    # 21 patches covering: refusal guards (G4_01/02/03/12/13), vendor
+    # backports (G4_04/05/06/18), deep fixes (G4_07/08/09/10), perf kernels
+    # (G4_15/16/24), compatibility (G4_11/14), vision-tower management
+    # (G4_17/23), and diagnostic (G4_25). Family lives at
     # vllm/sndr_core/integrations/gemma4/. See FAMILY_README for the
     # operator-facing rollout matrix.
+    #
+    # Implementation status snapshot per audit GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU:
+    #   stable / full         : G4_01..G4_05, G4_07, G4_09, G4_11..G4_14, G4_16, G4_17, G4_23, G4_25
+    #   partial / experimental: G4_06 (k_eq_v half), G4_08 (AWQ MoE stub),
+    #                           G4_10 (DFlash backend brittle, class typo),
+    #                           G4_15 (no-op hot path, needs G4_15b deep anchor patch),
+    #                           G4_18 (only get_num_kv_heads, not KV spec build),
+    #                           G4_24 (only final logits softcap, not attention softcap)
     G4_01_GEMMA4_FP8_BLOCK_GUARD = "G4_01_GEMMA4_FP8_BLOCK_GUARD"
     G4_02_GEMMA4_MARLIN_KDIM_GUARD = "G4_02_GEMMA4_MARLIN_KDIM_GUARD"
     G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD = "G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD"

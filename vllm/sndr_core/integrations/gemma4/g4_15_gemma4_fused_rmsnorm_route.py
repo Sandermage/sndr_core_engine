@@ -1,8 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
-"""G4_15 — route Gemma 4 RMSNorm calls through fused Triton kernels.
+"""G4_15 — fused RMSNorm Triton kernels (PARTIAL — no-op wrapper in hot path).
+
+STATUS (audit 2026-05-17): implementation_status=partial.
+The Triton kernels in ``kernels/g4_fused_rmsnorm_triton.py`` are correct
+and reviewed against SGLang reference. The integration wrapper in this
+file, however, **falls through to the original Gemma4Attention.forward**
+because we cannot generic-monkey-patch the QKV-split + per-head norm
+sequence reliably across vLLM pins. The wrapper exists to make the
+kernel available to operator code that calls it directly.
+
+**Deep integration is deferred to G4_15b** — an anchor-precise text
+patch into ``vllm.model_executor.models.gemma4.Gemma4Attention.forward``
+pinned to a specific vLLM SHA (currently dev371+bf610c2f5). Until that
+patch lands, this file does NOT deliver the +5-10% TPS gain promised
+by the kernel docstrings.
 
 ================================================================
-PURPOSE
+PURPOSE (target end-state — G4_15b)
 ================================================================
 
 Gemma 4's per-layer forward has at minimum **6** RMSNorm-flavor calls
@@ -11,8 +25,8 @@ plus the optional v_norm and the MoE expert-output dual-norm. On a 60-layer
 model that's **360+ kernel launches per token**, each one is small and
 launch-overhead-bound.
 
-We replace the three highest-frequency RMSNorm flavors with our fused
-Triton kernels:
+Three highest-frequency RMSNorm flavors that G4_15b will fuse via
+``kernels/g4_fused_rmsnorm_triton.py``:
 
   1. **post-attention residual join** — was 3 kernels (rmsnorm + add +
      [optional Gemma-scalar mul]), now 1
@@ -21,11 +35,11 @@ Triton kernels:
   3. **MoE dual-norm reduction** (26B-A4B only) — was 5 kernels
      (3 rmsnorm + 2 add + mul), now 1
 
-Expected gain: **5-10% TPS** on Gemma 4 31B decode at low concurrency
-(launch-bound regime); diminishing on prefill/large batch.
+Expected gain AFTER G4_15b lands: **5-10% TPS** on Gemma 4 31B decode at
+low concurrency (launch-bound regime); diminishing on prefill/large batch.
 
-Validated in SGLang's reference at ``gemma4_fused_ops.py`` — we port
-the kernels (G4_FUSED_RMSNORM_KERNEL marker) and add SM 8.6 shared-mem
+Validated in SGLang's reference at ``gemma4_fused_ops.py`` — we ported
+the kernels (G4_FUSED_RMSNORM_KERNEL marker) and added SM 8.6 shared-mem
 guard.
 
 ================================================================

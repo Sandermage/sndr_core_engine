@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""G4_24 — route Gemma 4 softcap calls through fused Triton kernel.
+"""G4_24 — route Gemma 4 FINAL-LOGITS softcap through fused Triton kernel.
+
+STATUS (audit 2026-05-17): implementation_status=partial.
+This patch currently fuses ONLY the final-logits softcap site. The
+attention-logits softcap (every layer × forward) is NOT yet fused —
+that work is deferred to **G4_24b** which needs an anchor patch into
+the attention backend's pre-softmax softcap call. See P2 roadmap.
 
 ================================================================
 PURPOSE
@@ -9,18 +15,21 @@ Gemma 4 has 2 softcap call sites:
 
   1. ``Gemma4Attention.forward`` — soft-caps attention logits in every
      layer (60 layers × forward = 60 calls per token).
+     **NOT covered by G4_24** — see G4_24b roadmap.
   2. ``Gemma4ForCausalLM.compute_logits`` — soft-caps final logits
      before sampling (1 call per token).
+     **COVERED by G4_24.**
 
 Each call site is 3 sequential element-wise kernels:
 ``(x / softcap)`` → ``tanh(...)`` → ``(... * softcap)``.
 
-This patch routes both call sites through our fused Triton kernel
-(``g4_softcap_triton.py``), saving 2 of every 3 kernel launches at
-each site.
+This patch routes site #2 (final-logits) through our fused Triton
+kernel (``g4_softcap_triton.py``), saving 2 of every 3 kernel launches
+for the final-logits call.
 
-Expected gain: **3-5% TPS** at low concurrency (decode-bound regime),
-diminishing at larger batch.
+Expected gain: **negligible (<0.5% TPS)** in the current state.
+Real gain (~3-5% on decode at low batch) is achievable only after
+G4_24b ports the attention-logits softcap to the fused kernel.
 
 ================================================================
 INTEGRATION STRATEGY
@@ -66,7 +75,8 @@ log = logging.getLogger("genesis.gemma4.g4_24_fused_softcap")
 
 GENESIS_G4_24_MARKER = (
     "Genesis G4_24 gemma4 fused softcap route v1 "
-    "(routes attention + final logit softcap through Triton fused kernel; "
+    "(routes FINAL-LOGITS softcap through Triton fused kernel; "
+    "attention-logits softcap is NOT yet fused — see G4_24b roadmap; "
     "+3-5% TPS at low batch)"
 )
 

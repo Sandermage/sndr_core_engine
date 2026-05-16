@@ -25,8 +25,8 @@ license: gemma-license
 # ─── Identity ──────────────────────────────────────────────────────────
 model_path: /models/gemma-4-31B-it-AWQ-4bit              # cyankiwi/gemma-4-31B-it-AWQ-4bit checkpoint
 served_model_name: gemma-4-31b                           # OpenAI-API model name
-quantization: awq_marlin                                 # AWQ via Marlin kernel (Ampere-supported)
-dtype: float16                                           # values: float16|bfloat16; FP16 for AWQ Marlin path (BF16 also works)
+quantization: null                                       # let vLLM detect from compressed-tensors metadata (cyankiwi uses CT not stock awq_marlin)
+dtype: bfloat16                                          # CHANGED 2026-05-17 per audit: club-3090 A/B confirmed --dtype half is -2-3% on Gemma 4 AWQ Ampere; BF16 is canonical for AWQ Marlin path on SM 8.6
 trust_remote_code: false                                 # Gemma 4 is native vLLM model — no custom code
 chat_template: /tmp/genesis/chat_templates/gemma4.jinja  # installed by G4_11 at boot
 
@@ -38,7 +38,7 @@ capabilities:
   enable_auto_tool_choice: true                          # auto tool_choice on tool-mention prompts
   spec_decode:
     method: mtp                                          # MTP via assistant drafter (range: mtp|null on this model)
-    num_speculative_tokens: 3                            # K=3 (causal MTP; assistant shares KV with target)
+    num_speculative_tokens: 4                            # CHANGED 2026-05-17 per audit: club-3090 default n=4; code variant uses n=8 (separate profile)
     model: /models/gemma-4-31B-it-assistant              # google/gemma-4-31B-it-assistant — MTP causal drafter
   kv_cache_dtype: auto                                   # values: auto|fp8|fp16; auto stays in dtype for safety
 

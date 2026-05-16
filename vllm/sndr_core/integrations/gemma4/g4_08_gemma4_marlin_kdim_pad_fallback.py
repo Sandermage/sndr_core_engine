@@ -40,8 +40,11 @@ SAFETY MODEL
     - architecture: gemma4 (or any MoE arch with K%64≠0)
     - hardware: Ampere SM 8.6 (Hopper has its own faster Cutlass path)
 * depends_on: triton ≥ 2.3
-* conflicts_with: G4_02 guard catches before this can fire — must
-  enable both ``G4_02`` AND ``G4_08`` env flags together
+* conflicts_with: G4_02. The two are mutually exclusive — G4_02 refuses
+  to boot on K%64≠0, while G4_08 unblocks the same case by routing
+  through our Triton K-pad kernel. Enable G4_08 ONLY by setting
+  ``GENESIS_DISABLE_G4_02_GUARD=1`` so G4_02 stands down. G4_08
+  effectively *supersedes* G4_02 for the same shape failure.
 
 ================================================================
 PERFORMANCE EXPECTATIONS (PROJECTED)

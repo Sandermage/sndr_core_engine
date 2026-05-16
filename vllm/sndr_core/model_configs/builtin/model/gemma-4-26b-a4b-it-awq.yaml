@@ -20,8 +20,8 @@ license: gemma-license
 # ─── Identity ──────────────────────────────────────────────────────────
 model_path: /models/gemma-4-26B-A4B-it-AWQ-4bit          # cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit checkpoint
 served_model_name: gemma-4-26b-a4b                       # OpenAI-API model name
-quantization: awq_marlin                                 # AWQ via Marlin kernel; G4_02 protects against K%64≠0 by default
-dtype: float16
+quantization: null                                       # let vLLM detect from compressed-tensors metadata
+dtype: bfloat16                                          # CHANGED 2026-05-17 per audit: BF16 canonical for AWQ on SM 8.6 Ampere
 trust_remote_code: false
 chat_template: /tmp/genesis/chat_templates/gemma4.jinja  # installed by G4_11 at boot
 
@@ -33,7 +33,7 @@ capabilities:
   enable_auto_tool_choice: true
   spec_decode:
     method: mtp                                          # MTP via assistant drafter
-    num_speculative_tokens: 3
+    num_speculative_tokens: 4                            # CHANGED 2026-05-17 per audit: club-3090 26B-A4B default n=4 → 155 narr / 207 code tok/s
     model: /models/gemma-4-26B-A4B-it-assistant          # google/gemma-4-26B-A4B-it-assistant
   kv_cache_dtype: auto                                   # G4_18 makes this per-layer-type when enabled
 
