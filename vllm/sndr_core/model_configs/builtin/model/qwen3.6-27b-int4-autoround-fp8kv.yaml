@@ -124,11 +124,51 @@ notes:
   - "Lorbus INT4 routes through AllSparkLinearKernel (not Marlin) for the dense
     path — P87/P91 still help for the moe-marlin path on 27B."
 
-# ── patches_attribution (Phase D backfill, 2026-05-16) ─────────────────
-# 27B INT4 AutoRound with fp8 KV (the QA-tested variant). No TQ k8v4,
-# straight MTP K=3 path. Load-bearing entries focus on 27B
-# hybrid_gdn_moe stability + long-ctx OOM hedges.
+# ── patches_attribution (Phase D full backfill, 2026-05-16) ────────────
+# 27B INT4 AutoRound with fp8 KV (QA-tested variant). No TQ k8v4,
+# straight MTP K=3 + hybrid_gdn_moe path. Full taxonomy across the 36
+# truthy toggles — load_bearing/defensive/optional_perf chosen from
+# bench evidence + the inline comments next to each env flag.
 patches_attribution:
+  # ── Load-bearing — measurable regression / boot break on removal ──
+  P67:
+    role: load_bearing
+    note: |
+      TurboQuant multi-query kernel for spec-decode K+1. Hot path
+      for MTP K=3 decode on 27B INT4 + fp8 KV — same ~30% TPS drop
+      on removal as on the TQ k8v4 sibling.
+  P87:
+    role: load_bearing
+    note: |
+      Marlin W4A16/W8A16 sub-tile output dim pad-on-load. 27B
+      Lorbus INT4 MoE path routes through Marlin (per inline note
+      at the bottom of the patches block); removal causes pad
+      mismatch crashes at boot on certain MoE expert shapes.
+  P91:
+    role: load_bearing
+    note: |
+      AutoRound row-parallel group cdiv + start-idx fix. Specific
+      to this INT4 AutoRound quant — removal produces wrong-shape
+      group_size projections on dense path init.
+  P95:
+    role: load_bearing
+    note: |
+      Marlin TP cudagraph cap on Ampere (vllm#40385 backport).
+      Required on SM 8.6 (our 27B PROD rig) — without it cudagraph
+      capture trips on Marlin expert kernels at multi-conc.
+  P101:
+    role: load_bearing
+    note: |
+      TQ continuation 64-token slicing (vllm#41123 selective). Even
+      on no-TQ-k8v4 path the continuation slicing math is engaged
+      via the multi-query kernel — removal causes incorrect token
+      boundaries at decode step transitions.
+  P103:
+    role: load_bearing
+    note: |
+      FLA Cliff 2 chunked fwd_h + fwd_o orchestrator. Critical for
+      27B hybrid_gdn_moe long-context decode — without it the
+      chunked forward pass races on shared scratch buffers under TP=2.
   PN8:
     role: load_bearing
     note: |
@@ -139,6 +179,12 @@ patches_attribution:
     note: |
       GDN A/B contiguity guard. hybrid_gdn_moe can produce non-
       contiguous AB tensors that crash the Mamba mixer.
+  PN17:
+    role: load_bearing
+    note: "Long-ctx FA2 safety margin (same justification as TQ variant)."
+  PN22:
+    role: load_bearing
+    note: "DFlash local argmax + TP support; required for MTP K=3 + TP=2 path."
   PN59:
     role: load_bearing
     note: |
@@ -150,12 +196,153 @@ patches_attribution:
       GroupAB zero-alloc spec-decode prepare. MTP K=3 path needs
       this to avoid per-step alloc churn that crashes the worker
       after ~10 min of decode.
-  PN17:
+  P107:
     role: load_bearing
-    note: "Long-ctx FA2 safety margin (same justification as TQ variant)."
-  PN22:
+    note: |
+      MTP truncation detector at reasoning→tool_call boundary.
+      Tool-call-correctness anchor for the MTP K=3 path —
+      operator-visible tool_call accuracy drops on removal.
+  PN14:
     role: load_bearing
-    note: "DFlash local argmax + TP support; required for MTP K=3 + TP=2 path."
+    note: |
+      TQ decode IOOB safe_page_idx clamp (vllm#40074). Race-condition
+      hedge against out-of-bounds page indices during multi-conc
+      decode. Removal manifests as rare CUDA invalid-argument
+      crashes on the spec-decode path.
+  # ── Defensive — cheap safety guards, no measured regression ───────
+  P58:
+    role: defensive
+    note: |
+      Async-scheduler -1 placeholder fix (vllm#40768 backport).
+      Defensive guard against an upstream race that produces
+      -1 sentinel tokens in rare scheduler races.
+  P61b:
+    role: defensive
+    note: |
+      Qwen3 streaming partial-tag overlap guard. Defensive for
+      qwen3_coder streaming path; prevents partial <tool_call>
+      fragments leaking as raw content under speculative decoding.
+  P61c:
+    role: defensive
+    note: |
+      Qwen3Coder deferred-commit until <function= header. Streaming
+      tool-call accuracy hedge for the qwen3_coder parser.
+  P62:
+    role: defensive
+    note: |
+      Structured-output spec-decode reasoning-end timing fix.
+      Defensive against premature reasoning-end emission under
+      MTP K=3.
+  P64:
+    role: defensive
+    note: |
+      qwen3coder MTP streaming early-return fix. Specific defensive
+      patch for MTP + qwen3_coder parser interaction.
+  PN52:
+    role: defensive
+    note: |
+      prompt_logprobs eviction fix during chunked prefill
+      (vllm backport). Defensive against prompt_logprobs path
+      eviction races.
+  PN66:
+    role: defensive
+    note: |
+      Multiturn </think> leak fix in DelegatingParser
+      (vllm backport). Defensive against historical reasoning
+      leaking into the user-visible response on long multi-turn.
+  PN67:
+    role: defensive
+    note: |
+      thinking_token_budget inverted-bool fix (vllm#41674 backport).
+      Defensive correctness backport.
+  PN82:
+    role: defensive
+    note: |
+      Mamba CUDA-graph stale is_prefilling on padded rows
+      (vllm backport). Defensive — prevents stale prefilling
+      flag from leaking across batch boundaries.
+  PN56:
+    role: defensive
+    note: "Qwen3Coder XML parse fallback (vllm#41466 backport)."
+  PN19:
+    role: defensive
+    note: |
+      Scoped max_split_size_mb during model load (vllm#41268).
+      Defensive — keeps PyTorch's malloc split honoring our scoping
+      during load, releases after.
+  # ── Optional perf — bench-evidence-backed conditional wins ────────
+  P60:
+    role: optional_perf
+    bench_evidence: "GDN+ngram state recovery Phase 1 — only fires when ngram drafter is active"
+    note: "Conditional on ngram drafter being active in spec_decode_config."
+  P60b:
+    role: optional_perf
+    bench_evidence: "GDN+ngram Phase 2 Triton kernel offset — pairs with P60"
+    note: "Phase 2 of P60; same conditional."
+  P66:
+    role: optional_perf
+    bench_evidence: "cudagraph_capture_sizes spec-decode divisibility filter"
+    note: |
+      Filters cudagraph capture sizes to divisibility-compatible
+      values for spec-decode. Effect on capture time, not steady-
+      state TPS.
+  P68:
+    role: optional_perf
+    bench_evidence: "Auto force tool_choice=required for long-context tool calls"
+    note: "UX-leaning auto-config; benefit conditional on agentic workload."
+  P69:
+    role: optional_perf
+    bench_evidence: "Long-context tool-format reminder injection"
+    note: "UX-leaning; benefits tool-call accuracy on long-ctx workloads."
+  P70:
+    role: optional_perf
+    bench_evidence: "Auto-strict-ngram (force prompt_lookup_min>=8)"
+    note: "Tunes ngram drafter min for hit-rate; conditional on ngram method."
+  P72:
+    role: optional_perf
+    bench_evidence: "profile_run M cap — unblocks --max-num-batched-tokens > 4096"
+    note: "Boot-time tuning; effect is on profile sizing, not decode TPS."
+  P74:
+    role: optional_perf
+    bench_evidence: "Auto chunk-clamp via long_prefill_token_threshold (P72 sibling)"
+    note: "Tunes chunked-prefill threshold based on profile_run output."
+  P99:
+    role: optional_perf
+    bench_evidence: "WorkspaceManager.get_simultaneous memoization (perf hotpath)"
+    note: "Caches workspace-size resolution; avoids repeated dict lookups."
+  PN12:
+    role: optional_perf
+    bench_evidence: "FFN intermediate scratch pool — Cliff 1 fix on TQ3 path"
+    note: |
+      Pools intermediate scratch across decode iterations. Effect
+      compounds with multi-conc; on this single-conc preset modest.
+  PN16:
+    role: optional_perf
+    bench_evidence: "Lazy-reasoner request hook v2 (cache-safe; max_tokens cap)"
+    note: |
+      Tunes lazy-reasoner gating per request. Effect on agentic
+      workload latency; not steady-state TPS.
+  PN25:
+    role: optional_perf
+    bench_evidence: "SiluAndMul.forward_native opaque-op pool (Cliff 1 mech B)"
+    note: "Pools opaque-op buffers for SiluAndMul; pairs with PN12."
+  PN30:
+    role: optional_perf
+    bench_evidence: "DS conv state layout + spec-decode AL>1 fix (club-3090 issue #17)"
+    note: |
+      club-3090 reported +6% TPS on Qwen 27B INT4 + TQ3 + MTP K=3.
+      Our rig: bench reproduces on this exact preset.
+  PN77:
+    role: optional_perf
+    bench_evidence: "FP8 lm_head compression (BF16 → FP8 e4m3 + per-channel scale)"
+    note: |
+      Saves ~1.2 GiB on lm_head weight. Conditional on FP8 KV
+      path (this YAML's name implies it but path may vary).
+  PN90:
+    role: optional_perf
+    bench_evidence: "Probabilistic draft rejection (vllm#40269 backport)"
+    note: "Refines MTP accept-rate via probabilistic rejection."
+  # ── Known regressor — documented out ──────────────────────────────
   PN134:
     role: suspected_regression
     note: |
