@@ -138,12 +138,24 @@ class TestMinimalPolicy:
             "minimal must not drop GENESIS_PN95_CONFIG_KEY — "
             "PN95 silently no-ops without it"
         )
-        # On the 35B preset PN204 is "0" (operator-disabled) and PN134
-        # is commented out, so under minimal there are no surviving
-        # toggle keys — every other patch in the file is role='unknown'.
+        # After the 2026-05-16 attribution backfill, the 35B model
+        # declares load_bearing/defensive/optional_perf for ~10 patches
+        # → some toggles legitimately survive minimal. The invariant
+        # we still want to assert: no role='unknown' toggle leaks.
         toggle_keys = [k for k in env if k.startswith("GENESIS_ENABLE_")]
-        assert toggle_keys == [], (
-            f"unexpected toggles leaked under minimal: {toggle_keys[:5]}"
+        # An unknown-role toggle (no attribution backfill yet) — make
+        # sure it's gone. PN71_THINKING_TAG_NORMALIZE is one of the
+        # un-attributed enables in qwen3.6-35b-a3b-fp8.yaml.
+        assert not any(
+            "PN71_THINKING_TAG_NORMALIZE" in k for k in toggle_keys
+        ), f"unknown-role toggle leaked under minimal: {toggle_keys}"
+        # And at least one attributed toggle should be present (proves
+        # the resolver isn't accidentally dropping everything).
+        assert any(
+            "P67_TQ_MULTI_QUERY_KERNEL" in k for k in toggle_keys
+        ), (
+            f"load_bearing P67 missing under minimal — backfill regression? "
+            f"toggles={toggle_keys}"
         )
 
     def test_minimal_keeps_passthrough_count_in_header(self, cfg_prod_35b):

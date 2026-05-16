@@ -182,3 +182,53 @@ patches:
 notes:
   - "27B hybrid GDN + TQ k8v4 + MTP K=3. Validated 2026-05-11 on 2× A5000."
   - "Phase 3 migration from a5000-2x-27b-int4-tq-k8v4 (2026-05-12)."
+
+# ── patches_attribution (Phase A backfill, 2026-05-16) ─────────────────
+# Keyed by registry patch ID. Same taxonomy as qwen3.6-35b-a3b-fp8.yaml.
+# load_bearing entries cause measurable regression on removal.
+patches_attribution:
+  P67:
+    role: load_bearing
+    note: |
+      TurboQuant multi-query attention kernel — primary 27B INT4 +
+      TQ k8v4 decode hot path. Same ~30% TPS drop on removal as 35B.
+  PN17:
+    role: load_bearing
+    note: |
+      Long-context FA2 safety margin; 27B is the long-ctx leader
+      (256K verified). Removing PN17 OOMs at 32K+ ctx on
+      max_num_seqs=2.
+  PN51:
+    role: defensive
+    note: |
+      Qwen3 streaming thinking-disabled short-circuit (vllm#40816).
+  PN95:
+    role: load_bearing
+    note: |
+      Tier-aware KV cache, CONFIG_KEY-gated. On 256K context this
+      is the demote mechanism preventing OOM. Without CONFIG_KEY
+      the runtime stays None (silent no-op).
+  PN96b:
+    role: optional_perf
+    bench_evidence: "Marlin MoE workspace persistent pool +4-5% TPS recovery"
+    note: "Renamed 2026-05-15 from PN96 (dict-key collision fix)."
+  PN125:
+    role: defensive
+    note: "Forces FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid_gdn_moe."
+  PN126:
+    role: defensive
+    bench_evidence: "TTFT spike 5-25s on first decode without warmup"
+    note: "V1 decode kernel warmup; boot-only cost."
+  PN132:
+    role: defensive
+    bench_evidence: "no-op when VLLM_USE_FLASHINFER_SAMPLER=1"
+    note: "Triton top-k/top-p contiguous fix (vllm#42739)."
+  PN133:
+    role: defensive
+    bench_evidence: "Prometheus ValueError on rare K=3 reject-all path without the guard"
+    note: "MTP scheduler empty-output guard (vllm#42722)."
+  PN134:
+    role: suspected_regression
+    note: |
+      Retired 2026-05-15 (-25% TPS on hybrid_gdn_moe). Do not
+      re-enable without new evidence delta.

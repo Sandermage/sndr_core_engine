@@ -198,6 +198,87 @@ notes:
 #   no_op                 included for cross-config consistency but inactive
 #   unknown               not yet classified (audit warning)
 patches_attribution:
+  # ── Wave 9 load-bearing — must stay on for PROD ───────────────────
+  P67:
+    role: load_bearing
+    note: |
+      TurboQuant multi-query attention kernel — this is the hot path
+      for 35B-A3B decode. Without P67 the kernel falls back to the
+      stock implementation and decode TPS drops ~30%. Genesis-original;
+      no upstream PR exists. Empirical pin: 216 TPS sustained at
+      max_num_seqs=2 (Wave 9 baseline 2026-05-14). Anchor: TurboQuant
+      kernel autotune notes warn against ``num_stages=2`` on SM 8.6
+      (lines 733-741 in p67_*.py) — those configs were measured
+      -2% to -9% regression on A5000.
+  PN95:
+    role: load_bearing
+    note: |
+      Tier-aware KV cache (GPU hot + CPU pinned warm + optional disk
+      cold). Anchored at 11 sites in vllm/v1. Active only when
+      GENESIS_PN95_CONFIG_KEY is set — without the key, lazy-init
+      returns and TierManager stays None (silent noop). 35B-A3B:
+      30/41 Mamba layers hard-excluded, 11 attention + 1 MTP demote-
+      eligible. lifecycle=stable, stable_kind=runtime-hook.
+  PN201:
+    role: load_bearing
+    note: |
+      Scheduler-tick ``empty_cache()`` hook, threshold-gated. Without
+      it long-running decode at high max_num_seqs accumulates
+      fragmented allocations and VRAM OOMs ~4-6 hours into a soak.
+      Pairs with PN95 demote thresholds.
+  # ── Wave 10 defensive — cheap safety guards ───────────────────────
+  PN51:
+    role: defensive
+    note: |
+      Qwen3 streaming thinking-disabled short-circuit (vllm#40816
+      OPEN). Defensive guard for OpenAI clients reading delta.content
+      (Open WebUI, LibreChat, Cline, OpenCode). Zero risk: guard is
+      False when thinking is enabled (dominant case).
+  PN125:
+    role: defensive
+    note: |
+      Forces cudagraph_mode=FULL_AND_PIECEWISE on Qwen3.5/3.6
+      hybrid_gdn_moe. dev371 v1 already does this by default; kept on
+      for upstream-bypass insurance + older pin compatibility.
+  PN126:
+    role: defensive
+    bench_evidence: "TTFT spike 5-25s on first decode without warmup — boot-only cost negligible"
+    note: |
+      V1 decode kernel warmup orchestrator — pre-JITs decode +
+      spec-decode kernels at boot. Removes the 5-25s TTFT spike on
+      first user request after restart. No runtime cost; boot only.
+  PN132:
+    role: defensive
+    bench_evidence: "no-op when VLLM_USE_FLASHINFER_SAMPLER=1 (our default); correctness fix when fallback fires"
+    note: |
+      Triton top-k/top-p contiguous logits fix (backport vllm#42739).
+      No-op on the canonical FlashInfer-sampler path; correctness
+      guard for Triton fallback. Silent garbage scores on non-
+      contiguous logits without it.
+  PN133:
+    role: defensive
+    bench_evidence: "Prometheus ValueError on rare K=3 reject-all path without the guard"
+    note: |
+      MTP scheduler empty-output guard (backport vllm#42722). Prevents
+      num_accepted=-1 Prometheus ValueError on the rare K=3 reject-all
+      path. Stops the metrics collector from crashing the worker.
+  # ── Wave 9 conditional perf — keep, but watch ─────────────────────
+  PN96b:
+    role: optional_perf
+    bench_evidence: "Marlin MoE workspace persistent pool +4-5% TPS recovery (renamed 2026-05-15)"
+    note: |
+      Pre-rename was silently shadowed by dict-key collision with
+      kv_cache/PN96. After PN96 → PN96b rename, both patches load
+      correctly. The +4-5% TPS is the value-add that was lost during
+      the silent-shadow window.
+  PN106:
+    role: optional_perf
+    bench_evidence: "GDN inner chunk-state h-pool — empirical +0.5-1% on long-context decode"
+    note: |
+      Reuses inner GDN chunk-state ``h`` allocation across iterations
+      to avoid repeated cudaMalloc cycles. Effect modest at conc=1,
+      compounds with PN95 demotes at higher concurrency.
+  # ── Retired / known regressor ─────────────────────────────────────
   PN204:
     role: optional_perf
     bench_evidence: "dev371 35B conc=8: agg 675 vs 689 TPS, TTFT 240 vs 237 ms (neutral within CV)"
