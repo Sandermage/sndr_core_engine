@@ -292,15 +292,27 @@ def derive_metadata(
     Resolution order:
 
       1. EXPLICIT_OVERRIDES — audited per-patch escape hatches.
-      2. Lifecycle hard rules. ``retired`` / ``deprecated`` always map
-         to production_default=blocked regardless of registry
-         implementation_status — a retired patch must not load even if
-         its wiring file still reports ``full`` impl status.
-      3. Registry ``implementation_status`` (when explicitly set).
+      2. Lifecycle hard rules — retired/deprecated short-circuit to
+         ``production_default=blocked`` regardless of registry
+         ``implementation_status``. A retired patch must not load even
+         if its wiring file still reports ``full`` impl status.
+      3. Research lifecycle hard rule — research patches always map to
+         ``production_default=research_only`` regardless of explicit
+         ``implementation_status``. See note below.
+      4. Registry ``implementation_status`` (when explicitly set).
          test_status + production_default flow through
          ``_production_default_for``.
-      4. Lifecycle-based fallback (same routing through
+      5. Lifecycle-based fallback (same routing through
          ``_production_default_for``).
+
+    Audit R-01 closure (2026-05-16): research lifecycle now short-
+    circuits to research_only. Previously a research patch with
+    ``implementation_status=full`` and a unit test (P82/P83) derived
+    to ``production_default=eligible``, which misled production-
+    readiness dashboards. Research code is not "production
+    candidate" by definition — eligibility requires the experimental
+    or stable lifecycle. EXPLICIT_OVERRIDES still wins above this
+    rule (audited escape hatch).
 
     Audit C5 closure (2026-05-16): retired/deprecated lifecycle now
     short-circuits to blocked. Previously a retired patch with
@@ -332,7 +344,24 @@ def derive_metadata(
             "production_default": "blocked",
         }
 
-    # 3. Registry already specifies an implementation_status — honour it.
+    # 3. Lifecycle=research is a hard rule too — it must NEVER derive
+    # to production_default=eligible, even when the registry declares
+    # implementation_status="full" or unit tests exist. Research code
+    # may be runtime-complete (impl_status=full is a factual statement
+    # about the code path), but it has not been validated as production
+    # candidate. Reporting downstream of derive_metadata() previously
+    # showed P82/P83 (lifecycle=research, impl=full) as eligible, which
+    # misled production-readiness dashboards. EXPLICIT_OVERRIDES still
+    # wins above this rule (audited escape hatch); everything else
+    # flowing through derive_metadata respects research as terminal.
+    if lc == "research":
+        return {
+            "implementation_status": "research",
+            "test_status": test,
+            "production_default": "research_only",
+        }
+
+    # 4. Registry already specifies an implementation_status — honour it.
     explicit = registry_meta.get("implementation_status")
     if isinstance(explicit, str) and explicit:
         return {
@@ -341,7 +370,7 @@ def derive_metadata(
             "production_default": _production_default_for(explicit, test),
         }
 
-    # 4. Lifecycle-based fallback.
+    # 5. Lifecycle-based fallback.
     impl: ImplStatus = _LIFECYCLE_TO_IMPL.get(lc, "live")
     return {
         "implementation_status": impl,

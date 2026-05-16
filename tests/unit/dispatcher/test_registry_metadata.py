@@ -131,6 +131,102 @@ class TestLifecycleMapping:
         assert _LIFECYCLE_TO_IMPL["deprecated"] == "retired"
 
 
+# ─── R-01: research lifecycle hard rule ─────────────────────────────────
+
+
+class TestResearchLifecycleHardRule:
+    """Audit R-01 (2026-05-16): research lifecycle must always derive
+    to ``production_default=research_only``, even when the registry
+    declares ``implementation_status=full`` and a unit test exists.
+
+    Research code can be runtime-complete (the impl-status field
+    reflects that fact), but research-lifecycle entries have not been
+    validated as production candidates. Reporting downstream of
+    ``derive_metadata`` previously showed P82/P83 as ``eligible``,
+    which misled production-readiness dashboards."""
+
+    def test_research_with_full_impl_and_unit_tests_is_research_only(self):
+        """Synthetic case mirroring P82."""
+        meta = {
+            "lifecycle": "research",
+            "implementation_status": "full",
+            "family": "synthetic",
+        }
+        d = derive_metadata("SYNTH_RESEARCH_P82_LIKE", meta)
+        assert d["production_default"] == "research_only"
+        assert d["implementation_status"] == "research"
+
+    def test_research_with_full_impl_and_no_tests_is_research_only(self):
+        """Synthetic case mirroring P83 (no test coverage)."""
+        meta = {
+            "lifecycle": "research",
+            "implementation_status": "full",
+            "family": "synthetic",
+        }
+        d = derive_metadata("SYNTH_RESEARCH_P83_LIKE", meta)
+        assert d["production_default"] == "research_only"
+
+    def test_research_with_no_explicit_impl_status(self):
+        """Lifecycle alone is enough — implementation_status absent."""
+        meta = {"lifecycle": "research", "family": "synthetic"}
+        d = derive_metadata("SYNTH_RESEARCH_BARE", meta)
+        assert d["production_default"] == "research_only"
+        assert d["implementation_status"] == "research"
+
+    def test_explicit_override_still_wins_over_research_rule(self):
+        """``EXPLICIT_OVERRIDES`` is the audited escape hatch — if a
+        maintainer deliberately overrides a research patch, the
+        override is honoured. PN26b is real proof: lifecycle=research
+        but the override sets ``implementation_status=scaffold`` and
+        keeps ``production_default=research_only`` (consistent, by
+        design)."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        meta = PATCH_REGISTRY["PN26b"]
+        d = derive_metadata("PN26b", meta)
+        assert d["implementation_status"] == "scaffold"
+        assert d["production_default"] == "research_only"
+
+    def test_p82_live_registry_is_research_only(self):
+        """Smoke check against the live registry — P82 must not
+        derive to ``eligible``."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        meta = PATCH_REGISTRY.get("P82")
+        if not isinstance(meta, dict):
+            return
+        assert str(meta.get("lifecycle")).lower() == "research"
+        d = derive_metadata("P82", meta)
+        assert d["production_default"] == "research_only"
+
+    def test_p83_live_registry_is_research_only(self):
+        """Smoke check against the live registry — P83 must not
+        derive to ``eligible``."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        meta = PATCH_REGISTRY.get("P83")
+        if not isinstance(meta, dict):
+            return
+        assert str(meta.get("lifecycle")).lower() == "research"
+        d = derive_metadata("P83", meta)
+        assert d["production_default"] == "research_only"
+
+    def test_no_research_patch_is_eligible_in_live_registry(self):
+        """Sweep guard: across the entire live registry, no
+        ``lifecycle=research`` entry may derive to
+        ``production_default=eligible``."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        offenders = []
+        for pid, meta in PATCH_REGISTRY.items():
+            if not isinstance(meta, dict):
+                continue
+            if str(meta.get("lifecycle", "")).lower() != "research":
+                continue
+            d = derive_metadata(pid, meta)
+            if d["production_default"] == "eligible":
+                offenders.append(pid)
+        assert offenders == [], (
+            f"research-lifecycle patches deriving to eligible: {offenders}"
+        )
+
+
 # ─── Real registry sanity ───────────────────────────────────────────────
 
 
