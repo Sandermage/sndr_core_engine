@@ -163,11 +163,20 @@ audit-proof-status: ## §6.8 read-side: bucket summary of every patch's proof-ar
 audit-release-check: ## §6.8 release-gate consumer — every patch must have a static proof (gating in make evidence --release)
 	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-static
 
-audit-release-check-baseline-optional: ## §6.8 optional ratchet — every patch must carry a bench_with_baseline proof
-	# Informational by design: 0/169 entries have bench_with_baseline today,
-	# wiring this into make evidence --release as gating would block every
-	# release until operators run the full bench suite + ingest per patch.
-	# Operators who want the strict gate run this target directly.
+audit-release-check-bench-attached: ## §6.8 ratchet 1: every patch must have at least one bench attachment (bridge to require-baseline)
+	# Bridge between require-static (current public gate) and the strict
+	# require-baseline below. Run this when promoting the default-on
+	# subset of a production preset; not part of `make evidence --release`.
+	# See docs/RELEASE_POLICY.md for the policy lifecycle.
+	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-bench
+
+audit-release-check-baseline-optional: ## §6.8 ratchet 2: every patch must carry a bench_with_baseline proof (strict)
+	# Informational by design: 0/169 entries have bench_with_baseline today.
+	# Wiring this into `make evidence --release` as a hard gate would block
+	# every release until operators re-bench all 169 entries on their rig.
+	# Operators preparing a hardened deploy run this target directly after
+	# the bench-attached ratchet above clears the default-on subset.
+	# See docs/RELEASE_POLICY.md for the cutover procedure.
 	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-baseline
 
 audit-model-baselines: ## Phase 7 supplement: every V2 model's reference_metrics_ref must point at an existing JSON file

@@ -7,6 +7,12 @@ env flag to toggle, upstream PR (if backported), and credit.
 > 📊 **Full machine-readable table** — auto-generated from `dispatcher/registry.py` —
 > at [**`PATCHES_AUTO.md`**](PATCHES_AUTO.md). Regenerate via
 > `python3 scripts/generate_patches_md.py`. CI gate: `--check` mode (audit 2026-05-11).
+>
+> 🛡️ **Release policy** — which patch-proof mode gates a public release —
+> is documented in [**`RELEASE_POLICY.md`**](RELEASE_POLICY.md). The
+> current public gate is `require-static`; two stricter ratchets
+> (`require-bench`, `require-baseline`) are available for operators
+> preparing a hardened deploy.
 
 ## Current state (v11.0.0, 2026-05-09)
 

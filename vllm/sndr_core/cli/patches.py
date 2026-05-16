@@ -1185,7 +1185,9 @@ def add_argparser(subparsers: Any) -> None:
             "Mode 'report' never blocks; tighter modes (require-static / "
             "require-bench / require-baseline) block when patches don't "
             "meet the bar. `--max-regression-pct N` also blocks when any "
-            "bench_with_baseline patch has a regression beyond N%."
+            "bench_with_baseline patch has a regression beyond N%. "
+            "The current public release gate is `require-static` — see "
+            "docs/RELEASE_POLICY.md for the cutover procedure between modes."
         ),
     )
     p_rc.add_argument(

@@ -287,20 +287,34 @@ _LIFECYCLE_TO_IMPL: dict[str, ImplStatus] = {
 def derive_metadata(
     patch_id: str, registry_meta: dict,
 ) -> DerivedMetadata:
-    """Возвращает derived metadata для патча.
+    """Return derived metadata for one patch.
 
-    Порядок resolution:
-      1. EXPLICIT_OVERRIDES — audited per-patch исключения.
-      2. registry `implementation_status` (если задан явно) →
-         test_status + production_default через `_production_default_for`.
-      3. Lifecycle-based fallback (тоже через `_production_default_for`).
+    Resolution order:
 
-    Etap 0.3 (2026-05-12): production_default теперь учитывает test_status.
-    Stable/full/live патчи без тестов получают `review_required` вместо
-    автоматического `eligible` — это закрывает риск пропуска
-    непротестированного кода в production matrix.
+      1. EXPLICIT_OVERRIDES — audited per-patch escape hatches.
+      2. Lifecycle hard rules. ``retired`` / ``deprecated`` always map
+         to production_default=blocked regardless of registry
+         implementation_status — a retired patch must not load even if
+         its wiring file still reports ``full`` impl status.
+      3. Registry ``implementation_status`` (when explicitly set).
+         test_status + production_default flow through
+         ``_production_default_for``.
+      4. Lifecycle-based fallback (same routing through
+         ``_production_default_for``).
+
+    Audit C5 closure (2026-05-16): retired/deprecated lifecycle now
+    short-circuits to blocked. Previously a retired patch with
+    ``implementation_status=full`` ended up as ``review_required``
+    because the inference looked at impl_status before lifecycle —
+    that wrongly suggested the retired wiring was still production-
+    eligible. Tests in tests/unit/dispatcher/ cover this contract.
+
+    Etap 0.3 (2026-05-12): production_default takes test_status into
+    account. Stable/full/live patches without tests get
+    ``review_required`` instead of ``eligible`` so an untested
+    overlay cannot silently slip into the production matrix.
     """
-    # 1. Explicit override (точечная коррекция, audited)
+    # 1. Explicit override (point-of-truth, audited)
     override = EXPLICIT_OVERRIDES.get(patch_id)
     if override is not None:
         return override
@@ -309,7 +323,16 @@ def derive_metadata(
         patch_id, str(registry_meta.get("family", "")),
     )
 
-    # 2. registry уже задаёт implementation_status — уважаем
+    # 2. Lifecycle hard rules — retired/deprecated always block.
+    lc = str(registry_meta.get("lifecycle", "")).lower()
+    if lc in ("retired", "deprecated"):
+        return {
+            "implementation_status": "retired",
+            "test_status": test,
+            "production_default": "blocked",
+        }
+
+    # 3. Registry already specifies an implementation_status — honour it.
     explicit = registry_meta.get("implementation_status")
     if isinstance(explicit, str) and explicit:
         return {
@@ -318,8 +341,7 @@ def derive_metadata(
             "production_default": _production_default_for(explicit, test),
         }
 
-    # 3. Lifecycle-based fallback
-    lc = str(registry_meta.get("lifecycle", "")).lower()
+    # 4. Lifecycle-based fallback.
     impl: ImplStatus = _LIFECYCLE_TO_IMPL.get(lc, "live")
     return {
         "implementation_status": impl,
