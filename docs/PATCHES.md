@@ -40,7 +40,7 @@ added as a registry patch.
 | Lifecycle=legacy (pre-dispatcher) | 33 |
 | Lifecycle=retired | 13 |
 | Lifecycle=research | 3 |
-| Lifecycle=stable | 2 (P5, PN95 — ratchet active; see [STABLE_PROMOTION_CHECKLIST.md](upstream/STABLE_PROMOTION_CHECKLIST.md)) |
+| Lifecycle=stable | 2 (P5, PN95 — ratchet active; see [STABLE_PROMOTION_CHECKLIST.md](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)) |
 | Lifecycle=coordinator | 1 (P5b — env-flag-only, no real binding) |
 | Implementation status=full | 154 |
 | Implementation status=marker_only / placeholder / partial / retired | 15 |

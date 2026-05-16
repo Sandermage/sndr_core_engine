@@ -157,7 +157,7 @@ grep "PNN" vllm/sndr_core/env.py  # must find canonical form
 
 `default_on=True` reserved для bug fixes validated на 2+ workloads. New patches start False; promoted в later PR after bench.
 
-`lifecycle="stable"` blocked by ratchet (see [STABLE_PROMOTION_CHECKLIST.md](upstream/STABLE_PROMOTION_CHECKLIST.md)): 0 currently. Don't claim stable без green ratchet.
+`lifecycle="stable"` blocked by ratchet (see [STABLE_PROMOTION_CHECKLIST.md](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)): 0 currently. Don't claim stable без green ratchet.
 
 After registering, regenerate auto-docs + verify:
 ```bash
@@ -372,6 +372,115 @@ python3 -m pytest tests/unit/dispatcher/test_pin_gate.py -v
 ```
 
 ---
+
+## Promoting a patch to `lifecycle="stable"`
+
+Promoting a patch from `experimental` (or unspecified) to
+`lifecycle="stable"` is a contract: the patch is production-ready
+and will not drift silently. The patcher framework enforces this
+via the ratchet test in
+[`tests/unit/infra/test_stable_manifest_policy.py`](../tests/unit/infra/test_stable_manifest_policy.py)
+— marking a patch stable without performing the steps below makes
+the ratchet test fail and rolls back the commit.
+
+### Why the ratchet exists
+
+Without it, `lifecycle="stable"` would be a marketing label.
+With it, the promotion forces three concrete guarantees:
+
+- **Drift detection precision** — manifest md5s pinpoint the exact
+  anchor that changed, instead of a vague "anchor missing
+  somewhere".
+- **Boot speed-up** — manifest fast-path replaces O(N×M) anchor
+  scan with O(1) byte-offset splice.
+- **Reproducibility** — the pristine fixture committed at
+  promotion time documents the exact upstream state the patch was
+  validated against.
+
+### When to promote
+
+A patch is ready for `lifecycle="stable"` when ALL of these hold:
+
+1. **A/B validated on the production rig** (not just dev / Mac).
+2. **Reference metrics committed** in at least one builtin
+   `model_config` (see `reference_metrics:` in `*-prod.yaml`).
+3. **No open known regressions** carrying the patch ID.
+4. **Cross-pin tested** — verified on at least two different vLLM
+   pins (catches anchor brittleness early).
+5. **Documented** in [`PATCHES.md`](PATCHES.md) or
+   [`../CHANGELOG.md`](../CHANGELOG.md) with an operating envelope
+   (what it does, what it does not, known conflicts).
+
+If any of those is missing, keep the patch at `experimental` or
+its current state.
+
+### The five steps
+
+1. **Add `patch_id` to every `TextPatcher`** in the wiring module.
+   Naming convention: `<PatchID>.Sub-<N>` where `<N>` is 1-based
+   across all TextPatchers in the patch.
+   [`pn79_inplace_ssm_state.py`](../vllm/sndr_core/integrations/attention/gdn/pn79_inplace_ssm_state.py)
+   is the reference example (`PN79.Sub-1` … `PN79.Sub-4` across
+   four files).
+2. **Add a `register_for_manifest(pristine_root)` function** that
+   mirrors PN79's pattern. It registers a build-mode patcher
+   pointed at the pristine fixture (not live vLLM) so
+   `scripts/build_anchor_manifest.py` can populate the manifest
+   without a running vLLM install.
+3. **Commit a pristine fixture** to
+   `tests/legacy/pristine_fixtures/<basename>.py` — a verbatim
+   copy of the upstream vLLM file at the pinned commit. The
+   fixture is frozen at the pinned commit; bumping
+   `KNOWN_GOOD_VLLM_PINS` makes the manifest detect the md5
+   mismatch and fall back to the legacy anchor scan until the
+   builder is re-run.
+4. **Extend `_KNOWN_REL_PATHS`** in
+   `scripts/build_anchor_manifest.py` with the
+   `fixture_basename → vllm_rel_path` mapping. Without this, the
+   builder doesn't know where in the vLLM tree the fixture maps
+   to and skips it with a warning.
+5. **Build + commit the manifest**:
+
+   ```bash
+   python scripts/build_anchor_manifest.py
+   git add vllm/sndr_core/manifests/anchor_manifest.json
+   pytest tests/unit/infra/test_stable_manifest_policy.py -v
+   ```
+
+   Then bump `lifecycle` in the registry from old value to
+   `"stable"` in the same commit.
+
+### Runtime-hook patches (stable_kind extension)
+
+The five-step ratchet assumes STABLE = TextPatcher. Production-
+validated runtime-hook patches (no `TextPatcher`, no anchor) are
+covered by a parallel sub-track `stable_kind = "runtime-hook"`
+that requires:
+
+- `apply_module` declared in the registry, AND
+- structured `production_validated_pins` evidence (list of
+  `(genesis_pin, vllm_pin)` tuples documenting the pins on which
+  the patch was empirically validated).
+
+This sub-track skips manifest checks — there is no anchor to
+drift-detect — but enforces the operational-evidence contract.
+PN33 and PN35 are the reference examples.
+
+### What NOT to do
+
+- **Do not** mark a patch stable just to clear the experimental
+  label. The lifecycle field is a contract; lying about it leaks
+  tech debt into production.
+- **Do not** skip the pristine fixture by reading from live vLLM
+  at build time. The fixture is the contract — what the patch was
+  validated against. Live vLLM drifts.
+- **Do not** add `patch_id` to a patcher without the manifest
+  entry. The runtime fast-path will abstain via gate G3 and the
+  patcher silently uses the legacy path — fine functionally, but
+  you have added complexity without benefit.
+- **Do not** demote a stable patch back to experimental without
+  also removing the `patch_id` and manifest entry. Stale manifest
+  entries are noise and confuse drift diagnosis.
 
 ## Code style
 

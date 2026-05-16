@@ -92,10 +92,24 @@ def check_no_bench_results_tracked(files: list[str]) -> list[str]:
 
 
 def check_rollback_playbook_present() -> list[str]:
-    """A-6: docs/ROLLBACK_PLAYBOOK.md must exist (Phase 2.3 deliverable)."""
-    if not (REPO_ROOT / "docs" / "ROLLBACK_PLAYBOOK.md").is_file():
-        return ["A-6: docs/ROLLBACK_PLAYBOOK.md is missing"]
-    return []
+    """A-6: rollback playbook must be reachable from public docs.
+
+    Phase 2.3 deliverable originally lived at docs/ROLLBACK_PLAYBOOK.md.
+    After the 2026-05-16 docs consolidation, the rollback procedures
+    were merged into the broader docs/TROUBLESHOOTING.md (sections
+    'Rollback playbook' + the named R-001..R-008 procedures). The
+    gate now passes when EITHER path is present + contains the R-001
+    procedure anchor that identifies the canonical content.
+    """
+    legacy = REPO_ROOT / "docs" / "ROLLBACK_PLAYBOOK.md"
+    consolidated = REPO_ROOT / "docs" / "TROUBLESHOOTING.md"
+    for path in (legacy, consolidated):
+        if path.is_file() and "R-001" in path.read_text(encoding="utf-8"):
+            return []
+    return [
+        "A-6: rollback playbook missing — expected docs/ROLLBACK_PLAYBOOK.md "
+        "OR docs/TROUBLESHOOTING.md containing the R-001..R-008 procedures"
+    ]
 
 
 def main() -> int:

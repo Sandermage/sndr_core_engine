@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Audit `docs/upstream/UPSTREAM_WATCHLIST.yaml` schema + categorise entries.
+"""Audit `tools/upstream_watchlist.yaml` schema + categorise entries.
 
 Etap 5.1 (audit 2026-05-12): previously the watchlist YAML claimed to be
 read by `tools/check_upstream_drift.py`, but that script only inspected
@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-WATCHLIST_PATH = REPO_ROOT / "docs" / "upstream" / "UPSTREAM_WATCHLIST.yaml"
+WATCHLIST_PATH = REPO_ROOT / "tools" / "upstream_watchlist.yaml"
 
 _ALLOWED_STATUSES = {"open", "merged", "closed"}
 _ALLOWED_ACTIONS = {

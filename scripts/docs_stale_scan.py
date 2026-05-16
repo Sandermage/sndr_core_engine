@@ -58,17 +58,18 @@ ALLOWLIST_SUBSTRINGS: tuple[str, ...] = (
     "docs/_internal/",
     "/_archive/",
     "docs/archive/",
-    # Historical upstream planning + reference docs. They literally
-    # describe the v7→v11 migration so the retired tokens are the
-    # content. New content should not land here without explicit
-    # archive marker; this allowlist captures the existing corpus.
-    "docs/upstream/",
-    "docs/reference/",
-    # Migration appendices that explicitly document the retirement.
-    "docs/INSTALL.md",  # Migration appendix referencing _genesis alias
+    # docs/upstream_refs/ holds frozen upstream vLLM source code that
+    # operators copy from when authoring text-patch anchors. The
+    # snapshots are reference-only artefacts, not narrative docs —
+    # they intentionally carry whatever symbols upstream had at the
+    # snapshot SHA.
+    "docs/upstream_refs/",
+    # Migration / design appendices that explicitly document the
+    # retirement of the v10 `_genesis` namespace.
+    "docs/INSTALL.md",   # migration appendix referencing _genesis alias
     "docs/CONTRIBUTING.md",  # logger back-compat note
-    "docs/BENCHMARK_GUIDE.md",  # symlink back-compat note
-    "docs/MIGRATION_V11_RENAME.md",  # canonical v10→v11 rename doc
+    "docs/BENCHMARKS.md",  # symlink back-compat note (post-2026-05-16 merge)
+    "docs/PATCH_DESIGNS.md",  # v10→v11 rename appendix lives here now
     # The scanner itself.
     "scripts/docs_stale_scan.py",
 )

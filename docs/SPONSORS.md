@@ -110,10 +110,10 @@ See [`BENCHMARKS.md`](BENCHMARKS.md) for the run-and-share guide.
 
 ## Security contact
 
-Security issues should NOT be reported in public issues. Email
-`sander.odessa@gmail.com` with details — disclosures are
-acknowledged within 72 hours and coordinated through standard
-responsible-disclosure timelines.
+Security disclosures follow the project's
+[`SECURITY.md`](../SECURITY.md) policy — email
+`sander.odessa@gmail.com` privately rather than opening a public
+issue.
 
 ## Acknowledgments
 

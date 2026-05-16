@@ -84,11 +84,26 @@ never ship publicly.
 
 | Folder | What's inside |
 | --- | --- |
-| [`reference/`](reference/) | Long-form historical references — deferred-PR decision logs (DEFERRED_P50, DEFERRED_P87), validation runs (V758, V759, LONG_CONTEXT_VALIDATION), GitHub bots setup. |
-| [`security/`](security/) | Ed25519 trust-anchor ceremony for release artifact signing. |
-| [`upstream/`](upstream/) | vLLM upstream watchlist (`UPSTREAM_WATCHLIST.yaml` — consumed by `tools/check_upstream_drift.py`) + stable-promotion checklist + PR-decision log. |
-| [`upstream_refs/`](upstream_refs/) | Frozen upstream source snapshots used as text-patch anchor references. |
-| [`img/`](img/) | Diagrams referenced from the narrative docs. |
+| [`upstream_refs/`](upstream_refs/) | Frozen upstream vLLM source snapshots that text-patch authors copy from when authoring or refreshing anchors. Reference material, not narrative docs — see the folder's own README for the refresh policy. |
+| [`img/`](img/) | Diagrams referenced from the narrative docs (DFlash vs MTP, patch impact, per-config perf). |
+
+The previous `reference/`, `security/`, and `upstream/`
+subdirectories were retired in the 2026-05-16 consolidation pass:
+
+- Historical experiment / deferred-work logs from 2026-04-27
+  (`reference/`) were preserved in git history and removed from
+  the public surface — they were operator-irrelevant snapshots.
+- The Ed25519 trust-anchor ceremony (`security/`) was an internal
+  artefact for a future license-tier that does not gate any
+  public-core functionality.
+- `upstream/STABLE_PROMOTION_CHECKLIST.md` was merged into
+  [`CONTRIBUTING.md` § "Promoting a patch to `lifecycle=stable`"](CONTRIBUTING.md).
+- `upstream/UPSTREAM_WATCHLIST.yaml` (consumed by
+  `scripts/audit_upstream_watchlist.py`) moved to
+  [`tools/upstream_watchlist.yaml`](../tools/upstream_watchlist.yaml)
+  because it is a data file, not narrative documentation.
+- `upstream/VLLM_PR_DECISION.md` was a historical 2026-04-26
+  decision document preserved in git history.
 
 ## Top-level repo docs (one folder up)
 
@@ -97,6 +112,7 @@ never ship publicly.
 | [`../README.md`](../README.md) | Project overview, quick install, hardware tested, architecture. |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | Per-version changelog (technical, deep — single source of truth). |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Top-level contributor onboarding (links here). |
+| [`../SECURITY.md`](../SECURITY.md) | Security policy + private disclosure email. |
 | [`../LICENSE`](../LICENSE) | Apache-2.0. |
 
 ## Auto-generated content

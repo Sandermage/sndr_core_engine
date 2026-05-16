@@ -645,7 +645,7 @@ The STABLE ratchet ([tests/unit/infra/test_stable_manifest_policy.py](tests/unit
 1. `test_every_stable_patch_has_registered_patcher` — wiring module must call `register_text_patcher()` at import time
 2. `test_every_stable_patch_has_manifest_coverage` — `anchor_manifest.json` must have an entry for each patch_id
 
-Both promotions reverted; `experimental_note` field added to each with detailed production-validation evidence so the operational signal isn't lost. The ratchet architectural gap is documented in [docs/upstream/STABLE_PROMOTION_CHECKLIST.md "Ratchet architectural gap"](docs/upstream/STABLE_PROMOTION_CHECKLIST.md) with two paths forward:
+Both promotions reverted; `experimental_note` field added to each with detailed production-validation evidence so the operational signal isn't lost. The ratchet architectural gap is documented in [docs/CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable "Ratchet architectural gap"](docs/CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable) with two paths forward:
 
 1. **Build manifest infrastructure per-patch** — proper STABLE; needs running `build_anchor_manifest.py` on a vllm-installed host + creating pristine fixtures. Easy for PN33 (real text-patch), harder for PN35 (would need TextPatcher conversion).
 2. **Extend ratchet for runtime-hook STABLE** — add `stable_kind = "runtime-hook"` sub-track that accepts `production_validated_pins` evidence instead of manifest. Architectural trade-off: runtime-hook patches can drift if upstream changes the monkey-patched function, no manifest md5 to detect it.
@@ -667,7 +667,7 @@ Neither path is taken in this session — the qualitatively correct move is to p
 
 - `vllm/sndr_core/model_configs/builtin/a5000-2x-27b-int4-tq-k8v4.yaml` — `reference_metrics` block: Wave 9 numbers, Wave 8 retained as prev_baseline, dev209 in `vllm_pin`
 - `vllm/sndr_core/dispatcher/registry.py` — `PN33`/`PN35`: `experimental_note` added with validation evidence
-- `docs/upstream/STABLE_PROMOTION_CHECKLIST.md` — "Ratchet architectural gap" section documenting the runtime-hook blocker
+- `docs/CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable` — "Ratchet architectural gap" section documenting the runtime-hook blocker
 
 ---
 
@@ -1425,7 +1425,7 @@ test ratchet: any patch promoted to `lifecycle="stable"` MUST have its
 patch_id wired into the anchor manifest. Test:
 `tests/unit/infra/test_stable_manifest_policy.py`. Today 0 stable
 patches → test passes vacuously; future promotions can't skip the ritual.
-See `docs/upstream/STABLE_PROMOTION_CHECKLIST.md`.
+See `docs/CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable`.
 
 ### Pytest baseline
 
