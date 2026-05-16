@@ -482,3 +482,75 @@ class TestConflictsWarnings:
             w for w in plan.warnings if "P65" in w and "P67" in w
         ]
         assert conflict_warns == []
+
+
+# ─── A-19 family attribution lookup ──────────────────────────────────────
+
+
+class TestFamilyAttributionLookup:
+    """A-19 subpatch families share an env_flag. The primary patch ID
+    (alphabetical first) is what surfaces in PatchDecision.patch_id,
+    but attribution can be authored against ANY family member —
+    operators usually attribute the "main" patch, which isn't always
+    the alphabetical primary.
+
+    Example: PN40 + PN40-classifier share GENESIS_ENABLE_PN40_DFLASH_OMNIBUS.
+    Alphabetical primary is "PN40"; operator-facing main is also
+    "PN40". Either way, attribution keyed by either family member
+    must be found by the resolver.
+    """
+
+    def test_attribution_keyed_by_family_primary_found(self):
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        flag = PATCH_REGISTRY["PN40"]["env_flag"]
+        cfg = _make_cfg(
+            genesis_env={flag: "1"},
+            patches_attribution={
+                "PN40": PatchAttribution(role="defensive", note="primary"),
+            },
+        )
+        plan = resolve_patch_plan(cfg, policy="compat")
+        d = plan.included[0]
+        assert d.role == "defensive"
+        assert d.note == "primary"
+
+    def test_attribution_keyed_by_family_non_primary_found(self):
+        """If operator attributes PN40-classifier (non-primary family
+        member), the resolver must still find it when resolving the
+        shared env flag."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        flag = PATCH_REGISTRY["PN40-classifier"]["env_flag"]
+        cfg = _make_cfg(
+            genesis_env={flag: "1"},
+            patches_attribution={
+                "PN40-classifier": PatchAttribution(
+                    role="defensive", note="keyed by sub-id",
+                ),
+            },
+        )
+        plan = resolve_patch_plan(cfg, policy="compat")
+        d = plan.included[0]
+        assert d.role == "defensive"
+        assert d.note == "keyed by sub-id"
+
+    def test_attribution_on_both_family_members_picks_primary(self):
+        """When attribution exists on multiple family members, the
+        resolver picks the primary's metadata for the surfaced
+        PatchDecision — deterministic + matches the patch_id that
+        operators see in plan output."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        flag = PATCH_REGISTRY["PN40"]["env_flag"]
+        cfg = _make_cfg(
+            genesis_env={flag: "1"},
+            patches_attribution={
+                "PN40": PatchAttribution(
+                    role="load_bearing", note="primary entry"),
+                "PN40-classifier": PatchAttribution(
+                    role="defensive", note="sub entry"),
+            },
+        )
+        plan = resolve_patch_plan(cfg, policy="compat")
+        d = plan.included[0]
+        assert d.patch_id == "PN40"
+        assert d.role == "load_bearing"
+        assert d.note == "primary entry"

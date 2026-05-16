@@ -184,9 +184,33 @@ def _attribution_for(
     attribution: dict[str, "PatchAttribution"],
     env_flag: str,
 ) -> tuple[str, "PatchAttribution | None"]:
-    """Return (patch_id, attribution_entry_or_None)."""
-    pid = _patch_id_from_env_flag(env_flag)
-    return pid, attribution.get(pid)
+    """Return (primary_patch_id, attribution_entry_or_None).
+
+    Resolution rule for A-19 family attribution:
+
+      1. Check attribution keyed by the family primary (alphabetical
+         first member). This is the dominant case — operators usually
+         attribute the canonical patch ID that surfaces in plan output.
+      2. If primary has no attribution, fall back to any non-primary
+         family member that does have an entry. Lets operators key
+         attribution by the operator-facing main patch (e.g. "PN40"
+         when family[0] happens to be a sub-id alphabetically first).
+      3. Otherwise return (primary, None) → role defaults to "unknown".
+
+    The surfaced patch_id is always the primary so PatchDecision stays
+    deterministic across operators and registry edits — only the
+    metadata source falls back through the family.
+    """
+    family = _patch_family_for_env_flag(env_flag)
+    primary = family[0]
+    attr = attribution.get(primary)
+    if attr is not None:
+        return primary, attr
+    for pid in family[1:]:
+        attr = attribution.get(pid)
+        if attr is not None:
+            return primary, attr
+    return primary, None
 
 
 def _is_truthy(value: str) -> bool:
