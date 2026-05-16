@@ -286,3 +286,93 @@ class TestInvalidPolicy:
         cfg = _make_cfg()
         with pytest.raises(ValueError, match="policy"):
             resolve_patch_plan(cfg, policy="bogus")
+
+
+# ─── Non-toggle GENESIS_* env vars must pass through ─────────────────────
+
+
+class TestNonToggleGenesisKeys:
+    """Bug found during Phase B verification (2026-05-16): operator
+    YAMLs carry plenty of ``GENESIS_*`` env vars that are *parameters*,
+    not patch toggles:
+
+      GENESIS_BUFFER_MODE: shared
+      GENESIS_PN95_TICK_EVERY: '100'
+      GENESIS_PN95_CONFIG_KEY: a5000-2x-...
+      GENESIS_PROFILE_RUN_CAP_M: '0'      # 0 = no cap, not "disabled"
+      GENESIS_P67_NUM_KV_SPLITS: '4'      # P67 kernel parameter
+      GENESIS_P82_THRESHOLD_SINGLE: '...'
+
+    The resolver MUST NOT filter these out — dropping
+    ``GENESIS_PN95_CONFIG_KEY`` would silently noop PN95 (it relies
+    on the key for its config lookup). The resolver only operates on
+    toggle flags (``GENESIS_ENABLE_*`` / ``GENESIS_DISABLE_*``);
+    every other ``GENESIS_*`` key passes through ``plan.env``
+    untouched, regardless of policy."""
+
+    def test_non_toggle_passes_through_compat(self):
+        cfg = _make_cfg(genesis_env={
+            "GENESIS_ENABLE_PN95": "1",
+            "GENESIS_PN95_CONFIG_KEY": "a5000-2x-tier-aware-example",
+            "GENESIS_PN95_TICK_EVERY": "100",
+            "GENESIS_BUFFER_MODE": "shared",
+        })
+        plan = resolve_patch_plan(cfg, policy="compat")
+        env = plan.env
+        # Toggle made it through
+        assert env["GENESIS_ENABLE_PN95"] == "1"
+        # Non-toggles MUST pass through with values intact
+        assert env["GENESIS_PN95_CONFIG_KEY"] == "a5000-2x-tier-aware-example"
+        assert env["GENESIS_PN95_TICK_EVERY"] == "100"
+        assert env["GENESIS_BUFFER_MODE"] == "shared"
+
+    def test_non_toggle_passes_through_minimal(self):
+        """Even under the most aggressive policy, non-toggle parameter
+        keys are not subject to attribution filtering."""
+        cfg = _make_cfg(
+            genesis_env={
+                "GENESIS_ENABLE_PN17": "1",  # defensive → kept
+                "GENESIS_PN95_CONFIG_KEY": "x",   # parameter → kept
+                "GENESIS_OBSERVABILITY": "1",      # parameter → kept
+            },
+            patches_attribution={
+                "PN17": PatchAttribution(role="defensive"),
+            },
+        )
+        plan = resolve_patch_plan(cfg, policy="minimal")
+        assert plan.env["GENESIS_PN95_CONFIG_KEY"] == "x"
+        assert plan.env["GENESIS_OBSERVABILITY"] == "1"
+
+    def test_non_toggle_zero_value_not_treated_as_disabled(self):
+        """``GENESIS_PROFILE_RUN_CAP_M=0`` means "no cap", not "disabled".
+        The resolver must not move it to the excluded bucket."""
+        cfg = _make_cfg(genesis_env={
+            "GENESIS_PROFILE_RUN_CAP_M": "0",
+            "GENESIS_TQ_MAX_MODEL_LEN": "0",
+        })
+        plan = resolve_patch_plan(cfg, policy="compat")
+        # These are NOT toggle flags → should not appear in included
+        # or excluded at all (those tuples only carry toggle decisions).
+        all_decisions = list(plan.included) + list(plan.excluded)
+        flag_names = {d.env_flag for d in all_decisions}
+        assert "GENESIS_PROFILE_RUN_CAP_M" not in flag_names
+        assert "GENESIS_TQ_MAX_MODEL_LEN" not in flag_names
+        # But values still pass through via plan.env
+        assert plan.env["GENESIS_PROFILE_RUN_CAP_M"] == "0"
+        assert plan.env["GENESIS_TQ_MAX_MODEL_LEN"] == "0"
+
+    def test_toggle_classification_recognises_disable_form(self):
+        """``GENESIS_DISABLE_<PID>`` is the dual of ENABLE; both are
+        toggles and the resolver treats both the same way (the env
+        VALUE decides include/exclude, not the verb)."""
+        cfg = _make_cfg(genesis_env={
+            "GENESIS_ENABLE_PN17": "1",
+            "GENESIS_DISABLE_PN204": "1",
+        })
+        plan = resolve_patch_plan(cfg, policy="compat")
+        # Both go through the toggle path → both end up in `included`
+        # (truthy value) with patch_id resolved via the prefix-strip
+        # fallback when the registry doesn't carry them.
+        flags = {d.env_flag for d in plan.included}
+        assert "GENESIS_ENABLE_PN17" in flags
+        assert "GENESIS_DISABLE_PN204" in flags

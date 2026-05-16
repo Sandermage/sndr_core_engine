@@ -41,7 +41,7 @@ See `docs/_internal/PATCH_ATTRIBUTION_COMPOSE_GENERATOR_INTEGRATION_PLAN_2026-05
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # avoid runtime cycle (schema imports nothing from us)
@@ -147,18 +147,32 @@ class PatchDecision:
 
 @dataclass(frozen=True)
 class PatchPlan:
-    """Result of `resolve_patch_plan()` — what's in/out under a policy."""
+    """Result of `resolve_patch_plan()` — what's in/out under a policy.
+
+    ``included`` / ``excluded`` only carry decisions for *patch toggle*
+    keys (``GENESIS_ENABLE_*`` / ``GENESIS_DISABLE_*``). Other
+    ``GENESIS_*`` env vars in cfg.genesis_env (parameter knobs like
+    ``GENESIS_PN95_CONFIG_KEY``, ``GENESIS_BUFFER_MODE``,
+    ``GENESIS_PROFILE_RUN_CAP_M``) are kept as-is in ``passthrough``
+    and merged into ``env`` regardless of policy. Filtering parameter
+    values would break the patches they configure.
+    """
     policy: str
     included: tuple[PatchDecision, ...] = ()
     excluded: tuple[PatchDecision, ...] = ()
     warnings: tuple[str, ...] = ()
+    passthrough: dict[str, str] = field(default_factory=dict)
 
     @property
     def env(self) -> dict[str, str]:
         """Drop-in replacement for ``cfg.genesis_env`` after filtering.
 
-        Order-preserving (Python 3.7+ dict order = insertion order)."""
-        return {d.env_flag: d.value for d in self.included}
+        Merges policy-included toggle flags with the verbatim passthrough
+        parameter keys. Order-preserving: included toggles first (the
+        order they appeared in cfg.genesis_env), passthrough keys after."""
+        out: dict[str, str] = {d.env_flag: d.value for d in self.included}
+        out.update(self.passthrough)
+        return out
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────
@@ -175,6 +189,25 @@ def _attribution_for(
 
 def _is_truthy(value: str) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _is_toggle_flag(env_flag: str) -> bool:
+    """Classify a GENESIS_* env key as a patch toggle vs a parameter.
+
+    Toggle keys start with ``GENESIS_ENABLE_`` or ``GENESIS_DISABLE_``
+    and pair an enable verb with a P-style patch ID. Parameter keys
+    like ``GENESIS_BUFFER_MODE``, ``GENESIS_PN95_TICK_EVERY``,
+    ``GENESIS_PROFILE_RUN_CAP_M`` configure how a patch behaves once
+    it's active — filtering them by policy would break the dependent
+    patch silently. They pass through ``plan.env`` untouched.
+
+    Conservative match: must start with the canonical
+    ``GENESIS_(ENABLE|DISABLE)_`` prefix. Bare ``GENESIS_<X>`` keys
+    are always treated as parameters (passthrough).
+    """
+    return env_flag.startswith("GENESIS_ENABLE_") or env_flag.startswith(
+        "GENESIS_DISABLE_"
+    )
 
 
 # ─── Main resolver ───────────────────────────────────────────────────────
@@ -212,9 +245,17 @@ def resolve_patch_plan(
 
     included: list[PatchDecision] = []
     excluded: list[PatchDecision] = []
+    passthrough: dict[str, str] = {}
 
     for env_flag, raw_value in genesis_env.items():
         value = str(raw_value)
+        # Parameter keys (GENESIS_BUFFER_MODE, GENESIS_PN95_TICK_EVERY,
+        # GENESIS_PROFILE_RUN_CAP_M, P67_NUM_KV_SPLITS, etc.) pass
+        # through unconditionally — their values configure how an
+        # already-decided patch behaves, not whether the patch fires.
+        if not _is_toggle_flag(env_flag):
+            passthrough[env_flag] = value
+            continue
         pid, attr = _attribution_for(attribution, env_flag)
         role = attr.role if attr is not None else "unknown"
         note = (attr.note or "") if attr is not None else ""
@@ -260,6 +301,7 @@ def resolve_patch_plan(
         included=tuple(included),
         excluded=tuple(excluded),
         warnings=(),
+        passthrough=passthrough,
     )
 
 

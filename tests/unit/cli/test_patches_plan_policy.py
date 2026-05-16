@@ -116,12 +116,18 @@ class TestMinimalDropsKnownNoOps:
         ])
         assert rc in (0, 2)
         payload = json.loads(out)
-        # The resolver returns a filtered env dict keyed by env_flag.
         env = payload["resolver"]["env"]
         assert isinstance(env, dict)
-        # Every value in env must be truthy (no "0" entries leak).
-        assert all(str(v).strip().lower() not in ("0", "false", "")
-                   for v in env.values())
+        # All toggle-keyed entries (GENESIS_ENABLE_* / GENESIS_DISABLE_*)
+        # that survived minimal filtering must be truthy. Parameter
+        # keys (GENESIS_BUFFER_MODE, GENESIS_PROFILE_RUN_CAP_M, …) can
+        # legitimately carry "0" — they're not toggle flags, the value
+        # configures behaviour rather than gating it.
+        for k, v in env.items():
+            if k.startswith("GENESIS_ENABLE_") or k.startswith("GENESIS_DISABLE_"):
+                assert str(v).strip().lower() not in ("0", "false", ""), (
+                    f"toggle {k}={v!r} leaked into minimal env"
+                )
 
 
 # ─── Invalid policy rejected by argparse ─────────────────────────────────

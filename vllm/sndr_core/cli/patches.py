@@ -653,6 +653,11 @@ def _run_plan(opts: argparse.Namespace) -> int:
             "included": [_decision_dict(d) for d in plan.included],
             "excluded": [_decision_dict(d) for d in plan.excluded],
             "warnings": list(plan.warnings),
+            # Non-toggle parameter keys (GENESIS_BUFFER_MODE,
+            # GENESIS_PN95_CONFIG_KEY, …) pass through every policy
+            # so dependent patches don't silently noop. Expose
+            # separately for diff tools + traceability.
+            "passthrough": dict(plan.passthrough),
             "env": plan.env,
         }
 
