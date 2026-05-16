@@ -157,6 +157,14 @@ def main(argv: Optional[list[str]] = None) -> int:
                          "bench_with_baseline.")
     ap.add_argument("--proof-dir", default="evidence/patch_proof",
                     help="Override proof artefact directory.")
+    ap.add_argument("--include-default-on", action="store_true",
+                    help="Also attach the bench to every patch flagged "
+                         "``default_on=True`` in the registry. Those "
+                         "patches load implicitly when the preset does "
+                         "not explicitly disable them, so the bench "
+                         "result is empirical evidence for them too — "
+                         "even when the preset's genesis_env block "
+                         "doesn't name them.")
     ap.add_argument("--dry-run", action="store_true",
                     help="Print the planned changes, do not write files.")
     args = ap.parse_args(argv)
@@ -213,9 +221,24 @@ def main(argv: Optional[list[str]] = None) -> int:
         for pid, meta in PATCH_REGISTRY.items()
         if isinstance(meta, dict) and isinstance(meta.get("env_flag"), str)
     }
-    target_patches = sorted(
+    target_set: set[str] = {
         env_to_pid[k] for k in enabled_env_keys if k in env_to_pid
-    )
+    }
+    default_on_added: set[str] = set()
+    if args.include_default_on:
+        for pid, meta in PATCH_REGISTRY.items():
+            if not isinstance(meta, dict):
+                continue
+            if meta.get("default_on") is not True:
+                continue
+            # Skip when the preset explicitly *disabled* the patch.
+            env_flag = meta.get("env_flag")
+            if isinstance(env_flag, str) and env.get(env_flag) == "0":
+                continue
+            if pid not in target_set:
+                default_on_added.add(pid)
+                target_set.add(pid)
+    target_patches = sorted(target_set)
     if not target_patches:
         print(f"preset {args.preset!r} did not resolve to any registered "
               f"patches (env keys: {sorted(enabled_env_keys)[:5]}...)",
@@ -244,7 +267,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     print(f"  metrics: {sorted(metrics.keys())}")
     print(f"  deltas:  {sorted(delta_pct.keys()) or '(none — no baseline)'}")
     print(f"  target bucket: {bucket_label}")
-    print(f"  patches in preset: {len(target_patches)}")
+    print(f"  patches from preset env: "
+          f"{len(target_patches) - len(default_on_added)}")
+    if default_on_added:
+        print(f"  patches from default_on=True (implicit): "
+              f"{len(default_on_added)}")
+    print(f"  total target patches: {len(target_patches)}")
     print()
 
     written = 0
