@@ -79,7 +79,7 @@ def add_argparser(subparsers: Any) -> None:
         choices=("compat", "safe", "minimal"),
         default=None,
         help=(
-            "Phase C (2026-05-16): filter the rendered environment "
+            "filter the rendered environment "
             "block through the patch_plan resolver. compat keeps every "
             "truthy toggle, safe drops role='no_op', minimal also "
             "drops suspected_regression/unknown. Non-toggle GENESIS_* "
@@ -150,7 +150,7 @@ def add_argparser(subparsers: Any) -> None:
 def _resolve(key: str):
     """Accept either a V1 monolithic preset key or a V2 alias.
 
-    Phase C (2026-05-16): switched from V1-only `registry.get()` to
+    switched from V1-only `registry.get()` to
     the same V1+V2 helper memory.py / patches.py already use, so
     `sndr compose render prod-35b` works alongside the legacy
     `sndr compose render a5000-2x-35b-prod`.
@@ -247,7 +247,7 @@ def render_compose_yaml(
         cfg: ModelConfig from registry.
         host_paths: optional substitution table for `${var}` in mounts.
             None → attempt to read host.yaml.
-        policy: Phase C — when set, filter cfg.genesis_env through the
+        policy: when set, filter cfg.genesis_env through the
             patch_plan resolver before rendering. ``None`` keeps the
             legacy unfiltered behaviour byte-for-byte. Valid values:
             ``compat``, ``safe``, ``minimal`` (see patch_plan.py).
@@ -278,7 +278,7 @@ def render_compose_yaml(
     # Environment: combine system_env, genesis_env. All values as
     # strings — compose requires string-valued env vars.
     #
-    # Phase C (2026-05-16): if `policy` is set, run cfg.genesis_env
+    # if `policy` is set, run cfg.genesis_env
     # through the patch_plan resolver. Policy-filtered toggles +
     # passthrough parameters together form the new genesis_env block.
     # When policy is None the env block matches the legacy unfiltered

@@ -293,7 +293,7 @@ def diagnose_all(
     """Full diagnose suite. Requires container to be running.
 
     Args:
-        policy: Phase D — when set, run the patch_plan resolver and
+        policy: when set, run the patch_plan resolver and
             compare the container's env against the policy-filtered
             map instead of cfg.genesis_env raw. Avoids false-positive
             "env missing" findings when the container was launched

@@ -133,7 +133,7 @@ def _dataclass_from_dict(cls, data: dict):
                     ]
                     continue
         # dict[str, Dataclass] → recurse per value.
-        # Phase A (2026-05-16): added so ModelDef.patches_attribution
+        # added so ModelDef.patches_attribution
         # `dict[str, PatchAttribution]` materialises through YAML load.
         if isinstance(value, dict) and ftype is not None:
             origin = typing.get_origin(ftype)

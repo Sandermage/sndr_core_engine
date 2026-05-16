@@ -357,7 +357,7 @@ class ReferenceMetrics:
     # NULL/unset → R-018 falls back to 250 MiB conservative default.
     mamba_state_mib_per_request: Optional[float] = None
 
-    # Wave 1+2 (audit closure 2026-05-09): canonical genesis_bench_suite
+    # Wave 1+2 canonical genesis_bench_suite
     # output adds richer per-component metrics. All optional — old
     # configs without these fields still load. New canonical bench
     # writes them for future regression detection.
@@ -1548,7 +1548,7 @@ class RiskScore:
 
 @dataclass
 class CompatibilityRule:
-    """S2.5 (audit closure 2026-05-12): декларативное правило совместимости.
+    """S2.5 декларативное правило совместимости.
 
     Зачем
     -----
@@ -1933,7 +1933,7 @@ class ModelConfig:
     # Genesis env (P*, PN*, GENESIS_*)
     genesis_env: dict[str, str] = field(default_factory=dict)
 
-    # Phase B (2026-05-16) — structured rationale for entries in
+    # structured rationale for entries in
     # genesis_env, keyed by registry patch ID (e.g. ``PN204``). Carried
     # through compose() from ModelDef.patches_attribution so the
     # patch_plan resolver and `sndr patches plan --explain` can read

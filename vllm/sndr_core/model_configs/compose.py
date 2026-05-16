@@ -170,7 +170,7 @@ def _merged_attribution(
     model: ModelDef,
     profile: Optional[ProfileDef],
 ) -> dict[str, Any]:
-    """Phase D: merge ModelDef.patches_attribution with optional
+    """merge ModelDef.patches_attribution with optional
     ProfileDef.patches_delta.attribution.
 
     Semantics: per-key full replacement (the profile entry overrides
@@ -317,7 +317,7 @@ def compose(
 
         # Patches matrix
         genesis_env=patches,
-        # Phase B (2026-05-16) — copy attribution from ModelDef.
+        # copy attribution from ModelDef.
         # Phase D extension: profile.patches_delta.attribution overlays
         # per-key full replacements on top of the model's map. Same
         # merge semantics as enable/override on the patches dict —

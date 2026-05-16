@@ -559,7 +559,7 @@ def _run_plan(opts: argparse.Namespace) -> int:
     if not opts.preset:
         _io.fatal("--preset is required for `sndr patches plan`", 2)
 
-    # Phase B (2026-05-16): accept either V1 monolithic key or V2 alias
+    # accept either V1 monolithic key or V2 alias
     # so `sndr patches plan --preset prod-35b` works alongside the legacy
     # `--preset a5000-2x-35b-prod`. memory.py already exports the same
     # resolver — re-use to avoid divergent lookup paths.
@@ -648,11 +648,11 @@ def _run_plan(opts: argparse.Namespace) -> int:
                     "reasons": reasons,
                 })
 
-    # Phase B (2026-05-16): optional patch_plan resolver layer.
+    # optional patch_plan resolver layer.
     # Decoupled from the dispatcher simulator above — operators can
     # request both views in one JSON payload by passing --policy.
     #
-    # Phase D refinement (2026-05-16): even when --policy is NOT
+    # even when --policy is NOT
     # passed, we still run the resolver under compat just to collect
     # advisory warnings (conflicts_with + candidate_when). These are
     # surfaced as `resolver_warnings` in JSON output and as a
@@ -1249,7 +1249,7 @@ def add_argparser(subparsers: Any) -> None:
         choices=("compat", "safe", "minimal"),
         default=None,
         help=(
-            "Phase B (2026-05-16): run the patch_plan resolver alongside "
+            "run the patch_plan resolver alongside "
             "the dispatcher simulator. compat passes every truthy "
             "genesis_env flag through; safe drops role=='no_op'; minimal "
             "additionally drops role in {suspected_regression, unknown}. "

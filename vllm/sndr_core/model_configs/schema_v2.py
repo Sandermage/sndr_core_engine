@@ -174,7 +174,7 @@ class ModelDef:
     # A profile delta can disable / enable / override entries here.
     patches: dict[str, str] = field(default_factory=dict)
 
-    # Phase A — optional structured rationale keyed by registry patch ID
+    # optional structured rationale keyed by registry patch ID
     # (e.g. `PN204`, not the env-flag name). Stored alongside `patches`
     # so a model's "what" + "why" stay in one file. Empty dict is the
     # default for legacy YAMLs that haven't been backfilled yet.
@@ -369,7 +369,7 @@ class PatchesDelta:
     Order applied by composer: enable → disable → override → attribution.
     Conflicts within a profile (enable + disable same key) raise SchemaError.
 
-    Phase D extension (2026-05-16): the ``attribution`` map lets a
+    the ``attribution`` map lets a
     profile override ModelDef.patches_attribution per patch ID at
     compose time. Use case: the long-ctx profile flags PN204 as
     load_bearing (model marked it optional_perf because the latency
@@ -400,7 +400,7 @@ class PatchesDelta:
                     raise SchemaError(
                         f"profile patches_delta.{src_name}[{k!r}] must be str"
                     )
-        # Phase D — validate the optional attribution override map.
+        # validate the optional attribution override map.
         # Key shape mirrors ModelDef.patches_attribution: keys are
         # canonical patch IDs (P[N]?\\d+[A-Za-z0-9_]*), values are
         # PatchAttribution entries (role enum + role-conditional aux

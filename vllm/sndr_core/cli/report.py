@@ -232,7 +232,7 @@ _SCOPE_ARTIFACTS: dict[str, set[str]] = {
     # Operators sharing a bundle for ONE topic (e.g. dependency
     # planning, launch debugging) don't need ALL 9 artifacts.
     #
-    # Phase D extension (2026-05-16): patch_plan.json — patch_plan
+    # patch_plan.json — patch_plan
     # resolver snapshot for compat / safe / minimal under the given
     # --preset. Lets the reviewer see exactly which toggles each
     # policy would have produced without re-running the resolver.
@@ -298,7 +298,7 @@ def _collect_all(
 
 
 def _collect_patch_plan(preset: str | None) -> dict[str, Any] | None:
-    """Phase D — capture patch_plan resolver output for the preset.
+    """capture patch_plan resolver output for the preset.
 
     Runs the resolver for compat / safe / minimal in parallel and
     summarises included / excluded / passthrough counts plus the

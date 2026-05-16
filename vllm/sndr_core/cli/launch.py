@@ -101,7 +101,7 @@ def add_argparser(subparsers: Any) -> None:
         choices=("compat", "safe", "minimal"),
         default=None,
         help=(
-            "Phase D (2026-05-16): filter cfg.genesis_env through the "
+            "filter cfg.genesis_env through the "
             "patch_plan resolver before rendering the launch script. "
             "compat keeps every truthy toggle; safe drops role='no_op'; "
             "minimal additionally drops role in {suspected_regression, "
