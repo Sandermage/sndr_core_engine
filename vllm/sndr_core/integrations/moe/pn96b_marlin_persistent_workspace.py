@@ -49,6 +49,11 @@ Composition
   - `GENESIS_ENABLE_PN96=0` (default ON, but explicit-off available)
   - `current_platform` is not CUDA
   - `experts/marlin_moe.py` module not present (e.g. older vllm pin)
+  - Loaded model is a Gemma 4 variant (binary-search 2026-05-15 identified
+    PN96B as the patch corrupting Gemma 4 ``max_model_len`` during config
+    merge; Gemma 4 31B AWQ-4bit is Dense, not MoE, so this hook would
+    never fire usefully on Gemma 4 anyway). Override with
+    ``GENESIS_PN96B_FORCE_GEMMA4=1`` for diagnostics only.
 
 Auto-retire
 -----------
@@ -84,6 +89,12 @@ _ENV_ENABLE = "GENESIS_ENABLE_PN96B"
 _ENV_DISABLE = "GENESIS_DISABLE_PN96B"
 _ENV_ENABLE_LEGACY = "GENESIS_ENABLE_PN96"
 _ENV_DISABLE_LEGACY = "GENESIS_DISABLE_PN96"
+
+# Diagnostics escape hatch: force PN96B to install on Gemma 4 anyway.
+# Default behavior is to skip (Gemma 4 doesn't use Marlin MoE and binary
+# search 2026-05-15 traced PN96B as the patch that resets Gemma 4's
+# max_model_len during config merge — root cause not yet isolated).
+_ENV_FORCE_GEMMA4 = "GENESIS_PN96B_FORCE_GEMMA4"
 
 # Thread-local for default workspace; set by wrapped MarlinExperts.apply,
 # read by the patched fused_marlin_moe wrapper.
@@ -172,6 +183,32 @@ def apply() -> tuple[str, str]:
 
     if _APPLY_INSTALLED:
         return "applied", "PN96 already installed (idempotent)"
+
+    # Gemma 4 arch gate — binary search 2026-05-15 traced PN96B as the
+    # patch corrupting Gemma 4's max_model_len at config-merge time.
+    # Gemma 4 31B is Dense AWQ-4bit (no MoE), so PN96B has no useful
+    # effect there anyway. Skip cleanly unless operator forces install.
+    force_gemma4 = os.environ.get(_ENV_FORCE_GEMMA4, "").strip().lower() in (
+        "1", "true", "yes", "on"
+    )
+    if not force_gemma4:
+        try:
+            from vllm.config import get_current_vllm_config
+            _cfg = get_current_vllm_config()
+        except Exception:
+            _cfg = None
+        if _cfg is not None:
+            try:
+                from ..gemma4._gemma4_detect import is_gemma4_arch
+                if is_gemma4_arch(_cfg):
+                    return "skipped", (
+                        "Gemma 4 architecture detected — PN96B auto-skips "
+                        "(Gemma 4 31B AWQ-4bit is Dense, not MoE; PN96B "
+                        "would corrupt max_model_len during config merge). "
+                        "Set GENESIS_PN96B_FORCE_GEMMA4=1 to override."
+                    )
+            except Exception as e:
+                log.debug("[PN96B] gemma4 arch probe failed: %s", e)
 
     # Platform gate — CUDA only, Ampere+ (Marlin MoE requires sm75+)
     try:

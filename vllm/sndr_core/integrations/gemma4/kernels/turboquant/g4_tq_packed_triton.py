@@ -136,8 +136,10 @@ if _TRITON_AVAILABLE:
             l2_sq = l2_sq + tl.sum(xb_rot * xb_rot, axis=0)
 
         scale = tl.sqrt(l2_sq / HEAD_DIM.to(tl.float32))
-        scale_safe = tl.where(scale > 1e-8, scale, 1.0)
-        tl.store(scale_ptr, scale)
+        # Stability guard: NaN → 1.0 (would propagate corruption otherwise)
+        scale_clean = tl.where(scale == scale, scale, 1.0)
+        scale_safe = tl.where(scale_clean > 1e-8, scale_clean, 1.0)
+        tl.store(scale_ptr, scale_clean)
 
         # PASS 2: rotate, normalize, quantize, pack 8 indices → 1 uint32
         # We process HEAD_DIM coords in groups of 8, packing each group.
@@ -151,6 +153,11 @@ if _TRITON_AVAILABLE:
             x_block = tl.load(x_ptr + i_arr * stride_xd).to(tl.float32)
             s_block = tl.load(SIGNS_ptr + i_arr).to(tl.float32)
             x_rot = x_block * s_block / scale_safe
+
+            # Stability: defensive NaN/Inf cleanup before quantization.
+            # NaN → 0 (centre of codebook); ±Inf-magnitude → clip to safe span.
+            x_rot = tl.where(x_rot == x_rot, x_rot, 0.0)
+            x_rot = tl.maximum(tl.minimum(x_rot, 100.0), -100.0)
 
             # Quantize: 7 boundaries → indices 0..7
             idx = tl.zeros((8,), dtype=tl.int32)
@@ -196,6 +203,8 @@ if _TRITON_AVAILABLE:
         x_ptr = X_OUT_ptr + m * stride_xm + h * stride_xh
 
         scale = tl.load(scale_ptr).to(tl.float32)
+        # Stability: defensive NaN cleanup on the dequantization side.
+        scale = tl.where(scale == scale, scale, 1.0)
         N_PACKED: tl.constexpr = HEAD_DIM // 8
 
         for w in tl.static_range(N_PACKED):

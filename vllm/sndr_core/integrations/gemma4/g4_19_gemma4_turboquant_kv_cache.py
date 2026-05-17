@@ -70,6 +70,11 @@ SAFETY MODEL
     - GENESIS_G4_TQ_BITS_GLOBAL  (default 3)
     - GENESIS_G4_TQ_METHOD       (rht | clifford; default rht)
     - GENESIS_G4_TQ_SEED_BASE    (default 0xC0FFEE)
+    - GENESIS_G4_TQ_PACK_MODE    (uint32 | tight | uint8; default uint32 = 4× compression)
+    - GENESIS_G4_TQ_WHT_MODE     (signs_only | full_wht; default signs_only
+                                  — full_wht enables the real Walsh-Hadamard
+                                  butterfly; ~10-20% slower decode but ~6×
+                                  lower quantization MSE)
 * applies_to:
     - architecture: gemma4
     - triton ≥ 2.3
@@ -102,6 +107,8 @@ _ENV_BITS_SLIDING = "GENESIS_G4_TQ_BITS_SLIDING"
 _ENV_BITS_GLOBAL = "GENESIS_G4_TQ_BITS_GLOBAL"
 _ENV_METHOD = "GENESIS_G4_TQ_METHOD"
 _ENV_SEED = "GENESIS_G4_TQ_SEED_BASE"
+_ENV_PACK_MODE = "GENESIS_G4_TQ_PACK_MODE"
+_ENV_WHT_MODE = "GENESIS_G4_TQ_WHT_MODE"
 
 _APPLIED = False
 _INSTALLED_CACHES = []  # list of G4TurboQuantKVCache instances per layer
@@ -143,6 +150,33 @@ def _resolve_seed() -> int:
         return int(raw, 0)
     except ValueError:
         return 0xC0FFEE
+
+
+def _resolve_pack_mode() -> str:
+    raw = os.environ.get(_ENV_PACK_MODE, "uint32").strip().lower()
+    if raw not in ("uint32", "tight", "uint8"):
+        log.warning(
+            "[G4_19] %s=%r invalid; using uint32 (4× compression)",
+            _ENV_PACK_MODE, raw,
+        )
+        return "uint32"
+    return raw
+
+
+def _resolve_wht_mode() -> str:
+    """Pick rotation implementation. ``signs_only`` keeps the original
+    fast-path (which is the placeholder sign-flip — same as v1 release).
+    ``full_wht`` enables the Walsh-Hadamard butterfly via the new
+    ``g4_tq_packed_wht_triton`` kernel. Default = signs_only so the
+    bit-validated 256K boot path remains the operator-default."""
+    raw = os.environ.get(_ENV_WHT_MODE, "signs_only").strip().lower()
+    if raw not in ("signs_only", "full_wht"):
+        log.warning(
+            "[G4_19] %s=%r invalid; using signs_only (no Hadamard)",
+            _ENV_WHT_MODE, raw,
+        )
+        return "signs_only"
+    return raw
 
 
 def apply() -> tuple[str, str]:
@@ -188,6 +222,8 @@ def apply() -> tuple[str, str]:
     bits_global = _resolve_bits(_ENV_BITS_GLOBAL, 3)
     method = _resolve_method()
     seed = _resolve_seed()
+    pack_mode = _resolve_pack_mode()
+    wht_mode = _resolve_wht_mode()
 
     # Install hook on Gemma4 model config → KV cache spec
     try:
@@ -234,15 +270,18 @@ def apply() -> tuple[str, str]:
                     seed_base=seed,
                     sliding_window=getattr(text, "sliding_window", 1024),
                     per_layer_types=getattr(text, "layer_types", None),
+                    pack_mode=pack_mode,
+                    wht_mode=wht_mode,
                 )
                 # Attach to vllm_config — model executor will read this
                 vllm_config._g4_19_turboquant_config = tq_config
                 log.info(
                     "[G4_19] G4-TurboQuant KV cache config attached: "
                     "head_dim=%d sliding_bits=%d global_bits=%d method=%s "
-                    "layers=%s sliding_window=%d",
+                    "pack=%s wht=%s layers=%s sliding_window=%d",
                     tq_config.head_dim, tq_config.bits_sliding,
                     tq_config.bits_global, tq_config.rotation_method,
+                    tq_config.pack_mode, tq_config.wht_mode,
                     len(tq_config.per_layer_types) if tq_config.per_layer_types else "?",
                     tq_config.sliding_window,
                 )

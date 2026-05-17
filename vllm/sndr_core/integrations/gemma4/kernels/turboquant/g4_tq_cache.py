@@ -102,6 +102,13 @@ class G4TurboQuantConfig:
         pack_mode: 'uint32' (default, 4× compression), 'tight' (5.33×
                    compression but harder to access), 'uint8' (legacy
                    unpacked, 2× compression — kept for back-compat).
+        wht_mode: 'signs_only' (default — fast, original placeholder
+                   path with sign-flip only) or 'full_wht' (slower but
+                   ~6× lower quantization MSE; applies real Walsh-Hadamard
+                   rotation in addition to signs). Opt-in via env
+                   ``GENESIS_G4_TQ_WHT_MODE=full_wht``. Buffer layout is
+                   IDENTICAL between modes — operators can flip the flag
+                   between restarts without cache migration.
     """
     head_dim: int = 256
     bits_sliding: int = 4
@@ -112,6 +119,7 @@ class G4TurboQuantConfig:
     sliding_window: int = 1024
     per_layer_types: Optional[list[str]] = None
     pack_mode: str = "uint32"  # uint32 | tight | uint8
+    wht_mode: str = "signs_only"  # signs_only | full_wht
 
     def __post_init__(self):
         assert self.head_dim % self.block_size == 0, (
@@ -126,6 +134,9 @@ class G4TurboQuantConfig:
         )
         assert self.rotation_method in ("rht", "clifford"), (
             f"rotation_method must be 'rht' or 'clifford', got {self.rotation_method}"
+        )
+        assert self.wht_mode in ("signs_only", "full_wht"), (
+            f"wht_mode must be 'signs_only' or 'full_wht', got {self.wht_mode}"
         )
 
     def bits_for_layer(self, layer_idx: int) -> int:
@@ -332,17 +343,27 @@ class G4TurboQuantKVCache:
             self.allocate_()
 
         pack_mode = getattr(self.config, "pack_mode", "uint32")
+        wht_mode = getattr(self.config, "wht_mode", "signs_only")
 
         if pack_mode == "uint32" and self.bits == 3:
-            # Use packed 3-bit kernel
-            from .g4_tq_packed_triton import g4_tq_write_packed_3bit
+            # Use packed 3-bit kernel. wht_mode picks the rotation impl;
+            # both write to the IDENTICAL uint32 packed buffer format so
+            # operators may toggle the flag between restarts safely.
+            if wht_mode == "full_wht":
+                from .g4_tq_packed_wht_triton import (
+                    g4_tq_write_packed_wht_3bit as _write_fn,
+                )
+            else:
+                from .g4_tq_packed_triton import (
+                    g4_tq_write_packed_3bit as _write_fn,
+                )
 
-            k_idx, k_sc = g4_tq_write_packed_3bit(
+            k_idx, k_sc = _write_fn(
                 k.contiguous(), self.signs,
                 head_dim=self.config.head_dim,
                 block_size=self.config.block_size,
             )
-            v_idx, v_sc = g4_tq_write_packed_3bit(
+            v_idx, v_sc = _write_fn(
                 v.contiguous(), self.signs,
                 head_dim=self.config.head_dim,
                 block_size=self.config.block_size,
@@ -391,17 +412,25 @@ class G4TurboQuantKVCache:
         v_sc = self.v_scale[slot_indices].contiguous()
 
         pack_mode = getattr(self.config, "pack_mode", "uint32")
+        wht_mode = getattr(self.config, "wht_mode", "signs_only")
 
         if pack_mode == "uint32" and self.bits == 3:
-            from .g4_tq_packed_triton import g4_tq_read_packed_3bit
+            if wht_mode == "full_wht":
+                from .g4_tq_packed_wht_triton import (
+                    g4_tq_read_packed_wht_3bit as _read_fn,
+                )
+            else:
+                from .g4_tq_packed_triton import (
+                    g4_tq_read_packed_3bit as _read_fn,
+                )
 
-            k = g4_tq_read_packed_3bit(
+            k = _read_fn(
                 k_idx, k_sc, self.signs,
                 head_dim=self.config.head_dim,
                 block_size=self.config.block_size,
                 dtype=dtype,
             )
-            v = g4_tq_read_packed_3bit(
+            v = _read_fn(
                 v_idx, v_sc, self.signs,
                 head_dim=self.config.head_dim,
                 block_size=self.config.block_size,
