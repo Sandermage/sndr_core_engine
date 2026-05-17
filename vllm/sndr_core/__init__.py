@@ -165,10 +165,14 @@ def _g4_19_import_time_hook():
     g60d = _os.environ.get(
         "GENESIS_ENABLE_G4_60D_TQ_STORE_OVERLAY", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_67 — backport of upstream PR #40914 (TQ K+1 spec-verify routing).
+    g67 = _os.environ.get(
+        "GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
-        or g61 or g62
+        or g61 or g62 or g67
     ):
         return
     try:
@@ -310,6 +314,14 @@ def _g4_19_import_time_hook():
                 g4_60d_triton_store_overlay_loader as _g4_60d_mod,
             )
             _g4_60d_mod.apply()
+        # G4_67 backports PR #40914 — must apply AFTER G4_60b (overlay
+        # verifier) so TurboQuantAttentionImpl exists with PR #42637
+        # signatures before we monkey-patch its forward method.
+        if g67:
+            from .integrations.gemma4 import (
+                g4_67_tq_spec_verify_routing as _g4_67_mod,
+            )
+            _g4_67_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
