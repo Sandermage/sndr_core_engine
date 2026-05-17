@@ -39,6 +39,7 @@ PATCHES = [
     ("vllm.sndr_core.integrations.gemma4.g4_17_gemma4_vision_tower_text_only_skip", "G4_17"),
     ("vllm.sndr_core.integrations.gemma4.g4_18_gemma4_per_layer_kv_page_size", "G4_18"),
     ("vllm.sndr_core.integrations.gemma4.g4_19_gemma4_turboquant_kv_cache", "G4_19"),
+    ("vllm.sndr_core.integrations.gemma4.g4_19b_gemma4_tq_kv_spec_integration", "G4_19B"),
     ("vllm.sndr_core.integrations.gemma4.g4_23_gemma4_vision_fp16_overflow_fix", "G4_23"),
     ("vllm.sndr_core.integrations.gemma4.g4_24_gemma4_fused_softcap_route", "G4_24"),
     ("vllm.sndr_core.integrations.gemma4.g4_25_gemma4_rope_dual_base_freq_guard", "G4_25"),

@@ -5786,6 +5786,8 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
      "g4_25_gemma4_rope_dual_base_freq_guard"),
     ("G4_19", "G4_19 gemma4 Genesis TurboQuant KV cache (3/4-bit VQ, 256K unlock)",
      "g4_19_gemma4_turboquant_kv_cache"),
+    ("G4_19B", "G4_19b gemma4 TQ KV spec integration (compression-aware memory check)",
+     "g4_19b_gemma4_tq_kv_spec_integration"),
 )
 
 

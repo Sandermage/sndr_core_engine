@@ -346,6 +346,8 @@ class Flags:
     # architecture pattern for gemma4 attention path. Implementation:
     # vllm/sndr_core/integrations/gemma4/kernels/turboquant/.
     G4_19_GEMMA4_TURBOQUANT_KV = "G4_19_GEMMA4_TURBOQUANT_KV"
+    # G4_19b — compression-aware KV cache memory check for vLLM v1
+    G4_19B_GEMMA4_TQ_KV_SPEC = "G4_19B_GEMMA4_TQ_KV_SPEC"
 
     # ── Meta flags (apply behavior, not patch enable) ──────────────────
     NO_PATCH_CACHE = "NO_PATCH_CACHE"           # disable file_cache fast-path
