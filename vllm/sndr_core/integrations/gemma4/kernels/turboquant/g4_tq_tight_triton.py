@@ -122,7 +122,7 @@ if _TRITON_AVAILABLE:
             xb = tl.load(x_ptr + (block_off + cols) * stride_xd).to(tl.float32)
             l2_sq = l2_sq + tl.sum(xb * xb, axis=0)
 
-        scale = tl.sqrt(l2_sq / HEAD_DIM.to(tl.float32))
+        scale = tl.sqrt(l2_sq / tl.full((), HEAD_DIM, tl.float32))
         scale_clean = tl.where(scale == scale, scale, 1.0)
         scale_safe = tl.where(scale_clean > 1e-8, scale_clean, 1.0)
         tl.store(scale_ptr, scale_clean)

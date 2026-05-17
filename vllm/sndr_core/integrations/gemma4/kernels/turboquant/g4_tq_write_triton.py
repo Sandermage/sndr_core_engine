@@ -170,7 +170,7 @@ if _TRITON_AVAILABLE:
             l2_sq = l2_sq + tl.sum(x_block * x_block, axis=0)
 
         # Per-vector scale = sqrt(L2_sq / head_dim)
-        scale = tl.sqrt(l2_sq / HEAD_DIM.to(tl.float32))
+        scale = tl.sqrt(l2_sq / tl.full((), HEAD_DIM, tl.float32))
         # Guard against degenerate
         scale_safe = tl.where(scale > 1e-8, scale, 1.0)
         # Store scale

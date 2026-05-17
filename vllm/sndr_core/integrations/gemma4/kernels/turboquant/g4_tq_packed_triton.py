@@ -135,7 +135,7 @@ if _TRITON_AVAILABLE:
             xb_rot = xb * sb
             l2_sq = l2_sq + tl.sum(xb_rot * xb_rot, axis=0)
 
-        scale = tl.sqrt(l2_sq / HEAD_DIM.to(tl.float32))
+        scale = tl.sqrt(l2_sq / tl.full((), HEAD_DIM, tl.float32))
         # Stability guard: NaN → 1.0 (would propagate corruption otherwise)
         scale_clean = tl.where(scale == scale, scale, 1.0)
         scale_safe = tl.where(scale_clean > 1e-8, scale_clean, 1.0)
