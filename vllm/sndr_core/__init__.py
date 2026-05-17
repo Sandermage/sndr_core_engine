@@ -132,7 +132,26 @@ def _g4_19_import_time_hook():
     g50 = _os.environ.get(
         "GENESIS_ENABLE_G4_50_NATIVE_TQ", ""
     ).strip().lower() in ("1", "true", "yes")
-    if not (g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50):
+    # G4_60a..k — PR #42637 cherry-pick stack (Mixed-attention TQ for Gemma 4)
+    g60a = _os.environ.get(
+        "GENESIS_ENABLE_G4_60A_TQ_SLIDING_SPEC", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g60e = _os.environ.get(
+        "GENESIS_ENABLE_G4_60E_KV_CACHE_UTILS", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g60g = _os.environ.get(
+        "GENESIS_ENABLE_G4_60G_TQ_DISPATCH", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g60h = _os.environ.get(
+        "GENESIS_ENABLE_G4_60H_TQ_CONFIG_AUGMENT", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g60k = _os.environ.get(
+        "GENESIS_ENABLE_G4_60K_TQ_ENGINE_CONFIG", ""
+    ).strip().lower() in ("1", "true", "yes")
+    if not (
+        g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
+        or g60a or g60e or g60g or g60h or g60k
+    ):
         return
     try:
         # G4_30/G4_43/G4_44/G4_45/G4_50 moved to sndr_private/g4_upstream_tq_wip/
@@ -207,6 +226,39 @@ def _g4_19_import_time_hook():
                 g4_19c_attention_wrapper as _g4_19c_mod,
             )
             _g4_19c_mod.apply()
+        # === G4_60* — PR #42637 cherry-pick stack (apply in dependency order) ===
+        # G4_60a (TQSlidingWindowSpec class injection) is prerequisite for
+        # G4_60e (kv_cache_utils mixed-route) and G4_60g (dispatch). Apply first.
+        if g60a:
+            from .integrations.gemma4 import (
+                g4_60a_tq_sliding_window_spec as _g4_60a_mod,
+            )
+            _g4_60a_mod.apply()
+        # G4_60h augments TurboQuantConfig — required by G4_60k.
+        if g60h:
+            from .integrations.gemma4 import (
+                g4_60h_turboquant_config_augment as _g4_60h_mod,
+            )
+            _g4_60h_mod.apply()
+        # G4_60e patches kv_cache_utils — needs G4_60a first.
+        if g60e:
+            from .integrations.gemma4 import (
+                g4_60e_kv_cache_utils as _g4_60e_mod,
+            )
+            _g4_60e_mod.apply()
+        # G4_60g patches Attention.get_kv_cache_spec — needs G4_60a first.
+        if g60g:
+            from .integrations.gemma4 import (
+                g4_60g_attention_dispatch as _g4_60g_mod,
+            )
+            _g4_60g_mod.apply()
+        # G4_60k wraps EngineArgs.create_engine_config — applies post-build.
+        # Order is independent but typically after G4_60h.
+        if g60k:
+            from .integrations.gemma4 import (
+                g4_60k_arg_utils as _g4_60k_mod,
+            )
+            _g4_60k_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
