@@ -155,9 +155,20 @@ def _g4_19_import_time_hook():
     g62 = _os.environ.get(
         "GENESIS_ENABLE_G4_62_TQ_KERNEL_WARMUP", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_60b/c/d — verify bind-mount overlay of PR #42637 source files.
+    g60b = _os.environ.get(
+        "GENESIS_ENABLE_G4_60B_TQ_ATTN_OVERLAY", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g60c = _os.environ.get(
+        "GENESIS_ENABLE_G4_60C_TQ_DECODE_OVERLAY", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g60d = _os.environ.get(
+        "GENESIS_ENABLE_G4_60D_TQ_STORE_OVERLAY", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
-        or g60a or g60e or g60g or g60h or g60k or g61 or g62
+        or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
+        or g61 or g62
     ):
         return
     try:
@@ -280,6 +291,25 @@ def _g4_19_import_time_hook():
                 g4_62_tq_kernel_warmup as _g4_62_mod,
             )
             _g4_62_mod.apply()
+        # G4_60b/c/d verify PR #42637 bind-mount overlay activated. These are
+        # diagnostic only — they don't perform the mount (that's done in the
+        # launch script via docker -v flags). Apply after all monkey-patches
+        # so verification reflects the final live state.
+        if g60b:
+            from .integrations.gemma4 import (
+                g4_60b_turboquant_attn_overlay_loader as _g4_60b_mod,
+            )
+            _g4_60b_mod.apply()
+        if g60c:
+            from .integrations.gemma4 import (
+                g4_60c_triton_decode_overlay_loader as _g4_60c_mod,
+            )
+            _g4_60c_mod.apply()
+        if g60d:
+            from .integrations.gemma4 import (
+                g4_60d_triton_store_overlay_loader as _g4_60d_mod,
+            )
+            _g4_60d_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
