@@ -341,6 +341,12 @@ class Flags:
     G4_24_GEMMA4_FUSED_SOFTCAP = "G4_24_GEMMA4_FUSED_SOFTCAP"
     G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD = "G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD"
 
+    # G4_19 — Genesis-original TurboQuant KV cache for Gemma 4 (256K unlock)
+    # Companion to our Qwen 3.5/3.6 P67/PN116/PN118/PN119 stack — parallel
+    # architecture pattern for gemma4 attention path. Implementation:
+    # vllm/sndr_core/integrations/gemma4/kernels/turboquant/.
+    G4_19_GEMMA4_TURBOQUANT_KV = "G4_19_GEMMA4_TURBOQUANT_KV"
+
     # ── Meta flags (apply behavior, not patch enable) ──────────────────
     NO_PATCH_CACHE = "NO_PATCH_CACHE"           # disable file_cache fast-path
     DISABLE_BOOT_PATCHES = "DISABLE_BOOT_PATCHES"  # skip apply_all at boot

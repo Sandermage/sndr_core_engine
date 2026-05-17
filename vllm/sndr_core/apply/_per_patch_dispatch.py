@@ -5784,6 +5784,8 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
      "g4_24_gemma4_fused_softcap_route"),
     ("G4_25", "G4_25 gemma4 dual-RoPE base-freq divergence guard",
      "g4_25_gemma4_rope_dual_base_freq_guard"),
+    ("G4_19", "G4_19 gemma4 Genesis TurboQuant KV cache (3/4-bit VQ, 256K unlock)",
+     "g4_19_gemma4_turboquant_kv_cache"),
 )
 
 
