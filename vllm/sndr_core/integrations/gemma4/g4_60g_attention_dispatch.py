@@ -160,7 +160,12 @@ def apply() -> tuple[str, str]:
 
     try:
         from vllm.model_executor.layers.attention.attention import Attention
-        from vllm.attention.layer import AttentionType
+        # AttentionType lives in vllm.v1.attention.backend in dev371+
+        try:
+            from vllm.v1.attention.backend import AttentionType
+        except ImportError:
+            # Older pin compatibility
+            from vllm.attention.backends.abstract import AttentionType
     except ImportError as e:
         return "skipped", (
             f"vllm.model_executor.layers.attention.attention not importable: {e}"
