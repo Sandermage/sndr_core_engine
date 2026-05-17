@@ -99,6 +99,9 @@ class G4TurboQuantConfig:
         sliding_window: sliding window size in tokens (1024 for Gemma 4).
         per_layer_types: list of "sliding_attention" / "full_attention"
                          strings, length = num_layers.
+        pack_mode: 'uint32' (default, 4× compression), 'tight' (5.33×
+                   compression but harder to access), 'uint8' (legacy
+                   unpacked, 2× compression — kept for back-compat).
     """
     head_dim: int = 256
     bits_sliding: int = 4
@@ -108,6 +111,7 @@ class G4TurboQuantConfig:
     seed_base: int = 0xC0FFEE
     sliding_window: int = 1024
     per_layer_types: Optional[list[str]] = None
+    pack_mode: str = "uint32"  # uint32 | tight | uint8
 
     def __post_init__(self):
         assert self.head_dim % self.block_size == 0, (
@@ -154,10 +158,17 @@ def kv_cache_size_bytes(
         sliding_count = sum(1 for t in config.per_layer_types if t == "sliding_attention")
         global_count = num_layers - sliding_count
 
-    # Per-token, per-head:
-    # - indices: head_dim bytes (uint8)
-    # - scale: 4 bytes (fp32)
-    bytes_per_token_per_head = config.head_dim + 4  # indices + scale
+    # Per-token, per-head storage depends on pack_mode:
+    #   uint32: head_dim/8 × 4 bytes = head_dim/2 bytes per coord set
+    #   tight:  head_dim/8 × 3 bytes = head_dim×3/8 bytes
+    #   uint8:  head_dim bytes (legacy)
+    pack_mode = getattr(config, "pack_mode", "uint32")
+    if pack_mode == "uint32":
+        bytes_per_token_per_head = (config.head_dim // 8) * 4 + 4
+    elif pack_mode == "tight":
+        bytes_per_token_per_head = (config.head_dim * 3 // 8) + 4
+    else:  # uint8 legacy
+        bytes_per_token_per_head = config.head_dim + 4
 
     sliding_bytes = (
         sliding_count
@@ -266,30 +277,44 @@ class G4TurboQuantKVCache:
     def allocate_(self) -> None:
         """Allocate full buffers up-front.
 
-        Layout: (max_num_blocks, block_size_tokens, num_kv_heads, head_dim)
+        Layout depends on pack_mode:
+          uint32: (N, H, D//8) int32 — 8 indices per word
+          tight:  (N, H, D*3//8) uint8 — tight 3-byte/8-index pack
+          uint8:  (N, H, D) uint8 — legacy unpacked
         """
         import torch
         N = self.max_num_blocks * self.block_size_tokens
         H = self.num_kv_heads
         D = self.config.head_dim
+        pack_mode = getattr(self.config, "pack_mode", "uint32")
 
-        self.k_indices = torch.zeros(
-            (N, H, D), dtype=torch.uint8, device=self.device,
-        )
-        self.v_indices = torch.zeros(
-            (N, H, D), dtype=torch.uint8, device=self.device,
-        )
-        self.k_scale = torch.zeros(
-            (N, H), dtype=torch.float32, device=self.device,
-        )
-        self.v_scale = torch.zeros(
-            (N, H), dtype=torch.float32, device=self.device,
-        )
+        if pack_mode == "uint32":
+            assert D % 8 == 0, f"head_dim {D} not div 8 for uint32 pack"
+            cache_shape = (N, H, D // 8)
+            cache_dtype = torch.int32
+        elif pack_mode == "tight":
+            assert D % 8 == 0
+            cache_shape = (N, H, (D * 3) // 8)
+            cache_dtype = torch.uint8
+        else:  # uint8 legacy
+            cache_shape = (N, H, D)
+            cache_dtype = torch.uint8
+
+        self.k_indices = torch.zeros(cache_shape, dtype=cache_dtype, device=self.device)
+        self.v_indices = torch.zeros(cache_shape, dtype=cache_dtype, device=self.device)
+        self.k_scale = torch.zeros((N, H), dtype=torch.float32, device=self.device)
+        self.v_scale = torch.zeros((N, H), dtype=torch.float32, device=self.device)
         self._allocated = True
+        # Memory accounting in MB
+        kv_mb = (
+            self.k_indices.numel() * self.k_indices.element_size() +
+            self.v_indices.numel() * self.v_indices.element_size() +
+            self.k_scale.numel() * 4 + self.v_scale.numel() * 4
+        ) / (1024 ** 2)
         log.info(
             "[G4-TQ layer=%d] allocated KV cache: %d slots × %d heads × "
-            "%d head_dim, bits=%d, compression=%.1fx",
-            self.layer_idx, N, H, D, self.bits, 16.0 / self.bits,
+            "%d head_dim, bits=%d, pack=%s, mem=%.1f MB",
+            self.layer_idx, N, H, D, self.bits, pack_mode, kv_mb,
         )
 
     def write_kv(
@@ -300,30 +325,44 @@ class G4TurboQuantKVCache:
     ) -> None:
         """Write K, V vectors at slot positions.
 
-        Calls Triton fused write kernel for K and V separately. Slot
-        scatter uses simple indexing (no fancy reshape needed).
+        Dispatches to packed (uint32) or unpacked (uint8) Triton kernel
+        depending on config.pack_mode. Slot scatter uses simple indexing.
         """
         if not self._allocated:
             self.allocate_()
 
-        from .g4_tq_write_triton import g4_tq_write
+        pack_mode = getattr(self.config, "pack_mode", "uint32")
 
-        # Encode K
-        k_idx, k_sc = g4_tq_write(
-            k.contiguous(),
-            self.signs,
-            bits=self.bits,
-            head_dim=self.config.head_dim,
-            block_size=self.config.block_size,
-        )
-        # Encode V
-        v_idx, v_sc = g4_tq_write(
-            v.contiguous(),
-            self.signs,
-            bits=self.bits,
-            head_dim=self.config.head_dim,
-            block_size=self.config.block_size,
-        )
+        if pack_mode == "uint32" and self.bits == 3:
+            # Use packed 3-bit kernel
+            from .g4_tq_packed_triton import g4_tq_write_packed_3bit
+
+            k_idx, k_sc = g4_tq_write_packed_3bit(
+                k.contiguous(), self.signs,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+            )
+            v_idx, v_sc = g4_tq_write_packed_3bit(
+                v.contiguous(), self.signs,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+            )
+        else:
+            # Legacy unpacked path
+            from .g4_tq_write_triton import g4_tq_write
+
+            k_idx, k_sc = g4_tq_write(
+                k.contiguous(), self.signs,
+                bits=self.bits,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+            )
+            v_idx, v_sc = g4_tq_write(
+                v.contiguous(), self.signs,
+                bits=self.bits,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+            )
 
         # Scatter to slots
         self.k_indices[slot_indices] = k_idx
@@ -342,7 +381,6 @@ class G4TurboQuantKVCache:
             (k, v): each shape (N, num_kv_heads, head_dim).
         """
         import torch
-        from .g4_tq_read_triton import g4_tq_read
 
         if dtype is None:
             dtype = torch.bfloat16
@@ -352,20 +390,40 @@ class G4TurboQuantKVCache:
         v_idx = self.v_indices[slot_indices].contiguous()
         v_sc = self.v_scale[slot_indices].contiguous()
 
-        k = g4_tq_read(
-            k_idx, k_sc, self.signs,
-            bits=self.bits,
-            head_dim=self.config.head_dim,
-            block_size=self.config.block_size,
-            dtype=dtype,
-        )
-        v = g4_tq_read(
-            v_idx, v_sc, self.signs,
-            bits=self.bits,
-            head_dim=self.config.head_dim,
-            block_size=self.config.block_size,
-            dtype=dtype,
-        )
+        pack_mode = getattr(self.config, "pack_mode", "uint32")
+
+        if pack_mode == "uint32" and self.bits == 3:
+            from .g4_tq_packed_triton import g4_tq_read_packed_3bit
+
+            k = g4_tq_read_packed_3bit(
+                k_idx, k_sc, self.signs,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+                dtype=dtype,
+            )
+            v = g4_tq_read_packed_3bit(
+                v_idx, v_sc, self.signs,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+                dtype=dtype,
+            )
+        else:
+            from .g4_tq_read_triton import g4_tq_read
+
+            k = g4_tq_read(
+                k_idx, k_sc, self.signs,
+                bits=self.bits,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+                dtype=dtype,
+            )
+            v = g4_tq_read(
+                v_idx, v_sc, self.signs,
+                bits=self.bits,
+                head_dim=self.config.head_dim,
+                block_size=self.config.block_size,
+                dtype=dtype,
+            )
         return k, v
 
     def memory_footprint_bytes(self) -> int:

@@ -168,10 +168,23 @@ def _make_patched_check(original, get_compression_factor):
         # bits come from env directly).
         bits_g = int(os.environ.get("GENESIS_G4_TQ_BITS_GLOBAL", "3"))
         bits_s = int(os.environ.get("GENESIS_G4_TQ_BITS_SLIDING", "4"))
-        # We currently store indices as uint8 (1 byte each) so effective
-        # compression is 16/8 = 2× until bit-packing lands. Conservative.
-        eff_bits = max(min(bits_g, bits_s), 8)
-        factor = 16.0 / eff_bits  # 2.0 for uint8 packed indices
+        pack_mode = os.environ.get(
+            "GENESIS_G4_TQ_PACK_MODE", "uint32"
+        ).strip().lower()
+
+        # Packing layout determines effective bytes/coord:
+        #   uint32 (default): 8 coords per uint32 = 4 bytes per 8 coords
+        #                     → 0.5 byte/coord regardless of 3 or 4 bits
+        #                     → factor 16/8 / 0.5 = 4.0×
+        #   tight (3-bit):    8 coords per 3 bytes = 0.375 byte/coord
+        #                     → factor 16/8 / 0.375 = 5.33×
+        #   uint8 (legacy):   1 byte per coord → factor 16/8 = 2.0×
+        if pack_mode == "tight" and min(bits_g, bits_s) == 3:
+            factor = 5.33  # tight 3-bit packing
+        elif pack_mode == "uint32":
+            factor = 4.0  # uint32 pack of either 3-bit or 4-bit
+        else:
+            factor = 2.0  # uint8 (legacy unpacked)
 
         effective_available = int(available_memory * factor)
         log.warning(
