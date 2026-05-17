@@ -233,29 +233,25 @@ def _build_signs_torch(head_dim: int, layer_idx: int, seed_base: int):
 
 def _get_or_build_signs(
     layer_idx: int, head_dim: int, seed_base: int, device,
-    attn_layer=None,
+    attn_layer=None,  # kept for API back-compat; ignored after CUDA-graph bug
 ):
-    """Lookup the device-resident signs tensor.
+    """Lookup the device-resident signs tensor from the process-global cache.
 
-    Lookup order:
-      1. Per-instance ``attn_layer._genesis_g4_19c_signs_dev`` (already on
-         device — pure pointer load, safe in CUDA graphs).
-      2. Per-instance ``attn_layer._genesis_g4_19c_signs_cpu`` (built in
-         __init__) moved to device once and cached.
-      3. Global cache by (layer_idx, head_dim, seed_base, device).
-      4. Build from scratch (fallback — may fail inside CUDA-graph
-         capture; logged once via the layer's _genesis_g4_19c_warned).
+    We intentionally do NOT attach signs to ``nn.Module`` instances —
+    torch.compile / inductor captures module attributes into the
+    compiled graph, and a CPU tensor attribute fails CUDA-graph capture
+    with::
+
+        RuntimeError: Cannot copy between CPU and CUDA tensors during
+        CUDA graph capture unless the CPU tensor is pinned.
+
+    The global cache is keyed by ``(layer_idx, head_dim, seed_base,
+    device_str)`` and holds device-resident tensors only. Cold-path
+    builds may still allocate inside a traced region — to avoid that,
+    the wrap on ``Gemma4Attention.__init__`` pre-populates the cache
+    BEFORE any forward runs.
     """
-    if attn_layer is not None:
-        cached_dev = getattr(attn_layer, "_genesis_g4_19c_signs_dev", None)
-        if cached_dev is not None and cached_dev.device == device:
-            return cached_dev
-        cached_cpu = getattr(attn_layer, "_genesis_g4_19c_signs_cpu", None)
-        if cached_cpu is not None:
-            signs_dev = cached_cpu.to(device)
-            attn_layer._genesis_g4_19c_signs_dev = signs_dev
-            return signs_dev
-    # Process-global fallback
+    del attn_layer  # signs are NOT attached to layers — see docstring
     key = (layer_idx, head_dim, seed_base, str(device))
     cached = _SIGNS_CACHE.get(key)
     if cached is not None:
@@ -443,15 +439,29 @@ def apply() -> tuple[str, str]:
                 layer_idx = _extract_layer_idx(getattr(self, "prefix", ""))
                 head_dim = getattr(self, "head_dim", 256)
                 seed_base = getattr(config, "seed_base", 0xC0FFEE)
-                # Pre-build on CPU; device-move happens at first forward
-                # call when k.device is known. We register the CPU
-                # tensor so the to(device) at forward time is a hot path
-                # that doesn't engage numpy/CPU code.
-                signs_cpu = _build_signs_torch(head_dim, layer_idx, seed_base)
-                # Stash on the layer instance as well (per-instance
-                # cache; survives device move). Forward path moves to
-                # GPU on first hit and reuses thereafter.
-                self._genesis_g4_19c_signs_cpu = signs_cpu
+
+                # Build signs and put DIRECTLY on the current CUDA device.
+                # We MUST NOT attach to ``self`` as an nn.Module attribute
+                # — torch.compile would then capture it into the compiled
+                # graph, and a CPU tensor on a CUDA-target graph triggers
+                # "Cannot copy between CPU and CUDA tensors during CUDA
+                # graph capture" at runtime.
+                #
+                # Instead we publish to the process-global cache; the
+                # forward path looks it up by key.
+                import torch
+                if torch.cuda.is_available():
+                    device_str = f"cuda:{torch.cuda.current_device()}"
+                else:
+                    device_str = "cpu"
+                key = (layer_idx, head_dim, seed_base, device_str)
+                if key not in _SIGNS_CACHE:
+                    signs_cpu = _build_signs_torch(
+                        head_dim, layer_idx, seed_base,
+                    )
+                    with _SIGNS_LOCK:
+                        if key not in _SIGNS_CACHE:
+                            _SIGNS_CACHE[key] = signs_cpu.to(device_str)
             except Exception as e:  # noqa: BLE001
                 log.warning(
                     "[G4_19c] sign pre-build at __init__ failed (%r); "
