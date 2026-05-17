@@ -96,7 +96,7 @@ __version__ = SNDR_CORE_VERSION
 #
 # Idempotent: each patch has its own _APPLIED guard so double-apply is a no-op.
 def _g4_19_import_time_hook():
-    """Apply G4_19/G4_19b/G4_19c at any vllm.sndr_core import (parent + subprocess)."""
+    """Apply G4_19/G4_19b/G4_19c/G4_30 at any vllm.sndr_core import (parent + subprocess)."""
     import os as _os
     g19 = _os.environ.get(
         "GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV", ""
@@ -107,9 +107,40 @@ def _g4_19_import_time_hook():
     g19c = _os.environ.get(
         "GENESIS_ENABLE_G4_19C_ATTN_WRAP", ""
     ).strip().lower() in ("1", "true", "yes")
-    if not (g19 or g19b or g19c):
+    g30 = _os.environ.get(
+        "GENESIS_ENABLE_G4_30_TQ_UNBLOCK", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g31 = _os.environ.get(
+        "GENESIS_ENABLE_G4_31_TQ_DTYPE_PRESERVE", ""
+    ).strip().lower() in ("1", "true", "yes")
+    g32 = _os.environ.get(
+        "GENESIS_ENABLE_G4_32_TQ_VALIDATION_BYPASS", ""
+    ).strip().lower() in ("1", "true", "yes")
+    if not (g19 or g19b or g19c or g30 or g31 or g32):
         return
     try:
+        # G4_30 must apply BEFORE Attention.__init__ runs, so do it first.
+        # It monkey-patches vllm.v1.attention.backends.turboquant_attn
+        # TurboQuantAttentionBackend.supports_mm_prefix → True.
+        if g30:
+            from .integrations.gemma4 import (
+                g4_30_upstream_tq_unblock as _g4_30_mod,
+            )
+            _g4_30_mod.apply()
+        # G4_31 also wraps Attention.__init__ — must apply before model init.
+        if g31:
+            from .integrations.gemma4 import (
+                g4_31_preserve_tq_dtype as _g4_31_mod,
+            )
+            _g4_31_mod.apply()
+        # G4_32 bypasses TQ backend's validate_configuration. Must apply
+        # BEFORE get_attn_backend is called, which means before any
+        # Attention.__init__ — same timing as G4_30.
+        if g32:
+            from .integrations.gemma4 import (
+                g4_32_tq_validation_bypass as _g4_32_mod,
+            )
+            _g4_32_mod.apply()
         if g19b:
             from .integrations.gemma4 import (
                 g4_19b_gemma4_tq_kv_spec_integration as _g4_19b_mod,

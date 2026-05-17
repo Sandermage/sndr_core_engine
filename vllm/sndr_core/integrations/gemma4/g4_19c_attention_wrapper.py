@@ -157,6 +157,12 @@ def _env_debug() -> bool:
     )
 
 
+def _env_truthy_local(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
 def _extract_layer_idx(prefix: str) -> int:
     """Parse layer_idx from a ``self.prefix`` string like
     ``"model.layers.5.self_attn"`` → 5. Falls back to 0 if unparseable."""
@@ -379,33 +385,57 @@ def _make_wrapped_forward(original_forward):
             v = v.flatten(-2, -1)
 
             # ── G4_19c hook: round-trip K and V through TurboQuant ──
-            try:
-                layer_idx = _extract_layer_idx(getattr(self, "prefix", ""))
-                write_fn, read_fn, _kernel_name = _resolve_kernels(config)
-                head_dim = self.head_dim
-                block_size = getattr(config, "block_size", 128)
-                seed_base = getattr(config, "seed_base", 0xC0FFEE)
-                signs = _get_or_build_signs(
-                    layer_idx, head_dim, seed_base, k.device,
-                    attn_layer=self,
-                )
-                k = _roundtrip(k, signs, head_dim, block_size, write_fn, read_fn)
-                v = _roundtrip(v, signs, head_dim, block_size, write_fn, read_fn)
-                if _env_debug():
-                    log.debug(
-                        "[G4_19c] layer=%d %s round-tripped K/V "
-                        "(shape=%s dtype=%s)",
-                        layer_idx, _kernel_name, tuple(k.shape), k.dtype,
+            #
+            # ARCHITECTURAL PERF FIX (2026-05-17):
+            # Gemma 4 has 50 sliding (1024 ctx) + 10 full (256K ctx)
+            # attention layers. 99.7% of KV cache memory lives in the
+            # 10 full-attention layers. Sliding layers are tiny and
+            # compression-overhead-bound: round-trip costs more wall
+            # time than the storage saving justifies.
+            #
+            # Skip sliding-attention layers entirely:
+            #   * Sliding layers attribute ``is_sliding=True`` (per
+            #     gemma4.py Gemma4Attention.__init__ — line 436).
+            #   * Skipping cuts the round-trip count from 60 → 10 per
+            #     decode token (~6× less work).
+            # Operator can disable the skip via
+            # ``GENESIS_G4_19C_FORCE_ALL_LAYERS=1``.
+            if (
+                getattr(self, "is_sliding", False)
+                and not _env_truthy_local("GENESIS_G4_19C_FORCE_ALL_LAYERS")
+            ):
+                # No round-trip for sliding layers — fall through with
+                # un-modified K, V. KV cache contribution is negligible
+                # at sliding_window=1024.
+                pass
+            else:
+                try:
+                    layer_idx = _extract_layer_idx(getattr(self, "prefix", ""))
+                    write_fn, read_fn, _kernel_name = _resolve_kernels(config)
+                    head_dim = self.head_dim
+                    block_size = getattr(config, "block_size", 128)
+                    seed_base = getattr(config, "seed_base", 0xC0FFEE)
+                    signs = _get_or_build_signs(
+                        layer_idx, head_dim, seed_base, k.device,
+                        attn_layer=self,
                     )
-            except Exception as e:  # noqa: BLE001
-                # Fail-open: log once, fall through with un-modified K, V.
-                if not getattr(self, "_genesis_g4_19c_warned", False):
-                    log.warning(
-                        "[G4_19c] round-trip failed at layer=%s (%r); "
-                        "falling through with untouched K,V",
-                        getattr(self, "prefix", "?"), e,
-                    )
-                    self._genesis_g4_19c_warned = True
+                    k = _roundtrip(k, signs, head_dim, block_size, write_fn, read_fn)
+                    v = _roundtrip(v, signs, head_dim, block_size, write_fn, read_fn)
+                    if _env_debug():
+                        log.debug(
+                            "[G4_19c] layer=%d %s round-tripped K/V "
+                            "(shape=%s dtype=%s)",
+                            layer_idx, _kernel_name, tuple(k.shape), k.dtype,
+                        )
+                except Exception as e:  # noqa: BLE001
+                    # Fail-open: log once, fall through with un-modified K, V.
+                    if not getattr(self, "_genesis_g4_19c_warned", False):
+                        log.warning(
+                            "[G4_19c] round-trip failed at layer=%s (%r); "
+                            "falling through with untouched K,V",
+                            getattr(self, "prefix", "?"), e,
+                        )
+                        self._genesis_g4_19c_warned = True
         else:
             # Shared-K layer: only apply RoPE to Q
             q = self.rotary_emb(positions, q, k)[0]

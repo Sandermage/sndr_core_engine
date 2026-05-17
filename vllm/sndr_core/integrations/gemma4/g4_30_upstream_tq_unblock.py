@@ -123,14 +123,19 @@ def apply() -> tuple[str, str]:
 
     _ORIGINAL_SUPPORTS_MM_PREFIX = original
 
-    @classmethod
-    def _genesis_supports_mm_prefix(cls) -> bool:
+    # IMPORTANT: ``classmethod`` objects make their internal attributes
+    # readonly (mappingproxy-style). Setting marker attributes on the
+    # classmethod descriptor raises "AttributeError: readonly attribute".
+    # Set markers on the INNER function before wrapping in classmethod.
+    def _genesis_supports_mm_prefix_inner(cls) -> bool:
         return True
 
-    _genesis_supports_mm_prefix._genesis_g4_30_wrapped = True
-    _genesis_supports_mm_prefix.__wrapped__ = original
+    _genesis_supports_mm_prefix_inner._genesis_g4_30_wrapped = True
+    _genesis_supports_mm_prefix_inner.__wrapped__ = original
 
-    TurboQuantAttentionBackend.supports_mm_prefix = _genesis_supports_mm_prefix
+    TurboQuantAttentionBackend.supports_mm_prefix = classmethod(
+        _genesis_supports_mm_prefix_inner
+    )
     _APPLIED = True
 
     log.info(
