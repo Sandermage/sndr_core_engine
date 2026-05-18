@@ -706,9 +706,14 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
                     _capturing = False
                 if not _capturing:
                     try:
+                        _layer_name_pn254 = (
+                            getattr(layer, "layer_name", None)
+                            or getattr(layer, "prefix", "?")
+                        )
                         with open("/tmp/genesis_pn254_fire.log", "a") as _ff:
                             _ff.write(
-                                f"[PN254 fire] chunk_len={chunk_len} "
+                                f"[PN254 fire] layer={_layer_name_pn254} "
+                                f"chunk_len={chunk_len} "
                                 f"q_len={q_len} q.shape={tuple(query.shape)} "
                                 f"block_table.shape={tuple(block_table.shape)}\n"
                             )
@@ -1439,7 +1444,121 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
                 # For large continuations, use flash-attn when that path is
                 # available; otherwise run decode kernel chunks.
                 cached_len = seq_len - q_len
-                if q_len <= _CONTINUATION_DECODE_THRESHOLD or not (
+
+                # [Genesis PN256 — causality test for H7g0 cache-miss hypothesis]
+                # Per Codex PN255 review: PN255a/c proved no observable Python-level
+                # K+1 KV writes for target's K+1 verify, while _decode_prefill_from_cache
+                # is still reached (PN254 fired 432 times). The decode-cache route
+                # assumes current K+1 K/V rows are already in TQ cache; if they are
+                # not, attention reads garbage and produces degenerate logits.
+                #
+                # PN256 routes the K+1 verify continuation through
+                # _continuation_prefill() with raw k_seq/v_seq from forward args,
+                # exactly like PN240 already does for the decode-style padded case.
+                # _continuation_prefill dequants the cached portion (0..cached_len-1)
+                # and concatenates with the raw current chunk (cached_len..seq_len-1).
+                #
+                # Gate (Codex-recommended, K-agnostic for K=1/4/8):
+                #   - env enabled
+                #   - not a kv_sharing layer (drafter handled separately)
+                #   - 2 <= q_len <= 16 (K+1 verify shape)
+                #   - seq_len > q_len (continuation, not first chunk)
+                #   - key/value present in forward args
+                #
+                # Uses PN240's P38-safe resolver to avoid the persistent-pool path
+                # that can OOM under loaded GPU — this keeps PN256 a correctness
+                # test, not a memory-pressure test.
+                #
+                # Two env knobs:
+                #   GENESIS_ENABLE_PN256_KPLUS1_RAW_KV_TRACE=1 — trace only, no behavior change
+                #   GENESIS_ENABLE_PN256_KPLUS1_RAW_KV=1       — actual route change
+                import os as _os_pn256
+                _pn256_trace = (
+                    _os_pn256.environ.get(
+                        "GENESIS_ENABLE_PN256_KPLUS1_RAW_KV_TRACE", ""
+                    ).strip() == "1"
+                )
+                _pn256_raw_kv = (
+                    _os_pn256.environ.get(
+                        "GENESIS_ENABLE_PN256_KPLUS1_RAW_KV", ""
+                    ).strip() == "1"
+                    and self.kv_sharing_target_layer_name is None
+                    and 2 <= q_len <= 16
+                    and seq_len > q_len
+                    and k_seq is not None
+                    and v_seq is not None
+                )
+                if (_pn256_trace or _pn256_raw_kv) and torch.cuda.is_available():
+                    try:
+                        _pn256_capture = torch.cuda.is_current_stream_capturing()
+                    except Exception:
+                        _pn256_capture = True
+                else:
+                    _pn256_capture = False
+                if (_pn256_trace or _pn256_raw_kv) and not _pn256_capture:
+                    try:
+                        _layer_name_pn256 = (
+                            getattr(layer, "layer_name", None)
+                            or getattr(layer, "prefix", "?")
+                        )
+                        with open("/tmp/genesis_pn256_route.log", "a") as _f:
+                            _f.write(
+                                f"[PN256 route] layer={_layer_name_pn256} "
+                                f"q_len={q_len} seq_len={seq_len} "
+                                f"cached_len={cached_len} "
+                                f"is_prefill={attn_metadata.is_prefill} "
+                                f"num_decodes={attn_metadata.num_decodes} "
+                                f"num_actual_tokens={attn_metadata.num_actual_tokens} "
+                                f"bt.shape={tuple(attn_metadata.block_table[i:i+1].shape)} "
+                                f"raw_kv_fire={_pn256_raw_kv}\n"
+                            )
+                    except Exception:
+                        pass
+
+                if _pn256_raw_kv:
+                    # P38-safe resolver: PN240 sets _genesis_p38_original on the
+                    # bound method when P38 wraps _continuation_prefill with the
+                    # persistent-pool allocator. We want the original (small,
+                    # per-call) allocator to keep PN256 a pure correctness test.
+                    _impl_method_pn256 = getattr(
+                        type(self), "_continuation_prefill", None
+                    )
+                    _cp_fn_pn256 = getattr(
+                        _impl_method_pn256, "_genesis_p38_original", None
+                    )
+                    if _cp_fn_pn256 is None:
+                        _cp_fn_pn256 = self._continuation_prefill
+                    _bt_pn256 = attn_metadata.block_table[i : i + 1]
+                    if _cp_fn_pn256 is self._continuation_prefill:
+                        out = _cp_fn_pn256(
+                            layer,
+                            q_seq,
+                            k_seq,
+                            v_seq,
+                            kv_cache,
+                            _bt_pn256,
+                            cached_len,
+                            seq_len,
+                            Pi,
+                            centroids,
+                            mm_prefix_ranges=mm_prefix_ranges,
+                        )
+                    else:
+                        out = _cp_fn_pn256(
+                            self,
+                            layer,
+                            q_seq,
+                            k_seq,
+                            v_seq,
+                            kv_cache,
+                            _bt_pn256,
+                            cached_len,
+                            seq_len,
+                            Pi,
+                            centroids,
+                            mm_prefix_ranges=mm_prefix_ranges,
+                        )
+                elif q_len <= _CONTINUATION_DECODE_THRESHOLD or not (
                     self._can_use_flash_prefill(seq_len, mm_prefix_ranges)
                 ):
                     out = self._decode_prefill_from_cache(
