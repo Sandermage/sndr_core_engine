@@ -857,6 +857,40 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
         corrupting next decode step. Add the skip here.
         Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
         """
+        # [Genesis PN255a-entry — log EVERY entry, including early returns]
+        # Placed BEFORE any return so we can distinguish:
+        #   - no call at all (verify path bypasses this op entirely)
+        #   - call with N=0 (slot_mapping empty for verify positions)
+        #   - call short-circuited by PN242 kv_sharing early return
+        import os as _os_pn255
+        _pn255_entry = (
+            _os_pn255.environ.get("GENESIS_ENABLE_PN255_KV_WRITE_DIAG", "")
+            .strip() == "1"
+        )
+        if _pn255_entry and torch.cuda.is_available():
+            try:
+                _pn255_entry = not torch.cuda.is_current_stream_capturing()
+            except Exception:
+                _pn255_entry = False
+        if _pn255_entry:
+            try:
+                _layer_name = getattr(layer, "layer_name", None) or getattr(
+                    layer, "prefix", "?"
+                )
+                _kv_share_target = getattr(
+                    self, "kv_sharing_target_layer_name", None
+                )
+                _N_entry = slot_mapping.shape[0]
+                with open("/tmp/genesis_pn255_kv_write.log", "a") as _f:
+                    _f.write(
+                        f"[PN255a entry] layer={_layer_name} "
+                        f"key.shape={tuple(key.shape)} "
+                        f"slot_mapping.shape={tuple(slot_mapping.shape)} "
+                        f"N_entry={_N_entry} kv_share_target={_kv_share_target}\n"
+                    )
+            except Exception:
+                pass
+
         # PN242 — skip cache write for KV-sharing layers (drafter reads
         # from target's cache only; its raw K/V is uninitialized).
         if getattr(self, "kv_sharing_target_layer_name", None) is not None:
@@ -871,6 +905,75 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
 
         k = key[:N].view(N, self.num_kv_heads, self.head_size)
         v = value[:N].view(N, self.num_kv_heads, self.head_size)
+
+        # [Genesis PN255a — capture-safe diagnostic for K+1 KV write path]
+        # Phase 1 of PN255 per Codex's PN254 review:
+        # before splitting writes (PN255b), prove what the write path
+        # actually receives in the K+1 verify route. Three signals matter:
+        #   N        — is it 1 (only one row written) or K+1 (correct)?
+        #   slots    — distinct positions, or colliding overwrites?
+        #   kv_share — confirm path is NOT short-circuited by PN242
+        # Capture-safe: never .tolist() or write while CUDA graph capturing.
+        import os as _os_pn255
+        _pn255_diag = (
+            _os_pn255.environ.get("GENESIS_ENABLE_PN255_KV_WRITE_DIAG", "")
+            .strip() == "1"
+        )
+        if _pn255_diag and torch.cuda.is_available():
+            try:
+                _pn255_diag = not torch.cuda.is_current_stream_capturing()
+            except Exception:
+                _pn255_diag = False
+        if _pn255_diag:
+            try:
+                _layer_name = getattr(layer, "layer_name", None) or getattr(
+                    layer, "prefix", "?"
+                )
+                _slot_head = slot_mapping[: min(N, 8)].detach().cpu().tolist()
+                with open("/tmp/genesis_pn255_kv_write.log", "a") as _f:
+                    _f.write(
+                        f"[PN255a write] layer={_layer_name} "
+                        f"key.shape={tuple(key.shape)} "
+                        f"value.shape={tuple(value.shape)} "
+                        f"slot_mapping.shape={tuple(slot_mapping.shape)} "
+                        f"N={N} k_view.shape={tuple(k.shape)} "
+                        f"v_view.shape={tuple(v.shape)} "
+                        f"slots[:8]={_slot_head}\n"
+                    )
+            except Exception:
+                pass
+
+        # [Genesis PN255b — diagnostic split of K+1 KV write into row-by-row stores]
+        # Phase 2 of PN255 per Codex's PN254 review:
+        # ONLY run when PN255a has proven N=K+1 with distinct slots.
+        # Tests hypothesis H7g2: triton_turboquant_store has N>1 batch hazard
+        # that produces row-correlated / duplicated cache entries.
+        #
+        # Capture-safe: slicing + contiguous + no host sync inside the loop.
+        # Guard `N <= 16` prevents accidental split of long prefill writes.
+        _pn255_split = (
+            _os_pn255.environ.get("GENESIS_ENABLE_PN255_SPLIT_KV_UPDATE", "")
+            .strip() == "1"
+            and N > 1
+            and N <= 16
+        )
+        if _pn255_split:
+            if _pn255_diag:
+                try:
+                    with open("/tmp/genesis_pn255_kv_write.log", "a") as _f:
+                        _f.write(f"[PN255b split] N={N} firing row-by-row\n")
+                except Exception:
+                    pass
+            for _i in range(N):
+                self._store_kv(
+                    k[_i : _i + 1].contiguous(),
+                    v[_i : _i + 1].contiguous(),
+                    kv_cache,
+                    slot_mapping[_i : _i + 1].contiguous(),
+                    layer,
+                )
+            return
+
         self._store_kv(k, v, kv_cache, slot_mapping, layer)
 
     def forward(
@@ -1020,6 +1123,39 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
                         )
                     return output
         # === End Genesis PN240 — falls through to default path below ===
+
+        # [Genesis PN255c — attn_metadata classification sentinel]
+        # Diagnose why PN240 doesn't fire for our K+1 verify path.
+        # We need: attn_metadata.is_prefill, num_decodes, num_actual_tokens,
+        # num_tokens (= query.shape[0]) — to determine which branch handles
+        # K+1 verify and why the K/V writes never enter do_kv_cache_update.
+        _pn255c_diag = (
+            _os.environ.get("GENESIS_ENABLE_PN255_KV_WRITE_DIAG", "")
+            .strip() == "1"
+        )
+        if _pn255c_diag and torch.cuda.is_available():
+            try:
+                _pn255c_diag = not torch.cuda.is_current_stream_capturing()
+            except Exception:
+                _pn255c_diag = False
+        if _pn255c_diag:
+            try:
+                _layer_name = getattr(layer, "layer_name", None) or getattr(
+                    layer, "prefix", "?"
+                )
+                with open("/tmp/genesis_pn255_kv_write.log", "a") as _f:
+                    _f.write(
+                        f"[PN255c metadata] layer={_layer_name} "
+                        f"is_prefill={attn_metadata.is_prefill} "
+                        f"num_decodes={attn_metadata.num_decodes} "
+                        f"num_decode_tokens={attn_metadata.num_decode_tokens} "
+                        f"num_actual_tokens={attn_metadata.num_actual_tokens} "
+                        f"num_tokens={num_tokens} "
+                        f"max_query_len={getattr(attn_metadata, 'max_query_len', None)} "
+                        f"key_is_None={key is None}\n"
+                    )
+            except Exception:
+                pass
 
         # Slice to actual tokens
         N = attn_metadata.num_actual_tokens
