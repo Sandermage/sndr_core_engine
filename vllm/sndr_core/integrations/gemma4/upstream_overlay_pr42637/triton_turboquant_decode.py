@@ -9,6 +9,7 @@ Supports FP8 (E4M3) keys, 3-bit and 4-bit uniform quantized values.
 """
 
 import math
+import os as _os_pn260
 from typing import Any
 
 import torch
@@ -17,6 +18,129 @@ from vllm.platforms import current_platform
 from vllm.triton_utils import tl, triton
 
 _FP8_E4B15: dict[int, int] = {}
+
+# [Genesis PN260 — TQ decode kernel pre-launch trace]
+# Trace-only sentinel BEFORE `_tq_decode_stage1[grid](...)`. Captures the
+# data needed to localize K>=2 cudaErrorIllegalAddress under PN259c
+# mixed allocation. Captures NOTHING and changes NOTHING by default.
+# Env: GENESIS_ENABLE_PN260_TQ_KERNEL_TRACE=1.
+# Capture-safe: skips writes when CUDA graph capture is active.
+_PN260_LOG_PATH = "/tmp/genesis_pn260_kernel_trace.log"
+_PN260_CALL_IDX = [0]
+# Module-level meta dict stamped by each caller right before invoking
+# `triton_turboquant_decode_attention`. The kernel-launch sentinel
+# reads it back so we know which of the three TQ call sites
+# (PN254 split row / decode_prefill_from_cache vectorized chunk /
+# _decode_attention pure decode) actually fired, and at what layer.
+_PN260_CALLER_META: dict[str, Any] = {
+    "call_site": "?",
+    "layer_name": "?",
+    "q_len": -1,
+    "seq_len": -1,
+    "cached_len": -1,
+    "pn256_fired_for_this_layer": None,
+    "kv_sharing_target_layer_name": None,
+    "is_drafter": None,
+}
+
+
+def _pn260_enabled() -> bool:
+    return _os_pn260.environ.get(
+        "GENESIS_ENABLE_PN260_TQ_KERNEL_TRACE", ""
+    ).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _pn260_set_caller_meta(**kw: Any) -> None:
+    """Callers stamp metadata immediately before calling
+    `triton_turboquant_decode_attention`. The kernel-launch sentinel
+    inside that function consumes it. Safe to call always — only used
+    when PN260 trace env is set."""
+    _PN260_CALLER_META.update(kw)
+
+
+def _pn260_capturing() -> bool:
+    if not torch.cuda.is_available():
+        return False
+    try:
+        return torch.cuda.is_current_stream_capturing()
+    except Exception:
+        return True
+
+
+def _pn260_log_pre_launch(
+    *,
+    query: torch.Tensor,
+    kv_cache: torch.Tensor,
+    block_table: torch.Tensor,
+    seq_lens: torch.Tensor,
+    B: int,
+    Hq: int,
+    Hk: int,
+    D: int,
+    block_size: int,
+    NUM_KV_SPLITS: int,
+    grid: tuple[int, int, int],
+) -> None:
+    """Capture-safe pre-launch trace for `_tq_decode_stage1`.
+
+    Joins caller-side meta (call_site, layer_name, q_len, seq_len,
+    cached_len, pn256_fired_for_this_layer, kv_sharing_target_layer_name,
+    is_drafter) with kernel-launch fields. Critical signal:
+
+      kv_cache.ndim - distinguishes TQ packed (4) vs native (5).
+      If this kernel is launched with a 5-dim native tensor, the
+      kernel will read out-of-bounds and crash with
+      cudaErrorIllegalAddress. That is the most likely root cause of
+      the K>=2 crash under PN259c mixed layout.
+
+    All writes are file I/O only; no GPU sync; no `.tolist()` on large
+    tensors. Capture-safe.
+    """
+    if not _pn260_enabled():
+        return
+    if _pn260_capturing():
+        return
+    _PN260_CALL_IDX[0] += 1
+    idx = _PN260_CALL_IDX[0]
+    try:
+        # seq_lens may be a CUDA tensor; .tolist() on a tiny slice is fine.
+        _sl_head = (
+            seq_lens[: min(8, seq_lens.numel())].detach().cpu().tolist()
+            if seq_lens is not None
+            else None
+        )
+        _kv_ndim = kv_cache.ndim
+        _kv_layout_guess = (
+            "tq_packed" if _kv_ndim == 4 else "native_flash" if _kv_ndim == 5
+            else f"unknown_ndim_{_kv_ndim}"
+        )
+        with open(_PN260_LOG_PATH, "a") as f:
+            f.write(
+                f"[PN260 call={idx}] "
+                f"site={_PN260_CALLER_META.get('call_site')} "
+                f"layer={_PN260_CALLER_META.get('layer_name')} "
+                f"is_drafter={_PN260_CALLER_META.get('is_drafter')} "
+                f"kv_sharing_target={_PN260_CALLER_META.get('kv_sharing_target_layer_name')} "
+                f"pn256_fired={_PN260_CALLER_META.get('pn256_fired_for_this_layer')} "
+                f"q_len={_PN260_CALLER_META.get('q_len')} "
+                f"seq_len={_PN260_CALLER_META.get('seq_len')} "
+                f"cached_len={_PN260_CALLER_META.get('cached_len')} "
+                f"B={B} Hq={Hq} Hk={Hk} D={D} block_size={block_size} "
+                f"NUM_KV_SPLITS={NUM_KV_SPLITS} grid={grid} "
+                f"q.shape={tuple(query.shape)} "
+                f"kv_cache.shape={tuple(kv_cache.shape)} "
+                f"kv_cache.ndim={_kv_ndim} "
+                f"kv_cache_layout_guess={_kv_layout_guess} "
+                f"kv_cache.dtype={kv_cache.dtype} "
+                f"kv_cache.data_ptr=0x{kv_cache.data_ptr():x} "
+                f"block_table.shape={tuple(block_table.shape)} "
+                f"block_table.stride={block_table.stride()} "
+                f"seq_lens.shape={tuple(seq_lens.shape)} "
+                f"seq_lens_head={_sl_head}\n"
+            )
+    except Exception:
+        # Trace must never crash inference. Silent best-effort.
+        pass
 
 
 def _use_fp8_e4b15(device: int = 0) -> int:
@@ -673,6 +797,26 @@ def triton_turboquant_decode_attention(
     sliding_window_arg = -1 if sliding_window is None else sliding_window
     BLOCK_KV = 4
     grid = (B, Hq, NUM_KV_SPLITS)
+
+    # [Genesis PN260] Pre-launch sentinel. Captures caller-stamped meta
+    # + kernel-launch tensor signatures. Reveals whether _tq_decode_stage1
+    # is being launched with a native (5-dim FlashAttn-shaped) KV cache
+    # (which would explain the K>=2 cudaErrorIllegalAddress under PN259c
+    # mixed layout). Env-gated, capture-safe, file-I/O only.
+    _pn260_log_pre_launch(
+        query=q_rot,
+        kv_cache=kv_cache,
+        block_table=block_table,
+        seq_lens=seq_lens,
+        B=B,
+        Hq=Hq,
+        Hk=Hk,
+        D=D,
+        block_size=block_size,
+        NUM_KV_SPLITS=NUM_KV_SPLITS,
+        grid=grid,
+    )
+
     _tq_decode_stage1[grid](
         q_rot,
         kv_cache,

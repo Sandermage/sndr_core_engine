@@ -781,6 +781,32 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
                                 ((1, Hq), torch.float32),
                             )
                         )
+                    # [Genesis PN260] caller-side meta stamp.
+                    try:
+                        from vllm.v1.attention.ops.triton_turboquant_decode import (
+                            _pn260_set_caller_meta as _pn260_stamp,
+                        )
+                        _pn260_stamp(
+                            call_site="pn254_split_row",
+                            layer_name=(
+                                getattr(layer, "layer_name", None)
+                                or getattr(layer, "prefix", "?")
+                            ),
+                            q_len=1,
+                            seq_len=int(synth_seq_lens[_pos].item())
+                            if hasattr(synth_seq_lens, "item")
+                            else -1,
+                            cached_len=query_start_pos + chunk_start + _pos,
+                            pn256_fired_for_this_layer=False,
+                            kv_sharing_target_layer_name=getattr(
+                                self, "kv_sharing_target_layer_name", None
+                            ),
+                            is_drafter=getattr(
+                                self, "kv_sharing_target_layer_name", None
+                            ) is not None,
+                        )
+                    except Exception:
+                        pass
                     out[chunk_start + _pos : chunk_start + _pos + 1] = (
                         triton_turboquant_decode_attention(
                             query=_row_query,
@@ -826,6 +852,34 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
                     )
                 )
 
+            # [Genesis PN260] caller-side meta stamp for the vectorized
+            # chunk call inside _decode_prefill_from_cache. This is the
+            # path PN256 is supposed to bypass for K+1 verify.
+            try:
+                from vllm.v1.attention.ops.triton_turboquant_decode import (
+                    _pn260_set_caller_meta as _pn260_stamp,
+                )
+                _pn260_stamp(
+                    call_site="decode_prefill_from_cache_vectorized",
+                    layer_name=(
+                        getattr(layer, "layer_name", None)
+                        or getattr(layer, "prefix", "?")
+                    ),
+                    q_len=chunk_len,
+                    seq_len=int(synth_seq_lens[-1].item())
+                    if synth_seq_lens.numel() > 0
+                    else -1,
+                    cached_len=query_start_pos + chunk_start,
+                    pn256_fired_for_this_layer=False,
+                    kv_sharing_target_layer_name=getattr(
+                        self, "kv_sharing_target_layer_name", None
+                    ),
+                    is_drafter=getattr(
+                        self, "kv_sharing_target_layer_name", None
+                    ) is not None,
+                )
+            except Exception:
+                pass
             out[chunk_start:chunk_end] = triton_turboquant_decode_attention(
                 query=chunk,
                 kv_cache=kv_cache,
@@ -1867,6 +1921,32 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
                     ((B, Hq), torch.float32),
                 )
             )
+
+        # [Genesis PN260] caller-side meta stamp for the pure-decode
+        # path (q_len=1 per token typically; padded to K+1 for spec).
+        try:
+            from vllm.v1.attention.ops.triton_turboquant_decode import (
+                _pn260_set_caller_meta as _pn260_stamp,
+            )
+            _pn260_stamp(
+                call_site="decode_attention_pure",
+                layer_name=(
+                    getattr(layer, "layer_name", None)
+                    or getattr(layer, "prefix", "?")
+                ),
+                q_len=int(query.shape[0]),
+                seq_len=-1,  # per-request, not single value
+                cached_len=-1,  # not directly available here
+                pn256_fired_for_this_layer=False,
+                kv_sharing_target_layer_name=getattr(
+                    self, "kv_sharing_target_layer_name", None
+                ),
+                is_drafter=getattr(
+                    self, "kv_sharing_target_layer_name", None
+                ) is not None,
+            )
+        except Exception:
+            pass
 
         result = triton_turboquant_decode_attention(
             query=query,
