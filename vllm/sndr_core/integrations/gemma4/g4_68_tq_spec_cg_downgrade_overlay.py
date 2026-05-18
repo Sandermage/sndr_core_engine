@@ -46,25 +46,53 @@ purely identity + dispatcher visibility; runtime behavior is governed by
 the overlay code and the env flag.
 
 ================================================================
-ENV FLAGS
+ENV FLAGS — read carefully, two distinct purposes
 ================================================================
 
-  * `GENESIS_ENABLE_G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY` — controls
-    whether this verifier reports applied / skipped. Verifier is
-    diagnostic; the overlay code reads its own env separately.
+The cudagraph-downgrade workaround needs three different env flags
+serving three different roles. Operators conflating them will see
+either silent no-op or missing dispatcher visibility.
 
-  * `GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE` — controls the
-    overlay's runtime behavior. When unset, `get_cudagraph_support`
-    returns the `UNIFORM_BATCH` ClassVar default and behaves like
-    upstream.
+RUNTIME-REQUIRED (these env flags change runtime behavior):
 
-Both must be set to engage the workaround in production. Operators
-typically set both via the launch script:
+  * `GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE=1`
+    Read by the inlined `get_cudagraph_support` classmethod in the
+    overlay. When set and `speculative_config is not None`, the
+    classmethod returns `AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE`,
+    which vLLM's `compilation.py` honors by downgrading
+    `cudagraph_mode` from FULL_AND_PIECEWISE to PIECEWISE for the
+    affected backend. Without this env: the classmethod returns the
+    `UNIFORM_BATCH` ClassVar default and the broken cache-read route is
+    captured into a CUDA graph (degenerate output).
+
+  * `GENESIS_ENABLE_PN256_KPLUS1_RAW_KV=1`
+    Read inside `_prefill_attention()` to actually route K+1 verify
+    through raw-K/V `_continuation_prefill()` instead of
+    `_decode_prefill_from_cache()`. Without this env: the cudagraph
+    downgrade alone is not sufficient because the eager Python path
+    still hits the cache-read continuation.
+
+VERIFICATION-ONLY (this env flag does NOT change runtime behavior):
+
+  * `GENESIS_ENABLE_G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY=1`
+    Controls whether THIS verifier module runs at boot. The verifier
+    introspects `TurboQuantMetadataBuilder` for the inlined classmethod
+    and reports applied/error/skipped to the dispatcher + `patches
+    doctor` + boot apply summary. Setting this env alone changes
+    nothing about model output or cudagraph capture. Setting it without
+    the two runtime envs above produces a misleading "applied"
+    dispatcher line while the workaround is INERT.
+
+Recommended operator pattern for production-grade run (all three):
 
 ```bash
--e GENESIS_ENABLE_G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY=1
--e GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE=1
+-e GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE=1   # runtime
+-e GENESIS_ENABLE_PN256_KPLUS1_RAW_KV=1                # runtime
+-e GENESIS_ENABLE_G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY=1 # operator visibility
 ```
+
+The verifier's apply-result message surfaces this distinction by
+reading the P65 env and reporting the runtime state as ACTIVE or INERT.
 
 ================================================================
 DEPENDENCIES
@@ -123,6 +151,7 @@ GENESIS_G4_68_MARKER = (
 
 _ENV_ENABLE = "GENESIS_ENABLE_G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY"
 _ENV_P65 = "GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE"
+_ENV_PN256 = "GENESIS_ENABLE_PN256_KPLUS1_RAW_KV"
 _APPLIED = False
 
 
@@ -176,20 +205,44 @@ def apply() -> tuple[str, str]:
     p65_env_set = os.environ.get(_ENV_P65, "").strip().lower() in (
         "1", "true", "yes", "on",
     )
-    p65_status = "ACTIVE" if p65_env_set else "INERT (env unset)"
+    pn256_env_set = os.environ.get(_ENV_PN256, "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    # Both runtime envs are required for the workaround to actually fix
+    # output. Verifier env alone does not change behavior. Surface this
+    # in the apply-result so operators don't misread a green dispatcher
+    # line as "workaround engaged".
+    if p65_env_set and pn256_env_set:
+        runtime_status = "ACTIVE (both runtime envs set)"
+    elif p65_env_set:
+        runtime_status = (
+            f"PARTIAL ({_ENV_P65}=1 but {_ENV_PN256} unset — cudagraph "
+            f"downgrade happens but eager path still hits cache-read)"
+        )
+    elif pn256_env_set:
+        runtime_status = (
+            f"PARTIAL ({_ENV_PN256}=1 but {_ENV_P65} unset — captured "
+            f"path replays the broken cache-read route)"
+        )
+    else:
+        runtime_status = (
+            f"INERT (neither {_ENV_P65} nor {_ENV_PN256} set — verifier "
+            f"reports applied but workaround does nothing)"
+        )
 
     _APPLIED = True
     log.info(
         "[G4_68] P65 v2 inline verified on TurboQuantMetadataBuilder. "
-        "Runtime downgrade is %s. Engage via %s=1.",
-        p65_status,
+        "Runtime status: %s. Required envs for runtime effect: "
+        "%s=1 + %s=1. Verifier env (%s=1) controls only this report.",
+        runtime_status,
         _ENV_P65,
+        _ENV_PN256,
+        _ENV_ENABLE,
     )
     return "applied", (
         f"G4_68 overlay inline verified: TurboQuantMetadataBuilder."
-        f"get_cudagraph_support present. Runtime downgrade is "
-        f"{p65_status}. Set {_ENV_P65}=1 in container env to engage "
-        f"the cudagraph downgrade for spec-decode K+1 batches."
+        f"get_cudagraph_support present. Runtime status: {runtime_status}."
     )
 
 
