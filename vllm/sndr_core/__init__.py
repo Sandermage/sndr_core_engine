@@ -174,6 +174,13 @@ def _g4_19_import_time_hook():
     g68 = _os.environ.get(
         "GENESIS_ENABLE_G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_69 — per-layer native attention backend dispatch for skip-listed
+    # TurboQuant layers (unblocks GENESIS_G4_TQ_FORCE_SKIP_LAYERS by
+    # rerouting kv_cache_dtype='auto' layers away from forced TURBOQUANT
+    # backend selection).
+    g69 = _os.environ.get(
+        "GENESIS_ENABLE_G4_69_SKIP_LAYERS_NATIVE_BACKEND", ""
+    ).strip().lower() in ("1", "true", "yes")
     # PN241 — Gemma4MTPAttention.forward finite/norm trace (Codex-designed).
     pn241 = _os.environ.get(
         "GENESIS_ENABLE_PN241_MTP_TRACE", ""
@@ -192,7 +199,7 @@ def _g4_19_import_time_hook():
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
-        or g61 or g62 or g67 or g68 or pn241 or pn248 or pn258
+        or g61 or g62 or g67 or g68 or g69 or pn241 or pn248 or pn258
     ):
         return
     try:
@@ -351,6 +358,17 @@ def _g4_19_import_time_hook():
                 g4_68_tq_spec_cg_downgrade_overlay as _g4_68_mod,
             )
             _g4_68_mod.apply()
+        # G4_69 — per-layer native attention backend dispatch for
+        # skip-listed TurboQuant layers. Must apply BEFORE the first
+        # Attention.__init__ call (i.e., before model load). Plugin
+        # registration runs at engine_core boot, ahead of model load,
+        # so this ordering is satisfied by being part of the apply-all
+        # sweep.
+        if g69:
+            from .integrations.gemma4 import (
+                g4_69_skip_layers_native_backend as _g4_69_mod,
+            )
+            _g4_69_mod.apply()
         # PN241 — Codex-designed finite/norm trace at SpecDecodeBaseProposer
         # boundary (Python orchestration above torch.compile boundary).
         # Logs target_hidden_states (input) + draft_token_ids (output) per
