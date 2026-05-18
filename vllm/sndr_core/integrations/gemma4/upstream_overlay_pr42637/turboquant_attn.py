@@ -320,6 +320,13 @@ class TurboQuantMetadataBuilder(AttentionMetadataBuilder[TurboQuantMetadata]):
 
     def __init__(self, kv_cache_spec, layer_names, vllm_config, device):
         super().__init__(kv_cache_spec, layer_names, vllm_config, device)
+        # PR #42637 declares supports_spec_as_decode=False. PN243 (flip to
+        # True) was attempted 2026-05-18 → crashes with empty-tensor max()
+        # because TQ metadata builder doesn't yet handle K+1 multi-query
+        # decode. Variant B per docs/_internal/GEMMA4_TQ_MTP_G4_67_
+        # DIAGNOSIS_2026-05-18_RU.md — requires kernel/metadata changes.
+        # Keep False for now; MTP×TQ degenerate output remains a known
+        # issue tracked for follow-up.
         self._init_reorder_batch_threshold(1, supports_spec_as_decode=False)
 
     def build_for_cudagraph_capture(
@@ -601,6 +608,28 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
             dtype=seq_lens_dtype,
         )
 
+        # GENESIS DIAG: log decode-prefill-from-cache entry.
+        # Never log while CUDA graph capture is active: .tolist() and file I/O
+        # can invalidate capture, surfacing later as cudaErrorStreamCaptureInvalidated.
+        import os as _os
+        _diag = _os.environ.get("GENESIS_TQ_FORWARD_DIAG", "").strip() == "1"
+        if _diag and torch.cuda.is_available():
+            try:
+                _diag = not torch.cuda.is_current_stream_capturing()
+            except Exception:
+                _diag = False
+        if _diag:
+            try:
+                with open("/tmp/genesis_tq_forward.log", "a") as _f:
+                    _f.write(
+                        f"[decode_prefill_from_cache] q.shape={tuple(query.shape)} "
+                        f"query_start_pos={query_start_pos} q_len={q_len} D={D} Hq={Hq} "
+                        f"block_table.shape={tuple(block_table.shape)} "
+                        f"mm_prefix={mm_prefix_ranges is not None}\n"
+                    )
+            except Exception:
+                pass
+
         for chunk_start in range(0, q_len, _CONTINUATION_DECODE_THRESHOLD):
             chunk_end = min(chunk_start + _CONTINUATION_DECODE_THRESHOLD, q_len)
             chunk = query[chunk_start:chunk_end]
@@ -608,7 +637,131 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
             synth_seq_lens = arange_cache[
                 query_start_pos + chunk_start + 1 : query_start_pos + chunk_end + 1
             ]
-            synth_block_table = block_table.expand(chunk_len, -1)
+            # [Genesis PN253 — clean stride-0 fix per Codex P2 plan]
+            # `block_table.expand(chunk_len, -1)` produces a stride-0 view on
+            # batch dim. The TQ Triton decode kernel reads `block_table[bid, ...]`
+            # via `bid * stride_bt_b`; with stride 0 ALL chunk rows fetch the
+            # same K/V blocks. For q_len=1 decode this is correct, but for
+            # multi-query continuation prefill (K+1 MTP verify path) it is the
+            # suspected source of degenerate row-0 logits.
+            #
+            # Use `repeat_interleave().contiguous()` to materialise a real
+            # (chunk_len, max_num_blocks) tensor with proper row stride while
+            # keeping the SAME block IDs per row (semantically identical to
+            # `.expand()` but with safe memory layout for the kernel).
+            #
+            # Preserves all other kwargs (sliding_window, mm_prefix_range,
+            # PiT, buffers, etc.) — this is a one-line, isolated A/B test
+            # vs. G4_67's whole-route replacement.
+            synth_block_table = (
+                block_table
+                .repeat_interleave(chunk_len, dim=0)
+                .contiguous()
+            )
+            if _diag:
+                try:
+                    with open("/tmp/genesis_tq_forward.log", "a") as _f:
+                        _f.write(
+                            f"  chunk[{chunk_start}:{chunk_end}] chunk_len={chunk_len} "
+                            f"synth_seq_lens={synth_seq_lens.tolist()} "
+                            f"synth_block_table.shape={tuple(synth_block_table.shape)} "
+                            f"synth_block_table[0,:3]={synth_block_table[0,:3].tolist()}\n"
+                        )
+                except Exception:
+                    pass
+
+            # [Genesis PN254 — diagnostic split of K+1 verify into K+1 q_len=1 calls]
+            # Hypothesis H7d: TQ decode kernel has a vectorized hazard at
+            # q_len > 1 that survives PN253's stride-0 fix. The K+1 MTP verify
+            # path is the only place where this kernel is called with q_len > 1
+            # in production (otherwise q_len=1 decode is its only customer).
+            #
+            # When env-gated, replace the single vectorized call with K+1
+            # independent q_len=1 calls. Each row uses a `(1, max_num_blocks)`
+            # contiguous block_table and a `(1,)` seq_lens slice — the exact
+            # shape the kernel was originally designed for.
+            #
+            # Capture-safe: no .tolist(), no file I/O inside the inner loop.
+            # Workspace buffers are row-shaped (1, Hq, ...) not chunk-shaped.
+            # `continue` skips the vectorized call below.
+            #
+            # Outcome interpretation (per Codex PN254 plan):
+            #   A. Output coherent across MTP K=1/4/8 → H7d CONFIRMED
+            #      (kernel q_len>1 bug; production fix = always split or kernel patch)
+            #   B. Output partially coherent → H7d partial; another co-factor remains
+            #   C. Output still degenerate → H7d REFUTED → H7f (target full forward)
+            #   D. Row-specific success (only row 0 wrong) → row-binding bug
+            _pn254_split = (
+                _os.environ.get("GENESIS_ENABLE_PN254_SPLIT_KPLUS1", "").strip() == "1"
+                and chunk_len > 1
+            )
+            if _pn254_split:
+                # One-time capture-safe sentinel to confirm PN254 actually fires.
+                if torch.cuda.is_available():
+                    try:
+                        _capturing = torch.cuda.is_current_stream_capturing()
+                    except Exception:
+                        _capturing = True
+                else:
+                    _capturing = False
+                if not _capturing:
+                    try:
+                        with open("/tmp/genesis_pn254_fire.log", "a") as _ff:
+                            _ff.write(
+                                f"[PN254 fire] chunk_len={chunk_len} "
+                                f"q_len={q_len} q.shape={tuple(query.shape)} "
+                                f"block_table.shape={tuple(block_table.shape)}\n"
+                            )
+                    except Exception:
+                        pass
+                base_block_table = block_table[:1].contiguous()
+                for _pos in range(chunk_len):
+                    _row_query = chunk[_pos : _pos + 1]
+                    _row_seq_lens = synth_seq_lens[_pos : _pos + 1].contiguous()
+                    _row_block_table = base_block_table
+                    _row_mm_prefix_range = None
+                    if mm_prefix_ranges is not None:
+                        _row_mm_prefix_range = (
+                            mm_prefix_ranges.unsqueeze(0).contiguous()
+                        )
+                    _row_mid_o = _row_out_buf = _row_lse = None
+                    if is_workspace_manager_initialized():
+                        _row_mid_o, _row_out_buf, _row_lse = (
+                            current_workspace_manager().get_simultaneous(
+                                (
+                                    (1, Hq, self.max_num_kv_splits, D + 1),
+                                    torch.float32,
+                                ),
+                                ((1, Hq, D), query.dtype),
+                                ((1, Hq), torch.float32),
+                            )
+                        )
+                    out[chunk_start + _pos : chunk_start + _pos + 1] = (
+                        triton_turboquant_decode_attention(
+                            query=_row_query,
+                            kv_cache=kv_cache,
+                            block_table=_row_block_table,
+                            seq_lens=_row_seq_lens,
+                            Pi=Pi,
+                            centroids=centroids,
+                            scale=self.scale,
+                            mse_bits=self.tq_config.key_mse_bits,
+                            key_packed_size=self.tq_config.key_packed_size,
+                            value_quant_bits=self.tq_config.effective_value_quant_bits,
+                            key_fp8=self.tq_config.key_fp8,
+                            norm_correction=self.tq_config.norm_correction,
+                            PiT=PiT,
+                            mid_o_buf=_row_mid_o,
+                            output_buf=_row_out_buf,
+                            lse_buf=_row_lse,
+                            buf_holder=layer,
+                            max_num_kv_splits=self.max_num_kv_splits,
+                            sliding_window=self.sliding_window,
+                            mm_prefix_range=_row_mm_prefix_range,
+                        )
+                    )
+                continue
+
             mm_prefix_range = None
             if mm_prefix_ranges is not None:
                 mm_prefix_range = (
@@ -694,7 +847,21 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
         Called as a separate custom op (unified_kv_cache_update) BEFORE
         the attention forward, matching FlashAttention's split pattern.
         slot_mapping is already sliced to num_actual_tokens by the caller.
+
+        [Genesis PN242] KV-sharing layers (e.g. Gemma 4 MTP drafter) call
+        with `kv_dummy = torch.empty(...)` — uninitialized memory — and
+        rely on `kv_sharing_target_layer_name` to read K/V from the target
+        layer's existing cache. Stock vLLM backends skip the cache write
+        in this case; PR #42637 overlay did NOT, causing the drafter's
+        uninitialized K/V to be written to the target's TQ KV cache and
+        corrupting next decode step. Add the skip here.
+        Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
         """
+        # PN242 — skip cache write for KV-sharing layers (drafter reads
+        # from target's cache only; its raw K/V is uninitialized).
+        if getattr(self, "kv_sharing_target_layer_name", None) is not None:
+            return
+
         N = slot_mapping.shape[0]
         if N <= 0:
             return
@@ -718,6 +885,8 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
         output_scale: torch.Tensor | None = None,
         output_block_scale: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        # GENESIS DIAG removed (forced GPU→CPU sync broke cudagraph capture).
+        import os as _os
         num_tokens = query.shape[0]
 
         if output is None:
@@ -730,6 +899,127 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
 
         if attn_metadata is None:
             return output.fill_(0)
+
+        # =================================================================
+        # Genesis PN240 — DECODE-path MTP K+1 spec-verify routing fix.
+        # Per docs/_internal/GEMMA4_TQ_MTP_G4_67_DIAGNOSIS_2026-05-18_RU.md
+        # variant A. When MTP K>0 + TQ overlay, runner schedules forward()
+        # with query.shape[0] = B*(K+1) but metadata.num_actual_tokens = B
+        # (because supports_spec_as_decode=False). Default path slices
+        # q[:num_actual_tokens] → drops K extra query positions → output
+        # remains uninitialised at padding rows → MTP draft verification
+        # logits at those rows are garbage → NaN cascade.
+        #
+        # Fix: route through _continuation_prefill() per request using raw
+        # key/value from input tensors (NOT cache — do_kv_cache_update only
+        # stored num_actual_tokens rows in TQ cache).
+        #
+        # Activation: GENESIS_ENABLE_PN240_TQ_SPEC_DECODE_FIX=1 (opt-in).
+        # Skips on prefill batches, non-padded decode, missing seq_lens_cpu.
+        # Falls through to default path on any condition unmet.
+        #
+        # Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+        # =================================================================
+        _pn240_fix = _os.environ.get(
+            "GENESIS_ENABLE_PN240_TQ_SPEC_DECODE_FIX", ""
+        ).strip().lower() in ("1", "true", "yes", "on")
+        if (
+            _pn240_fix
+            and not attn_metadata.is_prefill
+            and attn_metadata.num_actual_tokens > 0
+            and num_tokens > attn_metadata.num_actual_tokens
+            and num_tokens % attn_metadata.num_actual_tokens == 0
+            and key is not None
+            and value is not None
+            and getattr(attn_metadata, "seq_lens", None) is not None
+            and getattr(attn_metadata, "block_table", None) is not None
+            and getattr(attn_metadata, "seq_lens_cpu", None) is not None
+        ):
+            _B_pn240 = attn_metadata.num_actual_tokens
+            _K1_pn240 = num_tokens // _B_pn240
+            if 2 <= _K1_pn240 <= 16:
+                _tq_layer_pn240: Any = layer
+                self._ensure_on_device(_tq_layer_pn240, query.device)
+                _Pi_pn240 = _tq_layer_pn240._tq_Pi
+                _centroids_pn240 = _tq_layer_pn240._tq_centroids
+                if _Pi_pn240 is not None and _centroids_pn240 is not None:
+                    _q_full_pn240 = query.view(
+                        num_tokens, self.num_heads, self.head_size
+                    )
+                    _k_full_pn240 = key.view(
+                        num_tokens, self.num_kv_heads, self.head_size
+                    )
+                    _v_full_pn240 = value.view(
+                        num_tokens, self.num_kv_heads, self.head_size
+                    )
+                    _bt_pn240 = attn_metadata.block_table
+                    _slc_pn240 = attn_metadata.seq_lens_cpu
+                    _attn_out_pn240 = torch.empty(
+                        num_tokens,
+                        self.num_heads,
+                        self.head_size,
+                        device=query.device,
+                        dtype=query.dtype,
+                    )
+                    # Bypass P38's persistent-pool path (allocates max_model_len
+                    # sized buffers ~1 GB which OOMs on a fully-loaded GPU). For
+                    # K+1=5 spec-verify we need a tiny per-call alloc. Resolve
+                    # the captured upstream _continuation_prefill saved by P38
+                    # at apply-time; fall back to self._continuation_prefill if
+                    # P38 didn't run.
+                    _impl_method = getattr(
+                        type(self), "_continuation_prefill", None
+                    )
+                    _cp_fn = getattr(
+                        _impl_method, "_genesis_p38_original", None
+                    )
+                    if _cp_fn is None:
+                        _cp_fn = self._continuation_prefill
+                    for _b_pn240 in range(_B_pn240):
+                        _seq_len_b_pn240 = int(_slc_pn240[_b_pn240])
+                        _cached_len_b_pn240 = max(
+                            _seq_len_b_pn240 - _K1_pn240, 0
+                        )
+                        _s_pn240 = _b_pn240 * _K1_pn240
+                        _e_pn240 = (_b_pn240 + 1) * _K1_pn240
+                        # Captured original is unbound when fetched from class,
+                        # so pass `self` explicitly when calling.
+                        if _cp_fn is self._continuation_prefill:
+                            _attn_out_pn240[_s_pn240:_e_pn240] = _cp_fn(
+                                layer,
+                                _q_full_pn240[_s_pn240:_e_pn240],
+                                _k_full_pn240[_s_pn240:_e_pn240],
+                                _v_full_pn240[_s_pn240:_e_pn240],
+                                kv_cache,
+                                _bt_pn240[_b_pn240 : _b_pn240 + 1],
+                                _cached_len_b_pn240,
+                                _seq_len_b_pn240,
+                                _Pi_pn240,
+                                _centroids_pn240,
+                            )
+                        else:
+                            _attn_out_pn240[_s_pn240:_e_pn240] = _cp_fn(
+                                self,
+                                layer,
+                                _q_full_pn240[_s_pn240:_e_pn240],
+                                _k_full_pn240[_s_pn240:_e_pn240],
+                                _v_full_pn240[_s_pn240:_e_pn240],
+                                kv_cache,
+                                _bt_pn240[_b_pn240 : _b_pn240 + 1],
+                                _cached_len_b_pn240,
+                                _seq_len_b_pn240,
+                                _Pi_pn240,
+                                _centroids_pn240,
+                            )
+                    if output.ndim == 3:
+                        output[:num_tokens] = _attn_out_pn240.to(output.dtype)
+                    else:
+                        output[:num_tokens] = (
+                            _attn_out_pn240.reshape(num_tokens, -1)
+                            .to(output.dtype)
+                        )
+                    return output
+        # === End Genesis PN240 — falls through to default path below ===
 
         # Slice to actual tokens
         N = attn_metadata.num_actual_tokens
