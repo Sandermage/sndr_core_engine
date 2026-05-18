@@ -169,10 +169,24 @@ def _g4_19_import_time_hook():
     g67 = _os.environ.get(
         "GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_68 — verifier for P65 v2 cudagraph downgrade inlined into the
+    # PR #42637 overlay (companion to PN256 raw-K/V continuation).
+    g68 = _os.environ.get(
+        "GENESIS_ENABLE_G4_68_TQ_SPEC_CG_DOWNGRADE_OVERLAY", ""
+    ).strip().lower() in ("1", "true", "yes")
+    # PN241 — Gemma4MTPAttention.forward finite/norm trace (Codex-designed).
+    pn241 = _os.environ.get(
+        "GENESIS_ENABLE_PN241_MTP_TRACE", ""
+    ).strip().lower() in ("1", "true", "yes")
+    # PN248 — Acceptance trace via rejection_sample wrap (Step 4 from
+    # corrected plan).
+    pn248 = _os.environ.get(
+        "GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
-        or g61 or g62 or g67
+        or g61 or g62 or g67 or g68 or pn241 or pn248
     ):
         return
     try:
@@ -322,6 +336,41 @@ def _g4_19_import_time_hook():
                 g4_67_tq_spec_verify_routing as _g4_67_mod,
             )
             _g4_67_mod.apply()
+        # G4_68 — verifier for inlined P65 v2 cudagraph downgrade in the
+        # PR #42637 overlay's TurboQuantMetadataBuilder. Must apply AFTER
+        # G4_60b so TurboQuantMetadataBuilder is imported from the
+        # overlay. Reports applied/error/skipped; no monkey-patching.
+        if g68:
+            from .integrations.gemma4 import (
+                g4_68_tq_spec_cg_downgrade_overlay as _g4_68_mod,
+            )
+            _g4_68_mod.apply()
+        # PN241 — Codex-designed finite/norm trace at SpecDecodeBaseProposer
+        # boundary (Python orchestration above torch.compile boundary).
+        # Logs target_hidden_states (input) + draft_token_ids (output) per
+        # propose() call.
+        if pn241:
+            try:
+                import vllm.v1.spec_decode.llm_base_proposer  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                pn241_mtp_trace as _pn241_mod,
+            )
+            _pn241_mod.apply()
+        # PN248 — Step 4 from corrected plan: per-step acceptance trace via
+        # rejection_sample wrap. Logs draft_token_ids, target_argmax, and
+        # output_token_ids (accept/reject mask) per call. Direct test for
+        # Hypothesis D (cross-quantization verifier loop).
+        if pn248:
+            try:
+                import vllm.v1.sample.rejection_sampler  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                pn248_acceptance_trace as _pn248_mod,
+            )
+            _pn248_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
