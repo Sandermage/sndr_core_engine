@@ -237,15 +237,32 @@ class Gemma4MappingProvider(MappingProvider):
 
     @staticmethod
     def _engine_backend(vllm_config: Any) -> str | None:
-        try:
-            # vLLM exposes it on model_config.attention_backend (string).
-            mc = getattr(vllm_config, "model_config", None)
-            be = getattr(mc, "attention_backend", None) if mc else None
-            if be is None:
-                return None
-            return str(be).strip().upper().replace("_ATTN", "")
-        except Exception:
-            return None
+        """Resolve the engine-wide attention backend.
+
+        vLLM places it on different attribute paths depending on the
+        version: VllmConfig.attention_backend (most recent), or
+        model_config.attention_backend (older). Also falls back to
+        the env var VLLM_ATTENTION_BACKEND if neither is set.
+        """
+        import os
+        for owner_name, owner in (
+            ("vllm_config", vllm_config),
+            ("model_config", getattr(vllm_config, "model_config", None)),
+            ("parallel_config", getattr(vllm_config, "parallel_config", None)),
+            ("scheduler_config", getattr(vllm_config, "scheduler_config", None)),
+        ):
+            if owner is None:
+                continue
+            for attr in ("attention_backend", "attn_backend"):
+                v = getattr(owner, attr, None)
+                if v is not None:
+                    s = str(v).strip()
+                    if s and s.lower() not in ("none", "auto"):
+                        return s.upper().replace("_ATTN", "")
+        env_v = os.environ.get("VLLM_ATTENTION_BACKEND", "").strip()
+        if env_v:
+            return env_v.upper().replace("_ATTN", "")
+        return None
 
     @staticmethod
     def _tq_skip_layers(vllm_config: Any) -> set[int]:
