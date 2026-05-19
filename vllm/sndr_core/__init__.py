@@ -252,12 +252,17 @@ def _g4_19_import_time_hook():
     g76 = _os.environ.get(
         "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING", ""
     ).strip().lower() in ("1", "true", "yes")
+    # PN266 — SpecDecodeBaseProposer.propose() input-shape trace
+    # (G4_77 design probe — does propose receive prompt context?).
+    pn266 = _os.environ.get(
+        "GENESIS_ENABLE_PN266_PROPOSE_TRACE", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
         or pn241 or pn248 or pn258 or pn262 or pn262b
-        or g73 or g74 or g75 or g76
+        or g73 or g74 or g75 or g76 or pn266
     ):
         return
     try:
@@ -578,6 +583,16 @@ def _g4_19_import_time_hook():
                 g4_76_disable_drafter_kv_sharing as _g4_76_mod,
             )
             _g4_76_mod.apply()
+        # PN266 — propose() input-shape trace (G4_77 design probe).
+        if pn266:
+            try:
+                import vllm.v1.spec_decode.llm_base_proposer  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                pn266_propose_trace as _pn266_mod,
+            )
+            _pn266_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
