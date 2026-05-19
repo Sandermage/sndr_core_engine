@@ -168,18 +168,45 @@ class Gemma4MappingProvider(MappingProvider):
     def evaluate_from_config(self, vllm_config: Any) -> tuple[Any, str]:
         """Return (Verdict, reason) for a matched Gemma 4 MTP config.
 
-        Decision rule:
-          - target KV is quantized (turboquant_* / fp8) ->
-            ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED
-            (backend mix breaks physical kv_sharing; bridge required;
-            runtime acceptance not yet proven)
-          - target KV is native bf16/fp16 ->
-            EXACT_COPY (kv_sharing works as designed; no bridge)
+        Decision rule (config-time, before drafter loads):
+
+          (a) Global ``--attention-backend`` is TURBOQUANT (or similar
+              quantized impl) AND target[58/59] are forced native via
+              skip-list -> the drafter inherits TQ impl but its
+              KV-sharing source is bf16 -> KERNEL_STORAGE_DTYPE_MISMATCH
+              (β empirical finding 2026-05-20; non-overridable).
+
+          (b) Otherwise, if target KV is quantized
+              (turboquant_* / fp8) ->
+              ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED.
+
+          (c) Target KV native -> EXACT_COPY.
         """
         from ..kv_contract import Verdict
+        # (a) Kernel-vs-storage mismatch heuristic: if the engine
+        # backend is a quantized impl but the kv-sharing source layer
+        # is forced native via skip-list, the drafter (which inherits
+        # the global backend) will try to read native bytes as
+        # TQ-packed.
+        engine_backend = self._engine_backend(vllm_config)
+        skip_layers = self._tq_skip_layers(vllm_config)
+        if engine_backend in ("TURBOQUANT", "FP8"):
+            # Two of last sliding (58) / last full (59) are the only
+            # candidate KV-sharing source layers Gemma4Proposer maps
+            # to. Mismatch iff either is on the skip-list.
+            kv_share_targets = self._kv_share_target_indices(vllm_config)
+            mismatched = [t for t in kv_share_targets if t in skip_layers]
+            if mismatched:
+                return (
+                    Verdict.KERNEL_STORAGE_DTYPE_MISMATCH,
+                    f"engine_backend={engine_backend} but kv_sharing source "
+                    f"layer(s) {mismatched} are forced native via skip-list. "
+                    f"Drafter inherits {engine_backend} kernel and would "
+                    f"read native bf16 bytes as quantized. β empirical: "
+                    f"acceptance=0 with this contract.",
+                )
+        # (b) Plain quantized-target case.
         if _is_quantized_kv(vllm_config):
-            # Collect the observed kv_cache_dtype string for the
-            # operator log line (best-effort).
             dt = "<unknown>"
             for parent_name, parent in (
                 ("model_config", getattr(vllm_config, "model_config", None)),
@@ -201,11 +228,73 @@ class Gemma4MappingProvider(MappingProvider):
                 f"physical kv_sharing — bridge required; runtime "
                 f"acceptance not validated for this configuration.",
             )
+        # (c) Native fallthrough.
         return (
             Verdict.EXACT_COPY,
             "Gemma4 MTP with native KV — physical kv_sharing works as "
             "designed.",
         )
+
+    @staticmethod
+    def _engine_backend(vllm_config: Any) -> str | None:
+        try:
+            # vLLM exposes it on model_config.attention_backend (string).
+            mc = getattr(vllm_config, "model_config", None)
+            be = getattr(mc, "attention_backend", None) if mc else None
+            if be is None:
+                return None
+            return str(be).strip().upper().replace("_ATTN", "")
+        except Exception:
+            return None
+
+    @staticmethod
+    def _tq_skip_layers(vllm_config: Any) -> set[int]:
+        """Read skip-list set from env (operator-set), since the
+        skip-list is delivered to the runtime via env var."""
+        import os
+        raw = os.environ.get("GENESIS_G4_TQ_FORCE_SKIP_LAYERS", "")
+        out: set[int] = set()
+        for piece in raw.split(","):
+            piece = piece.strip()
+            if not piece:
+                continue
+            try:
+                out.add(int(piece))
+            except ValueError:
+                continue
+        return out
+
+    @staticmethod
+    def _kv_share_target_indices(vllm_config: Any) -> list[int]:
+        """Indices of (last sliding, last full) target layers — the
+        only ones Gemma4Proposer's mapping points drafter to."""
+        try:
+            target_hf = vllm_config.model_config.hf_config
+            target_text = (target_hf.get_text_config()
+                           if hasattr(target_hf, "get_text_config")
+                           else target_hf)
+            layer_types = list(getattr(target_text, "layer_types", []))
+            num_kv_shared = int(getattr(
+                target_text, "num_kv_shared_layers", 0) or 0)
+            non_shared = layer_types[:len(layer_types) - num_kv_shared]
+            out: list[int] = []
+            # last sliding
+            last_sliding = next(
+                (i for i, t in enumerate(reversed(non_shared))
+                 if t == "sliding_attention"), None,
+            )
+            if last_sliding is not None:
+                out.append(len(non_shared) - 1 - last_sliding)
+            # last full
+            last_full = next(
+                (i for i, t in enumerate(reversed(non_shared))
+                 if t == "full_attention"), None,
+            )
+            if last_full is not None:
+                out.append(len(non_shared) - 1 - last_full)
+            return out
+        except Exception:
+            return []
 
     def get_mapping(self, runner: Any) -> list[LayerMapping]:
         predictor = _find_drafter_predictor(runner)

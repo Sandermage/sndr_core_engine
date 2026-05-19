@@ -210,6 +210,10 @@ def evaluate(runner: Any,
 def _aggregate(flags: set[Verdict]) -> Verdict:
     if Verdict.UNSUPPORTED in flags:
         return Verdict.UNSUPPORTED
+    if Verdict.KERNEL_STORAGE_DTYPE_MISMATCH in flags:
+        return Verdict.KERNEL_STORAGE_DTYPE_MISMATCH
+    if Verdict.KERNEL_LAYOUT_CONTRACT_MISMATCH in flags:
+        return Verdict.KERNEL_LAYOUT_CONTRACT_MISMATCH
     if Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED in flags:
         return Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED
     if Verdict.DEQUANT_REQUIRED in flags:
@@ -275,6 +279,15 @@ def evaluate_from_config(vllm_config: Any) -> GuardDecision:
     elif verdict == Verdict.UNSUPPORTED:
         allowed = False
         decision_reason = f"{provider.name}: UNSUPPORTED — {reason}"
+    elif verdict in (Verdict.KERNEL_STORAGE_DTYPE_MISMATCH,
+                     Verdict.KERNEL_LAYOUT_CONTRACT_MISMATCH):
+        # Kernel will MISREAD bytes — denial is non-overridable.
+        # Operator must change the backend/layout, not just opt in.
+        allowed = False
+        decision_reason = (
+            f"{provider.name}: {verdict.value} — {reason} (NON-OVERRIDABLE; "
+            f"fix the backend/storage contract, do not opt in)"
+        )
     elif verdict == Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED:
         allowed = allow_adapter and allow_unknown
         decision_reason = (

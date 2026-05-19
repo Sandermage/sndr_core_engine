@@ -125,6 +125,48 @@ VERDICT_GQA = "GQA_REPEAT"
 VERDICT_LAYOUT = "LAYOUT_ADAPTER"
 VERDICT_DEQUANT = "DEQUANT"
 VERDICT_UNSUPPORTED = "UNSUPPORTED"
+# PN271b — kernel-vs-storage / kernel-vs-layout contract mismatches.
+VERDICT_KERNEL_STORAGE = "KERNEL_STORAGE_DTYPE_MISMATCH"
+VERDICT_KERNEL_LAYOUT = "KERNEL_LAYOUT_CONTRACT_MISMATCH"
+
+
+def _kernel_expects_quantized(impl_class: Any) -> bool | None:
+    if not impl_class or impl_class == "<absent>":
+        return None
+    s = str(impl_class).lower()
+    if "turboquant" in s:
+        return True
+    if "fp8" in s:
+        return True
+    if "flashattn" in s or "flashattention" in s:
+        return False
+    if "tritonattn" in s or "tritonattention" in s:
+        return False
+    return None
+
+
+def _kernel_expected_layout(impl_class: Any) -> str | None:
+    if not impl_class or impl_class == "<absent>":
+        return None
+    s = str(impl_class).lower()
+    if "flashattn" in s or "flashattention" in s:
+        return "HND"
+    if "tritonattn" in s or "tritonattention" in s:
+        return "NHD"
+    if "turboquant" in s:
+        return "NHD"
+    return None
+
+
+def _storage_is_native(kv_dtype_decl: Any, kv_dtype_real: Any) -> bool | None:
+    """True if storage label is plain native, False if quantized."""
+    s_decl = str(kv_dtype_decl or "").lower()
+    if "turboquant" in s_decl or "fp8" in s_decl or (
+            "quant" in s_decl and s_decl not in ("auto", "default", "none")):
+        return False
+    if s_decl in ("auto", "default", "none", "", "<absent>"):
+        return True
+    return None
 
 
 def _safe_attr(obj: Any, name: str, default: Any = "<absent>") -> Any:
@@ -513,9 +555,49 @@ def _audit_pair(
             )
             verdicts.append(VERDICT_DEQUANT)
 
-    # Determine final verdict (worst case wins)
+    # PN271b — consumer-kernel-vs-source-storage contract.
+    d_impl = da.get("impl_class")
+    t_impl = ta.get("impl_class")
+    d_kernel_q = _kernel_expects_quantized(d_impl)
+    d_kernel_layout = _kernel_expected_layout(d_impl)
+    t_storage_native = _storage_is_native(
+        ta.get("kv_cache_dtype"), ta.get("kv_cache_dtype_real"))
+    # Storage native + drafter kernel expects quantized -> MISREAD.
+    if d_kernel_q is True and t_storage_native is True:
+        divergences.append(
+            f"KERNEL_STORAGE_DTYPE_MISMATCH: drafter.impl={d_impl!r} "
+            f"expects quantized bytes; target storage declared "
+            f"{ta.get('kv_cache_dtype')!r} (native).  Drafter would "
+            f"misread target's bf16 cache as TQ-packed."
+        )
+        verdicts.append(VERDICT_KERNEL_STORAGE)
+    elif d_kernel_q is False and t_storage_native is False:
+        divergences.append(
+            f"KERNEL_STORAGE_DTYPE_MISMATCH: drafter.impl={d_impl!r} "
+            f"expects native bytes; target storage declared "
+            f"{ta.get('kv_cache_dtype')!r} (quantized)."
+        )
+        verdicts.append(VERDICT_KERNEL_STORAGE)
+    # Kernel layout contract.
+    if d_kernel_layout and ta.get("kv_cache_layout") not in (
+            "unknown", None, "<absent>"):
+        if d_kernel_layout != ta.get("kv_cache_layout"):
+            divergences.append(
+                f"KERNEL_LAYOUT_CONTRACT_MISMATCH: drafter.impl={d_impl!r} "
+                f"expects {d_kernel_layout}; target storage layout="
+                f"{ta.get('kv_cache_layout')}"
+            )
+            verdicts.append(VERDICT_KERNEL_LAYOUT)
+
+    # Determine final verdict (worst case wins).
+    # Kernel/storage mismatches outrank adapter-required verdicts —
+    # the consumer kernel would misread bytes.
     if VERDICT_UNSUPPORTED in verdicts:
         final = VERDICT_UNSUPPORTED
+    elif VERDICT_KERNEL_STORAGE in verdicts:
+        final = VERDICT_KERNEL_STORAGE
+    elif VERDICT_KERNEL_LAYOUT in verdicts:
+        final = VERDICT_KERNEL_LAYOUT
     elif VERDICT_DEQUANT in verdicts:
         final = VERDICT_DEQUANT
     elif VERDICT_LAYOUT in verdicts and VERDICT_GQA in verdicts:
@@ -602,24 +684,34 @@ def _run_audit(runner: Any) -> None:
                     len(r["divergences"]))
     if VERDICT_UNSUPPORTED in overall_verdicts:
         overall = VERDICT_UNSUPPORTED
+    elif VERDICT_KERNEL_STORAGE in overall_verdicts:
+        overall = VERDICT_KERNEL_STORAGE
+    elif VERDICT_KERNEL_LAYOUT in overall_verdicts:
+        overall = VERDICT_KERNEL_LAYOUT
     elif VERDICT_DEQUANT in overall_verdicts:
         overall = VERDICT_DEQUANT
-    elif any("LAYOUT" in v for v in overall_verdicts) and any(
+    elif any("LAYOUT_ADAPTER" in v for v in overall_verdicts) and any(
             "GQA" in v for v in overall_verdicts):
         overall = "LAYOUT_ADAPTER + GQA_REPEAT"
-    elif any("LAYOUT" in v for v in overall_verdicts):
+    elif any("LAYOUT_ADAPTER" in v for v in overall_verdicts):
         overall = VERDICT_LAYOUT
     elif any("GQA" in v for v in overall_verdicts):
         overall = VERDICT_GQA
     else:
         overall = VERDICT_EXACT
     log.warning("[PN271] OVERALL VERDICT: %s", overall)
-    log.warning(
-        "[PN271] PRODUCTION RECOMMENDATION: %s",
-        "MTP UNSAFE — disable" if overall == VERDICT_UNSUPPORTED
-        else "MTP may be enabled with adapter" if "ADAPTER" in overall or "GQA" in overall or "DEQUANT" in overall
-        else "MTP safe — exact bridge sufficient",
-    )
+    if overall in (VERDICT_KERNEL_STORAGE, VERDICT_KERNEL_LAYOUT):
+        recommendation = (
+            "MTP UNSAFE — consumer kernel will misread bytes. NOT "
+            "overridable; change backend route or storage layout."
+        )
+    elif overall == VERDICT_UNSUPPORTED:
+        recommendation = "MTP UNSAFE — disable"
+    elif "ADAPTER" in overall or "GQA" in overall or "DEQUANT" in overall:
+        recommendation = "MTP may be enabled with adapter"
+    else:
+        recommendation = "MTP safe — exact bridge sufficient"
+    log.warning("[PN271] PRODUCTION RECOMMENDATION: %s", recommendation)
     log.warning("[PN271] === audit END ===")
 
 

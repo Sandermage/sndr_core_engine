@@ -84,6 +84,14 @@ class Verdict(str, enum.Enum):
     ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED = (
         "ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED"
     )
+    # NEW (PN271b 2026-05-20) — caught a blind spot exposed by β:
+    # source storage was bf16 native, but drafter's impl was the
+    # TurboQuant kernel (expects TQ-packed bytes). Pre-existing
+    # shape/layout/dtype-real audit said EXACT_COPY because real
+    # tensor dtype matched. The consumer-kernel-vs-source-storage
+    # contract is a separate axis that must be checked explicitly.
+    KERNEL_STORAGE_DTYPE_MISMATCH = "KERNEL_STORAGE_DTYPE_MISMATCH"
+    KERNEL_LAYOUT_CONTRACT_MISMATCH = "KERNEL_LAYOUT_CONTRACT_MISMATCH"
     UNSUPPORTED = "UNSUPPORTED"
 
 
@@ -135,6 +143,13 @@ class KVContract:
 
     # Quantization
     quant_kind: str | None  # 'native' / 'turboquant' / 'fp8' / ...
+
+    # Consumer-kernel contract (PN271b — what the impl class assumes
+    # about the cache it is going to read/write). Independent of what
+    # is physically stored — the mismatch is exactly the blind spot
+    # that β exposed.
+    kernel_expects_quantized: bool | None = None
+    kernel_expected_layout: str | None = None  # 'HND' / 'NHD' / 'unknown'
 
     # Projections present (True/False per name)
     projections_present: dict[str, bool] = field(default_factory=dict)
@@ -202,6 +217,47 @@ def _classify_quant(decl: str | None) -> str:
     if "quant" in s and s != "auto":
         return "quantized"
     return "native"
+
+
+def _kernel_expects_quantized(impl_class: str | None) -> bool | None:
+    """Decide from impl_class name whether the consumer kernel will
+    INTERPRET cache bytes as quantized.
+
+    None = unknown (impl_class missing). Used by the contract check
+    only when both sides resolve to True/False.
+    """
+    if impl_class is None:
+        return None
+    s = impl_class.lower()
+    if "turboquant" in s:
+        return True
+    if "fp8" in s:
+        return True
+    # Native impls.
+    if "flashattn" in s or "flashattention" in s:
+        return False
+    if "tritonattn" in s or "tritonattention" in s:
+        return False
+    return None
+
+
+def _kernel_expected_layout(impl_class: str | None) -> str | None:
+    """Decide from impl_class name the layout the kernel expects.
+
+    None = unknown. Used by the contract check only when both sides
+    resolve to a concrete layout.
+    """
+    if impl_class is None:
+        return None
+    s = impl_class.lower()
+    if "flashattn" in s or "flashattention" in s:
+        return "HND"
+    if "tritonattn" in s or "tritonattention" in s:
+        return "NHD"
+    if "turboquant" in s:
+        # TQ overlay uses NHD per PR #42637.
+        return "NHD"
+    return None
 
 
 def _walk_attn_kv_cache(inner_attn: Any) -> tuple[
@@ -286,6 +342,9 @@ def extract_contract(
 
     quant_kind = _classify_quant(kv_dtype_decl)
 
+    kernel_expects_quantized = _kernel_expects_quantized(impl_class)
+    kernel_expected_layout = _kernel_expected_layout(impl_class)
+
     projections_present = {
         name: getattr(self_attn, name, None) is not None
         for name in ("q_proj", "k_proj", "v_proj", "qkv_proj", "kv_proj",
@@ -317,6 +376,8 @@ def extract_contract(
         attn_backend_class=attn_backend_class,
         kv_sharing_target_layer_name=kv_sharing,
         quant_kind=quant_kind,
+        kernel_expects_quantized=kernel_expects_quantized,
+        kernel_expected_layout=kernel_expected_layout,
         projections_present=projections_present,
     )
 
@@ -422,15 +483,68 @@ def compare_contracts(
         )
         flags.add(Verdict.DEQUANT_REQUIRED)
 
+    # (PN271b) Consumer-kernel-vs-source-storage contract.
+    # If the destination's kernel will INTERPRET reads as quantized
+    # but the source's declared dtype is native (or vice versa),
+    # the bytes will be misread. Same risk applies for layout
+    # expectations.
+    if (dst.kernel_expects_quantized is True
+            and src.quant_kind == "native"):
+        divergences.append(
+            f"KERNEL_STORAGE_DTYPE_MISMATCH: dst.impl={dst.impl_class!r} "
+            f"expects quantized bytes; src.quant_kind={src.quant_kind} "
+            f"(declared dtype={src.kv_cache_dtype_decl!r})"
+        )
+        flags.add(Verdict.KERNEL_STORAGE_DTYPE_MISMATCH)
+    elif (dst.kernel_expects_quantized is False
+            and src.quant_kind not in (None, "native")):
+        divergences.append(
+            f"KERNEL_STORAGE_DTYPE_MISMATCH: dst.impl={dst.impl_class!r} "
+            f"expects native bytes; src.quant_kind={src.quant_kind} "
+            f"(declared dtype={src.kv_cache_dtype_decl!r})"
+        )
+        flags.add(Verdict.KERNEL_STORAGE_DTYPE_MISMATCH)
+
+    if (dst.kernel_expected_layout is not None
+            and src.kv_cache_layout not in ("unknown", None)
+            and dst.kernel_expected_layout != src.kv_cache_layout):
+        divergences.append(
+            f"KERNEL_LAYOUT_CONTRACT_MISMATCH: dst.impl={dst.impl_class!r} "
+            f"expects {dst.kernel_expected_layout}; src.kv_cache_layout="
+            f"{src.kv_cache_layout}"
+        )
+        flags.add(Verdict.KERNEL_LAYOUT_CONTRACT_MISMATCH)
+
     # Block size hints (always include if known; bridge needs it)
     if src.block_size is not None:
         hints["src_block_size"] = src.block_size
     if dst.block_size is not None:
         hints["dst_block_size"] = dst.block_size
 
-    # Aggregate
+    # Aggregate. Kernel/storage mismatches are NOT mere "adapter
+    # required" — they imply the consumer will misread bytes. Promote
+    # to UNSUPPORTED at the structural level so the safety guard
+    # blocks them by default. Operators can still override via the
+    # FUNCTIONAL_UNKNOWN env if they accept the risk.
     if Verdict.UNSUPPORTED in flags:
         verdict = Verdict.UNSUPPORTED
+    elif (Verdict.KERNEL_STORAGE_DTYPE_MISMATCH in flags
+            or Verdict.KERNEL_LAYOUT_CONTRACT_MISMATCH in flags):
+        # Conservative: the consumer kernel will misread bytes.
+        verdict = (Verdict.KERNEL_STORAGE_DTYPE_MISMATCH
+                   if Verdict.KERNEL_STORAGE_DTYPE_MISMATCH in flags
+                   else Verdict.KERNEL_LAYOUT_CONTRACT_MISMATCH)
+        # Still expose composite if other classes also present
+        other_adapter = [
+            f for f in flags
+            if f not in (Verdict.KERNEL_STORAGE_DTYPE_MISMATCH,
+                         Verdict.KERNEL_LAYOUT_CONTRACT_MISMATCH,
+                         Verdict.UNSUPPORTED)
+        ]
+        if other_adapter:
+            hints["kernel_mismatch_with_adapters"] = [
+                f.value for f in other_adapter
+            ]
     elif len([f for f in flags if f != Verdict.UNSUPPORTED]) >= 2:
         verdict = Verdict.COMPOSITE_ADAPTER
     elif Verdict.DEQUANT_REQUIRED in flags:
@@ -447,8 +561,14 @@ def compare_contracts(
     # imply non-zero runtime acceptance. Without a recorded
     # functional gate, downgrade to FUNCTIONAL_UNVERIFIED so callers
     # must explicitly opt in.
-    if require_functional_gate and verdict not in (
-            Verdict.EXACT_COPY, Verdict.UNSUPPORTED):
+    # KERNEL_*_MISMATCH verdicts and UNSUPPORTED are NOT eligible
+    # for the functional-unverified path — they're structurally
+    # broken, not "unproven", and override env should not silently
+    # admit them as if they were merely uncertain.
+    if (require_functional_gate
+            and verdict not in (Verdict.EXACT_COPY, Verdict.UNSUPPORTED,
+                                Verdict.KERNEL_STORAGE_DTYPE_MISMATCH,
+                                Verdict.KERNEL_LAYOUT_CONTRACT_MISMATCH)):
         hints["pre_functional_gate_verdict"] = verdict.value
         verdict = Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED
 
