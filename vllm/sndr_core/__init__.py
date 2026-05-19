@@ -181,6 +181,11 @@ def _g4_19_import_time_hook():
     g69 = _os.environ.get(
         "GENESIS_ENABLE_G4_69_SKIP_LAYERS_NATIVE_BACKEND", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_71 — force FlashAttn backend for Gemma 4 MTP drafter layers
+    # (prefix "draft_model.") to prevent TurboQuant impl on native KV cache.
+    g71 = _os.environ.get(
+        "GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND", ""
+    ).strip().lower() in ("1", "true", "yes")
     # PN241 — Gemma4MTPAttention.forward finite/norm trace (Codex-designed).
     pn241 = _os.environ.get(
         "GENESIS_ENABLE_PN241_MTP_TRACE", ""
@@ -199,7 +204,7 @@ def _g4_19_import_time_hook():
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
-        or g61 or g62 or g67 or g68 or g69 or pn241 or pn248 or pn258
+        or g61 or g62 or g67 or g68 or g69 or g71 or pn241 or pn248 or pn258
     ):
         return
     try:
@@ -369,6 +374,15 @@ def _g4_19_import_time_hook():
                 g4_69_skip_layers_native_backend as _g4_69_mod,
             )
             _g4_69_mod.apply()
+        # G4_71 — force FlashAttn backend for drafter Attention layers.
+        # Must apply BEFORE drafter model loads (i.e. before
+        # LLMBaseProposer.load_model runs). Plugin apply-all happens at
+        # engine_core boot, well before model load, so order is safe.
+        if g71:
+            from .integrations.gemma4 import (
+                g4_71_drafter_native_attn_backend as _g4_71_mod,
+            )
+            _g4_71_mod.apply()
         # PN241 — Codex-designed finite/norm trace at SpecDecodeBaseProposer
         # boundary (Python orchestration above torch.compile boundary).
         # Logs target_hidden_states (input) + draft_token_ids (output) per

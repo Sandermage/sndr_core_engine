@@ -169,36 +169,61 @@ def apply() -> tuple[str, str]:
         attn_selector_config,
         num_heads=None,
     ):
-        """Route skip-listed (kv_cache_dtype='auto') layers away from TURBOQUANT.
+        """Route non-TQ-dtype layers away from TURBOQUANT backend.
 
-        The intent: layers in `cache_config.kv_cache_dtype_skip_layers`
-        receive `kv_cache_dtype="auto"` from `Attention.__init__`. For
-        those layers the global `--attention-backend TURBOQUANT` MUST
-        be substituted by `selected_backend=None` so the dispatcher's
-        auto-priority list picks a native backend (FLASH_ATTN on Ampere
-        with bf16+head_size 256). Non-skipped layers continue to use
-        TURBOQUANT.
+        The intent: any layer whose kv_cache_dtype does NOT start with
+        "turboquant_" cannot be served by the TurboQuant Triton decode
+        kernel — it would walk out-of-bounds on a native KV cache. So
+        for those layers the global `--attention-backend TURBOQUANT`
+        MUST be substituted by `selected_backend=None`, letting the
+        dispatcher's auto-priority list pick a native backend
+        (FLASH_ATTN on Ampere with bf16 + head_size 256/512).
+
+        Three cases that match the reroute:
+          - `kv_cache_dtype == "auto"`  — target skip-listed layers
+            (set by Attention.__init__ via
+            `cache_config.kv_cache_dtype_skip_layers`).
+          - `kv_cache_dtype is None`    — drafter / spec-decode layers
+            whose loader did not propagate the TQ dtype.
+          - `kv_cache_dtype` is a non-TQ string (e.g. "fp8") — defensive.
+
+        Non-TQ branches:
+          - skip when `selected_backend != AttentionBackendEnum.TURBOQUANT`
+            (caller didn't ask for TQ — nothing to substitute).
+        TQ branches (kv_cache_dtype starts with "turboquant_"):
+          - keep TURBOQUANT — the kernel is appropriate.
+
+        PN261-C extended the original gate (`auto` only) to also catch
+        drafter Attention objects that go through this dispatcher with
+        a non-TQ kv_cache_dtype. PN260 trace proved drafter's
+        TurboQuantAttentionImpl was launching the TQ decode kernel on
+        a native bf16 KV cache, producing CUDA illegal address.
         """
+        _kv_dt = getattr(attn_selector_config, "kv_cache_dtype", None)
+        _is_tq_dtype = isinstance(_kv_dt, str) and _kv_dt.startswith(
+            "turboquant_"
+        )
         if (
             selected_backend == AttentionBackendEnum.TURBOQUANT
-            and getattr(attn_selector_config, "kv_cache_dtype", None) == "auto"
+            and not _is_tq_dtype
         ):
             _REROUTE_COUNT[0] += 1
-            if _REROUTE_COUNT[0] <= 4:
+            if _REROUTE_COUNT[0] <= 8:
                 # Log first few rerouted layers (avoid log flood).
                 log.warning(
-                    "[G4_69] kv_cache_dtype='auto' detected with "
+                    "[G4_69] non-TQ kv_cache_dtype detected with "
                     "selected_backend=TURBOQUANT — clearing selected "
                     "backend for this layer so auto-priority dispatcher "
                     "picks a native attention backend. (call #%d, "
-                    "head_size=%s, num_heads=%s)",
+                    "kv_cache_dtype=%r, head_size=%s, num_heads=%s)",
                     _REROUTE_COUNT[0],
+                    _kv_dt,
                     getattr(attn_selector_config, "head_size", "?"),
                     num_heads,
                 )
-            elif _REROUTE_COUNT[0] == 5:
+            elif _REROUTE_COUNT[0] == 9:
                 log.warning(
-                    "[G4_69] further reroute logs suppressed (count > 4)"
+                    "[G4_69] further reroute logs suppressed (count > 8)"
                 )
             selected_backend = None
 

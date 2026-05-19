@@ -438,6 +438,36 @@ class TurboQuantAttentionImpl(AttentionImpl["TurboQuantMetadata"]):
         self.sliding_window = sliding_window
         self.kv_sharing_target_layer_name = kv_sharing_target_layer_name
 
+        # [Genesis PN261 diagnostic] Log every TurboQuantAttentionImpl
+        # instantiation — captures prefix (so we see drafter vs target),
+        # kv_cache_dtype, kv_sharing_target_layer_name, head_size,
+        # sliding_window. Capped at 80 hits to keep log bounded. Env-gated.
+        import os as _os_pn261_init
+        if _os_pn261_init.environ.get(
+            "GENESIS_ENABLE_PN261_TQ_IMPL_INIT_TRACE", ""
+        ).strip().lower() in ("1", "true", "yes", "on"):
+            _pn261_hits = getattr(
+                TurboQuantAttentionImpl, "_pn261_init_hits", 0
+            )
+            if _pn261_hits < 80:
+                TurboQuantAttentionImpl._pn261_init_hits = _pn261_hits + 1
+                _pn261_prefix = kwargs.get("prefix") or kwargs.get("layer_name") or "?"
+                try:
+                    with open("/tmp/genesis_pn261_tq_impl_init.log", "a") as _f:
+                        _f.write(
+                            f"[PN261 TQ-impl-init {_pn261_hits + 1}] "
+                            f"prefix={_pn261_prefix!r} "
+                            f"kv_cache_dtype={kv_cache_dtype!r} "
+                            f"kv_sharing_target={kv_sharing_target_layer_name!r} "
+                            f"head_size={head_size} "
+                            f"num_heads={num_heads} "
+                            f"num_kv_heads={num_kv_heads} "
+                            f"sliding_window={sliding_window} "
+                            f"attn_type={attn_type}\n"
+                        )
+                except Exception:
+                    pass
+
         from vllm.model_executor.layers.quantization.turboquant.config import (
             TurboQuantConfig,
         )

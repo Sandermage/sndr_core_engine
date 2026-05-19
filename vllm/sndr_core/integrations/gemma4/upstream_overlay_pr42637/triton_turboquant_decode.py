@@ -817,6 +817,43 @@ def triton_turboquant_decode_attention(
         grid=grid,
     )
 
+    # [Genesis PN261-A] Fail-fast assert: TurboQuant decode kernel must
+    # NOT be launched with a non-TQ-packed KV cache. The kernel is
+    # hard-coded for shape (num_blocks, block_size, num_kv_heads,
+    # padded_slot_size_uint8). When called with a 5-dim native
+    # FlashAttn cache (num_blocks, 2, block_size, num_kv_heads, head_dim)
+    # the offset arithmetic walks out-of-bounds and produces an
+    # asynchronous cudaErrorIllegalAddress reported by NCCL watchdog —
+    # a black-box crash. PN260 trace localized this to drafter's
+    # _decode_attention path with native bf16 cache (drafter Attention
+    # constructed through a separate code path that bypasses G4_69's
+    # CudaPlatformBase.get_attn_backend_cls wrap).
+    #
+    # This guard converts the CUDA illegal address into an actionable
+    # Python RuntimeError carrying layer_name, call_site, and the
+    # observed cache shape/dtype so the operator immediately knows
+    # WHICH layer was wrongly routed.
+    #
+    # Env: GENESIS_ENABLE_PN261_TQ_NATIVE_CACHE_ASSERT=1. Default OFF
+    # so the guard is opt-in until proven stable.
+    if _os_pn260.environ.get(
+        "GENESIS_ENABLE_PN261_TQ_NATIVE_CACHE_ASSERT", ""
+    ).strip().lower() in ("1", "true", "yes", "on"):
+        if kv_cache.ndim != 4 or kv_cache.dtype != torch.uint8:
+            raise RuntimeError(
+                "[PN261-A] TurboQuant decode kernel called with non-TQ "
+                "KV cache. The kernel expects 4-dim uint8 packed cache; "
+                "received "
+                f"ndim={kv_cache.ndim} dtype={kv_cache.dtype} "
+                f"shape={tuple(kv_cache.shape)}. "
+                f"call_site={_PN260_CALLER_META.get('call_site')} "
+                f"layer={_PN260_CALLER_META.get('layer_name')} "
+                f"is_drafter={_PN260_CALLER_META.get('is_drafter')} "
+                f"kv_sharing_target={_PN260_CALLER_META.get('kv_sharing_target_layer_name')}. "
+                "This layer must be routed to a native attention backend; "
+                "see PN261-C for the proper fix."
+            )
+
     _tq_decode_stage1[grid](
         q_rot,
         kv_cache,
