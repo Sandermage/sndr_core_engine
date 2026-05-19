@@ -276,12 +276,18 @@ def _g4_19_import_time_hook():
     pn269 = _os.environ.get(
         "GENESIS_ENABLE_PN269_A0_BLOCK_TABLE_TRACE", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_78 — target[58] -> drafter[0..2] K/V bridge (v1: prompt prefill,
+    # K=1, no decode). Based on PN269 A0 verdict.
+    g78 = _os.environ.get(
+        "GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
         or pn241 or pn248 or pn258 or pn262 or pn262b
         or g73 or g74 or g75 or g76 or pn266 or pn267 or pn268 or pn269
+        or g78
     ):
         return
     try:
@@ -645,6 +651,20 @@ def _g4_19_import_time_hook():
                 pn269_a0_block_table_trace as _pn269_mod,
             )
             _pn269_mod.apply()
+        # G4_78 — target[58] -> drafter[0..2] K/V bridge (v1).
+        # Apply AFTER PN269 so that PN269's wrap (if enabled) sits
+        # inside G4_78 — bridge runs first, then trace logs the
+        # substituted K/V.
+        if g78:
+            try:
+                import vllm.v1.attention.backends.flash_attn  # noqa: F401
+                import vllm.v1.attention.backends.triton_attn  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                g4_78_drafter_target_kv_bridge as _g4_78_mod,
+            )
+            _g4_78_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
