@@ -252,6 +252,14 @@ def apply() -> tuple[str, str]:
                 return original(self, *args, **kwargs)
 
             info = _capture_metadata(args, kwargs)
+            # Skip warmup / profile / cudagraph-capture calls where
+            # attn_metadata is None — they don't represent real KV
+            # geometry. Don't consume the call budget on them.
+            attn_md = (
+                args[5] if len(args) >= 6 else kwargs.get("attn_metadata")
+            )
+            if attn_md is None:
+                return original(self, *args, **kwargs)
             num_actual = info["num_actual_tokens"]
             if not isinstance(num_actual, int) and hasattr(num_actual, "item"):
                 try:
