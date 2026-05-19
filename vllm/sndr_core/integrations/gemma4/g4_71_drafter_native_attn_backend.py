@@ -160,12 +160,32 @@ def apply() -> tuple[str, str]:
             ``get_kv_cache_spec`` to override TQ spec with native spec.
           * ``self._genesis_g4_71_drafter_prefix = prefix`` — kept for
             diagnostic logs.
+
+        Marker is stamped BOTH before and after delegating to the
+        original ``Attention.__init__``:
+          * Before — guards against the (unlikely) case where the
+            original init internally calls ``self.get_kv_cache_spec``
+            during construction; G4_72 then sees the marker.
+          * After — defensive re-stamp in case original init re-assigned
+            ``self.__dict__`` (Python instance attributes survive
+            standard ``__init__`` patterns, but the cost is one setattr).
         """
         prefix = kwargs.get("prefix", "") or ""
         is_drafter = (
             isinstance(prefix, str)
             and prefix.startswith(drafter_prefix)
         )
+        # Pre-init marker stamp (belt) — safe because Python lets us
+        # attach attributes to a freshly-allocated instance.
+        if is_drafter:
+            try:
+                self._genesis_g4_71_is_drafter = True
+                self._genesis_g4_71_drafter_prefix = prefix
+            except Exception:
+                # Slotted Attention class would reject this; G4_72 then
+                # falls back to its own prefix re-check.
+                pass
+
         if is_drafter and kwargs.get("attn_backend") is None:
             try:
                 # Resolve FlashAttention v2 backend on demand. We pick
@@ -205,16 +225,14 @@ def apply() -> tuple[str, str]:
 
         result = original(self, *args, **kwargs)
 
-        # Stamp drafter marker AFTER original init so any attribute the
-        # original sets does not shadow ours. Read by G4_72 at
-        # get_kv_cache_spec time.
+        # Post-init re-stamp (suspenders) — defensive in case the
+        # original __init__ replaced self.__dict__ via some inheritance
+        # hook. Pre-init stamp above is the primary guarantee.
         if is_drafter:
             try:
                 self._genesis_g4_71_is_drafter = True
                 self._genesis_g4_71_drafter_prefix = prefix
             except Exception:
-                # Slotted classes may reject attribute assignment; G4_72
-                # will then need to fall back to its own prefix check.
                 pass
 
         return result
