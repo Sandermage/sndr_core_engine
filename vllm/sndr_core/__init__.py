@@ -222,11 +222,19 @@ def _g4_19_import_time_hook():
     pn262b = _os.environ.get(
         "GENESIS_ENABLE_PN262B_KV_ALLOC_TRACE", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_73 — skip drafter.dummy_run during profile_run (PN262-D pragmatic).
+    # Unblocks K=2 boot when drafter's profile-time KV cache placeholder
+    # is sized by the GROUP's TQ backend instead of FlashAttn (per-layer
+    # impl). Runtime path uses initialize_attn_backend sub-grouping by
+    # per-layer backend, so runtime should be correct.
+    g73 = _os.environ.get(
+        "GENESIS_ENABLE_G4_73_DRAFTER_PROFILE_SKIP", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
-        or pn241 or pn248 or pn258 or pn262 or pn262b
+        or pn241 or pn248 or pn258 or pn262 or pn262b or g73
     ):
         return
     try:
@@ -488,6 +496,22 @@ def _g4_19_import_time_hook():
                 pn262b_kv_alloc_trace as _pn262b_mod,
             )
             _pn262b_mod.apply()
+        # G4_73 — skip drafter.dummy_run during profile_run.
+        # Pragmatic minimal fix for PN262-D: unblocks K=2 boot by skipping
+        # drafter's profile-time forward, which would otherwise hit FlashAttn
+        # with a TQ-shaped KV cache placeholder. Runtime sub-grouping after
+        # initialize_kv_cache(real_config) honors per-layer attn_backend,
+        # so runtime should be correct.
+        if g73:
+            try:
+                import vllm.v1.worker.gpu_model_runner  # noqa: F401
+                import vllm.v1.spec_decode.llm_base_proposer  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                g4_73_drafter_profile_skip as _g4_73_mod,
+            )
+            _g4_73_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
