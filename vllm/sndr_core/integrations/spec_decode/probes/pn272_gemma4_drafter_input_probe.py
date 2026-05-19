@@ -551,11 +551,27 @@ def apply() -> tuple[str, str]:
     _wrapped._genesis_pn272_wrapped = True  # type: ignore[attr-defined]
     GPUModelRunner.initialize_kv_cache_tensors = _wrapped  # type: ignore[method-assign]
 
-    # Install runtime wraps right away (model already imported at this point)
-    try:
-        _install_runtime_wraps()
-    except Exception as e:  # noqa: BLE001
-        log.warning("[PN272] runtime wrap install failed: %s", e)
+    # NOTE: runtime forward wraps are disabled by default — Gemma4MTP
+    # has @support_torch_compile so wrapping its sub-forward functions
+    # injects log.warning() calls into a traced graph that torch.compile
+    # rejects ("logging.Logger method not supported for non-export
+    # cases"). Inventory phase + state_dict key matrix is sufficient
+    # for the residual probe. Set
+    #   GENESIS_PN272_ENABLE_RUNTIME_WRAPS=1
+    # to opt back in (requires torch._dynamo.disable on the wraps —
+    # not yet implemented).
+    if os.environ.get(
+        "GENESIS_PN272_ENABLE_RUNTIME_WRAPS", ""
+    ).strip().lower() in ("1", "true", "yes"):
+        try:
+            _install_runtime_wraps()
+        except Exception as e:  # noqa: BLE001
+            log.warning("[PN272] runtime wrap install failed: %s", e)
+    else:
+        log.warning(
+            "[PN272] runtime wraps SKIPPED (torch.compile incompat); "
+            "set GENESIS_PN272_ENABLE_RUNTIME_WRAPS=1 to force"
+        )
 
     _APPLIED = True
     log.warning(
