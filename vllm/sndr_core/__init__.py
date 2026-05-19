@@ -281,6 +281,11 @@ def _g4_19_import_time_hook():
     g78 = _os.environ.get(
         "GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE", ""
     ).strip().lower() in ("1", "true", "yes")
+    # G4_71b — drafter sliding (head_size=256) -> TRITON_ATTN + kv_cache
+    # _dtype='auto' reset. β′-A enabler: clean kv_sharing contract.
+    g71b = _os.environ.get(
+        "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON", ""
+    ).strip().lower() in ("1", "true", "yes")
     # PN270 — drafter K/V projection audit (read-only). Settles whether
     # drafter's k_proj/v_proj exist + differ. Triggered by G4_78 v1
     # finding that drafter K stats == V stats (suspicious tied/missing).
@@ -307,7 +312,7 @@ def _g4_19_import_time_hook():
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
         or pn241 or pn248 or pn258 or pn262 or pn262b
         or g73 or g74 or g75 or g76 or pn266 or pn267 or pn268 or pn269
-        or g78 or pn270 or pn271 or pn272
+        or g78 or pn270 or pn271 or pn272 or g71b
     ):
         return
     try:
@@ -612,6 +617,15 @@ def _g4_19_import_time_hook():
                 g4_75_drafter_head512_triton as _g4_75_mod,
             )
             _g4_75_mod.apply()
+        # G4_71b — drafter sliding (head_size=256) -> TRITON_ATTN +
+        # kv_cache_dtype='auto' reset. β′-A enabler. Apply AFTER G4_75
+        # so both share a uniform Triton routing across all 4 drafter
+        # layers when both enabled.
+        if g71b:
+            from .integrations.gemma4 import (
+                g4_71b_drafter_sliding_triton as _g4_71b_mod,
+            )
+            _g4_71b_mod.apply()
         # G4_76 — disable Gemma4Proposer._setup_gemma4_kv_sharing (PN265).
         # Apply AFTER G4_72 so the spec route is established. Must apply
         # before the proposer's setup is invoked at model load. Drafter
