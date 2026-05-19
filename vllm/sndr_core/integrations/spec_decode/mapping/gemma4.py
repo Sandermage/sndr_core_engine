@@ -108,17 +108,32 @@ def _is_mtp_method(spec_cfg: Any) -> bool:
     return str(method).strip().lower() == "mtp"
 
 
-def _is_quantized_kv(model_cfg: Any) -> bool:
-    if model_cfg is None:
+def _is_quantized_kv(vllm_config: Any) -> bool:
+    """Walk both model_config and cache_config — vLLM stores
+    kv_cache_dtype on cache_config in v1, but legacy paths sometimes
+    stash it on model_config. Return True if any source declares a
+    quantized form (turboquant_*, fp8_*, etc.)."""
+    if vllm_config is None:
         return False
-    dt = getattr(model_cfg, "kv_cache_dtype", None) or getattr(
-        model_cfg, "kv_cache_dtype_str", None)
-    if dt is None:
-        return False
-    s = str(dt).lower()
-    return ("turboquant" in s) or ("fp8" in s) or (
-        "quant" in s and s not in ("auto", "default", "none")
-    )
+    candidates: list[str] = []
+    for parent_name, parent in (
+        ("model_config", getattr(vllm_config, "model_config", None)),
+        ("cache_config", getattr(vllm_config, "cache_config", None)),
+    ):
+        if parent is None:
+            continue
+        for attr in ("kv_cache_dtype", "kv_cache_dtype_str", "cache_dtype"):
+            v = getattr(parent, attr, None)
+            if v is not None:
+                candidates.append(str(v).lower())
+    for s in candidates:
+        if "turboquant" in s:
+            return True
+        if "fp8" in s and "auto" not in s:
+            return True
+        if "quant" in s and s not in ("auto", "default", "none"):
+            return True
+    return False
 
 
 class Gemma4MappingProvider(MappingProvider):
@@ -162,14 +177,28 @@ class Gemma4MappingProvider(MappingProvider):
             EXACT_COPY (kv_sharing works as designed; no bridge)
         """
         from ..kv_contract import Verdict
-        mc = getattr(vllm_config, "model_config", None)
-        if _is_quantized_kv(mc):
-            dt = getattr(mc, "kv_cache_dtype", None) or getattr(
-                mc, "kv_cache_dtype_str", "?")
+        if _is_quantized_kv(vllm_config):
+            # Collect the observed kv_cache_dtype string for the
+            # operator log line (best-effort).
+            dt = "<unknown>"
+            for parent_name, parent in (
+                ("model_config", getattr(vllm_config, "model_config", None)),
+                ("cache_config", getattr(vllm_config, "cache_config", None)),
+            ):
+                if parent is None:
+                    continue
+                for attr in ("kv_cache_dtype", "kv_cache_dtype_str",
+                             "cache_dtype"):
+                    v = getattr(parent, attr, None)
+                    if v is not None:
+                        dt = f"{parent_name}.{attr}={v!r}"
+                        break
+                if dt != "<unknown>":
+                    break
             return (
                 Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED,
-                f"Gemma4 MTP with quantized target KV (kv_cache_dtype={dt!r}) "
-                f"breaks physical kv_sharing — bridge required; runtime "
+                f"Gemma4 MTP with quantized target KV ({dt}) breaks "
+                f"physical kv_sharing — bridge required; runtime "
                 f"acceptance not validated for this configuration.",
             )
         return (
