@@ -207,11 +207,19 @@ def _g4_19_import_time_hook():
     pn258 = _os.environ.get(
         "GENESIS_ENABLE_PN258_ORACLE_ACCEPTANCE", ""
     ).strip().lower() in ("1", "true", "yes")
+    # PN262 — FlashAttn drafter KV cache shape/stride trace + fail-fast.
+    # PN261-D follow-up: G4_71+G4_72 fixed impl+spec but K=2 still crashed
+    # at flash_attn.py:744 kv_cache.unbind(0). Localizes which of 4
+    # hypotheses (allocator / bind-view / sharing / global layout)
+    # causes the wrong leading axis.
+    pn262 = _os.environ.get(
+        "GENESIS_ENABLE_PN262_FLASH_ATTN_DRAFTER_TRACE", ""
+    ).strip().lower() in ("1", "true", "yes")
     if not (
         g19 or g19b or g19c or g30 or g31 or g32 or g43 or g44 or g45 or g50
         or g60a or g60b or g60c or g60d or g60e or g60g or g60h or g60k
         or g61 or g62 or g67 or g68 or g69 or g71 or g72
-        or pn241 or pn248 or pn258
+        or pn241 or pn248 or pn258 or pn262
     ):
         return
     try:
@@ -445,6 +453,21 @@ def _g4_19_import_time_hook():
                 pn258_oracle_acceptance as _pn258_mod,
             )
             _pn258_mod.apply()
+        # PN262 — FlashAttn drafter KV cache shape/stride trace +
+        # fail-fast (PN261-D D-3 localization). Wraps
+        # FlashAttentionImpl.forward; only fires for prefix
+        # 'draft_model.'. Should apply AFTER G4_71 (which sets the
+        # FlashAttn impl on drafter) — order satisfied by being last
+        # in the apply sweep.
+        if pn262:
+            try:
+                import vllm.v1.attention.backends.flash_attn  # noqa: F401
+            except ImportError:
+                pass
+            from .integrations.gemma4 import (
+                pn262_flash_attn_drafter_trace as _pn262_mod,
+            )
+            _pn262_mod.apply()
     except Exception:  # noqa: BLE001
         # Never block sndr_core import on G4-TQ apply error
         pass
