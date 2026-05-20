@@ -1,8 +1,9 @@
 # SNDR gateway — deployment
 
-D2b deliverable. This directory carries everything an operator needs
-to run the spec-decode gateway in production alongside one or two
-vLLM upstreams.
+D2b deliverable. This directory carries the deployment templates
+(Dockerfile, docker-compose, dashboards, alerts) that an operator
+uses to run the spec-decode gateway in production alongside one or
+two vLLM upstreams.
 
 ## File map
 
@@ -10,33 +11,49 @@ vLLM upstreams.
 deploy/
 ├── Dockerfile                          gateway image (no torch, no vllm)
 ├── docker-compose.yml                  three-service stack
-├── server/                             host-mode launcher scripts
-│   ├── start_gemma4_default.sh         vLLM TQ-only MTP-OFF
-│   ├── start_gemma4_structured_k4.sh   vLLM β′-A K=4 structured profile
-│   └── start_gateway.sh                gateway container (builds image too)
+├── alerts/                             Prometheus alerting rules
+├── dashboards/                         Grafana dashboard JSON
 └── README.md                           this file
 ```
 
-## Quick start (host networking, server-side)
+The legacy `server/` directory of host-mode launcher scripts
+(`start_gateway.sh`, `start_gemma4_default.sh`,
+`start_gemma4_structured_k4.sh`) is intentionally absent from the
+public tree as of Phase 3 bucket 5 (2026-05-21). Per the
+architectural invariant in
+``sndr_private/planning/audits/RELOCATION_DESIGN_2026-05-21_RU.md``
+§0.5 Rule 4: launcher / docker-run wrapper scripts must not live
+under ``integrations/`` (which is for patch code only).
+
+## How to launch vLLM upstreams
+
+**Canonical (preferred)**: use the V2 profile renderer:
 
 ```bash
-# 1. default vLLM (port 8101)
-bash deploy/server/start_gemma4_default.sh
+# vLLM default (MTP OFF, TQ-only, port 8101 by convention):
+python3 -m vllm.sndr_core.cli profile render-launchers gemma4-tq-default \
+    > /tmp/start_gemma4_default.sh
+bash /tmp/start_gemma4_default.sh
 
-# 2. structured vLLM (port 8102) — β′-A K=4
-bash deploy/server/start_gemma4_structured_k4.sh
-
-# 3. gateway (port 8100, builds image if absent)
-bash deploy/server/start_gateway.sh
+# vLLM structured (β′-A K=4, port 8102):
+python3 -m vllm.sndr_core.cli profile render-launchers gemma4-tq-mtp-structured-k4 \
+    > /tmp/start_gemma4_structured_k4.sh
+bash /tmp/start_gemma4_structured_k4.sh
 ```
 
-All three default to host networking and assume:
-- `GENESIS_REPO=/home/sander/genesis-vllm-patches`
-- `MODEL_ROOT=/nfs/genesis/models`
-- `GEMMA4_MODEL=/models/gemma-4-31B-it-AWQ-4bit`
-- `GEMMA4_ASSISTANT=/models/gemma-4-31B-it-assistant`
+The rendered launcher is byte-equivalent to the validated
+hand-written ``start_g4_betaA_k1.sh`` (proved by the P1.7d
+byte-equivalence test in
+``tests/unit/cli/test_profile_render_launchers.py``).
 
-Override via env: `DEFAULT_URL=http://other:8101 bash ... start_gateway.sh`.
+**Operator-internal reference**: the maintainer's host scripts live
+under ``sndr_private/scripts/launch/gateway/`` (gitignored —
+operator-private maintainer tree). These are kept for legacy
+compatibility and bench-rehearsal needs; new operators should use
+``sndr profile render-launchers`` instead.
+
+The gateway itself does not require a host script — bring it up with
+``docker compose up -d gateway`` from the directory below.
 
 ## docker-compose alternative
 
@@ -70,10 +87,13 @@ correctly when both upstreams are REAL vLLM containers, not mocks.
 
 ### G5 acceptance criteria
 
-1. Boot `start_gemma4_default.sh` → wait for `/v1/models`
-2. Boot `start_gemma4_structured_k4.sh` → wait for `/v1/models` AND
-   guard log line `verdict=FUNCTIONALLY_VALIDATED allowed=True`
-3. Boot `start_gateway.sh` with default+structured URLs pointing at
+1. Boot vLLM default via ``sndr profile render-launchers
+   gemma4-tq-default`` → wait for ``/v1/models``
+2. Boot vLLM structured via ``sndr profile render-launchers
+   gemma4-tq-mtp-structured-k4`` → wait for ``/v1/models`` AND
+   guard log line ``verdict=FUNCTIONALLY_VALIDATED allowed=True``
+3. Bring up gateway container (``docker compose up -d gateway``
+   from this directory) with default+structured URLs pointing at
    the two real containers
 4. Gateway smoke (same 6 cases as D2a):
    - C1 tool_json → structured (real β′-A acceptance trace fires)
