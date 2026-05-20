@@ -223,29 +223,51 @@ def _unwrap(m: Any) -> Any:
     return m
 
 
+def _walk_chain(start: Any) -> list[Any]:
+    """Yield start + each `.model` / wrapper-attr down the chain until
+    fixed point. Returns a list (innermost last)."""
+    chain: list[Any] = []
+    cur = start
+    for _ in range(12):
+        if cur is None:
+            break
+        chain.append(cur)
+        nxt = None
+        for attr in ("runnable_model", "module", "orig_module", "_orig_mod",
+                     "wrapped", "inner", "model"):
+            cand = getattr(cur, attr, None)
+            if (cand is not None and cand is not cur
+                    and hasattr(cand, "named_modules")):
+                nxt = cand
+                break
+        if nxt is None:
+            break
+        cur = nxt
+    return chain
+
+
 def _find_predictor(runner: Any) -> Any:
-    """Locate Gemma4MultiTokenPredictor under runner.drafter."""
+    """Find Gemma4MultiTokenPredictor by *signature*: has embed_tokens
+    AND pre_projection AND layers."""
     drafter = getattr(runner, "drafter", None)
-    if drafter is None:
-        return None
-    dmodel = getattr(drafter, "model", None)
-    if dmodel is None:
-        return None
-    dmodel = _unwrap(dmodel)
-    # dmodel is Gemma4MTP; .model is Gemma4MultiTokenPredictor
-    inner = getattr(dmodel, "model", None)
-    if inner is None or not hasattr(inner, "named_modules"):
-        return None
-    return inner
+    dmodel = getattr(drafter, "model", None) if drafter is not None else None
+    for cand in _walk_chain(dmodel):
+        if (hasattr(cand, "embed_tokens")
+                and hasattr(cand, "pre_projection")
+                and hasattr(cand, "layers")):
+            return cand
+    return None
 
 
 def _find_top_drafter(runner: Any) -> Any:
-    """Locate Gemma4MTP (the top-level wrapping module that owns lm_head)."""
+    """Find Gemma4MTP top-level: has lm_head AND has a .model child
+    that looks like a predictor."""
     drafter = getattr(runner, "drafter", None)
-    if drafter is None:
-        return None
-    dmodel = getattr(drafter, "model", None)
-    return _unwrap(dmodel) if dmodel is not None else None
+    dmodel = getattr(drafter, "model", None) if drafter is not None else None
+    for cand in _walk_chain(dmodel):
+        if hasattr(cand, "lm_head"):
+            return cand
+    return dmodel
 
 
 # ----------------------- Phase 1: weight inventory -----------------------
