@@ -5705,27 +5705,29 @@ def apply_patch_1_2_fp8_dispatcher() -> PatchResult:
 # See registry.py "G4_NN" entries for full per-patch metadata.
 
 
-def _g4_dispatch_factory(name: str, module_attr: str):
+def _g4_dispatch_factory(name: str, module_attr: str, family_pkg: str = "gemma4"):
     """Build a per-patch dispatch function for a Gemma 4 patch.
 
     Factory eliminates 21 copies of the same boilerplate. Each generated
     function:
       1. Honors _APPLY_MODE (dry-run support)
-      2. Imports the wiring module from vllm.sndr_core.integrations.gemma4
+      2. Imports the wiring module from the named family package under
+         vllm.sndr_core.integrations (default: gemma4; overridden for
+         patches that have been relocated to a technical-area family
+         per Phase 3 — kv_cache, attention.turboquant, spec_decode).
       3. Calls its apply() and maps (status, reason) → PatchResult
     """
+    family_dotted = family_pkg.replace("/", ".")
+    full_module_path = (
+        f"vllm.sndr_core.integrations.{family_dotted}.{module_attr}"
+    )
+
     def _g4_dispatch():
         if not _state._APPLY_MODE:
             return _applied(name, "dry-run: gemma4 runtime hook ready")
         try:
-            from vllm.sndr_core.integrations import gemma4 as _g4_pkg
-            wiring = getattr(_g4_pkg, module_attr, None)
-            if wiring is None:
-                # Lazy import — the module may not be loaded yet
-                import importlib
-                wiring = importlib.import_module(
-                    f"vllm.sndr_core.integrations.gemma4.{module_attr}"
-                )
+            import importlib
+            wiring = importlib.import_module(full_module_path)
         except Exception as e:
             return _failed(name, f"wiring import failed: {e}")
         status, reason = wiring.apply()
@@ -5753,7 +5755,7 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
     ("G4_05", "G4_05 gemma4 DFlash drafter backend autoselect (vendor #42069)",
      "g4_05_gemma4_dflash_backend_autoselect"),
     ("G4_06", "G4_06 gemma4 v_head_size=0 for k_eq_v (vendor #41944)",
-     "g4_06_gemma4_kv_proj_v_head_size_zero"),
+     "g4_06_kv_proj_v_head_size_zero", "kv_cache"),  # Phase 3 bucket 2: relocated 2026-05-21
     ("G4_07", "G4_07 gemma4 FP8_BLOCK double-scale fix (custom quant config)",
      "g4_07_gemma4_fp8_block_double_scale_fix"),
     ("G4_08", "G4_08 gemma4 Marlin K-pad Triton MoE fallback",
@@ -5777,7 +5779,7 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
     ("G4_17", "G4_17 gemma4 vision-tower text-only skip (closes #41565)",
      "g4_17_gemma4_vision_tower_text_only_skip"),
     ("G4_18", "G4_18 gemma4 per-layer KV page-size (vendor WIP #40391)",
-     "g4_18_gemma4_per_layer_kv_page_size"),
+     "g4_18_per_layer_kv_page_size", "kv_cache"),  # Phase 3 bucket 2: relocated 2026-05-21
     ("G4_23", "G4_23 gemma4 vision-tower FP16 overflow fix (closes #40124)",
      "g4_23_gemma4_vision_fp16_overflow_fix"),
     ("G4_24", "G4_24 gemma4 fused softcap Triton route (attention + final logits)",
@@ -5791,10 +5793,21 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
 )
 
 
-# Register each G4 patch through the factory
-for _g4_id, _g4_title, _g4_module in _G4_PATCHES:
-    register_patch(_g4_title)(_g4_dispatch_factory(_g4_title, _g4_module))
-del _g4_id, _g4_title, _g4_module  # don't pollute module namespace
+# Register each G4 patch through the factory. Tuples are 3-element
+# (id, title, module_attr) for patches still in gemma4/, or 4-element
+# (id, title, module_attr, family_pkg) for patches relocated to a
+# technical-area family during Phase 3 (kv_cache, attention.turboquant,
+# spec_decode).
+for _g4_entry in _G4_PATCHES:
+    if len(_g4_entry) == 4:
+        _g4_id, _g4_title, _g4_module, _g4_family = _g4_entry
+    else:
+        _g4_id, _g4_title, _g4_module = _g4_entry
+        _g4_family = "gemma4"
+    register_patch(_g4_title)(
+        _g4_dispatch_factory(_g4_title, _g4_module, _g4_family)
+    )
+del _g4_entry, _g4_id, _g4_title, _g4_module, _g4_family
 
 
 # ═══════════════════════════════════════════════════════════════════════════

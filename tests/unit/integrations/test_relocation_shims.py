@@ -69,6 +69,15 @@ PROBE_RELOCATIONS = [
         "vllm.sndr_core.integrations.gemma4.pn271_spec_decode_kv_contract_audit",
         "vllm.sndr_core.integrations.spec_decode.pn271_kv_contract_audit",
     ),
+    # Bucket 2: KV-cache → kv_cache/
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_06_gemma4_kv_proj_v_head_size_zero",
+        "vllm.sndr_core.integrations.kv_cache.g4_06_kv_proj_v_head_size_zero",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_18_gemma4_per_layer_kv_page_size",
+        "vllm.sndr_core.integrations.kv_cache.g4_18_per_layer_kv_page_size",
+    ),
 ]
 
 CANONICAL_ATTRS = ("apply", "is_applied", "should_apply")
@@ -78,6 +87,14 @@ REGISTERED_AFTER_BUCKET_1 = {
     "PN262": "vllm.sndr_core.integrations.spec_decode.probes.pn262_flash_attn_drafter_trace",
     "PN262B": "vllm.sndr_core.integrations.spec_decode.probes.pn262b_kv_alloc_trace",
 }
+
+# Bucket 2: KV-cache patches with PATCH_REGISTRY entries that must point at NEW path.
+REGISTERED_AFTER_BUCKET_2 = {
+    "G4_06": "vllm.sndr_core.integrations.kv_cache.g4_06_kv_proj_v_head_size_zero",
+    "G4_18": "vllm.sndr_core.integrations.kv_cache.g4_18_per_layer_kv_page_size",
+}
+
+ALL_REGISTERED = {**REGISTERED_AFTER_BUCKET_1, **REGISTERED_AFTER_BUCKET_2}
 
 
 @pytest.mark.parametrize("old_path,new_path", PROBE_RELOCATIONS)
@@ -97,7 +114,7 @@ def test_old_import_path_resolves(old_path, new_path):
             )
 
 
-@pytest.mark.parametrize("patch_id,expected_path", REGISTERED_AFTER_BUCKET_1.items())
+@pytest.mark.parametrize("patch_id,expected_path", ALL_REGISTERED.items())
 def test_registry_uses_new_path(patch_id, expected_path):
     """Registry's apply_module must point at the new path, not the shim."""
     from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY

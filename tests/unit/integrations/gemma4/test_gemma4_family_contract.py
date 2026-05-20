@@ -25,7 +25,8 @@ PATCHES = [
     ("vllm.sndr_core.integrations.gemma4.g4_03_gemma4_ampere_non_causal_drafter_guard", "G4_03"),
     ("vllm.sndr_core.integrations.gemma4.g4_04_gemma4_awq_moe_keys_remap", "G4_04"),
     ("vllm.sndr_core.integrations.gemma4.g4_05_gemma4_dflash_backend_autoselect", "G4_05"),
-    ("vllm.sndr_core.integrations.gemma4.g4_06_gemma4_kv_proj_v_head_size_zero", "G4_06"),
+    # G4_06 relocated to kv_cache/ in Phase 3 bucket 2 (2026-05-21) —
+    # see tests/unit/integrations/kv_cache/test_kv_cache_family_contract.py
     ("vllm.sndr_core.integrations.gemma4.g4_07_gemma4_fp8_block_double_scale_fix", "G4_07"),
     ("vllm.sndr_core.integrations.gemma4.g4_08_gemma4_marlin_kdim_pad_fallback", "G4_08"),
     ("vllm.sndr_core.integrations.gemma4.g4_09_gemma4_swa_global_prefill_chunker", "G4_09"),
@@ -37,7 +38,8 @@ PATCHES = [
     ("vllm.sndr_core.integrations.gemma4.g4_15_gemma4_fused_rmsnorm_route", "G4_15"),
     ("vllm.sndr_core.integrations.gemma4.g4_16_gemma4_full_piecewise_cudagraph", "G4_16"),
     ("vllm.sndr_core.integrations.gemma4.g4_17_gemma4_vision_tower_text_only_skip", "G4_17"),
-    ("vllm.sndr_core.integrations.gemma4.g4_18_gemma4_per_layer_kv_page_size", "G4_18"),
+    # G4_18 relocated to kv_cache/ in Phase 3 bucket 2 (2026-05-21) —
+    # see tests/unit/integrations/kv_cache/test_kv_cache_family_contract.py
     ("vllm.sndr_core.integrations.gemma4.g4_19_gemma4_turboquant_kv_cache", "G4_19"),
     ("vllm.sndr_core.integrations.gemma4.g4_19b_gemma4_tq_kv_spec_integration", "G4_19B"),
     ("vllm.sndr_core.integrations.gemma4.g4_23_gemma4_vision_fp16_overflow_fix", "G4_23"),
