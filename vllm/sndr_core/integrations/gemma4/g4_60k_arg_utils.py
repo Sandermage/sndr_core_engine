@@ -182,9 +182,40 @@ def apply() -> tuple[str, str]:
             existing = set(
                 getattr(cache_config, "kv_cache_dtype_skip_layers", []) or []
             )
-            combined = list(
-                existing | set(boundary_layers) | set(kv_sharing_targets)
+
+            # [PN247] Allow operator to force-add layer indices to skip set.
+            # Used for H6 hypothesis A/B: Gemma 4 MTP wires KV-sharing via
+            # `kv_sharing_target_layer_name` on attention modules at
+            # Gemma4Proposer._setup_gemma4_kv_sharing() time. The hf_text_config
+            # path that boundary_skip/kv_sharing_target_skip rely on returns 0
+            # for Gemma 4 MTP because num_kv_shared_layers=0. So G4_60h cannot
+            # populate the skip set automatically. Manual override required.
+            # Format: comma-separated layer indices as strings, e.g. "58,59".
+            # Source of truth: live trace at PN241/PN246, see
+            # `genesis_pn241_mtp_trace.log [PN246] drafter kv_sharing` lines.
+            import os as _os_pn247
+            _forced_raw = _os_pn247.environ.get(
+                "GENESIS_G4_TQ_FORCE_SKIP_LAYERS", ""
             )
+            _forced = {
+                x.strip()
+                for x in _forced_raw.replace(";", ",").split(",")
+                if x.strip()
+            }
+
+            combined_set = (
+                {str(x) for x in existing}
+                | {str(x) for x in boundary_layers}
+                | {str(x) for x in kv_sharing_targets}
+                | _forced
+            )
+            combined = list(combined_set)
+
+            if _forced:
+                log.warning(
+                    "[PN247] GENESIS_G4_TQ_FORCE_SKIP_LAYERS forced_skip=%s",
+                    sorted(_forced),
+                )
 
             if hasattr(TurboQuantConfig, "align_kv_sharing_skip_layers"):
                 combined = TurboQuantConfig.align_kv_sharing_skip_layers(
