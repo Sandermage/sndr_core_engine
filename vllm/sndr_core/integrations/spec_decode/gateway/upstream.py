@@ -33,7 +33,10 @@ log = logging.getLogger("genesis.spec_decode.gateway.upstream")
 class UpstreamState:
     name: str          # 'default' / 'structured'
     base_url: str      # e.g. 'http://localhost:8101'
-    health_path: str = "/v1/models"
+    # /health is unauthenticated on vLLM; /v1/models requires
+    # `--api-key`-style bearer auth. Probe /health to keep gateway
+    # auth-free.
+    health_path: str = "/health"
     timeout_s: float = 2.0
     state: str = "down"   # 'up' / 'degraded' / 'down'
     last_check_ts: float = 0.0
