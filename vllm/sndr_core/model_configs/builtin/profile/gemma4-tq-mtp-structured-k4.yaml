@@ -41,6 +41,29 @@ created: '2026-05-20'
 # ─── Runtime role (P1.1+P1.2+P1.2b+Variant A architecture) ────────────
 role: structured
 
+# Validated runtime sizing — verbatim from the hand-written
+# start_g4_betaA_k1.sh on the server (which was the bench-validated
+# β'-A K=4 configuration). V2 sizing_override is full-replacement
+# (compose.py does `sizing = profile.sizing_override` when set), so
+# all seven fields must be present even if only some differ from the
+# hardware defaults. Source-of-truth alignment is the point of
+# expressing β'-A K=4 as a profile rather than hand-shell.
+#
+# Diff vs a5000-2x hardware defaults:
+#   max_model_len:        280000  →  4096    (β'-A bench used 4K context)
+#   gpu_memory_utilization: 0.90  →  0.92    (slightly more headroom for K=4)
+#   max_num_seqs:           2     →  1       (β'-A bench at concurrency=1)
+#   max_num_batched_tokens: 4096  →  8192    (β'-A bench used 8K chunk)
+#   (others unchanged)
+sizing_override:
+  max_model_len: 4096
+  gpu_memory_utilization: 0.92
+  max_num_seqs: 1
+  max_num_batched_tokens: 8192
+  enable_chunked_prefill: true
+  enforce_eager: false
+  disable_custom_all_reduce: true
+
 # MTP K=4 via the gemma-4-31B-it-assistant drafter. spec_decode_override
 # is the V1 SpecDecodeConfig type (single source of truth — same shape
 # the engine already understands). Reused rather than wrapped per
