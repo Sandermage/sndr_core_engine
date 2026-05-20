@@ -767,6 +767,18 @@ def _g4_19_import_time_hook():
         pass
 
 
+# PN283 — Bootstrap prometheus_client multiprocess directory BEFORE
+# any patch hook runs. PN282's worker-process Counters require the dir
+# to exist + be writable by the time prometheus_client opens its first
+# value file. Single-process deployments (env unset) → no-op.
+# Observability must never block sndr_core import — failures are
+# warnings, not errors.
+try:
+    from .observability.multiproc_bootstrap import setup_prometheus_multiproc_dir
+    setup_prometheus_multiproc_dir()
+except Exception:  # noqa: BLE001
+    pass
+
 _g4_19_import_time_hook()
 del _g4_19_import_time_hook
 

@@ -34,6 +34,10 @@ from .spec_decode_metrics import (
     is_enabled as is_spec_decode_metric_enabled,
     record_acceptance as record_spec_decode_acceptance,
 )
+from .multiproc_bootstrap import (
+    is_initialised as is_prometheus_multiproc_initialised,
+    setup_prometheus_multiproc_dir,
+)
 
 __all__ = [
     # Per-patch apply timing (Wave 7)
@@ -51,4 +55,7 @@ __all__ = [
     "get_spec_decode_profile_label",
     "is_spec_decode_metric_enabled",
     "record_spec_decode_acceptance",
+    # Multiprocess Prometheus dir bootstrap (PN283 / 2026-05-20)
+    "is_prometheus_multiproc_initialised",
+    "setup_prometheus_multiproc_dir",
 ]
