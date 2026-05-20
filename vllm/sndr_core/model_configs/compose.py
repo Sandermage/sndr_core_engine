@@ -112,24 +112,43 @@ def _check_compression_kv_dtype_compat(
     model: ModelDef, profile: ProfileDef,
 ) -> None:
     """If profile declares default_kv_dtype, it must match model's
-    canonical kv_cache_dtype. This is a documentation-correctness gate:
-    the profile's "default" is just the dtype already used for
-    non-skipped layers, so divergence here is operator error.
+    canonical kv_cache_dtype — UNLESS the model is dtype-neutral
+    (kv_cache_dtype in {None, "auto"}).
+
+    Neutral semantics (P1.2b):
+      * ``None``  — ModelDef does not declare a concrete kv_cache_dtype
+                    (rare; mostly community models that defer to vLLM).
+      * ``"auto"`` — ModelDef explicitly declares "let runtime decide";
+                    this is the production-default for Gemma 4 + Qwen
+                    in their base ModelDef YAMLs because the concrete
+                    dtype is a workload/profile decision (TQ vs native
+                    vs FP8), not an inherent model property.
+
+    In both neutral cases the profile is free to set
+    compression_plan.default_kv_dtype to a concrete value (e.g.
+    "turboquant_4bit_nc" for the structured β'-A K=4 profile).
+
+    For a non-neutral model_dtype (e.g. "fp8_e5m2", "turboquant_4bit_nc"),
+    the profile MUST match — divergence is an ownership violation:
+    the model says "I run with this dtype" and the profile cannot
+    override that without changing parent_model.
     """
     plan = profile.compression_plan
     if plan is None or plan.default_kv_dtype is None:
         return
     model_dtype = model.capabilities.kv_cache_dtype
-    if model_dtype is None:
-        # Model didn't declare; profile fills the gap. Allowed.
+    # Neutral parent dtype — profile owns the choice.
+    if model_dtype is None or model_dtype == "auto":
         return
     if plan.default_kv_dtype != model_dtype:
         raise SchemaError(
             f"profile {profile.id!r} compression_plan.default_kv_dtype="
             f"{plan.default_kv_dtype!r} disagrees with parent "
             f"model.capabilities.kv_cache_dtype={model_dtype!r}. "
-            f"The profile cannot override the model's KV dtype; remove "
-            f"the field or use a different parent_model."
+            f"The profile cannot override the model's concrete KV "
+            f"dtype; remove the profile field, change parent_model, "
+            f"or set parent model.kv_cache_dtype='auto' if the dtype "
+            f"is actually a workload/profile decision."
         )
 
 

@@ -363,3 +363,77 @@ class TestCompressionKvDtypeCompat:
         )
         cfg = compose(model, hardware, profile)
         assert cfg.kv_cache_dtype == "turboquant_4bit_nc"
+
+    # ─── P1.2b — neutral parent dtype semantics ────────────────────────
+
+    def test_p1_2b_auto_parent_allows_concrete_profile_dtype(self):
+        """ModelDef kv_cache_dtype='auto' means "workload/profile decides".
+        A profile may set a concrete compression_plan.default_kv_dtype
+        without conflicting.
+
+        This is the key P1.2b unblocker: Gemma 4 31B ModelDef declares
+        kv_cache_dtype='auto' in production. The structured β'-A K=4
+        profile needs default_kv_dtype='turboquant_4bit_nc'. Pre-P1.2b
+        this raised SchemaError (false positive). After P1.2b it
+        passes.
+        """
+        model = _make_model(kv_dtype="auto")
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            compression_plan=CompressionPlanConfig(
+                native_source_layers=[58, 59],
+                default_kv_dtype="turboquant_4bit_nc",
+            ),
+        )
+        compose(model, hardware, profile)  # no raise
+
+    def test_p1_2b_none_parent_allows_concrete_profile_dtype(self):
+        """Same neutral semantics for kv_cache_dtype=None (rare; community
+        models that defer entirely to vLLM defaults)."""
+        model = _make_model(kv_dtype=None)
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            compression_plan=CompressionPlanConfig(
+                native_source_layers=[58],
+                default_kv_dtype="fp8_e5m2",
+            ),
+        )
+        compose(model, hardware, profile)  # no raise
+
+    def test_p1_2b_concrete_parent_still_enforced(self):
+        """Regression guard: P1.2b only relaxes None/auto. A concrete
+        parent dtype that disagrees with a concrete profile dtype must
+        still raise."""
+        model = _make_model(kv_dtype="fp8_e5m2")
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            compression_plan=CompressionPlanConfig(
+                native_source_layers=[58],
+                default_kv_dtype="turboquant_4bit_nc",
+            ),
+        )
+        with pytest.raises(SchemaError, match="default_kv_dtype"):
+            compose(model, hardware, profile)
+
+    def test_p1_2b_auto_parent_kv_cache_dtype_carries_through(self):
+        """With auto parent + concrete profile dtype, the composed V1
+        ModelConfig.kv_cache_dtype still reflects the MODEL's auto
+        (compose step 6 uses model.capabilities.kv_cache_dtype). The
+        profile's default_kv_dtype is documentation of the per-layer
+        plan; the engine's auto-decision is the actual runtime
+        behavior. This is intentional: compression_plan describes the
+        plan, model declares the dtype context."""
+        model = _make_model(kv_dtype="auto")
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            compression_plan=CompressionPlanConfig(
+                native_source_layers=[58, 59],
+                default_kv_dtype="turboquant_4bit_nc",
+            ),
+        )
+        cfg = compose(model, hardware, profile)
+        assert cfg.kv_cache_dtype == "auto"
