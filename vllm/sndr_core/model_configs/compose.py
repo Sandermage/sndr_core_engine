@@ -108,6 +108,43 @@ def render_compression_env(profile: Optional[ProfileDef]) -> dict[str, str]:
     }
 
 
+def _resolve_kv_cache_dtype(
+    model: ModelDef, profile: Optional[ProfileDef],
+) -> Optional[str]:
+    """Resolve the effective kv_cache_dtype for the composed V1 ModelConfig.
+
+    P1.7a: when a ProfileDef declares ``compression_plan.default_kv_dtype``
+    and the parent ``model.capabilities.kv_cache_dtype`` is **neutral**
+    (``None`` or ``"auto"``), the profile's concrete dtype is promoted
+    into the composed ModelConfig. Without this, a structured-role
+    profile with ``default_kv_dtype: turboquant_4bit_nc`` on top of a
+    Gemma 4 ModelDef whose ``kv_cache_dtype: auto`` would silently
+    render as ``--kv-cache-dtype auto`` and let vLLM pick something
+    other than TQ — silently breaking the validated path.
+
+    Concrete parent + matching profile is allowed (rendered dtype is
+    the agreed value). Concrete parent + diverging profile is rejected
+    by ``_check_compression_kv_dtype_compat`` BEFORE this function runs,
+    so the only branches we hit here are:
+      * profile None or no compression_plan      → parent value
+      * profile has default_kv_dtype + parent None/"auto" → profile value
+      * profile has default_kv_dtype + parent concrete (same) → either
+        (we return profile since it's been checked equal to parent)
+    """
+    model_dtype = model.capabilities.kv_cache_dtype
+    if profile is None or profile.compression_plan is None:
+        return model_dtype
+    profile_dtype = profile.compression_plan.default_kv_dtype
+    if profile_dtype is None:
+        return model_dtype
+    if model_dtype is None or model_dtype == "auto":
+        # Neutral parent — profile owns the choice (P1.2b semantics)
+        return profile_dtype
+    # Concrete parent + concrete profile: equality already enforced by
+    # _check_compression_kv_dtype_compat; safe to return either.
+    return profile_dtype
+
+
 def _check_compression_kv_dtype_compat(
     model: ModelDef, profile: ProfileDef,
 ) -> None:
@@ -387,7 +424,9 @@ def compose(
         # Model
         served_model_name=model.served_model_name,
         quantization=model.quantization,
-        kv_cache_dtype=model.capabilities.kv_cache_dtype,
+        # P1.7a: profile.compression_plan.default_kv_dtype promotes to
+        # cfg.kv_cache_dtype when parent ModelDef is neutral (auto/None).
+        kv_cache_dtype=_resolve_kv_cache_dtype(model, profile),
 
         # vLLM serve flags (sizing resolved with profile override above)
         max_model_len=sizing.max_model_len,

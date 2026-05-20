@@ -418,14 +418,18 @@ class TestCompressionKvDtypeCompat:
         with pytest.raises(SchemaError, match="default_kv_dtype"):
             compose(model, hardware, profile)
 
-    def test_p1_2b_auto_parent_kv_cache_dtype_carries_through(self):
-        """With auto parent + concrete profile dtype, the composed V1
-        ModelConfig.kv_cache_dtype still reflects the MODEL's auto
-        (compose step 6 uses model.capabilities.kv_cache_dtype). The
-        profile's default_kv_dtype is documentation of the per-layer
-        plan; the engine's auto-decision is the actual runtime
-        behavior. This is intentional: compression_plan describes the
-        plan, model declares the dtype context."""
+    def test_p1_7a_auto_parent_promotes_profile_dtype(self):
+        """P1.7a: with parent kv_cache_dtype='auto' and profile
+        compression_plan.default_kv_dtype='turboquant_4bit_nc', the
+        composed cfg.kv_cache_dtype MUST be 'turboquant_4bit_nc' — NOT
+        'auto'.
+
+        Prior to P1.7a this test passed `cfg.kv_cache_dtype == "auto"`
+        which was the silent-misrender bug found during the opt-in
+        rehearsal: the rendered launcher said `--kv-cache-dtype auto`,
+        vLLM picked something other than TQ, and the validated path
+        was broken.
+        """
         model = _make_model(kv_dtype="auto")
         hardware = _make_hardware()
         profile = _make_profile(
@@ -436,4 +440,45 @@ class TestCompressionKvDtypeCompat:
             ),
         )
         cfg = compose(model, hardware, profile)
+        assert cfg.kv_cache_dtype == "turboquant_4bit_nc"
+
+    def test_p1_7a_none_parent_promotes_profile_dtype(self):
+        """Mirror for the None-parent (rare; community models)."""
+        model = _make_model(kv_dtype=None)
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            compression_plan=CompressionPlanConfig(
+                native_source_layers=[58],
+                default_kv_dtype="fp8_e5m2",
+            ),
+        )
+        cfg = compose(model, hardware, profile)
+        assert cfg.kv_cache_dtype == "fp8_e5m2"
+
+    def test_p1_7a_no_profile_dtype_falls_back_to_parent(self):
+        """When profile leaves default_kv_dtype unset, the parent's
+        kv_cache_dtype carries through unchanged. Default profile path."""
+        model = _make_model(kv_dtype="auto")
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="default",
+            compression_plan=None,
+        )
+        cfg = compose(model, hardware, profile)
         assert cfg.kv_cache_dtype == "auto"
+
+    def test_p1_7a_concrete_parent_concrete_profile_match(self):
+        """Regression guard for the concrete-vs-concrete agreed path:
+        composed dtype equals the agreed value, no SchemaError."""
+        model = _make_model(kv_dtype="turboquant_4bit_nc")
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            compression_plan=CompressionPlanConfig(
+                native_source_layers=[58],
+                default_kv_dtype="turboquant_4bit_nc",
+            ),
+        )
+        cfg = compose(model, hardware, profile)
+        assert cfg.kv_cache_dtype == "turboquant_4bit_nc"
