@@ -75,6 +75,14 @@ async def _probe_once(state: UpstreamState, client) -> None:
 
     state.history.append(ok)
 
+    # Probe-failure metric: count every non-2xx / exception probe.
+    if not ok:
+        try:
+            metrics.UPSTREAM_PROBE_FAILURES_TOTAL.labels(
+                upstream=state.name).inc()
+        except Exception:
+            pass
+
     # Transition logic
     old_state = state.state
     hist = list(state.history)
@@ -90,10 +98,15 @@ async def _probe_once(state: UpstreamState, client) -> None:
             new_state = "down"
     state.state = new_state
 
-    # Metrics
+    # Metrics — both the legacy genesis_upstream_health gauge and the
+    # canonical sndr_upstream_health_state are kept in lockstep.
+    # Dashboards built on either name continue to work; new dashboards
+    # should reference the sndr_ name.
     gauge_val = {"up": 1.0, "degraded": 0.5, "down": 0.0}.get(new_state, 0.0)
     try:
         metrics.UPSTREAM_HEALTH.labels(upstream=state.name).set(gauge_val)
+        metrics.UPSTREAM_HEALTH_STATE.labels(
+            upstream=state.name).set(gauge_val)
     except Exception:
         pass
 

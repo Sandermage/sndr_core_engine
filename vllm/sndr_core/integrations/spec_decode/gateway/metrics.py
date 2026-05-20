@@ -118,7 +118,57 @@ FORCE_DEFAULT_ACTIVE = _gauge(
 
 UPSTREAM_HEALTH = _gauge(
     "genesis_upstream_health",
-    "Health state: 1=up, 0.5=degraded, 0=down.",
+    "Health state: 1=up, 0.5=degraded, 0=down. "
+    "Kept for dashboard back-compat; new dashboards should use "
+    "sndr_upstream_health_state.",
+    labelnames=("upstream",),
+)
+
+
+# ---- D2c additions (2026-05-20) -----------------------------------
+#
+# Canonical SNDR_ namespace for new metrics. Existing `genesis_*`
+# metric names ARE NOT renamed (dashboards built on D2a/D2b
+# expositions continue to work). New observability surfaces use
+# `sndr_*` so operators can begin migrating dashboards on their own
+# schedule.
+#
+# Catalog ordering matches the dashboard panel order in
+# deploy/dashboards/sndr-gateway-overview.json.
+
+ROUTE_LATENCY = _histogram(
+    "sndr_route_latency_seconds",
+    "Per-request gateway latency (router decision + upstream "
+    "round-trip). Labels: upstream, profile (artifact's profile "
+    "or 'default'), stream ('true'/'false').",
+    labelnames=("upstream", "profile", "stream"),
+)
+
+STREAMING_REQUEST_TOTAL = _counter(
+    "sndr_streaming_request_total",
+    "Streaming chat-completion requests proxied (stream=true).",
+    labelnames=("upstream",),
+)
+
+STREAMING_ERROR_TOTAL = _counter(
+    "sndr_streaming_error_total",
+    "Streaming proxy errors. reason in: "
+    "open_failed / mid_stream / client_disconnect.",
+    labelnames=("upstream", "reason"),
+)
+
+UPSTREAM_PROBE_FAILURES_TOTAL = _counter(
+    "sndr_upstream_probe_failures_total",
+    "Health-check probes that returned a non-2xx or raised. "
+    "Distinct from upstream_error_total which counts real-traffic "
+    "request failures.",
+    labelnames=("upstream",),
+)
+
+UPSTREAM_HEALTH_STATE = _gauge(
+    "sndr_upstream_health_state",
+    "Canonical-named gauge mirroring genesis_upstream_health. "
+    "1=up, 0.5=degraded, 0=down.",
     labelnames=("upstream",),
 )
 
@@ -132,8 +182,12 @@ def render() -> tuple[bytes, str]:
 
 
 __all__ = [
+    # D2a/D2b (existing, unchanged)
     "ROUTED_DEFAULT", "ROUTED_STRUCTURED", "FALLBACK_TOTAL",
     "UPSTREAM_ERROR", "ROUTER_DECISION", "REQUEST_LATENCY",
     "FORCE_DEFAULT_ACTIVE", "UPSTREAM_HEALTH",
+    # D2c (new SNDR-namespaced surfaces)
+    "ROUTE_LATENCY", "STREAMING_REQUEST_TOTAL", "STREAMING_ERROR_TOTAL",
+    "UPSTREAM_PROBE_FAILURES_TOTAL", "UPSTREAM_HEALTH_STATE",
     "render",
 ]

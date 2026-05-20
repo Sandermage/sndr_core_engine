@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# SNDR spec-decode gateway — Prometheus alerting templates.
+#
+# These are TEMPLATES. Operator imports into their Alertmanager /
+# Prometheus rules / Grafana alerts config. Severity labels follow the
+# common (info | warning | critical) convention; rebind to your team's
+# routing as needed.
+#
+# All rules query metrics defined in
+# vllm/sndr_core/integrations/spec_decode/gateway/metrics.py.
+# Names use the SNDR canonical surface where available; genesis_* names
+# are referenced for back-compat. None of these rules trigger automated
+# action — they alert humans.
+
+groups:
+  - name: sndr-gateway
+    interval: 30s
+    rules:
+
+      # --- Liveness ---
+      - alert: SNDRGatewayDown
+        expr: up{job="sndr-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: sndr
+        annotations:
+          summary: "SNDR gateway is not reporting metrics"
+          description: |
+            Prometheus has not been able to scrape sndr-gateway for >1
+            minute. Either the process is down, the network is broken,
+            or the scrape config is wrong. Operator should:
+              1. curl http://gateway:8100/healthz
+              2. docker logs sndr-gateway
+              3. confirm gateway image is current
+
+      # --- Upstream health ---
+      - alert: SNDRStructuredUpstreamDownNonTransient
+        expr: sndr_upstream_health_state{upstream="structured"} < 1
+        for: 2m
+        labels:
+          severity: warning
+          team: sndr
+        annotations:
+          summary: "Structured upstream {{ $labels.upstream }} is degraded/down >2min"
+          description: |
+            The structured (β′-A K=4) upstream has been below 'up' state
+            for at least 2 minutes. Gateway is automatically falling back
+            to default; metrics will show sndr_routed_default_total
+            increasing and sndr_routed_structured_total flat. Investigate:
+              1. docker logs sndr-gemma4-structured-k4
+              2. nvidia-smi (VRAM headroom?)
+              3. sndr_upstream_probe_failures_total counter increases
+          runbook_url: "deploy/README.md#rollback-levels"
+
+      - alert: SNDRDefaultUpstreamDown
+        expr: sndr_upstream_health_state{upstream="default"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: sndr
+        annotations:
+          summary: "Default upstream is DOWN — production traffic affected"
+          description: |
+            The default upstream (production-safe TQ-only MTP-OFF) has
+            been marked DOWN by gateway health probes. No fallback
+            possible. Gateway returns 503 to clients. This is the
+            production-impact alert.
+
+      # --- Fallback rate ---
+      - alert: SNDRHighFallbackRate
+        expr: |
+          (
+            sum(rate(genesis_fallback_total[5m]))
+            /
+            (sum(rate(genesis_routed_default_total[5m]))
+              + sum(rate(genesis_routed_structured_total[5m]))
+              + 1e-9)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: sndr
+        annotations:
+          summary: "Fallback rate >5% over 5m"
+          description: |
+            More than 5% of requests are falling back to default.
+            Check fallback reason breakdown:
+              sum by (reason) (rate(genesis_fallback_total[5m]))
+            Typical reasons:
+              structured_down       -> see SNDRStructuredUpstreamDownNonTransient
+              force                 -> someone hit /admin/force-default
+              no_artifact           -> gateway lost its artifact (process restart?)
+              router_denied         -> normal for free-chat traffic
+              router_error          -> code path failure, investigate logs
+
+      # --- Latency ---
+      - alert: SNDRLatencyP95Exceeds
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (upstream, stream, le) (
+              rate(sndr_route_latency_seconds_bucket[5m])
+            )
+          ) > 60
+        for: 5m
+        labels:
+          severity: warning
+          team: sndr
+        annotations:
+          summary: "p95 route latency >60s on upstream={{ $labels.upstream }} stream={{ $labels.stream }}"
+          description: |
+            End-to-end gateway latency at p95 has exceeded 60s.
+            Likely causes:
+              - upstream is overloaded / OOM thrashing
+              - cold-start (one-shot after structured boot — clears in <5min)
+              - network slow
+            Cold-start expected on first ~3 minutes of structured boot;
+            if persistent, investigate the upstream container.
+
+      # --- Probe failures ---
+      - alert: SNDRProbeFailuresHigh
+        expr: rate(sndr_upstream_probe_failures_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: info
+          team: sndr
+        annotations:
+          summary: "Upstream {{ $labels.upstream }} probe failures >0.5/s"
+          description: |
+            Health probes to upstream are failing at >0.5/s sustained.
+            Typically pairs with SNDRStructuredUpstreamDownNonTransient.
+            If probe failures rise but state stays 'up', check probe
+            timeout vs. upstream latency.
+
+      # --- VRAM headroom (placeholder) ---
+      # vLLM does not (yet) expose VRAM as a Prometheus metric out of
+      # the box. To enable this alert, install a nvidia-smi exporter
+      # alongside the upstream container and rebind the expr.
+      - alert: SNDRVramHeadroomLow
+        expr: |
+          (
+            min by (upstream) (nvidia_gpu_memory_free_bytes{job=~"sndr-.*"})
+            /
+            1024 / 1024
+          ) < 500
+        for: 5m
+        labels:
+          severity: warning
+          team: sndr
+          template: "true"
+        annotations:
+          summary: "PLACEHOLDER: free VRAM <500 MiB on upstream={{ $labels.upstream }}"
+          description: |
+            This alert is a template. Wire a nvidia-smi exporter (e.g.
+            nvidia/dcgm-exporter) to populate nvidia_gpu_memory_free_bytes
+            for the sndr-* containers, then drop the `template: "true"`
+            label.

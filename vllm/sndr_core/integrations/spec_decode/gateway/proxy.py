@@ -186,6 +186,13 @@ async def proxy_request(
         force_default=force_default,
     )
 
+    # The profile label for D2c metrics: artifact's profile when
+    # accepted; else the fallback profile.
+    profile_label = (
+        artifact.profile if (label == "structured" and artifact is not None)
+        else "gemma4-tq-default"
+    )
+
     log.info(
         "[gateway.proxy] decision=%s upstream=%s streaming=%s reason=%s",
         label, chosen.name, is_streaming, reason,
@@ -200,6 +207,9 @@ async def proxy_request(
             if label.startswith("fallback_"):
                 metrics.FALLBACK_TOTAL.labels(
                     reason=label[len("fallback_"):]).inc()
+        if is_streaming:
+            metrics.STREAMING_REQUEST_TOTAL.labels(
+                upstream=chosen.name).inc()
     except Exception:
         pass
 
@@ -221,8 +231,15 @@ async def proxy_request(
                 metrics.UPSTREAM_ERROR.labels(
                     upstream=chosen.name, kind=type(e).__name__,
                 ).inc()
+                metrics.STREAMING_ERROR_TOTAL.labels(
+                    upstream=chosen.name, reason="open_failed",
+                ).inc()
                 metrics.REQUEST_LATENCY.labels(
                     upstream=chosen.name).observe(latency)
+                metrics.ROUTE_LATENCY.labels(
+                    upstream=chosen.name, profile=profile_label,
+                    stream="true",
+                ).observe(latency)
             except Exception:
                 pass
             log.warning(
@@ -245,6 +262,9 @@ async def proxy_request(
         try:
             metrics.REQUEST_LATENCY.labels(
                 upstream=chosen.name).observe(time.perf_counter() - t0)
+            metrics.ROUTE_LATENCY.labels(
+                upstream=chosen.name, profile=profile_label, stream="true",
+            ).observe(time.perf_counter() - t0)
         except Exception:
             pass
 
@@ -270,6 +290,10 @@ async def proxy_request(
         try:
             metrics.REQUEST_LATENCY.labels(
                 upstream=chosen.name).observe(latency)
+            metrics.ROUTE_LATENCY.labels(
+                upstream=chosen.name, profile=profile_label,
+                stream="false",
+            ).observe(latency)
         except Exception:
             pass
         resp_headers = _strip_headers(
@@ -288,6 +312,10 @@ async def proxy_request(
             ).inc()
             metrics.REQUEST_LATENCY.labels(
                 upstream=chosen.name).observe(latency)
+            metrics.ROUTE_LATENCY.labels(
+                upstream=chosen.name, profile=profile_label,
+                stream="false",
+            ).observe(latency)
         except Exception:
             pass
         log.warning(

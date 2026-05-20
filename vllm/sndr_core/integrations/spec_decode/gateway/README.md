@@ -101,6 +101,12 @@ SIGHUP also triggers artifact reload (POSIX only).
 
 ## Metrics (Prometheus catalog)
 
+D2a/D2b shipped under `genesis_*` namespace. D2c adds canonical
+`sndr_*` metrics alongside (existing names are NOT renamed —
+dashboards built on D2a/D2b expositions continue to work).
+
+### D2a/D2b (existing, unchanged)
+
 | metric | labels | type |
 |---|---|---|
 | `genesis_routed_default_total` | – | counter |
@@ -112,8 +118,33 @@ SIGHUP also triggers artifact reload (POSIX only).
 | `genesis_force_default_active` | – | gauge |
 | `genesis_upstream_health` | `upstream` | gauge (1=up, 0.5=degraded, 0=down) |
 
+### D2c (new SNDR-namespaced)
+
+| metric | labels | type |
+|---|---|---|
+| `sndr_route_latency_seconds` | `upstream, profile, stream` | histogram |
+| `sndr_streaming_request_total` | `upstream` | counter |
+| `sndr_streaming_error_total` | `upstream, reason` | counter |
+| `sndr_upstream_probe_failures_total` | `upstream` | counter |
+| `sndr_upstream_health_state` | `upstream` | gauge (mirrors `genesis_upstream_health`) |
+
 Fallback reasons emitted: `force`, `streaming`, `no_artifact`,
 `router_error`, `router_denied`, `structured_down`, `upstream_error`.
+Streaming error reasons: `open_failed`, `mid_stream`,
+`client_disconnect` (last two emitted by future patches).
+
+### Dashboards + alerts
+
+| artifact | location |
+|---|---|
+| Grafana dashboard JSON | [deploy/dashboards/sndr-gateway-overview.json](deploy/dashboards/sndr-gateway-overview.json) |
+| Prometheus alert rules | [deploy/alerts/sndr-gateway-alerts.yaml](deploy/alerts/sndr-gateway-alerts.yaml) |
+
+Six panels: traffic split, fallback reasons, p50/p95 latency,
+upstream health timeline, structured acceptance proxy (placeholder),
+errors. Six alerts: gateway down, structured down >2m, default down,
+fallback rate >5%, p95 latency >60s, probe failures sustained, VRAM
+low (placeholder).
 
 ## D2a out of scope (documented exclusions)
 
