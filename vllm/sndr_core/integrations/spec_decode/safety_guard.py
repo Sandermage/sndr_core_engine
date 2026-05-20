@@ -242,6 +242,10 @@ def evaluate_from_config(vllm_config: Any) -> GuardDecision:
           ALLOW (model doesn't use kv-sharing spec-decode path).
       - Provider matches + verdict EXACT_COPY:
           ALLOW.
+      - Provider matches + verdict FUNCTIONALLY_VALIDATED
+        (bench-receipt match):
+          ALLOW iff GENESIS_ALLOW_SPEC_DECODE_KV_ADAPTER=1.
+          FUNCTIONAL_UNKNOWN env not required.
       - Provider matches + non-EXACT verdict (FUNCTIONAL_UNVERIFIED,
         adapter classes, UNSUPPORTED):
           require explicit env opt-ins; otherwise DENY.
@@ -270,12 +274,36 @@ def evaluate_from_config(vllm_config: Any) -> GuardDecision:
             per_pair=[],
         )
 
+    # If verdict is adapter-required, try to find a matching
+    # functional_artifact. If found, promote to FUNCTIONALLY_VALIDATED.
+    if verdict in (Verdict.ADAPTER_STRUCTURAL_OK_FUNCTIONAL_UNVERIFIED,
+                   Verdict.LAYOUT_ADAPTER, Verdict.GQA_REPEAT,
+                   Verdict.COMPOSITE_ADAPTER):
+        art = _try_match_artifact(provider, vllm_config)
+        if art is not None:
+            verdict = Verdict.FUNCTIONALLY_VALIDATED
+            reason = (
+                f"matched artifact={art.profile!r} "
+                f"config_hash={art.config_hash} "
+                f"decision={art.decision!r} "
+                f"allowed_workloads={art.allowed_workloads}. "
+                f"Original verdict: {reason}"
+            )
+
     allow_adapter = _env_flag(_ENV_ALLOW_ADAPTER)
     allow_unknown = _env_flag(_ENV_ALLOW_FUNCTIONAL_UNKNOWN)
 
     if verdict == Verdict.EXACT_COPY:
         allowed = True
         decision_reason = f"{provider.name}: EXACT_COPY — {reason}"
+    elif verdict == Verdict.FUNCTIONALLY_VALIDATED:
+        # Bench-receipt promoted. Requires structural opt-in env only.
+        allowed = allow_adapter
+        decision_reason = (
+            f"{provider.name}: FUNCTIONALLY_VALIDATED — {reason} "
+            f"(allow requires {_ENV_ALLOW_ADAPTER}=1; "
+            f"adapter={allow_adapter}; FUNCTIONAL_UNKNOWN not needed)"
+        )
     elif verdict == Verdict.UNSUPPORTED:
         allowed = False
         decision_reason = f"{provider.name}: UNSUPPORTED — {reason}"
@@ -327,6 +355,32 @@ def find_provider_for_config(vllm_config: Any):
             log.warning("[SpecDecodeGuard] %s.supports_config raised: %s",
                         p.name, _e)
     return None
+
+
+def _try_match_artifact(provider: Any, vllm_config: Any):
+    """If a matching FunctionalArtifact exists for this config, return it.
+
+    Provider must expose ``artifact_lookup_keys(vllm_config) ->
+    (model_id, profile, config_hash)`` for this to fire. Returns None
+    on any lookup failure (no silent enable).
+    """
+    try:
+        from .functional_artifact import find_matching
+    except ImportError:
+        return None
+    if not hasattr(provider, "artifact_lookup_keys"):
+        return None
+    try:
+        keys = provider.artifact_lookup_keys(vllm_config)
+        if not keys:
+            return None
+        model_id, profile, config_hash = keys
+        return find_matching(
+            model_id=model_id, profile=profile, config_hash=config_hash,
+        )
+    except Exception as _e:  # noqa: BLE001
+        log.warning("[SpecDecodeGuard] artifact lookup failed: %s", _e)
+        return None
 
 
 __all__ = [

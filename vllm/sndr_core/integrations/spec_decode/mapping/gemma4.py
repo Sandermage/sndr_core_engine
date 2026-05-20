@@ -309,6 +309,92 @@ class Gemma4MappingProvider(MappingProvider):
                 continue
         return out
 
+    def artifact_lookup_keys(self, vllm_config: Any
+                              ) -> tuple[str, str, str] | None:
+        """Return (model_id, profile, config_hash) for artifact lookup.
+
+        For the Gemma4 β′-A path (TQ + skip-list 58,59 + G4_71b + G4_75
+        + kv_sharing + no bridge), the profile is
+        ``gemma4-tq-mtp-structured-k4`` and the config_hash is computed
+        over the live KV plan + MTP K + drafter backend choice.
+        """
+        try:
+            mc = getattr(vllm_config, "model_config", None)
+            model_id = getattr(mc, "model", None) or "<unknown>"
+
+            spec_cfg = getattr(vllm_config, "speculative_config", None)
+            mtp_k = (getattr(spec_cfg, "num_speculative_tokens", None)
+                     if spec_cfg is not None else None)
+
+            skip_layers = sorted(self._tq_skip_layers(vllm_config))
+            cache_is_tq = _is_quantized_kv(vllm_config)
+            kv_share_targets = sorted(
+                self._kv_share_target_indices(vllm_config))
+
+            import os
+            g71b_on = os.environ.get(
+                "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON", ""
+            ).strip().lower() in ("1", "true", "yes", "on")
+            g75_on = os.environ.get(
+                "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON", ""
+            ).strip().lower() in ("1", "true", "yes", "on")
+            kv_sharing_on = os.environ.get(
+                "GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING", "1"
+            ).strip().lower() in ("0", "false", "no", "off", "")
+            bridge_on = os.environ.get(
+                "GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE", ""
+            ).strip().lower() in ("1", "true", "yes", "on")
+
+            drafter_backend = "TRITON_ATTN" if (g71b_on and g75_on) else None
+
+            # Decide profile name from live config shape.
+            if (cache_is_tq and skip_layers and kv_share_targets
+                    and set(skip_layers) >= set(kv_share_targets)
+                    and g71b_on and g75_on and kv_sharing_on
+                    and not bridge_on and mtp_k == 4):
+                profile = "gemma4-tq-mtp-structured-k4"
+            else:
+                # No profile we have an artifact for.
+                return None
+
+            kv_plan = {
+                "target_native_layers": skip_layers,
+                "target_tq_layers_range": "0..57",
+                "drafter_layers_backend": drafter_backend,
+                "drafter_layers": [0, 1, 2, 3],
+                "physical_kv_sharing": kv_sharing_on,
+                "bridge_enabled": bridge_on,
+                "skip_list": ",".join(str(i) for i in skip_layers),
+                "drafter_kv_cache_dtype_reset_to": "auto",
+                "genesis_patches": [
+                    "G4_69 skip-list",
+                    "G4_71b drafter head=256 -> Triton",
+                    "G4_75 drafter head=512 -> Triton",
+                    "G4_76 disable_drafter_kv_sharing=OFF (allow native "
+                    "sharing)",
+                ],
+            }
+
+            vllm_pin = getattr(vllm_config, "vllm_version", "") or ""
+            if not vllm_pin:
+                # Best-effort from version module
+                try:
+                    import vllm.version as _vv
+                    vllm_pin = getattr(_vv, "__version__", "") or ""
+                except Exception:
+                    pass
+
+            from ..functional_artifact import compute_config_hash
+            config_hash = compute_config_hash(
+                model_id=model_id, vllm_pin=vllm_pin, kv_plan=kv_plan,
+                mtp_k=mtp_k, drafter_backend=drafter_backend,
+            )
+            return (model_id, profile, config_hash)
+        except Exception as _e:  # noqa: BLE001
+            log.warning("[mapping.gemma4] artifact_lookup_keys failed: %s",
+                        _e)
+            return None
+
     @staticmethod
     def _kv_share_target_indices(vllm_config: Any) -> list[int]:
         """Indices of (last sliding, last full) target layers — the

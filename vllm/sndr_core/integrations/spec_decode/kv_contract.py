@@ -92,6 +92,13 @@ class Verdict(str, enum.Enum):
     # contract is a separate axis that must be checked explicitly.
     KERNEL_STORAGE_DTYPE_MISMATCH = "KERNEL_STORAGE_DTYPE_MISMATCH"
     KERNEL_LAYOUT_CONTRACT_MISMATCH = "KERNEL_LAYOUT_CONTRACT_MISMATCH"
+    # NEW (C4 2026-05-20) — a matching functional_artifact has been
+    # found. The contract is structurally non-trivial but a bench
+    # receipt proves it produces measured non-regressive (or net-
+    # positive on declared allowed_workloads) performance. Caller can
+    # admit this verdict with just the structural opt-in env, no
+    # FUNCTIONAL_UNKNOWN.
+    FUNCTIONALLY_VALIDATED = "FUNCTIONALLY_VALIDATED"
     UNSUPPORTED = "UNSUPPORTED"
 
 
