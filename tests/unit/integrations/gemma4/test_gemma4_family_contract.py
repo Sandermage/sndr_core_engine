@@ -24,7 +24,8 @@ PATCHES = [
     ("vllm.sndr_core.integrations.gemma4.g4_02_gemma4_ampere_marlin_kdim_guard", "G4_02"),
     ("vllm.sndr_core.integrations.gemma4.g4_03_gemma4_ampere_non_causal_drafter_guard", "G4_03"),
     ("vllm.sndr_core.integrations.gemma4.g4_04_gemma4_awq_moe_keys_remap", "G4_04"),
-    ("vllm.sndr_core.integrations.gemma4.g4_05_gemma4_dflash_backend_autoselect", "G4_05"),
+    # G4_05 relocated to spec_decode/ in Phase 3 bucket 3 (2026-05-21) —
+    # see tests/unit/integrations/spec_decode/test_spec_decode_family_contract.py
     # G4_06 relocated to kv_cache/ in Phase 3 bucket 2 (2026-05-21) —
     # see tests/unit/integrations/kv_cache/test_kv_cache_family_contract.py
     ("vllm.sndr_core.integrations.gemma4.g4_07_gemma4_fp8_block_double_scale_fix", "G4_07"),

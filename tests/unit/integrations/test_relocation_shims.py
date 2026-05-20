@@ -78,6 +78,44 @@ PROBE_RELOCATIONS = [
         "vllm.sndr_core.integrations.gemma4.g4_18_gemma4_per_layer_kv_page_size",
         "vllm.sndr_core.integrations.kv_cache.g4_18_per_layer_kv_page_size",
     ),
+    # Bucket 3: spec_decode drafter routing → spec_decode/
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_05_gemma4_dflash_backend_autoselect",
+        "vllm.sndr_core.integrations.spec_decode.g4_05_dflash_backend_autoselect",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_71_drafter_native_attn_backend",
+        "vllm.sndr_core.integrations.spec_decode.g4_71_drafter_native_attn_backend",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_71b_drafter_sliding_triton",
+        "vllm.sndr_core.integrations.spec_decode.g4_71b_drafter_sliding_triton",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_72_drafter_native_kv_cache_spec",
+        "vllm.sndr_core.integrations.spec_decode.g4_72_drafter_native_kv_cache_spec",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_73_drafter_profile_skip",
+        "vllm.sndr_core.integrations.spec_decode.g4_73_drafter_profile_skip",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_74_drafter_hnd_layout",
+        "vllm.sndr_core.integrations.spec_decode.g4_74_drafter_hnd_layout",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_75_drafter_head512_triton",
+        "vllm.sndr_core.integrations.spec_decode.g4_75_drafter_head512_triton",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_76_disable_drafter_kv_sharing",
+        "vllm.sndr_core.integrations.spec_decode.g4_76_disable_drafter_kv_sharing",
+    ),
+    # G4_78 retired (Bucket 3, superseded by P1.8 A2 declarative drafter_kv_sharing).
+    (
+        "vllm.sndr_core.integrations.gemma4.g4_78_drafter_target_kv_bridge",
+        "vllm.sndr_core.integrations._retired.g4_78_drafter_target_kv_bridge",
+    ),
 ]
 
 CANONICAL_ATTRS = ("apply", "is_applied", "should_apply")
@@ -94,7 +132,26 @@ REGISTERED_AFTER_BUCKET_2 = {
     "G4_18": "vllm.sndr_core.integrations.kv_cache.g4_18_per_layer_kv_page_size",
 }
 
-ALL_REGISTERED = {**REGISTERED_AFTER_BUCKET_1, **REGISTERED_AFTER_BUCKET_2}
+# Bucket 3: spec_decode drafter-routing patches + G4_78 retired.
+# G4_71B is newly-registered (was previously env-only). G4_78 is retired
+# and its apply_module points into _retired/.
+REGISTERED_AFTER_BUCKET_3 = {
+    "G4_05":  "vllm.sndr_core.integrations.spec_decode.g4_05_dflash_backend_autoselect",
+    "G4_71":  "vllm.sndr_core.integrations.spec_decode.g4_71_drafter_native_attn_backend",
+    "G4_71B": "vllm.sndr_core.integrations.spec_decode.g4_71b_drafter_sliding_triton",
+    "G4_72":  "vllm.sndr_core.integrations.spec_decode.g4_72_drafter_native_kv_cache_spec",
+    "G4_73":  "vllm.sndr_core.integrations.spec_decode.g4_73_drafter_profile_skip",
+    "G4_74":  "vllm.sndr_core.integrations.spec_decode.g4_74_drafter_hnd_layout",
+    "G4_75":  "vllm.sndr_core.integrations.spec_decode.g4_75_drafter_head512_triton",
+    "G4_76":  "vllm.sndr_core.integrations.spec_decode.g4_76_disable_drafter_kv_sharing",
+    "G4_78":  "vllm.sndr_core.integrations._retired.g4_78_drafter_target_kv_bridge",
+}
+
+ALL_REGISTERED = {
+    **REGISTERED_AFTER_BUCKET_1,
+    **REGISTERED_AFTER_BUCKET_2,
+    **REGISTERED_AFTER_BUCKET_3,
+}
 
 
 @pytest.mark.parametrize("old_path,new_path", PROBE_RELOCATIONS)

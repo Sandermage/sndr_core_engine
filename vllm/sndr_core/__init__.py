@@ -502,7 +502,7 @@ def _g4_19_import_time_hook():
         # LLMBaseProposer.load_model runs). Plugin apply-all happens at
         # engine_core boot, well before model load, so order is safe.
         if g71:
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode import (
                 g4_71_drafter_native_attn_backend as _g4_71_mod,
             )
             _g4_71_mod.apply()
@@ -512,7 +512,7 @@ def _g4_19_import_time_hook():
         # through G4_60g's TQ-first dispatch; only drafter (G4_71 marker)
         # is rerouted to native spec.
         if g72:
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode import (
                 g4_72_drafter_native_kv_cache_spec as _g4_72_mod,
             )
             _g4_72_mod.apply()
@@ -618,7 +618,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.spec_decode.llm_base_proposer  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode import (
                 g4_73_drafter_profile_skip as _g4_73_mod,
             )
             _g4_73_mod.apply()
@@ -635,7 +635,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.worker.gpu_model_runner  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode import (
                 g4_74_drafter_hnd_layout as _g4_74_mod,
             )
             _g4_74_mod.apply()
@@ -645,7 +645,7 @@ def _g4_19_import_time_hook():
         # the Attention instance so G4_74 skips HND conversion for Triton
         # drafter layers (Triton uses NHD natively).
         if g75:
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode import (
                 g4_75_drafter_head512_triton as _g4_75_mod,
             )
             _g4_75_mod.apply()
@@ -654,7 +654,7 @@ def _g4_19_import_time_hook():
         # so both share a uniform Triton routing across all 4 drafter
         # layers when both enabled.
         if g71b:
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode import (
                 g4_71b_drafter_sliding_triton as _g4_71b_mod,
             )
             _g4_71b_mod.apply()
@@ -670,7 +670,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.spec_decode.gemma4  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode import (
                 g4_76_disable_drafter_kv_sharing as _g4_76_mod,
             )
             _g4_76_mod.apply()
@@ -727,7 +727,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.attention.backends.triton_attn  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations._retired import (
                 g4_78_drafter_target_kv_bridge as _g4_78_mod,
             )
             _g4_78_mod.apply()

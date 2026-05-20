@@ -50,6 +50,17 @@ SPEC_DECODE_PATCHES = [
     ("vllm.sndr_core.integrations.spec_decode.pn40_dflash_omnibus", "PN40"),
     ("vllm.sndr_core.integrations.spec_decode.pn72_frequency_ngram_drafter", "PN72"),
     ("vllm.sndr_core.integrations.spec_decode.pn90_probabilistic_draft_rejection", "PN90"),
+    # Phase 3 bucket 3 (2026-05-21): drafter-routing patches relocated from gemma4/.
+    ("vllm.sndr_core.integrations.spec_decode.g4_05_dflash_backend_autoselect", "G4_05"),
+    ("vllm.sndr_core.integrations.spec_decode.g4_71_drafter_native_attn_backend", "G4_71"),
+    ("vllm.sndr_core.integrations.spec_decode.g4_71b_drafter_sliding_triton", "G4_71B"),
+    ("vllm.sndr_core.integrations.spec_decode.g4_72_drafter_native_kv_cache_spec", "G4_72"),
+    ("vllm.sndr_core.integrations.spec_decode.g4_73_drafter_profile_skip", "G4_73"),
+    ("vllm.sndr_core.integrations.spec_decode.g4_74_drafter_hnd_layout", "G4_74"),
+    ("vllm.sndr_core.integrations.spec_decode.g4_75_drafter_head512_triton", "G4_75"),
+    ("vllm.sndr_core.integrations.spec_decode.g4_76_disable_drafter_kv_sharing", "G4_76"),
+    # Retired in Phase 3 bucket 3 (superseded by P1.8 A2 declarative kv_sharing).
+    ("vllm.sndr_core.integrations._retired.g4_78_drafter_target_kv_bridge", "G4_78"),
 ]
 
 
