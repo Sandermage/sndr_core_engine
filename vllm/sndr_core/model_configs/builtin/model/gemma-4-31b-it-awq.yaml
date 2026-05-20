@@ -36,10 +36,16 @@ capabilities:
   tool_call_parser: gemma4                               # Gemma 4 tool-call parser (cleaned by G4_14 pad-strip)
   reasoning_parser: null                                 # Gemma 4 doesn't use <think> tags by default
   enable_auto_tool_choice: true                          # auto tool_choice on tool-mention prompts
-  spec_decode:
-    method: mtp                                          # MTP via assistant drafter (range: mtp|null on this model)
-    num_speculative_tokens: 4                            # CHANGED 2026-05-17 per audit: club-3090 default n=4; code variant uses n=8 (separate profile)
-    model: /models/gemma-4-31B-it-assistant              # google/gemma-4-31B-it-assistant — MTP causal drafter
+  # Variant A migration (2026-05-20): MTP moved from ModelDef into the
+  # structured-role profile gemma4-tq-mtp-structured-k4. MTP is a
+  # workload-conditional behavior, not an inherent model property:
+  # structured workloads (tool_json, structured_count) benefit (+24%
+  # on G5 bench); chat / summarization regress (-51%). The default-
+  # role profile leaves spec_decode unset; structured/code profiles
+  # set it via spec_decode_override.
+  # See docs/_internal/GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20.md
+  # for the audit + decision record.
+  spec_decode: null
   kv_cache_dtype: auto                                   # values: auto|fp8|fp16; auto stays in dtype for safety
 
 # ─── Hardware preconditions composer enforces ──────────────────────────
@@ -52,7 +58,14 @@ requires:
 versions:
   genesis_pin_min: v12.0.0                               # G4_NN family lands in v12
   vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5         # current PROD baseline (Gemma 4 native model_executor support)
-  reference_metrics_ref: tests/integration/baselines/gemma4_31b_awq_baseline.json
+  # Variant A migration (2026-05-20): old baseline at
+  # tests/integration/baselines/gemma4_31b_awq_baseline.json was
+  # captured with MTP K=4 ON; that file is now the (future) reference
+  # for the structured profile, not the model baseline. A separate
+  # MTP-OFF baseline will be captured post-rehearsal once the default-
+  # role profile gets its first observation window. Drift-check is OFF
+  # for this model until that baseline lands.
+  reference_metrics_ref: null
 
 # ─── Canonical patches matrix ──────────────────────────────────────────
 patches:
