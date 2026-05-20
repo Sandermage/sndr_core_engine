@@ -20,8 +20,9 @@ silently enable MTP on configurations that pass shape checks but
 have not been runtime-validated.
 
 Provenance: extracted from
-``integrations/gemma4/pn271_spec_decode_kv_contract_audit.py``
-2026-05-20 per architectural directive (PN273).
+``integrations/spec_decode/pn271_kv_contract_audit.py``
+2026-05-20 per architectural directive (PN273). Relocated from
+``integrations/gemma4/`` 2026-05-21 (Phase 3 bucket 1).
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """

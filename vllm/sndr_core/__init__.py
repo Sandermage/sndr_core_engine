@@ -525,7 +525,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.spec_decode.llm_base_proposer  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode.probes import (
                 pn241_mtp_trace as _pn241_mod,
             )
             _pn241_mod.apply()
@@ -538,7 +538,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.sample.rejection_sampler  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode.probes import (
                 pn248_acceptance_trace as _pn248_mod,
             )
             _pn248_mod.apply()
@@ -574,7 +574,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.sample.rejection_sampler  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode.probes import (
                 pn258_oracle_acceptance as _pn258_mod,
             )
             _pn258_mod.apply()
@@ -589,7 +589,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.attention.backends.flash_attn  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode.probes import (
                 pn262_flash_attn_drafter_trace as _pn262_mod,
             )
             _pn262_mod.apply()
@@ -602,7 +602,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.spec_decode.llm_base_proposer  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode.probes import (
                 pn262b_kv_alloc_trace as _pn262b_mod,
             )
             _pn262b_mod.apply()
@@ -680,7 +680,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.spec_decode.llm_base_proposer  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode.probes import (
                 pn266_propose_trace as _pn266_mod,
             )
             _pn266_mod.apply()
@@ -692,7 +692,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.attention.backends.triton_attn  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode.probes import (
                 pn267_kv_bridge_trace as _pn267_mod,
             )
             _pn267_mod.apply()
@@ -702,7 +702,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.worker.gpu_model_runner  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode.probes import (
                 pn268_drafter_blocks_origin as _pn268_mod,
             )
             _pn268_mod.apply()
@@ -713,7 +713,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.attention.backends.triton_attn  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode.probes import (
                 pn269_a0_block_table_trace as _pn269_mod,
             )
             _pn269_mod.apply()
@@ -737,7 +737,7 @@ def _g4_19_import_time_hook():
                 import vllm.v1.worker.gpu_model_runner  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
+            from .integrations.spec_decode.probes import (
                 pn270_drafter_kv_proj_audit as _pn270_mod,
             )
             _pn270_mod.apply()
@@ -747,8 +747,8 @@ def _g4_19_import_time_hook():
                 import vllm.v1.worker.gpu_model_runner  # noqa: F401
             except ImportError:
                 pass
-            from .integrations.gemma4 import (
-                pn271_spec_decode_kv_contract_audit as _pn271_mod,
+            from .integrations.spec_decode import (
+                pn271_kv_contract_audit as _pn271_mod,
             )
             _pn271_mod.apply()
         # PN272 — Gemma 4 MTP drafter input semantics probe.

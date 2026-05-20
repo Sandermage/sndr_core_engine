@@ -84,11 +84,19 @@ def _check_category_enum(registry: dict[str, dict[str, Any]]) -> list[str]:
 
 
 def _check_family_path(registry: dict[str, dict[str, Any]]) -> list[str]:
-    """Invariant 3: registry family ↔ integrations subdir consistency."""
-    try:
-        from vllm.sndr_core.compat.categories import module_for
-    except ImportError as e:
-        return [f"family-path: cannot import module_for ({e})"]
+    """Invariant 3: registry family ↔ integrations subdir consistency.
+
+    Uses the registry's canonical `apply_module` directly — not the
+    filesystem-walking `module_for()` — so that one-release relocation
+    shims (which duplicate the wiring file at the old path) don't
+    confuse the check. The registry is the single source of truth for
+    where a patch's real implementation lives; the audit follows it.
+
+    A patch's `apply_module` may live deeper than one level under the
+    family directory (e.g. probes/ under spec_decode/). Acceptance
+    rule: the apply_module's prefix path must START with
+    `integrations/<family>/`.
+    """
     issues: list[str] = []
     for pid, meta in registry.items():
         fam = meta.get("family")
@@ -98,16 +106,19 @@ def _check_family_path(registry: dict[str, dict[str, Any]]) -> list[str]:
         # informational (original wiring family), location is `_retired/`.
         if meta.get("lifecycle") == "retired":
             continue
-        mod = module_for(pid)
-        if mod is None or "integrations." not in mod:
+        mod = meta.get("apply_module")
+        if not mod or "integrations." not in mod:
             continue
         after_int = mod.split("integrations.", 1)[1]
         subdir = after_int.rsplit(".", 1)[0].replace(".", "/")
         expected = fam.replace(".", "/")
-        if subdir != expected:
+        # subdir may be a deeper path under the family (e.g.
+        # `spec_decode/probes`); accept when it starts with the
+        # expected family path.
+        if subdir != expected and not subdir.startswith(expected + "/"):
             issues.append(
                 f"family-path: {pid} registry family={fam!r} "
-                f"(→ integrations/{expected}/) but wiring at "
+                f"(→ integrations/{expected}/) but apply_module at "
                 f"integrations/{subdir}/"
             )
     return issues
