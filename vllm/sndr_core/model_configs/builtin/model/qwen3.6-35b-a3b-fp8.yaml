@@ -15,7 +15,7 @@ kind: model
 id: qwen3.6-35b-a3b-fp8                          # canonical ID; <model-family>-<size>-<quant> kebab style
 title: Qwen 3.6 35B-A3B FP8 (Sander PROD reference)
 maintainer: sandermage
-last_validated: '2026-05-09'                     # ISO-8601 date of last bench-and-update
+last_validated: '2026-05-21'                     # ISO-8601 date of last bench-and-update (P2.4c dev371 smoke + 4-variant chat bench)
 license: apache-2.0                              # values: apache-2.0 | mit | ...; apache-2.0 matches upstream Qwen license
 
 # ─── Identity ──────────────────────────────────────────────────────────
@@ -69,8 +69,8 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version (semver)
-  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d # current PROD baseline (Wave 9 dev338 — smoke 35B tool-call PASS 2026-05-14)
-  reference_metrics_ref: tests/integration/baselines/35b_v11_wave9.json  # bench reference for bench-validate (E22: realigned to actual filename)
+  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5 # promoted 2026-05-21 (P2.4d) — dev371 smoke + 4-variant chat bench PASS. Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
+  reference_metrics_ref: tests/integration/baselines/35b_v11_wave9.json  # NOTE: still the dev338 Wave 9 baseline. dev371 runtime evidence currently lives under sndr_private/planning/bench_results/2026-05-21/ (smoke + 4-variant bench receipts). A formal dev371 baseline JSON requires a full canonical bench cycle (genesis_bench_suite --quick + sustained methodology), captured separately when the rest of the Qwen family is promoted.
 
 # ─── Canonical patches matrix (44 entries) ─────────────────────────────
 # Format: 'GENESIS_ENABLE_<PATCH_ID>': '1' enables; '0' or absent disables.
@@ -196,6 +196,19 @@ notes:
   - "POC migration from a5000-2x-35b-prod (2026-05-12). All 44 canonical
     patches preserved. Profile-driven testing should not modify this file
     until a wave promotion ledger validates the delta."
+  - "P2.4d runtime pin promotion 2026-05-21: dev338 → dev371. Backed by
+    P2.4c dev371 smoke (Q35-TQ booted clean, /v1/models served, coherent
+    text + dev371 system_fingerprint) AND 4-variant chat bench (short-
+    short, long-ctx, short-long, multi-turn × 5 turns; decode TPOT
+    5.13–5.78 ms median, P103 ABI exceptions = 0). Receipts:
+    sndr_private/planning/bench_results/2026-05-21/{P2_4C_Q35_TQ_DEV371_SMOKE_RECEIPT,P2_4C_Q35_TQ_DEV371_BENCH_RECEIPT}_2026-05-21_RU.md.
+    Q35 only — other Qwen ModelDefs remain dev338 pending their own
+    smoke (Q27-TQ next). P103 wrapper **kwargs + core_attn_out bypass
+    (commit 122c2576) is a hard prerequisite for this pin on
+    hybrid_gdn_moe; the chunked_fwd ABI grew a new kwarg between
+    dev338 and dev371. Operators rolling back to dev338 also remove the
+    P103 fix dependency — the wrapper accepts the old signature
+    identically via **kwargs forwarding."
 
 # ── patches_attribution (Phase A, 2026-05-16) ──────────────────────────
 # Structured rationale for patches that benefit from explicit documentation
