@@ -299,43 +299,75 @@ class TestDFlashHoldGate:
         # case-insensitive
         assert mod._is_dflash_stem("DFLASH-test") is True
 
-    def test_dflash_hold_lifted_default_false(self):
-        """DFLASH_DEV371_HOLD_LIFTED must default to False so the audit
-        gate stays in hold mode until an operator explicitly flips it
-        after a compatibility fix lands."""
+    def test_dflash_hold_lifted_default_true_after_m7(self):
+        """DFLASH_DEV371_HOLD_LIFTED defaults to True after M7
+        (commit 2026-05-21, after PN275 landed in M2..M2f + both
+        Q27-DFlash and Q35-DFlash passed dev371 E2E smoke + M6
+        wired PN275 into both DFlash ModelDef patches matrices).
+
+        Re-engaging the hold (rollback) is achieved by flipping the
+        constant back to False; TestDFlashHoldGate covers both
+        states. Receipt + reason constants stay populated regardless
+        of the flag — they document the original defect."""
         mod = _import_audit()
-        assert mod.DFLASH_DEV371_HOLD_LIFTED is False
+        assert mod.DFLASH_DEV371_HOLD_LIFTED is True
         assert "dflash" in mod.DFLASH_HOLD_RECEIPT_PATH.lower()
         assert "max_cudagraph_capture_size" in mod.DFLASH_HOLD_REASON_SHORT
 
-    def test_live_tree_dflash_dev338_is_intentional_hold(self):
-        """The live laptop tree has 2 DFlash ModelDefs (27b-dflash,
-        35b-a3b-fp8-dflash) on dev338. R-PIN-4 must mark them with
-        the DFlash hold annotation, NOT the generic 'P2.4d candidate'
-        annotation."""
+    def test_live_tree_dflash_dev338_is_p2_4d_candidate_after_m7(self):
+        """After M7 lifted the hold, the live laptop tree's two DFlash
+        ModelDefs (still on dev338 until M8 promotion commits land)
+        must be marked as ordinary 'P2.4d candidate' migration items
+        — NOT 'DFlash hold — intentional' (the pre-M7 annotation)."""
         mod = _import_audit()
         errors, infos = mod.check_r_pin_4_modeldef_migration()
         assert errors == [], (
             f"R-PIN-4 must be clean on the live tree; got: {errors}"
         )
         joined = "\n".join(infos)
-        # Both DFlash models must appear with the DFlash hold tag
+        # Both DFlash models must appear as P2.4d candidates
         assert (
-            "qwen3.6-27b-dflash → dev338  (DFlash hold" in joined
-        ), f"27b-dflash missing DFlash hold tag; got:\n{joined}"
-        assert (
-            "qwen3.6-35b-a3b-fp8-dflash → dev338  (DFlash hold" in joined
-        ), f"35b-dflash missing DFlash hold tag; got:\n{joined}"
-        # And they must NOT be marked as generic P2.4d candidates
-        assert "qwen3.6-27b-dflash → dev338  (P2.4d candidate)" not in joined
+            "qwen3.6-27b-dflash → dev338  (P2.4d candidate)" in joined
+        ), f"27b-dflash must be P2.4d candidate after M7; got:\n{joined}"
         assert (
             "qwen3.6-35b-a3b-fp8-dflash → dev338  (P2.4d candidate)"
+            in joined
+        ), f"35b-dflash must be P2.4d candidate after M7; got:\n{joined}"
+        # And they must NOT carry the pre-M7 "DFlash hold" tag
+        assert (
+            "qwen3.6-27b-dflash → dev338  (DFlash hold" not in joined
+        )
+        assert (
+            "qwen3.6-35b-a3b-fp8-dflash → dev338  (DFlash hold"
             not in joined
         )
-        # Cross-cutting block must appear
+        # Cross-cutting block reflects lifted state
         assert "DFlash hold status:" in joined
-        assert "DFlash hold reason:" in joined
+        assert "DFLASH_DEV371_HOLD_LIFTED=True" in joined
+        assert "M7 lifted" in joined
+        # Receipt still cited for the original defect trail
         assert "DFlash hold receipt:" in joined
+
+    def test_live_tree_dflash_dev338_reverts_to_intentional_hold_when_disabled(
+        self, monkeypatch,
+    ):
+        """Rollback safety: setting DFLASH_DEV371_HOLD_LIFTED back to
+        False restores the pre-M7 'intentional hold' annotation on
+        DFlash dev338 entries. This is the operator's escape hatch
+        if a future regression surfaces."""
+        mod = _import_audit()
+        monkeypatch.setattr(mod, "DFLASH_DEV371_HOLD_LIFTED", False)
+        _, infos = mod.check_r_pin_4_modeldef_migration()
+        joined = "\n".join(infos)
+        assert (
+            "qwen3.6-27b-dflash → dev338  (DFlash hold — intentional"
+            in joined
+        )
+        assert (
+            "qwen3.6-35b-a3b-fp8-dflash → dev338  "
+            "(DFlash hold — intentional"
+            in joined
+        )
 
     def test_non_dflash_non_placeholder_qwen_dev338_uses_p2_4d_tag(
         self, tmp_path, monkeypatch,
@@ -370,14 +402,18 @@ class TestDFlashHoldGate:
             "qwen3.6-99b-synthetic → dev338  (P2.4d candidate)" in joined
         )
 
-    def test_dflash_promoted_to_dev371_fails_while_hold_active(
+    def test_dflash_promoted_to_dev371_fails_when_hold_re_engaged(
         self, tmp_path, monkeypatch,
     ):
-        """If a DFlash ModelDef is promoted to dev371 while
-        DFLASH_DEV371_HOLD_LIFTED is False, R-PIN-4 must fail. This
-        catches accidental promotion before the compatibility patch
-        lands."""
+        """Rollback safety: if an operator re-engages the hold by
+        flipping DFLASH_DEV371_HOLD_LIFTED back to False, R-PIN-4
+        must FAIL on any DFlash dev371 promotion — preserving the
+        pre-M7 protection against accidental promotion.
+
+        Post-M7 the default is True (lifted), so we monkeypatch False
+        to exercise the rollback path explicitly."""
         mod = _import_audit()
+        monkeypatch.setattr(mod, "DFLASH_DEV371_HOLD_LIFTED", False)
         fake_models = tmp_path / "model"
         fake_models.mkdir()
         (fake_models / "qwen3.6-27b-dflash.yaml").write_text(
@@ -390,8 +426,6 @@ class TestDFlashHoldGate:
             "  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5\n"
         )
         monkeypatch.setattr(mod, "MODEL_DIR", fake_models)
-        # Hold must default to False
-        assert mod.DFLASH_DEV371_HOLD_LIFTED is False
         errors, _ = mod.check_r_pin_4_modeldef_migration()
         # Exactly one error — the DFlash promotion violation
         assert len(errors) == 1

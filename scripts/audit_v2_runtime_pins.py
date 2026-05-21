@@ -104,20 +104,33 @@ QWEN_PREFIX = "qwen"
 # at engine init. This is an upstream regression, not a renderer / P103
 # issue.
 #
-# Until a Genesis-side compatibility patch lands (see design doc
-# sndr_private/planning/audits/P2_DFLASH_DEV371_INCOMPATIBILITY_DESIGN_2026-05-21_RU.md)
-# OR upstream relaxes the validator, DFlash ModelDefs are held at
-# dev338 *intentionally*. R-PIN-4 must NOT treat them as generic
-# migration debt — operators are NOT supposed to promote them yet.
+# Hold lifted 2026-05-21 (M7) after PN275 (DFlash drafter VllmConfig
+# max_cgs alignment, commits 40e60ec5 → 387a9a63) shipped its 3-layer
+# fix:
+#   (a) utils.replace text-patch self-install (workers' replace chain)
+#   (b) vllm/config/vllm.py validator waiver (EngineCore direct
+#       __post_init__ entry point)
+#   (c) in-process setattr wrap (defense-in-depth)
+# AND both DFlash variants passed dev371 E2E smoke:
+#   * Q27-DFlash — receipt P2_DFLASH_M4_RETRY4_M2f_PASS_2026-05-21_RU.md
+#   * Q35-DFlash — receipt P2_DFLASH_M5_RETRY_Q35_PASS_2026-05-21_RU.md
+# AND M6 (commit 12d901a5) added `GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN: '1'`
+# to BOTH DFlash ModelDef patches matrices, making the compat layer
+# a hard prerequisite of each DFlash boot on dev371.
 #
-# Symmetrically, R-PIN-4 must REJECT any DFlash ModelDef that gets
-# promoted to dev371 prematurely (without a compatibility-evidence
-# marker — flipping `DFLASH_DEV371_HOLD_LIFTED` to True is the future
-# release switch).
+# With the hold lifted:
+#   * DFlash dev371 promotions are PERMITTED — R-PIN-4 no longer
+#     errors on them.
+#   * DFlash dev338 entries are treated as ordinary "P2.4d candidate"
+#     migration items (no longer "intentional hold"). The actual pin
+#     promotion happens in M8 (one single-file commit per ModelDef).
+#
+# To re-engage the hold (rollback scenario), flip the flag back to
+# False; existing tests TestDFlashHoldGate validate both states.
 
 DFLASH_STEM_MARKER = "dflash"   # any model stem containing this is DFlash
 
-DFLASH_DEV371_HOLD_LIFTED = False  # flip True only after Genesis fix lands
+DFLASH_DEV371_HOLD_LIFTED = True  # M7 lifted 2026-05-21 after PN275 + Q27/Q35 smokes
 
 DFLASH_HOLD_RECEIPT_PATH = (
     "sndr_private/planning/bench_results/2026-05-21/"
@@ -407,15 +420,20 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
     Fails on:
       * missing `vllm_pin_required` field
       * value outside ALLOWED_MODELDEF_PINS
-      * a DFlash ModelDef promoted to dev371 while the project-wide
-        hold is in effect (DFLASH_DEV371_HOLD_LIFTED = False).
+      * a DFlash ModelDef promoted to dev371 ONLY while the project-
+        wide hold is in effect (DFLASH_DEV371_HOLD_LIFTED = False).
+        After M7 lifted the hold to True (2026-05-21), DFlash dev371
+        promotions are permitted; this check becomes a no-op.
 
     Reports as info (NOT fail):
       * per-family migration table across both pins
       * non-DFlash Qwen models on dev338 → marked "P2.4d candidate"
-      * DFlash ModelDefs on dev338 → marked "intentional hold" (NOT a
-        migration candidate). Cite the hold reason + receipt path so
-        a future reader knows why these are pinned dev338 on purpose.
+      * DFlash ModelDefs on dev338:
+          - when DFLASH_DEV371_HOLD_LIFTED is False → "DFlash hold —
+            intentional, NOT a P2.4d candidate" (pre-M7 behavior, kept
+            for rollback)
+          - when DFLASH_DEV371_HOLD_LIFTED is True → "P2.4d candidate"
+            (M7 + onwards; M8 commits move them to dev371)
     """
     errors: list[str] = []
     infos: list[str] = []
@@ -499,7 +517,10 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
                 note = "  (DFlash)"
             infos.append(f"  {stem} → dev371{note}")
         for stem in d338:
-            if _is_dflash_stem(stem):
+            if _is_dflash_stem(stem) and not DFLASH_DEV371_HOLD_LIFTED:
+                # Hold active — DFlash dev338 entries are intentional
+                # holds, NOT migration debt. (Path taken only on
+                # rollback; default after M7 is hold-lifted.)
                 infos.append(
                     f"  {stem} → dev338  (DFlash hold — intentional, "
                     f"NOT a P2.4d candidate)"
@@ -510,6 +531,9 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
                     f"checkpoint not deployed; NOT a P2.4d candidate)"
                 )
             else:
+                # Includes DFlash dev338 entries when the hold is lifted
+                # — they're ordinary P2.4d candidates awaiting M8
+                # promotion.
                 infos.append(f"  {stem} → dev338  (P2.4d candidate)")
 
     # Cross-cutting DFlash hold info block (always emitted when DFlash
@@ -517,13 +541,30 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
     # reading the audit want a single place to see the hold status).
     if dflash_d338 or dflash_d371:
         infos.append("")
-        infos.append(
-            f"DFlash hold status: "
-            f"DFLASH_DEV371_HOLD_LIFTED={DFLASH_DEV371_HOLD_LIFTED}; "
-            f"intentional hold on dev338={len(dflash_d338)}, "
-            f"promoted to dev371={len(dflash_d371)}"
-        )
-        infos.append(f"DFlash hold reason: {DFLASH_HOLD_REASON_SHORT}")
+        if DFLASH_DEV371_HOLD_LIFTED:
+            infos.append(
+                f"DFlash hold status: "
+                f"DFLASH_DEV371_HOLD_LIFTED={DFLASH_DEV371_HOLD_LIFTED} "
+                f"(M7 lifted 2026-05-21); migration candidates on "
+                f"dev338={len(dflash_d338)}, "
+                f"promoted to dev371={len(dflash_d371)}"
+            )
+            infos.append(
+                "DFlash hold lifted — PN275 (M2..M2f, commits "
+                "40e60ec5..387a9a63) provides the dev371 compat layer; "
+                "M6 commit 12d901a5 wires it into both DFlash ModelDef "
+                "patches matrices"
+            )
+        else:
+            infos.append(
+                f"DFlash hold status: "
+                f"DFLASH_DEV371_HOLD_LIFTED={DFLASH_DEV371_HOLD_LIFTED}; "
+                f"intentional hold on dev338={len(dflash_d338)}, "
+                f"promoted to dev371={len(dflash_d371)}"
+            )
+            infos.append(
+                f"DFlash hold reason: {DFLASH_HOLD_REASON_SHORT}"
+            )
         infos.append(f"DFlash hold receipt: {DFLASH_HOLD_RECEIPT_PATH}")
 
     # Cross-cutting placeholder hold info block (only when one or more
