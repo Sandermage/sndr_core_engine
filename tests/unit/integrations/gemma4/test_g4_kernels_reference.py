@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(not _TORCH_OK, reason="torch not installed")
 
 
 def test_g4_rmsnorm_residual_scalar_reference_matches_naive():
-    from vllm.sndr_core.integrations.gemma4.kernels.g4_fused_rmsnorm_triton import (
+    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
         g4_rmsnorm_residual_scalar_reference,
     )
     torch.manual_seed(0)
@@ -47,7 +47,7 @@ def test_g4_rmsnorm_residual_scalar_reference_matches_naive():
 
 
 def test_g4_rmsnorm_residual_scalar_reference_no_residual_no_scalar():
-    from vllm.sndr_core.integrations.gemma4.kernels.g4_fused_rmsnorm_triton import (
+    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
         g4_rmsnorm_residual_scalar_reference,
     )
     x = torch.randn(4, 128, dtype=torch.float32)
@@ -59,7 +59,7 @@ def test_g4_rmsnorm_residual_scalar_reference_no_residual_no_scalar():
 
 
 def test_g4_qkv_rmsnorm_reference_per_head():
-    from vllm.sndr_core.integrations.gemma4.kernels.g4_fused_rmsnorm_triton import (
+    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
         g4_qkv_rmsnorm_reference,
     )
     torch.manual_seed(0)
@@ -91,7 +91,7 @@ def test_g4_qkv_rmsnorm_reference_per_head():
 
 
 def test_g4_dual_rmsnorm_residual_scalar_reference():
-    from vllm.sndr_core.integrations.gemma4.kernels.g4_fused_rmsnorm_triton import (
+    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
         g4_dual_rmsnorm_residual_scalar_reference,
     )
     torch.manual_seed(0)
@@ -113,7 +113,7 @@ def test_g4_dual_rmsnorm_residual_scalar_reference():
 
 
 def test_g4_softcap_reference_matches_naive():
-    from vllm.sndr_core.integrations.gemma4.kernels.g4_softcap_triton import (
+    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_softcap_triton import (
         g4_softcap_reference,
     )
     torch.manual_seed(0)
@@ -125,7 +125,7 @@ def test_g4_softcap_reference_matches_naive():
 
 
 def test_g4_softcap_reference_zero_softcap_is_noop():
-    from vllm.sndr_core.integrations.gemma4.kernels.g4_softcap_triton import (
+    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_softcap_triton import (
         g4_softcap_reference,
     )
     x = torch.randn(4, 8)
@@ -134,7 +134,7 @@ def test_g4_softcap_reference_zero_softcap_is_noop():
 
 
 def test_g4_softcap_reference_none_softcap_is_noop():
-    from vllm.sndr_core.integrations.gemma4.kernels.g4_softcap_triton import (
+    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_softcap_triton import (
         g4_softcap_reference,
     )
     x = torch.randn(4, 8)
@@ -143,7 +143,7 @@ def test_g4_softcap_reference_none_softcap_is_noop():
 
 
 def test_g4_softcap_reference_inplace_out():
-    from vllm.sndr_core.integrations.gemma4.kernels.g4_softcap_triton import (
+    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_softcap_triton import (
         g4_softcap_reference,
     )
     x = torch.randn(4, 8)
@@ -229,7 +229,7 @@ def test_detect_non_causal_drafter():
 
 
 def test_pad_moe_weight_to_aligned_k_pads_correctly():
-    from vllm.sndr_core.integrations.gemma4.kernels.g4_kpad_moe_gemm_triton import (
+    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_kpad_moe_gemm_triton import (
         pad_moe_weight_to_aligned_k,
     )
     # Mock MoE weight: [num_experts=4, hidden_size=512, K_real=352]

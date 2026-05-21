@@ -118,7 +118,7 @@ try:
 except ImportError:
     _HAS_TRITON = False
 
-log = logging.getLogger("genesis.gemma4.kernels.g4_kpad_moe_gemm")
+log = logging.getLogger("genesis.model_compat.gemma4.kernels.g4_kpad_moe_gemm")
 
 __all__ = [
     "g4_kpad_moe_gemm",
