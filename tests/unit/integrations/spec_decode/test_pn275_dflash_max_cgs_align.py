@@ -358,3 +358,271 @@ class TestRegistryEntry:
         assert hasattr(
             apply_all, "apply_patch_pn275_dflash_max_cgs_align"
         )
+
+
+# ─── M2c: self-install at module-import (P103 pattern, spawn-safe) ─────
+
+
+class TestSelfInstallHelper:
+    """The helper that the text-patched self-install block calls at
+    module-import time. Each spawn worker re-executes the appended
+    block on every `import vllm.config.utils`, so the helper IS the
+    install mechanism that survives the spawn boundary.
+
+    The setattr-only apply() path (M2) only reaches APIServer +
+    EngineCore — worker processes spawn fresh Python interpreters
+    and never run our dispatcher. Confirmed empirically in the
+    P2_DFLASH_M4_Q27_SMOKE_FAIL_2026-05-21 receipt.
+    """
+
+    def _make_fake_globals(self, replace_fn):
+        """Synthesize the kind of module-globals dict that the
+        text-patched `vllm/config/utils.py` would pass to the helper
+        at module-import time."""
+        return {"replace": replace_fn}
+
+    def test_helper_no_env_returns_false(self, monkeypatch):
+        monkeypatch.delenv(
+            "GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN", raising=False,
+        )
+        p = _import_patch()
+        fake_globals = self._make_fake_globals(lambda *a, **kw: None)
+        result = p._genesis_pn275_install_at_import(fake_globals)
+        assert result is False
+        # globals must be untouched
+        assert getattr(
+            fake_globals["replace"], p._WRAPPED_ATTR, False,
+        ) is False
+
+    def test_helper_installs_wrap_when_env_set(self, monkeypatch):
+        monkeypatch.setenv(
+            "GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN", "1",
+        )
+        p = _import_patch()
+
+        def orig(inst, /, **kw):
+            return "ORIG"
+        fake_globals = self._make_fake_globals(orig)
+        result = p._genesis_pn275_install_at_import(fake_globals)
+        assert result is True
+        new_fn = fake_globals["replace"]
+        assert new_fn is not orig
+        assert getattr(new_fn, p._WRAPPED_ATTR, False) is True
+
+    def test_helper_returns_false_when_no_replace_symbol(
+        self, monkeypatch,
+    ):
+        """If the globals dict somehow lacks `replace` (interface
+        drift), helper must NOT raise — return False and keep
+        `vllm/config/utils.py` importable."""
+        monkeypatch.setenv(
+            "GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN", "1",
+        )
+        p = _import_patch()
+        result = p._genesis_pn275_install_at_import({})
+        assert result is False
+
+    def test_helper_idempotent_when_already_wrapped(self, monkeypatch):
+        monkeypatch.setenv(
+            "GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN", "1",
+        )
+        p = _import_patch()
+
+        def orig(inst, /, **kw):
+            return "ORIG"
+        fake_globals = self._make_fake_globals(orig)
+        p._genesis_pn275_install_at_import(fake_globals)
+        first_wrap = fake_globals["replace"]
+        # Second call must NOT double-wrap
+        result = p._genesis_pn275_install_at_import(fake_globals)
+        assert result is True
+        assert fake_globals["replace"] is first_wrap
+
+    def test_helper_never_raises(self, monkeypatch):
+        """Helper's try/except must swallow any exception so the
+        text-patched module always imports cleanly."""
+        monkeypatch.setenv(
+            "GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN", "1",
+        )
+        p = _import_patch()
+
+        # Pass an instance that doesn't behave like a normal mapping
+        class _BrokenGlobals:
+            def get(self, *a, **kw):
+                raise RuntimeError("simulated globals break")
+
+        # Should NOT raise — just return False
+        result = p._genesis_pn275_install_at_import(_BrokenGlobals())
+        assert result is False
+
+
+class TestSelfInstallTextPatch:
+    """The text-patched block appended to `vllm/config/utils.py` must
+    contain the env guard AND the helper call. The anchor must match
+    the exact upstream `replace()` function definition at the
+    documented dev371 SHA. Drift markers must be specific."""
+
+    def test_block_has_env_guard(self):
+        p = _import_patch()
+        block = p._PN275_SELF_INSTALL_BLOCK
+        assert "GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN" in block, (
+            "self-install block must check the env flag before "
+            "wrapping — operators who don't opt in must see zero "
+            "behavior change to vllm.config.utils.replace"
+        )
+
+    def test_block_calls_helper(self):
+        p = _import_patch()
+        block = p._PN275_SELF_INSTALL_BLOCK
+        assert "_genesis_pn275_install_at_import" in block, (
+            "self-install block must import + call the helper"
+        )
+        # Must pass globals() so the helper operates on the right namespace
+        assert "globals()" in block
+
+    def test_block_wrapped_in_try_except(self):
+        """If sndr_core isn't on sys.path (partial install, test env),
+        vllm/config/utils.py must still import cleanly."""
+        p = _import_patch()
+        block = p._PN275_SELF_INSTALL_BLOCK
+        assert "try:" in block
+        assert "except" in block
+
+    def test_anchor_matches_dev371_upstream_signature(self):
+        """The anchor IS the dev371 `replace()` function definition.
+        If upstream renames/reformats `replace`, this assertion fails
+        BEFORE the text-patch attempts to land on a drifted file."""
+        p = _import_patch()
+        anchor = p._PN275_SELF_INSTALL_ANCHOR
+        # Function signature line
+        assert (
+            "def replace(dataclass_instance: ConfigT, /, **kwargs)"
+            in anchor
+        )
+        # Final return is the splice point
+        assert "return cls(**dataclass_dict)" in anchor
+
+    def test_drift_marker_specific(self):
+        """Drift markers must reference the patch identifier so two
+        sibling Genesis patches on the same file don't collide."""
+        p = _import_patch()
+        block = p._PN275_SELF_INSTALL_BLOCK
+        # Must mention PN275 by name in the appended comment block
+        assert "PN275" in block
+
+    def test_make_self_install_text_patcher_against_temp_tree(
+        self, tmp_path, monkeypatch,
+    ):
+        """When given a temp vllm tree that contains the expected
+        anchor file, `_make_self_install_text_patcher()` must return
+        a TextPatcher object whose drift markers reference PN275."""
+        p = _import_patch()
+        cfg_dir = tmp_path / "config"
+        cfg_dir.mkdir()
+        # Synthesize a minimal vllm/config/utils.py containing the
+        # anchor exactly (so TextPatcher.find_anchor() can match).
+        (cfg_dir / "utils.py").write_text(
+            "# minimal stand-in\n"
+            "from typing import TypeVar\n"
+            "ConfigT = TypeVar('ConfigT')\n"
+            "ConfigType = TypeVar('ConfigType')\n"
+            "def is_init_field(cls, name): return True\n\n"
+            + p._PN275_SELF_INSTALL_ANCHOR
+        )
+        import vllm.sndr_core.detection.guards as guards
+        orig = guards.vllm_install_root
+        guards.vllm_install_root = lambda: tmp_path
+        try:
+            patcher = p._make_self_install_text_patcher()
+        finally:
+            guards.vllm_install_root = orig
+
+        assert patcher is not None
+        for m in patcher.upstream_drift_markers:
+            assert "PN275" in m or "self-install" in m, (
+                f"drift marker {m!r} too generic — risk of collision "
+                f"with sibling Genesis patches on the same file"
+            )
+
+    def test_make_self_install_returns_none_when_vllm_tree_missing(
+        self, monkeypatch,
+    ):
+        """On hosts without a resolvable vllm tree (torch-less CI,
+        partial install), the TextPatcher factory must return None
+        cleanly — apply() then falls back to the setattr-wrap step."""
+        p = _import_patch()
+        import vllm.sndr_core.detection.guards as guards
+        orig_root = guards.vllm_install_root
+        orig_resolve = (
+            __import__(
+                "vllm.sndr_core.detection.guards", fromlist=["resolve_vllm_file"],
+            ).resolve_vllm_file
+        )
+
+        def fake_resolve(_):
+            return None
+
+        monkeypatch.setattr(
+            "vllm.sndr_core.detection.guards.resolve_vllm_file", fake_resolve,
+        )
+        try:
+            patcher = p._make_self_install_text_patcher()
+        finally:
+            pass
+        assert patcher is None
+
+
+class TestSpawnSimulation:
+    """End-to-end simulation of a freshly spawned worker process
+    importing the (text-patched) `vllm/config/utils.py`. We simulate
+    what would happen when the appended self-install block runs at
+    module-import time in a fresh interpreter — independent of any
+    parent-process state."""
+
+    def test_spawn_worker_simulated_install(self, monkeypatch):
+        """Simulate: worker spawns → re-imports vllm.config.utils →
+        appended block runs → calls _genesis_pn275_install_at_import
+        on the fresh module's globals → wrapper installs in worker's
+        own module namespace. The wrap depends on NO parent state."""
+        monkeypatch.setenv(
+            "GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN", "1",
+        )
+        p = _import_patch()
+
+        # Synthetic fresh worker's `vllm.config.utils` module globals
+        def upstream_replace(instance, /, **kw):
+            # Mimic upstream behavior: rebuild from dict
+            return {"rebuilt": True, "kwargs": kw}
+
+        worker_globals = {"replace": upstream_replace}
+
+        # Worker imports config/utils.py → appended block fires →
+        # calls the helper. We invoke it directly to simulate.
+        result = p._genesis_pn275_install_at_import(worker_globals)
+        assert result is True
+        assert worker_globals["replace"] is not upstream_replace
+
+        # The installed wrap must have the marker
+        assert getattr(
+            worker_globals["replace"], p._WRAPPED_ATTR, False,
+        ) is True
+        # Original is stashed for revert
+        assert getattr(
+            worker_globals["replace"], p._ORIGINAL_ATTR,
+        ) is upstream_replace
+
+    def test_spawn_worker_no_env_no_install(self, monkeypatch):
+        """If the env isn't set in the spawned worker, the appended
+        block short-circuits — no wrap, original `replace` stays."""
+        monkeypatch.delenv(
+            "GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN", raising=False,
+        )
+        p = _import_patch()
+
+        def upstream_replace(instance, /, **kw):
+            return None
+        worker_globals = {"replace": upstream_replace}
+        result = p._genesis_pn275_install_at_import(worker_globals)
+        assert result is False
+        # `replace` unchanged
+        assert worker_globals["replace"] is upstream_replace

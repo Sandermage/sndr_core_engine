@@ -155,8 +155,144 @@ def _build_wrapper(original):
     return _wrapped
 
 
+def _genesis_pn275_install_at_import(module_globals: "dict") -> bool:
+    """Install the wrapper into a module-globals dict at module-import time.
+
+    Mirrors the P103 self-install pattern. Called from the text-patched
+    block appended at the bottom of ``vllm/config/utils.py``. Survives
+    ``VLLM_WORKER_MULTIPROC_METHOD=spawn`` because workers re-import
+    ``vllm.config.utils`` from disk and re-execute the appended block,
+    which then re-installs the wrapper in the fresh worker's module
+    namespace.
+
+    Args:
+        module_globals: ``globals()`` of ``vllm.config.utils`` (passed
+            by the text-patched call site). Must contain ``replace``.
+
+    Returns:
+        True if wrapper installed (or already installed; idempotent).
+        False if installation skipped (env not set, missing function,
+        etc.). Never raises — failures keep ``vllm.config.utils``
+        importable.
+    """
+    try:
+        import os as _os
+        if _os.environ.get(ENV_FLAG, "").strip().lower() not in _TRUTHY:
+            return False
+        original = module_globals.get(_TARGET_FN_NAME)
+        if original is None:
+            return False
+        if getattr(original, _WRAPPED_ATTR, False):
+            return True  # already wrapped (idempotent)
+        wrapped = _build_wrapper(original)
+        module_globals[_TARGET_FN_NAME] = wrapped
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+# ─── Text-patch block appended at the bottom of vllm/config/utils.py ───
+#
+# The block runs every time the module is imported — in the parent
+# APIServer, in the EngineCore subprocess, AND in every Worker_TP*
+# process spawned via VLLM_WORKER_MULTIPROC_METHOD=spawn. This is the
+# only mechanism that survives spawn semantics, because workers
+# re-import vllm modules from disk and a runtime setattr-wrap in the
+# parent does NOT propagate.
+
+_PN275_SELF_INSTALL_BLOCK = (
+    "\n\n"
+    "# ============================================================\n"
+    "# [Genesis PN275 self-install] — module-import-time hook\n"
+    "# ============================================================\n"
+    "# When GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN=1, wrap\n"
+    "# `replace` so that the rebuilt VllmConfig has\n"
+    "# compilation_config.max_cudagraph_capture_size aligned with\n"
+    "# max(cudagraph_capture_sizes) — dev371 cross-validator compat.\n"
+    "# Survives any startup mechanism (exec vllm serve, worker spawn).\n"
+    "# Lazy import — if vllm.sndr_core isn't on sys.path (test env,\n"
+    "# partial install), the try/except keeps this module importable.\n"
+    "try:\n"
+    "    import os as _genesis_pn275_os\n"
+    "    if _genesis_pn275_os.environ.get(\n"
+    "        \"GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN\", \"\"\n"
+    "    ).strip().lower() in (\"1\", \"true\", \"yes\", \"on\"):\n"
+    "        from vllm.sndr_core.integrations.spec_decode."
+    "pn275_dflash_max_cgs_align "
+    "import (\n"
+    "            _genesis_pn275_install_at_import as "
+    "_genesis_pn275_inst,\n"
+    "        )\n"
+    "        _genesis_pn275_inst(globals())\n"
+    "except Exception:  # noqa: BLE001\n"
+    "    # Never break vllm.config.utils import — Genesis is opt-in.\n"
+    "    pass\n"
+)
+
+# Anchor: the entire `replace` function definition in vllm/config/utils.py
+# at dev371 SHA bf610c2f56764e1b30bc6065f4ceace3d6e59036. We append the
+# self-install block immediately after the function's `return` line.
+_PN275_SELF_INSTALL_ANCHOR = (
+    "def replace(dataclass_instance: ConfigT, /, **kwargs) -> ConfigT:\n"
+    "    \"\"\"Like [`dataclasses.replace`]"
+    "(https://docs.python.org/3/library/dataclasses.html#dataclasses.replace),\n"
+    "    but compatible with Pydantic dataclasses which use "
+    "`pydantic.fields.Field` instead\n"
+    "    of `dataclasses.field`\"\"\"\n"
+    "    cls = type(dataclass_instance)\n"
+    "    dataclass_dict = dataclass_instance.__dict__\n"
+    "    dataclass_dict = {k: v for k, v in dataclass_dict.items() "
+    "if is_init_field(cls, k)}\n"
+    "    dataclass_dict.update(kwargs)\n"
+    "    return cls(**dataclass_dict)\n"
+)
+
+_PN275_SELF_INSTALL_REPLACEMENT = (
+    _PN275_SELF_INSTALL_ANCHOR + _PN275_SELF_INSTALL_BLOCK
+)
+
+_GENESIS_PN275_SELF_INSTALL_MARKER = (
+    "Genesis PN275 self-install hook (DFlash dev371 compat)"
+)
+
+
+def _make_self_install_text_patcher():
+    """Build the TextPatcher that appends the self-install block to
+    ``vllm/config/utils.py``. Returns None if vllm tree is not
+    resolvable (torch-less host, partial install)."""
+    from vllm.sndr_core.detection.guards import resolve_vllm_file
+    from vllm.sndr_core.core import TextPatch, TextPatcher
+
+    target = resolve_vllm_file("config/utils.py")
+    if target is None:
+        return None
+    return TextPatcher(
+        patch_name=(
+            "PN275 config/utils.py — self-install hook (DFlash dev371 compat)"
+        ),
+        target_file=str(target),
+        marker=_GENESIS_PN275_SELF_INSTALL_MARKER,
+        sub_patches=[
+            TextPatch(
+                name="pn275_self_install_at_utils_py_end",
+                anchor=_PN275_SELF_INSTALL_ANCHOR,
+                replacement=_PN275_SELF_INSTALL_REPLACEMENT,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=[
+            # Specific to our own insertion. Re-applies hit Layer 2
+            # IDEMPOTENT via the marker first.
+            "[Genesis PN275 self-install]",
+        ],
+    )
+
+
 def apply() -> tuple[str, str]:
-    """Install the wrapper on ``vllm.config.utils.replace``. Idempotent.
+    """Install PN275 on both the disk-resident vllm/config/utils.py
+    (durable; survives spawn workers) and the current process's
+    in-memory module (defense-in-depth; ensures immediate effect
+    in APIServer + EngineCore that already imported the module).
 
     Returns ``(status, reason)`` per dispatcher convention. Never
     raises — failure paths log and return ``("skipped", ...)`` so
@@ -170,30 +306,82 @@ def apply() -> tuple[str, str]:
             f"for the design rationale."
         )
 
+    # ─── Step 1: durable text-patch on vllm/config/utils.py ─────────
+    # This is what survives `exec vllm serve` + spawn workers. Workers
+    # re-import vllm.config.utils from disk and re-execute the appended
+    # self-install block, which re-installs the wrapper in the fresh
+    # worker's module namespace.
+    text_patch_status = "skipped"
+    text_patch_reason = "vllm tree not resolvable"
+    try:
+        from vllm.sndr_core.detection.guards import vllm_install_root
+        from vllm.sndr_core.core import TextPatchResult
+
+        if vllm_install_root() is not None:
+            patcher = _make_self_install_text_patcher()
+            if patcher is not None:
+                result, failure = patcher.apply()
+                if result in (
+                    TextPatchResult.APPLIED,
+                    TextPatchResult.IDEMPOTENT,
+                ):
+                    text_patch_status = (
+                        "applied" if result == TextPatchResult.APPLIED
+                        else "idempotent"
+                    )
+                    text_patch_reason = (
+                        "vllm/config/utils.py self-install hook "
+                        "appended (survives `exec vllm serve` + worker "
+                        "spawn)"
+                    )
+                else:
+                    text_patch_status = "skipped"
+                    text_patch_reason = (
+                        f"text-patch did not land: "
+                        f"{failure.reason if failure else 'unknown'} — "
+                        f"{failure.detail if failure and failure.detail else 'unknown'}"
+                    )
+    except Exception as e:  # noqa: BLE001
+        log.debug("[PN275] text-patch step non-fatal failure: %s", e)
+        text_patch_reason = f"text-patch raised: {e}"
+
+    # ─── Step 2: defense-in-depth setattr-wrap in current process ───
+    # Wraps the function in THIS process's vllm.config.utils module
+    # dict. Useful when:
+    #   * Anyone in the current process already imported vllm.config.utils
+    #     BEFORE the text-patch landed (the appended block ran on a
+    #     pre-patch import; subsequent imports would hit the cached
+    #     module). Setattr-wrap covers that gap.
+    #   * The current process is parent APIServer or EngineCore (which
+    #     don't re-import vllm.config.utils on demand — they cached it
+    #     long ago).
+    setattr_status = "skipped"
+    setattr_reason = "fallback skipped"
     try:
         mod = importlib.import_module(_TARGET_MODULE)
     except ImportError as e:
-        return "skipped", (
-            f"{_TARGET_MODULE} not importable: {e}. PN275 is a no-op "
-            f"on hosts without vllm.config.utils (e.g. torch-less CI)."
-        )
+        setattr_reason = f"vllm.config.utils not importable: {e}"
+    else:
+        original = getattr(mod, _TARGET_FN_NAME, None)
+        if original is None:
+            setattr_reason = (
+                f"{_TARGET_FN_NAME!r} not in {_TARGET_MODULE!r}"
+            )
+        elif getattr(original, _WRAPPED_ATTR, False):
+            setattr_status = "applied"
+            setattr_reason = "already wrapped in this process (idempotent)"
+        else:
+            wrapped = _build_wrapper(original)
+            setattr(mod, _TARGET_FN_NAME, wrapped)
+            setattr_status = "applied"
+            setattr_reason = (
+                f"in-process {_TARGET_FN_NAME} wrapped (defense-in-depth)"
+            )
 
-    original = getattr(mod, _TARGET_FN_NAME, None)
-    if original is None:
-        return "skipped", (
-            f"{_TARGET_MODULE}.{_TARGET_FN_NAME} not found — upstream "
-            f"may have moved the function. PN275 anchor drift; revisit."
-        )
-
-    if getattr(original, _WRAPPED_ATTR, False):
-        return "applied", "already wrapped (idempotent)"
-
-    wrapped = _build_wrapper(original)
-    setattr(mod, _TARGET_FN_NAME, wrapped)
     return "applied", (
-        f"{_TARGET_MODULE}.{_TARGET_FN_NAME} wrapped for VllmConfig "
-        f"compilation_config.max_cudagraph_capture_size alignment "
-        f"(dev371 cross-validator compat)"
+        f"PN275 applied: text-patch={text_patch_status} "
+        f"({text_patch_reason}); setattr={setattr_status} "
+        f"({setattr_reason})"
     )
 
 
