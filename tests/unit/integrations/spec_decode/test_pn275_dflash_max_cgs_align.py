@@ -618,6 +618,151 @@ class TestSelfInstallTextPatch:
         assert patcher is None
 
 
+class TestValidatorWaiverTextPatch:
+    """M2f — env-gated waiver of the dev371 cross-validator at
+    vllm/config/vllm.py:1709-1715. The setattr+text-patch on
+    utils.replace closes the replace-mediated entry point but NOT
+    the direct `vllm_config.__post_init__()` call that EngineCore
+    makes during `_perform_handshakes`. The validator is the single
+    chokepoint that catches both paths, so this surgical text-patch
+    converts the `raise ValueError(...)` to a `logger.warning(...)`
+    behind the same opt-in env. Env-off behavior is byte-identical
+    to upstream (the original raise is preserved verbatim in the
+    else branch of the inserted env check).
+    """
+
+    def test_anchor_matches_dev371_validator_block_verbatim(self):
+        """The anchor must match the dev371 upstream validator block
+        byte-for-byte (16-space indent, exact f-string formatting,
+        exact error message text). If upstream reformats this block,
+        this test fails BEFORE the text-patch tries to land."""
+        p = _import_patch()
+        anchor = p._PN275_VALIDATOR_WAIVER_ANCHOR
+        # Verify against the downloaded upstream source if available.
+        import os
+        upstream_path = "/tmp/dflash_investigation/vllm_config.py"
+        if os.path.exists(upstream_path):
+            upstream = open(upstream_path).read()
+            assert anchor in upstream, (
+                "anchor does NOT match upstream vllm/config/vllm.py "
+                "verbatim — text-patch would fail to land"
+            )
+        # Structural sanity: anchor includes both the outer if and
+        # the raise body
+        assert "cudagraph_capture_sizes is not None:" in anchor
+        assert "raise ValueError(" in anchor
+        assert "customized max_cudagraph_capture_size" in anchor
+        assert "cudagraph_capture_sizes(={valid_max_size})" in anchor
+
+    def test_replacement_env_off_path_preserves_original_raise(self):
+        """When env is unset/falsy, the inserted code falls through
+        to the original raise — byte-identical to upstream behavior.
+        This is the discipline requirement: env-off must be a no-op
+        relative to the upstream validator."""
+        p = _import_patch()
+        replacement = p._PN275_VALIDATOR_WAIVER_REPLACEMENT
+        # The else branch contains the exact original raise body
+        assert "else:" in replacement
+        # Original error message preserved verbatim in else branch
+        assert "raise ValueError(" in replacement
+        assert "customized max_cudagraph_capture_size" in replacement
+        assert "should be consistent with the max value of" in replacement
+
+    def test_replacement_env_on_path_uses_logger_warning(self):
+        """When env is truthy, raise downgraded to logger.warning.
+        Must use the existing `logger` symbol (vllm/config/vllm.py
+        has its own logger; we don't import a new one)."""
+        p = _import_patch()
+        replacement = p._PN275_VALIDATOR_WAIVER_REPLACEMENT
+        assert "logger.warning(" in replacement
+        # Warning message identifies PN275 for log audit
+        assert "[Genesis PN275]" in replacement
+
+    def test_replacement_env_check_uses_pn275_env_flag(self):
+        """The inserted env check must read the canonical PN275
+        env flag (no aliases, no broad operator escape hatches)."""
+        p = _import_patch()
+        replacement = p._PN275_VALIDATOR_WAIVER_REPLACEMENT
+        assert "GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN" in replacement
+        # Standard truthy set (matches the rest of the patch's parsing)
+        assert '"1", "true", "yes", "on"' in replacement
+
+    def test_replacement_does_not_use_broad_except(self):
+        """Discipline: M2f task spec forbids broad except wrapping
+        around the validator. The env check is `os.environ.get()`
+        which is non-throwing; no try/except needed and none allowed."""
+        p = _import_patch()
+        replacement = p._PN275_VALIDATOR_WAIVER_REPLACEMENT
+        # No try/except around the validator logic itself
+        assert "try:" not in replacement, (
+            "validator waiver must NOT wrap the env check in try/except "
+            "— operator's M2f discipline"
+        )
+        assert "except Exception" not in replacement
+        assert "except:" not in replacement
+
+    def test_validator_waiver_marker_is_pn275_specific(self):
+        p = _import_patch()
+        marker = p._GENESIS_PN275_VALIDATOR_WAIVER_MARKER
+        assert "PN275" in marker
+        # Distinct from the self-install marker so re-application
+        # on the same file (config/utils.py vs config/vllm.py) doesn't
+        # accidentally short-circuit
+        assert marker != p._GENESIS_PN275_SELF_INSTALL_MARKER
+
+    def test_make_validator_waiver_text_patcher_against_temp_tree(
+        self, tmp_path, monkeypatch,
+    ):
+        """When given a temp vllm tree that contains the expected
+        anchor in vllm/config/vllm.py, `_make_validator_waiver_text_patcher()`
+        must return a TextPatcher with PN275-specific drift markers."""
+        p = _import_patch()
+        cfg_dir = tmp_path / "config"
+        cfg_dir.mkdir()
+        # Synthesize a minimal vllm/config/vllm.py wrapping the anchor
+        # in plausible surrounding lines so TextPatcher.find_anchor()
+        # has full match context.
+        (cfg_dir / "vllm.py").write_text(
+            "# placeholder\n"
+            "import logging\n"
+            "logger = logging.getLogger(__name__)\n"
+            "\n"
+            "class VllmConfig:\n"
+            "    def _set_cudagraph_sizes(self):\n"
+            "        valid_max_size = 6\n"
+            "        if True:\n"
+            + p._PN275_VALIDATOR_WAIVER_ANCHOR
+            + "\n            return\n"
+        )
+        import vllm.sndr_core.detection.guards as guards
+        orig = guards.vllm_install_root
+        guards.vllm_install_root = lambda: tmp_path
+        try:
+            patcher = p._make_validator_waiver_text_patcher()
+        finally:
+            guards.vllm_install_root = orig
+
+        assert patcher is not None
+        for m in patcher.upstream_drift_markers:
+            assert "PN275" in m
+
+    def test_validator_waiver_returns_none_when_vllm_tree_missing(
+        self, monkeypatch,
+    ):
+        """Symmetric to the self-install factory: missing vllm tree
+        → None, no crash."""
+        p = _import_patch()
+
+        def fake_resolve(_):
+            return None
+
+        monkeypatch.setattr(
+            "vllm.sndr_core.detection.guards.resolve_vllm_file", fake_resolve,
+        )
+        patcher = p._make_validator_waiver_text_patcher()
+        assert patcher is None
+
+
 class TestSpawnSimulation:
     """End-to-end simulation of a freshly spawned worker process
     importing the (text-patched) `vllm/config/utils.py`. We simulate

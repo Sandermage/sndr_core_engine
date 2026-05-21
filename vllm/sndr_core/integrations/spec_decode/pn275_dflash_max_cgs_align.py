@@ -281,6 +281,134 @@ _GENESIS_PN275_SELF_INSTALL_MARKER = (
 )
 
 
+# ─── Validator waiver text-patch on vllm/config/vllm.py ───────────────
+#
+# After M2c+M2d+M2e closed the worker-side `replace()` chain, M4 retry #3
+# (receipt P2_DFLASH_M4_RETRY3_M2e_LAYERED_FAILURE_2026-05-21) showed a
+# new failure at EngineCore handshake: `_perform_handshakes` calls
+# `vllm_config.__post_init__()` DIRECTLY (not through utils.replace),
+# which runs `_set_cudagraph_sizes` and hits the SAME dev371 cross-
+# validator at vllm/config/vllm.py:1703-1715.
+#
+# Since the validator is the single chokepoint that ALL entry points
+# (replace-mediated + direct __post_init__) eventually pass through,
+# the smallest correct fix is to downgrade the `raise ValueError(...)`
+# to a `logger.warning(...)` UNDER OPERATOR OPT-IN only. Env-off
+# behavior is byte-identical to upstream (raise preserved verbatim in
+# the else branch).
+#
+# Scope discipline (per operator's M2f task spec):
+#   * Only this ONE specific raise block is touched
+#   * Behavior under env-off is preserved (the raise still fires)
+#   * No broader except-wrapping
+#   * P95 is NOT touched
+#   * Other validators in vllm/config/vllm.py untouched
+
+# Anchor: the exact raise block at vllm/config/vllm.py:1709-1715 (dev371
+# SHA bf610c2f56764e1b30bc6065f4ceace3d6e59036). 16-space indent (inside
+# the outer `if max != valid_max_size:` clause).
+_PN275_VALIDATOR_WAIVER_ANCHOR = (
+    "                if self.compilation_config.cudagraph_capture_sizes "
+    "is not None:\n"
+    "                    raise ValueError(\n"
+    "                        \"customized max_cudagraph_capture_size\"\n"
+    "                        f\"(={self.compilation_config."
+    "max_cudagraph_capture_size}) \"\n"
+    "                        \"should be consistent with the max value of \"\n"
+    "                        f\"cudagraph_capture_sizes(={valid_max_size})\"\n"
+    "                    )\n"
+)
+
+# Replacement: same outer `if cudagraph_capture_sizes is not None:` guard,
+# but inside it the raise becomes env-gated. When GENESIS_ENABLE_PN275_
+# DFLASH_MAX_CGS_ALIGN=1, a warning is emitted and the function continues
+# (line 1722 then auto-aligns max_cudagraph_capture_size = valid_max_size).
+# When the env is unset/falsy, the original raise fires verbatim.
+_PN275_VALIDATOR_WAIVER_REPLACEMENT = (
+    "                if self.compilation_config.cudagraph_capture_sizes "
+    "is not None:\n"
+    "                    # [Genesis PN275] dev371 compat: when explicitly "
+    "opted-in via\n"
+    "                    # GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN=1, "
+    "downgrade the\n"
+    "                    # raise to a warning so vllm auto-aligns max at "
+    "line 1722 below.\n"
+    "                    # Required for DFlash spec-decode on dev371 where "
+    "P95 (Marlin\n"
+    "                    # TP cudagraph cap) re-sets max=8 post-init while "
+    "P66 keeps\n"
+    "                    # cudagraph_capture_sizes at 6. Env-off behavior "
+    "is byte-\n"
+    "                    # identical to upstream — raise preserved verbatim "
+    "in the else.\n"
+    "                    import os as _genesis_pn275_os\n"
+    "                    if _genesis_pn275_os.environ.get(\n"
+    "                        \"GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN\","
+    " \"\"\n"
+    "                    ).strip().lower() in (\"1\", \"true\", \"yes\", "
+    "\"on\"):\n"
+    "                        logger.warning(\n"
+    "                            \"[Genesis PN275] customized "
+    "max_cudagraph_capture_size\"\n"
+    "                            \"(=%d) inconsistent with "
+    "max(cudagraph_capture_sizes)(=%d); \"\n"
+    "                            \"downgrading raise to warning per "
+    "PN275 opt-in\",\n"
+    "                            self.compilation_config."
+    "max_cudagraph_capture_size,\n"
+    "                            valid_max_size,\n"
+    "                        )\n"
+    "                    else:\n"
+    "                        raise ValueError(\n"
+    "                            \"customized max_cudagraph_capture_size\"\n"
+    "                            f\"(={self.compilation_config."
+    "max_cudagraph_capture_size}) \"\n"
+    "                            \"should be consistent with the max value "
+    "of \"\n"
+    "                            f\"cudagraph_capture_sizes(={valid_max_size}"
+    ")\"\n"
+    "                        )\n"
+)
+
+_GENESIS_PN275_VALIDATOR_WAIVER_MARKER = (
+    "Genesis PN275 validator waiver (env-gated raise→warning)"
+)
+
+
+def _make_validator_waiver_text_patcher():
+    """Build the TextPatcher that env-gates the
+    `max_cudagraph_capture_size` cross-validator at
+    ``vllm/config/vllm.py:1709-1715``. Returns None if vllm tree is
+    not resolvable (torch-less host, partial install)."""
+    from vllm.sndr_core.detection.guards import resolve_vllm_file
+    from vllm.sndr_core.core import TextPatch, TextPatcher
+
+    target = resolve_vllm_file("config/vllm.py")
+    if target is None:
+        return None
+    return TextPatcher(
+        patch_name=(
+            "PN275 config/vllm.py — env-gated validator waiver (DFlash "
+            "dev371 compat)"
+        ),
+        target_file=str(target),
+        marker=_GENESIS_PN275_VALIDATOR_WAIVER_MARKER,
+        sub_patches=[
+            TextPatch(
+                name="pn275_validator_waiver",
+                anchor=_PN275_VALIDATOR_WAIVER_ANCHOR,
+                replacement=_PN275_VALIDATOR_WAIVER_REPLACEMENT,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=[
+            # PN275-specific; collision-safe with P95's separate text
+            # patch on the same file.
+            "[Genesis PN275] dev371 compat",
+        ],
+    )
+
+
 def _make_self_install_text_patcher():
     """Build the TextPatcher that appends the self-install block to
     ``vllm/config/utils.py``. Returns None if vllm tree is not
@@ -370,6 +498,51 @@ def apply() -> tuple[str, str]:
         log.debug("[PN275] text-patch step non-fatal failure: %s", e)
         text_patch_reason = f"text-patch raised: {e}"
 
+    # ─── Step 1b: durable text-patch on vllm/config/vllm.py ─────────
+    # Env-gates the dev371 cross-validator at lines 1709-1715.
+    # Required because the validator fires from MULTIPLE entry points
+    # (replace-mediated rebuilds + EngineCore's direct `__post_init__`
+    # call during `_perform_handshakes`). The setattr wrap on
+    # utils.replace only catches the first; this validator waiver
+    # catches the second. Env-off behavior is byte-identical to
+    # upstream (the raise stays in the else branch of the inserted
+    # env check).
+    validator_status = "skipped"
+    validator_reason = "vllm tree not resolvable"
+    try:
+        from vllm.sndr_core.detection.guards import vllm_install_root
+        from vllm.sndr_core.core import TextPatchResult
+
+        if vllm_install_root() is not None:
+            patcher = _make_validator_waiver_text_patcher()
+            if patcher is not None:
+                result, failure = patcher.apply()
+                if result in (
+                    TextPatchResult.APPLIED,
+                    TextPatchResult.IDEMPOTENT,
+                ):
+                    validator_status = (
+                        "applied" if result == TextPatchResult.APPLIED
+                        else "idempotent"
+                    )
+                    validator_reason = (
+                        "vllm/config/vllm.py:1709-1715 raise→warning "
+                        "env-gated (covers direct __post_init__ entry "
+                        "points)"
+                    )
+                else:
+                    validator_status = "skipped"
+                    validator_reason = (
+                        f"validator text-patch did not land: "
+                        f"{failure.reason if failure else 'unknown'} — "
+                        f"{failure.detail if failure and failure.detail else 'unknown'}"
+                    )
+    except Exception as e:  # noqa: BLE001
+        log.debug(
+            "[PN275] validator text-patch step non-fatal failure: %s", e,
+        )
+        validator_reason = f"validator text-patch raised: {e}"
+
     # ─── Step 2: defense-in-depth setattr-wrap in current process ───
     # Wraps the function in THIS process's vllm.config.utils module
     # dict. Useful when:
@@ -404,8 +577,9 @@ def apply() -> tuple[str, str]:
             )
 
     return "applied", (
-        f"PN275 applied: text-patch={text_patch_status} "
-        f"({text_patch_reason}); setattr={setattr_status} "
+        f"PN275 applied: utils.replace text-patch={text_patch_status} "
+        f"({text_patch_reason}); vllm_config.py validator-waiver="
+        f"{validator_status} ({validator_reason}); setattr={setattr_status} "
         f"({setattr_reason})"
     )
 
