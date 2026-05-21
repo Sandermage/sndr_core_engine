@@ -14,7 +14,7 @@ kind: model
 id: qwen3.6-27b-int4-autoround-tq-k8v4           # canonical ID; <model-family>-<size>-<quant>-<kv-format>
 title: Qwen 3.6 27B INT4 Lorbus AutoRound + TurboQuant k8v4 KV
 maintainer: sandermage
-last_validated: '2026-05-11'
+last_validated: '2026-05-21'                     # P2.4d-Q27 dev371 smoke + canonical-flow validation
 license: apache-2.0
 
 # ─── Identity ──────────────────────────────────────────────────────────
@@ -61,8 +61,8 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
-  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d # current PROD baseline (Wave 9 dev338 — 27B tool-call PASS 2026-05-14)
-  reference_metrics_ref: tests/integration/baselines/27b_v11_wave9.json   # E22: realigned to actual filename
+  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5 # promoted 2026-05-21 (P2.4d-Q27) — dev371 smoke PASS + quick bench (decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
+  reference_metrics_ref: tests/integration/baselines/27b_v11_wave9.json   # NOTE: still the dev338 Wave 9 baseline. dev371 runtime evidence currently lives under sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md. A formal dev371 baseline JSON requires a full canonical bench cycle (genesis_bench_suite --quick + sustained methodology), captured separately when the rest of the Qwen family is promoted.
 
 # ─── Canonical patches matrix (52 entries) ─────────────────────────────
 patches:
@@ -182,6 +182,27 @@ patches:
 notes:
   - "27B hybrid GDN + TQ k8v4 + MTP K=3. Validated 2026-05-11 on 2× A5000."
   - "Phase 3 migration from a5000-2x-27b-int4-tq-k8v4 (2026-05-12)."
+  - "P2.4d-Q27 runtime pin promotion 2026-05-21: dev338 → dev371. First
+    cross-pin smoke that validated the canonical renderer flow end-to-end
+    (no sed override): hardware YAML pinned dev371 (commit 7d067bb1) →
+    renderer reads hw.runtime.docker.image verbatim (commit a3fa5265) →
+    rendered IMAGE = dev371. Backed by container boot PASS, /v1/models
+    served, two coherent text smokes (Paris + TCP/UDP, both factually
+    correct with constraints honored), and a 25-sample quick bench:
+    decode_TPOT 10.03 ms median (CV 15%), TTFT 111 ms median (CV 7.6%),
+    wall_TPS 81.6 mean. No `chunked_fwd … core_attn_out` ABI errors
+    across 4186-log-line dispatch surface. No TQ kernel/storage mismatch.
+    309 Genesis patches applied / 0 failed. Receipt:
+    sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md.
+    The quick bench is a correctness + workload-flow probe, NOT a full
+    canonical baseline replacement — reference_metrics_ref remains
+    pointed at the dev338 Wave 9 baseline file until a formal capture
+    is run. P103 wrapper **kwargs + core_attn_out bypass (commit
+    122c2576) is a hard prerequisite for this pin on hybrid_gdn_moe;
+    the chunked_fwd ABI grew a new kwarg between dev338 and dev371.
+    Q27-TQ only — qwen3.6-27b-dflash, 27b-int4-autoround-fp8kv,
+    35b-a3b-fp8-dflash, 7b-dense remain dev338 pending their own
+    per-model smoke."
 
 # ── patches_attribution (Phase A backfill, 2026-05-16) ─────────────────
 # Keyed by registry patch ID. Same taxonomy as qwen3.6-35b-a3b-fp8.yaml.
