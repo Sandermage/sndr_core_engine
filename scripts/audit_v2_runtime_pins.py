@@ -87,6 +87,49 @@ ALLOWED_MODELDEF_PINS = frozenset({
 GEMMA_PREFIX = "gemma-"
 QWEN_PREFIX = "qwen"
 
+# ─── DFlash dev371 hold (P2.DFlash 2026-05-21) ─────────────────────────
+#
+# Q27-DFlash dev371 re-smoke 2026-05-21 failed at the DFlash drafter's
+# `_create_draft_vllm_config()` step with a pydantic VllmConfig
+# cross-validation rejection:
+#
+#   Value error, customized max_cudagraph_capture_size(=8) should be
+#   consistent with the max value of cudagraph_capture_sizes(=6)
+#
+# Site: vllm/v1/spec_decode/dflash.py:74 → llm_base_proposer.py:1152
+#       → dataclasses.replace() → pydantic validator (new in dev371).
+#
+# dev338 did not enforce the cross-validation rule, so the mismatch
+# silently coexisted. dev371 rejects it, killing both worker processes
+# at engine init. This is an upstream regression, not a renderer / P103
+# issue.
+#
+# Until a Genesis-side compatibility patch lands (see design doc
+# sndr_private/planning/audits/P2_DFLASH_DEV371_INCOMPATIBILITY_DESIGN_2026-05-21_RU.md)
+# OR upstream relaxes the validator, DFlash ModelDefs are held at
+# dev338 *intentionally*. R-PIN-4 must NOT treat them as generic
+# migration debt — operators are NOT supposed to promote them yet.
+#
+# Symmetrically, R-PIN-4 must REJECT any DFlash ModelDef that gets
+# promoted to dev371 prematurely (without a compatibility-evidence
+# marker — flipping `DFLASH_DEV371_HOLD_LIFTED` to True is the future
+# release switch).
+
+DFLASH_STEM_MARKER = "dflash"   # any model stem containing this is DFlash
+
+DFLASH_DEV371_HOLD_LIFTED = False  # flip True only after Genesis fix lands
+
+DFLASH_HOLD_RECEIPT_PATH = (
+    "sndr_private/planning/bench_results/2026-05-21/"
+    "P2_Q27_DFLASH_DEV371_RESMOKE_FAIL_2026-05-21_RU.md"
+)
+
+DFLASH_HOLD_REASON_SHORT = (
+    "dev371 upstream pydantic VllmConfig validator rejects DFlash "
+    "draft config (max_cudagraph_capture_size != "
+    "max(cudagraph_capture_sizes))"
+)
+
 # A mutable image tag is anything ending in `:<word>` with no SHA suffix.
 # We allow `:nightly-<sha>` and digest-backed `@sha256:...` references.
 _BARE_MUTABLE_TAGS = ("nightly", "latest", "main", "stable", "dev")
@@ -321,16 +364,28 @@ def check_r_pin_3_render_parity() -> tuple[list[str], list[str]]:
     return errors, infos
 
 
+def _is_dflash_stem(stem: str) -> bool:
+    """Return True if a ModelDef stem belongs to the DFlash spec-decode
+    family. Stem-name match keeps the classifier transparent: any future
+    DFlash variant added to the registry is auto-classified."""
+    return DFLASH_STEM_MARKER in stem.lower()
+
+
 def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
-    """R-PIN-4: ModelDef pin migration status.
+    """R-PIN-4: ModelDef pin migration status with DFlash hold gate.
 
     Fails on:
       * missing `vllm_pin_required` field
       * value outside ALLOWED_MODELDEF_PINS
+      * a DFlash ModelDef promoted to dev371 while the project-wide
+        hold is in effect (DFLASH_DEV371_HOLD_LIFTED = False).
 
     Reports as info (NOT fail):
-      * per-model migration status across both pins
-      * count of Qwen models still on dev338 (next P2.4d candidates)
+      * per-family migration table across both pins
+      * non-DFlash Qwen models on dev338 → marked "P2.4d candidate"
+      * DFlash ModelDefs on dev338 → marked "intentional hold" (NOT a
+        migration candidate). Cite the hold reason + receipt path so
+        a future reader knows why these are pinned dev338 on purpose.
     """
     errors: list[str] = []
     infos: list[str] = []
@@ -340,6 +395,8 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
         "qwen": {"dev338": [], "dev371": [], "other": []},
         "unknown": {"dev338": [], "dev371": [], "other": []},
     }
+    dflash_d338: list[str] = []
+    dflash_d371: list[str] = []
 
     for yaml_path in sorted(MODEL_DIR.glob("*.yaml")):
         pin = _read_model_pin(yaml_path)
@@ -360,19 +417,37 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
                 f"validation) or correct the typo."
             )
             continue
-        # Classify
+        # Classify family
         if stem.startswith(GEMMA_PREFIX):
             family = "gemma"
         elif stem.startswith(QWEN_PREFIX):
             family = "qwen"
         else:
             family = "unknown"
+        is_dflash = _is_dflash_stem(stem)
         if "dev338" in pin:
             by_family[family]["dev338"].append(stem)
+            if is_dflash:
+                dflash_d338.append(stem)
         elif "dev371" in pin:
             by_family[family]["dev371"].append(stem)
+            if is_dflash:
+                dflash_d371.append(stem)
         else:
             by_family[family]["other"].append(stem)
+
+        # DFlash dev371 hold enforcement — fail if a DFlash ModelDef is
+        # promoted to dev371 while the project-wide hold is in effect.
+        if is_dflash and "dev371" in pin and not DFLASH_DEV371_HOLD_LIFTED:
+            errors.append(
+                f"{rel}: DFlash ModelDef promoted to dev371 while the "
+                f"P2.DFlash hold is active. {DFLASH_HOLD_REASON_SHORT}. "
+                f"DFlash ModelDefs must remain on dev338 until either a "
+                f"Genesis compatibility patch lands and "
+                f"DFLASH_DEV371_HOLD_LIFTED is flipped to True, or "
+                f"upstream relaxes the validator. See "
+                f"{DFLASH_HOLD_RECEIPT_PATH}."
+            )
 
     # Infos: per-family migration table.
     for family in ("gemma", "qwen", "unknown"):
@@ -386,9 +461,35 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
             f"other={len(other)}"
         )
         for stem in d371:
-            infos.append(f"  {stem} → dev371")
+            note = ""
+            if _is_dflash_stem(stem):
+                # Only reachable when DFLASH_DEV371_HOLD_LIFTED is True
+                # (else it was an error above), but tag it anyway so
+                # readers see the family designation.
+                note = "  (DFlash)"
+            infos.append(f"  {stem} → dev371{note}")
         for stem in d338:
-            infos.append(f"  {stem} → dev338  (P2.4d candidate)")
+            if _is_dflash_stem(stem):
+                infos.append(
+                    f"  {stem} → dev338  (DFlash hold — intentional, "
+                    f"NOT a P2.4d candidate)"
+                )
+            else:
+                infos.append(f"  {stem} → dev338  (P2.4d candidate)")
+
+    # Cross-cutting DFlash hold info block (always emitted when DFlash
+    # ModelDefs exist, regardless of family classification — operators
+    # reading the audit want a single place to see the hold status).
+    if dflash_d338 or dflash_d371:
+        infos.append("")
+        infos.append(
+            f"DFlash hold status: "
+            f"DFLASH_DEV371_HOLD_LIFTED={DFLASH_DEV371_HOLD_LIFTED}; "
+            f"intentional hold on dev338={len(dflash_d338)}, "
+            f"promoted to dev371={len(dflash_d371)}"
+        )
+        infos.append(f"DFlash hold reason: {DFLASH_HOLD_REASON_SHORT}")
+        infos.append(f"DFlash hold receipt: {DFLASH_HOLD_RECEIPT_PATH}")
 
     return errors, infos
 
