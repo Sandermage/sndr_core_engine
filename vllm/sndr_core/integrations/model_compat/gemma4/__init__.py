@@ -83,7 +83,10 @@ window per Phase 3 Bucket 7):
     Plus kernels: kernels/turboquant/g4_tq_* → attention/turboquant/kernels/
 
 Deferred (Bucket 4b, operator server-coordinated):
-  upstream_overlay_pr42637/ bind-mount overlay folder is still here;
+  Phase 2.4 (2026-05-22): PR42637 bind-mount overlay was the
+  last resident of integrations/gemma4/; it has been relocated to
+  integrations/attention/turboquant/overlays/pr42637/. Phase 2.5
+  will delete the now-empty integrations/gemma4/ directory.
   moving it requires synchronized cli/profile.py emitter +
   hand-written server launcher + P1.7d golden-substring assertions.
   Tracked under sndr_private/planning/audits/RELOCATION_DESIGN…§14.

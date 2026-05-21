@@ -18,7 +18,7 @@ REFERENCES
 ================================================================
 
   * Upstream PR: https://github.com/vllm-project/vllm/pull/42637
-  * Source: ``upstream_overlay_pr42637/triton_turboquant_store.py``.
+  * Source: ``overlays/pr42637/triton_turboquant_store.py``.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """

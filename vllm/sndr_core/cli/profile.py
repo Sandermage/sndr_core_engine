@@ -827,14 +827,14 @@ def render_profile_launcher(
     overlay_mounts = ""
     if has_overlay:
         overlay_mounts = """\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/turboquant_attn.py:${TGT}/v1/attention/backends/turboquant_attn.py:ro \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/triton_turboquant_decode.py:${TGT}/v1/attention/ops/triton_turboquant_decode.py:ro \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/triton_turboquant_store.py:${TGT}/v1/attention/ops/triton_turboquant_store.py:ro \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/turboquant_config.py:${TGT}/model_executor/layers/quantization/turboquant/config.py:ro \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/kv_cache_interface.py:${TGT}/v1/kv_cache_interface.py:ro \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/kv_cache_utils.py:${TGT}/v1/core/kv_cache_utils.py:ro \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/single_type_kv_cache_manager.py:${TGT}/v1/core/single_type_kv_cache_manager.py:ro \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/block_pool.py:${TGT}/v1/core/block_pool.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/turboquant_attn.py:${TGT}/v1/attention/backends/turboquant_attn.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/triton_turboquant_decode.py:${TGT}/v1/attention/ops/triton_turboquant_decode.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/triton_turboquant_store.py:${TGT}/v1/attention/ops/triton_turboquant_store.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/turboquant_config.py:${TGT}/model_executor/layers/quantization/turboquant/config.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/kv_cache_interface.py:${TGT}/v1/kv_cache_interface.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/kv_cache_utils.py:${TGT}/v1/core/kv_cache_utils.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/single_type_kv_cache_manager.py:${TGT}/v1/core/single_type_kv_cache_manager.py:ro \\
+  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/block_pool.py:${TGT}/v1/core/block_pool.py:ro \\
 """
 
     # Validation receipt comment block.

@@ -27,7 +27,7 @@ REFERENCES
 ================================================================
 
   * Upstream PR: https://github.com/vllm-project/vllm/pull/42637
-  * Source: ``upstream_overlay_pr42637/triton_turboquant_decode.py``.
+  * Source: ``overlays/pr42637/triton_turboquant_decode.py``.
   * Companions: G4_60b (attn overlay), G4_60d (store overlay).
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.

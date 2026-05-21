@@ -47,7 +47,7 @@ HOW TO BIND-MOUNT
 In launch script:
 
 ```bash
-OVL=${GENESIS_REPO}/vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637
+OVL=${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637
 docker run \
   -v ${OVL}/turboquant_attn.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/turboquant_attn.py:ro \
   -v ${OVL}/triton_turboquant_decode.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/ops/triton_turboquant_decode.py:ro \
@@ -88,7 +88,7 @@ REFERENCES
 ================================================================
 
   * Upstream PR: https://github.com/vllm-project/vllm/pull/42637
-  * Overlay sources: ``upstream_overlay_pr42637/turboquant_attn.py`` etc.
+  * Overlay sources: ``overlays/pr42637/turboquant_attn.py`` etc.
   * Companion loaders: G4_60c (decode kernel), G4_60d (store kernel).
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
@@ -156,7 +156,7 @@ def apply() -> tuple[str, str]:
             f"Overlay NOT active: TurboQuantAttentionImpl missing PR "
             f"#42637 methods {missing}. Bind-mount may not be in place. "
             f"Re-launch container with -v overlay flag (see "
-            f"upstream_overlay_pr42637/README.md)."
+            f"overlays/pr42637/README.md)."
         )
 
     _APPLIED = True

@@ -280,14 +280,14 @@ class TestStructuredProfileRender:
     def test_structured_pr42637_overlay_mounts_present(self, script):
         """structured profile enables G4_60a..k → render must mount the
         8 PR42637 overlay files."""
-        assert "upstream_overlay_pr42637/turboquant_attn.py" in script
-        assert "upstream_overlay_pr42637/kv_cache_utils.py" in script
-        assert "upstream_overlay_pr42637/block_pool.py" in script
+        assert "overlays/pr42637/turboquant_attn.py" in script
+        assert "overlays/pr42637/kv_cache_utils.py" in script
+        assert "overlays/pr42637/block_pool.py" in script
 
     def test_default_pr42637_overlay_mounts_absent(self):
         """default profile does NOT have G4_60a..k → no overlay mounts."""
         script = render_profile_launcher("gemma4-tq-default")
-        assert "upstream_overlay_pr42637" not in script
+        assert "overlays/pr42637" not in script
 
 
 # ─── P2.1 image pin routing tests ───────────────────────────────────────

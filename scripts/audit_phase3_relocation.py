@@ -89,10 +89,10 @@ ALLOWED_GEMMA4_STEMS = frozenset(set())
 
 # Subdirectories that may live under integrations/gemma4/.
 ALLOWED_GEMMA4_SUBDIRS = frozenset({
-    # Post-Phase-2.3 (2026-05-22): Gemma-only Triton kernels relocated to
-    # integrations/model_compat/gemma4/kernels/ alongside their consumer
-    # patches (G4_08, G4_10, G4_15, G4_24).
-    "upstream_overlay_pr42637",     # Bucket 4b — bind-mount overlay (Phase 2.4 target)
+    # Post-Phase-2.4 (2026-05-22): PR42637 bind-mount overlay relocated
+    # to integrations/attention/turboquant/overlays/pr42637/. All
+    # tracked content is out of integrations/gemma4/; Phase 2.5 will
+    # delete the directory itself and flip R1 to forbid it.
     "__pycache__",
 })
 

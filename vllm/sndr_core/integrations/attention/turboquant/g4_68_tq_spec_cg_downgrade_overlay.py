@@ -42,7 +42,7 @@ G4_68 is NOT a monkey-patch. It is a **marker verifier** that:
      workaround is configured.
 
 The actual cudagraph downgrade lives **inline** in the overlay source at
-`vllm/sndr_core/integrations/gemma4/upstream_overlay_pr42637/turboquant_
+`vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/turboquant_
 attn.py` (see the `[Genesis P65 v2 inlined for PR #42637 overlay]`
 comment block on `TurboQuantMetadataBuilder`). The raw-K/V continuation
 fix (PN256) lives in the same overlay inside `_prefill_attention()`.
@@ -109,7 +109,7 @@ DEPENDENCIES
     is mounted — by design. G4_68 then takes over reporting.
   * Pairs with PN256's raw-K/V continuation route inside the overlay
     (no separate patch ID; lives in
-    `upstream_overlay_pr42637/turboquant_attn.py` along with P65).
+    `overlays/pr42637/turboquant_attn.py` along with P65).
   * Pairs with PN253 stride-0 fix in the same overlay.
 
 ================================================================
