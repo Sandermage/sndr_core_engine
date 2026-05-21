@@ -316,8 +316,8 @@ def test_kv_cache_size_compression_ratio():
 
 def test_g4_19_patch_imports():
     """The G4_19 patch should be importable without errors."""
-    from vllm.sndr_core.integrations.gemma4 import (
-        g4_19_gemma4_turboquant_kv_cache as _patch,
+    from vllm.sndr_core.integrations.attention.turboquant import (
+        g4_19_turboquant_kv_cache as _patch,
     )
     assert hasattr(_patch, "apply")
     assert hasattr(_patch, "is_applied")
@@ -328,8 +328,8 @@ def test_g4_19_patch_imports():
 
 def test_g4_19_disabled_by_default():
     """Without env flag, apply() should return skipped."""
-    from vllm.sndr_core.integrations.gemma4 import (
-        g4_19_gemma4_turboquant_kv_cache as _patch,
+    from vllm.sndr_core.integrations.attention.turboquant import (
+        g4_19_turboquant_kv_cache as _patch,
     )
     import os
     # Make sure env is not set

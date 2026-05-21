@@ -80,36 +80,12 @@ STRUCTURED_PROFILE = (
 # the "would this same patch be applicable verbatim to a different
 # model that uses the same technical mechanism?" test on the Gemma side
 # (the answer is no — they are Gemma-specific by construction).
-ALLOWED_GEMMA4_STEMS = frozenset({
-    # Refusal guards
-    "g4_01_gemma4_ampere_fp8_block_guard",
-    "g4_02_gemma4_ampere_marlin_kdim_guard",
-    "g4_03_gemma4_ampere_non_causal_drafter_guard",
-    "g4_12_gemma4_fp8_e4nv_ampere_guard",
-    "g4_13_gemma4_per_token_head_kv_guard",
-    # Vendor backports
-    "g4_04_gemma4_awq_moe_keys_remap",
-    "g4_11_gemma4_chat_template_install",
-    # Deep fixes
-    "g4_07_gemma4_fp8_block_double_scale_fix",
-    "g4_08_gemma4_marlin_kdim_pad_fallback",
-    "g4_09_gemma4_swa_global_prefill_chunker",
-    "g4_10_gemma4_ampere_non_causal_attn_backend",
-    # Perf kernels (partial impl)
-    "g4_15_gemma4_fused_rmsnorm_route",
-    "g4_24_gemma4_fused_softcap_route",
-    # Compatibility
-    "g4_14_gemma4_tool_call_parser_pad_token",
-    "g4_16_gemma4_full_piecewise_cudagraph",
-    # Vision
-    "g4_17_gemma4_vision_tower_text_only_skip",
-    "g4_23_gemma4_vision_fp16_overflow_fix",
-    # Diagnostic
-    "g4_25_gemma4_rope_dual_base_freq_guard",
-    # Support modules (not patches)
-    "__init__",
-    "_gemma4_detect",
-})
+ALLOWED_GEMMA4_STEMS = frozenset(set())
+# Post-Phase-2.2 (2026-05-22): all 18 real G4 patches + _gemma4_detect +
+# __init__.py relocated to integrations/model_compat/gemma4/.
+# integrations/gemma4/ is now expected to contain ZERO .py files at the
+# root and only the remaining subdirs (kernels/ — Phase 2.3 target;
+# upstream_overlay_pr42637/ — Phase 2.4 target).
 
 # Subdirectories that may live under integrations/gemma4/.
 ALLOWED_GEMMA4_SUBDIRS = frozenset({

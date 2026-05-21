@@ -70,7 +70,7 @@ from __future__ import annotations
 from vllm.sndr_core.core import TextPatch, TextPatcher
 from vllm.sndr_core.detection.guards import resolve_vllm_file
 
-from ..gemma4._gemma4_detect import env_truthy
+from ..model_compat.gemma4._gemma4_detect import env_truthy
 
 GENESIS_G4_06_MARKER = (
     "Genesis G4_06 gemma4 v_head_size=0 for k_eq_v layers v1 "

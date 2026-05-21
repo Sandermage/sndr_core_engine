@@ -199,7 +199,7 @@ def apply() -> tuple[str, str]:
             _cfg = None
         if _cfg is not None:
             try:
-                from ..gemma4._gemma4_detect import is_gemma4_arch
+                from ..model_compat.gemma4._gemma4_detect import is_gemma4_arch
                 if is_gemma4_arch(_cfg):
                     return "skipped", (
                         "Gemma 4 architecture detected — PN96B auto-skips "

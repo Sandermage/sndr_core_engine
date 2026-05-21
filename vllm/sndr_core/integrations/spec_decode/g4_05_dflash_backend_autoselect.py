@@ -47,7 +47,7 @@ from __future__ import annotations
 from vllm.sndr_core.core import TextPatch, TextPatcher
 from vllm.sndr_core.detection.guards import resolve_vllm_file
 
-from ..gemma4._gemma4_detect import env_truthy
+from ..model_compat.gemma4._gemma4_detect import env_truthy
 
 GENESIS_G4_05_MARKER = (
     "Genesis G4_05 gemma4 DFlash drafter backend=None autoselect v1 "

@@ -53,7 +53,7 @@ from __future__ import annotations
 import logging
 import os
 
-from ...gemma4._gemma4_detect import env_truthy
+from ...model_compat.gemma4._gemma4_detect import env_truthy
 
 log = logging.getLogger("genesis.gemma4.g4_19b_tq_kv_spec")
 

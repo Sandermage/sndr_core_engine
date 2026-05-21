@@ -93,7 +93,7 @@ from __future__ import annotations
 import logging
 import os
 
-from ...gemma4._gemma4_detect import env_truthy, is_gemma4_arch
+from ...model_compat.gemma4._gemma4_detect import env_truthy, is_gemma4_arch
 
 log = logging.getLogger("genesis.gemma4.g4_19_turboquant_kv")
 

@@ -32,6 +32,7 @@ _FAMILY_TO_DIR = {
     "lora": "lora", "multimodal": "multimodal",
     "offload": "offload",        # PN102/PN104/PN105 — offload patches
     "streaming": "streaming",    # PN200/PN201/PN202/PN203 — streaming-architecture memory mgmt
+    "gemma4": "model_compat/gemma4",  # 18 Gemma-only model_compat patches (Phase 2.2 relocation)
 }
 
 

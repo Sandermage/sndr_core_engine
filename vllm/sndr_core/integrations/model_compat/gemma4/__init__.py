@@ -1,10 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """Genesis sndr_core — Gemma 4 model_compat namespace.
 
-After Phase 3 (relocation/cleanup, 2026-05-21), this package owns ONLY
-patches whose technical area of influence is genuinely Gemma-4-specific
-and cannot be re-homed under a shared technical bucket without losing
-meaning. Per the architectural invariant in
+Canonical location after Phase 2.2 of the production cleanup
+workstream (2026-05-22): ``integrations/model_compat/gemma4/``. The
+previous location ``integrations/gemma4/`` was retired together
+with the Phase 3 relocation shims; it now contains only the
+Gemma-only kernels (Phase 2.3 target) and the PR42637 overlay
+(Phase 2.4 target).
+
+This package owns ONLY patches whose technical area of influence
+is genuinely Gemma-4-specific and cannot be re-homed under a shared
+technical bucket without losing meaning. Per the architectural
+invariant in
 ``sndr_private/planning/audits/RELOCATION_DESIGN_2026-05-21_RU.md``
 §0.5 Rule 1, this folder is a small compatibility namespace, not a
 residual dumping ground.

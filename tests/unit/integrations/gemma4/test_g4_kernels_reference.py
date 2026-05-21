@@ -160,7 +160,7 @@ def test_g4_softcap_reference_inplace_out():
 
 
 def test_is_gemma4_arch_recognizes_known_names():
-    from vllm.sndr_core.integrations.gemma4._gemma4_detect import is_gemma4_arch
+    from vllm.sndr_core.integrations.model_compat.gemma4._gemma4_detect import is_gemma4_arch
     assert is_gemma4_arch("Gemma4ForConditionalGeneration")
     assert is_gemma4_arch("Gemma4ForCausalLM")
     assert is_gemma4_arch(["Gemma4ForCausalLM"])
@@ -172,7 +172,7 @@ def test_is_gemma4_arch_recognizes_known_names():
 
 
 def test_marlin_kdim_supported_python_vs_cpp_check():
-    from vllm.sndr_core.integrations.gemma4._gemma4_detect import marlin_kdim_supported
+    from vllm.sndr_core.integrations.model_compat.gemma4._gemma4_detect import marlin_kdim_supported
     # K=352 — fails BOTH because 352%128 != 0 AND 352%64 != 0
     assert not marlin_kdim_supported(352, strict_python_check=True)
     assert not marlin_kdim_supported(352, strict_python_check=False)
@@ -185,7 +185,7 @@ def test_marlin_kdim_supported_python_vs_cpp_check():
 
 
 def test_detect_fp8_block_format():
-    from vllm.sndr_core.integrations.gemma4._gemma4_detect import detect_fp8_block_format
+    from vllm.sndr_core.integrations.model_compat.gemma4._gemma4_detect import detect_fp8_block_format
 
     # Mock checkpoint config matching FP8_BLOCK signature
     class _Cfg:
@@ -206,7 +206,7 @@ def test_detect_fp8_block_format():
 
 
 def test_detect_non_causal_drafter():
-    from vllm.sndr_core.integrations.gemma4._gemma4_detect import detect_non_causal_drafter
+    from vllm.sndr_core.integrations.model_compat.gemma4._gemma4_detect import detect_non_causal_drafter
 
     class _Cfg:
         method = "eagle3"
