@@ -1,20 +1,30 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Verify relocation shims keep old import paths working.
+"""Verify Phase 3 relocation migration window is CLOSED.
 
-Plan reference: sndr_private/planning/audits/RELOCATION_DESIGN_2026-05-21_RU.md §4.6
-Created: Phase 3 bucket 1 (2026-05-21) — probes relocation from
-integrations/gemma4/ to integrations/spec_decode/probes/.
+History:
+  * Phase 3 (2026-05-21) relocated 41 runtime patches + 10 TurboQuant
+    kernels from ``integrations/gemma4/`` to their technical-area
+    owners (``spec_decode/probes/``, ``spec_decode/``, ``kv_cache/``,
+    ``attention/turboquant/``, ``attention/turboquant/kernels/``).
+  * During the migration window, 50 thin re-export shims kept the old
+    import paths resolving so external consumers (custom scripts,
+    notebooks, third-party plugins) could migrate without a hard
+    break.
+  * Phase 2 of production cleanup (2026-05-21, later) deletes the
+    shims after confirming no internal consumer still uses them. The
+    migration window is now CLOSED.
 
-Shim window: one release. Remove this file together with the shim
-files themselves once external imports have migrated.
+This test now enforces the closed state:
 
-Invariants enforced:
-  1. Old import path still resolves to a module (the shim).
-  2. New import path resolves to a module (the real implementation).
-  3. Old and new modules expose the same canonical attributes
-     (apply, is_applied, should_apply when present) by identity.
-  4. For registered patches: registry's apply_module points at the
-     NEW path, never at the shim.
+  1. Every shim path raises ``ModuleNotFoundError`` on import.
+  2. Every new path still resolves to a real module.
+  3. The registry's ``apply_module`` for every relocated patch points
+     at the new path (was true before; we re-pin the invariant).
+
+Adding a new shim relocation in the future re-opens the migration
+window and switches assertion 1 from "raises" back to "resolves" for
+that entry — but please don't. The technical-area-ownership refactor
+is intentional; introducing a parallel old-path-alias is regression.
 """
 from __future__ import annotations
 
@@ -22,7 +32,8 @@ import importlib
 
 import pytest
 
-# (old_path, new_path) — extend as later buckets land.
+# (old_shim_path, new_real_path) for every relocated module. Old must
+# raise ModuleNotFoundError; new must still resolve.
 PROBE_RELOCATIONS = [
     # Bucket 1: probes → spec_decode/probes/
     (
@@ -111,12 +122,13 @@ PROBE_RELOCATIONS = [
         "vllm.sndr_core.integrations.gemma4.g4_76_disable_drafter_kv_sharing",
         "vllm.sndr_core.integrations.spec_decode.g4_76_disable_drafter_kv_sharing",
     ),
-    # G4_78 retired (Bucket 3, superseded by P1.8 A2 declarative drafter_kv_sharing).
+    # G4_78 was retired during Bucket 3 (superseded by P1.8 A2 declarative
+    # drafter_kv_sharing). Its real module lives in _retired/.
     (
         "vllm.sndr_core.integrations.gemma4.g4_78_drafter_target_kv_bridge",
         "vllm.sndr_core.integrations._retired.g4_78_drafter_target_kv_bridge",
     ),
-    # Bucket 4: TurboQuant overlay → attention/turboquant/
+    # Bucket 4: TurboQuant patches → attention/turboquant/
     (
         "vllm.sndr_core.integrations.gemma4.g4_19_config_registry",
         "vllm.sndr_core.integrations.attention.turboquant.g4_19_config_registry",
@@ -193,25 +205,60 @@ PROBE_RELOCATIONS = [
         "vllm.sndr_core.integrations.gemma4.g4_69_skip_layers_native_backend",
         "vllm.sndr_core.integrations.attention.turboquant.g4_69_skip_layers_native_backend",
     ),
+    # Bucket 4 kernels: gemma4/kernels/turboquant/ → attention/turboquant/kernels/
+    (
+        "vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_cache",
+        "vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_codebook",
+        "vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_codebook",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packed_triton",
+        "vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packed_triton",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packed_wht_triton",
+        "vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packed_wht_triton",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_packing",
+        "vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_packing",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_read_triton",
+        "vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_read_triton",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_reference",
+        "vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_reference",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_rotor",
+        "vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_rotor",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_tight_triton",
+        "vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_tight_triton",
+    ),
+    (
+        "vllm.sndr_core.integrations.gemma4.kernels.turboquant.g4_tq_write_triton",
+        "vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_write_triton",
+    ),
 ]
 
-CANONICAL_ATTRS = ("apply", "is_applied", "should_apply")
-
-# Registered probe IDs (have PATCH_REGISTRY entries that must point at NEW path).
+# Registered patch IDs (have PATCH_REGISTRY entries that must point at NEW path).
 REGISTERED_AFTER_BUCKET_1 = {
     "PN262": "vllm.sndr_core.integrations.spec_decode.probes.pn262_flash_attn_drafter_trace",
     "PN262B": "vllm.sndr_core.integrations.spec_decode.probes.pn262b_kv_alloc_trace",
 }
 
-# Bucket 2: KV-cache patches with PATCH_REGISTRY entries that must point at NEW path.
 REGISTERED_AFTER_BUCKET_2 = {
     "G4_06": "vllm.sndr_core.integrations.kv_cache.g4_06_kv_proj_v_head_size_zero",
     "G4_18": "vllm.sndr_core.integrations.kv_cache.g4_18_per_layer_kv_page_size",
 }
 
-# Bucket 3: spec_decode drafter-routing patches + G4_78 retired.
-# G4_71B is newly-registered (was previously env-only). G4_78 is retired
-# and its apply_module points into _retired/.
 REGISTERED_AFTER_BUCKET_3 = {
     "G4_05":  "vllm.sndr_core.integrations.spec_decode.g4_05_dflash_backend_autoselect",
     "G4_71":  "vllm.sndr_core.integrations.spec_decode.g4_71_drafter_native_attn_backend",
@@ -224,8 +271,6 @@ REGISTERED_AFTER_BUCKET_3 = {
     "G4_78":  "vllm.sndr_core.integrations._retired.g4_78_drafter_target_kv_bridge",
 }
 
-# Bucket 4: TurboQuant patches with PATCH_REGISTRY entries that must point at NEW path.
-# G4_19C, G4_31, G4_32 are newly-registered (were previously env-only).
 REGISTERED_AFTER_BUCKET_4 = {
     "G4_19":  "vllm.sndr_core.integrations.attention.turboquant.g4_19_turboquant_kv_cache",
     "G4_19B": "vllm.sndr_core.integrations.attention.turboquant.g4_19b_tq_kv_spec_integration",
@@ -256,25 +301,21 @@ ALL_REGISTERED = {
 
 
 @pytest.mark.parametrize("old_path,new_path", PROBE_RELOCATIONS)
-def test_old_import_path_resolves(old_path, new_path):
-    """Old import path must continue to resolve during the shim window."""
-    old_mod = importlib.import_module(old_path)
-    new_mod = importlib.import_module(new_path)
-    for attr in CANONICAL_ATTRS:
-        if hasattr(new_mod, attr):
-            assert hasattr(old_mod, attr), (
-                f"shim {old_path} is missing attribute {attr!r} "
-                f"present on real module {new_path}"
-            )
-            assert getattr(old_mod, attr) is getattr(new_mod, attr), (
-                f"shim drift: {old_path}.{attr} is not the same object "
-                f"as {new_path}.{attr}"
-            )
+def test_old_shim_path_no_longer_resolves(old_path, new_path):
+    """Migration window CLOSED: the old shim path must NOT import."""
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module(old_path)
+
+
+@pytest.mark.parametrize("old_path,new_path", PROBE_RELOCATIONS)
+def test_new_real_path_resolves(old_path, new_path):
+    """The new technical-area path must still resolve cleanly."""
+    importlib.import_module(new_path)
 
 
 @pytest.mark.parametrize("patch_id,expected_path", ALL_REGISTERED.items())
 def test_registry_uses_new_path(patch_id, expected_path):
-    """Registry's apply_module must point at the new path, not the shim."""
+    """Registry's apply_module must point at the new (real) path."""
     from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
     spec = PATCH_REGISTRY[patch_id]
     assert spec["apply_module"] == expected_path, (
