@@ -59,6 +59,24 @@ versions:
 # ─── Canonical patches matrix (30 entries) ─────────────────────────────
 # DFlash family with TQ kernel optimizations dropped (no TQ KV here).
 patches:
+  # ── dev371 DFlash compatibility (required) ──
+  # PN275 closes the dev371 boot defect for DFlash spec_decode paths:
+  # P95 (Marlin TP cudagraph cap) sets max_cudagraph_capture_size=8
+  # post-init while P66 keeps cudagraph_capture_sizes at 6, producing
+  # a mid-rebuild desync that dev371's new cross-validator at
+  # vllm/config/vllm.py:1703-1715 rejects. PN275 ships a 3-layer fix:
+  #   (a) utils.replace text-patch self-install (catches workers'
+  #       _create_draft_vllm_config → replace() chain)
+  #   (b) vllm/config/vllm.py validator waiver (catches EngineCore's
+  #       _perform_handshakes → direct __post_init__ entry point)
+  #   (c) in-process setattr wrap (defense-in-depth for already-imported
+  #       module state in APIServer + EngineCore)
+  # Env-off behavior is byte-identical to upstream. Required for DFlash
+  # ModelDef pin promotion to dev371.
+  # Evidence: sndr_private/planning/bench_results/2026-05-21/
+  #   P2_DFLASH_M4_RETRY4_M2f_PASS_2026-05-21_RU.md (Q27-DFlash E2E PASS).
+  GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN: '1'
+
   # ── Core spec_decode + tool-call quality ──
   GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 — async-scheduler placeholder fix
   GENESIS_ENABLE_P60_GDN_NGRAM_FIX: '1'              # vllm#40738 (Phase 1) — GDN+ngram SSM state recovery
