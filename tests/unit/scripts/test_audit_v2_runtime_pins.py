@@ -315,32 +315,32 @@ class TestDFlashHoldGate:
         assert "max_cudagraph_capture_size" in mod.DFLASH_HOLD_REASON_SHORT
 
     def test_live_tree_dflash_dev338_is_p2_4d_candidate_after_m7(self):
-        """After M7 lifted the hold, the live laptop tree's two DFlash
-        ModelDefs (still on dev338 until M8 promotion commits land)
-        must be marked as ordinary 'P2.4d candidate' migration items
-        — NOT 'DFlash hold — intentional' (the pre-M7 annotation)."""
+        """After M7 lifted the hold AND M8-Q27 promoted Q27-DFlash to
+        dev371, the live laptop tree has only Q35-DFlash left on
+        dev338. It must be marked as an ordinary 'P2.4d candidate'
+        migration item — NOT 'DFlash hold — intentional' (the pre-M7
+        annotation)."""
         mod = _import_audit()
         errors, infos = mod.check_r_pin_4_modeldef_migration()
         assert errors == [], (
             f"R-PIN-4 must be clean on the live tree; got: {errors}"
         )
         joined = "\n".join(infos)
-        # Both DFlash models must appear as P2.4d candidates
-        assert (
-            "qwen3.6-27b-dflash → dev338  (P2.4d candidate)" in joined
-        ), f"27b-dflash must be P2.4d candidate after M7; got:\n{joined}"
+        # Q35-DFlash (still on dev338 until M8-Q35) must be P2.4d candidate
         assert (
             "qwen3.6-35b-a3b-fp8-dflash → dev338  (P2.4d candidate)"
             in joined
         ), f"35b-dflash must be P2.4d candidate after M7; got:\n{joined}"
-        # And they must NOT carry the pre-M7 "DFlash hold" tag
-        assert (
-            "qwen3.6-27b-dflash → dev338  (DFlash hold" not in joined
-        )
+        # And must NOT carry the pre-M7 "DFlash hold" tag
         assert (
             "qwen3.6-35b-a3b-fp8-dflash → dev338  (DFlash hold"
             not in joined
         )
+        # Q27-DFlash is now on dev371 (M8-Q27 commit) and must appear
+        # there with the (DFlash) family designation note
+        assert (
+            "qwen3.6-27b-dflash → dev371  (DFlash)" in joined
+        ), f"27b-dflash must appear on dev371 after M8-Q27; got:\n{joined}"
         # Cross-cutting block reflects lifted state
         assert "DFlash hold status:" in joined
         assert "DFLASH_DEV371_HOLD_LIFTED=True" in joined
@@ -353,16 +353,24 @@ class TestDFlashHoldGate:
     ):
         """Rollback safety: setting DFLASH_DEV371_HOLD_LIFTED back to
         False restores the pre-M7 'intentional hold' annotation on
-        DFlash dev338 entries. This is the operator's escape hatch
-        if a future regression surfaces."""
+        any DFlash dev338 entries that remain. After M8-Q27, only
+        Q35-DFlash is on dev338, so the rollback annotation must
+        appear on that entry. (Q27-DFlash on dev371 stays there
+        regardless — the rollback flag only affects classification
+        of dev338 DFlash entries, not retroactive demotion.)"""
         mod = _import_audit()
         monkeypatch.setattr(mod, "DFLASH_DEV371_HOLD_LIFTED", False)
-        _, infos = mod.check_r_pin_4_modeldef_migration()
-        joined = "\n".join(infos)
-        assert (
-            "qwen3.6-27b-dflash → dev338  (DFlash hold — intentional"
-            in joined
+        errors, infos = mod.check_r_pin_4_modeldef_migration()
+        # NOTE: with hold re-engaged AND a DFlash already on dev371,
+        # R-PIN-4 should error on that pre-existing dev371 promotion
+        # (defending the rollback semantics).
+        assert any("DFlash" in e and "dev371" in e for e in errors), (
+            "rollback to hold-active must surface the Q27-DFlash "
+            "dev371 promotion as a violation; this is the protection "
+            "the rollback flag provides"
         )
+        joined = "\n".join(infos)
+        # And Q35-DFlash (still on dev338) reverts to intentional-hold tag
         assert (
             "qwen3.6-35b-a3b-fp8-dflash → dev338  "
             "(DFlash hold — intentional"
