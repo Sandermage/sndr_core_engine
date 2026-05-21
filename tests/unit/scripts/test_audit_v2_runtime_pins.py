@@ -337,22 +337,37 @@ class TestDFlashHoldGate:
         assert "DFlash hold reason:" in joined
         assert "DFlash hold receipt:" in joined
 
-    def test_non_dflash_qwen_dev338_remains_migration_candidate(self):
-        """Non-DFlash Qwen models on dev338 (currently only 7b-dense
-        after P2.4d-Q35, P2.4d-Q27, P2.4d-Q27-FP8KV promotions) must
-        still be marked as 'P2.4d candidate'. The DFlash hold logic
-        must NOT bleed into the non-DFlash family.
+    def test_non_dflash_non_placeholder_qwen_dev338_uses_p2_4d_tag(
+        self, tmp_path, monkeypatch,
+    ):
+        """Any non-DFlash, non-placeholder Qwen ModelDef on dev338
+        must be marked as 'P2.4d candidate'. The DFlash hold and
+        placeholder hold logic must NOT bleed into the generic
+        migration-candidate family.
 
-        This assertion intentionally pins on the current live tree
-        state — when a future P2.4d-Q7B-dense lands, the test should
-        be retargeted at whichever Qwen ModelDef is the next
-        non-DFlash candidate. If no non-DFlash candidate remains,
-        the test should be retired."""
+        Live tree note: as of 2026-05-21 the only remaining Qwen
+        dev338 entries are DFlash holds (2) + Q7B placeholder (1);
+        there are no generic P2.4d candidates left. We use a
+        synthetic fixture so the test stays meaningful even when the
+        live tree has zero candidates."""
         mod = _import_audit()
-        _, infos = mod.check_r_pin_4_modeldef_migration()
+        fake_models = tmp_path / "model"
+        fake_models.mkdir()
+        (fake_models / "qwen3.6-99b-synthetic.yaml").write_text(
+            "schema_version: 2\n"
+            "kind: model\n"
+            "id: synthetic\n"
+            "title: Synthetic non-DFlash non-placeholder\n"
+            "maintainer: test\n"
+            "versions:\n"
+            "  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d\n"
+        )
+        monkeypatch.setattr(mod, "MODEL_DIR", fake_models)
+        errors, infos = mod.check_r_pin_4_modeldef_migration()
+        assert errors == []
         joined = "\n".join(infos)
         assert (
-            "qwen3.6-7b-dense → dev338  (P2.4d candidate)" in joined
+            "qwen3.6-99b-synthetic → dev338  (P2.4d candidate)" in joined
         )
 
     def test_dflash_promoted_to_dev371_fails_while_hold_active(
@@ -438,6 +453,106 @@ class TestDFlashHoldGate:
         monkeypatch.setattr(mod, "DFLASH_DEV371_HOLD_LIFTED", True)
         errors, _ = mod.check_r_pin_4_modeldef_migration()
         assert errors == []
+
+
+class TestPlaceholderHold:
+    """P2.Q7B placeholder hold — R-PIN-4 distinguishes ModelDefs that
+    cannot be smoked at all (no checkpoint on the rig) from generic
+    migration candidates.
+
+    Q7B-dense is the documented example: its `model_path:` comment
+    self-declares "placeholder dense small-class checkpoint" and the
+    server's `/nfs/genesis/models/` has no `Qwen3.6-7B-*` directory.
+    Trying to boot it on dev371 fails at vllm engine-arg parse with
+    an `OSError`, long before any dev371 code path runs — see
+    P2_Q7B_DENSE_DEV371_SMOKE_NOTRUN_2026-05-21_RU.md.
+
+    These tests pin the audit annotation so a future reader of the
+    migration table sees "checkpoint not deployed" instead of
+    "P2.4d candidate" (which would imply it's actionable).
+    """
+
+    def test_q7b_in_known_placeholder_set(self):
+        mod = _import_audit()
+        assert "qwen3.6-7b-dense" in mod.KNOWN_PLACEHOLDER_MODELDEFS
+        assert mod.PLACEHOLDER_RECEIPT_PATH.endswith(
+            "P2_Q7B_DENSE_DEV371_SMOKE_NOTRUN_2026-05-21_RU.md"
+        )
+
+    def test_live_tree_q7b_marked_placeholder_not_candidate(self):
+        """The live laptop tree must mark Q7B-dense with the
+        placeholder annotation, NOT the generic 'P2.4d candidate'
+        annotation. Cross-cutting info block must list it."""
+        mod = _import_audit()
+        errors, infos = mod.check_r_pin_4_modeldef_migration()
+        assert errors == []
+        joined = "\n".join(infos)
+        assert (
+            "qwen3.6-7b-dense → dev338  (placeholder ModelDef" in joined
+        )
+        assert (
+            "qwen3.6-7b-dense → dev338  (P2.4d candidate)" not in joined
+        )
+        assert "Placeholder hold status:" in joined
+        assert "Placeholder receipt:" in joined
+
+    def test_placeholder_set_does_not_collide_with_dflash(self):
+        """A ModelDef in KNOWN_PLACEHOLDER_MODELDEFS must not also be
+        a DFlash stem. The two hold categories are independent —
+        prevent accidental dual-classification in the future."""
+        mod = _import_audit()
+        for stem in mod.KNOWN_PLACEHOLDER_MODELDEFS:
+            assert not mod._is_dflash_stem(stem), (
+                f"{stem!r} is in BOTH KNOWN_PLACEHOLDER_MODELDEFS and "
+                f"the DFlash stem pattern; pick one classification"
+            )
+
+    def test_placeholder_dev338_no_error(self, tmp_path, monkeypatch):
+        """A known placeholder ModelDef on dev338 must NOT fail R-PIN-4.
+        It's a legitimate hold state, not a violation."""
+        mod = _import_audit()
+        fake_models = tmp_path / "model"
+        fake_models.mkdir()
+        (fake_models / "qwen3.6-7b-dense.yaml").write_text(
+            "schema_version: 2\n"
+            "kind: model\n"
+            "id: q7b\n"
+            "title: Q7B\n"
+            "maintainer: test\n"
+            "versions:\n"
+            "  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d\n"
+        )
+        monkeypatch.setattr(mod, "MODEL_DIR", fake_models)
+        errors, infos = mod.check_r_pin_4_modeldef_migration()
+        assert errors == []
+        joined = "\n".join(infos)
+        assert "placeholder ModelDef" in joined
+
+    def test_unknown_stem_on_dev338_still_generic_candidate(
+        self, tmp_path, monkeypatch,
+    ):
+        """A ModelDef NOT in the placeholder set and NOT DFlash must
+        still be marked as 'P2.4d candidate'. Negative test ensures
+        the placeholder logic doesn't accidentally swallow legitimate
+        candidates."""
+        mod = _import_audit()
+        fake_models = tmp_path / "model"
+        fake_models.mkdir()
+        (fake_models / "qwen3.6-new-variant.yaml").write_text(
+            "schema_version: 2\n"
+            "kind: model\n"
+            "id: nv\n"
+            "title: New Variant\n"
+            "maintainer: test\n"
+            "versions:\n"
+            "  vllm_pin_required: 0.20.2rc1.dev338+gbf0d2dc6d\n"
+        )
+        monkeypatch.setattr(mod, "MODEL_DIR", fake_models)
+        _, infos = mod.check_r_pin_4_modeldef_migration()
+        joined = "\n".join(infos)
+        assert (
+            "qwen3.6-new-variant → dev338  (P2.4d candidate)" in joined
+        )
 
 
 class TestCli:

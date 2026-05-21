@@ -130,6 +130,36 @@ DFLASH_HOLD_REASON_SHORT = (
     "max(cudagraph_capture_sizes))"
 )
 
+# ─── Placeholder ModelDef hold (P2.Q7B 2026-05-21) ─────────────────────
+#
+# Some ModelDefs in the registry are reference-only placeholders — they
+# declare a `model_path:` pointing at a checkpoint that is not actually
+# present on the operator's rig. Q7B-dense is the documented example
+# (its own model_path comment says "placeholder dense small-class
+# checkpoint"). Smoking such a ModelDef on dev371 is structurally
+# impossible: vllm aborts at engine arg parse with an OSError before
+# any dev371 code path runs.
+#
+# These ModelDefs are NOT migration debt — they cannot be promoted in
+# either direction until the operator arranges a checkpoint and
+# completes a real smoke. R-PIN-4 marks them with an explicit
+# "placeholder" annotation rather than the generic "P2.4d candidate"
+# tag, so the migration table doesn't pretend they're actionable.
+
+KNOWN_PLACEHOLDER_MODELDEFS = frozenset({
+    # ModelDefs intentionally registered as references but without a
+    # deployed checkpoint on the validation rig. Add here only when a
+    # smoke confirms the checkpoint is missing AND the ModelDef itself
+    # self-declares placeholder status. Removing an entry requires the
+    # operator to first arrange the checkpoint and re-run the smoke.
+    "qwen3.6-7b-dense",   # see P2_Q7B_DENSE_DEV371_SMOKE_NOTRUN_2026-05-21
+})
+
+PLACEHOLDER_RECEIPT_PATH = (
+    "sndr_private/planning/bench_results/2026-05-21/"
+    "P2_Q7B_DENSE_DEV371_SMOKE_NOTRUN_2026-05-21_RU.md"
+)
+
 # A mutable image tag is anything ending in `:<word>` with no SHA suffix.
 # We allow `:nightly-<sha>` and digest-backed `@sha256:...` references.
 _BARE_MUTABLE_TAGS = ("nightly", "latest", "main", "stable", "dev")
@@ -474,6 +504,11 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
                     f"  {stem} → dev338  (DFlash hold — intentional, "
                     f"NOT a P2.4d candidate)"
                 )
+            elif stem in KNOWN_PLACEHOLDER_MODELDEFS:
+                infos.append(
+                    f"  {stem} → dev338  (placeholder ModelDef — "
+                    f"checkpoint not deployed; NOT a P2.4d candidate)"
+                )
             else:
                 infos.append(f"  {stem} → dev338  (P2.4d candidate)")
 
@@ -490,6 +525,27 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
         )
         infos.append(f"DFlash hold reason: {DFLASH_HOLD_REASON_SHORT}")
         infos.append(f"DFlash hold receipt: {DFLASH_HOLD_RECEIPT_PATH}")
+
+    # Cross-cutting placeholder hold info block (only when one or more
+    # known placeholder ModelDefs are present in the live tree).
+    present_placeholders = sorted(
+        stem for stems in (by_family["gemma"]["dev338"],
+                           by_family["qwen"]["dev338"],
+                           by_family["unknown"]["dev338"])
+        for stem in stems
+        if stem in KNOWN_PLACEHOLDER_MODELDEFS
+    )
+    if present_placeholders:
+        infos.append("")
+        infos.append(
+            f"Placeholder hold status: "
+            f"{len(present_placeholders)} ModelDef(s) registered as "
+            f"placeholders (checkpoint not deployed). Promotion blocked "
+            f"until operator arranges the checkpoint and a smoke passes."
+        )
+        for stem in present_placeholders:
+            infos.append(f"  {stem}")
+        infos.append(f"Placeholder receipt: {PLACEHOLDER_RECEIPT_PATH}")
 
     return errors, infos
 
