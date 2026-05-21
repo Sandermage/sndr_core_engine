@@ -86,3 +86,18 @@ repos:
         language: system
         pass_filenames: false
         files: '(vllm/sndr_core/integrations/.*\.py|tests/unit/integrations/.*\.py)$'
+
+      - id: genesis-audit-phase3-relocation
+        name: Genesis Phase 3 relocation audit (R1/R2/R3/R4)
+        # §0.5 architectural invariants:
+        #   R1  gemma4/ is small-compat namespace (whitelist enforced)
+        #   R2  registry apply_module never points at a relocation shim
+        #   R3  structured-profile envs are all in PATCH_REGISTRY
+        #   R4  no shell scripts / launcher subprocess calls under integrations/
+        # Fast (~100 ms), read-only, no torch import. Fires when
+        # integrations/, registry, structured profile, or the audit
+        # script itself changes.
+        entry: python3 scripts/audit_phase3_relocation.py
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/integrations/.*|vllm/sndr_core/dispatcher/registry\.py|vllm/sndr_core/model_configs/builtin/profile/.*\.yaml|scripts/audit_phase3_relocation\.py|tests/unit/scripts/test_audit_phase3_relocation\.py)$'

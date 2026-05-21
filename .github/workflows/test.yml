@@ -71,6 +71,17 @@ jobs:
         run: |
           python3 scripts/audit_registry_contract.py
 
+      - name: Phase 3 relocation invariants
+        # Enforces §0.5 architectural invariants on the post-Phase-3
+        # integrations/ tree:
+        #   R1 — gemma4/ is small-compat namespace (whitelist enforced)
+        #   R2 — registry apply_module never points at a relocation shim
+        #   R3 — structured-profile envs are all in PATCH_REGISTRY
+        #   R4 — no shell scripts / subprocess docker-run under integrations/
+        # See sndr_private/planning/audits/RELOCATION_DESIGN_2026-05-21_RU.md §0.5.
+        run: |
+          python3 scripts/audit_phase3_relocation.py
+
       - name: Lifecycle audit
         # Ensures no patch was added with an unknown lifecycle state.
         run: |

@@ -45,7 +45,10 @@ test-family: ## All 17 family contracts (~700 tests, covers 18/18 families)
 test-doc-sync: ## Doc-sync (patch counts consistent across 5 docs)
 	$(PYTHON) scripts/check_doc_sync.py --strict
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync ## Run all 4 CI gates fast-fail
+audit-phase3: ## Phase 3 relocation invariants (R1/R2/R3/R4)
+	$(PYTHON) scripts/audit_phase3_relocation.py
+
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 ## Run all 5 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
