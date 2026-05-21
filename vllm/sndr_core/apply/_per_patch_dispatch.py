@@ -1054,6 +1054,35 @@ def apply_patch_pn132_triton_topk_topp_contiguous() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN275 DFlash drafter VllmConfig max_cgs alignment (dev371 compat)")
+def apply_patch_pn275_dflash_max_cgs_align() -> PatchResult:
+    """PN275: dev371 compat overlay for the DFlash drafter
+    VllmConfig re-validation defect. Wraps vllm.config.utils.replace
+    so that when DFlash's `_create_draft_vllm_config` rebuilds the
+    parent VllmConfig, the desynchronized `max_cudagraph_capture_size`
+    vs `cudagraph_capture_sizes` produced by P95 is auto-aligned
+    BEFORE dev371's pydantic cross-validator fires.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN=1.
+    Required prerequisite for the eventual DFlash dev371 hold-lift.
+    """
+    name = "PN275 DFlash max_cgs align dev371 compat"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.spec_decode import (
+            pn275_dflash_max_cgs_align as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN133 MTP scheduler empty-output fix (vllm#42722)")
 def apply_patch_pn133_mtp_scheduler_empty_output() -> PatchResult:
     """PN133: backport vllm#42722 — fix permanently-stuck request
