@@ -910,7 +910,13 @@ def render_profile_launcher(
     inner_run.append(f'  --tensor-parallel-size {hw.hardware.n_gpus} \\')
     inner_run.append('  --disable-custom-all-reduce \\')
     inner_run.append(f'  --dtype {cfg.dtype} \\')
-    inner_run.append(f'  --kv-cache-dtype {cfg.kv_cache_dtype} \\')
+    # ModelDef may declare `kv_cache_dtype: null` to mean "use vLLM /
+    # model default" (DFlash head_size=256 path is the canonical case).
+    # An unconditional f-string would stringify Python's `None` and ship
+    # `--kv-cache-dtype None` to vllm, which rejects it at argparse.
+    # Omit the flag entirely when unset; let vllm pick its own default.
+    if cfg.kv_cache_dtype:
+        inner_run.append(f'  --kv-cache-dtype {cfg.kv_cache_dtype} \\')
     if attn_backend_arg:
         inner_run.append(attn_backend_arg.rstrip(' \\\n') + ' \\')
     inner_run.append(f'  --max-model-len {cfg.max_model_len} \\')

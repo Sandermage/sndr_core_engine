@@ -405,6 +405,117 @@ class TestP21ImagePinRouting:
             )
 
 
+# ─── KV-cache-dtype emission (DFlash precondition) ─────────────────────
+
+
+class TestKvCacheDtypeEmission:
+    """Q27-DFlash dev371 smoke 2026-05-21 failed at vllm argparse because
+    the renderer's unconditional f-string emitted `--kv-cache-dtype None`
+    when the ModelDef declared `kv_cache_dtype: null`.
+
+    Fix: when `cfg.kv_cache_dtype` is None / empty, omit the flag
+    entirely so vllm uses its model default. These tests pin the
+    behavior on both sides — DFlash profiles (null in ModelDef) must
+    NOT emit the flag, and TQ/structured profiles must continue to
+    emit their explicit dtype.
+    """
+
+    @staticmethod
+    def _kv_lines(script: str) -> list[str]:
+        return [ln for ln in script.splitlines()
+                if ln.strip().startswith("--kv-cache-dtype")]
+
+    def test_27b_dflash_omits_kv_cache_dtype(self):
+        """Q27-DFlash declares `kv_cache_dtype: null` → renderer omits
+        the flag entirely. The pre-fix rendered launcher was
+        `--kv-cache-dtype None`, which vllm argparse rejects."""
+        script = render_profile_launcher(
+            "27b-dflash",
+            hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+        )
+        assert "--kv-cache-dtype None" not in script, (
+            "renderer must NOT emit `--kv-cache-dtype None` — vllm "
+            "argparse rejects the literal string"
+        )
+        assert self._kv_lines(script) == [], (
+            "renderer must omit `--kv-cache-dtype` entirely when the "
+            "ModelDef declares null; let vllm pick its model default"
+        )
+
+    def test_35b_dflash_omits_kv_cache_dtype(self):
+        """Q35-A3B-FP8-DFlash also declares `kv_cache_dtype: null` for
+        the same DFlash head_size=256 constraint."""
+        script = render_profile_launcher(
+            "35b-dflash",
+            hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+        )
+        assert "--kv-cache-dtype None" not in script
+        assert self._kv_lines(script) == []
+
+    def test_35b_balanced_still_emits_turboquant_k8v4(self):
+        """Q35-balanced uses TQ k8v4 KV — the fix must NOT regress
+        explicit-dtype profiles."""
+        script = render_profile_launcher(
+            "35b-balanced",
+            hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+        )
+        assert "  --kv-cache-dtype turboquant_k8v4 \\" in script
+
+    def test_27b_tq_k8v4_still_emits_turboquant_k8v4(self):
+        script = render_profile_launcher(
+            "27b-tq-k8v4",
+            hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+        )
+        assert "  --kv-cache-dtype turboquant_k8v4 \\" in script
+
+    def test_gemma4_structured_still_emits_turboquant_4bit_nc(self):
+        script = render_profile_launcher(
+            "gemma4-tq-mtp-structured-k4",
+            hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+        )
+        assert "  --kv-cache-dtype turboquant_4bit_nc \\" in script
+
+    def test_rendered_dtype_matches_vllm_argparse_choices(self):
+        """When emitted, the dtype string must be one of vllm's
+        accepted choices (no Python sentinels, no typos). This is a
+        cross-cutting regression guard: a future profile that
+        accidentally serializes a non-string sentinel would fail this
+        check before the operator hits argparse on the server."""
+        # The set is a copy of what dev371's vllm CLI shipped (see
+        # P2_Q27_DFLASH_DEV371_SMOKE_RECEIPT). Add new TQ variants
+        # here when upstream / Genesis adds them.
+        VALID_DTYPES = {
+            "auto", "bfloat16", "float16",
+            "fp8", "fp8_ds_mla", "fp8_e4m3", "fp8_e5m2",
+            "fp8_inc", "fp8_per_token_head", "int8_per_token_head",
+            "nvfp4",
+            "turboquant_3bit_nc", "turboquant_4bit_nc",
+            "turboquant_k3v4_nc", "turboquant_k8v4",
+        }
+        for profile_id in (
+            "35b-balanced", "27b-tq-k8v4",
+            "gemma4-tq-mtp-structured-k4", "gemma4-tq-default",
+        ):
+            script = render_profile_launcher(
+                profile_id,
+                hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
+            )
+            kv_lines = self._kv_lines(script)
+            # Either omitted (null path) or exactly one valid choice
+            assert len(kv_lines) <= 1, (
+                f"{profile_id!r}: multiple --kv-cache-dtype lines"
+            )
+            if not kv_lines:
+                continue
+            # parse the value
+            value = kv_lines[0].strip().split()[1]
+            assert value in VALID_DTYPES, (
+                f"{profile_id!r}: rendered --kv-cache-dtype "
+                f"{value!r} not in vllm's accepted set "
+                f"{sorted(VALID_DTYPES)}"
+            )
+
+
 # ─── Backend mapping table tests ────────────────────────────────────────
 
 
