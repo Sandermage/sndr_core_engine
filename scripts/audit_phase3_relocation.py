@@ -73,28 +73,15 @@ STRUCTURED_PROFILE = (
 
 # ─── R1: Gemma whitelist ────────────────────────────────────────────────
 
-# Real Gemma-owned patches that may live in integrations/gemma4/.
-# These are refusal guards, vendor backports for Gemma-only config,
-# Gemma-only deep fixes, perf kernels (partial), compatibility shims,
-# vision-tower handling, and the dual-RoPE diagnostic. Each one fails
-# the "would this same patch be applicable verbatim to a different
-# model that uses the same technical mechanism?" test on the Gemma side
-# (the answer is no — they are Gemma-specific by construction).
-ALLOWED_GEMMA4_STEMS = frozenset(set())
-# Post-Phase-2.2 (2026-05-22): all 18 real G4 patches + _gemma4_detect +
-# __init__.py relocated to integrations/model_compat/gemma4/.
-# integrations/gemma4/ is now expected to contain ZERO .py files at the
-# root and only the remaining subdirs (kernels/ — Phase 2.3 target;
-# upstream_overlay_pr42637/ — Phase 2.4 target).
-
-# Subdirectories that may live under integrations/gemma4/.
-ALLOWED_GEMMA4_SUBDIRS = frozenset({
-    # Post-Phase-2.4 (2026-05-22): PR42637 bind-mount overlay relocated
-    # to integrations/attention/turboquant/overlays/pr42637/. All
-    # tracked content is out of integrations/gemma4/; Phase 2.5 will
-    # delete the directory itself and flip R1 to forbid it.
-    "__pycache__",
-})
+# Post-Phase-2.5 (2026-05-22): integrations/gemma4/ is forbidden.
+# Every previous occupant has been relocated to its technical-area
+# canonical home:
+#   * 18 real G4 patches + _gemma4_detect + __init__ → model_compat/gemma4/  (Phase 2.2)
+#   * 4 Gemma-only Triton kernels + kernels/__init__  → model_compat/gemma4/kernels/ (Phase 2.3)
+#   * 11-file PR42637 overlay subtree                 → attention/turboquant/overlays/pr42637/ (Phase 2.4)
+#   * 41 Phase-3 shims + 10 kernel shims              → deleted (Phase 2.1)
+# R1 now asserts the directory does NOT exist, instead of allowlisting
+# what is permitted inside.
 
 # Shim sentinel — the marker we put in the docstring of every
 # compatibility shim left at an old path during a relocation.
@@ -128,44 +115,31 @@ def _shim_target(path: Path) -> str | None:
 
 
 def check_r1_gemma_whitelist() -> list[str]:
-    """R1: every non-shim file in gemma4/ must be in ALLOWED_GEMMA4_STEMS."""
-    issues: list[str] = []
-    if not GEMMA4_DIR.is_dir():
-        return [f"R1: gemma4/ directory missing: {GEMMA4_DIR}"]
+    """R1: integrations/gemma4/ directory MUST NOT exist (Phase 2.5).
 
-    for entry in sorted(GEMMA4_DIR.iterdir()):
-        if entry.is_dir():
-            if entry.name not in ALLOWED_GEMMA4_SUBDIRS:
-                issues.append(
-                    f"R1: gemma4/{entry.name}/ — directory not in "
-                    f"ALLOWED_GEMMA4_SUBDIRS. Either add to whitelist "
-                    f"(if genuinely Gemma-only) or relocate."
-                )
-            continue
-        if entry.suffix != ".py":
-            continue
-        stem = entry.stem
-        if stem in ALLOWED_GEMMA4_STEMS:
-            continue
-        if _is_shim(entry):
-            # Shim of a relocated patch — allowed during migration window.
-            target = _shim_target(entry)
-            if target is None:
-                issues.append(
-                    f"R1: gemma4/{entry.name} is a shim but redirect "
-                    f"target could not be parsed. Verify the shim still "
-                    f"contains `from vllm.sndr_core.integrations.X "
-                    f"import *`."
-                )
-            continue
-        # Not in whitelist, not a shim — violation.
-        issues.append(
-            f"R1: gemma4/{entry.name} — stem {stem!r} is not in "
-            f"ALLOWED_GEMMA4_STEMS and the file is not a relocation "
-            f"shim. Either add to whitelist (if genuinely Gemma-only) "
-            f"or relocate to the appropriate technical-area family."
-        )
-    return issues
+    Phase 2.2..2.4 of the production cleanup workstream relocated
+    every tracked file out of integrations/gemma4/ to its
+    technical-area canonical home. Phase 2.5 (2026-05-22) deletes
+    the now-empty directory and flips this audit from "allowlist
+    permitted contents" to "the directory itself is forbidden".
+
+    Any reintroduction of the path (intentional or accidental — e.g.,
+    a future relocation revert, a fresh G4 patch landed in the wrong
+    family bucket, or a stray .DS_Store creating an inode) flips
+    this audit red so the regression is caught at the canonical
+    Genesis gate, not at boot.
+    """
+    if GEMMA4_DIR.exists():
+        return [
+            f"R1: integrations/gemma4/ exists at {GEMMA4_DIR} — "
+            f"this path is forbidden post-Phase-2.5. Every G4 patch / "
+            f"kernel / overlay belongs to a technical-area family "
+            f"(model_compat/gemma4/, attention/turboquant/overlays/, etc.). "
+            f"If you need to add something Gemma-specific, route it to "
+            f"the appropriate technical-area bucket; do not recreate "
+            f"this directory."
+        ]
+    return []
 
 
 # ─── R2: Canonical apply path ───────────────────────────────────────────
