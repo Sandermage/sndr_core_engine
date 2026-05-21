@@ -163,9 +163,9 @@ class TestWrapperBehavior:
         triggers the dev371 cross-validator. The only way to route
         the validator into its warning-only branch is to have
         `cudagraph_capture_sizes is None` at rebuild time. See M4
-        retry receipt 2026-05-21 for the empirical trace through
-        wrapper line 125 that proved source-only check is
-        insufficient."""
+        retry receipts 2026-05-21 — first via inner-replace, then
+        via object.__setattr__ direct-mutation after pydantic
+        rejected None for the typed list[int] field."""
         recorded, fake_replace = self._make_recorder()
         wrapper = _import_patch()._build_wrapper(fake_replace)
 
@@ -175,19 +175,19 @@ class TestWrapperBehavior:
         )
         vc = _FakeVllmConfig(cc)
         wrapper(vc, attention_config="ATTN")
-        # Two calls expected: 1) clear-sizes rebuild of cc,
-        # 2) outer VllmConfig replace with the cleared cc injected.
-        assert len(recorded) == 2
-        # First call clears cudagraph_capture_sizes
-        assert recorded[0]["instance"] is cc
-        assert recorded[0]["kwargs"] == {"cudagraph_capture_sizes": None}
-        # Second call sees the cleared compilation_config injected
-        outer_kwargs = recorded[1]["kwargs"]
-        assert "compilation_config" in outer_kwargs
-        injected_cc = outer_kwargs["compilation_config"]
-        assert injected_cc.cudagraph_capture_sizes is None
+        # Exactly one outer replace call. The wrapper mutates source's
+        # cc via object.__setattr__ before delegating; no inner
+        # replace recorded.
+        assert len(recorded) == 1
+        # The source's compilation_config now has sizes = None
+        assert cc.cudagraph_capture_sizes is None
+        # Outer call sees the mutated source via dataclass_instance
+        assert recorded[0]["instance"] is vc
         # Operator's attention_config kwarg preserved
-        assert outer_kwargs["attention_config"] == "ATTN"
+        assert recorded[0]["kwargs"]["attention_config"] == "ATTN"
+        # And compilation_config NOT injected as kwarg (mutation
+        # propagates via the source reference)
+        assert "compilation_config" not in recorded[0]["kwargs"]
 
     def test_empty_sizes_passes_through(self):
         recorded, fake_replace = self._make_recorder()
@@ -217,11 +217,15 @@ class TestWrapperBehavior:
 
     def test_desync_source_clears_sizes(self):
         """Canonical defect case: source has max=8 vs sizes=[..., 6].
-        Wrapper clears cudagraph_capture_sizes on the injected
-        compilation_config so vllm's `_set_cudagraph_sizes` auto-
-        recomputes both fields aligned. The validator at
-        vllm/config/vllm.py:1703-1715 sees cudagraph_capture_sizes=None
-        and routes through the warning-only branch."""
+        Wrapper directly mutates `source.compilation_config.cudagraph_capture_sizes`
+        to None via `object.__setattr__` (bypassing the pydantic
+        typed-field validator that rejects None for `list[int]`).
+        After this mutation, vllm's `_set_cudagraph_sizes` reaches
+        the rebuild with sizes=None on the source → auto-recomputes
+        them → validator at line 1703-1715 sees the just-recomputed
+        local list but `self.compilation_config.cudagraph_capture_sizes
+        is None` (the mutated source) → routes through the
+        warning-only branch instead of raising."""
         recorded, fake_replace = self._make_recorder()
         wrapper = _import_patch()._build_wrapper(fake_replace)
 
@@ -231,42 +235,58 @@ class TestWrapperBehavior:
         )
         vc = _FakeVllmConfig(cc)
         wrapper(vc, attention_config="ATTN")
-        # Two calls: 1) inner cc rebuild with sizes=None, 2) outer VllmConfig
-        assert len(recorded) == 2
-        # First call clears cudagraph_capture_sizes
-        assert recorded[0]["instance"] is cc
-        assert recorded[0]["kwargs"] == {"cudagraph_capture_sizes": None}
-        # Second call sees the cleared compilation_config injected
-        outer_kwargs = recorded[1]["kwargs"]
-        assert "compilation_config" in outer_kwargs
-        injected_cc = outer_kwargs["compilation_config"]
-        assert injected_cc.cudagraph_capture_sizes is None
+        # Exactly one outer replace call; mutation propagates via
+        # the shared source reference.
+        assert len(recorded) == 1
+        # The source's compilation_config now has sizes = None
+        assert cc.cudagraph_capture_sizes is None
+        # Outer call sees the mutated source
+        assert recorded[0]["instance"] is vc
         # Operator's attention_config kwarg preserved
-        assert outer_kwargs["attention_config"] == "ATTN"
+        assert recorded[0]["kwargs"]["attention_config"] == "ATTN"
+        # And compilation_config NOT injected as kwarg
+        assert "compilation_config" not in recorded[0]["kwargs"]
 
-    def test_alignment_failure_falls_through_to_original(self):
-        """If the inner clear-sizes call raises, the wrapper must NOT
-        propagate — fall through to the original outer call so pydantic
-        can surface the real error. Defense-in-depth."""
+    def test_setattr_failure_falls_through_to_original(self):
+        """If the source's compilation_config rejects the
+        `object.__setattr__` (e.g. slot-only class where the slot
+        doesn't exist for the target field), the wrapper must NOT
+        propagate the exception — fall through to the original outer
+        call so pydantic can surface the real error.
+        Defense-in-depth."""
         recorded = []
 
         def fake_replace(instance, /, **kwargs):
-            if isinstance(instance, _FakeCompilationConfig):
-                raise RuntimeError("simulated clear-sizes failure")
             recorded.append({"instance": instance, "kwargs": dict(kwargs)})
             return "ORIG_RESULT"
 
         wrapper = _import_patch()._build_wrapper(fake_replace)
-        cc = _FakeCompilationConfig(
-            max_cudagraph_capture_size=8,
-            cudagraph_capture_sizes=[1, 2, 4, 6],
-        )
-        vc = _FakeVllmConfig(cc)
+
+        # Slot-only class — object.__setattr__ on a non-existent slot
+        # raises AttributeError. Set initial slots via class definition.
+        class _SlottedCC:
+            __slots__ = (
+                "max_cudagraph_capture_size",
+                # NOTE: `cudagraph_capture_sizes` is intentionally
+                # NOT in __slots__ — object.__setattr__ on it raises.
+            )
+
+            def __init__(self):
+                self.max_cudagraph_capture_size = 8
+
+            # Make getattr return the read-only sizes (the wrapper
+            # reads cudagraph_capture_sizes via getattr).
+            @property
+            def cudagraph_capture_sizes(self):
+                return [1, 2, 4, 6]
+
+        slotted_cc = _SlottedCC()
+        vc = _FakeVllmConfig(slotted_cc)
         result = wrapper(vc, attention_config="ATTN")
+
         assert result == "ORIG_RESULT"
-        # Outer call was made; compilation_config NOT injected
+        # Outer call still happened (defense-in-depth fallthrough)
         assert len(recorded) == 1
-        assert "compilation_config" not in recorded[0]["kwargs"]
 
 
 # ─── apply() / is_applied() / revert() against a fake module ───────────

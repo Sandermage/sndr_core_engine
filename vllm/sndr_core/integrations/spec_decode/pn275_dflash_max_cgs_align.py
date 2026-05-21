@@ -136,14 +136,25 @@ def _build_wrapper(original):
         # is then recomputed from cudagraph_capture_sizes (still 6),
         # producing a mid-rebuild mismatch. The validator's escape
         # hatch is `cudagraph_capture_sizes is None` → only warns,
-        # does not raise. So clear sizes on the injected
-        # compilation_config; vllm will auto-recompute them inside
-        # `_set_cudagraph_sizes` (line 1648-1688) and align max at
-        # line 1722.
+        # does not raise. So clear sizes on the source's
+        # compilation_config BEFORE delegating to `original`; vllm will
+        # auto-recompute them inside `_set_cudagraph_sizes` (line
+        # 1648-1688) and align max at line 1722.
+        #
+        # We use `object.__setattr__` to bypass the pydantic dataclass
+        # typed-field validator (cudagraph_capture_sizes: list[int]
+        # rejects None on construction-time assignment, but raw
+        # __setattr__ writes through to __dict__ unconditionally).
+        # Mutating the source is acceptable because:
+        #   * the source is the worker process's own VllmConfig (spawn
+        #     created it from scratch); mutation does not propagate
+        #     back to the parent
+        #   * subsequent replaces in the DFlash chain see a fresh
+        #     compilation_config returned by vllm's rebuild (with
+        #     auto-recomputed sizes) — so this mutation only affects
+        #     THIS replace's rebuild
         try:
-            aligned_cc = original(
-                cc, cudagraph_capture_sizes=None,
-            )
+            object.__setattr__(cc, "cudagraph_capture_sizes", None)
         except Exception as e:  # noqa: BLE001
             # Never break the outer replace because alignment failed —
             # fall through to original and let pydantic surface the
@@ -155,12 +166,11 @@ def _build_wrapper(original):
             )
             return original(dataclass_instance, **kwargs)
 
-        kwargs["compilation_config"] = aligned_cc
         log.debug(
             "[PN275] VllmConfig replace pre-aligned: cleared "
-            "cudagraph_capture_sizes (was len=%d, max=%s) to route "
-            "validator into warning-only branch; vllm auto-recomputes "
-            "sizes + max during _set_cudagraph_sizes",
+            "compilation_config.cudagraph_capture_sizes (was len=%d, "
+            "max=%s) to route validator into warning-only branch; "
+            "vllm auto-recomputes sizes + max during _set_cudagraph_sizes",
             len(sizes), mx,
         )
         return original(dataclass_instance, **kwargs)
