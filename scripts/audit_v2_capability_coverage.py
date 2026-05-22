@@ -42,12 +42,30 @@ MODEL_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "mo
 # always allowed for optional capabilities. Path uses dot notation for
 # nested keys (e.g. `spec_decode.method`).
 
+# Phase 5.2.B (2026-05-22) — allowlists extended to cover the Gemma 4
+# workstream. The Gemma family does not share Qwen's attention
+# architecture or parser conventions, so its values were missing from
+# the original (Qwen-only) allowlist. Adding them is "audit semantics
+# catch up to production shape", not a relaxation of the contract —
+# every new value is an explicit canonical token used by a shipped
+# ModelDef under `builtin/model/gemma-4-*.yaml`.
+#
+# `auto` is the engine's "pick a sensible default" sentinel for
+# kv_cache_dtype — vLLM honors it natively and gemma-4 ModelDefs use
+# it to opt out of explicit fp8/fp16 selection.
 ALLOWED_CAPABILITIES: dict[str, frozenset] = {
-    "attention_arch":         frozenset({"dense", "hybrid_gdn_moe"}),
-    "tool_call_parser":       frozenset({"qwen3_coder"}),
-    "reasoning_parser":       frozenset({"qwen3"}),
+    "attention_arch":         frozenset({
+        "dense", "hybrid_gdn_moe",
+        "gemma4_dense", "gemma4_moe",
+    }),
+    "tool_call_parser":       frozenset({"qwen3_coder", "gemma4"}),
+    # `None` is the canonical value for ModelDefs without a thinking-tag
+    # parser (gemma-4 does not emit `</think>`-style traces). The
+    # docstring's "None is always allowed" promise is not auto-applied
+    # by the audit; explicit membership is required.
+    "reasoning_parser":       frozenset({"qwen3", None}),
     "kv_cache_dtype":         frozenset({
-        "fp8_e5m2", "fp8_e4m3", "turboquant_k8v4", "fp16", None,
+        "fp8_e5m2", "fp8_e4m3", "turboquant_k8v4", "fp16", "auto", None,
     }),
     "spec_decode.method":     frozenset({
         "mtp", "dflash", "ngram", None,

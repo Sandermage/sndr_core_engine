@@ -50,6 +50,12 @@ ALLOWED_LICENSES: frozenset[str] = frozenset({
     "gpl-3.0",
     "lgpl-3.0",
     "mpl-2.0",
+    # Project-local license tokens for non-SPDX checkpoints (Phase 5.2.B
+    # 2026-05-22). The V2 schema currently uses bare lowercase strings,
+    # not SPDX `LicenseRef-…` syntax, so a project-local token suffices.
+    # Promote to formal SPDX `LicenseRef-Gemma-Terms-of-Use` if/when the
+    # schema gains explicit support for that form.
+    "gemma-license",
 })
 
 
