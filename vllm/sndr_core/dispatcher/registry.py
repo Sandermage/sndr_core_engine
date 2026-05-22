@@ -4625,8 +4625,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Refuses the known-broken FP8_BLOCK + Ampere combo at process_weights_after_loading. Saves operators a 30-min cold-boot-to-garbage debug cycle.",
         "upstream_pr": "https://github.com/vllm-project/vllm/issues/39407",
         "requires_patches": [],
+        # Phase 5.3.C (2026-05-22): removed overloaded `superseded_by:
+        # ["G4_07"]`. G4_07 is an experimental alternative — not a
+        # supersessor in the canonical retire-on-merged-upstream sense.
+        # Mutual exclusion is fully expressed by `conflicts_with`.
         "conflicts_with": ["G4_07"],
-        "superseded_by": ["G4_07"],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
     },
     "G4_02": {
@@ -4643,8 +4646,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Refuses 26B-A4B + Ampere Marlin combo at apply_weights time. K=352 (704/2 at TP=2) fails Marlin's min_thread_k=64 divisibility.",
         "upstream_pr": "https://github.com/vllm-project/vllm/issues/40354",
         "requires_patches": [],
+        # Phase 5.3.C (2026-05-22): see G4_01 for rationale. G4_08 is an
+        # experimental alternative; `conflicts_with` carries the
+        # mutual-exclusion contract.
         "conflicts_with": ["G4_08"],
-        "superseded_by": ["G4_08"],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration"]},
     },
     "G4_03": {
@@ -4661,8 +4666,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Refuses Eagle3/DFlash drafter on Gemma 4 + Ampere — no Ampere backend supports head_dim=256 + non-causal.",
         "upstream_pr": "https://github.com/vllm-project/vllm/issues/40382",
         "requires_patches": [],
+        # Phase 5.3.C (2026-05-22): see G4_01 for rationale. G4_10 is an
+        # experimental alternative; `conflicts_with` carries the
+        # mutual-exclusion contract.
         "conflicts_with": ["G4_10"],
-        "superseded_by": ["G4_10"],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
     },
     "G4_04": {
@@ -4832,8 +4839,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Refuses 26B-A4B (sliding=8 KV-heads, full=2 KV-heads) at config-verify. Prevents silent quality regression from KV page-size mismatch.",
         "upstream_pr": "https://github.com/vllm-project/vllm/issues/40388",
         "requires_patches": [],
+        # Phase 5.3.C (2026-05-22): see G4_01 for rationale. G4_18 is an
+        # experimental alternative; `conflicts_with` carries the
+        # mutual-exclusion contract.
         "conflicts_with": ["G4_18"],
-        "superseded_by": ["G4_18"],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration"]},
     },
     "G4_14": {

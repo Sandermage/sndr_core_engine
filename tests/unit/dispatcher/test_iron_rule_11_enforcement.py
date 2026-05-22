@@ -77,16 +77,28 @@ _RETIRED_NO_SUPERSEDE_WAIVER = {
     # behaviorally wrong on this model class. Module kept on disk with
     # double-env-flag guard for future dense-attention experiments.
     "PN134": "bench-validated regressor: -25% TPS on hybrid_gdn_moe (2026-05-15)",
+    # G4_78 retired via internal architecture decision documented in
+    # backend_plan P1.8 A2 (drafter_kv_sharing=physical). No upstream
+    # version boundary applies — the supersessor is an internal
+    # spec_decode architecture choice, not a merged vllm PR. Phase 5.3.C
+    # (2026-05-22).
+    "G4_78": "internal architecture decision (drafter_kv_sharing=physical, P1.8 A2)",
 }
 
 
-# Legacy auto-apply patches (pre-dispatcher era, synthetic
-# GENESIS_LEGACY_* flags). Pin-gate adds no behavioral effect on these
-# because the legacy auto-apply path bypasses applies_to gating. The
-# wire detector handles their skip via upstream marker detection. We
-# permit them to carry superseded_by without vllm_version_range as a
-# cosmetic-only gap.
-_LEGACY_PIN_GATE_WAIVER = {"P4", "P12", "P26"}
+# Patches whose `superseded_by` value cannot be expressed as a vllm
+# version cut, so `vllm_version_range` is structurally inapplicable.
+# Two sub-classes:
+#   (a) Legacy auto-apply patches (pre-dispatcher era, synthetic
+#       GENESIS_LEGACY_* flags) — pin-gate adds no behavioral effect
+#       on these because the legacy path bypasses applies_to gating;
+#       the wire detector handles their skip via upstream marker
+#       detection. P4 / P12 / P26.
+#   (b) Patches superseded by an INTERNAL architecture decision
+#       (backend plan, internal evolution) rather than an upstream
+#       vllm commit. The `superseded_by` value is a free-form string,
+#       not a PR / commit / version. G4_78 (Phase 5.3.C 2026-05-22).
+_LEGACY_PIN_GATE_WAIVER = {"P4", "P12", "P26", "G4_78"}
 
 
 def _load_registry_entries() -> dict[str, str]:
@@ -198,11 +210,18 @@ class TestIronRuleEleven:
                 f"{pid} in waiver but lifecycle != 'retired' "
                 f"(actual: {_lifecycle(entries[pid])!r})"
             )
+        # Phase 5.3.C (2026-05-22): _LEGACY_PIN_GATE_WAIVER now covers
+        # two sub-classes (see waiver definition above):
+        #   (a) lifecycle='legacy' auto-apply patches
+        #   (b) lifecycle='retired' patches whose superseded_by is an
+        #       internal architecture decision (free-form string)
         for pid in _LEGACY_PIN_GATE_WAIVER:
             assert pid in entries, (
                 f"{pid} in _LEGACY_PIN_GATE_WAIVER but not in PATCH_REGISTRY"
             )
-            assert _lifecycle(entries[pid]) == "legacy", (
-                f"{pid} in legacy-waiver but lifecycle != 'legacy' "
-                f"(actual: {_lifecycle(entries[pid])!r})"
+            lc = _lifecycle(entries[pid])
+            assert lc in ("legacy", "retired"), (
+                f"{pid} in pin-gate waiver but lifecycle is {lc!r}; "
+                f"expected 'legacy' (auto-apply class) or 'retired' "
+                f"(internal-architecture supersession class)"
             )
