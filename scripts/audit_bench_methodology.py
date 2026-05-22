@@ -243,7 +243,12 @@ def _render_json(
     by_status: dict[str, int] = {}
     for r in results:
         by_status[r.status] = by_status.get(r.status, 0) + 1
-    passed = all(r.passed for r in results) and (results or allow_empty)
+    # `(results or allow_empty)` short-circuits to `results` (the list of
+    # ArtefactCheck dataclasses) when results is non-empty, which then
+    # leaks into the JSON payload via the `and` and crashes json.dumps
+    # with "Object of type ArtefactCheck is not JSON serializable". Force
+    # the right operand to bool so `passed` is always a bool.
+    passed = all(r.passed for r in results) and bool(results or allow_empty)
     payload = {
         "canonical_sha": canonical_sha,
         "total_artefacts": len(results),
