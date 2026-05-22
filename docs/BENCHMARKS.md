@@ -23,6 +23,17 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 | **Qwen3.6-27B-int4-AutoRound** (prod-27b-tq) | **130.90** | 7.37 ms | 3.0% | 7/7 | `genesis_bench_suite.py --quick` (5×5×1024) |
 | **Qwen3.6-35B-A3B-FP8** (prod-35b, max_num_seqs=2) | **219.04** | 4.24 ms | 7.2% | 7/7 | same harness |
 | **Qwen3.6-35B-A3B-FP8** (prod-35b-multiconc, max_num_seqs=8) | **672.27** agg | 33.81 ms | 1.2% | — | `tools/multi_conc_bench.py --conc 8 --rounds 5 --max-tok 1024` (non-stream aggregate) |
+| **Qwen3.6-27B-int4-AutoRound** (prod-27b-tq-multiconc, max_num_seqs=8) | **471.10** agg | 51.70 ms | 1.0% | — | same multi-conc harness (non-stream aggregate) |
+
+> Multi-conc rows measure non-stream aggregate throughput across 8 concurrent
+> requests (`tools/multi_conc_bench.py`). Decode TPOT is the streaming
+> per-request median (33.81 ms 35B vs 51.70 ms 27B reflects per-token
+> latency under contention, not per-stream throughput).
+> Single-stream rows use `genesis_bench_suite.py --quick` and reflect
+> the latency a single interactive client sees. Choose by use case:
+> 35B-MoE wins aggregate (+42% vs 27B dense) and per-token TPOT
+> (-35%); 27B wins TTFT (181 vs 254 ms) and single-stream sustained
+> throughput per its preset.
 
 ### Wave 10 Δ vs Wave 8 baseline (27B PROD, same harness)
 
