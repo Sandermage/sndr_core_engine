@@ -51,6 +51,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+# Pull the canonical methodology SHA helper from the sibling audit script
+# so attached bench_delta entries carry the same fingerprint the audit
+# checks against. See scripts/audit_bench_methodology.py for the contract.
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+from audit_bench_methodology import (  # noqa: E402
+    METHODOLOGY_FILE,
+    _canonical_methodology_sha,
+)
+
 
 _BENCH_METRIC_FIELDS = {
     "median_tps":      ("wall_TPS", "wall_TPS_median", "wall_TPS_mean",
@@ -254,6 +265,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     attach_payload["preset"] = args.preset
     attach_payload["attached_at"] = datetime.now(timezone.utc).isoformat(
         timespec="seconds"
+    )
+    attach_payload["methodology_sha"] = _canonical_methodology_sha(
+        METHODOLOGY_FILE
     )
     if args.baseline:
         attach_payload["baseline_source"] = Path(args.baseline).name
