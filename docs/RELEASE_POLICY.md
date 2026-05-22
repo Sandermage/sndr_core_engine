@@ -190,9 +190,11 @@ python3 scripts/attach_bench_proof.py \
 ```
 
 After cycling all 8 prod presets, `proof-status` should report
-~109/169 (64.5%) in `bench_with_baseline`. The other ~60 stay
-`static_only` by design — they are experimental opt-in patches that
-no production preset enables.
+~122/226 (54.0%) in `bench_with_baseline` — the by-design ceiling
+for the current registry (subset of patches enabled by any
+`prod-*` preset). The remaining ~104 stay `static_only` by design —
+they are experimental opt-in patches that no production preset
+enables.
 
 ### Per-preset coverage cheatsheet
 
