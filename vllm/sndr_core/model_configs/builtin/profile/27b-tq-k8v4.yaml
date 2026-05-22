@@ -1,7 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 profile — wave9 validated set for 27B-TQ-k8v4 on A5000 2× rig.
+# Genesis V2 profile — wave9 validated set for 27B-TQ-k8v4 on A5000 2× rig (LATENCY mode).
 # Includes sizing override appropriate for the smaller 27B model
 # (max_num_seqs=4 vs 35B's 2; max_model_len=131072 vs 35B's 320000).
+#
+# WAVE 10 (2026-05-15) INHERITANCE NOTE:
+# Model file qwen3.6-27b-int4-autoround-tq-k8v4.yaml was updated 2026-05-15
+# with Wave 10 patches (PN51, PN96b, PN125, PN126-130, PN132, PN133). Because
+# patches_delta is empty, this latency profile AUTOMATICALLY inherits the
+# full Wave 10 stack. No edit needed here — the inheritance contract works.
+#
+# For multi-conc throughput workloads on 27B (max_num_seqs=8, 379 TPS
+# aggregate vs 97 TPS single — best-in-class 3.89x scaling), use the
+# COMPANION profile `27b-multiconc.yaml` which overrides sizing (max_num_seqs=8,
+# max_model_len=131K, gpu_memory_utilization=0.85) and enables PN204 v2.
+# Bench reference (dev371+bf610c2f5, tools/multi_conc_bench.py sweep):
+#   This profile (max_num_seqs=4): conc=4 265 TPS / TTFT 159 ms — LATENCY-BALANCED
+#   27b-multiconc (max_num_seqs=8): conc=8 379 TPS / TTFT 189 ms — THROUGHPUT OPTIMAL
 
 schema_version: 2
 kind: profile

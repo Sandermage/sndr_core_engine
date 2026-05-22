@@ -79,7 +79,7 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     # but no legacy @register_patch entry (canonical path is
     # registry-driven from inception).
     "PN16_V6",         # Streaming <think> truncator middleware (Sprint 4)
-    "SPRINT26_CG_DISPATCH_TRACE",  # Sprint 2.6 v2 cudagraph dispatch trace
+    "PN122",  # renamed from SPRINT26_CG_DISPATCH_TRACE 2026-05-14
 })
 
 
@@ -111,7 +111,7 @@ _PATCH_ID_LEAD = re.compile(r"^(P[Nn]?\d+[a-zA-Z]?)\b")
 # These are sprint/middleware names registered before patch_id taxonomy
 # was extended. Map them explicitly to their canonical spec patch_id.
 _LEGACY_NAME_TO_PATCH_ID: dict[str, str] = {
-    "Sprint 2.6 v2 — CUDA graph dispatch trace wire-in": "SPRINT26_CG_DISPATCH_TRACE",
+    "Sprint 2.6 v2 — CUDA graph dispatch trace wire-in": "PN122",  # renamed from SPRINT26_CG_DISPATCH_TRACE 2026-05-14
     # SNDR_WORKSPACE_001 starts with `SNDR_`, not `P` / `PN`, so the
     # leading-token regex above can't lift the patch id. Explicit map.
     "SNDR_WORKSPACE_001 workspace grow-after-lock graceful fix": "SNDR_WORKSPACE_001",

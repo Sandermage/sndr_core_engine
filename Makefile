@@ -45,7 +45,13 @@ test-family: ## All 17 family contracts (~700 tests, covers 18/18 families)
 test-doc-sync: ## Doc-sync (patch counts consistent across 5 docs)
 	$(PYTHON) scripts/check_doc_sync.py --strict
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync ## Run all 4 CI gates fast-fail
+audit-phase3: ## Phase 3 relocation invariants (R1/R2/R3/R4)
+	$(PYTHON) scripts/audit_phase3_relocation.py
+
+audit-v2-runtime-pins: ## V2 runtime image + ModelDef pin harmonization (R-PIN-1..4)
+	$(PYTHON) scripts/audit_v2_runtime_pins.py
+
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins ## Run all 6 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
@@ -72,7 +78,7 @@ audit-public-paths: ## Etap 6.7: forbid private LAN IPs / home paths / usernames
 	@echo "=== audit-public-paths ==="
 	@bad=$$(rg -n "192\.168\.1\.10|/home/sander|sander@|User=sander" \
 	    README.md docs/ scripts/ tools/ benchmarks/ vllm/ \
-	    --glob '!docs/_internal/**' \
+	    --glob '!sndr_private/**' \
 	    --glob '!**/_archive/**' \
 	    --glob '!**/_internal/**' \
 	    --glob '!tests/integration/baselines/**' \
@@ -118,6 +124,12 @@ audit-no-stub: ## §10.3 #2 / §10.5 no-stub gate: bare `raise NotImplementedErr
 audit-schema-sync: ## P0-3 (audit 2026-05-14): patch_entry schemas (package + root mirror) byte-identical
 	@$(PYTHON) scripts/audit_schema_sync.py
 
+audit-patch-attribution: ## Phase A (2026-05-16): ModelDef.patches_attribution keys + role-presence consistency
+	@$(PYTHON) scripts/audit_patch_attribution.py
+
+audit-patch-plan-resolves: ## Phase D (2026-05-16): every V2 preset resolves cleanly under compat/safe/minimal
+	@$(PYTHON) scripts/audit_patch_plan_resolves.py
+
 audit-engine-boundary: ## §10.3 #5 engine boundary: only optional-discovery `vllm.sndr_engine` imports in sndr_core
 	@$(PYTHON) scripts/audit_engine_boundary.py
 
@@ -154,10 +166,23 @@ audit-patches-prove-all: ## §6.8 release gate: run static checks on every PATCH
 audit-proof-status: ## §6.8 read-side: bucket summary of every patch's proof-artefact state (informational)
 	@$(PYTHON) -m vllm.sndr_core.cli patches proof-status
 
-audit-release-check: ## §6.8 release-gate consumer (gating: require-static; release strictens to require-baseline)
+audit-release-check: ## §6.8 release-gate consumer — every patch must have a static proof (gating in make evidence --release)
 	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-static
 
-audit-release-check-strict: ## §6.8 strict release gate — every patch must have a bench-with-baseline proof
+audit-release-check-bench-attached: ## §6.8 ratchet 1: every patch must have at least one bench attachment (bridge to require-baseline)
+	# Bridge between require-static (current public gate) and the strict
+	# require-baseline below. Run this when promoting the default-on
+	# subset of a production preset; not part of `make evidence --release`.
+	# See docs/RELEASE_POLICY.md for the policy lifecycle.
+	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-bench
+
+audit-release-check-baseline-optional: ## §6.8 ratchet 2: every patch must carry a bench_with_baseline proof (strict)
+	# Informational by design: 0/169 entries have bench_with_baseline today.
+	# Wiring this into `make evidence --release` as a hard gate would block
+	# every release until operators re-bench all 169 entries on their rig.
+	# Operators preparing a hardened deploy run this target directly after
+	# the bench-attached ratchet above clears the default-on subset.
+	# See docs/RELEASE_POLICY.md for the cutover procedure.
 	@$(PYTHON) -m vllm.sndr_core.cli patches release-check --mode require-baseline
 
 audit-model-baselines: ## Phase 7 supplement: every V2 model's reference_metrics_ref must point at an existing JSON file

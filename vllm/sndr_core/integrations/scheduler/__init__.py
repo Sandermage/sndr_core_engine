@@ -18,7 +18,7 @@ __all__ = [
     "p79c_stale_spec_token_cleanup",
     "p79d_preempt_async_discard",
     "p84_hash_block_size_override",
-    "p8_kv_hybrid_reporting",
+    # "p8_kv_hybrid_reporting",  # moved to _retired/ 2026-05-14
 ]
 
 def __getattr__(name: str):

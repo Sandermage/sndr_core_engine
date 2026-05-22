@@ -17,7 +17,7 @@ __all__ = [
     "p77_adaptive_ngram_k",
     "p82_sglang_acceptance_threshold",
     "p86_ngram_batch_propose_linear",
-    "p94_spec_decode_zero_alloc",
+    # "p94_spec_decode_zero_alloc",  # moved to _retired/ 2026-05-14
     "pn21_dflash_swa_support",
     "pn22_local_argmax_tp",
     "pn23_dflash_combine_hidden_dtype",
@@ -25,7 +25,7 @@ __all__ = [
     "pn40_dflash_omnibus",
     "pn40_workload_classifier_hook",
     "pn72_frequency_ngram_drafter",
-    "pn9_independent_drafter_attn_backend",
+    # "pn9_independent_drafter_attn_backend",  # moved to _retired/ 2026-05-14
 ]
 
 def __getattr__(name: str):

@@ -14,7 +14,7 @@ __all__ = [
     "p66_cudagraph_size_divisibility_filter",
     "p6_tq_block_size_align",
     "p95_marlin_tp_cudagraph_cap",
-    "pn13_cuda_graph_lambda_arity",
+    # "pn13_cuda_graph_lambda_arity",  # moved to _retired/ 2026-05-14
 ]
 
 def __getattr__(name: str):

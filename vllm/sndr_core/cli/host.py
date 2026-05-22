@@ -189,7 +189,7 @@ def run_init(args: argparse.Namespace) -> int:
     _io.success(f"wrote {out_path}")
     _io.info("  next steps:")
     _io.info("    1. fill in genesis_src + plugin_src paths (operator-specific)")
-    _io.info(f"    2. validate: sndr host doctor")
+    _io.info("    2. validate: sndr host doctor")
     _io.info("    3. launch:   sndr launch <preset>")
     return 0
 
@@ -241,7 +241,6 @@ def run_doctor(args: argparse.Namespace) -> int:
             "severity": "FAIL", "name": "host_yaml_present",
             "message": f"{p} does not exist — run `sndr host init`",
         })
-        rc = 1
     else:
         try:
             import yaml
@@ -251,7 +250,6 @@ def run_doctor(args: argparse.Namespace) -> int:
                 "severity": "FAIL", "name": "host_yaml_parseable",
                 "message": f"YAML parse failed: {e}",
             })
-            rc = 1
             data = None
         else:
             findings.append({
@@ -283,7 +281,6 @@ def run_doctor(args: argparse.Namespace) -> int:
                         "severity": "WARN", "name": f"paths.{key}",
                         "message": f"optional path missing: {v}",
                     })
-        rc = 0
 
     fails = sum(1 for f in findings if f["severity"] == "FAIL")
     warns = sum(1 for f in findings if f["severity"] == "WARN")

@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+# First structured finding — seeds the EXTERNAL_FINDINGS_PIPELINE before
+# Phase 10 CLI implementation lands. Schema per EXTERNAL_FINDINGS_PIPELINE_2026-05-12_RU.md.
+
+schema_version: 1
+id: external-vllm-42102                          # canonical id; URL slug + numeric ref
+source: vllm-pr                                  # values: vllm-pr|vllm-issue|club-3090|sglang|lmcache|paper|blog|reddit
+url: https://github.com/vllm-project/vllm/pull/42102
+title: "DFlash + TQ k8v4 coexistence (vllm#42102)"
+discovered_at: '2026-05-12'
+
+# ─── Relevance to Genesis ──────────────────────────────────────────────
+category: memory-cache                           # values: memory-cache|spec-decode|tool-call|sampling|scheduler|tracing|misc
+relevance: qwen/dflash/tq                        # tag set matching Genesis model families
+affected_genesis_paths:                          # files Genesis is likely to touch if upstream merges
+  - vllm/sndr_core/dispatch                      # dispatcher composes spec_method × kv_cache_dtype gates
+  - plugins/community/PN94                       # PN94 zero-alloc spec-decode prepare
+
+# ─── Status state machine ──────────────────────────────────────────────
+status: watch                                    # values: backport-now|watch|skip|needs-reproducer|needs-bench|retire-local-patch|doctor-rule|config-recipe
+target:                                          # downstream actions if status escalates beyond watch
+  - patch-backport                               # candidate for plugins/community/* backport
+  - doctor-rule                                  # candidate `sndr patches doctor` rule
+  - config-recipe                                # candidate updated DFlash+TQ profile
+
+# ─── Risk assessment ───────────────────────────────────────────────────
+risk: medium                                     # values: low|medium|high — based on blast radius if upstream merges
+risk_notes: |
+  Upstream PR touches the same dispatcher we patch in PN94. If it merges,
+  PN94 anchors will drift — must re-anchor + re-bench. PN94 is currently
+  enabled in qwen3.6-27b-int4-autoround-tq-k8v4 (production preset).
+  See registry entry for affected models.
+
+# ─── Acceptance criteria — what must hold before we act ────────────────
+acceptance: |
+  PN94 apply.shadow strict still CLEAN after vLLM pin bump from
+  0.20.2rc1.dev209 to whichever pin includes #42102 merged.
+  AND bench delta <2% on prod-27b-tq alias (109.8 TPS reference).
+  AND tool-call 10/10 on Wave 9 corpus.
+
+# ─── Operator notes ────────────────────────────────────────────────────
+notes:
+  - "Watch list because upstream PR has not merged yet (as of 2026-05-12)."
+  - "If/when merged: action priority — re-anchor PN94 first, then re-bench
+    prod-27b-tq alias against Wave 9 reference, then decide whether to
+    retire PN94 (if upstream behavior fully matches) or keep as backport."
+  - "Companion to PN95b backport plan — both depend on the same upstream
+    dispatcher refactor."
+
+# ─── Lifecycle ─────────────────────────────────────────────────────────
+last_reviewed: '2026-05-12'
+review_cadence: on-pin-bump                      # weekly|biweekly|on-pin-bump|retired

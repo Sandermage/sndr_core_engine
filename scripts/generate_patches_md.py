@@ -73,8 +73,14 @@ def parse_registry(registry_path: Path) -> dict[str, dict]:
 
     # Find each `    "PATCH_ID": {` line and the matching closing brace `    },`.
     # Keys may contain hyphens (e.g. `PN40-classifier`), so include `-` in the
-    # character class (must mirror scripts/check_doc_sync.py regex).
-    entry_pattern = re.compile(r"^    \"([A-Za-z0-9_\-]+)\":\s*\{$", re.M)
+    # character class. The opening brace can be followed by an inline comment
+    # (`# rename note`, `# PN122 rename 2026-05-14`, etc.) so we tolerate
+    # trailing whitespace + `#` up to end-of-line. Must mirror
+    # scripts/check_doc_sync.py regex.
+    entry_pattern = re.compile(
+        r"^    \"([A-Za-z0-9_\-]+)\":\s*\{[ \t]*(?:#[^\n]*)?$",
+        re.M,
+    )
     for m in entry_pattern.finditer(text):
         patch_id = m.group(1)
         start = m.end()
@@ -246,7 +252,7 @@ def main() -> int:
             return 0
         else:
             print(f"✗ {OUTPUT_PATH.relative_to(REPO_ROOT)} OUT OF SYNC with registry", file=sys.stderr)
-            print(f"  Run: python3 scripts/generate_patches_md.py", file=sys.stderr)
+            print("  Run: python3 scripts/generate_patches_md.py", file=sys.stderr)
             return 1
 
     # Write file

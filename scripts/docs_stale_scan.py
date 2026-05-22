@@ -7,7 +7,7 @@ namespaces or stale CLI commands. Users following the doc would run
 commands that no longer exist and reach for files that no longer live
 in the named path.
 
-Forbidden tokens (allowlisted in `docs/_internal/` and `**/_archive/**`):
+Forbidden tokens (allowlisted in `sndr_private/` and `**/_archive/**`):
 
   • `vllm/_genesis` / `vllm._genesis`  — pre-v11 namespace
   • `vllm/sndr_core/wiring/`           — pre-v10 layout (renamed to integrations)
@@ -24,7 +24,6 @@ Exit codes:
 """
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -56,20 +55,15 @@ SEARCH_PATHS: tuple[str, ...] = (
 # Allowlist: paths where references are intentional (archive, internal
 # planning docs, migration notes that explain the retirement).
 ALLOWLIST_SUBSTRINGS: tuple[str, ...] = (
-    "docs/_internal/",
+    "sndr_private/",  # entire private maintainer tree (incl. moved upstream_refs/)
     "/_archive/",
     "docs/archive/",
-    # Historical upstream planning + reference docs. They literally
-    # describe the v7→v11 migration so the retired tokens are the
-    # content. New content should not land here without explicit
-    # archive marker; this allowlist captures the existing corpus.
-    "docs/upstream/",
-    "docs/reference/",
-    # Migration appendices that explicitly document the retirement.
-    "docs/INSTALL.md",  # Migration appendix referencing _genesis alias
+    # Migration / design appendices that explicitly document the
+    # retirement of the v10 `_genesis` namespace.
+    "docs/INSTALL.md",       # migration appendix referencing _genesis alias
     "docs/CONTRIBUTING.md",  # logger back-compat note
-    "docs/BENCHMARK_GUIDE.md",  # symlink back-compat note
-    "docs/MIGRATION_V11_RENAME.md",  # canonical v10→v11 rename doc
+    "docs/BENCHMARKS.md",    # symlink back-compat note (post-2026-05-16 merge)
+    "docs/PATCH_DESIGNS.md", # v10→v11 rename appendix lives here now
     # The scanner itself.
     "scripts/docs_stale_scan.py",
 )
@@ -110,7 +104,7 @@ def _scan_file(path: Path) -> list[tuple[int, str, str]]:
 
 def main(argv: list[str] | None = None) -> int:
     files = _iter_md_files()
-    print(f"=== docs_stale_scan.py ===")
+    print("=== docs_stale_scan.py ===")
     print(f"scanning {len(files)} markdown files in {', '.join(SEARCH_PATHS)}")
     total = 0
     for f in files:
@@ -128,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("Fix options:")
     print("  - Update the doc to use the current command/path/namespace.")
-    print("  - Move the doc into docs/_internal/ or docs/archive/ if it's historical.")
+    print("  - Move the doc into docs/archive/ if it's historical.")
     print("  - Mark the section as 'ARCHIVED / not current' and request allowlist.")
     return 1
 

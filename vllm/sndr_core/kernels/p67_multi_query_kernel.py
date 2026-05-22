@@ -742,6 +742,15 @@ def _autoconfig(sm_major: int, sm_minor: int, head_dim: int) -> dict:
 
     Override via env: GENESIS_P67_BLOCK_KV, GENESIS_P67_NUM_WARPS, GENESIS_P67_NUM_STAGES.
 
+    [2026-05-14 Research note — Agent B audit recommendation review]
+    External research (FLA #734, arXiv 2511.11581 "Triton Attention Anatomy")
+    suggested pruning `num_warps=8` configs on SM 8.6 due to 100 KB shared
+    memory budget (vs 192 KB on A100 SM 8.0). For OUR P67 kernel this advice
+    does NOT apply — see num_stages=3 empirical regression note above. The
+    shared memory math at lines 749-756 accounts for SM 8.6's 99 KB budget
+    explicitly. Operators on different HW classes (consumer Blackwell SM 12,
+    H100/H200 SM 9.0) may want to override; the env vars exist for this.
+
     [Genesis 2026-05-04 SMEM-aware default — pattern from MidasMining vllm#41508]
     BLOCK_KV default — arch-aware:
       * SM<9 (Ampere/Hopper consumer): 32 (Ampere SMEM 99 KB hard cap)

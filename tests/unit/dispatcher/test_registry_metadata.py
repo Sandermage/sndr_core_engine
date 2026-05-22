@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests для `vllm.sndr_core.dispatcher.registry_metadata` overlay.
+"""Tests for `vllm.sndr_core.dispatcher.registry_metadata` overlay.
 
-Etap 0.3 (audit 2026-05-12): production_default теперь учитывает
-test_status. Раньше `lifecycle=stable` автоматически давало
-`production_default=eligible`, даже если patch не имел тестов.
-Новый помощник `_production_default_for(impl_status, test_status)`
-возвращает `review_required` для непротестированных stable/full/live
-патчей.
+production_default is derived from both implementation_status and
+test_status. A `lifecycle=stable` entry without tests resolves to
+`review_required`, not the unconditional `eligible` it used to
+report. The `_production_default_for(impl_status, test_status)`
+helper centralises that mapping so the matrix is unit-testable in
+isolation from the live registry.
 
-Тесты покрывают:
-  • Маппинг impl_status × test_status → production_default (matrix).
-  • EXPLICIT_OVERRIDES bypass.
-  • Lifecycle fallback.
-  • Real registry: количество review_required > 0 (доказывает что
-    overlay работает, а не silent eligible-everywhere).
+Coverage:
+  - impl_status x test_status -> production_default matrix
+  - EXPLICIT_OVERRIDES bypass (audited overrides win)
+  - Lifecycle fallback when implementation_status absent
+  - Live registry: at least one entry resolves to review_required
+    so the overlay isn't silently returning eligible everywhere.
 """
 from __future__ import annotations
 
@@ -31,25 +31,28 @@ from vllm.sndr_core.dispatcher.registry_metadata import (
 
 
 class TestProductionDefaultMatrix:
-    """Etap 0.3: единая функция, которую тестируем по cells."""
+    """Pure cells of the (impl_status, test_status) -> production_default
+    function. Decoupled from the real registry so changes in YAML data
+    don't break the matrix."""
 
     @pytest.mark.parametrize("impl,test,expected", [
-        # blocked statuses — независимо от test_status
+        # Blocked statuses — outcome is independent of test_status.
         ("partial",     "unit", "blocked"),
         ("partial",     "none", "blocked"),
         ("placeholder", "unit", "blocked"),
         ("placeholder", "none", "blocked"),
         ("retired",     "unit", "blocked"),
         ("retired",     "none", "blocked"),
-        # research → research_only независимо от test_status
+        # research lifecycle gates the patch behind an explicit research
+        # flag regardless of how well it is tested.
         ("research", "unit", "research_only"),
         ("research", "none", "research_only"),
-        # ok statuses без тестов → review_required (Etap 0.3 fix)
+        # Otherwise-ok statuses with no tests need explicit review.
         ("full",        "none", "review_required"),
         ("live",        "none", "review_required"),
         ("scaffold",    "none", "review_required"),
         ("coordinator", "none", "review_required"),
-        # ok statuses с тестами → eligible
+        # Tested ok statuses are immediately eligible.
         ("full",        "unit",        "eligible"),
         ("full",        "integration", "eligible"),
         ("full",        "bench",       "eligible"),
@@ -66,32 +69,31 @@ class TestProductionDefaultMatrix:
 
 class TestDeriveMetadata:
     def test_explicit_override_wins(self):
-        """EXPLICIT_OVERRIDES возвращается as-is, минуя весь pipeline."""
-        # PN95 в overrides — partial / blocked
+        """EXPLICIT_OVERRIDES bypasses the derive pipeline entirely."""
+        # PN95 is overridden to partial/blocked.
         d = derive_metadata("PN95", {"lifecycle": "stable", "family": "kv_cache"})
         assert d["implementation_status"] == "partial"
         assert d["production_default"] == "blocked"
 
     def test_explicit_status_in_registry_uses_helper(self):
-        """Если registry задаёт implementation_status, production_default
-        вычисляется через `_production_default_for`."""
-        # Untested full patch → review_required
+        """When registry sets implementation_status explicitly, the
+        production_default still flows through `_production_default_for`."""
         d = derive_metadata(
             "ZNEW1",
             {"implementation_status": "full", "family": "spec_decode"},
         )
         assert d["implementation_status"] == "full"
-        # ZNEW1 не существует в tests/ → test_status=none → review_required
+        # No tests/ files for ZNEW1 -> test_status=none -> review_required.
         assert d["test_status"] == "none"
         assert d["production_default"] == "review_required"
 
     def test_lifecycle_fallback_uses_helper(self):
-        """Lifecycle-based fallback тоже идёт через helper."""
+        """Lifecycle-based fallback (no explicit impl_status) also
+        routes through the helper."""
         d = derive_metadata(
             "ZNEW2",
             {"lifecycle": "stable", "family": "spec_decode"},
         )
-        # stable → full → review_required (no tests for ZNEW2)
         assert d["implementation_status"] == "full"
         assert d["production_default"] == "review_required"
 
@@ -108,7 +110,6 @@ class TestDeriveMetadata:
     def test_unknown_lifecycle_falls_to_live(self):
         d = derive_metadata("ZNEW5", {"lifecycle": "totally-unknown"})
         assert d["implementation_status"] == "live"
-        # Без тестов → review_required
         assert d["production_default"] == "review_required"
 
 
@@ -117,8 +118,8 @@ class TestDeriveMetadata:
 
 class TestLifecycleMapping:
     def test_all_known_lifecycles_mapped(self):
-        """Все lifecycle states, упомянутые в codebase, должны иметь
-        запись в _LIFECYCLE_TO_IMPL (или попадать в default 'live')."""
+        """Every lifecycle state used in the codebase must be in
+        `_LIFECYCLE_TO_IMPL` (or it falls through to the 'live' default)."""
         for lc in ("retired", "deprecated", "research", "stable",
                    "coordinator", "legacy"):
             assert lc in _LIFECYCLE_TO_IMPL
@@ -130,17 +131,115 @@ class TestLifecycleMapping:
         assert _LIFECYCLE_TO_IMPL["deprecated"] == "retired"
 
 
+# ─── R-01: research lifecycle hard rule ─────────────────────────────────
+
+
+class TestResearchLifecycleHardRule:
+    """Audit R-01 (2026-05-16): research lifecycle must always derive
+    to ``production_default=research_only``, even when the registry
+    declares ``implementation_status=full`` and a unit test exists.
+
+    Research code can be runtime-complete (the impl-status field
+    reflects that fact), but research-lifecycle entries have not been
+    validated as production candidates. Reporting downstream of
+    ``derive_metadata`` previously showed P82/P83 as ``eligible``,
+    which misled production-readiness dashboards."""
+
+    def test_research_with_full_impl_and_unit_tests_is_research_only(self):
+        """Synthetic case mirroring P82."""
+        meta = {
+            "lifecycle": "research",
+            "implementation_status": "full",
+            "family": "synthetic",
+        }
+        d = derive_metadata("SYNTH_RESEARCH_P82_LIKE", meta)
+        assert d["production_default"] == "research_only"
+        assert d["implementation_status"] == "research"
+
+    def test_research_with_full_impl_and_no_tests_is_research_only(self):
+        """Synthetic case mirroring P83 (no test coverage)."""
+        meta = {
+            "lifecycle": "research",
+            "implementation_status": "full",
+            "family": "synthetic",
+        }
+        d = derive_metadata("SYNTH_RESEARCH_P83_LIKE", meta)
+        assert d["production_default"] == "research_only"
+
+    def test_research_with_no_explicit_impl_status(self):
+        """Lifecycle alone is enough — implementation_status absent."""
+        meta = {"lifecycle": "research", "family": "synthetic"}
+        d = derive_metadata("SYNTH_RESEARCH_BARE", meta)
+        assert d["production_default"] == "research_only"
+        assert d["implementation_status"] == "research"
+
+    def test_explicit_override_still_wins_over_research_rule(self):
+        """``EXPLICIT_OVERRIDES`` is the audited escape hatch — if a
+        maintainer deliberately overrides a research patch, the
+        override is honoured. PN26b is real proof: lifecycle=research
+        but the override sets ``implementation_status=scaffold`` and
+        keeps ``production_default=research_only`` (consistent, by
+        design)."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        meta = PATCH_REGISTRY["PN26b"]
+        d = derive_metadata("PN26b", meta)
+        assert d["implementation_status"] == "scaffold"
+        assert d["production_default"] == "research_only"
+
+    def test_p82_live_registry_is_research_only(self):
+        """Smoke check against the live registry — P82 must not
+        derive to ``eligible``."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        meta = PATCH_REGISTRY.get("P82")
+        if not isinstance(meta, dict):
+            return
+        assert str(meta.get("lifecycle")).lower() == "research"
+        d = derive_metadata("P82", meta)
+        assert d["production_default"] == "research_only"
+
+    def test_p83_live_registry_is_research_only(self):
+        """Smoke check against the live registry — P83 must not
+        derive to ``eligible``."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        meta = PATCH_REGISTRY.get("P83")
+        if not isinstance(meta, dict):
+            return
+        assert str(meta.get("lifecycle")).lower() == "research"
+        d = derive_metadata("P83", meta)
+        assert d["production_default"] == "research_only"
+
+    def test_no_research_patch_is_eligible_in_live_registry(self):
+        """Sweep guard: across the entire live registry, no
+        ``lifecycle=research`` entry may derive to
+        ``production_default=eligible``."""
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+        offenders = []
+        for pid, meta in PATCH_REGISTRY.items():
+            if not isinstance(meta, dict):
+                continue
+            if str(meta.get("lifecycle", "")).lower() != "research":
+                continue
+            d = derive_metadata(pid, meta)
+            if d["production_default"] == "eligible":
+                offenders.append(pid)
+        assert offenders == [], (
+            f"research-lifecycle patches deriving to eligible: {offenders}"
+        )
+
+
 # ─── Real registry sanity ───────────────────────────────────────────────
 
 
 class TestRealRegistry:
-    """Etap 0.3: на реальном registry должна появиться разница между
-    `eligible` и `review_required`. Раньше всё было `eligible`."""
+    """Smoke check against the live registry — `eligible` and
+    `review_required` should both appear in production_default
+    output. If everything is eligible, the helper is silently
+    bypassed somewhere."""
 
     def test_real_registry_has_review_required_entries(self):
-        """Должно быть >0 patches со статусом `review_required` —
-        иначе helper не работает (или у нас 100% test coverage 😉).
-        """
+        """At least one patch must resolve to `review_required`,
+        otherwise either test coverage is total (unlikely) or the
+        helper is bypassed."""
         from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
         review_required = []
         for pid, meta in PATCH_REGISTRY.items():
@@ -149,16 +248,15 @@ class TestRealRegistry:
             d = derive_metadata(pid, meta)
             if d["production_default"] == "review_required":
                 review_required.append(pid)
-        # Должно быть много patches без тестов (test_status detection
-        # ограничен filesystem-based search).
         assert len(review_required) > 0, (
-            "review_required count = 0 — это либо все патчи имеют тесты "
-            "(маловероятно), либо helper не работает."
+            "review_required count = 0 — either every patch has tests "
+            "(unlikely) or the helper is bypassed."
         )
 
     def test_overrides_not_review_required(self):
-        """Все EXPLICIT_OVERRIDES должны быть либо eligible/blocked/
-        research_only — никогда не review_required (override = audited)."""
+        """Every EXPLICIT_OVERRIDES entry must declare a curated
+        production_default (eligible / blocked / research_only) —
+        never `review_required`, which is the auto-derived state."""
         for pid, override in EXPLICIT_OVERRIDES.items():
             assert override["production_default"] != "review_required", (
                 f"EXPLICIT_OVERRIDES[{pid}] should have audited "

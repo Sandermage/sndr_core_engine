@@ -33,8 +33,8 @@ on:
     paths:
       - 'tools/check_upstream_drift.py'
       - '.github/workflows/upstream_drift_watcher.yml'
-      - 'vllm/_genesis/wiring/patch_*.py'
-      - 'vllm/_genesis/patches/upstream_compat.py'
+      - 'vllm/sndr_core/dispatcher/registry.py'
+      - 'vllm/sndr_core/integrations/**/*.py'
 
 permissions:
   contents: read

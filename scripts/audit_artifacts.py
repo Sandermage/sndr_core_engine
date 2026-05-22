@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -38,21 +39,41 @@ def _git_tracked_files() -> list[str]:
         cwd=REPO_ROOT,
         capture_output=True, text=True, check=True,
     )
-    return [l for l in result.stdout.splitlines() if l]
+    return [ln for ln in result.stdout.splitlines() if ln]
 
 
 def check_evidence_ledger_present() -> list[str]:
-    """A-1: at least one evidence ledger MD must exist under docs/_internal/."""
-    matches = list((REPO_ROOT / "docs" / "_internal").glob(
+    """A-1: evidence ledger MD must exist when a maintainer planning
+    tree is checked out alongside the public repo.
+
+    The ledger lives outside the public source tree by design — public
+    clones don't carry it, and the gate is a no-op on those checkouts.
+    Maintainers point the gate at their planning dir via the
+    ``GENESIS_PLANNING_DIR`` env var; if it's unset and the legacy
+    ``docs/_internal/`` path is also absent, the gate skips silently.
+    When a planning dir IS visible to the gate, at least one
+    ``ROADMAP_EVIDENCE_LEDGER_*.md`` must live in it."""
+    candidates: list[Path] = []
+    env_dir = os.environ.get("GENESIS_PLANNING_DIR")
+    if env_dir:
+        candidates.append(Path(env_dir))
+    candidates.append(REPO_ROOT / "docs" / "_internal")  # legacy fallback
+    if not any(b.is_dir() for b in candidates):
+        return []
+    for base in candidates:
+        if base.is_dir() and list(base.glob("ROADMAP_EVIDENCE_LEDGER_*.md")):
+            return []
+    return [
+        "A-1: maintainer planning tree visible but contains no "
         "ROADMAP_EVIDENCE_LEDGER_*.md"
-    ))
-    if not matches:
-        return ["A-1: no ROADMAP_EVIDENCE_LEDGER_*.md found under docs/_internal/"]
-    return []
+    ]
 
 
 def check_patch_proof_layout() -> list[str]:
-    """A-2: if evidence/patch_proof/ exists, it contains *.json + _waivers/ only."""
+    """A-2: if evidence/patch_proof/ exists, it contains *.json + _waivers/
+    only. `.gitkeep` is exempt — it preserves the otherwise-gitignored
+    directory in a fresh clone so operators can run `sndr patches prove
+    --all` into it without first having to `mkdir -p`."""
     issues = []
     pp = REPO_ROOT / "evidence" / "patch_proof"
     if not pp.is_dir():
@@ -64,6 +85,8 @@ def check_patch_proof_layout() -> list[str]:
                     f"A-2: unexpected directory in evidence/patch_proof/: {child.name}"
                 )
         elif child.is_file():
+            if child.name == ".gitkeep":
+                continue
             if child.suffix != ".json":
                 issues.append(
                     f"A-2: non-JSON file in evidence/patch_proof/: {child.name}"
@@ -92,10 +115,24 @@ def check_no_bench_results_tracked(files: list[str]) -> list[str]:
 
 
 def check_rollback_playbook_present() -> list[str]:
-    """A-6: docs/ROLLBACK_PLAYBOOK.md must exist (Phase 2.3 deliverable)."""
-    if not (REPO_ROOT / "docs" / "ROLLBACK_PLAYBOOK.md").is_file():
-        return ["A-6: docs/ROLLBACK_PLAYBOOK.md is missing"]
-    return []
+    """A-6: rollback playbook must be reachable from public docs.
+
+    Phase 2.3 deliverable originally lived at docs/ROLLBACK_PLAYBOOK.md.
+    After the 2026-05-16 docs consolidation, the rollback procedures
+    were merged into the broader docs/TROUBLESHOOTING.md (sections
+    'Rollback playbook' + the named R-001..R-008 procedures). The
+    gate now passes when EITHER path is present + contains the R-001
+    procedure anchor that identifies the canonical content.
+    """
+    legacy = REPO_ROOT / "docs" / "ROLLBACK_PLAYBOOK.md"
+    consolidated = REPO_ROOT / "docs" / "TROUBLESHOOTING.md"
+    for path in (legacy, consolidated):
+        if path.is_file() and "R-001" in path.read_text(encoding="utf-8"):
+            return []
+    return [
+        "A-6: rollback playbook missing — expected docs/ROLLBACK_PLAYBOOK.md "
+        "OR docs/TROUBLESHOOTING.md containing the R-001..R-008 procedures"
+    ]
 
 
 def main() -> int:

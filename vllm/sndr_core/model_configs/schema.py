@@ -57,6 +57,47 @@ class SpecDecodeConfig:
     # None — vllm uses the target model's own MTP head / its own n-gram cache.
     model: Optional[str] = None
 
+    # Probabilistic draft-probs propagation (vllm dev338+ native).
+    #
+    # The upstream rejection_sampler now natively supports the
+    # `min(1, target_p / draft_p)` accept rule when both fields below are
+    # set on the SpeculativeConfig — there is a runtime gate at
+    # `LLMBaseProposer._enable_probabilistic_draft_probs` that requires
+    # BOTH `rejection_sample_method == "standard"` AND
+    # `draft_sample_method == "probabilistic"`. Without those, the
+    # drafter falls back to greedy sampling and the verifier gets
+    # `None` for draft_probs, so the accept rule degrades to the
+    # straight equality check and we lose ~7 % accept_rate / TPS on
+    # MTP K=3.
+    #
+    # This is the upstream-merged replacement for our Genesis PN90
+    # backport (which text-patched the rejection_sampler call site
+    # itself). PN90 self-retired on dev338 because upstream
+    # restructured the anchor — exposing these fields here is the
+    # supported migration path.
+    #
+    # Defaults stay None to keep V1 configs that do not set them
+    # bit-identical to their prior behaviour. Operators opt-in via
+    # the model YAML's `spec_decode:` block.
+    rejection_sample_method: Optional[str] = None  # "standard" | None
+    draft_sample_method: Optional[str] = None      # "probabilistic" | None
+
+    # P1.7c (2026-05-20): drafter attention backend — selects the
+    # attention kernel the drafter runs with. vLLM v1 SpeculativeConfig
+    # accepts an `attention_backend` key; the validated β'-A K=4
+    # configuration explicitly sets this to FLASH_ATTN so the drafter
+    # routes head_size 256 / 512 layers through G4_71b / G4_75
+    # respectively. Without this key the drafter falls back to vLLM's
+    # auto-pick (typically TURBOQUANT on a TQ engine) which causes a
+    # KV layout / kernel mismatch and breaks acceptance.
+    #
+    # Known values: FLASH_ATTN | TRITON_ATTN | TURBOQUANT | None.
+    # Default None preserves backward compat: pre-P1.7c configs that
+    # never set this field render bit-identically to their prior
+    # behaviour. Operator opts in via the spec_decode block on
+    # ModelDef or via ProfileDef.spec_decode_override.
+    attention_backend: Optional[str] = None
+
     def validate(self) -> None:
         valid_methods = {"mtp", "eagle", "ngram", "dflash"}
         if self.method not in valid_methods:
@@ -73,6 +114,34 @@ class SpecDecodeConfig:
                 f"SpecDecodeConfig.model is required for method='{self.method}' "
                 f"(drafter is a separate checkpoint from the target model)"
             )
+        # The native probabilistic draft path is documented in
+        # vllm.v1.spec_decode.llm_base_proposer at the
+        # `_enable_probabilistic_draft_probs` gate. The known-good values
+        # at the dev338 pin are listed below; new values become possible
+        # if upstream extends the enum without our knowing.
+        valid_rejection = {None, "standard"}
+        valid_draft_sample = {None, "probabilistic"}
+        if self.rejection_sample_method not in valid_rejection:
+            raise SchemaError(
+                "SpecDecodeConfig.rejection_sample_method must be one of "
+                f"{valid_rejection}, got {self.rejection_sample_method!r}"
+            )
+        if self.draft_sample_method not in valid_draft_sample:
+            raise SchemaError(
+                "SpecDecodeConfig.draft_sample_method must be one of "
+                f"{valid_draft_sample}, got {self.draft_sample_method!r}"
+            )
+        # P1.7c: attention_backend validates against the known set of
+        # vLLM v1 attention backends. None means "do not emit the key"
+        # (engine auto-picks).
+        valid_attn_backend = {
+            None, "FLASH_ATTN", "TRITON_ATTN", "TURBOQUANT",
+        }
+        if self.attention_backend not in valid_attn_backend:
+            raise SchemaError(
+                "SpecDecodeConfig.attention_backend must be one of "
+                f"{valid_attn_backend}, got {self.attention_backend!r}"
+            )
 
     def to_vllm_arg(self) -> str:
         """Format for --speculative-config flag."""
@@ -82,6 +151,17 @@ class SpecDecodeConfig:
         }
         if self.model:
             d["model"] = self.model
+        # Probabilistic draft-probs path — only emit when both halves of
+        # the gate are set, so older vllm pins that lack the upstream
+        # native path do not see unknown keys in the config blob.
+        if self.rejection_sample_method is not None:
+            d["rejection_sample_method"] = self.rejection_sample_method
+        if self.draft_sample_method is not None:
+            d["draft_sample_method"] = self.draft_sample_method
+        # P1.7c: drafter attention backend (FLASH_ATTN, TRITON_ATTN,
+        # TURBOQUANT). Emitted only when set; absent key = vLLM auto-pick.
+        if self.attention_backend is not None:
+            d["attention_backend"] = self.attention_backend
         return json.dumps(d)
 
 
@@ -308,7 +388,7 @@ class ReferenceMetrics:
     # NULL/unset → R-018 falls back to 250 MiB conservative default.
     mamba_state_mib_per_request: Optional[float] = None
 
-    # Wave 1+2 (audit closure 2026-05-09): canonical genesis_bench_suite
+    # Wave 1+2 canonical genesis_bench_suite
     # output adds richer per-component metrics. All optional — old
     # configs without these fields still load. New canonical bench
     # writes them for future regression detection.
@@ -1124,7 +1204,7 @@ class OverridesPolicy:
           4. key in allow_env but no range → accept (string-only override)
         """
         if not self.allow_env:
-            return f"overrides not enabled (allow_env is empty)"
+            return "overrides not enabled (allow_env is empty)"
         if key not in self.allow_env:
             return (
                 f"override key {key!r} not in allow_env "
@@ -1499,7 +1579,7 @@ class RiskScore:
 
 @dataclass
 class CompatibilityRule:
-    """S2.5 (audit closure 2026-05-12): декларативное правило совместимости.
+    """S2.5 декларативное правило совместимости.
 
     Зачем
     -----
@@ -1770,6 +1850,68 @@ class VerifyTolerances:
             )
 
 
+# ─── PatchAttribution — structured rationale for ModelDef.patches ─────
+#
+# Phase A (2026-05-16) introduced patches_attribution on V2 ModelDef.
+# Phase B (this commit) lifts the dataclass into V1 schema.py so V1
+# ModelConfig can also carry it through compose() into the runtime
+# pipeline (patch_plan resolver, sndr patches plan --explain,
+# sndr compose render --policy). The dataclass is the same one V2
+# uses — schema_v2.py re-exports for back-compat.
+
+_PATCH_ROLES: tuple[str, ...] = (
+    "load_bearing",
+    "defensive",
+    "optional_perf",
+    "suspected_regression",
+    "no_op",
+    "unknown",
+)
+
+
+@dataclass
+class PatchAttribution:
+    """Why a patch is in the model's canonical set.
+
+    Keyed by registry patch ID (e.g. ``PN204``), not by env-flag name.
+    Stored on both ModelDef (authoring) and V1 ModelConfig (after compose)
+    so the resolver in `patch_plan.py` can run on the same object the
+    rest of the runtime pipeline already consumes.
+
+    Role-conditional required fields (validated at .validate() time):
+
+      load_bearing | suspected_regression  →  ``note`` required
+      optional_perf                        →  ``bench_evidence`` required
+      defensive | no_op | unknown          →  no auxiliary fields required
+    """
+    role: str
+    note: Optional[str] = None
+    bench_evidence: Optional[str] = None
+    candidate_when: Optional[dict[str, Any]] = None
+
+    def validate(self, *, key: str) -> None:
+        if self.role not in _PATCH_ROLES:
+            raise SchemaError(
+                f"patches_attribution[{key!r}].role={self.role!r} not in "
+                f"{_PATCH_ROLES}"
+            )
+        if self.role in ("load_bearing", "suspected_regression") and not self.note:
+            raise SchemaError(
+                f"patches_attribution[{key!r}]: role={self.role!r} requires "
+                f"a non-empty `note` (reviewers need to see the rationale)"
+            )
+        if self.role == "optional_perf" and not self.bench_evidence:
+            raise SchemaError(
+                f"patches_attribution[{key!r}]: role='optional_perf' requires "
+                f"a non-empty `bench_evidence` (perf claims need an anchor)"
+            )
+        if self.candidate_when is not None and not isinstance(self.candidate_when, dict):
+            raise SchemaError(
+                f"patches_attribution[{key!r}].candidate_when must be dict | None "
+                f"(got {type(self.candidate_when).__name__})"
+            )
+
+
 # ─── Top-level ModelConfig ────────────────────────────────────────────
 
 
@@ -1821,6 +1963,14 @@ class ModelConfig:
 
     # Genesis env (P*, PN*, GENESIS_*)
     genesis_env: dict[str, str] = field(default_factory=dict)
+
+    # structured rationale for entries in
+    # genesis_env, keyed by registry patch ID (e.g. ``PN204``). Carried
+    # through compose() from ModelDef.patches_attribution so the
+    # patch_plan resolver and `sndr patches plan --explain` can read
+    # role/note/bench_evidence without re-loading the V2 layer. Empty
+    # dict is the default for legacy configs that pre-date Phase A.
+    patches_attribution: dict[str, "PatchAttribution"] = field(default_factory=dict)
 
     # System env (PYTORCH_*, VLLM_*, NCCL_*, OMP_*, CUDA_*, TRITON_*)
     system_env: dict[str, str] = field(default_factory=dict)

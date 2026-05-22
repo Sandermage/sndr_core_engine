@@ -80,6 +80,192 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
+## [v11.0.0+wave10] — Multi-conc unlock + PN204 v2 + partial-merge recoveries (2026-05-15)
+
+> Multi-concurrency throughput characterisation на dev371 pin
+> (`0.20.2rc1.dev371+gbf610c2f5`, nightly `bf610c2f56764e1b30bc6065f4ceace3d6e59036`).
+> Discovered real system ceiling is **689 TPS aggregate at `max_num_seqs=8`**
+> (vs 215 TPS single-conc) — 3.21x scaling factor on Qwen3.6-35B-A3B-FP8.
+> All Wave 9 patches retained; this is additive, not breaking.
+
+### Highlights
+
+- **PN204 v2 redesign** — добавлен `torch.compiler.is_compiling()` guard +
+  `_PN204_ARMED` flag + arming hook on `Worker.determine_available_memory`.
+  Закрывает CUDA driver crash (`torch/_inductor/runtime/static_triton_launcher.py:291
+  invalid argument`) который v1 показывал на dev371 во время `profile_run`.
+  Bench-neutral within CV (675 vs 689 agg, TTFT 240 vs 237 ms) — но не крашит
+  и hardware-future-proof (Hopper SM 9.0+ должен дать +5-10% по vllm PR #42301).
+- **Multi-concurrency throughput discovery** — единичная per-req TPS 215 не
+  была настоящим ceiling'ом. Bench `tools/multi_conc_bench.py` показал
+  689 TPS aggregate на `max_num_seqs=8`, 3.21x масштабирование. PN119 GQA
+  grouping + cudagraph capture при batch>1 — РАБОТАЮТ.
+- **3 partial-merge recoveries** на retired patches:
+  - **P26** — sub-level `upstream_merged_markers` для cu_2 (upstream landed
+    cu_2 hasattr guard на dev338, но output pool ~32 MiB/call всё ещё
+    un-merged на dev371; sub-patch теперь применяется независимо).
+  - **PN50** — anchor indentation drift fix (12/16 → 8/12 spaces на dev371,
+    "anchor_missing" был ложным детектом upstream merge — реально GDN fusion
+    Triton kernel НЕ landed upstream).
+  - **P12 v2** — добавлен `p12_last_to_first_occurrence` sub-patch поверх
+    upstream's LAST-occurrence merge (vllm#35687 landed token-id resolution
+    но silently drops earlier `<tool_call>` blocks в multi-tool flows).
+- **PN51 reactivated** — Qwen3 streaming `enable_thinking=false` content
+  routing fix. Upstream issue #40816 STILL OPEN. Streaming path не имеет
+  `not self.thinking_enabled` short-circuit — клиенты которые читают только
+  `delta.content` (Open WebUI, LibreChat, LobeChat, Cline, OpenCode) видят
+  "reasoning only" вместо ответа. Перенесён из `_retired/` после audit.
+- **PN134 retired loud-and-clear** — bench validated -25% TPS regression
+  (`StorageBox.should_realize_on_reuse` monkey-patch ломает Inductor
+  compile cache на hybrid_gdn_moe). Lifecycle `retired`, double-env-flag
+  guard, iron-rule waiver, bench data в docstring.
+
+### Patches changed
+
+| ID | Action | Rationale |
+|---|---|---|
+| **PN204** | v1 → v2 redesign | `is_compiling()` guard + arming hook fixes dev371 CUDA crash |
+| **PN51** | retired → experimental | upstream gap confirmed by retired-audit |
+| **PN132** | added (PR-blog) | vllm#42739 backport — Triton top-k/top-p contiguous fix |
+| **PN133** | added (PR-blog) | vllm#42722 backport — MTP scheduler empty-output guard |
+| **PN134** | experimental → retired | bench validated -25% TPS on hybrid_gdn_moe |
+| **P26** | partial-merge fix | output_alloc sub applies separately from cu_2 |
+| **PN50** | anchor fix | indentation drift on dev371 (12/16 → 8/12), GDN fusion now applies |
+| **P12 v2** | sub-patch added | LAST→FIRST flip for multi-tool agentic flows |
+| **PN96b** | rename (no logic) | resolves PATCH_REGISTRY dict-key collision with kv_cache/PN96 |
+
+### Migration notes
+
+- New preset YAML available: `vllm/sndr_core/model_configs/builtin/a5000-2x-35b-multiconc.yaml`.
+  Use for agentic / batch workloads where throughput matters more than
+  per-request TTFT. Pairs with existing `a5000-2x-35b-prod.yaml` (latency
+  profile, `max_num_seqs=2`).
+- `PN204_DUAL_STREAM_INPROJ=1` requires `GENESIS_LEGACY_P7=0` (registry
+  `conflicts_with` declared). Multi-conc preset YAML already wires this.
+- `tools/restart_35b_dev371_multiconc.sh` — production-ready launch script
+  with full env matrix. Use as drop-in for `start_35b_*.sh` legacy scripts.
+- `tools/multi_conc_bench.py` — reusable bench tester. Supports `sweep`
+  mode (conc=1/2/4/8) or single-N mode. Replaces ad-hoc bench scripts.
+
+### Bench / measurements
+
+**35B-A3B FP8, dev371+bf610c2f5, 2× A5000 TP=2** (`tools/multi_conc_bench.py sweep`):
+
+| conc | agg TPS (non-stream) | per-req TPS | scaling | TTFT med (stream) | TPOT med |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 215 | 215 | 1.00x | 65 ms | 14.3 ms |
+| 2 | 349 | 184 | 1.62x | 64 ms | 17.5 ms |
+| 4 | 478 | 134 | 2.22x | 146 ms | 22.4 ms |
+| **8** | **689** | 91 | **3.21x ⭐** | 243 ms | 31.7 ms |
+| 16 | 685 | 51 | 3.21x | — | — (diminishing) |
+
+**27B INT4 AutoRound, same hardware, same dev371**:
+
+| conc | agg TPS | TTFT med | scaling |
+|---:|---:|---:|---:|
+| 1 | 97 | 105 ms | 1.00x |
+| 8 | 379 | 189 ms | **3.89x** (better scaling than 35B) |
+
+**Long-context (16K prompt), 35B**:
+
+| conc | agg TPS | TTFT | TPOT |
+|---:|---:|---:|---:|
+| 1 | 12 | 2.6 s | 15 ms |
+| 4 | 13 | 6.8 s | 120 ms |
+
+Prefill dominates at long-prompt (~163 µs/tok), decode KV access stable.
+
+**Anti-patterns confirmed on dev371** (do not enable):
+
+- `--enable-prefix-caching` → -28.8% TPS (forces Mamba `align` mode incompatible with TQ k8v4).
+- `rejection_sample_method` + `draft_sample_method=probabilistic` → -4% TPS, -8.6% accept rate.
+- `--performance-mode interactivity` → neutral to -3.5%.
+- `--max-num-batched-tokens 8192` (vs 4096) → larger batches but TTFT regresses (683 ms vs 240 ms at conc=8).
+- `--max-model-len 320000` (Sprint 1 size, vs 280K) → -4.4% TPS (less VRAM headroom for batch=8 capture).
+
+### Audit findings
+
+- 7 patches auto-skipped as `upstream_merged` on dev371 — deep audit:
+  4 truly merged (P4, PN19, PN52, PN90), 3 partial-gap (P26, PN50, P12).
+  All 3 partial gaps recovered (see Patches changed above).
+- 13 retired patches re-audited: 11 truly fully-merged (kept retired),
+  2 partial gaps recovered (P61 already covered via P12 v2, PN51
+  reactivated).
+- TTFT user target 100-120 ms at `conc=8`: **structurally not reachable**
+  on current hardware without GDN kernel fusion. Current 243 ms is the
+  prefill compute floor (30 GDN layers × 6 sequential Triton kernels =
+  180 launches per forward).
+
+### Verified
+
+```bash
+# All gates green:
+python3 -m vllm.sndr_core.cli patches doctor       # 169 entries, ERROR=0 WARN=0
+python3 -m vllm.sndr_core.apply.shadow --strict    # CLEAN
+python3 -m pytest tests/unit/dispatcher -q          # 152 passed
+
+# Multi-conc bench (server):
+bash tools/restart_35b_dev371_multiconc.sh         # 130-180 s warmup
+python3 tools/multi_conc_bench.py sweep            # full conc=1/2/4/8 profile
+```
+
+### Architectural roadmap
+
+See `docs/GDN_KERNEL_FUSION_DESIGN.md` — 3-phase plan для снижения TTFT
+floor: fuse `chunk_local_cumsum`+`chunk_scaled_dot_kkt_fwd` (Phase 1),
+`solve_tril_inv`+`recompute_w_u_fwd` (Phase 2), `chunk_gated_delta_rule_fwd_h`+`chunk_fwd_o`
+(Phase 3). Effort 12-18 working days. Expected: TTFT 243→150-180 ms at conc=8
+(-25..-36%), per-req TPS 215→240-260 at conc=1.
+
+Decision: monitor upstream до 2026-06-01; implement Phase 1 if upstream doesn't
+merge equivalent.
+
+### DFlash variant bench (Wave 10 closure, 2026-05-15 evening)
+
+После TQ+MTP multi-conc сцены DFlash variants получили симметричный Wave 10
+patch matrix + полный bench. DFlash имеет фундаментальное VRAM-ограничение
+на consumer Ampere: head_size=256 в drafter блокирует TQ k8v4 / fp8 KV
+(target FP8 + drafter bf16 page-size mismatch при fp8 KV applied). Без
+compression fp16 KV @ 256K не помещается в 24GB.
+
+**35B DFlash** (max_model_len=100K, max_num_seqs=8, dtype=bfloat16):
+
+| conc | DFlash agg TPS | DFlash TTFT | MTP+TQ ref | Delta |
+| --- | --- | --- | --- | --- |
+| 1 | 153 | 74 ms | 215 / 65 ms | -29% TPS / +14% TTFT |
+| 4 | 359 | 154 ms | 478 / 146 ms | -25% TPS / +5% TTFT |
+| 8 | **562** | **162 ms** ⭐ | 689 / 243 ms | -18% TPS / **-33% TTFT** |
+
+DFlash на 35B — **LATENCY winner** при conc=8 (TTFT 162 ms vs MTP 243 ms,
+гораздо ближе к user target 100-120 ms). MTP+TQ — **THROUGHPUT winner**
+(689 vs 562 aggregate) + **long-context winner** (280K vs 100K cap).
+
+**27B DFlash** (max_model_len=80K, max_num_seqs=8):
+
+| conc | DFlash agg TPS | DFlash TTFT | MTP+TQ ref |
+| --- | --- | --- | --- |
+| 1 | 102 | 102 ms | 97 / 105 ms |
+| 4 | 268 | 160 ms | 265 / 159 ms |
+| 8 | 385 | 190 ms | 379 / 189 ms |
+
+На 27B DFlash и MTP+TQ практически идентичны (Δ <2%). Выбор зависит
+от context length: MTP+TQ supports 262K, DFlash capped at 80K.
+
+**Operator decision matrix**:
+
+- Latency-critical single-user 35B agentic → DFlash (TTFT 74 ms)
+- Multi-tenant 35B (≤100K ctx) → DFlash (TTFT 162 ms — closer to user target)
+- Multi-tenant 35B (long-ctx required) → MTP+TQ (256K + 689 TPS)
+- 27B either method → pick by required context length
+
+DFlash V2 model YAML files updated with full bench tables in notes section
+(qwen3.6-35b-a3b-fp8-dflash.yaml, qwen3.6-27b-dflash.yaml). Wave 10 patches
+(PN51/96b/125/126-130/132/133) added symmetric to MTP siblings — some are
+no-op on DFlash code path (PN128 eagle warmup, PN130 TQ decode warmup,
+PN133 MTP scheduler) but cost zero and aid cross-config consistency.
+
+---
+
 ## [v11.0.0+wave9_release_blockers_closed] — Release-tier audit closure (2026-05-14, evening)
 
 > Closes the remaining P0/P1 findings from
@@ -459,7 +645,7 @@ The STABLE ratchet ([tests/unit/infra/test_stable_manifest_policy.py](tests/unit
 1. `test_every_stable_patch_has_registered_patcher` — wiring module must call `register_text_patcher()` at import time
 2. `test_every_stable_patch_has_manifest_coverage` — `anchor_manifest.json` must have an entry for each patch_id
 
-Both promotions reverted; `experimental_note` field added to each with detailed production-validation evidence so the operational signal isn't lost. The ratchet architectural gap is documented in [docs/upstream/STABLE_PROMOTION_CHECKLIST.md "Ratchet architectural gap"](docs/upstream/STABLE_PROMOTION_CHECKLIST.md) with two paths forward:
+Both promotions reverted; `experimental_note` field added to each with detailed production-validation evidence so the operational signal isn't lost. The ratchet architectural gap is documented in [docs/CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable "Ratchet architectural gap"](docs/CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable) with two paths forward:
 
 1. **Build manifest infrastructure per-patch** — proper STABLE; needs running `build_anchor_manifest.py` on a vllm-installed host + creating pristine fixtures. Easy for PN33 (real text-patch), harder for PN35 (would need TextPatcher conversion).
 2. **Extend ratchet for runtime-hook STABLE** — add `stable_kind = "runtime-hook"` sub-track that accepts `production_validated_pins` evidence instead of manifest. Architectural trade-off: runtime-hook patches can drift if upstream changes the monkey-patched function, no manifest md5 to detect it.
@@ -481,7 +667,7 @@ Neither path is taken in this session — the qualitatively correct move is to p
 
 - `vllm/sndr_core/model_configs/builtin/a5000-2x-27b-int4-tq-k8v4.yaml` — `reference_metrics` block: Wave 9 numbers, Wave 8 retained as prev_baseline, dev209 in `vllm_pin`
 - `vllm/sndr_core/dispatcher/registry.py` — `PN33`/`PN35`: `experimental_note` added with validation evidence
-- `docs/upstream/STABLE_PROMOTION_CHECKLIST.md` — "Ratchet architectural gap" section documenting the runtime-hook blocker
+- `docs/CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable` — "Ratchet architectural gap" section documenting the runtime-hook blocker
 
 ---
 
@@ -1239,7 +1425,7 @@ test ratchet: any patch promoted to `lifecycle="stable"` MUST have its
 patch_id wired into the anchor manifest. Test:
 `tests/unit/infra/test_stable_manifest_policy.py`. Today 0 stable
 patches → test passes vacuously; future promotions can't skip the ritual.
-See `docs/upstream/STABLE_PROMOTION_CHECKLIST.md`.
+See `docs/CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable`.
 
 ### Pytest baseline
 

@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: LicenseRef-Sandermage-Commercial
+#
+# Commercial-tier wheel build config — `vllm-sndr-engine`.
+#
+# DA-011 (audit 2026-05-08): this file is a TEMPLATE for a future
+# commercial overlay wheel. It is intentionally NOT shipped in the
+# public repo's build pipeline — the public wheel is built from the
+# sibling `pyproject.toml` under Apache 2.0.
+#
+# Status of `vllm/sndr_engine/` in the public repo:
+#   - Reserved namespace, no patch / kernel implementations.
+#   - PN72 frequency ngram drafter MOVED to `vllm.sndr_core` (community).
+#   - Helper `ngram_frequency_filter` MOVED to `vllm.sndr_core.kernels`.
+#   - `engine_available()` returns False unless an external private
+#     overlay package registers via the `sndr.engine.overlay` entry
+#     point group (see `vllm/sndr_core/overlay.py` design).
+#
+# Build instructions for the future private overlay (when it exists):
+#
+#   1. Generate a fresh keypair with `python tools/license_keygen.py
+#      generate-keypair`. Paste the public key into
+#      `vllm/sndr_core/license.py:_TRUST_ANCHOR_PUBKEY_B64URL`.
+#   2. Develop the overlay code in a SEPARATE private repo with its own
+#      `pyproject.toml`. The overlay registers via the `sndr.engine.overlay`
+#      entry point group; it does NOT need to live under the
+#      `vllm.sndr_engine` namespace.
+#   3. Sign customer tokens with `python tools/license_keygen.py
+#      sign-token --customer-id <id> --engine-major <N>`.
+#   4. Distribute the overlay wheel to license holders via a private
+#      channel (e.g. authenticated PyPI mirror).
+#
+# This template is preserved here purely for reference. Treat as a
+# starting point if the future commercial overlay decides to use the
+# `vllm.sndr_engine` namespace; otherwise the overlay should live under
+# its own top-level package name (e.g. `sndr_engine_overlay`).
+#
+# Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa.
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "vllm-sndr-engine"
+# Source of truth: vllm/sndr_engine/version.py SNDR_ENGINE_VERSION
+# (in the FUTURE private overlay repo, not in this public template).
+version = "11.0.0"
+description = "SNDR Engine — reserved namespace for future private overlay."
+readme = "vllm/sndr_engine/LICENSE-NOTICE"
+requires-python = ">=3.10"
+license = {text = "LicenseRef-Sandermage-Commercial"}
+authors = [
+    {name = "Sandermage(Sander)-Barzov Aleksandr", email = "sander.odessa@gmail.com"},
+]
+keywords = ["vllm", "llm", "inference", "sndr", "engine", "commercial"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Future overlay wheel REQUIRES the matching sndr-core version to wire the
+# tier-gate. Major version must match (see
+# vllm.sndr_core.license._versions_compatible).
+dependencies = [
+    "vllm-sndr-core>=11.0.0,<12.0.0",
+]
+
+[project.urls]
+Licensing = "mailto:sander.odessa@gmail.com"
+
+
+# Future entry point group (designed in roadmap §15.1, not yet wired).
+# When the private overlay materializes, it registers its `register()`
+# callback under this group; `vllm.sndr_core.license.engine_available()`
+# discovers it via `importlib.metadata.entry_points`.
+[project.entry-points."sndr.engine.overlay"]
+# private = "sndr_engine_private:register"
+
+
+# ─── Setuptools package layout ────────────────────────────────────────────
+#
+# DA-011 (audit 2026-05-08): pre-cleanup, this section claimed
+# `vllm.sndr_engine` ships PN72 + the ngram_frequency_filter kernel.
+# Both moved to core. Layout is now skeleton-only.
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "vllm.sndr_engine*",
+]
+exclude = [
+    "tests*",
+    "docs*",
+    "scripts*",
+    "snapshots*",
+    "internal*",
+    "vllm._genesis*",
+    "vllm.sndr_core*",
+    "tools*",
+]
+
+[tool.setuptools.package-data]
+"vllm.sndr_engine" = [
+    "LICENSE-NOTICE",
+]

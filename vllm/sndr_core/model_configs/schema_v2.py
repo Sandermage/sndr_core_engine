@@ -23,11 +23,19 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
-# Reuse V1 helper types where possible (HardwareSpec, SpecDecodeConfig, etc.).
-# This keeps a single source of truth for sub-component validation rules.
-from .schema import HardwareSpec, SchemaError, SpecDecodeConfig
+# Reuse V1 helper types where possible (HardwareSpec, SpecDecodeConfig,
+# PatchAttribution, ...). This keeps a single source of truth for
+# sub-component validation rules. PatchAttribution is imported through
+# the V1 module so V1 ModelConfig and V2 ModelDef share the same dataclass
+# — the same instance survives `compose()` without round-tripping.
+from .schema import (
+    HardwareSpec,
+    PatchAttribution,
+    SchemaError,
+    SpecDecodeConfig,
+)
 
 SCHEMA_VERSION_V2 = 2
 
@@ -48,6 +56,23 @@ def _check_id(value: str, field_name: str) -> None:
         raise SchemaError(
             f"{field_name}={value!r} must be lowercase alphanumerics with "
             "`.`, `_`, or `-` (start/end alphanumeric)"
+        )
+
+
+# Patch IDs follow Genesis convention: P or PN, then digits, optional suffix.
+# Examples: P67, P67b, PN116, PN119, PN16_V6. Uppercase distinguishes from
+# model/hardware/profile IDs which use kebab-case lowercase.
+_PATCH_ID_RE = re.compile(r"^P[N]?[0-9]+[A-Za-z0-9_]*$")
+
+
+def _check_patch_id(value: str, field_name: str) -> None:
+    """Patch IDs use uppercase P[N]?\\d+ convention (P67, PN119, PN16_V6)."""
+    if not value:
+        raise SchemaError(f"{field_name} required")
+    if not _PATCH_ID_RE.match(value):
+        raise SchemaError(
+            f"{field_name}={value!r} must match pattern P[N]?\\d+[A-Za-z0-9_]* "
+            "(e.g. P67, P67b, PN119, PN16_V6)"
         )
 
 
@@ -114,6 +139,11 @@ class ModelVersions:
     reference_metrics_ref: Optional[str] = None
 
 
+# PatchAttribution + _PATCH_ROLES live in V1 schema.py (re-exported above)
+# so V1 ModelConfig and V2 ModelDef share the exact same dataclass.
+# Phase A moved the definition into V2; Phase B lifted it into V1.
+
+
 @dataclass
 class ModelDef:
     """Identity + capabilities + canonical patches for a single model.
@@ -144,6 +174,26 @@ class ModelDef:
     # A profile delta can disable / enable / override entries here.
     patches: dict[str, str] = field(default_factory=dict)
 
+    # optional structured rationale keyed by registry patch ID
+    # (e.g. `PN204`, not the env-flag name). Stored alongside `patches`
+    # so a model's "what" + "why" stay in one file. Empty dict is the
+    # default for legacy YAMLs that haven't been backfilled yet.
+    # Consumed by `sndr patches plan --explain` (Phase B) and the
+    # compose policy filter (Phase C). compose() itself ignores this
+    # field — Phase A is additive and non-breaking.
+    patches_attribution: dict[str, PatchAttribution] = field(default_factory=dict)
+
+    # Optional Jinja chat-template override (`--chat-template <path>`).
+    # When set, the launch renderer bind-mounts the host-resolved file
+    # into the container at /chat_templates/<basename> and emits the
+    # CLI flag. Supports `${chat_templates_dir}/...` symbolic refs that
+    # resolve via host.yaml. Use for models where the upstream
+    # tokenizer-bundled chat_template.jinja has known bugs (e.g.
+    # qwen3.6-27b club-3090 disc #53 — assistant branch does not close
+    # </think> before <tool_call>, tools stop firing in multi-turn
+    # agentic traces).
+    chat_template: Optional[str] = None
+
     notes: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
@@ -163,6 +213,22 @@ class ModelDef:
                 raise SchemaError(
                     f"model.patches[{k!r}] value must be str (got {type(v).__name__})"
                 )
+        for pid, attr in self.patches_attribution.items():
+            # Key must be a canonical Genesis patch ID (P{N}? + digits).
+            # Same validator the PatchManifest layer uses — keeps the
+            # cross-reference between attribution and registry tight.
+            _check_patch_id(pid, f"patches_attribution[{pid!r}]")
+            if not isinstance(attr, PatchAttribution):
+                raise SchemaError(
+                    f"patches_attribution[{pid!r}] must be PatchAttribution "
+                    f"(got {type(attr).__name__})"
+                )
+            attr.validate(key=pid)
+        if self.chat_template is not None and not isinstance(self.chat_template, str):
+            raise SchemaError(
+                f"model.chat_template must be str | None (got "
+                f"{type(self.chat_template).__name__})"
+            )
 
 
 # ─── HardwareDef ──────────────────────────────────────────────────────────
@@ -297,14 +363,24 @@ class HardwareDef:
 
 @dataclass
 class PatchesDelta:
-    """Three explicit actions on the canonical patches dict.
+    """Three explicit actions on the canonical patches dict + optional
+    attribution override layer.
 
-    Order applied by composer: enable → disable → override.
+    Order applied by composer: enable → disable → override → attribution.
     Conflicts within a profile (enable + disable same key) raise SchemaError.
+
+    the ``attribution`` map lets a
+    profile override ModelDef.patches_attribution per patch ID at
+    compose time. Use case: the long-ctx profile flags PN204 as
+    load_bearing (model marked it optional_perf because the latency
+    profile doesn't need it), or an A/B profile downgrades a patch
+    from defensive to suspected_regression during a validation window.
+    Override is per-entry full replacement, not field-level merge.
     """
     enable: dict[str, str] = field(default_factory=dict)
     disable: list[str] = field(default_factory=list)
     override: dict[str, str] = field(default_factory=dict)
+    attribution: dict[str, "PatchAttribution"] = field(default_factory=dict)
 
     def validate(self) -> None:
         enabled = set(self.enable)
@@ -324,6 +400,20 @@ class PatchesDelta:
                     raise SchemaError(
                         f"profile patches_delta.{src_name}[{k!r}] must be str"
                     )
+        # validate the optional attribution override map.
+        # Key shape mirrors ModelDef.patches_attribution: keys are
+        # canonical patch IDs (P[N]?\\d+[A-Za-z0-9_]*), values are
+        # PatchAttribution entries (role enum + role-conditional aux
+        # fields). _check_patch_id() enforces the key contract; the
+        # entry-level role check delegates to PatchAttribution.validate.
+        for pid, attr in self.attribution.items():
+            _check_patch_id(pid, f"profile patches_delta.attribution[{pid!r}]")
+            if not isinstance(attr, PatchAttribution):
+                raise SchemaError(
+                    f"profile patches_delta.attribution[{pid!r}] must be "
+                    f"PatchAttribution (got {type(attr).__name__})"
+                )
+            attr.validate(key=pid)
 
 
 @dataclass
@@ -342,6 +432,182 @@ class ProfileVersionsOverride:
 
 
 @dataclass
+class CompressionPlanConfig:
+    """Per-layer KV compression plan owned by the profile.
+
+    Used by the structured-role profile to declare which layers must
+    stay in their native (uncompressed) dtype because they are
+    KV-sharing sources for an MTP drafter. Layers NOT listed here
+    use ``default_kv_dtype``.
+
+    Composer expands this into the corresponding env that the
+    existing G4_60K / PN247 reader honors
+    (currently ``GENESIS_G4_TQ_FORCE_SKIP_LAYERS``); when the
+    reader migrates to the SNDR canonical name the composer emits
+    only the SNDR variant.
+
+    The strategy enum is constrained to ``per_layer`` for v1 — other
+    strategies (global, role_based) can be added when there's a
+    second concrete use case.
+    """
+    native_source_layers: list[int] = field(default_factory=list)
+    default_kv_dtype: Optional[str] = None
+    strategy: Literal["per_layer"] = "per_layer"
+
+    def validate(self) -> None:
+        seen: set[int] = set()
+        for i, layer in enumerate(self.native_source_layers):
+            if not isinstance(layer, int) or layer < 0:
+                raise SchemaError(
+                    f"profile.compression_plan.native_source_layers[{i}]="
+                    f"{layer!r} must be a non-negative int"
+                )
+            if layer in seen:
+                raise SchemaError(
+                    f"profile.compression_plan.native_source_layers contains "
+                    f"duplicate index {layer}"
+                )
+            seen.add(layer)
+        if self.default_kv_dtype is not None and not isinstance(
+            self.default_kv_dtype, str
+        ):
+            raise SchemaError(
+                "profile.compression_plan.default_kv_dtype must be a str when set"
+            )
+        if self.strategy != "per_layer":
+            raise SchemaError(
+                f"profile.compression_plan.strategy={self.strategy!r} "
+                f"must be 'per_layer' (only supported value in v1)"
+            )
+
+
+@dataclass
+class BackendPlanConfig:
+    """Attention backend assignments owned by the profile.
+
+    Names map to the v1 attention-backend enum string forms
+    (TURBOQUANT / TRITON_ATTN / FLASH_ATTN / etc.). The composer is
+    NOT a validator of which combinations are runtime-safe; that
+    contract belongs to the spec_decode planner + safety guard
+    (PN271b/PN274). The composer only propagates the operator's
+    declared intent into env / engine-config.
+
+    P1.8 (2026-05-21): adds ``drafter_kv_sharing`` to declare whether
+    the drafter shares physical KV with the target (β'-A K=4 needs
+    ``physical``; native default is ``disabled``). This replaces the
+    operator-implicit knowledge that hand-written launchers must set
+    ``GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING=0`` to opt into
+    native sharing. The mapping provider's predicate requires this
+    env to be ``0`` for the artifact lookup to succeed, but the
+    Gemma4 mapping provider hardcodes ``default="1"`` (disable kv
+    sharing). Profiles that need the validated β'-A path must
+    declare ``drafter_kv_sharing: physical`` so compose emits the
+    env explicitly.
+    """
+    target_default: Optional[str] = None
+    target_native_layers: Optional[str] = None
+    drafter_sliding: Optional[str] = None
+    drafter_full: Optional[str] = None
+    # P1.8: drafter KV sharing policy.
+    #   physical  → drafter shares target's KV slots; native β'-A K=4 path;
+    #                emits GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING=0
+    #                (mapping provider's predicate reads this as "kv_sharing_on")
+    #   disabled  → drafter uses its own KV; mapping provider default behavior;
+    #                no env emission (relies on runtime default = disable)
+    #   None       → profile is silent on this dimension; runtime default applies
+    drafter_kv_sharing: Optional[Literal["physical", "disabled"]] = None
+
+    def validate(self) -> None:
+        for name in (
+            "target_default", "target_native_layers",
+            "drafter_sliding", "drafter_full",
+        ):
+            val = getattr(self, name)
+            if val is not None and (not isinstance(val, str) or not val):
+                raise SchemaError(
+                    f"profile.backend_plan.{name}={val!r} must be a non-empty str"
+                )
+        if self.drafter_kv_sharing is not None and (
+            self.drafter_kv_sharing not in ("physical", "disabled")
+        ):
+            raise SchemaError(
+                f"profile.backend_plan.drafter_kv_sharing="
+                f"{self.drafter_kv_sharing!r} must be one of "
+                f"('physical', 'disabled') or None"
+            )
+
+
+@dataclass
+class RoutingConfig:
+    """Operator-declared workload intent for the profile.
+
+    At runtime the spec-decode router intersects this list with the
+    artifact's ``allowed_workloads`` to compute the effective allow
+    set; the artifact is the source of truth on what's been bench-
+    validated, this field is what the operator claims the profile
+    is intended for.
+    """
+    intended_workloads: list[str] = field(default_factory=list)
+
+    def validate(self) -> None:
+        seen: set[str] = set()
+        for i, cls in enumerate(self.intended_workloads):
+            if not isinstance(cls, str) or not cls:
+                raise SchemaError(
+                    f"profile.routing.intended_workloads[{i}]={cls!r} "
+                    f"must be a non-empty str"
+                )
+            if cls in seen:
+                raise SchemaError(
+                    f"profile.routing.intended_workloads contains duplicate "
+                    f"{cls!r}"
+                )
+            seen.add(cls)
+
+
+@dataclass
+class ValidationArtifactRef:
+    """Reference to a spec-decode functional artifact that bench-
+    validated this profile's runtime semantics.
+
+    Pin-invariant by design: artifact's ``config_hash`` is computed
+    over (model_id, kv_plan, K, drafter_backend) excluding the vLLM
+    pin, so this reference stays valid across pin bumps. Strict pin
+    matching is opt-in via ``sndr profile validate --strict-pin``
+    (later).
+    """
+    artifact_id: str
+    config_hash: str
+
+    def validate(self) -> None:
+        _check_id(self.artifact_id, "profile.validation.artifact_id")
+        if not isinstance(self.config_hash, str):
+            raise SchemaError(
+                "profile.validation.config_hash must be a string"
+            )
+        h = self.config_hash.strip()
+        if not h:
+            raise SchemaError(
+                "profile.validation.config_hash must be a non-empty hex string"
+            )
+        if not re.fullmatch(r"[0-9a-fA-F]+", h):
+            raise SchemaError(
+                f"profile.validation.config_hash={h!r} must be hex "
+                f"(letters [0-9a-f])"
+            )
+
+
+# Allowed values for ProfileDef.role.
+# - default:    role producing the production-safe upstream (TQ-only, MTP OFF)
+# - structured: role producing the MTP / spec-decode upstream
+# - gateway:    role producing the FastAPI reverse-proxy in front of the
+#               above pair
+# None preserves the existing 17 builtin profiles which are pure
+# (model × hardware) operator-tuning presets.
+PROFILE_ROLES = ("default", "structured", "gateway")
+
+
+@dataclass
 class ProfileDef:
     """Patches delta layered on top of a specific model's canonical set.
 
@@ -355,6 +621,26 @@ class ProfileDef:
     SPECIFIC model on a specific rig (35B on 2×A5000 → max_num_seqs=2;
     27B on same rig → max_num_seqs=4). Profile is the right "operator
     tuning" layer; hardware just declares physical capacity.
+
+    Runtime-role fields (P1.1, 2026-05-20)
+    -------------------------------------
+    The optional fields below extend ProfileDef from "tuning preset" to
+    "runtime role". A profile with ``role=None`` (the default) behaves
+    exactly as the prior 17 builtin profiles do — patches_delta +
+    sizing_override only. A profile with ``role`` set additionally
+    declares spec-decode / compression / backend / routing / validation
+    semantics that the composer renders into the launcher env.
+
+    Why optional: all 17 existing builtin profiles set role=None
+    implicitly (the field is absent in their YAMLs) and continue to
+    work unchanged. See SNDR_RUNTIME_PROFILES_DESIGN_DECISIONS_2026-05-20
+    §4 for the full design.
+
+    The ``spec_decode_override`` field reuses V1 ``SpecDecodeConfig``
+    rather than introducing a dedicated dataclass — it's literally a
+    profile-side spec-decode config (method, K, drafter, sample rules)
+    so the V1 type is the right shape and gives single-source-of-truth
+    semantics.
     """
     schema_version: int
     kind: Literal["profile"]
@@ -368,6 +654,13 @@ class ProfileDef:
     sizing_override: Optional["HardwareSizing"] = None
     versions_override: Optional[ProfileVersionsOverride] = None
     promotion: Optional[ProfilePromotion] = None
+
+    role: Optional[Literal["default", "structured", "gateway"]] = None
+    spec_decode_override: Optional[SpecDecodeConfig] = None
+    compression_plan: Optional[CompressionPlanConfig] = None
+    backend_plan: Optional[BackendPlanConfig] = None
+    routing: Optional[RoutingConfig] = None
+    validation: Optional[ValidationArtifactRef] = None
 
     def validate(self) -> None:
         _check_schema_version(self.schema_version)
@@ -383,6 +676,22 @@ class ProfileDef:
             raise SchemaError(
                 f"profile.status={self.status!r} must be experimental|validated|promoted"
             )
+
+        # Runtime-role fields — all Optional, default None preserves prior behavior.
+        if self.role is not None and self.role not in PROFILE_ROLES:
+            raise SchemaError(
+                f"profile.role={self.role!r} must be one of {PROFILE_ROLES} or None"
+            )
+        if self.spec_decode_override is not None:
+            self.spec_decode_override.validate()
+        if self.compression_plan is not None:
+            self.compression_plan.validate()
+        if self.backend_plan is not None:
+            self.backend_plan.validate()
+        if self.routing is not None:
+            self.routing.validate()
+        if self.validation is not None:
+            self.validation.validate()
 
 
 # ─── PatchManifest (community SDK) ───────────────────────────────────────
@@ -483,7 +792,7 @@ class PatchManifest:
     def validate(self) -> None:
         _check_schema_version(self.schema_version)
         _check_kind(self.kind, "patch")
-        _check_id(self.id, "patch.id")
+        _check_patch_id(self.id, "patch.id")
         if not self.namespace.startswith("community/") and self.namespace not in (
             "official", "core",
         ):

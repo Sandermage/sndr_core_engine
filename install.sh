@@ -20,7 +20,7 @@
 #       Genesis via vllm.general_plugins entry point in main + workers)
 #    5. Auto-matches a preset for your (gpu × workload) and writes a
 #       runnable launch script
-#    6. Runs `genesis verify` — 60-second smoke test
+#    6. Runs `sndr verify` — 60-second smoke test
 #    7. Prints next-step instructions
 #
 #  Goals (per Sander 2026-05-02):
@@ -38,7 +38,12 @@ set -euo pipefail
 # ─── Config (overridable via env or flags) ────────────────────────────
 
 GENESIS_REPO="${GENESIS_REPO:-https://github.com/Sandermage/genesis-vllm-patches.git}"
-GENESIS_HOME="${GENESIS_HOME:-${HOME}/.genesis}"
+# Primary path: ~/.sndr (new canonical home, post-rebrand). Legacy alias
+# GENESIS_HOME still honored for back-compat with v7.x operators — if
+# the operator already has $GENESIS_HOME set, prefer it; otherwise use
+# $SNDR_HOME (new) and fall back to ~/.sndr.
+SNDR_HOME="${SNDR_HOME:-${HOME}/.sndr}"
+GENESIS_HOME="${GENESIS_HOME:-${SNDR_HOME}}"
 GENESIS_PIN="${GENESIS_PIN:-stable}"     # 'stable' (latest tag) | 'dev' | <commit-or-tag>
 GENESIS_WORKLOAD="${GENESIS_WORKLOAD:-}" # one of: long_context, high_throughput, tool_agent, balanced
 GENESIS_NON_INTERACTIVE="${GENESIS_NON_INTERACTIVE:-0}"
@@ -48,7 +53,16 @@ GENESIS_BARE_METAL="${GENESIS_BARE_METAL:-0}"      # 1 = skip Docker hints, poin
 GENESIS_UNINSTALL=0
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-PIP_INSTALL_FLAGS="${PIP_INSTALL_FLAGS:---user}"  # safer default than system-wide
+# Pip flag overrides — accept both new SNDR_PIP_FLAGS and legacy
+# PIP_INSTALL_FLAGS env vars. New name takes priority if set.
+SNDR_PIP_FLAGS="${SNDR_PIP_FLAGS:-}"
+# If SNDR_PIP_FLAGS is set, it wins; otherwise fall back to legacy
+# PIP_INSTALL_FLAGS or the default `--user` (safer than system-wide).
+if [ -n "${SNDR_PIP_FLAGS}" ]; then
+    PIP_INSTALL_FLAGS="${SNDR_PIP_FLAGS}"
+else
+    PIP_INSTALL_FLAGS="${PIP_INSTALL_FLAGS:---user}"
+fi
 
 # ─── Output helpers (rustup/uv-style) ─────────────────────────────────
 
@@ -276,7 +290,7 @@ detect_vllm() {
 
   if [ "$VLLM_VERSION" != "?" ] && [[ "$VLLM_VERSION" != *"0.20"* ]]; then
     warn "Genesis is pinned to vllm 0.20.x — your $VLLM_VERSION may have anchor drift."
-    hint "See docs/COMPATIBILITY.md or run \`genesis doctor\` after install."
+    hint "See docs/PATCHES.md or run \`sndr doctor\` after install."
   fi
 }
 
@@ -534,7 +548,7 @@ generate_launch_script() {
 
   if [ -z "$GPU_CLASS_HINT" ] || [ "$N_GPUS" = "0" ]; then
     warn "no GPU detected — skipping launch script generation"
-    hint "Pick a preset manually:  python3 -m vllm.sndr_core.compat.cli preset list"
+    hint "Pick a preset manually:  sndr model-config list"
     return
   fi
 
@@ -562,7 +576,7 @@ generate_launch_script() {
       ok "wrote launch script: $out_file"
     else
       warn "no preset matches your hardware combination — pick manually:"
-      hint "  python3 -m vllm.sndr_core.compat.cli preset list"
+      hint "  sndr model-config list"
       rm -f "$out_file"
       return
     fi
@@ -571,7 +585,7 @@ generate_launch_script() {
   LAUNCH_SCRIPT="$out_file"
 }
 
-# ─── Verify (smoke test, optional, requires Day 3 `genesis verify`) ───
+# ─── Verify (smoke test, optional, requires `sndr verify`) ───
 
 run_verify() {
   if [ "$GENESIS_NO_VERIFY" = "1" ]; then
@@ -583,7 +597,7 @@ run_verify() {
 
   if ! PYTHONPATH="$GENESIS_HOME:${PYTHONPATH:-}" "$PYTHON_BIN" -m vllm.sndr_core.compat.cli verify --quick 2>&1 | sed 's/^/    /'; then
     warn "verify reported issues — check output above. Genesis is installed but may not be fully functional."
-    hint "Diagnose:  python3 -m vllm.sndr_core.compat.cli doctor"
+    hint "Diagnose:  sndr doctor   (or: python3 -m vllm.sndr_core.cli doctor)"
     return 0  # Don't fail install on verify warnings
   fi
 }
@@ -605,7 +619,7 @@ print_next_steps() {
   if [ "$GENESIS_BARE_METAL" = "1" ]; then
     echo "  Bare-metal mode (--bare-metal or auto-enabled by Proxmox detect):"
     echo "      $PYTHON_BIN -m pip install --user vllm==0.20.1   # if not already"
-    echo "      genesis verify                                   # full smoke test"
+    echo "      sndr verify                                       # full smoke test"
     echo "      vllm serve <model> --tensor-parallel-size <N> ...  # standard vllm CLI"
     echo
     echo "  Generated launch scripts in $GENESIS_HOME/scripts/ are docker-based"
@@ -621,15 +635,17 @@ print_next_steps() {
     echo "      bash $LAUNCH_SCRIPT"
   else
     echo "  Browse presets and pick one for your rig:"
-    echo "      python3 -m vllm.sndr_core.compat.cli preset list"
-    echo "      python3 -m vllm.sndr_core.compat.cli preset show <key> --script"
+    echo "      sndr model-config list           # available presets"
+    echo "      sndr model-config show <alias>   # inspect a preset"
+    echo "      sndr launch <alias>              # boot the preset"
   fi
   echo
   echo "Useful commands:"
-  echo "  genesis doctor          # full system diagnostic"
-  echo "  genesis preset auto     # auto-pick preset for this rig"
-  echo "  genesis verify          # re-run smoke test"
-  echo "  genesis explain P103    # per-patch deep-dive"
+  echo "  sndr doctor             # full system diagnostic"
+  echo "  sndr model-config list  # browse production presets"
+  echo "  sndr verify             # re-run smoke test"
+  echo "  sndr patches doctor     # registry sanity check"
+  echo "  sndr --help             # full subcommand list"
   echo
   echo "Docs:    https://github.com/Sandermage/genesis-vllm-patches"
   echo "Issues:  https://github.com/Sandermage/genesis-vllm-patches/issues"

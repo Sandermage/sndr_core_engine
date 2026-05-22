@@ -4,13 +4,13 @@
 > Source: `vllm/sndr_core/model_configs/builtin/*.yaml`
 > Companion to curated [CONFIGS.md](CONFIGS.md) (narrative).
 
-Generated: 2026-05-11T23:26:56Z
-Total configs: **11**
+Generated: 2026-05-15T22:58:20Z
+Total configs: **12**
 
 ## By lifecycle
 
 - `community-test`: 2
-- `experimental`: 1
+- `experimental`: 2
 - `retired`: 1
 - `stable`: 5
 - `tested`: 2
@@ -21,11 +21,12 @@ Total configs: **11**
 |---|:---:|---|---|:---:|---:|---:|---:|:---:|---|
 | `a5000-2x-27b-dflash-true` | `stable` | qwen3.6-27b-dflash | `null` | — | 185000 | 97.6 | — | 10/10 | 2026-05-06 |
 | `a5000-2x-27b-int4-long-ctx` | `stable` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 280000 | 38.6 | — | 10/10 | 2026-05-06 |
-| `a5000-2x-27b-int4-tq-k8v4` | `stable` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 131072 | 131.67 | 7.34 | 7/7 | 2026-05-11 |
+| `a5000-2x-27b-int4-tq-k8v4` | `stable` | qwen3.6-27b | `turboquant_k8v4` | — | 262144 | 131.67 | 7.34 | 7/7 | 2026-05-11 |
 | `a5000-2x-35b-fp8-dflash` | `stable` | qwen3.6-35b-a3b | `null` | — | 160000 | 127.2 | — | 9/10 | 2026-05-06 |
 | `a5000-2x-35b-prod` | `stable` | qwen3.6-35b-a3b | `turboquant_k8v4` | MTP K=3 | 320000 | 234.54 | 3.96 | 7/7 | 2026-05-09 |
 | `a5000-1x-27b-int4-tested` | `tested` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 78000 | 66.8 | — | 10/10 | 2026-05-05 |
 | `a5000-2x-27b-int4-tested` | `tested` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 131072 | 57.4 | — | 10/10 | 2026-05-05 |
+| `a5000-1x-tier-aware-pn95` | `experimental` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 200000 | — | — | — | 2026-05-13 |
 | `a5000-2x-tier-aware-example` | `experimental` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 131072 | — | — | — | 2026-05-09 |
 | `single-3090-dense-cpu-offload-example` | `community-test` | qwen3.6-7b | `fp8_e5m2` | — | 65536 | — | — | — | 2026-05-09 |
 | `single-3090-hybrid-gdn-tier-aware-example` | `community-test` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 145000 | — | — | — | 2026-05-09 |
@@ -117,12 +118,12 @@ Total configs: **11**
 | `vllm_pin_required` | `0.20.2rc1.dev209+g5536fc0c0` |
 | `model_path` | `/models/Qwen3.6-27B-int4-AutoRound` |
 | `kv_cache_dtype` | `turboquant_k8v4` |
-| `max_model_len` | `131072` |
+| `max_model_len` | `262144` |
 | `gpu_memory_utilization` | `0.92` |
 | `max_num_seqs` | `4` |
 | `max_num_batched_tokens` | `4096` |
-| `mtp_k` | 3 |
-| `enabled_patches` (genesis_env) | 39 |
+| `mtp_k` | — |
+| `enabled_patches` (genesis_env) | 60 |
 
 **Reference metrics (`genesis_bench_suite.py --quick`):**
 
@@ -156,7 +157,7 @@ Total configs: **11**
 | `max_num_seqs` | `1` |
 | `max_num_batched_tokens` | `2048` |
 | `mtp_k` | — |
-| `enabled_patches` (genesis_env) | 29 |
+| `enabled_patches` (genesis_env) | 39 |
 
 **Reference metrics (`genesis_bench_suite.py --quick`):**
 
@@ -190,7 +191,7 @@ Total configs: **11**
 | `max_num_seqs` | `2` |
 | `max_num_batched_tokens` | `4096` |
 | `mtp_k` | 3 |
-| `enabled_patches` (genesis_env) | 33 |
+| `enabled_patches` (genesis_env) | 58 |
 
 **Reference metrics (`genesis_bench_suite.py --quick`):**
 
@@ -269,6 +270,30 @@ Total configs: **11**
 | `ttft_ms` | `—` |
 | `tool_call_score` | `10/10` |
 | `stability_cv_pct` | `1.31` |
+
+
+### `a5000-1x-tier-aware-pn95`
+
+**Title**: Single A5000 — Qwen3.6-27B-INT4 fp8 + PN95 multi-tier offload
+
+> Single-card variant of the Wave 9 27B PROD config. Trades concurrency  for ~3× context reach via PN95 demote→CPU-pinned-warm→disk-cold.
+
+**Engine config:**
+
+| Field | Value |
+|---|---|
+| `lifecycle` | `experimental` |
+| `workload_tag` | `long-context-single-card` |
+| `genesis_pin` | `v11.0.0+wave9+pn95_pinned_l1+layer_aware` |
+| `vllm_pin_required` | `0.20.2rc1.dev209+g5536fc0c0` |
+| `model_path` | `/models/Qwen3.6-27B-int4-AutoRound` |
+| `kv_cache_dtype` | `fp8_e5m2` |
+| `max_model_len` | `200000` |
+| `gpu_memory_utilization` | `0.92` |
+| `max_num_seqs` | `1` |
+| `max_num_batched_tokens` | `2048` |
+| `mtp_k` | 3 |
+| `enabled_patches` (genesis_env) | 41 |
 
 
 ### `a5000-2x-tier-aware-example`

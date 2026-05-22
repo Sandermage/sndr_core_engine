@@ -132,6 +132,19 @@ def _dataclass_from_dict(cls, data: dict):
                         for v in value
                     ]
                     continue
+        # dict[str, Dataclass] → recurse per value.
+        # added so ModelDef.patches_attribution
+        # `dict[str, PatchAttribution]` materialises through YAML load.
+        if isinstance(value, dict) and ftype is not None:
+            origin = typing.get_origin(ftype)
+            if origin is dict:
+                args = typing.get_args(ftype)
+                if len(args) == 2 and dataclasses.is_dataclass(args[1]):
+                    kwargs[f.name] = {
+                        k: (_dataclass_from_dict(args[1], v) if isinstance(v, dict) else v)
+                        for k, v in value.items()
+                    }
+                    continue
         kwargs[f.name] = value
     return cls(**kwargs)
 

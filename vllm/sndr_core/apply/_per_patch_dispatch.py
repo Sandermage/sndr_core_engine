@@ -25,22 +25,17 @@ Migration history:
 """
 from __future__ import annotations
 
-import json
 import logging
-import sys
-from typing import Any, Callable
 
 # Import shared state (registry, _APPLY_MODE, helpers, types).
 # Using `from ._state import ...` for the names — `_state._APPLY_MODE` is
 # read indirectly through `_wiring_text_patch` which does its own check.
 from . import _state
 from ._state import (
-    PATCH_REGISTRY,
     PatchResult,
     PatchStats,  # noqa: F401  (some patch funcs reference for type hints)
     _applied,
     _failed,
-    _resolve_wiring_module,
     _skipped,
     _wiring_text_patch,
     register_patch,
@@ -717,7 +712,7 @@ def apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import (
+        from vllm.sndr_core.integrations._retired import (
             pn9_independent_drafter_attn_backend as _wiring,
         )
     except Exception as e:
@@ -802,27 +797,15 @@ def apply_patch_N62_text_only_vit_skip() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("P94 Spec-decode prepare_next_token zero-alloc (vllm#41043)")
-def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
-    """P94: backport of vllm#41043 — eliminate per-step allocation in
-    prepare_next_token under spec-decode. Default OFF; opt in via
-    GENESIS_ENABLE_P94=1.
-    """
-    name = "P94 Spec-decode prepare_next_token zero-alloc (vllm#41043)"
-    if not _state._APPLY_MODE:
-        return _applied(name, "dry-run: text-patch ready")
-    try:
-        from vllm.sndr_core.integrations.spec_decode import (
-            p94_spec_decode_zero_alloc as _wiring,
-        )
-    except Exception as e:
-        return _failed(name, f"wiring import failed: {e}")
-    status, reason = _wiring.apply()
-    if status == "applied":
-        return _applied(name, reason)
-    if status == "skipped":
-        return _skipped(name, reason)
-    return _failed(name, reason)
+# DEDUPE 2026-05-14: P94 duplicate hook removed (registered both as short
+# "P94 Spec-decode prepare_next_token zero-alloc" and detailed
+# "P94 Spec-decode prepare_next_token_ids_padded zero-alloc" — see line ~2979).
+# Kept def for git blame continuity; @register_patch removed so dispatcher
+# only sees the detailed-name version.
+def _dedupe_apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
+    """DEDUPE'd 2026-05-14 — see canonical hook at apply_patch_94_spec_decode_zero_alloc."""
+    name = "P94 Spec-decode prepare_next_token zero-alloc (vllm#41043) [DEDUPE]"
+    return _skipped(name, "deduplicated 2026-05-14")
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -928,6 +911,98 @@ def apply_patch_n111_skip_mamba_postprocess_sync() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch(
+    "PN116 TurboQuant prefill max_seq_len fallback fix (regressor: vllm#41434)"
+)
+def apply_patch_n116_tq_prefill_maxseq_fallback() -> PatchResult:
+    """PN116: Genesis-original fix for vllm#41434 fallback path on Ampere.
+
+    The upstream PR replaced a `.tolist()` GPU→CPU sync in TurboQuant
+    `_prefill_attention` with a CPU-mirror lookup that falls back to
+    the inflated full-batch `max_seq_len` when `seq_lens_cpu` is None.
+    On Hopper the new shape is a net win; on Ampere the inflated
+    fallback regresses 35B-A3B-FP8 TPS by ~10 %. Patch makes the
+    fallback compute the correct prefill-slice max via the original
+    `.tolist()` call. HW-aware: skips itself on SM≥9.0 unless
+    `GENESIS_PN116_FORCE=1` is set.
+    """
+    name = "PN116 TurboQuant prefill max_seq_len fallback fix (regressor: vllm#41434)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            pn116_tq_prefill_maxseq_fallback as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
+    "PN118 TurboQuant workspace graceful-fallback (backport: vllm#42551, P99-compat)"
+)
+def apply_patch_n118_tq_workspace_fallback() -> PatchResult:
+    """PN118: P99-compatible backport of vllm#42551 (jasonboukheir, OPEN).
+
+    Adds WorkspaceManager.{try_get_simultaneous, reserve} methods
+    (P99 memoization preserved on get_simultaneous), and updates
+    TurboQuant __init__ to reserve decode scratch + _decode_attention
+    to use try_get_simultaneous with torch.empty fallback. Closes the
+    AssertionError on first decode request for partial-TQ models
+    (16/64 TQ layers, Lorbus 27B AutoRound case named in the PR).
+    """
+    name = "PN118 TurboQuant workspace graceful-fallback (backport: vllm#42551, P99-compat)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            pn118_tq_workspace_fallback as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch(
+    "PN119 TurboQuant k8v4 GQA head grouping kernel (backport: vllm#40792)"
+)
+def apply_patch_n119_tq_gqa_grouping() -> PatchResult:
+    """PN119: backport of vllm#40792 (hoseung2, OPEN).
+
+    Adds the GQA-grouped variant of TurboQuant decode stage-1 kernel
+    (~195 lines) and updates dispatch to select it when GQA-ratio > 1.
+    Upstream measured +16-27% TPS on A100/H100 GQA-{4,8,24}. Our 27B
+    + 35B both run GQA-ratio 8 so expected win is near the high end.
+    Applied via bundled diff + `patch` subprocess with md5 pre-patch
+    guard; self-retires on drift.
+    """
+    name = "PN119 TurboQuant k8v4 GQA head grouping kernel (backport: vllm#40792)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            pn119_tq_gqa_grouping as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("Sprint 2.6 v2 — CUDA graph dispatch trace wire-in")
 def apply_patch_sprint26_cudagraph_dispatch_trace() -> PatchResult:
     """Sprint 2.6 v2: text-patch wire-in for cudagraph dispatch trace.
@@ -942,7 +1017,267 @@ def apply_patch_sprint26_cudagraph_dispatch_trace() -> PatchResult:
         return _applied(name, "dry-run: text-patch ready")
     try:
         from vllm.sndr_core.integrations.observability import (
-            sprint26_cudagraph_dispatch_trace as _wiring,
+            pn122_sprint26_cudagraph_dispatch_trace as _wiring,  # renamed 2026-05-14 (was sprint26_*)
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN132 Triton top-k/top-p contiguous fix (vllm#42739)")
+def apply_patch_pn132_triton_topk_topp_contiguous() -> PatchResult:
+    """PN132: backport vllm#42739 — correctness fix Triton top-k/top-p
+    kernel читает garbage на non-contiguous logits. Defense-in-depth
+    на FlashInfer-default path; fires только на Triton fallback.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS=1.
+    """
+    name = "PN132 Triton top-k/top-p contiguous"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn132_triton_topk_topp_contiguous as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN275 DFlash drafter VllmConfig max_cgs alignment (dev371 compat)")
+def apply_patch_pn275_dflash_max_cgs_align() -> PatchResult:
+    """PN275: dev371 compat overlay for the DFlash drafter
+    VllmConfig re-validation defect. Wraps vllm.config.utils.replace
+    so that when DFlash's `_create_draft_vllm_config` rebuilds the
+    parent VllmConfig, the desynchronized `max_cudagraph_capture_size`
+    vs `cudagraph_capture_sizes` produced by P95 is auto-aligned
+    BEFORE dev371's pydantic cross-validator fires.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN=1.
+    Required prerequisite for the eventual DFlash dev371 hold-lift.
+    """
+    name = "PN275 DFlash max_cgs align dev371 compat"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.spec_decode import (
+            pn275_dflash_max_cgs_align as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN133 MTP scheduler empty-output fix (vllm#42722)")
+def apply_patch_pn133_mtp_scheduler_empty_output() -> PatchResult:
+    """PN133: backport vllm#42722 — fix permanently-stuck request
+    в MTP/spec-decode когда generated_token_ids empty.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX=1.
+    """
+    name = "PN133 MTP scheduler empty-output"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.spec_decode import (
+            pn133_mtp_scheduler_empty_output as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN134 torch.compile fullgraph 2.11 (vllm#42686)")
+def apply_patch_pn134_torch_compile_fullgraph_211() -> PatchResult:
+    """PN134: backport vllm#42686 — torch.compile materialization
+    heuristic fix для PyTorch 2.11. Closes vLLM #27828.
+    Expected: -2..-8 ms prefill latency.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211=1.
+    Auto-skip когда torch != 2.11.
+    """
+    name = "PN134 torch.compile fullgraph 2.11"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn134_torch_compile_fullgraph_211 as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN128 spec-decode helper kernel warmup (vllm#41481)")
+def apply_patch_pn128_spec_decode_helper_warmup() -> PatchResult:
+    """PN128: backport vllm#41481 — warmup eagle helper kernels на boot.
+    Закрывает 4 из 8 JIT spikes (eagle_prepare_next/inputs/copy_expand/
+    step_update_slot_mapping).
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP=1.
+    Auto-skip V2_MODEL_RUNNER=1 + enforce_eager=True.
+    """
+    name = "PN128 spec-decode helper kernel warmup"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn128_spec_decode_helper_warmup as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN129 V1 slot mapping kernel warmup (vllm#42165)")
+def apply_patch_pn129_slot_mapping_warmup() -> PatchResult:
+    """PN129: backport vllm#42165 — slot_mapping warmup +
+    do_not_specialize='num_tokens'. Закрывает 1 JIT spike +
+    структурный fix против пересборки по batch size.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP=1.
+    """
+    name = "PN129 V1 slot mapping warmup"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn129_slot_mapping_warmup as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN130 TurboQuant decode kernel warmup (vllm#42215)")
+def apply_patch_pn130_tq_decode_warmup() -> PatchResult:
+    """PN130: backport vllm#42215 — TQ decode kernel warmup + workspace
+    pre-alloc до lock'a. Закрывает _tq_grouped_decode_stage1 JIT spike.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP=1.
+    """
+    name = "PN130 TurboQuant decode warmup"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn130_turboquant_decode_warmup as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN127 Qwen 3.5/3.6 chat-template auto-install")
+def apply_patch_pn127_chat_template_qwen36() -> PatchResult:
+    """PN127: запекает enhanced chat-template для Qwen 3.5/3.6 как
+    Genesis asset + на apply() копирует в writable location.
+    Закрывает operator-pain (никто не должен искать template-файл).
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE=1.
+    Operator получает path через log + использует в --chat-template arg.
+    """
+    name = "PN127 Qwen 3.5/3.6 chat-template auto-install"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: asset ready")
+    try:
+        from vllm.sndr_core.integrations.serving import (
+            pn127_chat_template_qwen36 as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN126 V1 decode kernel warmup orchestrator")
+def apply_patch_pn126_v1_decode_kernel_warmup() -> PatchResult:
+    """PN126: extends V1 compile_or_warm_up_model with 2 extra
+    dummy_run passes (prefill PIECEWISE + uniform decode FULL) so
+    decode + spec-decode + TQ Triton kernels JIT-compile at boot
+    instead of on first user request. Closes V1 vs V2 model
+    runner gap (V2 has warmup_kernels native).
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN126_V1_DECODE_WARMUP=1.
+    Auto-skips when VLLM_USE_V2_MODEL_RUNNER=1 or enforce_eager=True.
+    """
+    name = "PN126 V1 decode kernel warmup orchestrator"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn126_v1_decode_kernel_warmup as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN125 hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE cudagraph_mode")
+def apply_patch_pn125_hybrid_full_and_piecewise() -> PatchResult:
+    """PN125: closes upstream gap where Qwen3.5/3.6 hybrid_gdn models
+    miss MambaModelConfig.verify_and_update_config — which sets
+    cudagraph_mode=FULL_AND_PIECEWISE. PyTorch blog 2026-05 reports
+    up to 91% throughput / lower ITL on hybrid models with this mode.
+
+    Default OFF — opt-in via GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE=1.
+    Bench-gate before flipping default_on=True.
+    """
+    name = "PN125 hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from vllm.sndr_core.integrations.compile_safety import (
+            pn125_hybrid_full_and_piecewise as _wiring,
         )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
@@ -1434,7 +1769,7 @@ def apply_patch_N52_prompt_logprobs_eviction() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.worker import pn52_prompt_logprobs_eviction
+        from vllm.sndr_core.integrations._retired import pn52_prompt_logprobs_eviction  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn52_prompt_logprobs_eviction.apply()
@@ -1497,7 +1832,7 @@ def apply_patch_N51_qwen3_streaming_thinking_disabled() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.reasoning import pn51_qwen3_streaming_thinking_disabled
+        from vllm.sndr_core.integrations.reasoning import pn51_qwen3_streaming_thinking_disabled  # reactivated 2026-05-15 after retired-audit gap confirm
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn51_qwen3_streaming_thinking_disabled.apply()
@@ -1557,7 +1892,7 @@ def apply_patch_61_qwen3_multi_tool() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.reasoning import p61_qwen3_multi_tool_first_occurrence
+        from vllm.sndr_core.integrations._retired import p61_qwen3_multi_tool_first_occurrence  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p61_qwen3_multi_tool_first_occurrence.apply()
@@ -1685,7 +2020,7 @@ def apply_patch_63_mtp_gdn_state_recovery() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import p63_mtp_gdn_state_recovery
+        from vllm.sndr_core.integrations._retired import p63_mtp_gdn_state_recovery  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p63_mtp_gdn_state_recovery.apply()
@@ -2022,7 +2357,7 @@ def apply_patch_N80_lora_tensorizer_device() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: 1-line LoRA tensorizer device kwarg")
     try:
-        from vllm.sndr_core.integrations.lora import pn80_lora_tensorizer_device
+        from vllm.sndr_core.integrations._retired import pn80_lora_tensorizer_device  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn80_lora_tensorizer_device.apply()
@@ -2124,7 +2459,7 @@ def apply_patch_N78_post_warmup_cache_release() -> PatchResult:
             "would be redundant 3rd call. Runtime apply() returns skipped."
         ))
     try:
-        from vllm.sndr_core.integrations.memory import pn78_post_warmup_cache_release
+        from vllm.sndr_core.integrations._retired import pn78_post_warmup_cache_release  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn78_post_warmup_cache_release.apply()
@@ -2520,22 +2855,11 @@ def apply_patch_N65_access_log() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("PN62 text-only ViT scratch skip MARKER-ONLY (real hook pending)")
-def apply_patch_N62_text_only_vit_skip() -> PatchResult:
-    """Patch PN62: skip visual-tower scratch alloc when text-only.
-
-    Backport of apnar club-3090#51 KV-cache cliff pattern. After PN61
-    auto-sets language_model_only=True, vLLM's _dummy_run still reserves
-    3-5 GiB ViT-tower scratch on a single 32 GB card. PN62 wraps
-    _dummy_run with a text-only-mode guard that signals the inner alloc
-    helper to skip.
-
-    Sister to PN35 (text-only inputs_embeds skip — already merged
-    upstream as vllm#35975).
-
-    Status: opt-in via GENESIS_ENABLE_PN62=1.
-    """
-    name = "PN62 text-only ViT scratch skip MARKER-ONLY (real hook pending)"
+# DEDUPE 2026-05-14: PN62 duplicate (MARKER-ONLY placeholder) removed.
+# Canonical hook is "PN62 Text-only ViT scratch skip" at line ~780.
+def _dedupe_apply_patch_N62_text_only_vit_skip_marker() -> PatchResult:
+    """DEDUPE'd 2026-05-14 — see canonical hook at line ~780."""
+    name = "PN62 text-only ViT scratch skip MARKER-ONLY [DEDUPE]"
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: class-rebind ready")
     try:
@@ -2907,7 +3231,7 @@ def apply_patch_94_spec_decode_zero_alloc() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import p94_spec_decode_zero_alloc
+        from vllm.sndr_core.integrations._retired import p94_spec_decode_zero_alloc  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = p94_spec_decode_zero_alloc.apply()
@@ -3078,9 +3402,17 @@ def apply_patch_N8_mtp_draft_online_quant_propagation() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("PN9 independent drafter attention backend (vllm#39930 backport)")
-def apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
-    """Patch N9: backport of vllm#39930 (MatthewBonanni, MERGED upstream) —
+# DEDUPE 2026-05-14: PN9 duplicate hook removed (had two registrations:
+# short "PN9 Independent drafter attention backend (vllm#39930)" at line ~709
+# and detailed-name backport variant here). Canonical: short-name version
+# at line ~709. Both pointed to same module (now in _retired/).
+def _dedupe_apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
+    """DEDUPE'd 2026-05-14 — see canonical at line ~709."""
+    return _skipped("PN9 [DEDUPE]", "deduplicated 2026-05-14")
+
+
+def _legacy_apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
+    """Patch N9 LEGACY VARIANT (kept for git blame): backport of vllm#39930 (MatthewBonanni, MERGED upstream) —
     allow the spec-decode drafter to use a different attention backend
     than the target model.
 
@@ -3110,7 +3442,7 @@ def apply_patch_N9_independent_drafter_attn_backend() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.spec_decode import pn9_independent_drafter_attn_backend
+        from vllm.sndr_core.integrations._retired import pn9_independent_drafter_attn_backend  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn9_independent_drafter_attn_backend.apply()
@@ -3449,32 +3781,44 @@ def apply_patch_N33_spec_decode_warmup_k() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("PN96 Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore)")
-def apply_patch_N96_marlin_persistent_workspace() -> PatchResult:
-    """PN96 — eliminate per-call marlin_make_workspace_new alloc on the
+@register_patch("PN96b Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore)")
+def apply_patch_N96b_marlin_persistent_workspace() -> PatchResult:
+    """PN96b — eliminate per-call marlin_make_workspace_new alloc on the
     A3B-FP8 MoE hot path. Runtime monkey-patch of
     `experts/marlin_moe.py::MarlinExperts.apply` + `fused_marlin_moe`.
 
-    See `integrations/moe/pn96_marlin_persistent_workspace.py` for the
+    See `integrations/moe/pn96b_marlin_persistent_workspace.py` for the
     full motivation (Wave 9 dev209 35B regression RCA — 2026-05-12).
+    Renamed from PN96 → PN96b on 2026-05-14 to avoid registry collision
+    with kv_cache/PN96 emergency-demote (companion to PN95). Operators
+    should switch `GENESIS_ENABLE_PN96=1` to `GENESIS_ENABLE_PN96B=1`.
     Default ON for 35B PROD; auto-skips on dev93-era layout and on
     non-CUDA platforms.
     """
-    name = "PN96 Marlin persistent workspace"
+    name = "PN96b Marlin persistent workspace"
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: runtime hook ready")
     try:
         from vllm.sndr_core.integrations.moe import (
-            pn96_marlin_persistent_workspace,
+            pn96b_marlin_persistent_workspace,
         )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    status, reason = pn96_marlin_persistent_workspace.apply()
+    status, reason = pn96b_marlin_persistent_workspace.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":
         return _skipped(name, reason)
     return _failed(name, reason)
+
+
+# DEDUPE 2026-05-14: PN96 renamed to PN96b above (line ~3529). Original
+# function name kept as alias for ONE release cycle for community plugin
+# back-compat — operators using `apply_patch_N96_marlin_persistent_workspace`
+# in custom scripts get a deprecation warning rather than ImportError.
+def apply_patch_N96_marlin_persistent_workspace() -> PatchResult:  # noqa: D401
+    """Deprecated alias — use apply_patch_N96b_marlin_persistent_workspace."""
+    return apply_patch_N96b_marlin_persistent_workspace()
 
 
 @register_patch("PN32 GDN chunked-prefill (Cliff 2 fix for single-24GB-GPU OOM)")
@@ -3620,7 +3964,7 @@ def apply_patch_N108_fused_recurrent_prefill() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.attention.gdn import (
+        from vllm.sndr_core.integrations._retired import (  # moved to _retired/ 2026-05-14
             pn108_fused_recurrent_prefill,
         )
     except Exception as e:
@@ -4087,7 +4431,7 @@ def apply_patch_N13_cuda_graph_lambda_arity() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from vllm.sndr_core.integrations.compile_safety import pn13_cuda_graph_lambda_arity
+        from vllm.sndr_core.integrations._retired import pn13_cuda_graph_lambda_arity  # moved to _retired/ 2026-05-14
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
     status, reason = pn13_cuda_graph_lambda_arity.apply()
@@ -4270,9 +4614,17 @@ def apply_patch_N17_fa2_softmax_lse_clamp() -> PatchResult:
     )
 
 
-@register_patch("PN16 Lazy-reasoner request hook (per-request enable_thinking)")
-def apply_patch_N16_lazy_reasoner() -> PatchResult:
-    """Patch N16: Genesis-original 2026-04-29 — per-request decision on
+# DEDUPE 2026-05-14: PN16 duplicate (3rd hook copy) removed. Canonical
+# pair is "PN16 Lazy reasoner request hook" (line ~733) + "PN16 V6 streaming
+# <think> token-budget enforcer" (line ~756). This 3rd registration was a
+# copy-paste duplicate with same target as line 733.
+def _dedupe_apply_patch_N16_lazy_reasoner() -> PatchResult:
+    """DEDUPE'd 2026-05-14 — see canonical at line ~733."""
+    return _skipped("PN16 [DEDUPE]", "deduplicated 2026-05-14")
+
+
+def _legacy_apply_patch_N16_lazy_reasoner() -> PatchResult:
+    """Patch N16 LEGACY VARIANT (kept for git blame): Genesis-original 2026-04-29 — per-request decision on
     whether the `<think>` reasoning block adds value.
 
     Hybrid policy:
@@ -5369,6 +5721,122 @@ def apply_patch_1_2_fp8_dispatcher() -> PatchResult:
     return _skipped(
         name, f"SM={cc} — no FP8 support at all (unexpected on NVIDIA)",
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#                       GEMMA 4 FAMILY (G4_NN — 2026-05-17)
+# ═══════════════════════════════════════════════════════════════════════════
+# 21 patches covering: refusal guards (G4_01/02/03/12/13), vendor backports
+# (G4_04/05/06/18), deep fixes (G4_07/08/09/10), perf kernels (G4_15/16/24),
+# compatibility (G4_11/14), vision-tower management (G4_17/23), and
+# diagnostic (G4_25).
+# Family location: vllm/sndr_core/integrations/gemma4/
+# See registry.py "G4_NN" entries for full per-patch metadata.
+
+
+def _g4_dispatch_factory(name: str, module_attr: str, family_pkg: str = "gemma4"):
+    """Build a per-patch dispatch function for a Gemma 4 patch.
+
+    Factory eliminates 21 copies of the same boilerplate. Each generated
+    function:
+      1. Honors _APPLY_MODE (dry-run support)
+      2. Imports the wiring module from the named family package under
+         vllm.sndr_core.integrations (default: gemma4; overridden for
+         patches that have been relocated to a technical-area family
+         per Phase 3 — kv_cache, attention.turboquant, spec_decode).
+      3. Calls its apply() and maps (status, reason) → PatchResult
+    """
+    family_dotted = family_pkg.replace("/", ".")
+    full_module_path = (
+        f"vllm.sndr_core.integrations.{family_dotted}.{module_attr}"
+    )
+
+    def _g4_dispatch():
+        if not _state._APPLY_MODE:
+            return _applied(name, "dry-run: gemma4 runtime hook ready")
+        try:
+            import importlib
+            wiring = importlib.import_module(full_module_path)
+        except Exception as e:
+            return _failed(name, f"wiring import failed: {e}")
+        status, reason = wiring.apply()
+        if status == "applied":
+            return _applied(name, reason)
+        if status == "skipped":
+            return _skipped(name, reason)
+        return _failed(name, reason)
+    _g4_dispatch.__name__ = f"apply_patch_{module_attr}"
+    _g4_dispatch.__doc__ = f"Dispatch hook for {name}."
+    return _g4_dispatch
+
+
+# Register all 21 Gemma 4 patches in one block. Each entry is
+# (registry_id, dispatch_title, wiring_module_attr).
+_G4_PATCHES: tuple[tuple[str, str, str], ...] = (
+    ("G4_01", "G4_01 gemma4 Ampere FP8_BLOCK refusal guard",
+     "g4_01_gemma4_ampere_fp8_block_guard", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_02", "G4_02 gemma4 Ampere Marlin K-dim refusal guard",
+     "g4_02_gemma4_ampere_marlin_kdim_guard", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_03", "G4_03 gemma4 Ampere non-causal drafter refusal guard",
+     "g4_03_gemma4_ampere_non_causal_drafter_guard", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_04", "G4_04 gemma4 AWQ MoE keys remap (vendor #40886)",
+     "g4_04_gemma4_awq_moe_keys_remap", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_05", "G4_05 gemma4 DFlash drafter backend autoselect (vendor #42069)",
+     "g4_05_dflash_backend_autoselect", "spec_decode"),  # Phase 3 bucket 3: relocated 2026-05-21
+    ("G4_06", "G4_06 gemma4 v_head_size=0 for k_eq_v (vendor #41944)",
+     "g4_06_kv_proj_v_head_size_zero", "kv_cache"),  # Phase 3 bucket 2: relocated 2026-05-21
+    ("G4_07", "G4_07 gemma4 FP8_BLOCK double-scale fix (custom quant config)",
+     "g4_07_gemma4_fp8_block_double_scale_fix", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_08", "G4_08 gemma4 Marlin K-pad Triton MoE fallback",
+     "g4_08_gemma4_marlin_kdim_pad_fallback", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_09", "G4_09 gemma4 SWA→global prefill chunker (closes #39914)",
+     "g4_09_gemma4_swa_global_prefill_chunker", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_10", "G4_10 gemma4 Ampere non-causal head_dim=256 Triton attn backend",
+     "g4_10_gemma4_ampere_non_causal_attn_backend", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_11", "G4_11 gemma4 enhanced chat template install",
+     "g4_11_gemma4_chat_template_install", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_12", "G4_12 gemma4 FP8 e4nv Ampere refusal guard (closes #41014)",
+     "g4_12_gemma4_fp8_e4nv_ampere_guard", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_13", "G4_13 gemma4 per-token-head KV refusal guard (closes #40388)",
+     "g4_13_gemma4_per_token_head_kv_guard", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_14", "G4_14 gemma4 tool-call-parser pad-token strip (closes #39392)",
+     "g4_14_gemma4_tool_call_parser_pad_token", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_15", "G4_15 gemma4 fused RMSNorm Triton route (ported SGLang)",
+     "g4_15_gemma4_fused_rmsnorm_route", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_16", "G4_16 gemma4 FULL_AND_PIECEWISE cudagraph_mode (parallel PN125)",
+     "g4_16_gemma4_full_piecewise_cudagraph", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_17", "G4_17 gemma4 vision-tower text-only skip (closes #41565)",
+     "g4_17_gemma4_vision_tower_text_only_skip", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_18", "G4_18 gemma4 per-layer KV page-size (vendor WIP #40391)",
+     "g4_18_per_layer_kv_page_size", "kv_cache"),  # Phase 3 bucket 2: relocated 2026-05-21
+    ("G4_23", "G4_23 gemma4 vision-tower FP16 overflow fix (closes #40124)",
+     "g4_23_gemma4_vision_fp16_overflow_fix", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_24", "G4_24 gemma4 fused softcap Triton route (attention + final logits)",
+     "g4_24_gemma4_fused_softcap_route", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_25", "G4_25 gemma4 dual-RoPE base-freq divergence guard",
+     "g4_25_gemma4_rope_dual_base_freq_guard", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
+    ("G4_19", "G4_19 gemma4 Genesis TurboQuant KV cache (3/4-bit VQ, 256K unlock)",
+     "g4_19_turboquant_kv_cache", "attention.turboquant"),  # Phase 3 bucket 4: relocated 2026-05-21
+    ("G4_19B", "G4_19b gemma4 TQ KV spec integration (compression-aware memory check)",
+     "g4_19b_tq_kv_spec_integration", "attention.turboquant"),  # Phase 3 bucket 4: relocated 2026-05-21
+)
+
+
+# Register each G4 patch through the factory. Tuples are 3-element
+# (id, title, module_attr) for patches still in gemma4/, or 4-element
+# (id, title, module_attr, family_pkg) for patches relocated to a
+# technical-area family during Phase 3 (kv_cache, attention.turboquant,
+# spec_decode).
+for _g4_entry in _G4_PATCHES:
+    if len(_g4_entry) == 4:
+        _g4_id, _g4_title, _g4_module, _g4_family = _g4_entry
+    else:
+        _g4_id, _g4_title, _g4_module = _g4_entry
+        _g4_family = "gemma4"
+    register_patch(_g4_title)(
+        _g4_dispatch_factory(_g4_title, _g4_module, _g4_family)
+    )
+del _g4_entry, _g4_id, _g4_title, _g4_module, _g4_family
 
 
 # ═══════════════════════════════════════════════════════════════════════════

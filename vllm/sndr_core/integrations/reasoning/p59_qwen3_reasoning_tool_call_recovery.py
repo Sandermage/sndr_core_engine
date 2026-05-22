@@ -80,6 +80,18 @@ Risks acknowledged
   PR #39055's tests cover this; we lean on those.
 - Streaming path is NOT addressed by this PR (PR author's own caveat).
   Our streaming clients hit a separate bug class (#40816 family).
+  CROSS-REF 2026-05-16: club-3090 issue #145 independently confirms
+  the streaming gap on Qwen 3.6-27B + `--reasoning-parser qwen3` +
+  `enable_thinking=true` + `--tool-call-parser qwen3_coder`. The
+  qwen3_coder streaming state machine fails to engage at the
+  `</think>` → `<tool_call>` boundary — entire XML arrives as raw
+  `delta.content`, no `delta.tool_calls` chunks, finish_reason="stop"
+  instead of "tool_calls". Universal workaround on every compose
+  (Genesis or not): switch `--tool-call-parser qwen3_xml`. The xml
+  parser engages correctly on the streaming transition and reasoning
+  still flows on `delta.reasoning` under `--reasoning-parser qwen3`.
+  club-3090 has a streaming-extractor fix in internal validation for
+  their v0.8.0; we monitor upstream #39056 for the canonical merge.
 - This patch is in the parser layer, NOT model generation. Model behavior
   unchanged. Worst case: extraction fails on edge cases → reasoning text
   preserved as-is, parse fallback to original behavior.
@@ -96,10 +108,10 @@ import logging
 # subpatches together form one logical fix; partial application is not
 # desired anyway. _AUDIT_A19_EXEMPT documents this intentional design.
 _AUDIT_A19_EXEMPT = True  # tightly coupled subpatches
-import os
+import os  # noqa: E402  — import after A-19 exemption marker
 
-from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
-from vllm.sndr_core.core import (
+from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root  # noqa: E402
+from vllm.sndr_core.core import (  # noqa: E402
     TextPatcher,
     TextPatchResult,
     TextPatch,

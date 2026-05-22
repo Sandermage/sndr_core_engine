@@ -55,12 +55,13 @@ log = logging.getLogger("genesis.wiring.p26_prefill_output")
 GENESIS_P26_MARKER = "Genesis P26 TQ prefill output prealloc v7.0"
 
 UPSTREAM_DRIFT_MARKERS = [
+    # Output-pool markers only. The `_cu_2` guard was previously included
+    # here, which incorrectly auto-skipped the whole patch when upstream
+    # merged ONLY the cu_2 half (which lands on dev371). The 32 MiB/call
+    # output prealloc — the bigger win — is still un-merged on dev371,
+    # so we must keep applying p26_output_alloc independently.
     "acquire_prefill_output",
     "_tq_prefill_output_slice",
-    # [v7.62.13 audit] Upstream nightly 7923b48047be wraps `_cu_2 = torch.zeros(...)`
-    # with `if not hasattr(self, "_cu_2"):` — this is exactly P26's optimization
-    # natively. P26 should auto-skip when this guard is present.
-    'if not hasattr(self, "_cu_2")',
 ]
 
 
@@ -122,7 +123,17 @@ def _make_patcher() -> TextPatcher | None:
                 name="p26_cu_2_alloc",
                 anchor=_OLD_CU2,
                 replacement=_NEW_CU2,
-                required=True,
+                # On dev338+ upstream wraps `_cu_2 =` with
+                # `if not hasattr(self, "_cu_2"):` (PR #40420 cu_2 half
+                # merged). The upstream_merged_markers triggers a
+                # silent per-sub skip while the output_alloc sub-patch
+                # — the bigger ~32 MiB/call win, still un-merged on
+                # dev371 — continues to apply.
+                required=False,
+                upstream_merged_markers=[
+                    'if not hasattr(self, "_cu_2")',
+                ],
+                on_upstream_merge="skip_silently",
             ),
         ],
         upstream_drift_markers=UPSTREAM_DRIFT_MARKERS,
@@ -140,7 +151,11 @@ def apply() -> tuple[str, str]:
 
     result, failure = patcher.apply()
     if result == TextPatchResult.APPLIED:
-        return "applied", "prefill output + cu_2 rewired through shared pool"
+        return "applied", (
+            "prefill output pool rewired through shared TQ buffer pool; "
+            "cu_2 sub-patch may have self-skipped if upstream merged "
+            "the cu_2 hasattr guard (dev338+)"
+        )
     if result == TextPatchResult.IDEMPOTENT:
         return "applied", "already applied this image layer (idempotent)"
     if result == TextPatchResult.SKIPPED:

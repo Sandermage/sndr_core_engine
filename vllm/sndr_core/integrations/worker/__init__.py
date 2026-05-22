@@ -16,7 +16,7 @@ __all__ = [
     "pn24_dflash_aux_layer_indexing",
     "pn33_spec_decode_warmup_k",
     "pn35_inputs_embeds_optional",
-    "pn52_prompt_logprobs_eviction",
+    # "pn52_prompt_logprobs_eviction",  # moved to _retired/ 2026-05-14
     "pn55_wake_up_hybrid_kv",
     "pn67_thinking_budget_inverted_bool",
 ]

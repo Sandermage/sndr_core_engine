@@ -14,9 +14,9 @@ __all__ = [
     "p12_tool_call_reasoning",
     "p27_reasoning_before_think",
     "p59_qwen3_reasoning_tool_call_recovery",
-    "p61_qwen3_multi_tool_first_occurrence",
+    # "p61_qwen3_multi_tool_first_occurrence",  # moved to _retired/ 2026-05-14
     "p61b_qwen3_streaming_overlap_guard",
-    "pn51_qwen3_streaming_thinking_disabled",
+    "pn51_qwen3_streaming_thinking_disabled",  # reactivated 2026-05-15 after retired-audit gap confirm
     "pn58_spec_reasoning_boundary",
     "pn66_multiturn_think_leak",
 ]

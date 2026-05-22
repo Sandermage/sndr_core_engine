@@ -84,7 +84,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 - **GPU**: NVIDIA Ampere SM 8.0+ (A100, A5000, A6000, RTX 3090/3090Ti, A40)
 - **VRAM**: 24GB per GPU minimum (48GB total for default Qwen3.6-35B-A3B-FP8)
 - **CUDA**: **13.0** (current vLLM nightly ships with PyTorch 2.11+cu130)
-- **Driver**: **NVIDIA ≥ 580.126.09 REQUIRED** as of v7.48 (2026-04-27). Driver 570 still loads but PyTorch falls into compat mode → ~3× slower decode. Install via `apt install nvidia-driver-580-server` on Ubuntu 24.04, then reboot. See [`scripts/launch/README.md`](scripts/launch/README.md) for the full version matrix.
+- **Driver**: **NVIDIA ≥ 580.126.09 REQUIRED** as of v7.48 (2026-04-27). Driver 570 still loads but PyTorch falls into compat mode → ~3× slower decode. Install via `apt install nvidia-driver-580-server` on Ubuntu 24.04, then reboot. See [`scripts/launch/README.md`](../scripts/launch/README.md) for the full version matrix.
 - **System RAM**: 64GB+ (model weights need to be paged in)
 - **Disk**: ~40GB for FP8 model weights, +10GB for vLLM compile cache
 
@@ -115,7 +115,7 @@ genesis-vllm-patches/
 │   │   ├── cli/                       # sndr install / launch / doctor / verify
 │   │   ├── dispatcher/                # registry · spec · decision · audit
 │   │   ├── apply/                     # orchestrator · shadow · per-patch dispatch
-│   │   ├── integrations/              # 156 community patches (lazy __init__.py)
+│   │   ├── integrations/              # 169 community patches (lazy __init__.py)
 │   │   │   ├── attention/{flash,gdn,turboquant}/
 │   │   │   ├── compile_safety/  kv_cache/  loader/  lora/  memory/
 │   │   │   ├── middleware/  moe/  multimodal/  observability/  quantization/
@@ -463,7 +463,7 @@ vllm serve --model /path/to/Qwen3.6-35B-A3B-FP8 \
   --disable-log-stats
 ```
 
-For convenience, save the env vars + serve command into a launch script (modeled on [`scripts/launch/`](scripts/launch/)):
+For convenience, save the env vars + serve command into a launch script (modeled on [`scripts/launch/`](../scripts/launch/)):
 
 ```bash
 cat > ~/run-genesis.sh << 'EOF'

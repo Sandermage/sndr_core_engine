@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SNDR / Genesis Production Dashboard — 2026-05-14</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #151b23;
+      --panel2: #1c2430;
+      --text: #e6edf3;
+      --muted: #9ba7b4;
+      --line: #303946;
+      --green: #36d399;
+      --yellow: #f5c451;
+      --red: #ff6b6b;
+      --blue: #70a5ff;
+      --cyan: #67d7e5;
+      --violet: #b79cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1320px; margin: 0 auto; padding: 28px; }
+    h1, h2, h3 { margin: 0; letter-spacing: 0; }
+    h1 { font-size: 30px; line-height: 1.15; }
+    h2 { font-size: 20px; margin: 34px 0 14px; }
+    h3 { font-size: 15px; margin: 0 0 8px; color: var(--text); }
+    p { margin: 8px 0; color: var(--muted); }
+    code {
+      color: #c9e2ff;
+      background: rgba(112,165,255,.1);
+      border: 1px solid rgba(112,165,255,.16);
+      padding: 1px 5px;
+      border-radius: 5px;
+    }
+    .hero {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(21,27,35,.98), rgba(21,27,35,.82));
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.35fr .65fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .chip.green { color: var(--green); border-color: rgba(54,211,153,.35); }
+    .chip.yellow { color: var(--yellow); border-color: rgba(245,196,81,.35); }
+    .chip.red { color: var(--red); border-color: rgba(255,107,107,.35); }
+    .chip.blue { color: var(--blue); border-color: rgba(112,165,255,.35); }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 16px;
+      min-height: 110px;
+    }
+    .value { font-size: 28px; font-weight: 750; line-height: 1; }
+    .value.green { color: var(--green); }
+    .value.yellow { color: var(--yellow); }
+    .value.red { color: var(--red); }
+    .value.blue { color: var(--blue); }
+    .label { margin-top: 8px; color: var(--muted); }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th { color: #c7d2df; background: var(--panel2); font-weight: 650; }
+    tr:last-child td { border-bottom: 0; }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      display: inline-block;
+      background: currentColor;
+    }
+    .green { color: var(--green); }
+    .yellow { color: var(--yellow); }
+    .red { color: var(--red); }
+    .blue { color: var(--blue); }
+    .muted { color: var(--muted); }
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: #26303d;
+      overflow: hidden;
+      margin-top: 9px;
+    }
+    .bar > i { display: block; height: 100%; border-radius: inherit; }
+    .bar .good { background: var(--green); }
+    .bar .warn { background: var(--yellow); }
+    .bar .bad { background: var(--red); }
+    .bars { display: grid; gap: 12px; }
+    .barrow { display: grid; grid-template-columns: 180px 1fr 70px; gap: 10px; align-items: center; }
+    .callout {
+      border: 1px solid rgba(245,196,81,.35);
+      background: rgba(245,196,81,.08);
+      border-radius: 10px;
+      padding: 13px 15px;
+      color: #ffe2a2;
+    }
+    .danger {
+      border-color: rgba(255,107,107,.35);
+      background: rgba(255,107,107,.08);
+      color: #ffc0c0;
+    }
+    .ok {
+      border-color: rgba(54,211,153,.35);
+      background: rgba(54,211,153,.08);
+      color: #bcf8dc;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #0a0e14;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 13px;
+      color: #d7e4f2;
+      overflow: auto;
+    }
+    svg { width: 100%; height: auto; display: block; }
+    .svg-label { fill: var(--text); font: 700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .svg-sub { fill: var(--muted); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    @media (max-width: 980px) {
+      main { padding: 18px; }
+      .hero-grid, .grid2, .grid3 { grid-template-columns: 1fr; }
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .barrow { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .cards { grid-template-columns: 1fr; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="hero-grid">
+      <div>
+        <h1>Production Readiness Dashboard</h1>
+        <p>
+          Актуализация после cleanup в <code>sndr_core</code>, обновления root README и CHANGELOG.
+          Локальная ветка <code>dev</code>, HEAD <code>eaa44975</code>.
+        </p>
+        <p>
+          Core gates зеленые: <code>make evidence</code> проходит <code>40/40</code>.
+          Оставшиеся риски сосредоточены в release hygiene: untracked tests, ignored JSON package data,
+          stale legacy compose/scripts, hardcoded operator defaults и generated cache.
+        </p>
+        <div class="chips">
+          <span class="chip green">make evidence: 40/40</span>
+          <span class="chip green">patches proven: 152/152</span>
+          <span class="chip green">security scan: 0 failures</span>
+          <span class="chip yellow">untracked tests: 326 files</span>
+          <span class="chip yellow">garbage items: 1271</span>
+          <span class="chip yellow">unused candidates: 61</span>
+          <span class="chip red">ignored source JSON: 3 files</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Общая оценка</h3>
+        <div class="value yellow">78%</div>
+        <div class="label">Кодовое ядро готово лучше, чем release surface. До production надо закрыть packaging/cleanup gaps.</div>
+        <div class="bar"><i class="warn" style="width:78%"></i></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cards">
+    <div class="card">
+      <div class="value green">40/40</div>
+      <div class="label"><code>make evidence</code> gates</div>
+    </div>
+    <div class="card">
+      <div class="value green">152</div>
+      <div class="label">registry patches, all proven</div>
+    </div>
+    <div class="card">
+      <div class="value yellow">326</div>
+      <div class="label">untracked test files</div>
+    </div>
+    <div class="card">
+      <div class="value yellow">1271</div>
+      <div class="label">generated/cache items</div>
+    </div>
+  </section>
+
+  <h2>Готовность по слоям</h2>
+  <section class="grid2">
+    <div class="card">
+      <h3>Readiness Map</h3>
+      <div class="bars">
+        <div class="barrow"><span>Core / registry</span><div class="bar"><i class="good" style="width:96%"></i></div><strong class="green">96%</strong></div>
+        <div class="barrow"><span>Patch proof</span><div class="bar"><i class="good" style="width:100%"></i></div><strong class="green">100%</strong></div>
+        <div class="barrow"><span>Docs public</span><div class="bar"><i class="good" style="width:88%"></i></div><strong class="green">88%</strong></div>
+        <div class="barrow"><span>Release packaging</span><div class="bar"><i class="warn" style="width:58%"></i></div><strong class="yellow">58%</strong></div>
+        <div class="barrow"><span>Compose/scripts</span><div class="bar"><i class="warn" style="width:54%"></i></div><strong class="yellow">54%</strong></div>
+        <div class="barrow"><span>Workspace hygiene</span><div class="bar"><i class="bad" style="width:42%"></i></div><strong class="red">42%</strong></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Risk Flow</h3>
+      <svg viewBox="0 0 620 260" role="img" aria-label="risk flow">
+        <rect x="24" y="24" width="160" height="64" rx="10" fill="#173423" stroke="#36d399"/>
+        <text class="svg-label" x="44" y="52">sndr_core</text>
+        <text class="svg-sub" x="44" y="72">gates green</text>
+        <path d="M190 56 H282" stroke="#70a5ff" stroke-width="3" marker-end="url(#a)"/>
+        <rect x="292" y="24" width="160" height="64" rx="10" fill="#332a16" stroke="#f5c451"/>
+        <text class="svg-label" x="312" y="52">release surface</text>
+        <text class="svg-sub" x="312" y="72">tests / JSON / compose</text>
+        <path d="M458 56 H550" stroke="#ff6b6b" stroke-width="3" marker-end="url(#a)"/>
+        <rect x="24" y="144" width="160" height="64" rx="10" fill="#331b1f" stroke="#ff6b6b"/>
+        <text class="svg-label" x="44" y="172">ignored JSON</text>
+        <text class="svg-sub" x="44" y="192">schema / manifest</text>
+        <rect x="230" y="144" width="160" height="64" rx="10" fill="#331b1f" stroke="#ff6b6b"/>
+        <text class="svg-label" x="250" y="172">legacy _genesis</text>
+        <text class="svg-sub" x="250" y="192">compose / hooks</text>
+        <rect x="436" y="144" width="160" height="64" rx="10" fill="#332a16" stroke="#f5c451"/>
+        <text class="svg-label" x="456" y="172">cache / archive</text>
+        <text class="svg-sub" x="456" y="192">cleanup needed</text>
+        <defs>
+          <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#70a5ff"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  </section>
+
+  <h2>Проверки</h2>
+  <table>
+    <thead>
+      <tr><th>Проверка</th><th>Статус</th><th>Деталь</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>self-test --json</code></td><td><span class="status green"><i class="dot"></i>PASS</span></td><td>8/8, 152 entries schema-clean.</td></tr>
+      <tr><td><code>apply.shadow --strict</code></td><td><span class="status green"><i class="dot"></i>PASS</span></td><td>Clean; 150 legacy registrations, 152 specs, 139 with apply_module.</td></tr>
+      <tr><td><code>patches prove --dead-detect</code></td><td><span class="status green"><i class="dot"></i>PASS</span></td><td>152/152 proven, dead=0.</td></tr>
+      <tr><td>Python compile</td><td><span class="status green"><i class="dot"></i>PASS</span></td><td>880 files, 0 errors.</td></tr>
+      <tr><td>Shell syntax</td><td><span class="status green"><i class="dot"></i>PASS</span></td><td>72 shell files, 0 errors.</td></tr>
+      <tr><td>Config parse</td><td><span class="status green"><i class="dot"></i>PASS</span></td><td>51 YAML, 2 TOML, 1 JSON.</td></tr>
+      <tr><td><code>make audit</code></td><td><span class="status green"><i class="dot"></i>PASS</span></td><td>Audit suite complete.</td></tr>
+      <tr><td><code>make evidence</code></td><td><span class="status green"><i class="dot"></i>PASS</span></td><td>40/40 gates green, 0 informational warnings.</td></tr>
+      <tr><td><code>pytest --collect-only -q tests</code></td><td><span class="status green"><i class="dot"></i>PASS</span></td><td>6171 tests collected.</td></tr>
+      <tr><td><code>launch ... --preflight-only --check-deps</code></td><td><span class="status yellow"><i class="dot"></i>HOST BLOCKERS</span></td><td>Correctly returns rc=2 locally: no Docker, no nvidia-smi, missing model dir.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Оставшиеся дефекты</h2>
+  <table>
+    <thead>
+      <tr><th>Приоритет</th><th>Область</th><th>Файлы / строки</th><th>Что не так</th><th>Что сделать</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="status red"><i class="dot"></i>P0</span></td>
+        <td>Tests packaging</td>
+        <td><code>tests/**</code></td>
+        <td>326 test files are untracked. Local pytest sees them, clean checkout will not.</td>
+        <td>Stage public tests or move legacy/internal tests out; add clean-tree gate.</td>
+      </tr>
+      <tr>
+        <td><span class="status red"><i class="dot"></i>P0</span></td>
+        <td>Ignored source artifacts</td>
+        <td><code>.gitignore:44-47</code></td>
+        <td><code>*.json</code> ignores package schema, MoE JSON and anchor manifest.</td>
+        <td>Add explicit negation rules and track required source JSON.</td>
+      </tr>
+      <tr>
+        <td><span class="status red"><i class="dot"></i>P0</span></td>
+        <td>Schema drift</td>
+        <td><code>schemas/patch_entry.schema.json</code>, <code>vllm/sndr_core/schemas/patch_entry.schema.json</code></td>
+        <td>Two schema files differ; validator resolves package schema first.</td>
+        <td>Pick one canonical schema and add <code>cmp</code> gate.</td>
+      </tr>
+      <tr>
+        <td><span class="status yellow"><i class="dot"></i>P1</span></td>
+        <td>Legacy compose</td>
+        <td><code>compose/docker-compose.example.yml:32,43</code>; <code>compose/docker-compose.integration*.yml:122-171</code></td>
+        <td>Active compose files mount/call deleted <code>_genesis</code> and old plugin paths.</td>
+        <td>Migrate to <code>sndr_core</code> or move old compose to archive/internal.</td>
+      </tr>
+      <tr>
+        <td><span class="status yellow"><i class="dot"></i>P1</span></td>
+        <td>Git hook</td>
+        <td><code>scripts/git/pre-commit:33-89</code></td>
+        <td>Hook watches/imports <code>vllm._genesis</code>; false-pass on <code>sndr_core</code> changes.</td>
+        <td>Rewrite filter and commands to <code>vllm.sndr_core</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="status yellow"><i class="dot"></i>P1</span></td>
+        <td>Drift tooling</td>
+        <td><code>tools/check_upstream_drift.py:8-17,95-98,310-311</code></td>
+        <td>Still scans <code>vllm/_genesis/wiring</code>, so it no longer checks current patches.</td>
+        <td>Use <code>iter_patch_specs()</code> and anchor manifest.</td>
+      </tr>
+      <tr>
+        <td><span class="status yellow"><i class="dot"></i>P1</span></td>
+        <td>MoE helper</td>
+        <td><code>scripts/moe_lookup_helper.sh:4,30-31,57</code></td>
+        <td>Writes to <code>vllm/_genesis/configs/moe_tuning</code>.</td>
+        <td>Switch to <code>vllm/sndr_core/configs/moe_tuning</code> / <code>SNDR_MOE_TUNING_DIR</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="status yellow"><i class="dot"></i>P1</span></td>
+        <td>Public hardcoded values</td>
+        <td><code>compose/docker-compose.example.yml:112-113</code>; <code>tests/soak/*</code>; <code>tests/probes/*</code></td>
+        <td>Operator IPs, local endpoints, and hardcoded key-like strings remain.</td>
+        <td>Use required env vars, localhost defaults, or internal-only files.</td>
+      </tr>
+      <tr>
+        <td><span class="status yellow"><i class="dot"></i>P2</span></td>
+        <td>Archive / raw data</td>
+        <td><code>benchmarks/**</code>, <code>docs/upstream_refs/**</code>, <code>scripts/launch/_archive/**</code></td>
+        <td>61 zero-reference candidates; many old private paths in archive scripts.</td>
+        <td>Add index/ownership metadata or move to private/internal archive.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Мусор и cleanup</h2>
+  <section class="grid3">
+    <div class="card">
+      <h3>Generated cache</h3>
+      <div class="value yellow">1271</div>
+      <p><code>__pycache__</code>, <code>*.pyc</code>, <code>.pytest_cache</code>, <code>.DS_Store</code>.</p>
+    </div>
+    <div class="card">
+      <h3>Zero-reference candidates</h3>
+      <div class="value yellow">61</div>
+      <p>Mostly archived launch scripts, raw benchmark files, upstream refs, standalone tools.</p>
+    </div>
+    <div class="card">
+      <h3>Dangerous clean</h3>
+      <div class="value red">No</div>
+      <p><code>git clean -fdX</code> would delete internal docs and important ignored JSON.</p>
+    </div>
+  </section>
+
+  <section class="grid2" style="margin-top:14px">
+    <div class="callout danger">
+      <strong>Не запускать вслепую:</strong>
+      <p><code>git clean -fdX</code> currently targets <code>docs/_internal</code>, <code>evidence</code>, <code>internal</code>, <code>pyproject-engine.toml</code> and required package JSON files.</p>
+    </div>
+    <div class="callout ok">
+      <strong>Безопасная точечная чистка:</strong>
+      <pre>find . -name '__pycache__' -type d -prune -exec rm -rf {} +
+find . -name '*.pyc' -type f -delete
+find . -name '.pytest_cache' -type d -prune -exec rm -rf {} +
+find . -name '.DS_Store' -type f -delete</pre>
+    </div>
+  </section>
+
+  <h2>Следующие действия</h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Задача</th><th>Acceptance</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Разобрать 326 untracked files in <code>tests/</code>.</td><td><code>git ls-files --others --exclude-standard tests</code> returns empty or only intentional ignored files.</td></tr>
+      <tr><td>2</td><td>Fix `.gitignore` source JSON exceptions and schema duplication.</td><td>Required JSON files are tracked; package/root schemas are identical or one canonical path remains.</td></tr>
+      <tr><td>3</td><td>Migrate active compose files from legacy `_genesis` to `sndr_core`.</td><td>No active <code>compose/*.yml</code> references <code>vllm/_genesis</code> or <code>vllm._genesis</code>.</td></tr>
+      <tr><td>4</td><td>Update <code>scripts/git/pre-commit</code> and <code>tools/check_upstream_drift.py</code>.</td><td>Both use <code>vllm.sndr_core</code> and current registry/spec flow.</td></tr>
+      <tr><td>5</td><td>Move or index archive/raw candidates.</td><td>Public tree has no unexplained orphan artifacts.</td></tr>
+      <tr><td>6</td><td>Clean generated cache after tracking decisions.</td><td><code>find</code> cache scan returns 0.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Связанный отчет</h2>
+  <p>
+    Детальная расшифровка создана в
+    <code>docs/_internal/audits/CURRENT_PROJECT_RECHECK_CLEANUP_ERRORS_2026-05-14_eaa44975_RU.md</code>.
+  </p>
+</main>
+</body>
+</html>

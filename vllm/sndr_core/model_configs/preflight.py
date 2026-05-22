@@ -15,7 +15,6 @@ returns a structured report. CLI: `genesis model-config preflight <key>`.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -172,7 +171,7 @@ def check_gpu_count(cfg) -> Optional[PreflightCheck]:
             message="nvidia-smi not available",
             severity="warning",
         )
-    visible = len([l for l in out.strip().splitlines() if l.startswith("GPU")])
+    visible = len([ln for ln in out.strip().splitlines() if ln.startswith("GPU")])
     if visible < cfg.hardware.n_gpus:
         return PreflightCheck(
             name="gpu_count", passed=False,

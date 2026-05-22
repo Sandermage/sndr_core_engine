@@ -14,7 +14,7 @@ kind: model
 id: qwen3.6-27b-int4-autoround-tq-k8v4           # canonical ID; <model-family>-<size>-<quant>-<kv-format>
 title: Qwen 3.6 27B INT4 Lorbus AutoRound + TurboQuant k8v4 KV
 maintainer: sandermage
-last_validated: '2026-05-11'
+last_validated: '2026-05-21'                     # P2.4d-Q27 dev371 smoke + canonical-flow validation
 license: apache-2.0
 
 # ─── Identity ──────────────────────────────────────────────────────────
@@ -23,6 +23,19 @@ served_model_name: qwen3.6-27b                   # OpenAI-API model name
 quantization: null                               # null = auto-detected by vLLM from AutoRound metadata (range: null|auto_round|gptq_marlin|fp8)
 dtype: float16                                   # values: float16|bfloat16|float32; float16 standard for MTP+TQ k8v4 hybrid path
 trust_remote_code: true                          # required for Qwen3 hybrid-GDN custom modeling code
+
+# 2026-05-14 chat-template override. Stock chat_template.jinja shipped
+# with Qwen3.6-27B has a multi-turn agentic bug — the assistant branch
+# can leave `<think>` open before `<tool_call>` blocks, so historical
+# reasoning leaks into `tool_response` and downstream tool-call rate
+# collapses (club-3090 disc #53 — allanchan339 root-cause writeup).
+# `qwen3.6-enhanced.jinja` adds self-healing logic that injects
+# `</think>` immediately before the first `<tool_call>` when the
+# model output did not close the reasoning block itself. The file
+# lives next to the checkpoint on host (under ${models_dir}) so the
+# existing `${models_dir}:/models:ro` mount exposes it inside the
+# container — no new mount slot required.
+chat_template: /models/Qwen3.6-27B-int4-AutoRound/chat_template_enhanced.jinja
 
 # ─── Capabilities — inherent to this model ─────────────────────────────
 capabilities:
@@ -48,8 +61,8 @@ requires:
 
 versions:
   genesis_pin_min: v11.0.0                       # minimum sndr_core version
-  vllm_pin_required: 0.20.2rc1.dev209+g5536fc0c0 # anchors valid only on this vllm pin
-  reference_metrics_ref: tests/integration/baselines/27b_v11_wave9.json   # E22: realigned to actual filename
+  vllm_pin_required: 0.20.2rc1.dev371+gbf610c2f5 # promoted 2026-05-21 (P2.4d-Q27) — dev371 smoke PASS + quick bench (decode_TPOT 10.03 ms / TTFT 111 ms / wall_TPS 81.6 mean). Requires P103 wrapper kwargs ABI fix (commit 122c2576). Previous pin dev338 retained side-by-side on server as :nightly-previous for rollback per CLAUDE.md pin policy.
+  reference_metrics_ref: tests/integration/baselines/27b_v11_wave9.json   # NOTE: still the dev338 Wave 9 baseline. dev371 runtime evidence currently lives under sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md. A formal dev371 baseline JSON requires a full canonical bench cycle (genesis_bench_suite --quick + sustained methodology), captured separately when the rest of the Qwen family is promoted.
 
 # ─── Canonical patches matrix (52 entries) ─────────────────────────────
 patches:
@@ -66,7 +79,7 @@ patches:
   GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel; required for spec_decode + TQ k8v4
   GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing: '1'=upstream Genesis kernel, '0'=fork (DEFAULT 1)
   GENESIS_P67_NUM_KV_SPLITS: '32'                    # P67 split-K factor. Wave 8 sweep: P67=16 (132.28 TPS / TTFT 100.9) vs P67=32 (131.48 / TTFT 97.1, CV 4.76% more stable). 32 wins TTFT by 3.7% on 27B@131K. 35B@320K wants 48 — per-model.
-  GENESIS_ENABLE_P94: '1'                            # GroupAB: zero-alloc spec-decode prepare; +9.2% group component on 27B
+  GENESIS_ENABLE_P94: '1'
   GENESIS_ENABLE_P95: '1'                            # vllm#40385 — Marlin TP cudagraph cap on Ampere (TP=2 defensive)
   GENESIS_ENABLE_P98: '1'                            # CRITICAL: vllm#40941 WorkspaceManager race-condition lock fix (TQ + hybrid GDN combo)
   GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP: '1'       # GroupAB: out-of-bounds clamp in TQ decode; +9.2% group with PN12+P94
@@ -89,7 +102,7 @@ patches:
   GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: '1'             # Cliff 1 mech A guard — runtime clamp on FA2 softmax_lse for long context
   GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT: '1'          # vllm#41268 — max_split_size_mb=20 scope-restored during model load
   GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL: '1'     # GroupAB (2026-04-30): -1.7 GiB peak + part of +9.2% TPS group on 27B INT4+TQ
-  GENESIS_TQ_MAX_MODEL_LEN: '131072'                 # TQ k8v4 cap in tokens (matches profile max_model_len)
+  GENESIS_TQ_MAX_MODEL_LEN: '262144'                 # 2026-05-16 V1↔V2 sync: raised 131072→262144 to match V1 + profile sizing. Per V1 comment: 'Raised 2026-05-14: TP=2 256K ladder PASS (50K/100K/156K/180K/200K/230K/256K green on dcacdf9a pin). Keep TQ_MAX in sync with max_model_len so the workspace allocator sizes correctly for the worst-case context.'
   GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # Genesis prealloc — token budget for shared scratch pools
   # ── FP8 (selective — k8v4 path) ──
   GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '0'    # opt-out for k8v4 (35B FP8 turns it '1'; 27B INT4 routes elsewhere)
@@ -125,7 +138,10 @@ patches:
   GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE: '1'  # Tool argument JSON normaliser (Qwen3-Coder edge cases).
   GENESIS_ENABLE_PN91_DEVELOPER_ROLE: '1'            # OpenAI-style `developer` role passthrough for IDE agents (Cline / Claude Code / OpenCode).
   GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT: '1'      # Backport of vllm#40154 — trial-import guard for nixl_ep / deep_ep / mori.
-  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache — GPU hot + CPU pinned warm + disk cold.
+  GENESIS_ENABLE_PN95_TIER_AWARE_CACHE: '1'          # Tier-aware KV cache: GPU hot + CPU pinned warm + (optional) disk cold tier. 11 anchor sites in vllm/v1 (admit, touch, mamba-init, register-kv-caches, scheduler-tick, blockpool-register, demote-on-evict, promote-on-miss, phase5 boot-check, BlockPool.__init__, get_new_blocks). Active only when CONFIG_KEY set below — without it lazy-init returns and TierManager stays None (noop).
+  GENESIS_PN95_CONFIG_KEY: a5000-2x-tier-aware-example  # Looks up tier spec from model_configs/builtin/a5000-2x-tier-aware-EXAMPLE.yaml. Defines GPU tier (22 GiB per card) + CPU pinned tier (8 GiB per worker). Mamba SSM groups hard-excluded (state cannot be moved). 27B-INT4-AutoRound: ~16 attention layers + ~16 SSM layers (excluded). Mamba state is large (~256 MiB/layer) so cache pressure higher than 35B.
+  GENESIS_PN95_TICK_EVERY: '100'                     # Tick frequency: scheduler-tick runs page-move evaluation every N decode steps (range 50-500). 100 = conservative, suitable for 8K-32K workloads. Lower N → faster demote response under sudden pressure but more overhead.
+  GENESIS_PN95_DEMOTE_FREE_MIB_THRESHOLD: '2048'     # Trigger threshold: when free VRAM drops below 2 GiB on either card, start demoting pages to CPU pinned tier. 27B-INT4 ~13 GiB weights + Mamba state → smaller VRAM footprint than 35B but Mamba state cannot demote. On 8K + low concurrency: demote rarely fires. On 32K+ ctx or 12+seq: dominant memory mgmt path.
   GENESIS_ENABLE_PN96_EMERGENCY_DEMOTE: '1'          # Companion to PN95 — emergency demote on scheduler free-blocks threshold.
   GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT: '0' # cpu_offload → Prefetch redirect. OFF — only used when `--cpu-offload-gb > 0`.
   GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT: '0' # AutoRound INT4 + Prefetch compat. OFF — tied to PN104.
@@ -133,9 +149,107 @@ patches:
   GENESIS_ENABLE_PN108_FUSED_RECURRENT_PREFILL: '0' # TOMBSTONED — fla `fused_recurrent_gated_delta_rule` cannot serve single-seq prefill (design conflict, see patch docstring).
   GENESIS_ENABLE_PN200_GDN_SCRATCH_REUSE: '0'        # GDN `core_attn_out` pool. OFF — anchor depends on P28 modification but dispatcher runs PN200 first.
   GENESIS_ENABLE_PN201_SCHEDULER_EMPTY_CACHE: '1'    # Scheduler-tick `torch.cuda.empty_cache()` hook, threshold-gated.
-  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # Port of vllm#42301 (open). OFF — eager event allocation raises a torch.Event type error; lazy init still incubating.
+  GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ: '0'       # Port of vllm#42301 (open). OFF in single-conc latency profile.
+                                                       # v1 history: eager `__init__` allocation of torch.cuda.Event raised type error.
+                                                       # v1 lazy-init follow-up: crashed during profile_run on dev371 with
+                                                       #   torch/_inductor/runtime/static_triton_launcher.py:291 CUDA invalid argument.
+                                                       # v2 fix 2026-05-15 (Sander): torch.compiler.is_compiling() guard +
+                                                       #   _PN204_ARMED arming hook (Worker.determine_available_memory wrap) +
+                                                       #   explicit device=hidden_states.device on Stream + per-layer single-strike disable.
+                                                       # Bench dev371 27B INT4 multi-conc=8: neutral within CV (375 vs 379 agg TPS).
+                                                       # Enabled in 27B multi-conc preset via:
+                                                       #     V2 profile  → profile/27b-multiconc.yaml (patches_delta.enable)
+                                                       #     V2 launch   → presets/prod-27b-tq-multiconc.yaml (alias)
+                                                       #     V1 preset   → a5000-2x-27b-int4-multiconc.yaml (legacy flat)
+                                                       # Requires GENESIS_LEGACY_P7=0 when enabled (registry conflicts_with).
   GENESIS_ENABLE_SNDR_WORKSPACE_001: '1'             # Workspace grow-after-lock graceful fix — replaces upstream assert with one-shot grow + warn.
+
+  # ── Wave 10 (2026-05-15) — multi-conc unlock + correctness recoveries ──
+  # Bench: tools/multi_conc_bench.py on dev371+bf610c2f5.
+  # Single-conc neutral within CV; multi-conc max_num_seqs=8 → 379 TPS aggregate (3.89x scaling).
+  GENESIS_ENABLE_PN96B: '1'                          # Marlin persistent workspace (renamed 2026-05-15 from PN96 dict-key collision). +4-5% TPS recovery on Marlin MoE — was silently unloaded pre-rename.
+  GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: '1'  # vllm#40816 (OPEN). Defensive streaming guard for OpenAI clients reading delta.content. Zero risk for thinking-enabled (dominant case).
+  GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE: '1' # PyTorch blog 2026-05 — forces cudagraph_mode=FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid_gdn_moe.
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'         # V1 decode kernel warmup orchestrator — pre-JITs decode + spec-decode kernels at boot.
+  GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE: '1'       # Qwen3.5/3.6 enhanced chat-template auto-install.
+  GENESIS_ENABLE_PN128_SPEC_DECODE_WARMUP: '1'       # vllm#41481 backport — pre-JITs 4 eagle helper kernels (closes 4 of 8 JIT spikes).
+  GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP: '1'      # vllm#42165 backport — pre-JITs _compute_slot_mapping_kernel + do_not_specialize='num_tokens'.
+  GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP: '1'         # vllm#42215 backport — pre-JITs _tq_grouped_decode_stage1 + workspace prealloc.
+  GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS: '1'     # vllm#42739 backport — Triton top-k/top-p contiguous fix (no-op when FlashInfer sampler active).
+  GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX: '1'     # vllm#42722 backport — MTP scheduler empty-output guard (prevents Prometheus -1 ValueError).
+  # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor on hybrid_gdn_moe).
 
 notes:
   - "27B hybrid GDN + TQ k8v4 + MTP K=3. Validated 2026-05-11 on 2× A5000."
   - "Phase 3 migration from a5000-2x-27b-int4-tq-k8v4 (2026-05-12)."
+  - "P2.4d-Q27 runtime pin promotion 2026-05-21: dev338 → dev371. First
+    cross-pin smoke that validated the canonical renderer flow end-to-end
+    (no sed override): hardware YAML pinned dev371 (commit 7d067bb1) →
+    renderer reads hw.runtime.docker.image verbatim (commit a3fa5265) →
+    rendered IMAGE = dev371. Backed by container boot PASS, /v1/models
+    served, two coherent text smokes (Paris + TCP/UDP, both factually
+    correct with constraints honored), and a 25-sample quick bench:
+    decode_TPOT 10.03 ms median (CV 15%), TTFT 111 ms median (CV 7.6%),
+    wall_TPS 81.6 mean. No `chunked_fwd … core_attn_out` ABI errors
+    across 4186-log-line dispatch surface. No TQ kernel/storage mismatch.
+    309 Genesis patches applied / 0 failed. Receipt:
+    sndr_private/planning/bench_results/2026-05-21/P2_Q27_TQ_DEV371_SMOKE_RECEIPT_2026-05-21_RU.md.
+    The quick bench is a correctness + workload-flow probe, NOT a full
+    canonical baseline replacement — reference_metrics_ref remains
+    pointed at the dev338 Wave 9 baseline file until a formal capture
+    is run. P103 wrapper **kwargs + core_attn_out bypass (commit
+    122c2576) is a hard prerequisite for this pin on hybrid_gdn_moe;
+    the chunked_fwd ABI grew a new kwarg between dev338 and dev371.
+    Q27-TQ only — qwen3.6-27b-dflash, 27b-int4-autoround-fp8kv,
+    35b-a3b-fp8-dflash, 7b-dense remain dev338 pending their own
+    per-model smoke."
+
+# ── patches_attribution (Phase A backfill, 2026-05-16) ─────────────────
+# Keyed by registry patch ID. Same taxonomy as qwen3.6-35b-a3b-fp8.yaml.
+# load_bearing entries cause measurable regression on removal.
+patches_attribution:
+  P67:
+    role: load_bearing
+    note: |
+      TurboQuant multi-query attention kernel — primary 27B INT4 +
+      TQ k8v4 decode hot path. Same ~30% TPS drop on removal as 35B.
+  PN17:
+    role: load_bearing
+    note: |
+      Long-context FA2 safety margin; 27B is the long-ctx leader
+      (256K verified). Removing PN17 OOMs at 32K+ ctx on
+      max_num_seqs=2.
+  PN51:
+    role: defensive
+    note: |
+      Qwen3 streaming thinking-disabled short-circuit (vllm#40816).
+  PN95:
+    role: load_bearing
+    note: |
+      Tier-aware KV cache, CONFIG_KEY-gated. On 256K context this
+      is the demote mechanism preventing OOM. Without CONFIG_KEY
+      the runtime stays None (silent no-op).
+  PN96b:
+    role: optional_perf
+    bench_evidence: "Marlin MoE workspace persistent pool +4-5% TPS recovery"
+    note: "Renamed 2026-05-15 from PN96 (dict-key collision fix)."
+  PN125:
+    role: defensive
+    note: "Forces FULL_AND_PIECEWISE on Qwen3.5/3.6 hybrid_gdn_moe."
+  PN126:
+    role: defensive
+    bench_evidence: "TTFT spike 5-25s on first decode without warmup"
+    note: "V1 decode kernel warmup; boot-only cost."
+  PN132:
+    role: defensive
+    bench_evidence: "no-op when VLLM_USE_FLASHINFER_SAMPLER=1"
+    note: "Triton top-k/top-p contiguous fix (vllm#42739)."
+  PN133:
+    role: defensive
+    bench_evidence: "Prometheus ValueError on rare K=3 reject-all path without the guard"
+    note: "MTP scheduler empty-output guard (vllm#42722)."
+  PN134:
+    role: suspected_regression
+    note: |
+      Retired 2026-05-15 (-25% TPS on hybrid_gdn_moe). Do not
+      re-enable without new evidence delta.

@@ -29,7 +29,7 @@ If you're not sure whether your idea fits, open a Discussion first. Cheap to ask
 
 ## How to add a new patch
 
-Step-by-step. Read [../docs/PATCHES.md](../docs/PATCHES.md) and [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) first to understand the conventions.
+Step-by-step. Read [PATCHES.md](PATCHES.md) and [COMPATIBILITY.md](PATCHES.md) first to understand the conventions.
 
 ### 1. Pick the right directory
 
@@ -157,7 +157,7 @@ grep "PNN" vllm/sndr_core/env.py  # must find canonical form
 
 `default_on=True` reserved для bug fixes validated на 2+ workloads. New patches start False; promoted в later PR after bench.
 
-`lifecycle="stable"` blocked by ratchet (see [STABLE_PROMOTION_CHECKLIST.md](upstream/STABLE_PROMOTION_CHECKLIST.md)): 0 currently. Don't claim stable без green ratchet.
+`lifecycle="stable"` blocked by ratchet (see [STABLE_PROMOTION_CHECKLIST.md](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)): 0 currently. Don't claim stable без green ratchet.
 
 After registering, regenerate auto-docs + verify:
 ```bash
@@ -373,6 +373,115 @@ python3 -m pytest tests/unit/dispatcher/test_pin_gate.py -v
 
 ---
 
+## Promoting a patch to `lifecycle="stable"`
+
+Promoting a patch from `experimental` (or unspecified) to
+`lifecycle="stable"` is a contract: the patch is production-ready
+and will not drift silently. The patcher framework enforces this
+via the ratchet test in
+[`tests/unit/infra/test_stable_manifest_policy.py`](../tests/unit/infra/test_stable_manifest_policy.py)
+— marking a patch stable without performing the steps below makes
+the ratchet test fail and rolls back the commit.
+
+### Why the ratchet exists
+
+Without it, `lifecycle="stable"` would be a marketing label.
+With it, the promotion forces three concrete guarantees:
+
+- **Drift detection precision** — manifest md5s pinpoint the exact
+  anchor that changed, instead of a vague "anchor missing
+  somewhere".
+- **Boot speed-up** — manifest fast-path replaces O(N×M) anchor
+  scan with O(1) byte-offset splice.
+- **Reproducibility** — the pristine fixture committed at
+  promotion time documents the exact upstream state the patch was
+  validated against.
+
+### When to promote
+
+A patch is ready for `lifecycle="stable"` when ALL of these hold:
+
+1. **A/B validated on the production rig** (not just dev / Mac).
+2. **Reference metrics committed** in at least one builtin
+   `model_config` (see `reference_metrics:` in `*-prod.yaml`).
+3. **No open known regressions** carrying the patch ID.
+4. **Cross-pin tested** — verified on at least two different vLLM
+   pins (catches anchor brittleness early).
+5. **Documented** in [`PATCHES.md`](PATCHES.md) or
+   [`../CHANGELOG.md`](../CHANGELOG.md) with an operating envelope
+   (what it does, what it does not, known conflicts).
+
+If any of those is missing, keep the patch at `experimental` or
+its current state.
+
+### The five steps
+
+1. **Add `patch_id` to every `TextPatcher`** in the wiring module.
+   Naming convention: `<PatchID>.Sub-<N>` where `<N>` is 1-based
+   across all TextPatchers in the patch.
+   [`pn79_inplace_ssm_state.py`](../vllm/sndr_core/integrations/attention/gdn/pn79_inplace_ssm_state.py)
+   is the reference example (`PN79.Sub-1` … `PN79.Sub-4` across
+   four files).
+2. **Add a `register_for_manifest(pristine_root)` function** that
+   mirrors PN79's pattern. It registers a build-mode patcher
+   pointed at the pristine fixture (not live vLLM) so
+   `scripts/build_anchor_manifest.py` can populate the manifest
+   without a running vLLM install.
+3. **Commit a pristine fixture** to
+   `tests/legacy/pristine_fixtures/<basename>.py` — a verbatim
+   copy of the upstream vLLM file at the pinned commit. The
+   fixture is frozen at the pinned commit; bumping
+   `KNOWN_GOOD_VLLM_PINS` makes the manifest detect the md5
+   mismatch and fall back to the legacy anchor scan until the
+   builder is re-run.
+4. **Extend `_KNOWN_REL_PATHS`** in
+   `scripts/build_anchor_manifest.py` with the
+   `fixture_basename → vllm_rel_path` mapping. Without this, the
+   builder doesn't know where in the vLLM tree the fixture maps
+   to and skips it with a warning.
+5. **Build + commit the manifest**:
+
+   ```bash
+   python scripts/build_anchor_manifest.py
+   git add vllm/sndr_core/manifests/anchor_manifest.json
+   pytest tests/unit/infra/test_stable_manifest_policy.py -v
+   ```
+
+   Then bump `lifecycle` in the registry from old value to
+   `"stable"` in the same commit.
+
+### Runtime-hook patches (stable_kind extension)
+
+The five-step ratchet assumes STABLE = TextPatcher. Production-
+validated runtime-hook patches (no `TextPatcher`, no anchor) are
+covered by a parallel sub-track `stable_kind = "runtime-hook"`
+that requires:
+
+- `apply_module` declared in the registry, AND
+- structured `production_validated_pins` evidence (list of
+  `(genesis_pin, vllm_pin)` tuples documenting the pins on which
+  the patch was empirically validated).
+
+This sub-track skips manifest checks — there is no anchor to
+drift-detect — but enforces the operational-evidence contract.
+PN33 and PN35 are the reference examples.
+
+### What NOT to do
+
+- **Do not** mark a patch stable just to clear the experimental
+  label. The lifecycle field is a contract; lying about it leaks
+  tech debt into production.
+- **Do not** skip the pristine fixture by reading from live vLLM
+  at build time. The fixture is the contract — what the patch was
+  validated against. Live vLLM drifts.
+- **Do not** add `patch_id` to a patcher without the manifest
+  entry. The runtime fast-path will abstain via gate G3 and the
+  patcher silently uses the legacy path — fine functionally, but
+  you have added complexity without benefit.
+- **Do not** demote a stable patch back to experimental without
+  also removing the `patch_id` and manifest entry. Stale manifest
+  entries are noise and confuse drift diagnosis.
+
 ## Code style
 
 ### Text patches
@@ -385,8 +494,8 @@ python3 -m pytest tests/unit/dispatcher/test_pin_gate.py -v
 
 ### Triton kernels
 
-- Power-of-2 dims wherever possible. If you must support non-power-of-2 (e.g., GQA=24/4=6 heads-per-KV), use `next_power_of_2` + a `lane_valid` mask. Document the cliff in [docs/CLIFFS.md](docs/CLIFFS.md).
-- Sanitize Inf/NaN at dequant boundaries. We've been bitten by silent NaN propagation through softmax — see the v7.22 P67 sanitized variant in [../docs/PATCHES.md](../docs/PATCHES.md).
+- Power-of-2 dims wherever possible. If you must support non-power-of-2 (e.g., GQA=24/4=6 heads-per-KV), use `next_power_of_2` + a `lane_valid` mask. Document the cliff in [CLIFFS.md](TROUBLESHOOTING.md).
+- Sanitize Inf/NaN at dequant boundaries. We've been bitten by silent NaN propagation through softmax — see the v7.22 P67 sanitized variant in [PATCHES.md](PATCHES.md).
 - BLOCK_SIZE / num_warps / num_stages should be configurable via env override for sweep tuning.
 
 ### General Python
@@ -544,14 +653,230 @@ Please don't email for support questions — use Discussions so the answer helps
 
 ---
 
+## Authoring a community patch
+
+Two paths exist depending on how you want to ship your patch.
+
+### Path 1 — pip-installable plugin (versioned independently)
+
+Ship the patch as its own Python package. Genesis auto-discovers it
+at boot via the `vllm_genesis_patches` entry-point group. Best when
+you want to release the patch on your own cadence, separate from the
+Genesis release train.
+
+A working scaffold is in
+[`tools/examples/genesis-plugin-hello-world/`](../tools/examples/genesis-plugin-hello-world/),
+tested in CI (`tests/compat/test_plugin_example.py`).
+
+Minimal layout:
+
+```text
+my-genesis-plugin/
+├── pyproject.toml
+└── my_genesis_plugin/
+    ├── __init__.py
+    └── patch.py
+```
+
+`pyproject.toml`:
+
+```toml
+[project]
+name = "my-genesis-plugin"
+version = "0.1.0"
+dependencies = []                      # Genesis is the only requirement
+
+[project.entry-points."vllm_genesis_patches"]
+my_patch = "my_genesis_plugin.patch:get_patch_metadata"
+```
+
+`patch.py`:
+
+```python
+"""Example community plugin for Genesis."""
+from __future__ import annotations
+
+
+def get_patch_metadata() -> dict:
+    return {
+        "patch_id": "MY_HANDLE_001",
+        "title": "Short, descriptive title",
+        "applies_to": {
+            "model_archs": ["qwen3_5_moe"],
+            "kv_dtypes":  ["turboquant_k8v4"],
+        },
+        "default_on": False,
+        "lifecycle": "experimental",
+        "credit": "your-name",
+    }
+```
+
+Operator workflow:
+
+```bash
+pip install my-genesis-plugin
+python3 -m vllm.sndr_core.compat.plugins list
+python3 -m vllm.sndr_core.compat.plugins show MY_HANDLE_001
+python3 -m vllm.sndr_core.compat.plugins validate
+```
+
+Author etiquette:
+
+- Open an issue at
+  <https://github.com/Sandermage/genesis-vllm-patches/issues>
+  describing your plugin's purpose before publishing.
+- Use a unique `patch_id` namespace (`MY_HANDLE_X`) to avoid future
+  collisions with core patches.
+- Document the hardware you tested on.
+- If your patch supersedes a core patch, mention it in
+  `community_credit`.
+
+### Path 2 — in-repo SDK (bundled with Genesis releases)
+
+Ship the patch inside the repo at
+`plugins/community/<author>/<patch-id>/` with a `manifest.yaml`. The
+SDK validates manifests, discovers them via filesystem +
+entry-points, and scaffolds new patches from a template. Best when
+you want the patch bundled into the Genesis release.
+
+```bash
+# Scaffold
+sndr community new-patch \
+    --id PN999 \
+    --author your_handle \
+    --family spec_decode \
+    --title "PN999 — short description"
+
+# Creates:
+#   plugins/community/your_handle/PN999/
+#     manifest.yaml
+#     patch.py            (apply() stub — replace with real logic)
+#     tests/test_pn999.py
+
+# Implement the apply() hook, then:
+sndr community list
+sndr community validate
+
+# Promote draft → review when ready
+$EDITOR plugins/community/your_handle/PN999/manifest.yaml
+```
+
+Validator rules:
+
+- **R-1** unique `patch_id` (no collision with core or other
+  community).
+- **R-2** family must be one of the canonical families.
+- **R-3** `applies_to` predicate parses.
+- **R-4** lifecycle is one of `draft`, `review`, `experimental`,
+  `stable`, `retired`.
+- **R-5** `apply()` must exist and be importable torch-less.
+- **R-6** unit tests pass (`pytest plugins/community/<author>/<id>/tests/`).
+- **R-7** stable lifecycle requires `default_on=True` only after
+  cross-rig validation.
+
+Reference code:
+
+- `vllm/sndr_core/model_configs/schema_v2.py` — `PatchManifest` +
+  `PatchCompatibility` + `PatchTargetFile` + `PatchAnchor`.
+- `vllm/sndr_core/community/manifest.py` — load + path enumeration.
+- `vllm/sndr_core/community/discovery.py` — filesystem +
+  entry-points.
+- `vllm/sndr_core/community/validator.py` — release-tier rules.
+- `vllm/sndr_core/community/scaffold.py` — scaffold generator.
+- `vllm/sndr_core/cli/community.py` — CLI surface.
+- `plugins/community/_template/` — reference example layout.
+
+## Project map — where things live
+
+Pointers for first-time contributors. The repo is large; this is a
+quick "I want to change X, where is X" reference.
+
+### Entry points
+
+| Command | File | Purpose |
+| --- | --- | --- |
+| `sndr launch <preset>` | `vllm/sndr_core/cli/launch.py` | Render + exec a preset. |
+| `sndr doctor` | `vllm/sndr_core/cli/doctor.py` | Health check. |
+| `sndr model-config` | `vllm/sndr_core/compat/model_config_cli.py` | Preset CRUD + bench. |
+| `sndr patches` | `vllm/sndr_core/cli/patches.py` | Registry browse / plan / release-check. |
+| `sndr service` | `vllm/sndr_core/cli/service.py` | systemd / compose / quadlet / k8s / proxmox lifecycle. |
+| `sndr community` | `vllm/sndr_core/cli/community.py` | In-repo SDK. |
+| `sndr report` | `vllm/sndr_core/cli/report.py` | Diagnostic tar.gz bundle. |
+| `install.sh` | `install.sh` (root) | One-command bootstrap. |
+| Bench harness | `vllm/sndr_core/tools/genesis_bench_suite.py` | Canonical bench. Shim under `tools/`. |
+
+### `vllm/sndr_core/` subpackages
+
+| Subpackage | What's inside |
+| --- | --- |
+| `apply/` | `orchestrator`, `verify`, `shadow`, `_per_patch_dispatch` — the legacy register that drives apply at boot. |
+| `audit/` | Audit gates consumed by `make evidence` (release_check, patch_proof, schema validator). |
+| `caveats/` | Host-condition caveats registry consumed by `sndr caveats`. |
+| `cli/` | One module per `sndr` subcommand. |
+| `community/` | In-repo SDK (manifest loader, discovery, validator, scaffold). |
+| `compat/` | Operator-facing wrappers (bench, doctor, install, model_config_cli, plugins, ...). |
+| `core/` | `TextPatcher`, anchor manifest, drift markers. |
+| `dispatcher/` | `registry.py` (PATCH_REGISTRY) + `spec.py` (PatchSpec) + `registry_metadata.py` (derived production_default). |
+| `integrations/` | 21 family subdirectories of wiring modules (one per patch). |
+| `kernels/` | Triton / CUDA kernel source (`p67_multi_query_kernel.py`, …). |
+| `locations/` | `project_paths.py` + `vllm_targets.py` — portable filesystem layout. |
+| `middleware/` | Per-request hooks (lazy reasoner, observability). |
+| `model_configs/` | V1 schema + V2 layered registry + composer + audit_rules + preflight + verify + patch_plan resolver. |
+| `tools/` | Bench harness (`genesis_bench_suite.py`) — the canonical bench. |
+
+### `scripts/` (release-tier audit gates)
+
+| Script | Purpose |
+| --- | --- |
+| `check_doc_sync.py` | Patch-count consistency across docs. |
+| `check_md_links.py` | Active-doc broken-link finder. |
+| `audit_public_docs.py` | D-1..D-6 boundary rules. |
+| `audit_no_stub.py` | No-stub gate. |
+| `check_dirty_state.py` | dev / audit / release tier dirty-state. |
+| `audit_artifacts.py` | Release-artifact policy. |
+| `security_scan.py` | Public-release security scan. |
+| `make_evidence.py` | Aggregate runner of every gate above. |
+| `generate_patches_md.py` | Auto-regen `docs/PATCHES_AUTO.md`. |
+| `generate_configs_md.py` | Auto-regen `docs/CONFIGS_AUTO.md`. |
+| `sync_readme_counters.py` | Sync patch counts in README sections. |
+
+### `tests/`
+
+| Directory | What's inside |
+| --- | --- |
+| `tests/unit/` | Per-module unit tests, hermetic (no GPU, no network). |
+| `tests/unit/integrations/<family>/` | Per-family contract tests (factory pattern). |
+| `tests/integration/` | Tests that exercise a running container; gated on GPU availability. |
+| `tests/integration/baselines/` | Per-preset bench baselines (regression bounds). |
+| `tests/legacy/` | Pre-v11 tests kept for back-compat; do not add new tests here. |
+| `tests/conftest.py` | Shared fixtures and the skip-list for legacy naming drift. |
+
+### `Makefile` (operator-facing)
+
+`make help` enumerates ~21 targets. Most common:
+
+- `make evidence` — full release-tier audit aggregate.
+- `make gates` — fast-fail subset (~2 s).
+- `make audit-release-check` — current public release gate.
+- `make audit-yaml` — drift between local YAML and live container.
+- `make precommit-install` — wire pre-commit hooks.
+- `make clean` — pycache / pytest-cache cleanup.
+
+For the full audit list see [`RELEASE_POLICY.md`](RELEASE_POLICY.md).
+
 ## Cross-references
 
-- [../docs/PATCHES.md](../docs/PATCHES.md) — full patch catalog with metadata
-- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) — supported vLLM pins, models, GPUs
-- [docs/CONFIGS.md](docs/CONFIGS.md) — adding your own model recipe
-- [docs/CLIFFS.md](docs/CLIFFS.md) — known performance and correctness cliffs
-- [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) — how to bench reproducibly
-- [docs/SELF_TEST.md](docs/SELF_TEST.md) — running the validation suite
-- [../docs/CREDITS.md](../docs/CREDITS.md) — attributions, including upstream PRs we ported
+- [`PATCHES.md`](PATCHES.md) — full patch catalog with metadata
+  (incl. compatibility matrix + patch plan resolver).
+- [`MODELS.md`](MODELS.md) — model selection, V2 layered configs,
+  community config submission pipeline.
+- [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — cliffs, OOM recipes,
+  cookbook, rollback playbook.
+- [`BENCHMARKS.md`](BENCHMARKS.md) — canonical numbers + reproduction.
+- [`CLI_REFERENCE.md`](CLI_REFERENCE.md) — every `sndr` subcommand.
+- [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) — PN95 / GDN fusion /
+  reasoning contract / v11 rename appendices.
+- [`CREDITS.md`](CREDITS.md) — attributions, including upstream PRs
+  we ported.
 
 Thanks for contributing.

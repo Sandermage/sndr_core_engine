@@ -4,14 +4,18 @@ Central reference for every environment variable that Genesis patches read.
 Default behaviour is "off" / "safe" for opt-in patches; on-by-default
 patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
-> **Current PROD baseline (Wave 8, 2026-05-11; pin bumped 2026-05-11):**
+> **Current PROD baseline (Wave 10, 2026-05-15; pin bumped 2026-05-15):**
 >
-> - Genesis v11.0.0+wave8 — 135 patches in PATCH_REGISTRY at the time of
->   the bench below; registry has since grown to **152 entries** as
->   Wave 9 work landed (+PN102 pinned-allocator pool, +PN204 GDN dual-stream
->   port, plus the env-flag block now shared with the dflash V2 models).
-> - vLLM `0.20.2rc1.dev209+g5536fc0c0` (bumped from dev93; canonical bench
->   numbers below measured on dev93 — Wave 9 re-bench pending for dev209)
+> - Genesis v11.0.0+wave10 — registry has **169 entries** (154 full-
+>   implementation + 11 marker_only + 2 retired + 1 partial + 1 placeholder).
+>   Wave 10 additions: PN125-PN130 warmup-orchestrator family, PN132
+>   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated).
+>   Wave 8/9 baselines retained in this doc remain numerically representative
+>   for the 27B/35B PROD configs (no breaking config change since dev209).
+> - vLLM `0.20.2rc1.dev371+gbf610c2f5` (bumped from dev209→dev338→dev371;
+>   canonical bench numbers below measured on dev93/dev209 — re-bench on
+>   dev371 shows 35B sustained ~208-216 TPS at max_num_seqs=2 and ~689
+>   aggregate at conc=8, both within CV of the dev209 baseline)
 > - PyTorch 2.11.0+cu130, Triton 3.6.0, CUDA 13.0.2
 > - **NVIDIA driver ≥ 580.126.09 REQUIRED** (570 → 3× slowdown)
 > - 2× RTX A5000 24 GiB (Ampere SM 8.6), TP=2

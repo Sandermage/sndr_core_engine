@@ -1,17 +1,40 @@
 # Genesis vLLM — Launch Scripts
 
-Production-tested launch scripts for Genesis Patches. **4 PROD-ready configs**
-covering Qwen3.6-35B-A3B-FP8 (1 variant) and Qwen3.6-27B-int4-Lorbus
-(3 variants). Each ships in **two flavors**:
+> **Wave 10 update (2026-05-15)** — the legacy per-config `start_*.sh` /
+> `bare_metal_*.sh` shell scripts have been superseded by the unified
+> V2 preset launcher (`sndr launch <preset>`). The shell scripts are
+> archived under [`_archive/superseded_by_model_configs/`](_archive/superseded_by_model_configs/).
+> The canonical operator UX is now:
+>
+> ```bash
+> sndr launch prod-35b                  # 35B latency
+> sndr launch prod-35b-multiconc        # 35B throughput (multi-conc)
+> sndr launch prod-35b-dflash           # 35B DFlash N=3 (single-stream)
+> sndr launch prod-35b-dflash-multiconc # 35B DFlash multi-conc
+> sndr launch prod-27b-tq               # 27B + TurboQuant k8v4 (latency)
+> sndr launch prod-27b-tq-multiconc     # 27B + TQ k8v4 multi-conc
+> sndr launch prod-27b-dflash           # 27B DFlash N=5 (single-stream)
+> sndr launch prod-27b-dflash-multiconc # 27B DFlash multi-conc
+> ```
+>
+> Each preset resolves to a (model, hardware, profile) triplet under
+> [`vllm/sndr_core/model_configs/builtin/`](../../vllm/sndr_core/model_configs/builtin/).
+> See `sndr launch --help` for `--dry-run` and other flags.
 
-- `start_*.sh` — **Docker** (recommended for reproducibility; bind-mounts
-  Genesis patches into stock `vllm/vllm-openai:nightly`)
-- `bare_metal_*.sh` — **Native** (assumes vLLM installed via pip on the host;
-  symlinks Genesis `sndr_core` package в существующий vllm install. Старые
-  скрипты могут ссылаться на `_genesis` — это back-compat alias, работает,
-  но канон с v11.0.0 — `vllm.sndr_core`.)
+Historical context (pre-Wave-10, kept for archeology):
 
-Plus 3 utility scripts and an `_archive/` of historical / research arms.
+Originally Genesis shipped **4 PROD-ready configs** covering
+Qwen3.6-35B-A3B-FP8 (1 variant) and Qwen3.6-27B-int4-Lorbus (3 variants),
+each in two flavors:
+
+- `start_*.sh` — Docker (bind-mounted Genesis into `vllm/vllm-openai:nightly`)
+- `bare_metal_*.sh` — Native (assumes vLLM via pip + symlink `sndr_core`)
+
+After Wave 10 these scripts moved to
+[`_archive/superseded_by_model_configs/`](_archive/superseded_by_model_configs/).
+The TP=2 + TP=1 hardware bench tables below remain accurate; the
+"`start_*.sh`" / "`bare_metal_*.sh`" filename column has been replaced
+by the canonical V2 preset alias.
 
 ---
 
@@ -19,12 +42,12 @@ Plus 3 utility scripts and an `_archive/` of historical / research arms.
 
 ### TP=2 (validated PROD on 2× RTX A5000)
 
-| Model | Config | Docker | Bare metal |
-|---|---|---|---|
-| **35B-A3B-FP8** PROD (TQ k8v4 + MTP K=3 + PN8) | `--max-model-len 320000` | [`start_35b_fp8_PROD.sh`](start_35b_fp8_PROD.sh) | [`bare_metal_35b_fp8_PROD.sh`](bare_metal_35b_fp8_PROD.sh) |
-| **27B-INT4 Lorbus** short-ctx (no TQ, fp8_e5m2) | `--max-model-len 131072` `--max-num-seqs 4` | [`start_27b_int4_no_TQ_short.sh`](start_27b_int4_no_TQ_short.sh) | [`bare_metal_27b_int4_no_TQ_short.sh`](bare_metal_27b_int4_no_TQ_short.sh) |
-| **27B-INT4 Lorbus** long-ctx 256K (no TQ) | `--max-model-len 280000` `--max-num-seqs 2` `--gpu-mem-util 0.90` | [`start_27b_int4_no_TQ_long_256K.sh`](start_27b_int4_no_TQ_long_256K.sh) | [`bare_metal_27b_int4_no_TQ_long_256K.sh`](bare_metal_27b_int4_no_TQ_long_256K.sh) |
-| **27B-INT4 Lorbus** TQ k8v4 (hybrid + P98) | TQ packed slot + 256K capable | [`start_27b_int4_TQ_k8v4.sh`](start_27b_int4_TQ_k8v4.sh) | [`bare_metal_27b_int4_TQ_k8v4.sh`](bare_metal_27b_int4_TQ_k8v4.sh) |
+| Model | Config | V2 preset (canonical) |
+|---|---|---|
+| **35B-A3B-FP8** PROD (TQ k8v4 + MTP K=3, latency) | `--max-model-len 280000 --max-num-seqs 2` | `sndr launch prod-35b` |
+| **35B-A3B-FP8** multi-conc throughput | `--max-num-seqs 8` (3.21x scaling) | `sndr launch prod-35b-multiconc` |
+| **27B-INT4 Lorbus** TQ k8v4 (hybrid + P98) | TQ packed slot + 262K capable | `sndr launch prod-27b-tq` |
+| **27B-INT4 Lorbus** TQ k8v4 multi-conc | 3.89x scaling at conc=8 | `sndr launch prod-27b-tq-multiconc` |
 
 ### TP=1 single-card (⚠️ EXPERIMENTAL — NOT TESTED by maintainer)
 
@@ -35,12 +58,10 @@ a prominent EXPERIMENTAL warning header and per-card sizing notes.
 
 If you run one and it works, please share results via [GitHub Discussions](https://github.com/Sandermage/genesis-vllm-patches/discussions) — we'll fold confirmed configs back into the main table and drop the experimental tag for that card class.
 
-| Model | Card class fit | Docker | Bare metal |
-|---|---|---|---|
-| **35B-A3B-FP8** (~35 GB weights) | 48 GB+ cards (A6000, 6000 Ada, L40, RTX PRO 5000/6000 Blackwell, A100, H100, B200) | [`start_35b_fp8_PROD_single_card.sh`](start_35b_fp8_PROD_single_card.sh) | [`bare_metal_35b_fp8_PROD_single_card.sh`](bare_metal_35b_fp8_PROD_single_card.sh) |
-| **27B-INT4 Lorbus** short-ctx (~14 GB weights) | 24 GB+ cards (3090, 4090, 5090, A5000, etc.) | [`start_27b_int4_no_TQ_short_single_card.sh`](start_27b_int4_no_TQ_short_single_card.sh) | [`bare_metal_27b_int4_no_TQ_short_single_card.sh`](bare_metal_27b_int4_no_TQ_short_single_card.sh) |
-| **27B-INT4 Lorbus** long-ctx 256K | 24 GB+ (tighter — may need to lower max-model-len on 24 GB) | [`start_27b_int4_no_TQ_long_256K_single_card.sh`](start_27b_int4_no_TQ_long_256K_single_card.sh) | [`bare_metal_27b_int4_no_TQ_long_256K_single_card.sh`](bare_metal_27b_int4_no_TQ_long_256K_single_card.sh) |
-| **27B-INT4 Lorbus** TQ k8v4 + P98 | 24 GB+ | [`start_27b_int4_TQ_k8v4_single_card.sh`](start_27b_int4_TQ_k8v4_single_card.sh) | [`bare_metal_27b_int4_TQ_k8v4_single_card.sh`](bare_metal_27b_int4_TQ_k8v4_single_card.sh) |
+| Model | Card class fit | Recommendation |
+|---|---|---|
+| **35B-A3B-FP8** (~35 GB weights) | 48 GB+ cards (A6000, 6000 Ada, L40, RTX PRO 5000/6000 Blackwell, A100, H100, B200) | Compose a TP=1 hardware preset under `vllm/sndr_core/model_configs/builtin/hardware/` and a matching profile under `builtin/profile/`. Use `sndr launch <your-preset>` once registered. |
+| **27B-INT4 Lorbus** (~14 GB weights) | 24 GB+ cards (3090, 4090, 5090, A5000, etc.) | Same — single-card hardware preset + 27B profile + alias. |
 
 **Empirical numbers** (2× RTX A5000 24 GB, vLLM nightly pin `8cd174fa3`,
 N=500 stress over 200 min continuous):

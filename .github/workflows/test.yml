@@ -51,42 +51,82 @@ jobs:
           pip install --index-url https://download.pytorch.org/whl/cpu \
               "torch>=2.0,<3.0"
 
-      - name: Run compat + dispatcher + PN-family tests
+      - name: Run tracked tests (compat + dispatcher + PN-family + scripts)
         run: |
-          # The full session test surface — 400+ tests across compat/*,
-          # dispatcher validator, PN14/PN16, B2 wiring helper, D3 ablation
-          # bench. This is the load-bearing CI gate.
+          # Wave 10 layout: legacy vllm/_genesis/ namespace was removed in
+          # the sndr_core self-containment refactor. Tests now live at
+          # repo-root tests/ and target vllm.sndr_core.*. The full tracked
+          # test surface across tests/unit/{cli,community,dispatcher,
+          # integrations,model_configs,proof,runtime,scripts,...} is the
+          # load-bearing CI gate.
           python -m pytest -v --tb=short \
-              --cov=vllm._genesis.compat \
+              --cov=vllm.sndr_core \
               --cov-report=term-missing:skip-covered \
-              vllm/_genesis/tests/compat/ \
-              vllm/_genesis/tests/test_dispatcher_validator.py \
-              vllm/_genesis/tests/test_pn14_tq_decode_oob_clamp.py \
-              vllm/_genesis/tests/test_pn16_lazy_reasoner.py \
-              vllm/_genesis/tests/test_wiring_status_helper.py \
-              vllm/_genesis/tests/test_bench_ablation.py \
-              vllm/_genesis/tests/test_version.py \
-              vllm/_genesis/tests/test_ci_workflow.py \
-              vllm/_genesis/tests/test_patches_md_sync.py
+              $(git ls-files 'tests/**/*.py' 'tests/*.py')
+
+      - name: Registry contract aggregator
+        # Single audit gate covering 8 invariants: conflicts symmetry,
+        # category enum, family↔path consistency, apply_module coverage,
+        # retired provenance, pin gate, dict-key dedup, docstring lifecycle.
+        run: |
+          python3 scripts/audit_registry_contract.py
+
+      - name: Phase 3 relocation invariants
+        # Enforces §0.5 architectural invariants on the post-Phase-3
+        # integrations/ tree:
+        #   R1 — gemma4/ is small-compat namespace (whitelist enforced)
+        #   R2 — registry apply_module never points at a relocation shim
+        #   R3 — structured-profile envs are all in PATCH_REGISTRY
+        #   R4 — no shell scripts / subprocess docker-run under integrations/
+        # See sndr_private/planning/audits/RELOCATION_DESIGN_2026-05-21_RU.md §0.5.
+        run: |
+          python3 scripts/audit_phase3_relocation.py
+
+      - name: V2 runtime + ModelDef pin harmonization
+        # P2.6 — locks the runtime image and ModelDef pin discipline so
+        # the next pin bump cannot silently regress to a bare mutable
+        # :nightly tag or to an unknown pin:
+        #   R-PIN-1 — no bare mutable vLLM nightly in hardware YAMLs
+        #   R-PIN-2 — hardware image_digest present + correct prefix
+        #   R-PIN-3 — rendered IMAGE == composed cfg.docker.image
+        #   R-PIN-4 — ModelDef vllm_pin_required in allowed set;
+        #             migration table emitted as info only (Qwen dev338
+        #             allowed until P2.4d promotes per-model with
+        #             smoke + bench evidence)
+        run: |
+          python3 scripts/audit_v2_runtime_pins.py
 
       - name: Lifecycle audit
-        # An additional gate — ensures no patch was added with an unknown
-        # lifecycle state. Exit 1 from this command fails the CI.
+        # Ensures no patch was added with an unknown lifecycle state.
         run: |
-          python3 -m vllm._genesis.compat.lifecycle_audit_cli --quiet
+          python3 -m vllm.sndr_core.compat.lifecycle_audit_cli --quiet
 
       - name: Schema validate PATCH_REGISTRY
-        # A second additional gate — ensures every entry validates.
+        # Ensures every entry validates against the canonical schema.
         # Catches typo'd field names, missing required, bad env_flag pattern.
         run: |
-          python3 -m vllm._genesis.compat.schema_validator
+          python3 -m vllm.sndr_core.compat.schema_validator --quiet
 
       - name: Genesis self-test
-        # Third additional gate — operator-facing structural sanity check.
-        # Different from the pytest suite: this is the same tool an
-        # operator runs after a `git pull` / pin bump on their box.
-        # Exits 1 if any check fails. The schema-file check returns
-        # `skip` in slim deployments without the source tree; on CI the
-        # full repo IS checked out, so it runs `pass`.
+        # Operator-facing structural sanity check. Same tool an operator
+        # runs after a `git pull` / pin bump on their box. Exits 1 on any
+        # failed check.
         run: |
-          python3 -m vllm._genesis.compat.cli self-test --quiet
+          python3 -m vllm.sndr_core.compat.cli self-test --quiet
+
+      - name: Regenerate patch-proof artefacts
+        # `evidence/patch_proof/<id>__*.json` is operator-generated
+        # per host (carries hostname + measured_at + commit SHA). The
+        # files are gitignored — CI regenerates them once per build so
+        # the downstream `require-static` release gate has something to
+        # validate against. Takes <2 s for all 169 patches.
+        run: |
+          python3 -m vllm.sndr_core.cli patches prove --all
+
+      - name: make evidence (release-gate aggregator)
+        # Runs every gating audit (schema sync, methodology sync,
+        # no-stub scan, public-paths, cross-reference, …) plus the
+        # static-proof release check that consumes the artefacts
+        # regenerated in the previous step. Must stay all-green.
+        run: |
+          make evidence

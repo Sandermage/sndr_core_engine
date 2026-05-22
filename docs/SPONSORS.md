@@ -1,93 +1,123 @@
-# Project Support · Поддержка проекта
+# Sponsorship
 
-> 🇬🇧 English first · 🇷🇺 Русский ниже
+Genesis vLLM Patches is developed and maintained by
+[Sandermage (Aleksandr Barzov)](https://github.com/Sandermage) in
+Odessa, Ukraine. The code is Apache-2.0 and will always remain
+open; this page exists for people who have asked how to support
+the work — both the maintainer's time and the project's
+cross-platform test bench.
 
----
+> Sponsorship is voluntary and carries no obligations on either
+> side. Genesis has no premium tiers, no paywalled patches, and no
+> priority queues — past and future contributions buy access to the
+> same public docs and issue tracker as everyone else. Support
+> simply gives the maintainer room to engage with the project more
+> deeply and to keep developing its functionality and capabilities.
 
-## 🇬🇧 A note from the author
+## What sponsorship enables
 
-Hi. My name is **Sandermage (Aleksandr Barzov)**, I'm from Odessa, Ukraine.
+Genesis is a one-maintainer project funded out of the maintainer's
+own savings and developed alongside other commitments. Support
+gives the project room along two natural axes — the maintainer's
+time and the hardware available for validation.
 
-This repository is my personal research project on getting the most out of vLLM for Qwen3-class models on consumer-grade hardware — specifically 2× RTX A5000 (Ampere SM 8.6), the configuration that the upstream officially treats as "best-effort". You'll find runtime patches, defensive guards, monkey-patches, benchmarks and a TDD-style test harness inside. All of it is, and will always remain, **open under Apache-2.0 with no strings attached**.
+### Time spent on the project
 
-I want to be very clear about one thing up front:
+Working on Genesis is currently a part-time effort. Sponsorship
+gives the maintainer space to engage with the project more deeply
+and consistently, rather than fitting it around other paid work.
+Practically, this means more room to develop existing functionality,
+explore new directions on the registry side
+([`PATCHES.md`](PATCHES.md)), advance the deferred architecture
+work documented in [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md), and stay
+engaged with community issues and contributions.
 
-> **This page is not a request, not an expectation, and not a condition for using anything in this repository.** I am not asking for money. I am not soliciting donations. The code is here for everyone to use, study, fork and improve, freely.
+How much of that actually happens scales with how much breathing
+room sponsorship provides — there are no quotas, no promised
+deliverables, and no per-donor service levels.
 
-This section exists for one reason only: a few people over time have asked *"how can I say thank you?"* — and it felt rude not to answer them. So this is the answer, with no pressure attached.
+### Cross-platform hardware
 
-### About the test matrix
+Genesis is currently validated on the reference rig:
+**2× NVIDIA RTX A5000** (Ampere SM 8.6, 24 GB each). Anything
+beyond that envelope — Hopper, Blackwell, RTX PRO 6000, H100,
+Intel XPU, AMD ROCm CDNA — ships with defensive `applies_to` guards
+because there is no real silicon to validate against.
 
-I can only verify and debug on the hardware that's physically in front of me: 2× RTX A5000. For everything else — AMD ROCm, Intel XPU, Hopper, Blackwell, native FP8, NVFP4 and friends — I write the patches *defensively* (graceful skip when the platform doesn't match), but I genuinely **cannot test them on real silicon**.
+Access to more hardware (purchased through sponsorship, lent, or
+donated) opens up room for the project to grow into platforms it
+currently treats as "best-effort graceful skip" — see
+[`RELEASE_POLICY.md`](RELEASE_POLICY.md) for the proof-artefact
+ratchet that tracks this expansion.
 
-A proper cross-vendor test bench (something with NVIDIA RTX PRO 6000 Blackwell, an Intel XPU box, an AMD ROCm CDNA card) is in a different cost bracket than what I can self-fund right now. Building it would let me actually validate cross-platform behaviour rather than rely on the "graceful skip" guard. I've already invested a meaningful amount of my own savings into this line of research, and at some future point — when I have free funds available — I plan to buy more hardware myself, on my own terms and timeline. That's the path I'm comfortable with.
+## How to support
 
-### If you'd like to say thanks
+### Financial channels
 
-If my work has been useful to you and you'd like to support it of your own initiative — that's appreciated, and I'm grateful for it. Any amount, any way is fine, including not at all. The wallets below are simply there for those who asked:
+| Channel | Address |
+| --- | --- |
+| USDT (BEP-20) | `0x1E8C74aC4f37A201733D185b2293e9D69f305306` |
+| USDT (TRC-20) | `TSyVYTA4PK22w3tZ7vgoc1itjXU5p4Vfks` |
+| ETH (mainnet) | `0x1E8C74aC4f37A201733D185b2293e9D69f305306` |
+| BTC | `bc1q9tau6xqgrv5jjgst63yjux550gslq6nm7y7q9f` |
+| PayPal | `sander.odessa@gmail.com` |
 
-| Network | Address |
-|---|---|
-| **USDT (BEP-20)** | `0x1E8C74aC4f37A201733D185b2293e9D69f305306` |
-| **USDT (TRC-20)** | `TSyVYTA4PK22w3tZ7vgoc1itjXU5p4Vfks` |
-| **ETH** | `0x1E8C74aC4f37A201733D185b2293e9D69f305306` |
-| **BTC** | `bc1q9tau6xqgrv5jjgst63yjux550gslq6nm7y7q9f` |
-| **PayPal** | `sander.odessa@gmail.com` |
+These channels are personal and suit individual contributions.
 
-If you'd rather **lend or send a card for the test bench** instead of money — any Hopper / Blackwell / R6000 / H100 / Intel XPU / AMD ROCm class — please reach out at the email above and we'll figure out logistics together.
+### Business sponsorship and invoicing
 
-### What I will and won't do
+Sponsors whose accounting or compliance workflows require a formal
+counterparty — invoices, a registered recipient, structured KYC —
+can write to `sander.odessa@gmail.com` to discuss options:
 
-- I **will** keep publishing everything I do under Apache-2.0, including bench results, methodology and raw logs.
-- I **will** credit every upstream author and contributor whose work I build on, in patch docstrings and report files.
-- I **will not** ever gate functionality behind donations, paywalls, "premium tiers" or anything similar.
-- I **will not** treat support as obligation — if you've sent something, thank you, and that's where the relationship ends; it does not buy priority, custom features, or any kind of claim on my time.
+- Routing through a Ukrainian sole-proprietor (ФОП) account is
+  available on request.
+- For larger engagements where the sponsor's requirements call for
+  it, registering an LLC in a jurisdiction agreeable to both sides
+  can be arranged.
 
-Thank you for reading, and especially thank you for using the work.
+Exact terms (entity, jurisdiction, invoicing format, KYC documents)
+are agreed case by case via email. The maintainer is not a tax or
+legal advisor — each side is responsible for its own compliance
+and reporting obligations under its local law.
 
-— Sander
+### Hardware loan or donation
 
----
+If you have a Hopper / Blackwell / RTX PRO 6000 / H100 / Intel XPU /
+AMD ROCm card you can lend or donate to the project, write to
+`sander.odessa@gmail.com` to discuss logistics. Loaned hardware is
+returned when the validation cycle finishes; donated hardware
+becomes part of the project's permanent test bench and shows up in
+the acknowledgments below.
 
-## 🇷🇺 Несколько слов от автора
+### Cross-rig bench reports
 
-Привет. Меня зовут **Sandermage (Александр Барзов)**, я из Одессы, Украина.
+Bench JSONs from rigs not yet in
+[`tests/integration/baselines/`](../tests/integration/baselines/)
+are valuable contributions in their own right — no money required.
+See [`BENCHMARKS.md`](BENCHMARKS.md) for the run-and-share guide.
 
-Этот репозиторий — мой персональный исследовательский проект по тому, как выжать максимум из vLLM для моделей класса Qwen3 на потребительском железе — конкретно на 2× RTX A5000 (Ampere SM 8.6), той конфигурации, которую upstream формально считает "best-effort". Внутри — runtime-патчи, defensive guards, monkey-patches, бенчмарки и TDD-инфраструктура. Всё это есть и навсегда останется **открытым под Apache-2.0 без каких-либо оговорок**.
+## Maintainer commitments
 
-Хочу сразу очень чётко обозначить одну вещь:
+- Everything Genesis ships stays under Apache-2.0, including bench
+  results, methodology, and raw logs.
+- Every upstream author and contributor is credited in
+  [`CREDITS.md`](CREDITS.md) and inside individual patch docstrings.
+- No functionality will ever be gated behind sponsorship,
+  paywalls, or premium tiers.
+- Support does not buy maintainer time, custom features, or
+  priority on the issue tracker.
 
-> **Эта страница — не просьба, не ожидание и не условие пользования чем-либо из этого репозитория.** Я не прошу денег. Я не клянчу донаты. Код здесь — для всех, чтобы пользоваться, изучать, форкать и улучшать, свободно.
+## Security contact
 
-Этот раздел появился только по одной причине: несколько раз меня спрашивали *«как сказать спасибо?»* — и было бы невежливо им не ответить. Это и есть ответ, без какого-либо давления.
+Security disclosures follow the project's
+[`SECURITY.md`](../SECURITY.md) policy — email
+`sander.odessa@gmail.com` privately rather than opening a public
+issue.
 
-### О тестовой матрице
+## Acknowledgments
 
-Я могу проверить и отладить только на том железе, которое физически стоит у меня под рукой: 2× RTX A5000. Для всего остального — AMD ROCm, Intel XPU, Hopper, Blackwell, native FP8, NVFP4 и подобного — я пишу патчи *defensively* (graceful skip когда платформа не подходит), но **на реальном железе их протестировать не могу**.
-
-Собрать нормальный cross-vendor тестовый стенд (что-то уровня NVIDIA RTX PRO 6000 Blackwell, Intel XPU, AMD ROCm CDNA в одном месте) — это совсем другая весовая категория, не та что я могу позволить себе сейчас из личных средств. Такой стенд позволил бы реально валидировать cross-platform поведение, а не полагаться на "graceful skip" guard. Я уже вложил в это направление исследований заметную часть собственных накоплений, и в какой-то момент в будущем — когда будут свободные средства — я планирую докупать железо сам, на своих условиях и в своём темпе. Это путь, в котором мне комфортно.
-
-### Если хочется сказать спасибо
-
-Если моя работа оказалась полезной и есть желание поддержать её **по собственной инициативе** — буду благодарен. Любая сумма, любым способом подойдёт, включая «никак». Кошельки ниже — просто для тех, кто спрашивал:
-
-| Сеть | Адрес |
-|---|---|
-| **USDT (BEP-20)** | `0x1E8C74aC4f37A201733D185b2293e9D69f305306` |
-| **USDT (TRC-20)** | `TSyVYTA4PK22w3tZ7vgoc1itjXU5p4Vfks` |
-| **ETH** | `0x1E8C74aC4f37A201733D185b2293e9D69f305306` |
-| **BTC** | `bc1q9tau6xqgrv5jjgst63yjux550gslq6nm7y7q9f` |
-| **PayPal** | `sander.odessa@gmail.com` |
-
-Если есть желание **передать карту в пользование** для расширения тестового стенда (любой Hopper / Blackwell / R6000 / H100 / Intel XPU / AMD ROCm класс) вместо денег — напишите на e-mail выше, обсудим логистику.
-
-### Что я делаю и чего не делаю
-
-- Я **буду** продолжать публиковать всё что делаю под Apache-2.0, включая результаты бенчмарков, методологию и сырые логи.
-- Я **буду** благодарить каждого upstream-автора и контрибьютора, на чьей работе строю свою — в docstring патчей и в файлах отчётов.
-- Я **не буду** никогда закрывать функциональность за донатами, paywall, "premium tier" или чем-то подобным.
-- Я **не буду** относиться к поддержке как к обязательству. Если что-то прислали — спасибо, и на этом всё. Это не покупает приоритет, кастомные фичи или любое право на моё время.
-
-Спасибо что читаете, и особенно — спасибо что пользуетесь.
-
-— Sander
+Past supporters and hardware sponsors will be listed here as
+sponsorship arrives. The list is opt-in — contributors can request
+attribution or stay anonymous. To opt in, mention the preferred
+display name when you reach out.

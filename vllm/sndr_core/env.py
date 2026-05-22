@@ -99,6 +99,9 @@ class Flags:
     PN204_DUAL_STREAM_INPROJ = "PN204_DUAL_STREAM_INPROJ"
     P103 = "P103"  # FLA Cliff 2 chunked
     PN111 = "PN111"  # skip-mamba-postprocess sync (align-mode only; vllm#42574)
+    PN116 = "PN116"  # TurboQuant prefill max_seq_len fallback fix (regressor vllm#41434)
+    PN119 = "PN119"  # TurboQuant k8v4 GQA head grouping kernel (backport vllm#40792)
+    PN118 = "PN118"  # TurboQuant workspace graceful-fallback (backport vllm#42551, P99-compat)
 
     # GDN spec-decode subfamily
     P60_GDN_NGRAM_FIX = "P60_GDN_NGRAM_FIX"
@@ -166,7 +169,16 @@ class Flags:
     # Path C v7.73.x / club-3090 #58 — tier-aware KV cache (PN95)
     PN95_TIER_AWARE_CACHE = "PN95_TIER_AWARE_CACHE"
     # Sprint 2.6 v2 — CUDA graph dispatch trace wire-in
-    SPRINT26_CG_DISPATCH_TRACE = "SPRINT26_CG_DISPATCH_TRACE"
+    PN122_CG_DISPATCH_TRACE = "PN122"  # renamed 2026-05-14 from SPRINT26_CG_DISPATCH_TRACE
+    SPRINT26_CG_DISPATCH_TRACE = "PN122"  # legacy alias for backward compat (1 release)
+    # PN282 — Spec-decode acceptance proxy metric (production sibling
+    # of PN248's debug log trace). Wraps rejection_sample and emits
+    # sndr_spec_decode_* Prometheus series on the worker's existing
+    # /metrics endpoint. Canonical env: SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC;
+    # legacy alias GENESIS_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC warns once.
+    # Boot-applied from sndr_core/__init__.py, not via dispatcher (matches
+    # PN248 sibling pattern).
+    PN282_SPEC_DECODE_ACCEPTANCE_METRIC = "PN282_SPEC_DECODE_ACCEPTANCE_METRIC"
 
     # kv_cache family
     P5B = "P5B"  # page size pad smaller
@@ -269,6 +281,82 @@ class Flags:
     BUNDLE_ATTENTION_TQ_MULTI_QUERY = "BUNDLE_ATTENTION_TQ_MULTI_QUERY"
     BUNDLE_SPEC_DECODE_ASYNC_CLEANUP = "BUNDLE_SPEC_DECODE_ASYNC_CLEANUP"
 
+    # ── Wave 10 backports + experimental patches (2026-05-12+) ─────────
+    # Audit 2026-05-16: registry env_flags backfilled here so the
+    # Flags class stays the single source of truth for known env vars.
+    # Each constant value matches the registry env_flag suffix
+    # (after stripping the GENESIS_ENABLE_ / SNDR_ENABLE_ prefix).
+    PN71_THINKING_TAG_NORMALIZE = "PN71_THINKING_TAG_NORMALIZE"
+    PN73_TOOL_ARGS_SAFE_NORMALIZE = "PN73_TOOL_ARGS_SAFE_NORMALIZE"
+    PN91_DEVELOPER_ROLE = "PN91_DEVELOPER_ROLE"
+    PN92_NIXL_EP_TRIAL_IMPORT = "PN92_NIXL_EP_TRIAL_IMPORT"
+    PN96_EMERGENCY_DEMOTE = "PN96_EMERGENCY_DEMOTE"
+    PN96B = "PN96B"
+    PN97_TENSOR_PHYSICAL_CAP = "PN97_TENSOR_PHYSICAL_CAP"
+    PN104_OFFLOAD_PREFETCH_REDIRECT = "PN104_OFFLOAD_PREFETCH_REDIRECT"
+    PN105_AUTOROUND_OFFLOAD_COMPAT = "PN105_AUTOROUND_OFFLOAD_COMPAT"
+    PN106_GDN_H_POOL = "PN106_GDN_H_POOL"
+    PN122_CG_DISPATCH_TRACE = "PN122_CG_DISPATCH_TRACE"
+    PN125_HYBRID_FULL_AND_PIECEWISE = "PN125_HYBRID_FULL_AND_PIECEWISE"
+    PN126_V1_DECODE_WARMUP = "PN126_V1_DECODE_WARMUP"
+    PN127_AUTO_CHAT_TEMPLATE = "PN127_AUTO_CHAT_TEMPLATE"
+    PN128_SPEC_DECODE_WARMUP = "PN128_SPEC_DECODE_WARMUP"
+    PN129_SLOT_MAPPING_WARMUP = "PN129_SLOT_MAPPING_WARMUP"
+    PN130_TQ_DECODE_WARMUP = "PN130_TQ_DECODE_WARMUP"
+    PN132_TOPK_TOPP_CONTIGUOUS = "PN132_TOPK_TOPP_CONTIGUOUS"
+    PN133_MTP_EMPTY_OUTPUT_FIX = "PN133_MTP_EMPTY_OUTPUT_FIX"
+    PN134_TORCH_COMPILE_FULLGRAPH_211 = "PN134_TORCH_COMPILE_FULLGRAPH_211"
+    PN200_GDN_SCRATCH_REUSE = "PN200_GDN_SCRATCH_REUSE"
+    PN201_SCHEDULER_EMPTY_CACHE = "PN201_SCHEDULER_EMPTY_CACHE"
+    PN202_PER_LAYER_KV_SPLIT = "PN202_PER_LAYER_KV_SPLIT"
+    PN203_COLD_PREFIX_OFFLOAD = "PN203_COLD_PREFIX_OFFLOAD"
+    SNDR_WORKSPACE_001 = "SNDR_WORKSPACE_001"
+
+    # ── Gemma 4 family (G4_NN — 2026-05-17) ────────────────────────────
+    # 21 patches covering: refusal guards (G4_01/02/03/12/13), vendor
+    # backports (G4_04/05/06/18), deep fixes (G4_07/08/09/10), perf kernels
+    # (G4_15/16/24), compatibility (G4_11/14), vision-tower management
+    # (G4_17/23), and diagnostic (G4_25). Family lives at
+    # vllm/sndr_core/integrations/gemma4/. See FAMILY_README for the
+    # operator-facing rollout matrix.
+    #
+    # Implementation status snapshot per audit GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU:
+    #   stable / full         : G4_01..G4_05, G4_07, G4_09, G4_11..G4_14, G4_16, G4_17, G4_23, G4_25
+    #   partial / experimental: G4_06 (k_eq_v half), G4_08 (AWQ MoE stub),
+    #                           G4_10 (DFlash backend brittle, class typo),
+    #                           G4_15 (no-op hot path, needs G4_15b deep anchor patch),
+    #                           G4_18 (only get_num_kv_heads, not KV spec build),
+    #                           G4_24 (only final logits softcap, not attention softcap)
+    G4_01_GEMMA4_FP8_BLOCK_GUARD = "G4_01_GEMMA4_FP8_BLOCK_GUARD"
+    G4_02_GEMMA4_MARLIN_KDIM_GUARD = "G4_02_GEMMA4_MARLIN_KDIM_GUARD"
+    G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD = "G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD"
+    G4_04_GEMMA4_AWQ_MOE_KEYS_REMAP = "G4_04_GEMMA4_AWQ_MOE_KEYS_REMAP"
+    G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT = "G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT"
+    G4_06_GEMMA4_KV_PROJ_V0 = "G4_06_GEMMA4_KV_PROJ_V0"
+    G4_07_GEMMA4_FP8_BLOCK_FIX = "G4_07_GEMMA4_FP8_BLOCK_FIX"
+    G4_08_GEMMA4_MARLIN_KDIM_PAD = "G4_08_MARLIN_KDIM_PAD"
+    G4_09_GEMMA4_SWA_PREFILL_CHUNKER = "G4_09_GEMMA4_SWA_PREFILL_CHUNKER"
+    G4_10_GEMMA4_AMPERE_NON_CAUSAL_BACKEND = "G4_10_GEMMA4_AMPERE_NON_CAUSAL_BACKEND"
+    G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL = "G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL"
+    G4_12_GEMMA4_FP8_E4NV_GUARD = "G4_12_GEMMA4_FP8_E4NV_GUARD"
+    G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD = "G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD"
+    G4_14_GEMMA4_TOOL_CALL_PARSER_PAD = "G4_14_GEMMA4_TOOL_CALL_PARSER_PAD"
+    G4_15_GEMMA4_FUSED_RMSNORM = "G4_15_GEMMA4_FUSED_RMSNORM"
+    G4_16_GEMMA4_FULL_AND_PIECEWISE = "G4_16_GEMMA4_FULL_AND_PIECEWISE"
+    G4_17_GEMMA4_VISION_SKIP = "G4_17_GEMMA4_VISION_SKIP"
+    G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE = "G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE"
+    G4_23_GEMMA4_VISION_FP16_OVERFLOW = "G4_23_GEMMA4_VISION_FP16_OVERFLOW"
+    G4_24_GEMMA4_FUSED_SOFTCAP = "G4_24_GEMMA4_FUSED_SOFTCAP"
+    G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD = "G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD"
+
+    # G4_19 — Genesis-original TurboQuant KV cache for Gemma 4 (256K unlock)
+    # Companion to our Qwen 3.5/3.6 P67/PN116/PN118/PN119 stack — parallel
+    # architecture pattern for gemma4 attention path. Implementation:
+    # vllm/sndr_core/integrations/gemma4/kernels/turboquant/.
+    G4_19_GEMMA4_TURBOQUANT_KV = "G4_19_GEMMA4_TURBOQUANT_KV"
+    # G4_19b — compression-aware KV cache memory check for vLLM v1
+    G4_19B_GEMMA4_TQ_KV_SPEC = "G4_19B_GEMMA4_TQ_KV_SPEC"
+
     # ── Meta flags (apply behavior, not patch enable) ──────────────────
     NO_PATCH_CACHE = "NO_PATCH_CACHE"           # disable file_cache fast-path
     DISABLE_BOOT_PATCHES = "DISABLE_BOOT_PATCHES"  # skip apply_all at boot
@@ -341,6 +429,98 @@ def is_legacy_active(flag: str, default: bool = True) -> bool:
     if val is None:
         return default
     return val.strip().lower() in ("1", "true", "yes", "on")
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Generic SNDR/GENESIS-aliased env reader  (P1 naming migration)
+# ──────────────────────────────────────────────────────────────────────
+#
+# `is_enabled/disabled/legacy` cover the well-known ENABLE_/DISABLE_/
+# LEGACY_ patterns for patch flags. The spec_decode + gateway layers
+# introduced new env vars whose suffixes don't fit those patterns:
+#
+#   ALLOW_SPEC_DECODE_KV_ADAPTER
+#   ALLOW_SPEC_DECODE_FUNCTIONAL_UNKNOWN
+#   DISABLE_SPEC_DECODE_SAFETY_GUARD
+#   SPEC_DECODE_ARTIFACTS_DIR
+#   GATEWAY_DEFAULT_URL
+#   GATEWAY_STRUCTURED_URL
+#   GATEWAY_PROFILE
+#   GATEWAY_BIND_HOST / _PORT / _HEALTH_INTERVAL / _TIMEOUT / _LOG_LEVEL
+#   GATEWAY_ADMIN_ALLOW_REMOTE
+#
+# `get_sndr_env(name, default)` resolves these with the same
+# SNDR_/GENESIS_ alias semantics: SNDR_<name> wins; falls back to
+# GENESIS_<name> with a one-shot deprecation warning per name.
+
+# Per-name dedup so we warn once per process per env name
+_deprecation_warned: set[str] = set()
+
+
+def get_sndr_env(name: str, default: str | None = None,
+                 *, warn_deprecated: bool = True) -> str | None:
+    """Read an env var with SNDR_/GENESIS_ alias semantics.
+
+    `name` is the suffix without any prefix (e.g.
+    ``ALLOW_SPEC_DECODE_KV_ADAPTER``). Both ``SNDR_<name>`` and
+    ``GENESIS_<name>`` are checked. SNDR_ wins if both are set.
+
+    If only GENESIS_<name> is set, returns its value AND emits a
+    one-shot deprecation log warning naming the new SNDR_<name>
+    canonical form. ``warn_deprecated=False`` suppresses the warning
+    (use sparingly, e.g. inside docstring-default config templates).
+
+    Returns ``default`` if neither env is present.
+    """
+    sndr_var = f"SNDR_{name}"
+    genesis_var = f"GENESIS_{name}"
+    val = os.environ.get(sndr_var)
+    if val is not None:
+        return val
+    val = os.environ.get(genesis_var)
+    if val is not None:
+        if warn_deprecated and name not in _deprecation_warned:
+            _deprecation_warned.add(name)
+            try:
+                import logging as _logging
+                _logging.getLogger("vllm.sndr_core.env").warning(
+                    "%s is deprecated; rename to %s. The alias is "
+                    "supported now but will be removed in a future "
+                    "release.",
+                    genesis_var, sndr_var,
+                )
+            except Exception:
+                pass
+        return val
+    return default
+
+
+def get_sndr_env_bool(name: str, default: bool = False) -> bool:
+    """Boolean form of get_sndr_env. Treats 1/true/yes/on as True."""
+    v = get_sndr_env(name)
+    if v is None:
+        return default
+    return v.strip().lower() in ("1", "true", "yes", "on")
+
+
+def get_sndr_env_int(name: str, default: int) -> int:
+    v = get_sndr_env(name)
+    if v is None:
+        return default
+    try:
+        return int(v.strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def get_sndr_env_float(name: str, default: float) -> float:
+    v = get_sndr_env(name)
+    if v is None:
+        return default
+    try:
+        return float(v.strip())
+    except (TypeError, ValueError):
+        return default
 
 
 def known_flags() -> list[str]:

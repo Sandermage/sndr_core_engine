@@ -19,7 +19,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import subprocess
-from typing import Any, Optional
+from typing import Any
 
 from . import _io
 
@@ -146,7 +146,7 @@ def run_inventory(args: argparse.Namespace) -> int:
         import json
         print(json.dumps(out, indent=2))
     else:
-        print(f"sndr proxmox inventory")
+        print("sndr proxmox inventory")
         print("─" * 60)
         print(f"  LXC containers ({len(out['lxc'])}):")
         for line in out["lxc"]:
@@ -164,79 +164,100 @@ def run_render(args: argparse.Namespace) -> int:
     if cfg is None:
         return 2
     p = cfg.proxmox
+    # Fail-fast on unknown mode. ProxmoxConfig.validate() already
+    # restricts mode to {lxc, vm, host} at schema load time, but a
+    # defensive guard here catches operator overrides that bypass
+    # the loader (e.g. constructing the dataclass programmatically).
+    _VALID_RENDER_MODES = ("lxc", "vm", "host")
+    if p.mode not in _VALID_RENDER_MODES:
+        _io.error(
+            f"sndr proxmox render: unsupported mode={p.mode!r}. "
+            f"Valid modes: {_VALID_RENDER_MODES}. Edit the preset's "
+            f"proxmox.mode field."
+        )
+        return 2
+    # All Proxmox modes (lxc / vm / host) emit operator-runnable command
+    # *guides*, not auto-executed deployments. Storage class, network
+    # bridge, GPU PCI ID, and (in vm mode) the disk image are
+    # operator-specific and the renderer leaves them as placeholders.
+    # Banner explicitly states "preview / manual-guide" so the operator
+    # knows the output is not turn-key.
     print(f"# sndr proxmox render — preset {cfg.key!r}")
     print(f"# mode={p.mode} runtime={p.runtime}")
-    print(f"# Generated commands — REVIEW before executing.")
+    print("# STATUS: preview / manual-guide — the lines below are operator")
+    print("#         command templates with site-specific placeholders")
+    print("#         (storage class, network bridge, GPU PCI ID, etc).")
+    print("#         REVIEW + customise every line before executing.")
     print()
 
     if p.mode == "lxc":
         vmid = p.container_id_or_vmid or 200
-        print(f"# LXC creation (operator must adjust storage / network):")
+        print("# LXC creation (operator must adjust storage / network):")
         print(f"pct create {vmid} \\")
-        print(f"  /var/lib/vz/template/cache/ubuntu-24.04-standard.tar.gz \\")
+        print("  /var/lib/vz/template/cache/ubuntu-24.04-standard.tar.gz \\")
         print(f"  --hostname sndr-{cfg.key} \\")
-        print(f"  --memory 65536 --cores 8 \\")
-        print(f"  --rootfs local-lvm:64 \\")
-        print(f"  --net0 name=eth0,bridge=vmbr0,ip=dhcp \\")
-        print(f"  --features nesting=1")
+        print("  --memory 65536 --cores 8 \\")
+        print("  --rootfs local-lvm:64 \\")
+        print("  --net0 name=eth0,bridge=vmbr0,ip=dhcp \\")
+        print("  --features nesting=1")
         if p.gpu_passthrough:
             print()
-            print(f"# GPU passthrough (replace with `lspci | grep NVIDIA` IDs):")
+            print("# GPU passthrough (replace with `lspci | grep NVIDIA` IDs):")
             print(f"# Edit /etc/pve/lxc/{vmid}.conf and add:")
-            print(f"#   lxc.cgroup2.devices.allow: c 195:* rwm")
-            print(f"#   lxc.cgroup2.devices.allow: c 510:* rwm")
-            print(f"#   lxc.mount.entry: /dev/nvidia0 dev/nvidia0 none bind,optional,create=file")
-            print(f"#   lxc.mount.entry: /dev/nvidiactl dev/nvidiactl none bind,optional,create=file")
-            print(f"#   lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file")
+            print("#   lxc.cgroup2.devices.allow: c 195:* rwm")
+            print("#   lxc.cgroup2.devices.allow: c 510:* rwm")
+            print("#   lxc.mount.entry: /dev/nvidia0 dev/nvidia0 none bind,optional,create=file")
+            print("#   lxc.mount.entry: /dev/nvidiactl dev/nvidiactl none bind,optional,create=file")
+            print("#   lxc.mount.entry: /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file")
         print()
         print(f"pct start {vmid}")
         print()
         if p.runtime == "docker":
-            print(f"# Inside the LXC: install Docker via apt repo + keyring")
-            print(f"# (no curl|sh — vetted package, pinning supported, reboot safe).")
-            print(f"#")
-            print(f"# Steps the operator runs (or wraps in a config-management script):")
+            print("# Inside the LXC: install Docker via apt repo + keyring")
+            print("# (no curl|sh — vetted package, pinning supported, reboot safe).")
+            print("#")
+            print("# Steps the operator runs (or wraps in a config-management script):")
             print(f"pct exec {vmid} -- bash -c 'install -m 0755 -d /etc/apt/keyrings'")
             print(f"pct exec {vmid} -- bash -c 'curl -fsSL https://download.docker.com/linux/debian/gpg \\")
-            print(f"    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg'")
+            print("    | gpg --dearmor -o /etc/apt/keyrings/docker.gpg'")
             print(f"pct exec {vmid} -- bash -c 'chmod a+r /etc/apt/keyrings/docker.gpg'")
             print(f"pct exec {vmid} -- bash -c 'echo \"deb [arch=$(dpkg --print-architecture) \\")
-            print(f"    signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \\")
-            print(f"    $(. /etc/os-release && echo \\\"$VERSION_CODENAME\\\") stable\" \\")
-            print(f"    > /etc/apt/sources.list.d/docker.list'")
+            print("    signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \\")
+            print("    $(. /etc/os-release && echo \\\"$VERSION_CODENAME\\\") stable\" \\")
+            print("    > /etc/apt/sources.list.d/docker.list'")
             print(f"pct exec {vmid} -- bash -c 'apt-get update && apt-get install -y \\")
-            print(f"    docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin'")
-            print(f"#")
-            print(f"# (Note: LXC docker still requires nesting + manual GPU device passthrough;")
-            print(f"# see `proxmox doctor` output for the cgroup/lxc.mount entries.)")
+            print("    docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin'")
+            print("#")
+            print("# (Note: LXC docker still requires nesting + manual GPU device passthrough;")
+            print("# see `proxmox doctor` output for the cgroup/lxc.mount entries.)")
         elif p.runtime == "venv":
-            print(f"# Inside the LXC: bootstrap venv + install sndr:")
+            print("# Inside the LXC: bootstrap venv + install sndr:")
             print(f"pct exec {vmid} -- bash -c 'apt update && apt install -y python3.12 python3.12-venv git'")
             print(f"pct exec {vmid} -- bash -c 'python3.12 -m venv /opt/sndr-venv && /opt/sndr-venv/bin/pip install vllm-sndr-core'")
 
     elif p.mode == "vm":
         vmid = p.container_id_or_vmid or 100
-        print(f"# VM creation (qm-based):")
+        print("# VM creation (qm-based):")
         print(f"qm create {vmid} \\")
         print(f"  --name sndr-{cfg.key} \\")
-        print(f"  --memory 65536 --cores 8 \\")
-        print(f"  --net0 model=virtio,bridge=vmbr0 \\")
-        print(f"  --scsi0 local-lvm:64 \\")
-        print(f"  --ostype l26")
+        print("  --memory 65536 --cores 8 \\")
+        print("  --net0 model=virtio,bridge=vmbr0 \\")
+        print("  --scsi0 local-lvm:64 \\")
+        print("  --ostype l26")
         if p.gpu_passthrough:
-            print(f"# GPU passthrough — operator runs (replace 0000:01:00.0 with actual):")
+            print("# GPU passthrough — operator runs (replace 0000:01:00.0 with actual):")
             print(f"qm set {vmid} --hostpci0 0000:01:00.0,pcie=1")
         print(f"qm start {vmid}")
     elif p.mode == "host":
-        print(f"# Bare-metal on PVE host (NO ISOLATION — expert only):")
-        print(f"# Just install python venv + sndr directly on the host:")
-        print(f"apt install -y python3.12 python3.12-venv")
-        print(f"python3.12 -m venv /opt/sndr-venv")
-        print(f"/opt/sndr-venv/bin/pip install vllm-sndr-core")
+        print("# Bare-metal on PVE host (NO ISOLATION — expert only):")
+        print("# Just install python venv + sndr directly on the host:")
+        print("apt install -y python3.12 python3.12-venv")
+        print("python3.12 -m venv /opt/sndr-venv")
+        print("/opt/sndr-venv/bin/pip install vllm-sndr-core")
         print(f"# Then: sndr launch {cfg.key}")
-    else:
-        _io.warn(f"mode={p.mode} — render not implemented")
-        return 1
+    # `else` removed — every mode reaching this point is in
+    # _VALID_RENDER_MODES (guarded above). Adding a new mode means
+    # updating both the tuple and adding its own branch.
     return 0
 
 

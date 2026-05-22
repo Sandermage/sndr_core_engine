@@ -37,17 +37,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Allowlist: paths whose content is acceptable to contain "sensitive-looking"
 # strings (audit reports, internal docs, test fixtures, security designs).
 ALLOWLIST_PATHS = [
-    "docs/_internal/",
+    "sndr_private/",           # private maintainer tree — entire subtree
     "docs/upstream/",
     "docs/reference/",
     "_archive/",
-    "scripts/launch/_archive/",  # historical launch scripts kept for provenance
     "tests/",                  # test fixtures may contain mock secrets
     "scripts/security_scan.py",  # this file itself contains the regex literals
     "scripts/audit_no_hardcoded_paths.py",  # describes forbidden patterns
     "scripts/audit_public_docs.py",  # describes forbidden patterns
+    "scripts/audit_license_anchor.py",  # references private trust-anchor script
     "scripts/generate_sbom.py",
-    "scripts/generate_trust_anchor.py",
     "Makefile",                # may grep for these patterns at audit time
 ]
 

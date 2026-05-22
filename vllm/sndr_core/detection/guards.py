@@ -503,6 +503,37 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     #     ready after ~275s; inference 1.50s, content "60".
     # See CHANGELOG "[v11.0.0+wave9_dev338]" for the upgrade summary.
     "0.20.2rc1.dev338+gbf0d2dc6d",
+    # 2026-05-15 — v0.21.0 RELEASE + freshest nightly bf610c2f. The
+    # `vllm/vllm-openai:nightly-bf610c2f56764e1b30bc6065f4ceace3d6e59036`
+    # image on Docker Hub is the actionable form (pushed 2026-05-15,
+    # CUDA-13 native). Commit bf610c2f IS vllm#41674 (thinking_token_budget
+    # bool inversion fix — what our PN67 backports). Other notable:
+    #   - vllm#42660 Qwen3.5 chat template format fix
+    #   - vllm#42604 DSV4-Pro FULL_AND_PIECEWISE (validates PN125 doc note)
+    #   - vllm#41869 PD disagg NIXL GDN for Qwen3.5 (active maintenance)
+    # Add three entries: v0.21.0 release tag, v0.21.1rc0 git tag form,
+    # commit-sha form. PROMOTION_PENDING below until first bench cycle.
+    "0.21.0",  # release tag
+    "0.21.1rc0",  # git tag form
+    "0.21.1rc0+gd735968f6d63",  # canonical dev-pin form (gh tag)
+    "0.21.1rc0+gbf610c2f5676",  # docker hub nightly SHA (12-char)
+    # Реальная version string которую vllm рапортует когда image
+    # `nightly-bf610c2f56764e1b30bc6065f4ceace3d6e59036` запущен:
+    # `0.20.2rc1.dev371+gbf610c2f5`. Это означает internal version
+    # стрингу build-script'а собирает в `0.20.2rc1.dev<NNN>+g<SHA[:10]>`
+    # формате, не tag-based. Добавляю обе формы (commit-based +
+    # nightly-tag-based) чтобы pin-gate не warning'овался.
+    "0.20.2rc1.dev371+gbf610c2f5",
+)
+
+
+# Pins that are in allowlist but not yet bench-validated. Audit gate
+# tolerates them but logs a CAVEAT until promoted.
+PROMOTION_PENDING_VLLM_PINS: tuple[str, ...] = (
+    "0.21.0",
+    "0.21.1rc0",
+    "0.21.1rc0+gd735968f6d63",
+    "0.21.1rc0+gbf610c2f5676",
 )
 
 

@@ -55,9 +55,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 from dataclasses import asdict
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 from . import _io
 
@@ -104,13 +103,39 @@ def _matches_filters(
 
 
 def _spec_to_row(spec) -> dict[str, Any]:
-    """Convert PatchSpec → flat dict for table/json rendering."""
+    """Convert PatchSpec → flat dict for table/json rendering.
+
+    Adds a derived ``production_default`` field that flags entries
+    where ``default_on=True`` but the patch is only a marker
+    (``implementation_status='marker_only'``) — these have no
+    apply module, so the operator-facing label "Default-on" can
+    mislead. Honest values:
+
+      "applied"          default_on + full apply_module
+      "marker"           default_on + marker_only (no runtime effect)
+      "opt-in"           default_on=False
+      "blocked"          implementation_status in {partial, placeholder}
+                         or lifecycle in {retired, research}
+    """
+    impl = getattr(spec, "implementation_status", "full") or "full"
+    if impl in ("partial", "placeholder"):
+        prod_default = "blocked"
+    elif spec.lifecycle in ("retired", "research"):
+        prod_default = "blocked"
+    elif spec.default_on and impl == "marker_only":
+        prod_default = "marker"
+    elif spec.default_on:
+        prod_default = "applied"
+    else:
+        prod_default = "opt-in"
     return {
         "patch_id": spec.patch_id,
         "tier": spec.tier,
         "lifecycle": spec.lifecycle,
         "family": spec.family,
         "default_on": spec.default_on,
+        "production_default": prod_default,
+        "implementation_status": impl,
         "env_flag": spec.env_flag or "",
         "upstream_pr": spec.upstream_pr,
         "title": (spec.title or "")[:80],
@@ -222,7 +247,6 @@ def _run_explain(opts: argparse.Namespace) -> int:
         return 0
 
     # Pretty print
-    title_line = f"  {pid}  —  {meta.get('title', '(no title)')}"
     _io.banner(f"Patch {pid}", meta.get("title", "")[:60])
 
     def _row(label: str, value: Any) -> None:
@@ -327,8 +351,8 @@ _PN95_STATUS_HINTS = (
     (
         lambda s: s["prefix_store_promote_hits"] > 0,
         "ok",
-        f'Prefix store is actively serving cache hits — multi-turn '
-        f'workloads are benefiting from CPU offload.',
+        'Prefix store is actively serving cache hits — multi-turn '
+        'workloads are benefiting from CPU offload.',
     ),
 )
 
@@ -535,9 +559,13 @@ def _run_plan(opts: argparse.Namespace) -> int:
     if not opts.preset:
         _io.fatal("--preset is required for `sndr patches plan`", 2)
 
+    # accept either V1 monolithic key or V2 alias
+    # so `sndr patches plan --preset prod-35b` works alongside the legacy
+    # `--preset a5000-2x-35b-prod`. memory.py already exports the same
+    # resolver — re-use to avoid divergent lookup paths.
     try:
-        from vllm.sndr_core.model_configs.registry import get as get_config
-        cfg = get_config(opts.preset)
+        from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
+        cfg = _resolve_preset_v1_or_v2(opts.preset)
     except Exception as e:
         _io.fatal(f"preset {opts.preset!r} not found ({e})", 2)
     if cfg is None:
@@ -620,8 +648,68 @@ def _run_plan(opts: argparse.Namespace) -> int:
                     "reasons": reasons,
                 })
 
+    # optional patch_plan resolver layer.
+    # Decoupled from the dispatcher simulator above — operators can
+    # request both views in one JSON payload by passing --policy.
+    #
+    # even when --policy is NOT
+    # passed, we still run the resolver under compat just to collect
+    # advisory warnings (conflicts_with + candidate_when). These are
+    # surfaced as `resolver_warnings` in JSON output and as a
+    # standalone "⚠ advisory" block in human output, so legacy
+    # operators see misconfigurations they'd otherwise miss.
+    resolver_payload = None
+    advisory_warnings: tuple[str, ...] = ()
+    policy = getattr(opts, "policy", None)
+
+    if policy is None:
+        try:
+            from vllm.sndr_core.model_configs.patch_plan import (
+                resolve_patch_plan,
+            )
+            advisory_plan = resolve_patch_plan(cfg, policy="compat")
+            advisory_warnings = advisory_plan.warnings
+        except Exception:
+            # Resolver failure must not break the simulator output —
+            # advisory layer is best-effort.
+            advisory_warnings = ()
+
+    if policy is not None:
+        from vllm.sndr_core.model_configs.patch_plan import (
+            resolve_patch_plan,
+        )
+        plan = resolve_patch_plan(cfg, policy=policy)
+        explain = bool(getattr(opts, "explain", False))
+
+        def _decision_dict(d) -> dict[str, Any]:
+            base = {
+                "patch_id": d.patch_id,
+                "env_flag": d.env_flag,
+                "value": d.value,
+                "decision": d.decision,
+                "role": d.role,
+                "reason": d.reason,
+            }
+            if explain:
+                base["note"] = d.note
+                base["bench_evidence"] = d.bench_evidence
+            return base
+
+        resolver_payload = {
+            "policy": plan.policy,
+            "included": [_decision_dict(d) for d in plan.included],
+            "excluded": [_decision_dict(d) for d in plan.excluded],
+            "warnings": list(plan.warnings),
+            # Non-toggle parameter keys (GENESIS_BUFFER_MODE,
+            # GENESIS_PN95_CONFIG_KEY, …) pass through every policy
+            # so dependent patches don't silently noop. Expose
+            # separately for diff tools + traceability.
+            "passthrough": dict(plan.passthrough),
+            "env": plan.env,
+        }
+
     if opts.json:
-        print(json.dumps({
+        out = {
             "preset": opts.preset,
             "profile": profile,
             "apply_count": len(apply_rows),
@@ -631,7 +719,12 @@ def _run_plan(opts: argparse.Namespace) -> int:
             "apply": apply_rows,
             "skip": skip_rows,
             "errors": error_rows,
-        }, indent=2, default=str))
+        }
+        if resolver_payload is not None:
+            out["resolver"] = resolver_payload
+        if advisory_warnings:
+            out["resolver_warnings"] = list(advisory_warnings)
+        print(json.dumps(out, indent=2, default=str))
         return 2 if profile_violations else 0
 
     _io.banner(f"Plan: preset={opts.preset}",
@@ -684,6 +777,49 @@ def _run_plan(opts: argparse.Namespace) -> int:
             "`--profile production` to allow this plan."
         )
         return 2
+
+    # Phase B human renderer — only when --policy was passed.
+    if resolver_payload is not None:
+        _io.info("")
+        _io.banner(
+            f"Resolver: policy={resolver_payload['policy']}",
+            f"{len(resolver_payload['included'])} included · "
+            f"{len(resolver_payload['excluded'])} excluded",
+        )
+        for d in resolver_payload["included"]:
+            line = f"  + {d['patch_id']:<10} role={d['role']:<22} {d['env_flag']}"
+            _io.info(line)
+            if explain and d.get("note"):
+                _io.info(f"      note: {d['note'][:160]}")
+            if explain and d.get("bench_evidence"):
+                _io.info(f"      bench: {d['bench_evidence'][:160]}")
+        if resolver_payload["excluded"]:
+            _io.info("")
+            _io.info("  ⊘ excluded by policy:")
+            for d in resolver_payload["excluded"]:
+                _io.info(
+                    f"    - {d['patch_id']:<10} role={d['role']:<22} "
+                    f"{d['env_flag']} — {d['reason'][:80]}"
+                )
+        if resolver_payload["warnings"]:
+            _io.info("")
+            _io.warn(f"  ⚠ {len(resolver_payload['warnings'])} warning(s):")
+            for w in resolver_payload["warnings"]:
+                _io.warn(f"    {w}")
+    # Phase D refinement — surface resolver advisory warnings even
+    # when --policy is NOT set, so legacy operators see conflict /
+    # candidate_when mismatches they'd otherwise miss.
+    if resolver_payload is None and advisory_warnings:
+        _io.info("")
+        _io.warn(
+            f"  ⚠ {len(advisory_warnings)} advisory warning(s) from "
+            "patch_plan resolver:"
+        )
+        for w in advisory_warnings:
+            _io.warn(f"    {w}")
+        _io.info(
+            "  (pass `--policy compat --explain` for the full resolver view)"
+        )
     return 0
 
 
@@ -1049,7 +1185,9 @@ def add_argparser(subparsers: Any) -> None:
             "Mode 'report' never blocks; tighter modes (require-static / "
             "require-bench / require-baseline) block when patches don't "
             "meet the bar. `--max-regression-pct N` also blocks when any "
-            "bench_with_baseline patch has a regression beyond N%."
+            "bench_with_baseline patch has a regression beyond N%. "
+            "The current public release gate is `require-static` — see "
+            "docs/RELEASE_POLICY.md for the cutover procedure between modes."
         ),
     )
     p_rc.add_argument(
@@ -1069,6 +1207,16 @@ def add_argparser(subparsers: Any) -> None:
     p_rc.add_argument(
         "--tier", action="append", default=None,
         help="Restrict to these tiers (repeatable, e.g. release, community).",
+    )
+    p_rc.add_argument(
+        "--scope", default="all",
+        choices=["all", "production-subset"],
+        help=(
+            "Restrict evaluation to a named subset. 'production-subset' "
+            "is the union of patches enabled by any prod-* V2 preset + "
+            "every default_on=True entry — the practical scope for "
+            "hardened-release bench/baseline gating. Default: all."
+        ),
     )
     p_rc.add_argument(
         "--out-dir", default=None,
@@ -1106,6 +1254,26 @@ def add_argparser(subparsers: Any) -> None:
             "implementation_status ∈ {partial, placeholder} or lifecycle "
             "∈ {research, retired}. Use before live launch to guarantee "
             "no half-finished code reaches PROD."
+        ),
+    )
+    p_plan.add_argument(
+        "--policy",
+        choices=("compat", "safe", "minimal"),
+        default=None,
+        help=(
+            "run the patch_plan resolver alongside "
+            "the dispatcher simulator. compat passes every truthy "
+            "genesis_env flag through; safe drops role=='no_op'; minimal "
+            "additionally drops role in {suspected_regression, unknown}. "
+            "Omit the flag to keep legacy output (simulator only)."
+        ),
+    )
+    p_plan.add_argument(
+        "--explain",
+        action="store_true",
+        help=(
+            "Include role / note / bench_evidence from patches_attribution "
+            "in the resolver output. No effect without --policy."
         ),
     )
     p_plan.set_defaults(func=_run_plan)
@@ -1160,7 +1328,6 @@ def _run_prove(args: argparse.Namespace) -> int:
 def _run_prove_one(args: argparse.Namespace, out_dir) -> int:
     """`sndr patches prove <id>` — verify one patch + write artefact."""
     import json as _json
-    from vllm.sndr_core.cli import _io
     from vllm.sndr_core.proof import (
         build_proof_for_patch, write_proof_artefact,
     )
@@ -1203,9 +1370,9 @@ def _run_prove_one(args: argparse.Namespace, out_dir) -> int:
     if path:
         print(f"  artefact: {path}")
     elif args.no_write:
-        print(f"  (artefact write skipped — --no-write)")
+        print("  (artefact write skipped — --no-write)")
     else:
-        print(f"  (no artefact written — P-1 failed)")
+        print("  (no artefact written — P-1 failed)")
     print()
     if proof.static_passed:
         print(f"  ✓ static checks passed ({len(proof.static_checks)}/{len(proof.static_checks)})")
@@ -1354,7 +1521,6 @@ def _run_bench_attach(args: argparse.Namespace) -> int:
         v = bench_delta.get(k)
         if v is None:
             continue
-        delta_key = f"{k.replace('_ms','').replace('_tps','_tps')}_delta_pct"
         # Two specific delta keys we render: median_tps + p95_tps + decode_tpot + ttft
         pretty_delta = ""
         if k == "median_tps":
@@ -1456,11 +1622,22 @@ def _run_release_check(args: argparse.Namespace) -> int:
     )
 
     out_dir = Path(args.out_dir) if args.out_dir else DEFAULT_PROOF_DIR
+
+    # Build the patch filter: --patch is the explicit operator-driven
+    # list; --scope production-subset programmatically widens it to the
+    # canonical hardened-release scope (every patch enabled by any prod-*
+    # preset + default_on=True entries). When both are given, --patch
+    # wins (operator override).
+    patch_filter = frozenset(args.patch) if args.patch else None
+    if patch_filter is None and getattr(args, "scope", "all") == "production-subset":
+        from vllm.sndr_core.proof.production_subset import get_production_subset
+        patch_filter = get_production_subset()
+
     try:
         policy = ReleasePolicy(
             mode=args.mode,
             max_regression_pct=args.max_regression_pct,
-            patch_filter=frozenset(args.patch) if args.patch else None,
+            patch_filter=patch_filter,
             tier_filter=frozenset(args.tier) if args.tier else None,
         )
     except ReleaseCheckError as e:
@@ -1525,7 +1702,7 @@ def _run_release_check(args: argparse.Namespace) -> int:
         print(f"  ✗ RELEASE BLOCKED — policy={pol['mode']!r}")
         return 1
     if pol["mode"] == "report":
-        print(f"  · report-only mode (no blocking)")
+        print("  · report-only mode (no blocking)")
     else:
         print(f"  ✓ release policy {pol['mode']!r} satisfied")
     return 0

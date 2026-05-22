@@ -96,6 +96,20 @@ def add_argparser(subparsers: Any) -> None:
              "and abort if any required dependency is missing. "
              "Equivalent to `sndr deps inspect <key>` followed by launch.",
     )
+    p.add_argument(
+        "--policy",
+        choices=("compat", "safe", "minimal"),
+        default=None,
+        help=(
+            "filter cfg.genesis_env through the "
+            "patch_plan resolver before rendering the launch script. "
+            "compat keeps every truthy toggle; safe drops role='no_op'; "
+            "minimal additionally drops role in {suspected_regression, "
+            "unknown}. Non-toggle GENESIS_* parameter keys always pass "
+            "through. Omit the flag to keep the legacy unfiltered "
+            "launch matrix."
+        ),
+    )
     p.set_defaults(func=run_launch)
 
 
@@ -295,7 +309,6 @@ def _verify_image_digest(cfg: Any, mode: str) -> int:
 
     # auto + digest declared, OR strict-image=on + digest declared
     import shutil
-    import subprocess
     if not shutil.which("docker"):
         _io.warn(
             "image_digest declared but `docker` not on PATH — "
@@ -368,7 +381,6 @@ def _run_apply_phase() -> int:
 def _run_docker_pull(cfg) -> int:
     """`--pull`: docker-pull the preset's image. Returns shell rc."""
     import shutil
-    import subprocess
     docker = getattr(cfg, "docker", None)
     if docker is None:
         _io.info("--pull: bare-metal config, skipping docker pull")
@@ -449,6 +461,106 @@ def _run_check_deps(cfg, key: str) -> int:
     return 0
 
 
+def _maybe_apply_patch_policy(cfg: Any, opts: argparse.Namespace) -> None:
+    """Apply --policy filter to cfg.genesis_env in place.
+
+    No-op when ``opts.policy`` is None (legacy unfiltered path).
+
+    The resolver itself is read-only — it doesn't mutate cfg — so we
+    overwrite cfg.genesis_env explicitly. The replacement is the
+    union of policy-included toggles AND parameter passthrough, so
+    dependent patches keep their configuration keys (PN95 stays
+    armed via GENESIS_PN95_CONFIG_KEY, etc.).
+    """
+    policy = getattr(opts, "policy", None)
+    if policy is None:
+        return
+    from vllm.sndr_core.model_configs.patch_plan import resolve_patch_plan
+    plan = resolve_patch_plan(cfg, policy=policy)
+    _io.info(
+        f"  patch plan policy={policy}: "
+        f"{len(plan.included)} included / {len(plan.excluded)} excluded / "
+        f"{len(plan.passthrough)} passthrough"
+    )
+    if plan.warnings:
+        _io.warn(f"  ⚠ {len(plan.warnings)} patch_plan warning(s):")
+        for w in plan.warnings:
+            _io.warn(f"    {w}")
+    cfg.genesis_env = plan.env
+
+
+def _warn_about_non_full_enabled_patches(cfg: Any) -> None:
+    """Scan cfg.genesis_env and warn when an enabled toggle maps to a
+    patch with implementation_status in {partial, placeholder,
+    marker_only}.
+
+    Why this matters: a partial patch (e.g. PN95) may install but
+    skip critical wiring; a placeholder (PN64) has no real
+    implementation; a marker_only entry with default_on=True (legacy
+    P1/P17/etc.) appears enabled but has no apply_module so nothing
+    fires. Surfacing the status before launch avoids silent
+    "feature is on" mistakes.
+    """
+    try:
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    except Exception:
+        return
+    flag_to_meta: dict[str, tuple[str, dict]] = {}
+    for pid, meta in PATCH_REGISTRY.items():
+        if not isinstance(meta, dict):
+            continue
+        flag = meta.get("env_flag")
+        if isinstance(flag, str) and flag:
+            flag_to_meta[flag] = (pid, meta)
+
+    partial: list[tuple[str, str]] = []
+    placeholder: list[tuple[str, str]] = []
+    marker: list[tuple[str, str]] = []
+    for flag, value in (cfg.genesis_env or {}).items():
+        if str(value).strip().lower() not in ("1", "true", "yes", "on"):
+            continue
+        hit = flag_to_meta.get(flag)
+        if hit is None:
+            continue
+        pid, meta = hit
+        impl = meta.get("implementation_status", "full")
+        if impl == "partial":
+            partial.append((pid, flag))
+        elif impl == "placeholder":
+            placeholder.append((pid, flag))
+        elif impl == "marker_only":
+            marker.append((pid, flag))
+
+    if partial:
+        _io.warn(
+            f"  ⚠ {len(partial)} enabled patch(es) have "
+            f"implementation_status='partial' — wiring incomplete, "
+            f"runtime behaviour may differ from the documented effect:"
+        )
+        for pid, flag in partial:
+            _io.warn(f"    {pid:<10} {flag}")
+    if placeholder:
+        _io.warn(
+            f"  ⚠ {len(placeholder)} enabled patch(es) have "
+            f"implementation_status='placeholder' — no real "
+            f"implementation, runtime is a no-op:"
+        )
+        for pid, flag in placeholder:
+            _io.warn(f"    {pid:<10} {flag}")
+    if marker:
+        # marker_only with default_on=True is a legacy registry pattern
+        # — informational only. Lowered to info severity so the warning
+        # block stays focused on actual breakage classes.
+        _io.info(
+            f"  · {len(marker)} enabled marker_only patch(es) "
+            f"(advisory/historical, no apply module):"
+        )
+        for pid, flag in marker[:5]:
+            _io.info(f"    {pid:<10} {flag}")
+        if len(marker) > 5:
+            _io.info(f"    … and {len(marker) - 5} more")
+
+
 def run_launch(opts: argparse.Namespace) -> int:
     """Render `cfg.to_launch_script()` + apply patches + exec the script."""
     cfg, key = _resolve_config(opts.config_key, opts.non_interactive)
@@ -456,6 +568,17 @@ def run_launch(opts: argparse.Namespace) -> int:
 
     _io.banner(f"SNDR Launch: {key}",
                f"port={getattr(getattr(cfg, 'docker', None), 'port', None) or 'config'}")
+
+    # Apply optional patch_plan policy filter (--policy compat|safe|minimal).
+    # No-op when --policy isn't passed; otherwise replaces cfg.genesis_env
+    # with the policy-filtered + parameter-passthrough union.
+    _maybe_apply_patch_policy(cfg, opts)
+
+    # Surface partial / placeholder / marker_only patches that ended up
+    # in the launch env after policy filtering. These are the silent-
+    # success failure classes — patch enabled, dispatcher applies, but
+    # the runtime behaviour differs from what the patch advertises.
+    _warn_about_non_full_enabled_patches(cfg)
 
     # Optional preludes — each runs only when its flag is passed and
     # short-circuits the launch on failure.

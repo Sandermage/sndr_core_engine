@@ -9,7 +9,11 @@ Usage:
     python3 tools/progressive_context_probe.py --host localhost --model qwen3.6-27b
 """
 from __future__ import annotations
-import argparse, json, time, urllib.error, urllib.request
+import argparse
+import json
+import time
+import urllib.error
+import urllib.request
 
 
 def make_payload(model: str, target_tokens: int, max_completion: int = 200) -> bytes:
@@ -66,7 +70,10 @@ def main():
     ap.add_argument("--model", default="qwen3.6-27b")
     ap.add_argument("--steps", default="16384,32768,65536,98304,131072,163840,196608,262144")
     ap.add_argument("--timeout", type=int, default=300)
-    ap.add_argument("--out", default="docs/_internal/runs/progressive_ctx_probe.json")
+    ap.add_argument("--out", default="progressive_ctx_probe.json",
+                    help="Output JSON path. Default writes the file in "
+                         "the current working directory; pass an absolute "
+                         "path to redirect.")
     ap.add_argument("--stop-on-fail", action="store_true", default=True)
     args = ap.parse_args()
 

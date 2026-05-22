@@ -5,7 +5,10 @@
 Implements PROJECT_ROADMAP_V2 §6.10 public/private docs boundary. Catches
 private-information leaks that the docs-stale-scan (§6.3 gate #1) doesn't:
 
-  D-1  No public doc links into `docs/_internal/*`.
+  D-1  No public doc links into the private maintainer tree
+       (`sndr_private/*` — the consolidated location, plus the legacy
+       `docs/_internal/*` namespace kept here for forward protection
+       against re-introduction).
   D-2  No RFC-1918 private IPv4 ranges in public docs.
   D-3  No `/home/<user>` or `/Users/<user>` operator paths in public docs.
   D-4  No server-only container names (vllm-server-mtp-test, vllm-pn95-2xa5000-*).
@@ -16,8 +19,8 @@ private-information leaks that the docs-stale-scan (§6.3 gate #1) doesn't:
        "placeholder" (used to describe e.g. PN64) does NOT count — only
        actionable markers do.
 
-Allowlist (intentionally internal/historical):
-  docs/_internal/, docs/upstream/, docs/reference/, _archive/
+Allowlist (intentionally private / historical):
+  sndr_private/, _archive/
 
 Exit code:
   0 — clean.
@@ -35,9 +38,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 ALLOWLIST_PREFIXES = (
-    "docs/_internal/",
-    "docs/upstream/",
-    "docs/reference/",
+    "sndr_private/",
     "_archive/",
 )
 
@@ -80,8 +81,11 @@ def _grep(pattern: re.Pattern, files: list[Path]) -> list[str]:
 
 
 def check_d1_no_internal_links(files: list[Path]) -> list[str]:
-    """D-1: no `docs/_internal/...` link from a public doc."""
-    return _grep(re.compile(r"docs/_internal"), files)
+    """D-1: public docs must not reference the private maintainer tree
+    (`sndr_private/` is the canonical location post-consolidation;
+    `docs/_internal/` is the retired legacy path, kept in the regex
+    so a regression cannot silently re-introduce it)."""
+    return _grep(re.compile(r"sndr_private/|docs/_internal"), files)
 
 
 def check_d2_no_private_ips(files: list[Path]) -> list[str]:

@@ -1,0 +1,32 @@
+[
+  {
+    "target": 200000,
+    "verdict": "PASS",
+    "prompt_tokens": 99960,
+    "completion_tokens": 200,
+    "elapsed_s": 381.3,
+    "prefill_est_s": 380.3,
+    "prefill_tps_est": 262.8,
+    "decode_tps_est": 200.0
+  },
+  {
+    "target": 230000,
+    "verdict": "PASS",
+    "prompt_tokens": 114960,
+    "completion_tokens": 200,
+    "elapsed_s": 494.88,
+    "prefill_est_s": 493.88,
+    "prefill_tps_est": 232.8,
+    "decode_tps_est": 200.0
+  },
+  {
+    "target": 256000,
+    "verdict": "PASS",
+    "prompt_tokens": 127960,
+    "completion_tokens": 200,
+    "elapsed_s": 619.83,
+    "prefill_est_s": 618.83,
+    "prefill_tps_est": 206.8,
+    "decode_tps_est": 200.0
+  }
+]
