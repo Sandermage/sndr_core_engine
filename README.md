@@ -6,14 +6,14 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.20.2rc1.dev371-orange.svg)](https://github.com/vllm-project/vllm)
-[![Patches](https://img.shields.io/badge/registry-169%20patches-green.svg)](docs/PATCHES.md)
+[![Patches](https://img.shields.io/badge/registry-226%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v11.0.0%2Bwave10-blue.svg)](CHANGELOG.md)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class
 inference on consumer NVIDIA Ampere / Ada / Blackwell with TurboQuant k8v4 KV
-cache, MTP K=3 spec-decode, tool-calling, and 256K-class context. 169 patches
-across 21 families. Apache 2.0.**
+cache, MTP K=3 spec-decode, tool-calling, and 256K-class context. 226 patches
+across 23 families. Apache 2.0.**
 
 ---
 

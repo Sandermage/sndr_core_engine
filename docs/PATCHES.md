@@ -14,10 +14,10 @@ env flag to toggle, upstream PR (if backported), and credit.
 > (`require-bench`, `require-baseline`) are available for operators
 > preparing a hardened deploy.
 
-## Current state (v11.0.0, 2026-05-09)
+## Current state (v12.0.0, 2026-05-22)
 
-**Total PATCH_REGISTRY entries:** 226 — range covers `P1`–`P109` legacy
-+ `PN8`–`PN275` modern + `G4_01`–`G4_78` Gemma 4 family + sub-patches
+**Total PATCH_REGISTRY entries:** 226 — range covers `P1`–`P109` legacy +
+`PN8`–`PN275` modern + `G4_01`–`G4_78` Gemma 4 family + sub-patches
 (P5b, P7b, P15B, P18b, P38B, P39a, P61c, P67b, P67c, P79d, PN26b,
 PN40-classifier) + library/diagnostic (P51, P102, P103) + the standalone
 `SNDR_WORKSPACE_001` entry. P56/P57 archived 2026-05-05; PN71 burned
@@ -35,17 +35,17 @@ added as a registry patch.
 | Total PATCH_REGISTRY entries | **226** |
 | Tier=community (Apache 2.0, sndr_core) | **226** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
-| Default-on at boot | 39 |
-| Lifecycle=experimental | 117 |
+| Default-on at boot | 52 |
+| Lifecycle=experimental | 157 |
 | Lifecycle=legacy (pre-dispatcher) | 33 |
-| Lifecycle=retired | 13 |
-| Lifecycle=research | 3 |
-| Lifecycle=stable | 2 (P5, PN95 — ratchet active; see [STABLE_PROMOTION_CHECKLIST.md](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)) |
-| Lifecycle=coordinator | 1 (P5b — env-flag-only, no real binding) |
-| Implementation status=full | 154 |
-| Implementation status=marker_only / placeholder / partial / retired | 15 |
+| Lifecycle=retired | 15 |
+| Lifecycle=research | 4 |
+| Lifecycle=stable | 15 (PN33, PN35, G4_01, G4_02, G4_03, G4_04, G4_05, G4_09, G4_11, G4_12, G4_13, G4_14, G4_16, G4_23, G4_25 — ratchet active with `stable_kind` declared; see [STABLE_PROMOTION_CHECKLIST.md](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)) |
+| Lifecycle=coordinator | 2 (env-flag-only, no real binding) |
+| Implementation status=full | 173 |
+| Implementation status=marker_only / placeholder / partial / retired | 30 (17 + 2 + 7 + 4) |
 | Apply-loop coverage (apply_module set) | 209 / 226 = 92.5% |
-| Spec-only (intentional, allow-listed) | 12 (P1, P17, P18b, P20, P23, P29, P32, P51, P102, PN60, PN63, PN64) |
+| Spec-only (intentional, allow-listed) | 17 (P1, P17, P18b, P20, P23, P29, P32, P51, P102, PN60, PN63, PN64, PN256, PN261, G4_70, G4_70B, G4_70C) |
 
 ### Engine tier (the strict-AND boundary)
 

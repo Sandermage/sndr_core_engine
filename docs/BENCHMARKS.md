@@ -8,8 +8,8 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 
 > **Current canonical stack (Wave 10, 2026-05-16)**
 >
-> - Genesis `v11.0.0+wave10` — 169 PATCH_REGISTRY entries
->   (154 full + 11 marker-only + 2 retired + 1 partial + 1 placeholder).
+> - Genesis `v11.0.0+wave10` — 226 PATCH_REGISTRY entries
+>   (173 full + 17 marker-only + 4 retired + 7 partial + 2 placeholder).
 > - vLLM `0.20.2rc1.dev371+gbf610c2f5`.
 > - Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6),
 >   driver 580.142, CUDA 13.0.2.
@@ -58,7 +58,7 @@ Genesis vLLM Patcher — boot summary
   vLLM:     0.20.2rc1.dev371+gbf610c2f5
   GPU:      2× NVIDIA RTX A5000 (sm_86)
 ──────────────────────────────────────────────────────────────────────
-  Patches:  169 total → ~80 APPLY | ~89 SKIP
+  Patches:  226 total → ~80 APPLY | ~146 SKIP
   By family (APPLY only):
     • attention.gdn          ~5
     • attention.turboquant   ~12 (incl. PN116/118/119)
@@ -116,7 +116,7 @@ Older points are kept for regression-detection. Wave 8 (dev93)
 numbers remained the operator-facing baseline until Wave 10 confirmed
 the small uplift above; Wave 7 / v7.72 (dev9) is pre-v11-rename and
 is not directly comparable because the patch registry was much
-smaller (134 entries vs 169 today).
+smaller (134 entries vs 226 today).
 
 ### Wave 7 / v7.72 dev9 snapshot (2026-05-05, pre-v11 rename)
 

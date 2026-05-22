@@ -6,8 +6,8 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
 > **Current PROD baseline (Wave 10, 2026-05-15; pin bumped 2026-05-15):**
 >
-> - Genesis v11.0.0+wave10 — registry has **169 entries** (154 full-
->   implementation + 11 marker_only + 2 retired + 1 partial + 1 placeholder).
+> - Genesis v11.0.0+wave10 — registry has **226 entries** (173 full-
+>   implementation + 17 marker_only + 4 retired + 7 partial + 2 placeholder).
 >   Wave 10 additions: PN125-PN130 warmup-orchestrator family, PN132
 >   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated).
 >   Wave 8/9 baselines retained in this doc remain numerically representative
