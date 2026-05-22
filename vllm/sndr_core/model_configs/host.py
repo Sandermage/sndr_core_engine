@@ -24,6 +24,7 @@ resolves them via `resolve_symbolic_mounts(mounts, host.paths)`.
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -315,6 +316,26 @@ def load_host_config(path: Optional[Path] = None) -> HostConfig:
         raise SchemaError(
             f"host.yaml at {p} must be a mapping, got {type(data).__name__}"
         )
+    # UX warn: detect the flat-schema mistake where path-like keys live
+    # at the top level instead of under `paths:`. Silent fallback to the
+    # default candidate list otherwise (e.g. /opt/models) cost ~30 min
+    # of operator debugging on 2026-05-22. Warning only — no behaviour
+    # change, no auto-migration.
+    if "paths" not in data:
+        canonical_keys = set(_ENV_OVERRIDES.keys())
+        leaked = sorted(set(data.keys()) & canonical_keys)
+        if leaked:
+            print(
+                f"[host.yaml] WARN: top-level path-like key(s) "
+                f"{leaked} found in {p} but no 'paths:' mapping. "
+                f"These keys are IGNORED; the loader falls back to "
+                f"default candidate directories. Wrap them under a "
+                f"top-level 'paths:' block to take effect, e.g.:\n"
+                f"  paths:\n"
+                f"    models_dir: /your/models/dir\n"
+                f"    ...",
+                file=sys.stderr,
+            )
     paths = data.get("paths", {})
     if not isinstance(paths, dict):
         raise SchemaError(
