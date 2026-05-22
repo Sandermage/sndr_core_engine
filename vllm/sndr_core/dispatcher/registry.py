@@ -879,7 +879,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
     "PN40-classifier": {
         "title": "PN40 sub-D workload classifier (chat_completion middleware)",
         "tier": "community",
-        "family": "middleware",
+        # Phase 3B.1 (2026-05-22): family changed from 'middleware' to
+        # 'spec_decode' to align with on-disk location
+        # (integrations/spec_decode/pn40_workload_classifier_hook.py) and
+        # runtime ownership group (PN40 omnibus). The chat-completion
+        # middleware mechanism is documented in the title + credit
+        # blurb; `family` describes ownership / consumer area, not the
+        # text-patch mechanism.
+        "family": "spec_decode",
         "env_flag": "GENESIS_ENABLE_PN40_DFLASH_OMNIBUS",
         "default_on": False,
         "category": "spec_decode",
