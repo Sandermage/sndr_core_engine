@@ -261,6 +261,10 @@ def apply() -> tuple[str, str]:
             # Non-TQ path: block_size ratio resize (verbatim original).
             layer_page_size = layer_spec.page_size_bytes
             if max_page_size % layer_page_size != 0:
+                # Runtime guard mirroring upstream's behavior when a
+                # layer's page size is incompatible with the unified
+                # max. Not a stub; raising is the correct outcome.
+                # audit-no-stub: allow
                 raise NotImplementedError(
                     "The page size of the layer is not divisible by the "
                     "maximum page size. Cannot unify by adjusting "

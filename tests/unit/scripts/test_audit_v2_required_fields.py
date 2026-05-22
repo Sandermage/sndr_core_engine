@@ -147,8 +147,10 @@ class TestLiveRepo:
                 for r in failed
             )
         )
-        # Wave 10 V2 layout: 6 model + 3 hardware + 15 profile + 15 preset = 39.
-        assert len(results) == 39
+        # Phase 5.4 (2026-05-22): refreshed for current fleet
+        # (10 model + 3 hardware + 17 profile + 15 preset = 45;
+        # Wave 10 baseline was 39 with 6 models and 15 profiles).
+        assert len(results) == 45
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

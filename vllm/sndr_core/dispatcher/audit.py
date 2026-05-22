@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .registry import PATCH_REGISTRY  # noqa: F401  (re-exported)
+from .spec import VALID_UPSTREAM_PR_RELATIONSHIPS
 
 log = logging.getLogger("genesis.dispatcher")
 
@@ -106,12 +107,22 @@ _VALID_IMPLEMENTATION_STATUSES = frozenset({
 })
 
 # Canonical env_flag prefixes recognized by the runtime (env.py knows
-# both Sander-IP and community brands; LEGACY_ is the opt-out variant
-# for default-on legacy patches). Anything else surfaces as a WARNING.
+# both Sander-IP and community brands). Semantic prefix groups:
+#   *_ENABLE_  — gate opt-in; default OFF
+#   *_DISABLE_ — opt-out for default-on legacy patches
+#   *_LEGACY_  — restore legacy behavior on default-on flips
+#   *_ALLOW_   — gate a feature that is otherwise blocked by policy;
+#                semantically distinct from ENABLE_ (operator
+#                permission, not feature switch) — used by coordinator
+#                patches like PN274. Added 2026-05-22 (Phase 3A.6) to
+#                close the false-positive doctor warning on PN274's
+#                SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER.
+# Anything outside these prefix groups surfaces as a WARNING.
 _CANONICAL_ENV_PREFIXES = (
     "SNDR_ENABLE_", "GENESIS_ENABLE_",
     "SNDR_DISABLE_", "GENESIS_DISABLE_",
     "SNDR_LEGACY_", "GENESIS_LEGACY_",
+    "SNDR_ALLOW_", "GENESIS_ALLOW_",
 )
 
 
@@ -119,7 +130,9 @@ def _is_canonical_env_flag(flag: str) -> bool:
     """Registry env_flag must use one of the canonical full-prefix forms.
 
     See env.py for the alias logic — SNDR_* takes precedence over
-    GENESIS_* for the same suffix. Both prefixes work.
+    GENESIS_* for the same suffix. Both prefixes work. ALLOW_ is
+    semantically distinct from ENABLE_ (operator permission gate vs
+    feature switch); both are recognized.
     """
     return any(flag.startswith(p) for p in _CANONICAL_ENV_PREFIXES)
 
@@ -192,6 +205,38 @@ def validate_registry(
                 "ERROR", pid,
                 f"implementation_status={impl_status!r} is not in "
                 f"{sorted(_VALID_IMPLEMENTATION_STATUSES)}",
+            ))
+
+        # Phase 5.1.C (2026-05-22): upstream_pr_relationship enum check.
+        # After the 5.1.B migration every upstream_pr-bearing entry
+        # carries an explicit relationship value, so missing-when-set
+        # is now an ERROR (escalated from silent in 5.1.A). When the
+        # field is present it MUST be one of the canonical values.
+        # The reverse case (relationship set without upstream_pr) stays
+        # WARNING — likely a copy-paste mistake but not fatal.
+        rel = meta.get("upstream_pr_relationship")
+        upstream_pr_value = meta.get("upstream_pr")
+        if rel is not None and rel not in VALID_UPSTREAM_PR_RELATIONSHIPS:
+            issues.append(ValidationIssue(
+                "ERROR", pid,
+                f"upstream_pr_relationship={rel!r} is not in "
+                f"{sorted(VALID_UPSTREAM_PR_RELATIONSHIPS)}",
+            ))
+        if rel is None and isinstance(upstream_pr_value, int):
+            issues.append(ValidationIssue(
+                "ERROR", pid,
+                f"upstream_pr is set (#{upstream_pr_value}) but "
+                f"upstream_pr_relationship is missing — pick one of "
+                f"{sorted(VALID_UPSTREAM_PR_RELATIONSHIPS)}. Default "
+                f"choice for plain backports is 'backport'.",
+            ))
+        if rel is not None and upstream_pr_value is None:
+            issues.append(ValidationIssue(
+                "WARNING", pid,
+                f"upstream_pr_relationship={rel!r} is set but "
+                f"upstream_pr is None — relationship field has no "
+                f"target; either set upstream_pr or remove the "
+                f"relationship field",
             ))
 
         # env_flag canonical form. WARNING (not ERROR) because the

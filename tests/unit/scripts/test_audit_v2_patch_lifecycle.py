@@ -50,8 +50,9 @@ class TestLiveRepo:
             f"  {r.model_id}: violations={r.violations}"
             for r in failed
         )
-        # 6 model files.
-        assert len(results) == 6
+        # Phase 5.4 (2026-05-22): refreshed for current fleet
+        # (10 V2 model YAMLs; was 6 in Wave 9/10 era).
+        assert len(results) == 10
 
     def test_enabled_patches_actually_count(self):
         """Sanity: at least one model has ≥ 20 enabled patches (not all 0)."""

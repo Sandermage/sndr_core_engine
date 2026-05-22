@@ -38,7 +38,17 @@ _FAMILY_TO_DIR = {
 
 def test_registry_family_matches_integrations_subdir():
     """For every patch with a wiring file under `integrations/<subdir>/`,
-    registry `family` field MUST map to that exact subdir.
+    registry `family` field MUST resolve to the top-level subdir or
+    one of its descendants.
+
+    Phase 5.3.B (2026-05-22) — accept nested sub-organization under a
+    family directory. PN262 and PN262B legitimately live at
+    `integrations/spec_decode/probes/` as diagnostic-only sub-folders
+    of the spec_decode family. The check is now a prefix-match instead
+    of strict equality: `subdir` may equal `expected` exactly, or
+    extend it by additional path segments (e.g. `expected/probes`,
+    `expected/_archive`). The family invariant — "wiring lives under
+    the directory the registry promises" — is preserved.
     """
     from vllm.sndr_core.dispatcher import PATCH_REGISTRY
     from vllm.sndr_core.compat.categories import module_for
@@ -68,7 +78,10 @@ def test_registry_family_matches_integrations_subdir():
         if expected is None:
             drift.append(f"{pid}: family={fam!r} is not in _FAMILY_TO_DIR map")
             continue
-        if subdir != expected:
+        # Prefix match: `subdir` is OK if it equals `expected` or
+        # nests under `expected/`. Anything else (e.g. cross-family
+        # placement) still surfaces as drift.
+        if subdir != expected and not subdir.startswith(expected + "/"):
             drift.append(
                 f"{pid}: registry family={fam!r} → integrations/{expected}/ "
                 f"but wiring lives at integrations/{subdir}/"

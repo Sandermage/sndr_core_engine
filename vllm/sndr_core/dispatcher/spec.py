@@ -129,6 +129,36 @@ VALID_SOURCES = (
     "vllm_pr_backport",
     "club_3090_adapted",
     "cross_engine_research",
+    # Phase 5.3.D (2026-05-22): "vendor_backport" captures Gemma 4
+    # checkpoint-format adaptations that came from a downstream vendor
+    # fork (Google's Gemma-specific path), not from the canonical vllm
+    # repo. Distinct provenance from `vllm_pr_backport` (=upstream
+    # vllm PR). Four current consumers: G4_04 / G4_05 / G4_06 / G4_18
+    # (Gemma 4 AWQ MoE keys remap + sibling loader-class entries).
+    "vendor_backport",
+)
+
+# `upstream_pr_relationship` describes the SEMANTIC relationship between
+# the Genesis patch and the upstream PR it cites via `upstream_pr`. The
+# audit script (`audit_upstream_status.py`) uses this to route the patch
+# to the correct decision bucket (retire candidate vs. waived vs. WATCH).
+#
+# Schema rule (enforced after Phase 5.1.C cleanup):
+#   * REQUIRED when `upstream_pr` is an integer.
+#   * FORBIDDEN when `upstream_pr` is None.
+# During the Phase 5.1.A migration window, missing field is treated as
+# implicit `"backport"` for back-compat.
+#
+# Introduced 2026-05-22 (Phase 5.1.A) — see
+# `sndr_private/planning/audits/PHASE_5_1_RELATIONSHIP_SCHEMA_DESIGN_2026-05-22_RU.md`
+# for the full design rationale, migration set, and audit-routing changes.
+VALID_UPSTREAM_PR_RELATIONSHIPS = (
+    "backport",                  # Genesis mirrors upstream (default)
+    "counter_regression",        # Genesis corrects a regression introduced by the cited PR
+    "intentional_inverse",       # Genesis deliberately reverses cited PR's behavior for our shape
+    "enables_upstream",          # Genesis turns on the upstream feature on opt-in
+    "related_not_superseding",   # Genesis lives at a different layer; coverage doesn't overlap
+    "defensive_overlay",         # Genesis is a defensive lower-layer guard alongside upstream's primary fix
 )
 
 # Mapping from `family` (registry field) to canonical `category`.
@@ -265,6 +295,11 @@ class PatchSpec:
     requires_patches: tuple[str, ...] = field(default_factory=tuple)
     conflicts_with: tuple[str, ...] = field(default_factory=tuple)
     related_upstream_prs: tuple[int, ...] = field(default_factory=tuple)
+    # Phase 5.1.A (2026-05-22) — relationship between Genesis patch and
+    # the cited upstream_pr. Default `"backport"` for back-compat during
+    # the migration window. After Phase 5.1.C cleanup the default will
+    # be removed and the field will be REQUIRED when upstream_pr is set.
+    upstream_pr_relationship: str = "backport"
 
 
 # ─── apply_module derivation ──────────────────────────────────────────────
@@ -462,6 +497,22 @@ def patch_spec_for(
     implementation_status = infer_implementation_status(meta, patch_id)
     source = infer_source(meta)
 
+    # Phase 5.1.C (2026-05-22) — derive upstream_pr_relationship.
+    # All 72 upstream_pr-bearing entries carry an explicit value after
+    # the 5.1.B migration. Entries without an explicit field default to
+    # "backport" — which is meaningless when upstream_pr is None (the
+    # 154 entries without an upstream link); the registry validator
+    # catches "upstream_pr set without relationship" as an ERROR so
+    # the next operator adding a backport sets the field explicitly.
+    # The legacy `enables_upstream_feature: True` boolean fallback was
+    # removed in 5.1.C — P75 and P99 carry the explicit
+    # `upstream_pr_relationship: "enables_upstream"` field set in 5.1.B.
+    rel_explicit = meta.get("upstream_pr_relationship")
+    if isinstance(rel_explicit, str) and rel_explicit:
+        upstream_pr_relationship = rel_explicit
+    else:
+        upstream_pr_relationship = "backport"
+
     return PatchSpec(
         patch_id=patch_id,
         title=str(meta.get("title", "")),
@@ -479,6 +530,7 @@ def patch_spec_for(
         requires_patches=_coerce_tuple(meta.get("requires_patches")),
         conflicts_with=_coerce_tuple(meta.get("conflicts_with")),
         related_upstream_prs=_coerce_tuple(meta.get("related_upstream_prs")),
+        upstream_pr_relationship=upstream_pr_relationship,
     )
 
 
@@ -504,35 +556,82 @@ def iter_patch_specs(
 # ─── Coverage diagnostic ──────────────────────────────────────────────────
 
 
+# Lifecycle / implementation_status values that legitimately have NO
+# `apply_module` field — they are registry-only entries by design:
+#
+#   lifecycle=legacy       → pre-dispatcher patches; auto-apply via the
+#                            legacy text-patch wiring under
+#                            `vllm/sndr_core/wiring/`. The dispatcher
+#                            does not need to know about them.
+#   lifecycle=coordinator  → bundle/forward-shim row (e.g. PN274). Has
+#                            no apply path of its own; coordinates
+#                            other patches via env_flag wiring.
+#   lifecycle=retired      → no-op entry preserved for audit-trail.
+#   implementation_status in {marker_only, metadata_only, placeholder,
+#                             advisory, research}
+#                          → informational; env consumed inside another
+#                            patch's apply_module or by the runtime
+#                            directly, not via the dispatcher loop.
+#
+# The coverage report excludes these from the `unmapped` list so the
+# operator's `patches doctor` view doesn't conflate intentional
+# registry-only entries with real-residual-gap patches that need
+# follow-up wiring.
+_INTENTIONALLY_UNMAPPED_LIFECYCLES = frozenset({"legacy", "coordinator", "retired"})
+_INTENTIONALLY_UNMAPPED_IMPL_STATUSES = frozenset({
+    "marker_only", "metadata_only", "placeholder", "advisory", "research",
+})
+
+
 @dataclass(frozen=True)
 class CoverageReport:
     """Snapshot of `PatchSpec.apply_module` coverage across the registry.
 
     `unmapped` is the list of `patch_id` values whose registry entry has
-    no on-disk impl (no `apply_module` derivable). Some are legitimate
-    (informational entries, legacy P1-P46 stubs registered for lifecycle
-    tracking but with no code path); `validate_apply_module_coverage`
-    surfaces them so the operator can audit which fall in which class.
+    no `apply_module` AND is not in any of the intentionally-unmapped
+    categories above. Real-residual-gap patches surface here so the
+    operator can audit which need follow-up wiring.
+
+    `intentionally_unmapped` is the parallel list of registry-only
+    entries that are NOT a gap by design (legacy auto-apply,
+    coordinator bundles, marker-only metadata, etc.).
     """
     total: int
     mapped: int
     unmapped: list[str]
+    intentionally_unmapped: list[str] = field(default_factory=list)
 
 
 def validate_apply_module_coverage(
     registry: Optional[dict[str, dict[str, Any]]] = None,
 ) -> CoverageReport:
-    """Walk every registry entry; report which ones have no apply_module."""
+    """Walk every registry entry; report which ones have no apply_module,
+    splitting between real gaps and intentional registry-only entries."""
     total = 0
     mapped = 0
     unmapped: list[str] = []
+    intentional: list[str] = []
     for spec in iter_patch_specs(registry):
         total += 1
         if spec.apply_module is not None:
             mapped += 1
+            continue
+        # Inspect the raw registry meta to classify the unmapped entry.
+        # `PatchSpec` doesn't carry lifecycle / impl_status directly,
+        # so re-read from the registry dict.
+        from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY as _REG
+        meta = _REG.get(spec.patch_id, {}) if registry is None else (registry.get(spec.patch_id, {}))
+        lc = meta.get("lifecycle")
+        impl = meta.get("implementation_status")
+        if (lc in _INTENTIONALLY_UNMAPPED_LIFECYCLES
+                or impl in _INTENTIONALLY_UNMAPPED_IMPL_STATUSES):
+            intentional.append(spec.patch_id)
         else:
             unmapped.append(spec.patch_id)
-    return CoverageReport(total=total, mapped=mapped, unmapped=unmapped)
+    return CoverageReport(
+        total=total, mapped=mapped, unmapped=unmapped,
+        intentionally_unmapped=intentional,
+    )
 
 
 __all__ = [

@@ -43,6 +43,16 @@ SCAN_ROOT = REPO_ROOT / "vllm" / "sndr_core"
 # Test-style filenames + dirs that are exempt by design.
 TEST_PATH_RE = re.compile(r"(^|/)(tests?|_test|test_)")
 
+# Upstream-mirror bind-mount overlays — code under these paths is a
+# near-verbatim copy of upstream vLLM that gets bind-mounted into the
+# container at runtime. Any `raise NotImplementedError` / `TODO(name)`
+# / sentinel `pass` lines here belong to upstream, not Genesis. The
+# audit's intent is to catch Genesis-authored stubs; upstream-mirror
+# code is out of scope.
+UPSTREAM_MIRROR_PATH_RE = re.compile(
+    r"(^|/)integrations/attention/turboquant/overlays/(pr\d+|upstream_[a-z0-9_]+)/"
+)
+
 ALLOW_MARKER = "audit-no-stub: allow"
 
 TODO_RE = re.compile(r"#\s*TODO\(([^)]*)\)")  # only the (name) form counts
@@ -52,6 +62,11 @@ SENTINEL_RE = re.compile(r"\bpass\b\s*#\s*(placeholder|scaffold|FIXME)\b")
 def _is_test_path(p: Path) -> bool:
     rel = p.relative_to(REPO_ROOT).as_posix()
     return bool(TEST_PATH_RE.search(rel))
+
+
+def _is_upstream_mirror_path(p: Path) -> bool:
+    rel = p.relative_to(REPO_ROOT).as_posix()
+    return bool(UPSTREAM_MIRROR_PATH_RE.search(rel))
 
 
 def _gather_files() -> list[Path]:
@@ -64,13 +79,64 @@ def _gather_files() -> list[Path]:
             continue
         if _is_test_path(fp):
             continue
+        if _is_upstream_mirror_path(fp):
+            continue
         out.append(fp)
     return sorted(out)
 
 
+def _enclosing_function_node(tree: ast.AST, target: ast.Raise) -> ast.FunctionDef | None:
+    """Walk the tree to find the FunctionDef (sync or async) that lexically
+    contains ``target``. Returns None when target is at module scope."""
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            child.__dict__.setdefault("_parent", parent)
+    cur = target
+    while True:
+        cur = cur.__dict__.get("_parent")
+        if cur is None:
+            return None
+        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return cur
+
+
+def _is_abstract_method_raise(tree: ast.AST, raise_node: ast.Raise) -> bool:
+    """True when ``raise NotImplementedError`` is the body of an abstract
+    method:
+      * The enclosing function has @abstractmethod / @abc.abstractmethod
+        in its decorator_list, OR
+      * The function's body is a single `raise NotImplementedError(...)`
+        statement (the canonical abstract-method shape — also used by
+        protocol stand-ins / interface contracts that don't import abc).
+
+    This pattern is intentional by design; flagging it as a stub is a
+    false positive.
+    """
+    fn = _enclosing_function_node(tree, raise_node)
+    if fn is None:
+        return False
+    # Decorator check
+    for deco in fn.decorator_list:
+        # @abstractmethod
+        if isinstance(deco, ast.Name) and deco.id in {"abstractmethod"}:
+            return True
+        # @abc.abstractmethod
+        if isinstance(deco, ast.Attribute) and deco.attr in {"abstractmethod"}:
+            return True
+    # Body-shape check: docstring + lone raise OR lone raise. Strip
+    # leading Expr(Constant=str) (the docstring) before counting.
+    body = list(fn.body)
+    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+        body = body[1:]
+    if len(body) == 1 and isinstance(body[0], ast.Raise):
+        return True
+    return False
+
+
 def _check_ast_raises(path: Path, source: str) -> list[str]:
     """AST scan: report `raise NotImplementedError(...)` that aren't on
-    a line with `audit-no-stub: allow`."""
+    a line with `audit-no-stub: allow` AND aren't the canonical
+    abstract-method body."""
     out: list[str] = []
     try:
         tree = ast.parse(source, filename=str(path))
@@ -88,6 +154,10 @@ def _check_ast_raises(path: Path, source: str) -> list[str]:
         elif isinstance(exc, ast.Name):
             name = exc.id
         if name != "NotImplementedError":
+            continue
+        # Skip canonical abstract-method body (decorator @abstractmethod
+        # OR function body is single raise after optional docstring).
+        if _is_abstract_method_raise(tree, node):
             continue
         # Check allow marker on the line.
         lineno = node.lineno

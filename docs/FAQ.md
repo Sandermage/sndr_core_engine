@@ -25,7 +25,7 @@ variables.
 
 ### Q: Which vLLM pin does Genesis target today?
 
-`0.20.2rc1.dev371+gbf610c2f5` (current public release, Wave 10,
+`0.20.2rc1.dev371+gbf610c2f5` (current public release, v12.0.0,
 2026-05-16). Each patch declares an `applies_to` range, so newer
 vLLM commits cause patches to print `[SKIP — applies_to mismatch]`
 rather than crashing. Bumping the pin is a deliberate release event
@@ -33,8 +33,8 @@ documented in [`RELEASE_POLICY.md`](RELEASE_POLICY.md).
 
 ### Q: How big is the patch registry today?
 
-**169 entries** — 154 full-implementation + 11 marker-only +
-2 retired + 1 partial + 1 placeholder. The current state is always
+**226 entries** — 173 full-implementation + 17 marker-only +
+4 retired + 7 partial + 2 placeholder. The current state is always
 in [`PATCHES_AUTO.md`](PATCHES_AUTO.md) (auto-generated from
 `vllm/sndr_core/dispatcher/registry.py`) and the narrative
 explanations in [`PATCHES.md`](PATCHES.md).
@@ -56,7 +56,7 @@ global "enable all" switch — by design.
 
 ### Q: Which patches are ON by default?
 
-About 80 of 169 entries are marked `default_on=True` in the
+About 52 of 226 entries are marked `default_on=True` in the
 registry — production-eligible Wave 10 backports + legacy
 pre-dispatcher overlays that have been validated against the
 v11 baselines. The full list is in [`PATCHES_AUTO.md`](PATCHES_AUTO.md);
