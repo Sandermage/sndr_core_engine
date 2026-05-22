@@ -36,8 +36,10 @@ class TestLiveRepo:
             f"→ no such {r.target_layer}"
             for r in failed
         )
-        # Wave 10 V2 layout: 15 profile parent_model + 15 preset×3 = 60 refs.
-        assert len(results) == 60
+        # Phase 5.4 (2026-05-22): refreshed for current fleet
+        # (17 profile parent_model + 15 preset×3 = 62 refs;
+        # Wave 10 baseline was 60 with 15 profiles).
+        assert len(results) == 62
 
 
 class TestScriptCLI:
@@ -56,7 +58,9 @@ class TestScriptCLI:
         assert result.returncode == 0
         payload = json.loads(result.stdout)
         assert payload["failed"] == 0
-        assert payload["total"] == 60
+        # Phase 5.4 (2026-05-22): refreshed for current fleet (62 refs;
+        # was 60 in Wave 10 era with 15 profiles vs current 17).
+        assert payload["total"] == 62
 
 
 class TestSyntheticBroken:

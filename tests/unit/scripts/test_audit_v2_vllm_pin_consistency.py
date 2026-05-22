@@ -136,10 +136,32 @@ class TestLiveRepo:
             f"{('error=' + r.error) if r.error else ''}"
             for r in failed
         )
-        # At least 2 models have a baseline ref (E22 fix).
+        # Phase 5.4 (2026-05-22): replaced the prior `compared >= 2`
+        # assertion (a pre-Phase 5.2.D expectation that there are at
+        # least 2 canonical baselines on disk). After 5.2.D formalized
+        # the receipt-only state across all 10 ModelDefs, every
+        # `reference_metrics_ref` is `null` and the audit reports
+        # `compared=0, skipped=10, failed=0` — which is the correct
+        # current state. Phase 7 will land formal dev371 baselines and
+        # this assertion will start exercising the compare path again
+        # without further test edits.
+        #
+        # Structural invariant that survives both eras:
+        #   compared + skipped + errored == total  (every model classified)
+        #   errored == 0                           (no broken baseline files)
         compared = [r for r in results
                     if not r.skipped_reason and not r.error]
-        assert len(compared) >= 2
+        skipped = [r for r in results if r.skipped_reason]
+        errored = [r for r in results if r.error]
+        assert len(compared) + len(skipped) + len(errored) == len(results), (
+            f"classification gap: compared={len(compared)} + "
+            f"skipped={len(skipped)} + errored={len(errored)} != "
+            f"total={len(results)}"
+        )
+        assert len(errored) == 0, (
+            "vllm-pin-consistency audit reported errored entries: "
+            f"{[(r.model_id, r.error) for r in errored]}"
+        )
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

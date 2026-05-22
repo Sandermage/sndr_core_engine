@@ -62,13 +62,17 @@ class TestPredicates:
 
 
 class TestWalkers:
-    def test_model_walker_returns_six_entries(self):
+    def test_model_walker_returns_expected_entries(self):
         mod = _import_script()
         from vllm.sndr_core.cli.config_keys import load_canonical_registry
         canon = load_canonical_registry()
         entries = mod._walk_model_layer(canon)
-        # 6 V2 model YAMLs currently shipped.
-        assert len(entries) == 6
+        # Phase 5.4 (2026-05-22): refreshed for current fleet
+        # (10 V2 model YAMLs; was 6 in Wave 9/10 era). Method renamed
+        # from `test_model_walker_returns_six_entries` — count moved
+        # out of method name so future fleet growth touches only the
+        # assertion, not the test identifier.
+        assert len(entries) == 10
         for e in entries:
             assert e.layer == "model"
 
