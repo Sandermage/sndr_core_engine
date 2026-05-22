@@ -4984,7 +4984,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "spec_decode",
         "env_flag": "GENESIS_ENABLE_PN262B_KV_ALLOC_TRACE",
         "default_on": False,
-        "category": "diagnostic",
+        "category": "observability",  # Phase 3A.4 2026-05-22: was 'diagnostic' (not in VALID_CATEGORIES enum)
         "implementation_status": "experimental",
         "source": "genesis_original",
         "apply_module": "vllm.sndr_core.integrations.spec_decode.probes.pn262b_kv_alloc_trace",
@@ -5002,7 +5002,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "spec_decode",
         "env_flag": "GENESIS_ENABLE_PN262_FLASH_ATTN_DRAFTER_TRACE",
         "default_on": False,
-        "category": "diagnostic",
+        "category": "observability",  # Phase 3A.4 2026-05-22: was 'diagnostic' (not in VALID_CATEGORIES enum)
         "implementation_status": "experimental",
         "source": "genesis_original",
         "apply_module": "vllm.sndr_core.integrations.spec_decode.probes.pn262_flash_attn_drafter_trace",
