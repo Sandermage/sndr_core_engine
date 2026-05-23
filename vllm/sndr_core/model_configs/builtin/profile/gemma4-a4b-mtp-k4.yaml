@@ -27,8 +27,12 @@ status: experimental                              # not yet boot-validated; B0 c
 created: '2026-05-23'
 
 # ─── Runtime role ──────────────────────────────────────────────────────
+# After VARIANT-A-FIX (2026-05-23) the 26B-A4B ModelDef declares
+# spec_decode = null. This profile is now the load-bearing source of
+# the K=4 single-stream config — without this override the rendered
+# launch would emit no --speculative-config flag.
 role: structured                                  # MTP K=4 positive case; workload-gated at request-router
-spec_decode_override:                             # explicit K=4 (matches ModelDef capabilities; explicit for self-documentation)
+spec_decode_override:                             # explicit K=4 (load-bearing post-VARIANT-A-FIX; ModelDef no longer declares K)
   method: mtp
   num_speculative_tokens: 4
   model: /models/gemma-4-26B-A4B-it-assistant

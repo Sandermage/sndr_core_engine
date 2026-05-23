@@ -61,22 +61,29 @@ status: experimental                              # not yet boot-validated; B0 c
 created: '2026-05-23'
 
 # ─── Runtime role ──────────────────────────────────────────────────────
-# PROFILE_ROLES enum is {default, structured, gateway, None}; "multiconc"
-# is not a runtime-role classifier (it's a sizing/throughput regime). The
-# multi-conc semantic lives entirely in sizing_override.max_num_seqs=8
-# below. role=default keeps this profile workload-class-unrestricted —
-# any incoming workload can use this preset; the user opts in via launcher
-# alias, not via router gating. Same convention as the existing
-# 27b-multiconc / 35b-multiconc / prod-35b-multiconc profiles.
-role: default
-spec_decode_override:                             # MTP K=4 (matches Qwen multi-conc precedent and ModelDef default)
+# Phase 7.G4.26B-A4B.VARIANT-A-FIX (2026-05-23): role flipped from
+# default → structured. The original `default` choice was load-bearing
+# only for the B3 free-chat multi-conc bench (which closed in MIXED
+# band at 408 TPS). Post-B4, this preset's production niche is short
+# structured-JSON / tool_call multi-conc — exactly the workload set
+# the `structured` role is designed for. Switching to structured ALSO
+# closes the `10_default_clean` validate-debt this profile carried
+# under role=default + spec_decode_override=K=4.
+#
+# multi-conc semantic stays in sizing_override.max_num_seqs=8 below;
+# K-choice stays in spec_decode_override.
+role: structured
+spec_decode_override:                             # explicit K=4 (matches K=4 sibling gemma4-a4b-mtp-k4)
   method: mtp
   num_speculative_tokens: 4
   model: /models/gemma-4-26B-A4B-it-assistant
 compression_plan: null
 backend_plan: null
-routing: null                                     # multiconc profile takes all incoming workloads; no per-class gating
-validation: null
+routing:                                          # workload intent per PRESET_LABELING + B4 verdict
+  intended_workloads:
+    - structured_count
+    - tool_json
+validation: null                                  # no cryptographic artifact for 26B-A4B (β'-A is 31B-specific)
 
 # ─── Sizing override ───────────────────────────────────────────────────
 # Multi-conc regime: lower max_model_len to fit 8 concurrent KV pools.

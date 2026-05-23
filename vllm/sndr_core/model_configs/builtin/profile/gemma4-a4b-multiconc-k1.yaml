@@ -1,34 +1,29 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 profile — gemma4-a4b-multiconc-k1
-# Role: K=1 multi-conc baseline — fair K=1 vs K=4 comparator for B4.
+# Role: K=1 multi-conc HISTORICAL BENCH BASELINE (not a production preset).
 #
-# Created by Phase 7.G4.26B-A4B.B4-PRE (2026-05-23) as the precursor
-# to the structured-JSON multi-conc bench (B4 actual). It is the K=1
-# control sibling of `gemma4-a4b-multiconc` and exists for one
-# specific reason: same harness, same conc, same session K=1 vs K=4
-# multiconc comparison on 26B-A4B. Without this, B4's verdict would
-# be cross-phase + cross-harness (the same confound that made B3's
-# K=4 multiconc result mixed-band ambiguous).
+# Created by Phase 7.G4.26B-A4B.B4-PRE (2026-05-23) as the K=1 control
+# sibling of `gemma4-a4b-multiconc` for the B4 structured-JSON
+# multi-conc bench. After B4 closed with K=4 winning +12.8% over K=1
+# at conc=8, this profile stays as a diagnostic baseline only — kept
+# committed so the K=1 vs K=4 comparison can be reproduced on future
+# vllm-pin bumps without re-creating the preset infrastructure.
 #
-# Mechanically: "K=1 control" is implemented as spec_decode_override
-# with `num_speculative_tokens: 1`, NOT as `spec_decode_override:
-# null`, because the 26B-A4B ModelDef declares spec_decode at the
-# model level (K=4 with the assistant drafter, pre-Variant-A). compose()
-# reads the model default unless the profile overrides with a
-# non-null SpecDecodeConfig. SpecDecodeConfig.method enum has no
-# "none"/"off" — K=1 is the closest available control and matches the
-# precedent set by gemma4-a4b-no-mtp (B0 commit 870824db).
+# Phase 7.G4.26B-A4B.VARIANT-A-FIX (2026-05-23): updated. The 26B-A4B
+# ModelDef now declares `capabilities.spec_decode = null`, so this
+# profile no longer needs the K=1 mechanical override that worked
+# around the prior K=4 ModelDef default. spec_decode_override is now
+# null = vanilla decode (no MTP) = K=1 semantics. Rendered launch no
+# longer emits a --speculative-config flag.
 #
-# Inherits the same `10_default_clean` validate-debt as the other
-# three 26B-A4B profiles (role=default + spec_decode_override set).
-# This will be cleaned up together by the queued VARIANT-A-FIX phase
-# which migrates 26B-A4B ModelDef to spec_decode=null and lets each
-# profile carry its own K explicitly.
+# Closes `10_default_clean` validate-debt on this profile (role=
+# default + all runtime-role blocks null is the clean default
+# contract).
 #
-# Sizing: identical to gemma4-a4b-multiconc EXCEPT spec_decode K.
-# Same max_model_len=16K, max_num_seqs=8, gpu_memory_utilization=0.85.
-# This is intentional — the bench needs to isolate the K-axis from
-# all other dimensions.
+# Sizing: identical to gemma4-a4b-multiconc EXCEPT MTP K. Same
+# max_model_len=16K, max_num_seqs=8, gpu_memory_utilization=0.85.
+# This is intentional — the bench isolates the K-axis from all other
+# dimensions.
 
 schema_version: 2
 kind: profile
@@ -39,17 +34,14 @@ status: experimental                              # B4-PRE creates this; B4 actu
 created: '2026-05-23'
 
 # ─── Runtime role ──────────────────────────────────────────────────────
-# Same role=default convention as gemma4-a4b-multiconc (and the other
-# 26B-A4B profiles). PROFILE_ROLES has no "k_control" entry; the K=1
-# semantic lives entirely in spec_decode_override below.
+# Clean default-role contract: all runtime-role blocks null. ModelDef
+# spec_decode is also null, so the rendered launch emits no
+# --speculative-config flag (vanilla decode). K=1 semantic.
 role: default
-spec_decode_override:                             # K=1 control (matches Qwen multi-conc precedent for K=1 baseline)
-  method: mtp
-  num_speculative_tokens: 1
-  model: /models/gemma-4-26B-A4B-it-assistant
+spec_decode_override: null                        # was K=1 pre-VARIANT-A-FIX; now null = vanilla decode (no MTP)
 compression_plan: null
 backend_plan: null
-routing: null                                     # multiconc K=1 baseline takes all incoming workloads
+routing: null
 validation: null
 
 # ─── Sizing override ───────────────────────────────────────────────────
