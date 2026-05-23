@@ -127,18 +127,6 @@ import re
 import threading
 from typing import Optional
 
-# Resolve ``torch._dynamo.disable`` at module-load time without a literal
-# ``import torch`` statement (Theme 4 family-contract test forbids top-
-# level torch imports so torch-less collection stays safe). When torch
-# isn't installed (audit collection), the fallback is a no-op decorator
-# that just returns the function unchanged — the cold-path helpers will
-# still work for any direct CPU-only call from a unit test.
-try:
-    _dynamo_disable = __import__("torch")._dynamo.disable
-except Exception:  # noqa: BLE001
-    def _dynamo_disable(fn):
-        return fn
-
 log = logging.getLogger("genesis.gemma4.g4_19c")
 
 GENESIS_G4_19C_MARKER = (
@@ -268,7 +256,6 @@ _SIGNS_LOCK = threading.Lock()
 _SIGNS_CACHE: dict[tuple, "object"] = {}
 
 
-@_dynamo_disable
 def _build_signs_torch(head_dim: int, layer_idx: int, seed_base: int):
     """CPU fp32 sign tensor matching numpy reference
     ``build_randomized_hadamard_seed`` (same seed → same signs).
@@ -278,11 +265,12 @@ def _build_signs_torch(head_dim: int, layer_idx: int, seed_base: int):
     a torch CPU-generator inside that scope fails with
     "Expected a 'cuda' device type for generator but found 'cpu'".
 
-    Marked ``@_dynamo_disable`` because the numpy RNG call is
-    not Dynamo-traceable. Called from non-traced regions
-    (Gemma4Attention.__init__ or the Dynamo-disabled cold-path
-    lookup); the forward fast path hits the pre-built device tensor
-    via dict lookup and never re-enters this function.
+    Called ONLY from eager paths (``Gemma4Attention.__init__`` wrap,
+    ``prewarm_signs``, direct unit-test callers). After Phase
+    7.G4.G4_19C-FIX.2 the wrapped attention forward reads signs as
+    a per-layer CUDA buffer attribute (``self._g4_19c_signs``) and
+    never calls this function, so the numpy RNG / device transfer
+    inside never enters a torch.compile fullgraph region.
     """
     import numpy as np
     import torch
@@ -292,14 +280,18 @@ def _build_signs_torch(head_dim: int, layer_idx: int, seed_base: int):
     return torch.from_numpy(bits)
 
 
-@_dynamo_disable
 def _get_or_build_signs(
     layer_idx: int, head_dim: int, seed_base: int, device,
     attn_layer=None,  # kept for API back-compat; ignored after CUDA-graph bug
 ):
-    """Lookup the device-resident signs tensor from the process-global cache.
+    """Lookup-or-build the device-resident signs tensor from the
+    process-global cache. **NOT called from any compile region after
+    Phase 7.G4.G4_19C-FIX.2** — the wrapped attention forward reads
+    ``self._g4_19c_signs`` directly. This helper is retained as a
+    defensive eager API for prewarm / unit-test / debug callers.
 
-    We intentionally do NOT attach signs to ``nn.Module`` instances —
+    Original cache-attach rationale (still valid for the cache itself):
+    we intentionally do NOT attach signs to ``nn.Module`` instances —
     torch.compile / inductor captures module attributes into the
     compiled graph, and a CPU tensor attribute fails CUDA-graph capture
     with::
@@ -313,15 +305,10 @@ def _get_or_build_signs(
     the wrap on ``Gemma4Attention.__init__`` pre-populates the cache
     BEFORE any forward runs.
 
-    Marked ``@_dynamo_disable`` so the cold-path ``with
-    _SIGNS_LOCK:`` branch never enters a Dynamo trace. Without this,
-    torch.compile of ``Gemma4Attention.forward`` (which calls this
-    function) bails the entire engine init at warmup because Dynamo
-    cannot symbolically trace ``threading.Lock`` context managers.
-    The function executes eagerly outside the compiled graph; the hot
-    path (cache hit) is a single dict.get and runs in microseconds,
-    so the graph-break cost per layer per forward is negligible
-    compared to the round-trip kernels that follow.
+    The cold-path ``with _SIGNS_LOCK:`` branch is preserved here for
+    direct callers (prewarm, debug, tests). It is NOT called from any
+    torch.compile region: the wrapped attention forward reads
+    ``self._g4_19c_signs`` directly and never touches this helper.
     """
     del attn_layer  # signs are NOT attached to layers — see docstring
     key = (layer_idx, head_dim, seed_base, str(device))
@@ -435,33 +422,63 @@ def _make_wrapped_forward(original_forward):
                 # at sliding_window=1024.
                 pass
             else:
-                try:
-                    layer_idx = _extract_layer_idx(getattr(self, "prefix", ""))
-                    write_fn, read_fn, _kernel_name = _resolve_kernels(config)
-                    head_dim = self.head_dim
-                    block_size = getattr(config, "block_size", 128)
-                    seed_base = getattr(config, "seed_base", 0xC0FFEE)
-                    signs = _get_or_build_signs(
-                        layer_idx, head_dim, seed_base, k.device,
-                        attn_layer=self,
-                    )
-                    k = _roundtrip(k, signs, head_dim, block_size, write_fn, read_fn)
-                    v = _roundtrip(v, signs, head_dim, block_size, write_fn, read_fn)
-                    if _env_debug():
-                        log.debug(
-                            "[G4_19c] layer=%d %s round-tripped K/V "
-                            "(shape=%s dtype=%s)",
-                            layer_idx, _kernel_name, tuple(k.shape), k.dtype,
-                        )
-                except Exception as e:  # noqa: BLE001
-                    # Fail-open: log once, fall through with un-modified K, V.
+                # Read pre-attached signs as a plain CUDA-resident
+                # module attribute (set by _wrapped_init via
+                # register_buffer). This is the only access pattern
+                # that survives torch.compile fullgraph — calling out
+                # to _get_or_build_signs from here would force either
+                # a graph break (forbidden by fullgraph) or symbolic
+                # tracing through threading.Lock (unsupported by
+                # Dynamo). See iteration log in commits
+                # 1864f5b1 / Phase 7.G4.G4_19C-FIX for context.
+                # Direct attribute read — Dynamo traces this as a
+                # plain tensor attribute on the module. getattr() with
+                # default would also work but is fuzzier for Dynamo;
+                # the attribute is set by register_buffer in
+                # _wrapped_init so the lookup is guaranteed to succeed
+                # on every layer whose init-wrap fired.
+                if not hasattr(self, "_g4_19c_signs"):
+                    # Init-wrap didn't attach (config absent at
+                    # construction or pre-build failed). Fail open:
+                    # log once and let K, V pass through untouched.
+                    # We MUST NOT try to build signs here — the
+                    # builder uses numpy and cannot run inside a
+                    # fullgraph-compiled region.
                     if not getattr(self, "_genesis_g4_19c_warned", False):
                         log.warning(
-                            "[G4_19c] round-trip failed at layer=%s (%r); "
-                            "falling through with untouched K,V",
-                            getattr(self, "prefix", "?"), e,
+                            "[G4_19c] signs not attached at layer=%s "
+                            "(init-wrap missed this layer); falling "
+                            "through with untouched K, V",
+                            getattr(self, "prefix", "?"),
                         )
                         self._genesis_g4_19c_warned = True
+                else:
+                    try:
+                        signs = self._g4_19c_signs
+                        write_fn, read_fn, _kernel_name = _resolve_kernels(config)
+                        head_dim = self.head_dim
+                        block_size = getattr(config, "block_size", 128)
+                        k = _roundtrip(k, signs, head_dim, block_size, write_fn, read_fn)
+                        v = _roundtrip(v, signs, head_dim, block_size, write_fn, read_fn)
+                        if _env_debug():
+                            layer_idx = _extract_layer_idx(
+                                getattr(self, "prefix", "")
+                            )
+                            log.debug(
+                                "[G4_19c] layer=%d %s round-tripped K/V "
+                                "(shape=%s dtype=%s)",
+                                layer_idx, _kernel_name,
+                                tuple(k.shape), k.dtype,
+                            )
+                    except Exception as e:  # noqa: BLE001
+                        # Fail-open: log once, fall through with un-modified K, V.
+                        if not getattr(self, "_genesis_g4_19c_warned", False):
+                            log.warning(
+                                "[G4_19c] round-trip failed at layer=%s (%r); "
+                                "falling through with untouched K,V",
+                                getattr(self, "prefix", "?"), e,
+                            )
+                            self._genesis_g4_19c_warned = True
         else:
             # Shared-K layer: only apply RoPE to Q
             q = self.rotary_emb(positions, q, k)[0]
@@ -536,32 +553,55 @@ def apply() -> tuple[str, str]:
                 head_dim = getattr(self, "head_dim", 256)
                 seed_base = getattr(config, "seed_base", 0xC0FFEE)
 
-                # Build signs and put DIRECTLY on the current CUDA device.
-                # We MUST NOT attach to ``self`` as an nn.Module attribute
-                # — torch.compile would then capture it into the compiled
-                # graph, and a CPU tensor on a CUDA-target graph triggers
-                # "Cannot copy between CPU and CUDA tensors during CUDA
-                # graph capture" at runtime.
+                # Build signs DIRECTLY on the current CUDA device and
+                # attach to ``self`` as a non-persistent buffer. The
+                # forward hot path then reads ``self._g4_19c_signs``
+                # as a plain tensor attribute — fully Dynamo-traceable
+                # under fullgraph compile (no graph break, no cache
+                # lookup, no lock).
                 #
-                # Instead we publish to the process-global cache; the
-                # forward path looks it up by key.
+                # The original implementation kept signs in a process-
+                # global ``_SIGNS_CACHE`` to avoid attaching to nn.Module
+                # because of a CUDA-graph-capture issue with CPU tensor
+                # attributes. That concern is specific to CPU tensors —
+                # a CUDA-resident buffer is the standard way to carry
+                # per-layer constants through ``torch.compile`` +
+                # cudagraph capture. The cache is still populated below
+                # for prewarm / dedup / debug, but forward never reads
+                # from it (and ``_get_or_build_signs`` is no longer
+                # called from any compile region).
                 import torch
                 if torch.cuda.is_available():
                     device_str = f"cuda:{torch.cuda.current_device()}"
                 else:
                     device_str = "cpu"
                 key = (layer_idx, head_dim, seed_base, device_str)
-                if key not in _SIGNS_CACHE:
+                cached = _SIGNS_CACHE.get(key)
+                if cached is None:
                     signs_cpu = _build_signs_torch(
                         head_dim, layer_idx, seed_base,
                     )
+                    cached = signs_cpu.to(device_str)
                     with _SIGNS_LOCK:
-                        if key not in _SIGNS_CACHE:
-                            _SIGNS_CACHE[key] = signs_cpu.to(device_str)
+                        _SIGNS_CACHE.setdefault(key, cached)
+                # Attach via register_buffer when self is an nn.Module
+                # (the standard path on the vLLM Gemma4Attention class).
+                # Fall back to plain attribute assignment if the class
+                # doesn't subclass nn.Module (defensive — should never
+                # happen on the real Gemma4Attention).
+                if hasattr(self, "register_buffer") and callable(
+                    self.register_buffer
+                ):
+                    self.register_buffer(
+                        "_g4_19c_signs", cached, persistent=False,
+                    )
+                else:
+                    self._g4_19c_signs = cached
             except Exception as e:  # noqa: BLE001
                 log.warning(
                     "[G4_19c] sign pre-build at __init__ failed (%r); "
-                    "falling back to lazy build (may fail in CUDA-graph)",
+                    "layer will fall through with un-modified K, V at "
+                    "forward time (no torch.compile-region cold build)",
                     e,
                 )
 
