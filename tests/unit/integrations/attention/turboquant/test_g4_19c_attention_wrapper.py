@@ -131,50 +131,115 @@ def test_apply_skips_when_registry_empty(monkeypatch):
     assert "registry" in msg or "G4_19" in msg
 
 
-def test_get_or_build_signs_dynamo_disabled():
-    """G4_19c bug 2026-05-23: ``_get_or_build_signs`` had ``with
-    _SIGNS_LOCK:`` on the cold path, which made torch.compile bail
-    the entire engine init at warmup because Dynamo cannot trace
-    ``threading.Lock`` context managers.
+def test_signs_attached_to_module_as_buffer():
+    """G4_19c fullgraph fix 2026-05-23 (Phase 7.G4.G4_19C-FIX.2):
+    ``_wrapped_init`` must attach the per-layer signs tensor to the
+    Gemma4Attention instance as a CUDA-resident buffer
+    (``self._g4_19c_signs``). The wrapped forward then reads this
+    attribute directly — fully Dynamo-traceable under fullgraph
+    compile, no cache lookup, no lock.
 
-    Fix: ``@torch._dynamo.disable`` on both ``_get_or_build_signs``
-    and ``_build_signs_torch`` so the lock context manager is never
-    seen by a Dynamo trace.
+    Regression test: simulate ``_wrapped_init`` on a minimal
+    ``nn.Module`` with the required attributes; verify the buffer
+    is attached and contains the expected signs tensor.
 
-    Regression test: call ``_get_or_build_signs`` from inside a
-    ``torch.compile`` boundary. Before the fix this raised
-    ``torch._dynamo.exc.Unsupported`` / engine bail. After the fix
-    it returns the signs tensor cleanly because Dynamo treats the
-    function as an opaque eager call.
+    Without this fix, the forward calls ``_get_or_build_signs``
+    inside a fullgraph-compiled region, which triggers a Dynamo
+    bail (either via the cold-path lock or via the @disable
+    "skip-call-in-fullgraph" error).
     """
     torch = pytest.importorskip("torch")
+    import torch.nn as nn
+
+    monkey_env = "GENESIS_ENABLE_G4_19C_ATTN_WRAP"
+    import os as _os
+    _os.environ[monkey_env] = "1"
+    try:
+        # Set up an active config so _wrapped_init's config probe
+        # succeeds.
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            g4_19_config_registry as reg,
+        )
+        from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
+            G4TurboQuantConfig,
+        )
+        cfg = G4TurboQuantConfig(seed_base=0xC0FFEE)
+        reg.set_active_config(cfg)
+
+        # Mock Gemma4Attention-like module: nn.Module subclass with
+        # ``prefix`` and ``head_dim`` attrs. The wrapped init only
+        # needs original_init, then probes these attrs.
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            g4_19c_attention_wrapper as mod,
+        )
+
+        class _FakeAttn(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.prefix = "model.layers.7.self_attn"
+                self.head_dim = 8
+
+        # Manually simulate what _wrapped_init does on top of __init__.
+        # We can't easily call the real _wrapped_init because it
+        # composes with the original Gemma4Attention.__init__ from
+        # vllm. Instead, exercise the helper directly: call
+        # _build_signs_torch, then attach as buffer via the same
+        # pattern.
+        instance = _FakeAttn()
+        layer_idx = mod._extract_layer_idx(instance.prefix)
+        assert layer_idx == 7
+        signs_cpu = mod._build_signs_torch(
+            head_dim=instance.head_dim,
+            layer_idx=layer_idx,
+            seed_base=cfg.seed_base,
+        )
+        instance.register_buffer(
+            "_g4_19c_signs", signs_cpu, persistent=False,
+        )
+
+        # Verify the buffer is attached + recognised by nn.Module
+        # buffer machinery.
+        assert "_g4_19c_signs" in dict(instance.named_buffers())
+        signs = instance._g4_19c_signs
+        assert signs.shape == (8,)
+        assert signs.dtype == torch.float32
+        # ±1 signs only
+        assert torch.all(torch.abs(signs) == 1.0)
+
+        # Determinism: same key → identical signs.
+        signs_redux = mod._build_signs_torch(
+            head_dim=8, layer_idx=7, seed_base=cfg.seed_base,
+        )
+        assert torch.equal(signs, signs_redux)
+    finally:
+        _os.environ.pop(monkey_env, None)
+        from vllm.sndr_core.integrations.attention.turboquant import (
+            g4_19_config_registry as reg,
+        )
+        reg.clear_active_config()
+
+
+def test_wrapped_forward_source_uses_module_attribute():
+    """Static check: the wrapped forward must read signs from
+    ``self._g4_19c_signs`` and must NOT call ``_get_or_build_signs``
+    from the compile-region forward path (would bail under
+    fullgraph torch.compile).
+    """
+    pytest.importorskip("torch")
+    from pathlib import Path
     from vllm.sndr_core.integrations.attention.turboquant import (
         g4_19c_attention_wrapper as mod,
     )
-
-    # CPU device works for the trace test — Dynamo will still try
-    # (and fail without the fix) regardless of device.
-    device = torch.device("cpu")
-
-    # Pre-populate the cache so the hot path is exercised; cold path
-    # is also Dynamo-disabled but the dict.get is what we want to
-    # verify works under compile.
-    signs0 = mod._get_or_build_signs(0, 8, 0xC0FFEE, device)
-    assert signs0.shape == (8,)
-    assert signs0.dtype == torch.float32
-
-    def caller(x):
-        # The wrapper function called from a torch.compile region.
-        # _get_or_build_signs is @torch._dynamo.disable, so Dynamo
-        # graph-breaks at the call but does not bail.
-        signs = mod._get_or_build_signs(0, 8, 0xC0FFEE, device)
-        return x * signs.sum()
-
-    # mode="reduce-overhead" is the typical vLLM compile setting; if
-    # the fix regresses, this raises Unsupported at trace time.
-    compiled = torch.compile(caller, fullgraph=False)
-    out = compiled(torch.ones(4))
-    # signs are ±1, sum is an integer in [-8, 8]; just verify the
-    # call completes and returns a tensor of the expected shape.
-    assert out.shape == (4,)
-    assert out.dtype == torch.float32
+    src = Path(mod.__file__).read_text()
+    # Locate the wrapped forward body
+    start = src.index("def _make_wrapped_forward")
+    end = src.index("def apply()", start)
+    body = src[start:end]
+    assert "self._g4_19c_signs" in body, (
+        "wrapped forward must read self._g4_19c_signs directly"
+    )
+    assert "_get_or_build_signs(" not in body, (
+        "wrapped forward must NOT call _get_or_build_signs from the "
+        "compile region (fullgraph bail). Use the per-layer buffer "
+        "attached by _wrapped_init instead."
+    )
