@@ -83,10 +83,23 @@ promotion:
     - "no runtime crash on first boot through V2 compose"
   promote_to: null
   notes: |
-    Status experimental — created to enable Phase 7.G4.26B-A4B.B4
-    K=1 vs K=4 multiconc structured-JSON bench. This preset is NOT
-    expected to ship as a production baseline; its role is purely
-    diagnostic. If B4 closes with K=4 winning multiconc structured,
-    then this K=1 profile becomes the historical baseline only. If
-    K=1 wins multiconc structured, then this profile becomes a
-    legitimate production candidate.
+    Bench cycle CLOSED 2026-05-23 (Phase 7.G4.26B-A4B.B4).
+
+    B4 actual result: K=4 (sibling profile gemma4-a4b-multiconc)
+    wins +12.8% over this K=1 baseline on Mode A short-structured
+    JSON at conc=8 (235.9 vs 209.1 TPS). Mode B (xgrammar) K=4
+    reached 271.4 TPS / 100% schema match.
+
+    This K=1 profile therefore stays as a HISTORICAL BENCH BASELINE,
+    NOT a production preset. It is kept committed so the K=1 vs K=4
+    comparison can be reproduced on future vllm-pin bumps without
+    needing to re-create the preset infrastructure. Operators should
+    not pick this preset for production multi-conc workloads — use
+    prod-gemma4-26b-a4b-multiconc (K=4 short-structured) for that
+    operational niche, or prod-35b-multiconc for free-chat
+    multi-conc throughput.
+
+    See: sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/
+         VERDICT_2026-05-23.md
+    See: sndr_private/research/gemma4/analysis/
+         G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md
