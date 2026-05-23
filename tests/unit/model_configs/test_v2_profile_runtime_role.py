@@ -56,6 +56,10 @@ class TestExistingProfilesLoadUnchanged:
         "gemma4-a4b-no-mtp",                # role=default, spec_decode K=1 control
         "gemma4-a4b-mtp-k4",                # role=structured, MTP K=4
         "gemma4-a4b-multiconc",             # role=default, max_num_seqs=8
+        # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): K=1 multiconc baseline
+        # — same shape as gemma4-a4b-multiconc but spec K=1 instead of
+        # K=4, created to enable fair K=1 vs K=4 multiconc comparison.
+        "gemma4-a4b-multiconc-k1",          # role=default, K=1, max_num_seqs=8
     })
 
     def test_all_builtin_profiles_load_with_new_fields_default_none(self):

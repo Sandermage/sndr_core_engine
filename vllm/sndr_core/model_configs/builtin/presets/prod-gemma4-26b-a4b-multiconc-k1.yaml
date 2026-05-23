@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, multi-conc K=1 baseline.
+# `sndr launch prod-gemma4-26b-a4b-multiconc-k1` resolves to (model, hardware, profile).
+#
+# Created by Phase 7.G4.26B-A4B.B4-PRE for the structured-JSON multi-conc
+# K=1 vs K=4 bench. K=1 sibling of `prod-gemma4-26b-a4b-multiconc`.
+#
+# Sibling presets:
+#   prod-gemma4-26b-a4b-default          — K=1 single-stream control
+#   prod-gemma4-26b-a4b-mtp-k4           — K=4 single-stream structured
+#   prod-gemma4-26b-a4b-multiconc        — K=4 multi-conc
+#   prod-gemma4-26b-a4b-multiconc-k1     — K=1 multi-conc (this file)
+
+model: gemma-4-26b-a4b-it-awq
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: gemma4-a4b-multiconc-k1
