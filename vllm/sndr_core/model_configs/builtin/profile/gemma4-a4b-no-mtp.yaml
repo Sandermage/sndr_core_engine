@@ -79,8 +79,13 @@ sizing_override:
 patches_delta:
   enable: {}
   disable: []
-  override:
-    GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'          # TEMPORARY — see G4_19C-FULLGRAPH-AUDIT
+  override: {}
+  # G4_19C profile-local disable RETIRED 2026-05-23 (Phase 7.G4.G4_19C.UN-DISABLE).
+  # Iter-3 architectural fix (commit 47acc808) made the wrapper
+  # fullgraph-safe; on 26B-A4B specifically the wrapper short-circuits
+  # at apply() because kv_cache_dtype=auto (NOT turboquant_*), so
+  # G4_19 never populates the registry that G4_19c requires. The
+  # override was redundant on 26B-A4B regardless of iter-3.
 
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:

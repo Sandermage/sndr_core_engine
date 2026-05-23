@@ -119,9 +119,13 @@ class TestExistingProfilesLoadUnchanged:
         assert p.validation is None
         assert p.patches_delta.enable == {}
         assert p.patches_delta.disable == []
-        assert p.patches_delta.override == {
-            "GENESIS_ENABLE_G4_19C_ATTN_WRAP": "0",
-        }
+        # Phase 7.G4.G4_19C.UN-DISABLE (2026-05-23): the temporary
+        # GENESIS_ENABLE_G4_19C_ATTN_WRAP=0 override is retired after
+        # iter-3 architectural fix validated G4_19C as fullgraph-safe
+        # on this preset (commit 47acc808 + rig active-path smoke).
+        # patches_delta.override is now empty — the model.patches dict
+        # reaches the launch script unchanged.
+        assert p.patches_delta.override == {}
 
     def test_p1_3_builtin_gemma4_structured_k4_loads(self):
         """gemma4-tq-mtp-structured-k4 (P1.3): full structured config

@@ -105,8 +105,17 @@ sizing_override:
 patches_delta:
   enable: {}
   disable: []
-  override:
-    GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'         # TEMPORARY — see Phase 7.G4.G4_19C-FULLGRAPH-AUDIT
+  override: {}
+  # G4_19C profile-local disable RETIRED 2026-05-23
+  # (Phase 7.G4.G4_19C.UN-DISABLE).
+  # Iter-3 architectural fix (commit 47acc808) made G4_19C
+  # fullgraph-safe; rig boot of this preset with
+  # `--extra-env GENESIS_ENABLE_G4_19C_ATTN_WRAP=1` reached READY,
+  # confirmed G4_19 registry populated + G4_19C apply()=True +
+  # per-instance _active_forward installed via types.MethodType +
+  # allow_in_graph kernel exercised in vllm fullgraph compile +
+  # cudagraph capture clean. None of the S1-S6 stop criteria fired.
+  # The previous TEMPORARY override is no longer needed.
 
 # ─── Promotion contract ────────────────────────────────────────────────
 # Default profile is already the canonical reference mode; no promotion
