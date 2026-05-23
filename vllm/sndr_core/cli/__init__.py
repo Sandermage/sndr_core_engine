@@ -80,6 +80,7 @@ from .hardware import add_argparser as _hardware_argparser  # hardware (V2 hardw
 from .license import add_argparser as _license_argparser  # license (key generation + check)
 from .profile import add_argparser as _profile_argparser  # profile (V2 profile registry)
 from .gateway import add_argparser as _gateway_argparser  # P1.6 thin gateway wrapper
+from .routing import add_argparser as _routing_argparser  # Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT
 
 __all__ = ["cli_main"]
 
@@ -232,6 +233,7 @@ def cli_main(argv: list[str] | None = None) -> int:
     _license_argparser(subparsers)       # license (key generation + check)
     _profile_argparser(subparsers)       # profile (V2 profile list/show)
     _gateway_argparser(subparsers)       # gateway (P1.6 thin CLI wrapper)
+    _routing_argparser(subparsers)       # routing-table (Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT)
 
     # S2.5 (audit closure 2026-05-08): bench-compare A.json B.json
     p_bcmp = subparsers.add_parser(
