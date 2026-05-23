@@ -110,7 +110,7 @@ patches:
   GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS: '1'         # GDN A/B projection contiguity guard (avoids non-contiguous tensor on hybrid GDN path)
   GENESIS_ENABLE_P37: '1'                            # MoE intermediate cache pool (avoids per-call torch.empty for top-k aggregation)
   # ── MoE / FP8 ──
-  GENESIS_ENABLE_P99: '1'                            # FP8 block-scaled MM batch-invariance fix
+  GENESIS_ENABLE_P99: '1'                            # WorkspaceManager.get_simultaneous memoize (vllm#40941 perf hotfix — composes with P98)
   GENESIS_ENABLE_P101: '1'                           # vllm#41127 backport (P100-companion) — uniform query_len>1 batches through prefill wrapper in cudagraph mode
   GENESIS_ENABLE_PN66: '1'                           # vllm#41696 backport — multiturn </think> leak fix in DelegatingParser (streaming reasoning purity)
   GENESIS_ENABLE_PN67: '0'                           # vllm#41674 merged at bf610c2f5… — the dev371 canonical baseline. Patch lifecycle=retired with vllm_version_range "<0.20.2rc1.dev371", so it auto-skips at runtime even when enabled. Explicit disable here keeps the active matrix free of retired patches (Phase 5.2.A 2026-05-22).

@@ -106,7 +106,7 @@ patches:
   GENESIS_PREALLOC_TOKEN_BUDGET: '4096'              # Genesis prealloc — token budget for shared scratch pools
   # ── FP8 (selective — k8v4 path) ──
   GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '0'    # opt-out for k8v4 (35B FP8 turns it '1'; 27B INT4 routes elsewhere)
-  GENESIS_ENABLE_P99: '1'                            # FP8 block-scaled MM batch-invariance fix
+  GENESIS_ENABLE_P99: '1'                            # WorkspaceManager.get_simultaneous memoize (vllm#40941 perf hotfix — composes with P98)
   GENESIS_ENABLE_P101: '1'                           # vllm#41127 (P100-companion) — uniform query_len>1 batches through prefill wrapper
   GENESIS_ENABLE_P103: '1'                           # FLA Cliff 2 chunked prefill — applicable to hybrid GDN (Qwen3.5/3.6/Next)
   GENESIS_ENABLE_PN66: '1'                           # vllm#41696 — multiturn </think> leak fix in DelegatingParser

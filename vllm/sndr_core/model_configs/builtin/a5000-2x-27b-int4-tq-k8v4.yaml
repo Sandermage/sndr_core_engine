@@ -99,7 +99,7 @@ genesis_env:
   GENESIS_ENABLE_P74_CHUNK_CLAMP: '1'
   GENESIS_ENABLE_P82: '1'                          # 27B sweep 2026-05-09: P82=1 + thr=0.1 wins +5.23% TPS over P82=0 baseline (124.29→130.79); 7/7 tool, london_think+tokyo_think PASS
   GENESIS_ENABLE_P98: '1'                          # CRITICAL: TQ WorkspaceManager revert (vllm#40941 perf hotfix — Path C v0.5 hybrid + TQ k8v4 boot fix).
-  GENESIS_ENABLE_P99: '1'                          # FP8 block-scaled MM batch-invariance fix — protects spec-decode K+1 verify batches against shape-dependent numerics.
+  GENESIS_ENABLE_P99: '1'                          # WorkspaceManager.get_simultaneous memoize (vllm#40941 perf hotfix — composes with P98)
   GENESIS_P82_THRESHOLD_SINGLE: '0.1'              # P82 threshold for single-query — 27B sweep 2026-05-09: monotonic 0.1=130.79 / 0.2=127.12 / 0.3=126.64 / 0.4=125.99 / 0.5=123.41. **0.1 wins on 27B** (35B PROD wins at 0.3 — per-model tuning).
   GENESIS_ENABLE_P101: '1'                         # vllm#41127 backport — uniform query_len>1 batches through prefill wrapper in cudagraph mode. Bit-identical, +5-10% TPS on spec-decode.
   # P100 REMOVED 2026-05-11 audit: marked "Blackwell-only" в canonical doc; на Ampere SM 8.6 = no-op в лучшем случае, потенциально wasted check.

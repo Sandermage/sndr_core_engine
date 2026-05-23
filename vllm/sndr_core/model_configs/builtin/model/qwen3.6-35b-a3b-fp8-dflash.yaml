@@ -108,7 +108,7 @@ patches:
   GENESIS_ENABLE_P82: '1'                            # SGLang acceptance OR-clause backport
   GENESIS_P82_THRESHOLD_SINGLE: '0.3'                # 0.3 = optimum for 35B with FP8 path (range 0.1-0.5)
   GENESIS_ENABLE_P98: '1'                            # vllm#40941 WorkspaceManager fix (hybrid GDN essential)
-  GENESIS_ENABLE_P99: '1'                            # FP8 block-scaled MM batch-invariance fix
+  GENESIS_ENABLE_P99: '1'                            # WorkspaceManager.get_simultaneous memoize (vllm#40941 perf hotfix — composes with P98)
   GENESIS_ENABLE_P101: '1'                           # vllm#41127 — uniform query_len>1 batches through prefill wrapper
   # ── DFlash-specific safeguards ──
   GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD: '1'       # ON for DFlash (OFF in MTP) — protects against tolist capture in cudagraph mode
