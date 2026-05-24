@@ -623,7 +623,7 @@ sndr model-config diff prod-35b prod-35b-multiconc
 
 ---
 
-## 8. V2 model registry
+## 8. V2 model registry + preset catalog
 
 ### `sndr model list-v2` — **stable**
 
@@ -675,6 +675,90 @@ Diff two profiles.
 ```bash
 sndr profile diff 35b-balanced 35b-multiconc
 ```
+
+### `sndr preset list` — **stable**
+
+List V2 presets with their `PresetCard` metadata. Operator-product
+surface — distinct from `sndr config list` (V1 + V2 inventory of
+config keys) and `sndr profile list` (patches delta layer). See
+[`PRESETS.md`](PRESETS.md) for the card schema and when to use which
+command.
+
+```bash
+sndr preset list                                       # all presets, table view
+sndr preset list --json                                # machine-readable
+sndr preset list --status production_candidate          # filter by card.status
+sndr preset list --family qwen3_6_35b_a3b_fp8          # filter by card.routing_family
+sndr preset list --workload free_chat                  # workload_allow intersection
+sndr preset list --hardware a5000-2x-24gbvram-16cpu-128gbram
+sndr preset list --mode throughput                     # filter by card.mode
+```
+
+Unannotated presets (no `card:` block in YAML) are shown but tagged
+`(unannotated)`. They are skipped by `sndr preset recommend`.
+
+### `sndr preset show <preset_id>` — **stable**
+
+Card-formatted view of one preset: identity, workload contract,
+operating envelope, evidence, tradeoffs, "do not use". For raw YAML
+dump use `sndr config explain <preset_id>`.
+
+```bash
+sndr preset show prod-35b
+sndr preset show prod-35b --json
+sndr preset show prod-35b --field card.evidence_refs.0.path
+```
+
+`--field <dot.path>` walks nested attributes / list indices / dict
+keys (e.g. `card.evidence_refs.0.path`, `card.concurrency.canonical`).
+Errors include the failed segment for self-correction.
+
+### `sndr preset explain <preset_id>` — **stable**
+
+Operator walkthrough: card narrative + composed runtime dry-run +
+single-row diff vs `card.fallback_preset`. Used to validate that the
+preset's YAML triplet actually composes to the runtime claimed in the
+card.
+
+```bash
+sndr preset explain prod-35b
+sndr preset explain prod-gemma4-26b-a4b-multiconc --json
+```
+
+The "Composed runtime (dry-run)" section reports `composed_key`,
+`kv_cache_dtype`, `max_model_len`, `max_num_seqs`,
+`gpu_memory_utilization`, `spec_decode_method`, `spec_decode_K`, and
+`enabled_patches_count` — the field-set most operators care about.
+
+### `sndr preset recommend` — **stable**
+
+Inverse lookup: operator declares a workload (with optional hardware
+and concurrency constraints), CLI ranks matching presets. Ranking order:
+
+1. `card.status` priority (production > production_candidate > internal_validated > others)
+2. `card.default_for_family` (true sorts before false)
+3. `card.primary_metric.value` descending
+4. preset id ascending (deterministic tie-break)
+
+```bash
+sndr preset recommend --workload free_chat \
+                      --hardware a5000-2x-24gbvram-16cpu-128gbram \
+                      --concurrency 8
+sndr preset recommend --workload structured_json.short --top 3
+sndr preset recommend --workload custom:my-task --json
+```
+
+Workload values are from a frozen taxonomy: `free_chat`,
+`structured_json.short`, `structured_json.long`, `tool_call.short`,
+`tool_call.long`, `summarization`, `code_gen`, `long_context_qa`.
+Custom workloads are accepted via the `custom:<slug>` escape (slug
+matches `[a-z0-9._-]+`).
+
+Safety rule: a preset is **excluded** from results when the queried
+workload is in its `card.workload_deny`, even if `workload_allow` is
+broad or empty. Concrete example — `--workload free_chat --concurrency 8`
+will not return `prod-gemma4-26b-a4b-mtp-k4` (K=4 structured) because
+its `workload_deny` lists `free_chat`.
 
 ---
 
