@@ -58,6 +58,17 @@ patches_delta:
 # DFlash drafter at /models/Qwen3.6-35B-A3B-DFlash (bf16) — separate from target.
 # DO NOT change to MTP here (would require different model file altogether).
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — TTFT-tuned multi-conc bench remained private; no public
+# baseline cross-validation. Future-reader note: NOT production-validated.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: 35B DFlash multi-conc N=3 — TTFT-tuned 562 TPS @ conc=8; TTFT-tuned bench private, public publish pending"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
 # ─── Promotion contract — bench thresholds for status=validated ─────────
 promotion:
   validation_required:

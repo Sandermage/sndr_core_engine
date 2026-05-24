@@ -42,6 +42,18 @@ sizing_override:
   enforce_eager: false                           # cudagraph capture enabled
   disable_custom_all_reduce: true                # NCCL fallback
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — no public single-stream DFlash baseline yet; sizing
+# is operator-tuned for the DFlash drafter+target footprint on 2×A5000.
+# Future-reader note: this is NOT a production-validated override.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: 27B DFlash N=5 single-stream — context 185K, gpu_mem_util 0.95 to fit drafter + target on 2×A5000; public single-stream DFlash baseline not yet published"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
 promotion:
   validation_required:
     - "bench long_gen single-stream ≥90 TPS (May-5 baseline 97.6)"

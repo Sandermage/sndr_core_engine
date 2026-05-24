@@ -117,6 +117,18 @@ patches_delta:
   # cudagraph capture clean. None of the S1-S6 stop criteria fired.
   # The previous TEMPORARY override is no longer needed.
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — operator-supplied wording (CONFIG-UX.4.DEBT.2B locked
+# scope) deliberately avoids any production-validation claim. Preserves
+# G4_19/G4_19C posture context without overclaiming.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: sizing override retained for the current 31B TQ default serving envelope; preset-level public baseline cross-validation is still required before production-class override policy"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
 # ─── Promotion contract ────────────────────────────────────────────────
 # Default profile is already the canonical reference mode; no promotion
 # path. Lifecycle is `validated` because TQ-only MTP-OFF posture matches

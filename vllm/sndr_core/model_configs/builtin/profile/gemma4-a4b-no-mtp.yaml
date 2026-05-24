@@ -87,6 +87,17 @@ patches_delta:
   # G4_19 never populates the registry that G4_19c requires. The
   # override was redundant on 26B-A4B regardless of iter-3.
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — B1 single-stream baseline pending public publish.
+# Future-reader note: NOT production-validated.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: Gemma4 26B-A4B single-stream K=1 control (MTP off); operator-tuned context 32K + gpu_mem_util 0.85 for MoE expert routing; B1 single-stream baseline pending public publish"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:
   validation_required:

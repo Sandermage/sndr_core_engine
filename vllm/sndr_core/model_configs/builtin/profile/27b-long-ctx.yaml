@@ -28,6 +28,18 @@ sizing_override:
   enforce_eager: false                           # false = cudagraph capture enabled
   disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe)
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — long-context profile sizing diverges from hw default
+# only on batch chunk size (2048 vs hw 4096). No long-ctx 32K+ public
+# bench refresh yet; v791 probe reference is operator-internal.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: 27B long-context profile — max_model_len=280K full context, batch 2048 to fit KV pool; long-ctx 32K+ bench refresh deferred"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
 promotion:
   validation_required:
     - "16K→256K progressive probe stability (v791 reference baseline)"

@@ -67,6 +67,17 @@ patches_delta:
   # fullgraph-safe; on 26B-A4B the wrapper short-circuits at apply()
   # because kv_cache_dtype=auto (NOT turboquant_*).
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — B1 K=4 structured baseline pending public publish.
+# Future-reader note: NOT production-validated.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: Gemma4 26B-A4B K=4 structured — assistant drafter, context 32K, sized for max_num_seqs=2; B1 K=4 structured baseline pending public"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: false
+
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:
   validation_required:

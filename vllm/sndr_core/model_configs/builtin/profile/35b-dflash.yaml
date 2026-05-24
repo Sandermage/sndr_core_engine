@@ -61,6 +61,17 @@ sizing_override:
   enforce_eager: false                           # false = cudagraph capture enabled
   disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe)
 
+# ─── Override policy (CONFIG-UX.4.DEBT.2B, 2026-05-24) ──────────────────
+# bench_pending — no public single-stream DFlash baseline yet for 35B.
+# Future-reader note: NOT production-validated.
+override_policy:
+  override_class: bench
+  reason: "bench_pending: 35B DFlash N=3 single-stream — context 65K, gpu_mem_util 0.92 for drafter overhead; public single-stream DFlash baseline not yet published"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-08-22'
+  allowed_to_exceed_hardware_default: true
+
 promotion:
   validation_required:
     - "genesis_bench_suite.py --quick passes for DFlash single-stream"
