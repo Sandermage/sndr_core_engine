@@ -80,27 +80,49 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
-## [Unreleased] — CONFIG-UX Stage 2 (CONFIG-UX.4.2 rollout)
+## [Unreleased] — CONFIG-UX.4 override-policy rollout closure (2026-05-24)
 
-> Default `SNDR_V1_ROLLOUT_STAGE` flips from `0` to `1`; Class-4 forbidden
-> override rules (gpu_memory_utilization > 1.0, tensor_parallel_size >
-> hardware.n_gpus, kv_cache_dtype downgrade, spec_decode method-name
-> change) now reject violating profiles at audit-time regardless of
-> OverridePolicy justification.
+> Closes the CONFIG-UX.4 override-policy track end-to-end. Across six
+> commits this bundle (a) ships the rollout infrastructure that lets V1
+> deprecation + V2 card-less + missing-override-policy events emit
+> stage-aware severity, (b) enforces four Class-4 forbidden overrides
+> at audit-time regardless of OverridePolicy justification, and (c)
+> retires the 20-profile `missing_override_policy` debt that CONFIG-UX.4.2
+> surfaced — 20 → 0 with zero overclaim, zero fabricated evidence, and
+> zero profile auto-promoted to the `production` class.
 >
-> No current builtin profile trips any Class-4 rule — verified by
-> `tests/unit/scripts/test_audit_override_policy_class4.py::TestLiveCorpusClass4Clean`.
+> Default rollout stage flips from `0` to `1`; observable behavior for
+> operators is unchanged (the severity matrix is identical between
+> Stage 0 and Stage 1 for non-tombstone buckets). Stage 2 strict-mode
+> runs only on tag-push CI via the new `rollout_strict_audit` job in
+> `.github/workflows/release.yml`.
 
 ### Highlights
 
-- CONFIG-UX rollout reaches Stage 1 (observability-only default). Stage 2
-  strict-mode escalation runs on tag-push CI via the new
-  `rollout_strict_audit` job in `.github/workflows/release.yml`.
-- Class-4 forbidden override enforcement (4 rules, audit-time only):
-  physics-broken (Rules 1 + 2) and evidence-invalidating (Rules 3 + 4)
-  overrides are now rejected before container boot.
-- `make evidence-release` exports `SNDR_V1_ROLLOUT_STAGE=2` so release
-  evidence runs match the CI strict-audit job.
+- **Rollout infrastructure (CONFIG-UX.4.1)**. New
+  `vllm/sndr_core/model_configs/_rollout.py` with stage parser and
+  `effective_severity()` helper; frozen `_v1_migration_table.json`
+  shipped as package data (12 V1 keys × four buckets);
+  `scripts/audit_v1_migration.py` informational audit gate; signature
+  extensions on `_maybe_warn_v1_deprecation` and `_maybe_warn_unannotated`
+  preserve backward compatibility; tombstone-incident template under
+  `sndr_private/planning/incidents/_TEMPLATE_tombstone.md`.
+- **Class-4 forbidden override enforcement (CONFIG-UX.4.2)**. Four
+  predicates registered in `audit_override_policy.py`:
+  `gpu_memory_utilization > 1.0`, `tensor_parallel_size > hardware.n_gpus`,
+  `kv_cache_dtype` downgrade vs model declaration (static narrowness
+  ordering), and `spec_decode` method-name change. Audit-time only; K-only
+  spec-decode changes remain allowed. `DEFAULT_STAGE` flips `0 → 1`.
+- **Stage 2 release-strict CI job**. `.github/workflows/release.yml`
+  gains `rollout_strict_audit` that exports `SNDR_V1_ROLLOUT_STAGE=2`
+  and runs the three CONFIG-UX audits with `--strict`. `make evidence-release`
+  mirrors the env export for local parity.
+- **Override-policy debt closure (DEBT.1 + 2A + 2B + 2C)**. All 20
+  profiles with `sizing_override` now carry an explicit `override_policy`
+  block; no profile claims the `production` class — every annotation
+  uses `bench` (12) or `qa` (2) per the anti-overclaim discipline.
+  `expires_at: 2026-08-22` set uniformly for every annotation in this
+  bundle to force a 90-day re-evaluation cycle.
 
 ### Migration notes
 
@@ -109,27 +131,72 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
   identical between Stage 0 and Stage 1 for non-tombstone buckets).
 - Operators who want to revert to explicit Stage 0 can set
   `SNDR_V1_ROLLOUT_STAGE=0` during the transition window (≥1 release).
-- Pre-commit hooks for `audit_config_catalog` / `audit_override_policy`
-  / `audit_v1_migration` stay default-severity (non-strict) to avoid
-  slowing normal edits. Class-4 errors fire unconditionally because
-  they're physics/evidence policy, not rollout warnings.
+- Pre-commit hooks for `audit_config_catalog`, `audit_override_policy`,
+  and `audit_v1_migration` stay default-severity (non-strict). Strict
+  mode runs only on tag-push CI and via `make evidence-release` locally.
+  Class-4 errors fire unconditionally — they're physics / evidence
+  policy, not rollout warnings — and the global silence env
+  `GENESIS_DISABLE_V1_DEPRECATION_WARNING=1` does NOT suppress them.
+- DEBT closure used `bench` class (not `production`) even where public
+  baseline JSONs exist, because per-preset config-block cross-validation
+  is deferred to a follow-up audit. Promotion of individual profiles to
+  the `production` class is a separate per-profile decision after public
+  bench refresh; the `expires_at: 2026-08-22` field is the forcing
+  function.
+- `tier-aware-3090` was annotated under Path A (operator-locked
+  classification per the CONFIG-UX.4.DEBT.2C mini-R) because the 145K
+  `max_model_len` over the 65K Path-A hardware default is intentional:
+  the hardware YAML's own inline comment ("profile may override")
+  anticipates the override, and PN95 tier-aware page demotion is the
+  mechanism that makes it usable on a single 24GB card. The annotation
+  carries `allowed_to_exceed_hardware_default: true` as the explicit
+  operator acknowledgement.
 
 ### Audit findings
 
-- Stage 1 audit results on the current corpus (per `audit_v1_migration.py --json`):
-  - transparent (3): `a5000-2x-27b-int4-tq-k8v4`, `a5000-2x-35b-prod`, `a5000-2x-27b-dflash-true`
-  - needs_operator_choice (5): see migration table
-  - deprecated (4): tier-aware and `*-example` legacy keys
-  - tombstone (0): empty at Stage 2 ship — operator-confirmed
-- Zero Class-4 errors on 21 builtin profiles (live-corpus acceptance gate).
+Final state on the 21-profile live corpus post-closure:
+
+- `audit_override_policy.py` default: **0 errors / 0 warnings**
+  (was 20 missing_override_policy warnings before DEBT.1).
+- `audit_override_policy.py --strict`: **exit 0** (was exit 1).
+- Class-4 forbidden rules: **0 fires** on all 21 profiles, all four
+  rules exercised by positive/negative tests in
+  `tests/unit/scripts/test_audit_override_policy_class4.py`.
+- Compose output: **21/21 byte-identical** across every commit in this
+  bundle — annotations are metadata, not runtime mechanics.
+- `audit_v1_migration.py` Stage 1 distribution (informational): 3
+  transparent V1 keys, 5 needs_operator_choice, 4 deprecated, 0 tombstone.
+- pytest baseline: **2153 passed** across the model_configs, dispatcher,
+  scripts, and cli suites, no regression introduced by any commit in
+  the bundle.
+
+DEBT closure batch-by-batch:
+
+| Batch     | Profiles | Class assignments                                                            | Audit debt |
+|-----------|---------:|------------------------------------------------------------------------------|------------|
+| DEBT.1    | 7        | all `bench` + public/private evidence (production-facing, multi-conc family) | 20 → 13    |
+| DEBT.2A   | 5        | 2 `qa` + 3 `bench`, `evidence_refs: []` (qa / a-b / example clear class)     | 13 → 8     |
+| DEBT.2B   | 7        | `bench` + `reason: "bench_pending: ..."` prefix (no evidence yet)            | 8 → 1      |
+| DEBT.2C   | 1        | `bench` Path A + structural reason (tier-aware-3090; mini-R driven)          | 1 → 0      |
 
 ### Migration help
 
 ```bash
-sndr preset list                         # browse current annotated presets
-sndr preset recommend --workload X       # find V2 replacement for V1 usage
-SNDR_V1_ROLLOUT_STAGE=0 sndr launch ...  # revert to explicit Stage 0 during transition
-make evidence-release                    # run Stage 2 strict-mode audits locally
+# Browse the new operator preset surface
+sndr preset list
+sndr preset recommend --workload structured_json.short
+
+# Inspect the V1 migration table + Stage 1 distribution
+python3 scripts/audit_v1_migration.py --json
+
+# Run Stage 2 strict-mode audits locally (matches tag-push CI)
+make evidence-release
+
+# Revert to explicit Stage 0 during transition window
+SNDR_V1_ROLLOUT_STAGE=0 sndr launch <preset>
+
+# Inspect any one profile's new override_policy block
+sndr profile show 27b-tq-k8v4
 ```
 
 ---
