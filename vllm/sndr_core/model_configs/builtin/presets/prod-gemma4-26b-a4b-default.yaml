@@ -18,3 +18,56 @@
 model: gemma-4-26b-a4b-it-awq                    # MoE 128 experts, top_k=8, A=4B active, AWQ-4bit
 hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
 profile: gemma4-a4b-no-mtp                        # K=1 control (MTP off-by-design; profile docstring explains K=1 mechanism)
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Gemma 4 26B-A4B AWQ — single-stream baseline (MTP off)"
+  summary: |
+    K=1 control variant for the Gemma 4 26B-A4B MoE target. Use when you
+    want the lowest-risk single-stream serving path with no spec-decode
+    dependence; serves as the public fallback target for the K=4 + multi-
+    conc siblings in this family.
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: throughput
+  workload_allow:
+    - free_chat
+    - structured_json.short
+    - tool_call.short
+    - summarization
+  workload_deny:
+    - structured_json.long
+  concurrency:
+    min: 1
+    max: 2
+    canonical: 2
+  K: 1
+  context:
+    max_model_len: 32768
+    typical_input_tokens: 1024
+    typical_output_tokens: 2048
+  routing_family: gemma4_moe_26b_a4b
+  default_for_family: true
+  primary_metric:
+    kind: agg_TPS
+    value: 0.0
+    source: external://docs.example/pending-gemma4-26b-a4b-default-bench
+    measured_at: 2026-05-23
+  evidence_refs:
+    - type: bench
+      path: external://docs.example/pending-gemma4-26b-a4b-default-bench
+      visibility: private
+      note: B1 single-stream baseline pending public publish; current evidence in sndr_private/runs/.
+  evidence_visibility: private
+  tradeoffs:
+    - "K=1 (no draft tokens) → conservative latency, lower TPS than K=4 sibling."
+    - "Single-stream only (canonical concurrency=2); see prod-gemma4-26b-a4b-multiconc for high-conc workloads."
+  do_not_use:
+    - condition: "high-concurrency workloads (>2 concurrent requests)"
+      reason: "Sizing tuned for max_num_seqs=2; use prod-gemma4-26b-a4b-multiconc above that."
+    - condition: "structured_json.long workloads"
+      reason: "32K context envelope ok for short structured; long-context structured loses on Gemma4 MoE."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

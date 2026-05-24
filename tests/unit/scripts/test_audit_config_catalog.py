@@ -89,17 +89,26 @@ class TestLiveCorpus:
             + "\n".join(f"  [{f.rule}] {f.preset_id}: {f.message}" for f in errors)
         )
 
-    def test_warnings_only_missing_card_at_stage_1(self):
-        """Stage 1: only `missing_card` warnings expected (all 21 are
-        legacy card-less). If new warning rules appear, investigate."""
+    def test_warnings_expected_at_stage_1(self):
+        """Stage 1 (post-CONFIG-UX.2): two warning rules expected.
+
+        - `missing_card` — for the 7 non-prod-* presets that CONFIG-UX.2b
+          will annotate (example-*, qa-*, experimental-*, long-ctx-*).
+        - `production_candidate_public_evidence` — for annotated prod-*
+          presets whose evidence is currently private-only (gemma4 and
+          35b-dflash variants without public baselines).
+
+        Any other warning rule is unexpected and should be investigated.
+        """
         mod = _import_audit()
         report = mod.run_audit()
         warnings_list = [f for f in report.findings if f.severity == "warning"]
-        assert warnings_list, "expected warnings for card-less presets"
+        assert warnings_list, "expected at least some warnings"
+        allowed = {"missing_card", "production_candidate_public_evidence"}
         for f in warnings_list:
-            assert f.rule == "missing_card", (
+            assert f.rule in allowed, (
                 f"unexpected warning rule {f.rule!r} on {f.preset_id!r}; "
-                f"only `missing_card` expected at Stage 1"
+                f"only {sorted(allowed)} expected at Stage 1"
             )
 
 

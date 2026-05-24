@@ -84,11 +84,20 @@ class TestGate1LegacyPresetsLoad:
         assert isinstance(pd, PresetDef)
         assert pd.model, f"preset {alias!r}: model pointer missing"
         assert pd.hardware, f"preset {alias!r}: hardware pointer missing"
-        # All 21 builtin presets are legacy (no card yet — CONFIG-UX.2 work)
-        assert pd.card is None, (
-            f"preset {alias!r}: expected legacy load (card=None), got annotated. "
-            f"If CONFIG-UX.2 has annotated this preset, update this test."
-        )
+        # CONFIG-UX.2 (2026-05-24): 14 prod-* presets now carry `card:`
+        # annotations; 7 non-prod (example-*, qa-*, experimental-*,
+        # long-ctx-*) remain card-less pending CONFIG-UX.2b. Both load
+        # shapes must succeed.
+        if alias.startswith("prod-"):
+            assert pd.card is not None, (
+                f"preset {alias!r}: prod-* preset expected to carry "
+                f"a `card:` annotation after CONFIG-UX.2"
+            )
+        else:
+            assert pd.card is None, (
+                f"preset {alias!r}: non-prod preset still expected to be "
+                f"card-less until CONFIG-UX.2b. If annotated, update this test."
+            )
 
     @pytest.mark.parametrize("alias", _all_builtin_aliases())
     def test_legacy_preset_loads_via_load_alias(self, alias):
