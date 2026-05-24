@@ -145,6 +145,12 @@ audit-override-policy: ## CONFIG-UX.audit: profile OverridePolicy presence + sha
 audit-v1-migration: ## CONFIG-UX.4.1: V1 monolithic key migration bucket resolution (Stage 0/1 informational)
 	@$(PYTHON) scripts/audit_v1_migration.py
 
+generate-config-catalog: ## CONFIG-UX.5.1: build derived catalog JSON from V2 YAML tree + baselines (no committed artifact yet)
+	@$(PYTHON) scripts/generate_config_catalog.py
+
+audit-config-catalog-fresh: ## CONFIG-UX.5.1: generated catalog determinism + redaction audit (informational at .5.1)
+	@$(PYTHON) scripts/audit_generated_config_catalog.py
+
 audit-config-keys: ## §10.3 #4 / §6.7 canonical env-key registry: every committed YAML's Genesis/SNDR keys in canonical union
 	@$(PYTHON) scripts/audit_config_keys.py
 
