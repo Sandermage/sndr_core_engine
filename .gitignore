@@ -106,6 +106,8 @@ evidence/patch_proof/*.json
 
 # Genesis-specific local state
 genesis_bench_v*.md
+/genesis_bench_*.json
+/genesis_bench_*.md
 README.md.backup-*
 
 # Internal-only audit / plan / draft files at repo root (must live in
