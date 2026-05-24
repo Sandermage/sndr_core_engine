@@ -400,6 +400,118 @@ These are not Genesis env vars — they're vLLM / PyTorch / NCCL / Triton settin
 
 ---
 
+## Override policy (CONFIG-UX.4)
+
+Every V2 profile that carries a `sizing_override` block must also
+carry a matching `override_policy` block declaring the evidence class,
+reason, and a re-evaluation date. The audit gate
+[`audit_override_policy.py`](../scripts/audit_override_policy.py)
+flags any `sizing_override` without `override_policy`; at Stage 2
+(release-strict) the missing block fails the build.
+
+### Schema
+
+```yaml
+override_policy:
+  class: bench | production | qa | tier-aware
+  reason: "short operator-facing justification"
+  evidence_refs:
+    - path: tests/integration/baselines/prod-X_2026-05-23.json
+      visibility: public           # public | private
+  allowed_to_exceed_hardware_default: false   # Path A only
+  expires_at: "2026-08-22"
+```
+
+### Class ladder (strict → permissive)
+
+| Class | Meaning |
+|---|---|
+| `production` | Both bench evidence AND per-preset `config` block cross-validation exist; promotion-ready. |
+| `bench` | Bench evidence exists; per-preset `config` cross-validation deferred. **All 14 prod-\* presets sit here today** (DEBT.1 / 2A / 2B / 2C closure). |
+| `qa` | Lives in the QA harness; not for end-user production. |
+| `tier-aware` | Allowed to exceed `hardware.max_model_len_default` because PN95 tier-aware page demotion makes the override viable. Requires explicit `allowed_to_exceed_hardware_default: true` operator acknowledgement (Path A). |
+
+### `expires_at` 90-day cycle
+
+Every annotation in the DEBT closure batch carries
+`expires_at: 2026-08-22` (90 days from CONFIG-UX.4 closure). The
+forcing function is intentional: at expiry the audit re-fires unless
+the operator re-evaluates the evidence and either renews the date or
+promotes the class. Use the catalog query to surface expiring
+overrides:
+
+```bash
+sndr config-catalog query --row-type profile \
+                          --field override_expires_at \
+                          --expires-before 2026-09-01
+```
+
+### Class-4 forbidden overrides
+
+Four predicates fire unconditionally at audit-time **regardless** of
+any `override_policy.reason` justification. They encode physics /
+evidence constraints, not rollout policy:
+
+| Predicate | Trigger |
+|---|---|
+| `gpu_memory_utilization > 1.0` | Physical impossibility. |
+| `tensor_parallel_size > hardware.n_gpus` | Profile would request more GPUs than the hardware row declares. |
+| `kv_cache_dtype` downgrade vs `model.kv_cache_dtype` | Static narrowness ordering (`auto > fp8 > int8 > int4`); a profile cannot widen below what the model declares. |
+| `spec_decode` method-name change vs model declaration | K-only changes remain allowed; method-name changes (e.g. `ngram` → `mtp`) require a model-side change. |
+
+The global silence env (`GENESIS_DISABLE_V1_DEPRECATION_WARNING=1`)
+does NOT suppress Class-4 errors.
+
+---
+
+## Rollout staging (CONFIG-UX.4.1)
+
+The V1 → V2 migration runs through four operator-controlled severity
+stages. Stage governs **how loudly** observed drift is surfaced; it
+does not change what is observed. Default is Stage 1 (since CONFIG-UX.4.2
+closure).
+
+| Stage | Env value | Severity matrix for `missing_override_policy` / `v1_deprecation` / `unannotated_card` |
+|---|---|---|
+| 0 | `SNDR_V1_ROLLOUT_STAGE=0` | All buckets emit INFO. Useful only for one-off rollback during a transition window. |
+| 1 (default) | `SNDR_V1_ROLLOUT_STAGE=1` | Non-tombstone buckets emit WARN; tombstone buckets emit ERROR. Observable behaviour identical to Stage 0 for non-tombstone events. |
+| 2 (release-strict) | `SNDR_V1_ROLLOUT_STAGE=2` | All non-tombstone buckets become ERROR. Used by `make evidence-release` (tag-push CI). |
+| 3 (reserved) | `SNDR_V1_ROLLOUT_STAGE=3` | Reserved for the final cutover; the V1 migration table tombstones graduate to tombstone class. |
+
+### V1 migration table
+
+[`scripts/audit_v1_migration.py`](../scripts/audit_v1_migration.py)
+classifies every legacy V1 monolithic key into one of four buckets via
+the frozen
+[`vllm/sndr_core/model_configs/_v1_migration_table.json`](../vllm/sndr_core/model_configs/_v1_migration_table.json)
+(shipped as package data):
+
+| Bucket | Action implied |
+|---|---|
+| `transparent` | V1 key still works exactly the same under V2 compose; no operator action. |
+| `needs_operator_choice` | V1 key maps to a V2 surface that requires an explicit choice (default vs explicit value). Stage 1 emits a hint per occurrence. |
+| `deprecated` | V1 key is still honoured but Genesis will remove it; operators should migrate. |
+| `tombstone` | V1 key was removed and has no equivalent. Stage 1 ERROR; Stage 2 release-blocker. |
+
+Run informationally:
+
+```bash
+make audit-v1-migration                          # default stage env-driven
+SNDR_V1_ROLLOUT_STAGE=2 make audit-v1-migration  # preview release-strict
+```
+
+### Global silence env
+
+`GENESIS_DISABLE_V1_DEPRECATION_WARNING=1` suppresses
+`v1_deprecation` / `unannotated_card` / `missing_override_policy`
+INFO/WARN output. It does NOT suppress:
+
+- Class-4 forbidden override errors (always ERROR; physics / evidence).
+- `tombstone` bucket events (Stage 1 ERROR onwards).
+- Stage 2 release-strict errors regardless of category.
+
+---
+
 ## Rollback / debug overrides
 
 | Env var | When to use |
@@ -409,6 +521,8 @@ These are not Genesis env vars — they're vLLM / PyTorch / NCCL / Triton settin
 | `GENESIS_P67_USE_UPSTREAM=0` | Use Genesis v7.22 kernel instead of upstream |
 | `GENESIS_P67_USE_FUSED=1` | A/B test fused-M kernel (default off, expected slower on A5000) |
 | `VLLM_LOGGING_LEVEL=INFO` | Boot diagnostics: dispatcher apply matrix per patch |
+| `SNDR_V1_ROLLOUT_STAGE=0` | Revert to Stage 0 INFO-only during a transition window |
+| `GENESIS_DISABLE_V1_DEPRECATION_WARNING=1` | Silence V1-migration WARNs (does NOT suppress Class-4 or tombstone) |
 
 For full revert paths, use git tags:
 

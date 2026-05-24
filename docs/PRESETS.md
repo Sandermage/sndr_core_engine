@@ -100,6 +100,47 @@ the model family but lack the per-preset `config` block cross-validation
 that `production` requires. Promotion to `production` is a CONFIG-UX.4
 audit-driven decision (separate from card annotation).
 
+### Card status vs profile `override_policy` — two separate ladders
+
+The card's `status` describes **operator-product maturity** of the
+*preset*. The profile's `override_policy.class` describes **evidence
+maturity** of any `sizing_override` block on the underlying *profile*
+(see `docs/CONFIGURATION.md` → "Override policy"). They are independent:
+
+- A `production_candidate` preset CAN compose a profile carrying
+  `override_policy.class: bench` (sizing override has bench evidence
+  but not full production cross-validation). This is the common state
+  for the 14 prod-\* presets today.
+- A `production` preset MUST compose a profile carrying
+  `override_policy.class: production` (or no `sizing_override` at all).
+  This is the gating contract for the promotion step.
+
+`audit_override_policy.py` (default-on at Stage 1) flags any
+`sizing_override` block lacking a matching `override_policy`. Class-4
+forbidden override predicates fire unconditionally — see
+`docs/CONFIGURATION.md` → "Class-4 forbidden overrides".
+
+### Browse cards via the derived catalog
+
+The derived config catalog (`sndr config-catalog`,
+[`CLI_REFERENCE.md`](CLI_REFERENCE.md) §13) exposes the same card data
+as `sndr preset show` plus the underlying profile / model / hardware
+/ baseline rows. Use it for **read-only inspection** when scripting or
+when the operator-facing CLI is too narrow:
+
+```bash
+# Show a preset's full card + composed config
+sndr config-catalog show preset/prod-35b
+
+# Find every profile with bench-class override_policy expiring soon
+sndr config-catalog query --row-type profile \
+                          --field override_expires_at \
+                          --expires-before 2026-09-01
+```
+
+The catalog is a derived API (rebuilt on demand, no committed JSON);
+`sndr preset` remains the operator-facing surface for daily use.
+
 ## Evidence visibility
 
 `card.evidence_visibility` (and per-`evidence_refs[].visibility`)
@@ -231,6 +272,8 @@ sndr preset recommend --workload free_chat \
 ## See also
 
 - [`CLI_REFERENCE.md`](CLI_REFERENCE.md) §8 — flag-level surface for `sndr preset`
+- [`CLI_REFERENCE.md`](CLI_REFERENCE.md) §13 — derived config catalog (`sndr config-catalog`)
+- [`CONFIGURATION.md`](CONFIGURATION.md) — `override_policy`, `SNDR_V1_ROLLOUT_STAGE`, Class-4 forbidden overrides
 - [`MODELS.md`](MODELS.md) — model-side catalog (one row per ModelDef)
 - [`PATCHES.md`](PATCHES.md) — patch taxonomy (referenced by `profile.patches_delta`)
 - [`CORE_ENGINE_BOUNDARY.md`](CORE_ENGINE_BOUNDARY.md) — three-zone namespace policy that governs evidence visibility

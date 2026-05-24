@@ -868,6 +868,130 @@ sndr config diff prod-35b prod-35b-multiconc
 sndr config explain prod-35b
 ```
 
+`sndr config` is the V1 + V2 preset inventory surface — distinct from
+`sndr config-catalog` (§13), which is the **derived catalog** view of
+the same V2 corpus with row-level redaction and a fixed-DSL query
+language.
+
+---
+
+## 13. Derived config catalog (CONFIG-UX.5)
+
+### `sndr config-catalog` — **stable**
+
+Read-only API over the V2 model-config corpus + registry. The catalog
+is a **derived view**, not a new source of truth: every row is rebuilt
+on demand from `model_configs/builtin/*.yaml` and
+`dispatcher/registry.py`. **No catalog JSON is committed to git.**
+Operators regenerate locally; CI verifies determinism and redaction.
+
+Five row types — `preset`, `profile`, `model`, `hardware`, `baseline` —
+each with its own schema (see
+[`vllm/sndr_core/model_configs/catalog_schema.py`](../vllm/sndr_core/model_configs/catalog_schema.py)).
+
+**Redaction.** Maintainer-private tree paths and `visibility: private`
+evidence refs are stripped at output time on every leaf (`--redact-private`
+is the default). The same generator drives both the public catalog and
+any maintainer-private debug view — redaction is the only difference.
+
+#### `sndr config-catalog build` — **stable**
+
+Rebuild the catalog and emit JSON.
+
+```bash
+sndr config-catalog build --stdout                # print to stdout
+sndr config-catalog build --out catalog.json      # write to a path
+sndr config-catalog build --check                 # verify deterministic
+                                                   # regeneration (CI mode)
+```
+
+`--check` exits non-zero if a second build produces different bytes.
+
+#### `sndr config-catalog verify` — **stable**
+
+Thin wrapper over
+[`scripts/audit_generated_config_catalog.py`](../scripts/audit_generated_config_catalog.py).
+Verifies the derived catalog regenerates deterministically AND that no
+private paths leak.
+
+```bash
+sndr config-catalog verify --strict --json
+```
+
+Default mode is informational (warnings exit 0); `--strict` exits 1 on
+any finding.
+
+#### `sndr config-catalog show <row_id>` — **stable**
+
+Print a single row from the derived catalog. Collision-aware row IDs:
+when the same `id` exists across row types (e.g. a preset and a
+profile both named `prod-35b`), use the prefixed form:
+
+```bash
+sndr config-catalog show preset/prod-35b
+sndr config-catalog show prod-35b               # bare form OK if unambiguous
+sndr config-catalog show profile/35b-dflash --section override_policy
+```
+
+`--section <SECTION>` narrows the output to a top-level catalog field.
+
+#### `sndr config-catalog query` — **stable**
+
+Filter the derived catalog. **AND-only, five fixed flags**, no
+expressions / joins / sort / JSONPath.
+
+```bash
+# All profiles with override_class = bench
+sndr config-catalog query --row-type profile \
+                          --field override_class --equals bench
+
+# Substring match
+sndr config-catalog query --row-type preset \
+                          --field card.status --contains production
+
+# Time-window filter (only `--field override_expires_at`)
+sndr config-catalog query --row-type profile \
+                          --field override_expires_at \
+                          --expires-before 2026-09-01
+```
+
+Flags:
+
+| Flag | Meaning |
+|---|---|
+| `--row-type {preset,profile,model,hardware,baseline,any}` | Restrict by row type. `any` includes all five. |
+| `--field FIELD` | Top-level row field (`override_class`, `card.status`, etc.). Unknown fields error out with the available-fields list. |
+| `--equals VALUE` | Exact match (mutually exclusive with `--contains` / `--expires-before`). |
+| `--contains VALUE` | Substring match. |
+| `--expires-before YYYY-MM-DD` | Only valid on date fields. Invalid date format exits 2. |
+| `--json` | Machine-readable output (default is human-formatted). |
+
+#### `sndr config-catalog` — `--from` and `--strict-fresh`
+
+`build` / `verify` / `show` / `query` accept `--from PATH` to read from
+a previously-emitted catalog JSON file instead of regenerating:
+
+```bash
+sndr config-catalog show prod-35b --from /tmp/catalog.json --strict-fresh
+```
+
+With `--strict-fresh`, the CLI compares the file's mtime against the
+source YAMLs and **exits non-zero on staleness** — it does NOT silently
+regenerate. This is the gating behaviour for CI / release pipelines
+that pin a specific catalog snapshot.
+
+#### Umbrella alias
+
+```bash
+make config-catalog        # → sndr config-catalog build
+```
+
+For the deterministic regeneration + redaction audit gate:
+
+```bash
+make audit-generated-config-catalog
+```
+
 ---
 
 ## Exit codes

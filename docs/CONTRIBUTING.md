@@ -271,6 +271,41 @@ Genesis ships with several automated audit scripts that close recurring drift cl
 | [`scripts/generate_patches_md.py`](../scripts/generate_patches_md.py) | Auto-gen `docs/PATCHES_AUTO.md` from registry. | `--check` mode in CI; bare run regenerates |
 | [`scripts/generate_configs_md.py`](../scripts/generate_configs_md.py) | Auto-gen `docs/CONFIGS_AUTO.md` from builtin YAMLs. | same pattern |
 | [`tools/audit_yaml_vs_runtime.sh`](../tools/audit_yaml_vs_runtime.sh) | YAML `genesis_env` vs `docker inspect` env drift. | `bash tools/audit_yaml_vs_runtime.sh <yaml> <container> [<ssh_host>]` |
+| [`scripts/audit_override_policy.py`](../scripts/audit_override_policy.py) | CONFIG-UX.4: every profile with `sizing_override` carries a matching `override_policy`. Four Class-4 forbidden predicates fire unconditionally (GMU > 1.0, TP > n_gpus, kv-dtype downgrade, spec-decode method change). | `make audit-override-policy`; `--strict` exits 1 on any finding |
+| [`scripts/audit_v1_migration.py`](../scripts/audit_v1_migration.py) | CONFIG-UX.4.1: classifies legacy V1 keys into transparent / needs\_operator\_choice / deprecated / tombstone buckets via the frozen `_v1_migration_table.json`. | `make audit-v1-migration`; severity matrix follows `SNDR_V1_ROLLOUT_STAGE` |
+| [`scripts/audit_config_catalog.py`](../scripts/audit_config_catalog.py) | CONFIG-UX.audit: preset card shape + `production_candidate` evidence-visibility hints. | `make audit-config-catalog` |
+| [`scripts/audit_generated_config_catalog.py`](../scripts/audit_generated_config_catalog.py) | CONFIG-UX.5.1: derived catalog regenerates deterministically AND no private paths leak. | `make audit-generated-config-catalog` (default informational; `--strict` for CI) |
+| [`scripts/audit_public_docs.py`](../scripts/audit_public_docs.py) | D-1..D-8 public-docs boundary: no maintainer-private-tree links, no RFC-1918 IPs, no operator paths, no server container names, no retired CLI verbs, no unresolved TODOs/placeholders, no stale-version-as-current anchors, no stale-pin-as-current anchors. | `make audit-public-docs` |
+
+### Release-strict Stage 2 (CONFIG-UX.4.2)
+
+`make evidence-release` runs the three CONFIG-UX audits with
+`SNDR_V1_ROLLOUT_STAGE=2` exported, which flips the severity matrix
+so non-tombstone buckets escalate from WARN to ERROR:
+
+```bash
+make evidence-release        # local mirror of tag-push CI
+```
+
+The release-strict job lives in
+[`.github/workflows/release.yml`](../.github/workflows/release.yml)
+(`rollout_strict_audit`). It fires only on tag push; PR CI uses
+Stage 1 defaults. The gate runs:
+
+- `audit_override_policy.py --strict` — fails on any
+  `missing_override_policy` OR Class-4 forbidden predicate.
+- `audit_v1_migration.py --strict` — fails on `tombstone` bucket
+  hits and on any `deprecated` key still referenced by an active
+  preset.
+- `audit_generated_config_catalog.py --strict` — fails on
+  non-deterministic regeneration or any private-path leak.
+
+Operator escape hatch: a one-release transition window remains
+available via `SNDR_V1_ROLLOUT_STAGE=0` (explicit revert to
+informational). Class-4 errors remain ERROR regardless — they encode
+physics, not rollout policy. See
+[`CONFIGURATION.md`](CONFIGURATION.md) → "Override policy" and
+"Rollout staging" for the operator-facing surface.
 
 ### Iron rule #11 (retire provenance)
 
