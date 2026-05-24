@@ -4731,7 +4731,23 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "apply_module": "vllm.sndr_core.integrations.model_compat.gemma4.g4_04_gemma4_awq_moe_keys_remap",
         "lifecycle": "stable",
         "stable_kind": "text-patch",
-        "credit": "Vendors vllm#40886 — AWQ MoE keys remap for Gemma 4 26B-A4B checkpoint compatibility.",
+        "credit": (
+            "Vendors vllm#40886 — AWQ MoE keys remap for Gemma 4 26B-A4B "
+            "checkpoint compatibility. "
+            "Cross-file supersession watchlist (PIN.R-DRIFT-MARKER-AUDIT "
+            "2026-05-24): patch's `upstream_merged_markers` watch only "
+            "the target `vllm/model_executor/models/gemma4.py`, but the "
+            "upstream fix could plausibly land in a shared MoE / AWQ "
+            "key-mapping abstraction. At next pin bump, BEFORE concluding "
+            "no-supersession, grep for `moe.gate_up_proj_packed` and "
+            "`moe.down_proj_packed` across "
+            "`vllm/model_executor/layers/quantization/compressed_tensors/`, "
+            "`vllm/model_executor/layers/quantization/awq*.py`, and "
+            "`vllm/model_executor/layers/quantization/utils/marlin_utils*.py`. "
+            "Same blind-spot pattern that PIN.R-G4_05-RETIRE.1 (2026-05-24) "
+            "uncovered for G4_05 — recorded preventively here to make the "
+            "next parity pass actionable."
+        ),
         "upstream_pr": "https://github.com/vllm-project/vllm/pull/40886",
         "requires_patches": [],
         "conflicts_with": [],
@@ -4805,7 +4821,23 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "source": "vendor_backport",
         "apply_module": "vllm.sndr_core.integrations.kv_cache.g4_06_kv_proj_v_head_size_zero",
         "lifecycle": "experimental",
-        "credit": "Vendors __init__ portion of vllm#41944. ~3% memory savings on V-slot weights for global attention layers.",
+        "credit": (
+            "Vendors __init__ portion of vllm#41944. ~3% memory savings on "
+            "V-slot weights for global attention layers. "
+            "Cross-file supersession watchlist (PIN.R-DRIFT-MARKER-AUDIT "
+            "2026-05-24): patch's `upstream_merged_markers` watch only "
+            "the target `vllm/model_executor/models/gemma4.py`, but the "
+            "k_eq_v / v_head_size optimization could plausibly be "
+            "promoted to a generic attention-layer abstraction during "
+            "upstream review. At next pin bump, BEFORE concluding "
+            "no-supersession, grep for `v_head_size=0` and "
+            "`use_k_eq_v` across `vllm/attention/layer.py`, "
+            "`vllm/model_executor/layers/attention.py`, and any new "
+            "AttentionConfig surface in `vllm/config/`. Same blind-spot "
+            "pattern that PIN.R-G4_05-RETIRE.1 (2026-05-24) uncovered "
+            "for G4_05 — recorded preventively here to make the next "
+            "parity pass actionable."
+        ),
         "upstream_pr": "https://github.com/vllm-project/vllm/pull/41944",
         "requires_patches": [],
         "conflicts_with": [],
