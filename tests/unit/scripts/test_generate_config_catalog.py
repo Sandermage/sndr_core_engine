@@ -13,6 +13,21 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "scripts" / "generate_config_catalog.py"
+BUILTIN = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
+BASELINES = REPO_ROOT / "tests" / "integration" / "baselines"
+
+
+def _expected_row_counts() -> dict:
+    """Derive expected per-type row counts from live source filesystem
+    so the test does not freeze on counter drift (e.g. when a new
+    preset/baseline lands)."""
+    return {
+        "preset": len(list((BUILTIN / "presets").glob("*.yaml"))),
+        "profile": len(list((BUILTIN / "profile").glob("*.yaml"))),
+        "model": len(list((BUILTIN / "model").glob("*.yaml"))),
+        "hardware": len(list((BUILTIN / "hardware").glob("*.yaml"))),
+        "baseline": len(list(BASELINES.glob("*.json"))),
+    }
 
 
 def _import_gen():
@@ -53,17 +68,20 @@ class TestDeterminism:
         )
 
     def test_row_count_stable(self):
-        """Row count = 21 preset + 21 profile + 10 model + 3 hardware + 5 baseline = 60."""
+        """Row counts per type match live source filesystem; total is
+        sum of types. Parametric so it survives addition/removal of
+        baseline files, presets, etc."""
         mod = _import_gen()
         rows = mod.build_catalog()
         from collections import Counter
         types = Counter(r["row_type"] for r in rows)
-        assert types["preset"] == 21
-        assert types["profile"] == 21
-        assert types["model"] == 10
-        assert types["hardware"] == 3
-        assert types["baseline"] == 5
-        assert len(rows) == 60
+        expected = _expected_row_counts()
+        for row_type, count in expected.items():
+            assert types[row_type] == count, (
+                f"row_type={row_type!r}: catalog has {types[row_type]}, "
+                f"filesystem has {count}"
+            )
+        assert len(rows) == sum(expected.values())
 
 
 # ─── Redaction enforcement ─────────────────────────────────────────────────
@@ -205,8 +223,9 @@ class TestJSONOutput:
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert data["schema_version"] == 1
-        assert data["row_count"] == 60
         assert isinstance(data["rows"], list)
+        assert data["row_count"] == len(data["rows"])
+        assert data["row_count"] == sum(_expected_row_counts().values())
 
     def test_rows_sorted_by_type_then_id(self):
         result = _run_cli("--stdout")
