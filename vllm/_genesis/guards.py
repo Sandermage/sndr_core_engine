@@ -208,7 +208,7 @@ def is_ampere_datacenter() -> bool:
 
 
 def is_ampere_consumer() -> bool:
-    """NVIDIA A5000 / A6000 / RTX 3090 — SM 8.6.
+    """NVIDIA A40 / A5000 / A6000 / RTX 3090 — SM 8.6.
 
     Genesis prod baseline.
     """

@@ -22,6 +22,7 @@ Different cards in the Genesis user community have different ceilings:
 | RTX 4090                     | GDDR6X    | 1008           | 72 MB  | 128  | mixed/compute |
 | RTX 5090                     | GDDR7     | 1792           | 88 MB  | 170  | compute       |
 | RTX A6000                    | GDDR6     | 768            |  6 MB  | 84   | bandwidth     |
+| NVIDIA A40                   | GDDR6     | 696            |  6 MB  | 84   | bandwidth     |
 | L40 / L40S                   | GDDR6     | 864            | 96 MB  | 142  | mixed/compute |
 | RTX PRO 4000 Blackwell 24G   | GDDR7     | 672            | 24 MB  | 70   | mixed         |
 | RTX PRO 4500 Blackwell 32G   | GDDR7     | 896            | 32 MB  | 84   | mixed         |
@@ -80,6 +81,8 @@ GPU_SPECS: dict[str, dict] = {
                   "regime": "bandwidth", "name_canonical": "RTX A5000"},
     "rtx a6000": {"bandwidth_gb_s": 768, "l2_mb": 6, "sm": 84, "cc": (8, 6),
                   "regime": "bandwidth", "name_canonical": "RTX A6000"},
+    "a40": {"bandwidth_gb_s": 696, "l2_mb": 6, "sm": 84, "cc": (8, 6),
+            "regime": "bandwidth", "name_canonical": "NVIDIA A40"},
     "a100": {"bandwidth_gb_s": 2039, "l2_mb": 40, "sm": 108, "cc": (8, 0),
              "regime": "compute", "name_canonical": "A100 (SXM 80GB)"},
     # Ada (RTX 40-series + L40)
