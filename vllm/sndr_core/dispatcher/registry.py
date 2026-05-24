@@ -3557,18 +3557,37 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "default_on": True,
         "category": "spec_decode",
         "credit": (
-            "Backport of vllm#42603 (z1ying, OPEN 2026-05-14). Closes a "
+            "Defensive overlay derived from vllm#42603 (z1ying). Closes a "
             "cudaErrorIllegalAddress race in LLMBaseProposer.propose() "
             "where the input_ids / hidden_states buffer writes on the "
             "default stream were not synchronized before downstream "
             "attention kernels ran on a different stream (FlashInfer "
-            "default). Reproduced upstream on Qwen3.6-27B-FP8 + RTX 5090. "
-            "Genesis ships ON for any spec-decode method; cost is a "
-            "single-stream synchronize() — ~0 in the common case where "
-            "the producer kernel has already finished."
+            "default). Reproduced upstream on Qwen3.6-27B-FP8 + RTX 5090; "
+            "root bug tracked at vllm#40756 (OPEN). "
+            "PIN.R-DEEP-PARITY.1 (2026-05-24) verified the upstream pin "
+            "0.20.2rc1.dev371+gbf610c2f5 and current main both lack any "
+            "equivalent sync call; PR #42603 was CLOSED 2026-05-14 by "
+            "maintainer @benchislett with the verbatim rationale "
+            "\"forcing a synchronization is an unacceptable fix\" — the "
+            "bug is acknowledged upstream but the simple fix was "
+            "rejected pending root-cause investigation. "
+            "Genesis ships a REFINED form that addresses the maintainer's "
+            "objection: the sync is backend-gated (auto-enabled only for "
+            "FlashInfer family, where the race is empirically confirmed) "
+            "with operator override via GENESIS_P108_FORCE_SYNC=0|1, and "
+            "a cached first-call decision so the per-step overhead is a "
+            "single attribute read on non-racy backends. Genesis bench: "
+            "−14% wall TPS on 27B INT4 + TurboQuant + MTP K=3 if sync is "
+            "unconditional, confirming the gate is mandatory for "
+            "performance. PIN.R-P108-METADATA.1 (2026-05-24) reclassifies "
+            "upstream_pr_relationship from `backport` to "
+            "`defensive_overlay` to lock the entry against status-only "
+            "retire if PR #42603 is ever re-opened-and-merged in its "
+            "rejected simple-sync form — iron-rule-#11 deep-parity "
+            "remains the only retire path."
         ),
         "upstream_pr": 42603,
-        "upstream_pr_relationship": "backport",
+        "upstream_pr_relationship": "defensive_overlay",
         "applies_to": {
             "spec_method_any": ["mtp", "eagle", "dflash"],
         },
