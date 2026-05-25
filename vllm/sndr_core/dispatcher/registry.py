@@ -1232,18 +1232,21 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "lifecycle": "experimental",
         "experimental_note": (
-            "Backport vllm#42739 (OPEN). Correctness fix: Triton "
-            "top-k/top-p kernel computes row_ptr = base + row * VOCAB "
-            "assuming contiguous row-major. Non-contiguous views (from "
-            "index_select/slicing) → kernel reads garbage. PN132 wraps "
-            "apply_top_k_top_p_triton с contiguous() guarantee. "
+            "Backport vllm#42739 (merged 2026-05-23). Correctness fix: "
+            "Triton top-k/top-p kernel computes row_ptr = base + row * "
+            "VOCAB assuming contiguous row-major. Non-contiguous views "
+            "(from index_select/slicing) → kernel reads garbage. PN132 "
+            "wraps apply_top_k_top_p_triton с contiguous() guarantee. "
             "У нас VLLM_USE_FLASHINFER_SAMPLER=1 → Triton path обычно "
             "не используется (FlashInfer первый), но fallback возможен "
-            "для unsupported combos. Defense-in-depth."
+            "для unsupported combos. Defense-in-depth. Current pin "
+            "bf610c2f5 (2026-05-15) is before the merge so PN132 still "
+            "applies; bump past commit d19db10974587 triggers retire."
         ),
         "credit": "Backport vllm#42739 by Sandermage 2026-05-15.",
         "upstream_pr": 42739,
         "upstream_pr_relationship": "backport",
+        "superseded_by": "vllm#42739 (merged 2026-05-23, commit d19db10974587335ec3a37e0a424abb57430574e)",
         "requires_patches": [],
         "conflicts_with": [],
         "applies_to": {

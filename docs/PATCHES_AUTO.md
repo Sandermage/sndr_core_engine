@@ -4,7 +4,7 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-25T12:57:47Z
+Generated: 2026-05-25T18:55:46Z
 Total entries: **228**
 
 ## Statistics
