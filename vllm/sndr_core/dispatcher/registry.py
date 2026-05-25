@@ -3960,6 +3960,27 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
+    "P91B": {
+        "title": "AutoRound row-group cdiv defensive coverage for INC + compressed-tensors schemes (P91 sibling, vllm#39460-derived)",
+        "tier": "community",
+        "family": "quantization",
+        "env_flag": "GENESIS_ENABLE_P91B",
+        "default_on": False,
+        "category": "quantization",
+        "credit": "Defensive sibling of P91. Same bug class (silent dequant corruption when input_size % group_size != 0 or input_size_per_partition % group_size != 0 for row-group quantized layers) in files that vllm#39460 did NOT touch: inc.py (Intel Neural Compressor linear method) and compressed_tensors/schemes/{compressed_tensors_wNa16,compressed_tensors_w4a8_fp8}.py. cdiv-only fix (3 sub-patches across 3 files). inc.py carries a cross-pin anchor drift between dev338 (`self.group_size`) and dev371 (bare `group_size`); P91B uses two independent factories per Option A from the Step 0 anchor manifest, whichever matches the live pin applies. compressed_tensors_w4a8_int.py is NOT covered — its function-head assert proactively rejects partial-group shards, so the floor-div there is always exact and there is no silent-corruption surface to fix. The inc.py setattr companion for P91's parameter.py loader gate is also NOT covered: it is infrastructure for an existing fix rather than a new bug fix, deferred to a future refresh if INC enters Genesis prod use. Relationship to vllm#39460 is `related_not_superseding` (not `backport`) because the PR did not touch these files; status-based retire on upstream merge does not apply to P91B.",
+        "upstream_pr": 39460,
+        "upstream_pr_relationship": "related_not_superseding",
+        "applies_to": {
+            "quant_format": [
+                "compressed_tensors",
+                "int4_w4a16", "int8_w8a16",
+                "gptq_int4", "gptq_int8",
+            ],
+        },
+        "apply_module": "vllm.sndr_core.integrations.quantization.p91b_autoround_row_group_cdiv_multi_scheme",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+    },
 
     # ─── Legacy patches (P1–P46 series, pre-dispatcher era) ─────────────
     # These patches predate the PATCH_REGISTRY metadata system. They have

@@ -195,7 +195,8 @@ class Flags:
     # quantization family
     P81_FP8_BLOCK_SCALED_M_LE_8 = "P81_FP8_BLOCK_SCALED_M_LE_8"
     P87 = "P87"  # marlin pad sub-tile
-    P91 = "P91"  # autoround row group cdiv
+    P91 = "P91"  # autoround row group cdiv (core: auto_gptq + parameter)
+    P91B = "P91B"  # autoround row group cdiv multi-scheme (inc + ct_wNa16 + ct_w4a8_fp8)
     PN77_FP8_LM_HEAD = "PN77_FP8_LM_HEAD"
 
     # loader family

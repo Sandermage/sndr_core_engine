@@ -4,23 +4,23 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-25T12:20:14Z
-Total entries: **227**
+Generated: 2026-05-25T12:57:47Z
+Total entries: **228**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **227**
+- `tier=community`: **228**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **2**
-- `lifecycle=experimental`: **158**
+- `lifecycle=experimental`: **159**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **16**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **51** / 227
+### Default-on at boot: **51** / 228
 
 ### By family
 - `attention.flash`: 2
@@ -38,7 +38,7 @@ Total entries: **227**
 - `multimodal`: 1
 - `observability`: 1
 - `offload`: 3
-- `quantization`: 4
+- `quantization`: 5
 - `reasoning`: 9
 - `scheduler`: 8
 - `serving`: 9
@@ -268,13 +268,14 @@ Total entries: **227**
 | **PN104** | `community` | `experimental` | · | `GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT` | — | PN104 — redirect --cpu-offload-gb from UVA to Prefetch backend |
 | **PN105** | `community` | `experimental` | · | `GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT` | — | PN105 — PrefetchOffloader AutoRound INT4 compat (pin-assert relax) |
 
-### `quantization` (4)
+### `quantization` (5)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **P1** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P1` | — | FP8 kernel dispatcher (P1/P2 — Ampere FP8 viability) |
 | **P81** | `community` | `experimental` | · | `GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8` | [#40925](https://github.com/vllm-project/vllm/pull/40925) | fp8 block-scaled MM low-M decode tuning (vllm#40925) |
 | **P91** | `community` | `experimental` | · | `GENESIS_ENABLE_P91` | [#39460](https://github.com/vllm-project/vllm/pull/39460) | AutoRound row-parallel group cdiv + start-idx fix (vllm#39460) |
+| **P91B** | `community` | `experimental` | · | `GENESIS_ENABLE_P91B` | [#39460](https://github.com/vllm-project/vllm/pull/39460) | AutoRound row-group cdiv defensive coverage for INC + compressed-tensors sche... |
 | **PN77** | `community` | `experimental` | · | `GENESIS_ENABLE_PN77_FP8_LM_HEAD` | — | FP8 lm_head compression (BF16→FP8 e4m3 + per-channel scale) |
 
 ### `reasoning` (9)

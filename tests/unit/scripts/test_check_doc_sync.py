@@ -26,6 +26,18 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "check_doc_sync.py"
 
 
+def _live_registry_count() -> int:
+    """Read the current PATCH_REGISTRY entry count by invoking the
+    script in `--json` mode. Parametric so the test does not freeze on
+    counter drift when a new patch is added."""
+    import json as _json
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--json"],
+        capture_output=True, text=True, cwd=REPO_ROOT,
+    )
+    return _json.loads(result.stdout)["expected_registry_count"]
+
+
 def _import():
     name = "_check_doc_sync_test"
     if name in sys.modules:
@@ -136,7 +148,10 @@ class TestCheckDocBehavior:
 class TestLiveCorpus:
     def test_default_mode_clean(self):
         """Post-MECHANICAL: every doc anchor matches the registry count.
-        Default mode prints the clean summary and exits 0."""
+        Default mode prints the clean summary and exits 0. Count is
+        derived from the live registry so a new patch does not freeze
+        the test."""
+        expected = _live_registry_count()
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH)],
             capture_output=True, text=True, cwd=REPO_ROOT,
@@ -145,8 +160,8 @@ class TestLiveCorpus:
             f"default mode failed:\n{result.stdout}\n{result.stderr}"
         )
         out = result.stdout
-        assert "PATCH_REGISTRY count: 227" in out
-        assert "claim 227 patches consistently" in out
+        assert f"PATCH_REGISTRY count: {expected}" in out
+        assert f"claim {expected} patches consistently" in out
 
     def test_strict_mode_passes_on_clean_corpus(self):
         """--strict exits 0 because every detected anchor matches and
@@ -167,7 +182,10 @@ class TestLiveCorpus:
         )
         assert result.returncode == 0
         data = _json.loads(result.stdout)
-        assert data["expected_registry_count"] == 227
+        # `expected_registry_count` is the live count; assert it is a
+        # positive int rather than freezing a specific number.
+        assert isinstance(data["expected_registry_count"], int)
+        assert data["expected_registry_count"] > 0
         assert "transition_pending" in data
         assert "errors" in data
         assert "status" in data

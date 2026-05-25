@@ -3306,6 +3306,58 @@ def apply_patch_91_autoround_row_group_cdiv() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch(
+    "P91B AutoRound row-group cdiv defensive coverage for INC + "
+    "compressed-tensors schemes (P91 sibling, vllm#39460-derived)"
+)
+def apply_patch_91b_autoround_row_group_cdiv_multi_scheme() -> PatchResult:
+    """Patch 91B: defensive sibling of P91 covering INC + compressed-tensors
+    schemes that vllm#39460 did not touch.
+
+    Three cdiv-only sub-patches across three files:
+      - inc.py (Intel Neural Compressor) — cross-pin anchor drift
+        (`self.group_size` dev338 vs bare `group_size` dev371) handled
+        by two independent factories per Option A; whichever anchor
+        matches the live pin applies.
+      - compressed_tensors_wNa16.py — one real bug at the
+        REPEAT-all-ranks branch (the partition-scales line is
+        assert-protected upstream and left alone).
+      - compressed_tensors_w4a8_fp8.py — same structural pattern as
+        wNa16: one real bug at the unprotected REPEAT-all-ranks line.
+
+    NOT covered:
+      - compressed_tensors_w4a8_int.py (function-head assert rejects
+        partial-group shards; no silent-corruption surface)
+      - inc.py setattr companion for P91's parameter.py loader gate
+        (infrastructure for an existing fix, not a new bug fix; deferred
+        to a future refresh if INC enters Genesis prod use)
+
+    Relationship to vllm#39460 is `related_not_superseding` — the PR did
+    not touch these files, so status-based retire on upstream merge does
+    not apply.
+
+    Status: opt-in via GENESIS_ENABLE_P91B=1. Default OFF.
+    """
+    name = (
+        "P91B AutoRound row-group cdiv defensive coverage for INC + "
+        "compressed-tensors schemes (P91 sibling, vllm#39460-derived)"
+    )
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from vllm.sndr_core.integrations.quantization import (
+            p91b_autoround_row_group_cdiv_multi_scheme as p91b_mod,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = p91b_mod.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("P87 Marlin sub-tile output dim pad-on-load (vllm#40361 backport)")
 def apply_patch_87_marlin_pad_sub_tile() -> PatchResult:
     """Patch 87: backport of vllm#40361 — MarlinLinearKernel sub-tile
