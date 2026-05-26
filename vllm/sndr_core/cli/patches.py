@@ -72,11 +72,15 @@ from . import _io
 # module reference doesn't get shadowed by its re-exported function of
 # the same name (e.g. ``product_api.patches.diff_upstream`` is both a
 # module and a function).
+from vllm.sndr_core.product_api.patches import bench_attach as _bench_attach
 from vllm.sndr_core.product_api.patches import bundles as _bundles
 from vllm.sndr_core.product_api.patches import diff_upstream as _diff_upstream
 from vllm.sndr_core.product_api.patches import doctor as _doctor
 from vllm.sndr_core.product_api.patches import explain as _explain
 from vllm.sndr_core.product_api.patches import listing as _listing
+from vllm.sndr_core.product_api.patches import proof_status as _proof_status
+from vllm.sndr_core.product_api.patches import prove as _prove
+from vllm.sndr_core.product_api.patches import release_check as _release_check
 
 # ─── Back-compat shims (slated for removal in M.6.4) ─────────────────────
 
@@ -1178,16 +1182,14 @@ def add_argparser(subparsers: Any) -> None:
 def _run_prove(args: argparse.Namespace) -> int:
     """Dispatcher for `sndr patches prove [id|--all|--dead-detect]`."""
     from pathlib import Path
-    from vllm.sndr_core.proof import DEFAULT_PROOF_DIR
 
-    out_dir = Path(args.out_dir) if args.out_dir else DEFAULT_PROOF_DIR
+    out_dir = Path(args.out_dir) if args.out_dir else None
 
     if args.dead_detect:
         return _run_prove_dead_detect(args, out_dir)
     if args.prove_all:
         return _run_prove_all(args, out_dir)
     if not args.patch_id:
-        from vllm.sndr_core.cli import _io
         _io.warn("provide a patch_id, or use --all / --dead-detect")
         return 2
     return _run_prove_one(args, out_dir)
@@ -1196,17 +1198,12 @@ def _run_prove(args: argparse.Namespace) -> int:
 def _run_prove_one(args: argparse.Namespace, out_dir) -> int:
     """`sndr patches prove <id>` — verify one patch + write artefact."""
     import json as _json
-    from vllm.sndr_core.proof import (
-        build_proof_for_patch, write_proof_artefact,
-    )
 
-    proof = build_proof_for_patch(args.patch_id)
-    if not args.no_write and proof.static_checks and proof.static_checks[0].passed:
-        # Only write artefact when P-1 (patch in registry) passes — otherwise
-        # we'd be persisting "patch not found" as evidence.
-        path = write_proof_artefact(proof, out_dir)
-    else:
-        path = None
+    result = _prove.prove_one(
+        args.patch_id, out_dir=out_dir, no_write=bool(args.no_write),
+    )
+    proof = result.proof
+    path = result.artefact_path
 
     if args.json:
         payload = {
@@ -1253,38 +1250,19 @@ def _run_prove_one(args: argparse.Namespace, out_dir) -> int:
 def _run_prove_all(args: argparse.Namespace, out_dir) -> int:
     """`sndr patches prove --all` — sweep all PATCH_REGISTRY entries."""
     import json as _json
-    from vllm.sndr_core.proof import (
-        build_proof_for_patch, write_proof_artefact,
-    )
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
 
-    results = []
-    passed = 0
-    for patch_id in PATCH_REGISTRY:
-        proof = build_proof_for_patch(patch_id)
-        if not args.no_write and proof.static_checks[0].passed:
-            write_proof_artefact(proof, out_dir)
-        ok = proof.static_passed
-        if ok:
-            passed += 1
-        results.append({
-            "patch_id": patch_id,
-            "passed": ok,
-            "errors": [
-                {"rule": c.rule, "message": c.message}
-                for c in proof.static_errors
-            ],
-        })
-
-    total = len(results)
+    sweep = _prove.prove_all(out_dir=out_dir, no_write=bool(args.no_write))
+    results = list(sweep.results)
+    total = sweep.total
+    passed = sweep.passed
     coverage = (passed / total) if total else 1.0
 
     if args.json:
         print(_json.dumps({
             "total": total,
             "passed": passed,
-            "failed": total - passed,
-            "coverage_pct": round(coverage * 100, 1),
+            "failed": sweep.failed,
+            "coverage_pct": sweep.coverage_pct,
             "results": results,
         }, indent=2, sort_keys=True))
         return 0 if passed == total else 1
@@ -1305,20 +1283,19 @@ def _run_prove_all(args: argparse.Namespace, out_dir) -> int:
 def _run_prove_dead_detect(args: argparse.Namespace, out_dir) -> int:
     """`sndr patches prove --dead-detect` — list patches without artefacts."""
     import json as _json
-    from vllm.sndr_core.proof import list_dead_patches
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
 
-    dead = list_dead_patches(out_dir=out_dir)
-    total = len(PATCH_REGISTRY)
-    proven = total - len(dead)
+    detect = _prove.dead_detect(out_dir=out_dir)
+    total = detect.total_patches
+    proven = detect.proven
+    dead = list(detect.dead_patches)
     coverage = (proven / total) if total else 1.0
 
     if args.json:
         print(_json.dumps({
             "total_patches": total,
             "proven": proven,
-            "dead": len(dead),
-            "coverage_pct": round(coverage * 100, 1),
+            "dead": detect.dead_count,
+            "coverage_pct": detect.coverage_pct,
             "dead_patches": dead,
         }, indent=2, sort_keys=True))
         return 0
@@ -1326,7 +1303,7 @@ def _run_prove_dead_detect(args: argparse.Namespace, out_dir) -> int:
     print(f"sndr patches prove --dead-detect   ({total} patches in registry)")
     print("─" * 70)
     print(f"  proven (has passing static artefact): {proven}")
-    print(f"  dead   (no passing artefact):         {len(dead)}")
+    print(f"  dead   (no passing artefact):         {detect.dead_count}")
     print(f"  coverage:                             {coverage*100:.1f}%")
     print()
     if dead:
@@ -1344,19 +1321,16 @@ def _run_bench_attach(args: argparse.Namespace) -> int:
     """`sndr patches bench-attach <patch_id> <bench.json> [--baseline X.json]`."""
     import json as _json
     from pathlib import Path
-    from vllm.sndr_core.cli import _io
-    from vllm.sndr_core.proof import DEFAULT_PROOF_DIR, load_proof_artefact
-    from vllm.sndr_core.proof.bench_attach import (
-        BenchAttachError, attach_bench,
-    )
+    from vllm.sndr_core.proof.bench_attach import BenchAttachError
 
-    out_dir = Path(args.out_dir) if args.out_dir else DEFAULT_PROOF_DIR
+    out_dir = Path(args.out_dir) if args.out_dir else None
     bench = Path(args.bench_path)
     baseline = Path(args.baseline) if args.baseline else None
 
     try:
-        target = attach_bench(
-            args.patch_id, bench,
+        result = _bench_attach.attach_bench(
+            args.patch_id,
+            bench,
             baseline_path=baseline,
             out_dir=out_dir,
         )
@@ -1364,8 +1338,8 @@ def _run_bench_attach(args: argparse.Namespace) -> int:
         _io.warn(str(e))
         return 2
 
-    data = load_proof_artefact(target)
-    bench_delta = data.get("bench_delta", {}) or {}
+    target = result.artefact_path
+    bench_delta = result.bench_delta
 
     if args.json:
         print(_json.dumps({
@@ -1417,41 +1391,41 @@ def _run_proof_status(args: argparse.Namespace) -> int:
     """`sndr patches proof-status` — bucket summary of patch proof state."""
     import json as _json
     from pathlib import Path
-    from vllm.sndr_core.proof import (
-        DEFAULT_PROOF_DIR, PROOF_STATUS_BUCKETS, summarize_proof_status,
-    )
+    from vllm.sndr_core.proof import DEFAULT_PROOF_DIR, PROOF_STATUS_BUCKETS
 
     out_dir = Path(args.out_dir) if args.out_dir else DEFAULT_PROOF_DIR
-    summary = summarize_proof_status(out_dir=out_dir)
+    bucket_filter: Optional[list[str]] = list(args.bucket) if args.bucket else None
+    try:
+        result = _proof_status.proof_status(
+            out_dir=out_dir, bucket_filter=bucket_filter,
+        )
+    except _proof_status.UnknownBucketError as e:
+        _io.warn(
+            f"unknown bucket(s): {e.unknown!r}. "
+            f"Valid: {e.valid}"
+        )
+        return 2
 
-    # Optional bucket filter.
-    filter_set: Optional[set[str]] = None
-    if args.bucket:
-        unknown = [b for b in args.bucket if b not in PROOF_STATUS_BUCKETS]
-        if unknown:
-            from vllm.sndr_core.cli import _io
-            _io.warn(
-                f"unknown bucket(s): {unknown!r}. "
-                f"Valid: {list(PROOF_STATUS_BUCKETS)}"
-            )
-            return 2
-        filter_set = set(args.bucket)
-        filtered = [p for p in summary["patches"] if p["bucket"] in filter_set]
-    else:
-        filtered = summary["patches"]
+    filter_set: Optional[set[str]] = (
+        set(result.filter_buckets) if result.filter_buckets is not None else None
+    )
+    filtered = list(result.patches)
 
     if args.json:
         payload = {
-            "total": summary["total"],
-            "counts": summary["counts"],
+            "total": result.total,
+            "counts": result.counts,
             "patches": filtered,
-            "filter_buckets": sorted(filter_set) if filter_set else None,
+            "filter_buckets": (
+                sorted(result.filter_buckets)
+                if result.filter_buckets is not None else None
+            ),
         }
         print(_json.dumps(payload, indent=2, sort_keys=True))
         return 0
 
-    counts = summary["counts"]
-    total = summary["total"]
+    counts = result.counts
+    total = result.total
     print(f"sndr patches proof-status — {total} patches, {out_dir}")
     print("─" * 70)
     for b in PROOF_STATUS_BUCKETS:
@@ -1483,36 +1457,32 @@ def _run_release_check(args: argparse.Namespace) -> int:
     """
     import json as _json
     from pathlib import Path
-    from vllm.sndr_core.cli import _io
     from vllm.sndr_core.proof import DEFAULT_PROOF_DIR
-    from vllm.sndr_core.proof.release_check import (
-        ReleaseCheckError, ReleasePolicy, evaluate_release,
-    )
+    from vllm.sndr_core.proof.release_check import ReleaseCheckError
 
     out_dir = Path(args.out_dir) if args.out_dir else DEFAULT_PROOF_DIR
 
-    # Build the patch filter: --patch is the explicit operator-driven
-    # list; --scope production-subset programmatically widens it to the
-    # canonical hardened-release scope (every patch enabled by any prod-*
-    # preset + default_on=True entries). When both are given, --patch
-    # wins (operator override).
-    patch_filter = frozenset(args.patch) if args.patch else None
-    if patch_filter is None and getattr(args, "scope", "all") == "production-subset":
-        from vllm.sndr_core.proof.production_subset import get_production_subset
-        patch_filter = get_production_subset()
+    # --patch wins over --scope production-subset (operator override);
+    # both flags are surfaced to the product_api which performs the
+    # production-subset expansion when ``patch_filter`` is unset.
+    patch_filter = list(args.patch) if args.patch else None
+    tier_filter = list(args.tier) if args.tier else None
+    scope = getattr(args, "scope", "all")
 
     try:
-        policy = ReleasePolicy(
+        result = _release_check.release_check(
             mode=args.mode,
+            out_dir=out_dir,
             max_regression_pct=args.max_regression_pct,
             patch_filter=patch_filter,
-            tier_filter=frozenset(args.tier) if args.tier else None,
+            tier_filter=tier_filter,
+            scope=scope,
         )
     except ReleaseCheckError as e:
         _io.warn(str(e))
         return 2
 
-    report = evaluate_release(policy, out_dir=out_dir)
+    report = result.raw
 
     if args.json:
         print(_json.dumps(report, indent=2, sort_keys=True))

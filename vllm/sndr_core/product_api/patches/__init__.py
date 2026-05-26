@@ -11,17 +11,23 @@ from __future__ import annotations
 # submodule name is preserved as a package attribute even when the
 # submodule re-exports a function of the same name (e.g. the
 # ``diff_upstream`` function inside the ``diff_upstream`` module).
+from . import bench_attach
 from . import bundles
 from . import diff_upstream
 from . import doctor
 from . import explain
 from . import listing
+from . import proof_status
+from . import prove
+from . import release_check
 from . import types
 
 # Public callable / dataclass re-exports. Where a function name would
-# collide with its module (``diff_upstream``), we expose the function
-# under a non-colliding alias (``diff_upstream_report``) to keep the
-# submodule attribute pointing at the module object.
+# collide with its module (``diff_upstream`` / ``release_check`` /
+# ``proof_status`` / ``bench_attach``), we either skip the re-export or
+# rename the function so the submodule attribute keeps pointing at the
+# module object.
+from .bench_attach import BenchAttachResult
 from .bundles import BUNDLES_CATALOG, explain_bundle, list_bundles
 from .diff_upstream import diff_upstream as diff_upstream_report
 from .doctor import run_doctor
@@ -32,6 +38,16 @@ from .listing import (
     spec_to_row,
     spec_to_row_dict,
 )
+from .proof_status import ProofStatusResult, UnknownBucketError
+from .prove import (
+    DeadDetectResult,
+    ProveAllResult,
+    ProveOneResult,
+    dead_detect,
+    prove_all,
+    prove_one,
+)
+from .release_check import ReleaseCheckResult
 from .types import (
     BundleSpec,
     DiffReport,
@@ -42,11 +58,15 @@ from .types import (
 
 __all__ = (
     # submodules
+    "bench_attach",
     "bundles",
     "diff_upstream",
     "doctor",
     "explain",
     "listing",
+    "proof_status",
+    "prove",
+    "release_check",
     "types",
     # listing
     "list_patches",
@@ -65,6 +85,20 @@ __all__ = (
     "list_bundles",
     "explain_bundle",
     "BUNDLES_CATALOG",
+    # prove
+    "prove_one",
+    "prove_all",
+    "dead_detect",
+    "ProveOneResult",
+    "ProveAllResult",
+    "DeadDetectResult",
+    # bench_attach
+    "BenchAttachResult",
+    # proof_status
+    "ProofStatusResult",
+    "UnknownBucketError",
+    # release_check
+    "ReleaseCheckResult",
     # types
     "PatchRow",
     "ExplainView",
