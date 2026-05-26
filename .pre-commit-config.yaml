@@ -194,6 +194,31 @@ repos:
         pass_filenames: false
         files: '(vllm/sndr_core/model_configs/builtin/hardware/.*\.yaml|vllm/sndr_core/model_configs/builtin/model/.*\.yaml|vllm/sndr_core/model_configs/schema_v2\.py|scripts/audit_v2_modeldef_vs_hardware_pin\.py|tests/unit/scripts/test_audit_v2_modeldef_vs_hardware_pin\.py)$'
 
+      - id: genesis-audit-repo-garbage
+        name: Genesis preventive repo-garbage audit (§9.A.2)
+        # Catches merge-conflict leftovers (.orig, .rej), .DS_Store,
+        # editor backups (.swp, ~), illegal filename chars, and
+        # repo-root scratchpad names (out.txt / tmp.json / debug.md).
+        # Allowlist for operator-local .claude/, CLAUDE.md, sndr_private/.
+        # Fires on any tracked-tree file change (cheap, <1s).
+        entry: python3 scripts/audit_repo_garbage.py --tracked-only
+        language: system
+        pass_filenames: false
+        files: '.*'
+
+      - id: genesis-audit-generated-links
+        name: Genesis generated-doc link integrity (§9.A.4)
+        # Verifies docs/PATCHES_AUTO.md + docs/CONFIGS_AUTO.md:
+        #   * generator --check (regenerator output matches committed)
+        #   * [#NNNN](URL) number/URL pair consistency
+        #   * GitHub PR/issue URL shape
+        #   * no placeholder TODO/... targets
+        # Fires on changes to source-of-truth files or the generators.
+        entry: python3 scripts/audit_generated_links.py
+        language: system
+        pass_filenames: false
+        files: '(docs/PATCHES_AUTO\.md|docs/CONFIGS_AUTO\.md|vllm/sndr_core/dispatcher/registry\.py|vllm/sndr_core/model_configs/builtin/.*\.yaml|scripts/generate_(patches|configs)_md\.py|scripts/audit_generated_links\.py|tests/unit/scripts/test_audit_generated_links\.py)$'
+
       - id: genesis-audit-links
         name: Genesis markdown link integrity (§9.A.3)
         # Verify [text](path) and [ref]: path resolve to tracked-tree

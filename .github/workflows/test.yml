@@ -118,6 +118,25 @@ jobs:
         run: |
           python3 scripts/audit_v2_modeldef_vs_hardware_pin.py
 
+      - name: Preventive repo-garbage audit
+        # §9.A.2 — forbid merge leftovers (.orig/.rej), .DS_Store, editor
+        # backups, illegal filename chars, and repo-root scratchpad names
+        # (out.txt / tmp.json / debug.md). Operator-local .claude/,
+        # CLAUDE.md, sndr_private/ are allowlisted. Tracked-tree scan
+        # only on CI (faster; --tracked-only mode).
+        run: |
+          python3 scripts/audit_repo_garbage.py --tracked-only
+
+      - name: Generated-doc link integrity audit
+        # §9.A.4 — verifies docs/PATCHES_AUTO.md + docs/CONFIGS_AUTO.md:
+        # generator --check sync; [#NNNN](URL) number/URL consistency;
+        # GitHub PR/issue URL shape; no placeholder TODO/... targets.
+        # Sibling to audit_links.py (which gates path/anchor integrity
+        # across every markdown file) — this audit narrows to generator
+        # output and catches drift specific to mechanically-rendered tables.
+        run: |
+          python3 scripts/audit_generated_links.py
+
       - name: Markdown link integrity audit
         # §9.A.3 — verify every tracked-tree markdown link resolves to
         # an existing path. External URLs (http/https/mailto), out-of-repo

@@ -66,10 +66,19 @@ audit-links-strict: ## Markdown link integrity STRICT: path + GitHub-slug anchor
 audit-plan-supersession: ## Planning supersession consistency — filename-target verification + status:superseded targets (§9.A.5, operator-run; scans gitignored sndr_private/planning/)
 	$(PYTHON) scripts/audit_plan_supersession.py
 
+audit-repo-garbage: ## Preventive repo-garbage audit (merge leftovers, .DS_Store, editor backups, illegal chars, root scratchpads) (§9.A.2)
+	$(PYTHON) scripts/audit_repo_garbage.py
+
+audit-generated-links: ## Generated-doc link integrity — `[#NNNN](URL)` number/URL match + generator freshness (§9.A.4)
+	$(PYTHON) scripts/audit_generated_links.py
+
+audit-rig-divergence: ## Primary↔rig drift — local-only by default (--ssh-host + --allow-ssh for SSH mode); §9.A.9, operator-run
+	$(PYTHON) scripts/audit_rig_divergence.py
+
 audit-shim-window: ## Historical-path compatibility shim integrity (E.1/E.2/E.3/E.4/E.5)
 	$(PYTHON) scripts/audit_shim_window.py
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-shim-window ## Run all 10 CI gates fast-fail
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-shim-window ## Run all 12 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
