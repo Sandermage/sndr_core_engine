@@ -175,3 +175,21 @@ repos:
         language: system
         pass_filenames: false
         files: '(vllm/sndr_core/model_configs/builtin/hardware/.*\.yaml|vllm/sndr_core/model_configs/builtin/model/.*\.yaml|vllm/sndr_core/cli/profile\.py|vllm/sndr_core/model_configs/compose\.py|scripts/audit_v2_runtime_pins\.py|tests/unit/scripts/test_audit_v2_runtime_pins\.py)$'
+
+      - id: genesis-audit-v2-modeldef-vs-hardware-pin
+        name: Genesis V2 ModelDef ↔ hardware canonical-pin drift (R-MD-HW-1/2)
+        # Phase 5.2.E invariants — stricter than R-PIN-4 (which accepts
+        # both dev338 and dev371 as allowed pins during per-model P2.4d
+        # promotion). This audit asks "does every ModelDef pin match
+        # the canonical rig SHA, or is the operator carrying an
+        # implicit hold?":
+        #   R-MD-HW-1  hardware self-consistency — all hardware YAMLs
+        #              pin the same docker image SHA fragment
+        #   R-MD-HW-2  every ModelDef's vllm_pin_required SHA matches
+        #              the canonical hardware SHA, OR carries a
+        #              non-empty `versions.pin_hold` rationale waiver
+        # Read-only. Fires on the same edit surface as runtime-pins.
+        entry: python3 scripts/audit_v2_modeldef_vs_hardware_pin.py
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/model_configs/builtin/hardware/.*\.yaml|vllm/sndr_core/model_configs/builtin/model/.*\.yaml|vllm/sndr_core/model_configs/schema_v2\.py|scripts/audit_v2_modeldef_vs_hardware_pin\.py|tests/unit/scripts/test_audit_v2_modeldef_vs_hardware_pin\.py)$'

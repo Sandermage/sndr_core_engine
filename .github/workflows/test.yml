@@ -105,6 +105,19 @@ jobs:
         run: |
           python3 scripts/audit_v2_runtime_pins.py
 
+      - name: V2 ModelDef ↔ hardware canonical-pin drift audit
+        # Phase 5.2.E — orthogonal to R-PIN-4 above. R-PIN-4 accepts BOTH
+        # dev338 and dev371 as legitimate during per-model P2.4d promotion;
+        # this audit is stricter and waiver-aware:
+        #   R-MD-HW-1 — all hardware YAMLs pin the same docker image SHA
+        #   R-MD-HW-2 — every ModelDef's vllm_pin_required SHA matches
+        #               the canonical hardware SHA, OR carries a
+        #               non-empty `versions.pin_hold` rationale (waiver
+        #               currently set on qwen3.6-7b-dense per F-Q7B).
+        # Closes the silent-drift gap that motivated Phase 5.2.E.
+        run: |
+          python3 scripts/audit_v2_modeldef_vs_hardware_pin.py
+
       - name: Lifecycle audit
         # Ensures no patch was added with an unknown lifecycle state.
         run: |
