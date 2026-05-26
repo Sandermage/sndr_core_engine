@@ -75,10 +75,16 @@ audit-generated-links: ## Generated-doc link integrity — `[#NNNN](URL)` number
 audit-rig-divergence: ## Primary↔rig drift — local-only by default (--ssh-host + --allow-ssh for SSH mode); §9.A.9, operator-run
 	$(PYTHON) scripts/audit_rig_divergence.py
 
+audit-wheel-contents: ## Wheel-boundary invariants CLI surface — pyproject shape + canonical test-file presence (§9.A.1)
+	$(PYTHON) scripts/audit_wheel_contents.py
+
+audit-retire-eligibility: ## Retire-verdict distribution over PATCH_REGISTRY (offline by default); §9.A.16
+	$(PYTHON) scripts/audit_retire_eligibility.py
+
 audit-shim-window: ## Historical-path compatibility shim integrity (E.1/E.2/E.3/E.4/E.5)
 	$(PYTHON) scripts/audit_shim_window.py
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-shim-window ## Run all 12 CI gates fast-fail
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-shim-window ## Run all 13 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
