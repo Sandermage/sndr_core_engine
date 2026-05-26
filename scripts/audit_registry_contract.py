@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Audit registry contract — aggregate validator for PATCH_REGISTRY drift.
 
-Single CI-friendly gate that asserts six invariants in one pass:
+Single CI-friendly gate that asserts eight invariants in one pass:
 
   1. conflicts_with symmetry — if A conflicts_with B, then B conflicts_with A.
   2. category enum — every patch.category in VALID_CATEGORIES.
@@ -13,6 +13,10 @@ Single CI-friendly gate that asserts six invariants in one pass:
   5. retired provenance — retired patches have superseded_by + vllm_version_range
      (or explicit waiver flag).
   6. pin gate — patch.applies_to.vllm_pin entries are in KNOWN_GOOD_VLLM_PINS.
+  7. dict_dup_keys — PATCH_REGISTRY dict literal has no duplicate string
+     keys (Python dict silently shadows on collision; PN96 incident).
+  8. docstring lifecycle sync — integration-module docstring TOMBSTONED/
+     RETIRED markers agree with registry `lifecycle` field.
 
 Exit codes:
   0 — all invariants hold (CI green)

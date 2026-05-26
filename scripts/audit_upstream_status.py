@@ -223,6 +223,61 @@ were initially proposed for retire by an agent reading PR dates only —
 all 5 turned out to be non-pure relationships (intentional_inverse,
 enables_upstream, defensive_overlay, related_not_superseding) that
 would have caused regressions if retired blindly.
+
+================================================================
+EXTENSION PROTOCOL — adding a new `upstream_pr_relationship` value
+================================================================
+
+When a future patch class needs a relationship value not in the current
+six, follow this protocol so the audit + retire logic stays coherent:
+
+1. Pick a short, unambiguous identifier in `snake_case` (e.g.
+   `redundant`, `pre_emptive`). The value must describe the SEMANTIC
+   relationship between Genesis patch and the cited upstream PR, not
+   the operational outcome.
+
+2. Decide *status-based retire eligibility*:
+   - If a merged upstream PR alone is sufficient signal that Genesis
+     patch is safe to retire (subject to iron-rule-#11 deep-diff) →
+     ADD the new value to `_PURE_UPSTREAM_RELATIONSHIPS` here.
+   - If upstream PR merge does NOT imply Genesis safety → LEAVE
+     `_PURE_UPSTREAM_RELATIONSHIPS` alone. The new value will
+     automatically route to `NEEDS-DEEP-PARITY` via the default branch.
+
+3. Register the value in `vllm/sndr_core/dispatcher/spec.py` →
+   `VALID_UPSTREAM_PR_RELATIONSHIPS` tuple with a one-line trailing
+   comment describing when to use it.
+
+4. Update `retire_eligibility()` below if the new value needs custom
+   bucket routing distinct from the default `NEEDS-DEEP-PARITY` /
+   `RETIRE-CANDIDATE` / `ACTIVE` / `ALREADY-RETIRED` / `UNKNOWN`
+   verdicts. Most additions will NOT need this — the default split
+   on `in _PURE_UPSTREAM_RELATIONSHIPS` is sufficient.
+
+5. Update `categorize()` bucket label if the new value warrants its own
+   audit-output bucket (e.g. so reviewers see at-a-glance which patches
+   carry it). Otherwise it folds into `WATCH` / `NEEDS-DEEP-PARITY`.
+
+6. Add a test case in `tests/unit/dispatcher/test_retire_eligibility.py`
+   (or equivalent) that pins the new value's bucket routing. The test
+   suite locks both `_PURE_UPSTREAM_RELATIONSHIPS` membership and the
+   resulting `retire_eligibility()` return.
+
+7. Document the rationale in a `sndr_private/planning/audits/PHASE_*_
+   RELATIONSHIP_*_RU.md` design note: when this value should be used,
+   what registry-credit pattern accompanies it, what deep-parity proof
+   discharges its NEEDS-DEEP-PARITY verdict (if applicable).
+
+8. Use the new value in at least one registry entry, with `credit`
+   field explicitly explaining why this value (not a simpler
+   alternative) applies to that patch. This anchors the policy to a
+   concrete example.
+
+The audit script itself should NOT need a code change for steps 3-5
+in the common case — the `_PURE_UPSTREAM_RELATIONSHIPS` membership
+check is the single decision point. Steps 4-5 only apply when the new
+value carries semantic state that the existing 5-bucket taxonomy
+cannot express.
 """
 
 

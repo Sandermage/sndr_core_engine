@@ -152,6 +152,14 @@ VALID_SOURCES = (
 # Introduced 2026-05-22 (Phase 5.1.A) — see
 # `sndr_private/planning/audits/PHASE_5_1_RELATIONSHIP_SCHEMA_DESIGN_2026-05-22_RU.md`
 # for the full design rationale, migration set, and audit-routing changes.
+#
+# Extension protocol: to add a new relationship value, follow the 8-step
+# protocol in `scripts/audit_upstream_status.py` →
+# `_PURE_UPSTREAM_RELATIONSHIPS` docstring. The minimum changes are
+# (a) appending the new value to this tuple with a trailing one-line
+# semantic comment, (b) deciding whether the value belongs in
+# `_PURE_UPSTREAM_RELATIONSHIPS` (status-based retire eligible), and
+# (c) adding a test case that pins the resulting bucket routing.
 VALID_UPSTREAM_PR_RELATIONSHIPS = (
     "backport",                  # Genesis mirrors upstream (default)
     "counter_regression",        # Genesis corrects a regression introduced by the cited PR
