@@ -154,14 +154,21 @@ class TestMigrationTable:
 
 class TestBucketDistribution:
     def test_expected_bucket_counts_at_stage_1_ship(self):
-        """CONFIG-UX.4.R §3 locked: 3 transparent, 5 needs-choice,
-        4 deprecated, 0 tombstone."""
+        """Locked bucket distribution. Snapshot of the 12-entry table:
+
+          - 2026-05-24 (CONFIG-UX.4.R §3 ship): 3 transparent, 5 needs-choice,
+            4 deprecated, 0 tombstone.
+          - 2026-05-26 (V1-SUNSET-DFLASH-ALIAS.1): a5000-2x-27b-int4-tq-k8v4-dflash
+            moved from needs_operator_choice → deprecated with V2 alias
+            `experimental-27b-tq-dflash-ab`. New distribution:
+            3 transparent, 4 needs-choice, 5 deprecated, 0 tombstone.
+        """
         mod = _import_audit()
         report = mod.run_audit(stage=0)
         counts = report.count_by_bucket()
         assert counts.get("transparent", 0) == 3
-        assert counts.get("needs_operator_choice", 0) == 5
-        assert counts.get("deprecated", 0) == 4
+        assert counts.get("needs_operator_choice", 0) == 4
+        assert counts.get("deprecated", 0) == 5
         assert counts.get("tombstone", 0) == 0
 
 

@@ -299,16 +299,22 @@ class TestLiveCorpus:
             f"{result.returncode}\nstdout:\n{result.stdout}"
         )
 
-    def test_live_strict_at_stage_3_flags_existing_blocker(self):
-        """The live tree currently has one ``blocker_no_v2_alias``
-        (a5000-2x-27b-int4-tq-k8v4-dflash has v2_preset=null). At
-        Stage 3 with --strict the audit must exit 1 to surface this
-        as a Stage 3 advancement blocker."""
+    def test_live_strict_at_stage_3_is_clean(self):
+        """After V1-SUNSET-DFLASH-ALIAS.1 (2026-05-26) the last
+        ``blocker_no_v2_alias`` was retired by mapping
+        a5000-2x-27b-int4-tq-k8v4-dflash → ``experimental-27b-tq-dflash-ab``
+        in the migration table. Live tree at Stage 3 strict must
+        exit 0 — Stage 3 advancement is unblocked.
+
+        The strict-blocks-blocker code path stays covered by the
+        synthetic unit tests in ``TestStageReadiness``; this live
+        smoke pins the resolved state.
+        """
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--strict", "--stage", "3"],
             capture_output=True, text=True, cwd=REPO_ROOT,
         )
-        assert result.returncode == 1, (
-            f"strict at stage 3 with a known blocker must exit 1, "
+        assert result.returncode == 0, (
+            f"strict at stage 3 should be clean post-V1-SUNSET-DFLASH-ALIAS.1, "
             f"got rc={result.returncode}\nstdout:\n{result.stdout}"
         )
