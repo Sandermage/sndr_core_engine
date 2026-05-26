@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Tests for ``product_api.patches.bundles`` — M.6.1.
+
+The canonical bundle catalog lives here; ``cli.patches._BUNDLES`` is
+now a back-compat shim re-exporting ``BUNDLES_CATALOG``. Drift detection
+against ``tests/bundles/test_stage7_bundles_smoke.py`` continues via
+``test_patches_cli.py::TestBundles::test_bundles_catalog_matches_test_smoke``.
+"""
+from __future__ import annotations
+
+from vllm.sndr_core.product_api.patches import bundles
+from vllm.sndr_core.product_api.patches.types import BundleSpec
+
+
+class TestCatalog:
+    def test_catalog_has_five_entries(self):
+        assert len(bundles.BUNDLES_CATALOG) == 5
+
+    def test_catalog_is_tuple_of_quadruples(self):
+        assert isinstance(bundles.BUNDLES_CATALOG, tuple)
+        for entry in bundles.BUNDLES_CATALOG:
+            assert isinstance(entry, tuple)
+            assert len(entry) == 4
+
+    def test_back_compat_shim_in_cli(self):
+        """``cli.patches._BUNDLES`` must be the same object as
+        ``BUNDLES_CATALOG`` so the legacy smoke-test drift detector
+        keeps comparing apples to apples."""
+        from vllm.sndr_core.cli import patches as cli_patches
+
+        assert cli_patches._BUNDLES is bundles.BUNDLES_CATALOG
+
+
+class TestListBundles:
+    def test_returns_specs(self):
+        specs = bundles.list_bundles()
+        assert len(specs) == 5
+        assert all(isinstance(b, BundleSpec) for b in specs)
+
+    def test_has_apply_is_unprobed(self):
+        """List path skips the import probe — ``has_apply`` stays
+        ``None`` to keep the call cheap."""
+        for spec in bundles.list_bundles():
+            assert spec.has_apply is None
+
+
+class TestExplainBundle:
+    def test_known_returns_spec(self):
+        spec = bundles.explain_bundle("attention_gdn_spec")
+        assert spec is not None
+        assert spec.name == "attention_gdn_spec"
+        assert spec.umbrella_flag == "BUNDLE_ATTENTION_GDN_SPEC"
+        # Imported module is real → ``has_apply`` resolved to True.
+        assert spec.has_apply is True
+
+    def test_unknown_returns_none(self):
+        assert bundles.explain_bundle("not-a-real-bundle") is None

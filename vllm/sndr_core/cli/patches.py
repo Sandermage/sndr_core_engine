@@ -60,111 +60,45 @@ from typing import Any, Optional
 
 from . import _io
 
+# M.6.1 (2026-05-27): pure-data query layer extracted to
+# ``vllm.sndr_core.product_api.patches``. The CLI is now the thin
+# argparse + rendering shell described in
+# ``sndr_private/planning/audits/M6_CLI_THIN_SHELL_R_2026-05-27_RU.md``.
+# Module-level ``_matches_filters`` / ``_spec_to_row`` / ``_BUNDLES``
+# remain as back-compat shims so the existing test imports continue to
+# resolve — they're slated for removal in M.6.4 after callers migrate.
+#
+# Submodules imported explicitly (not via package __init__) so the
+# module reference doesn't get shadowed by its re-exported function of
+# the same name (e.g. ``product_api.patches.diff_upstream`` is both a
+# module and a function).
+from vllm.sndr_core.product_api.patches import bundles as _bundles
+from vllm.sndr_core.product_api.patches import diff_upstream as _diff_upstream
+from vllm.sndr_core.product_api.patches import doctor as _doctor
+from vllm.sndr_core.product_api.patches import explain as _explain
+from vllm.sndr_core.product_api.patches import listing as _listing
 
-# ─── Filtering helpers (shared by `list` + `plan`) ───────────────────────
+# ─── Back-compat shims (slated for removal in M.6.4) ─────────────────────
 
-
-def _coerce_iter(value: Any) -> tuple:
-    """Loosely turn a registry tuple/list/string into an iterable for display."""
-    if value is None:
-        return ()
-    if isinstance(value, (list, tuple, set)):
-        return tuple(value)
-    if isinstance(value, str):
-        return (value,)
-    return (value,)
-
-
-def _matches_filters(
-    spec,
-    *,
-    tier: Optional[str] = None,
-    lifecycle: Optional[str] = None,
-    family: Optional[str] = None,
-    default_on: Optional[bool] = None,
-    has_upstream: Optional[bool] = None,
-) -> bool:
-    """Return True if `spec` matches every non-None filter."""
-    if tier is not None and spec.tier != tier:
-        return False
-    if lifecycle is not None and spec.lifecycle != lifecycle:
-        return False
-    if family is not None and family not in (spec.family or ""):
-        return False
-    if default_on is True and not spec.default_on:
-        return False
-    if default_on is False and spec.default_on:
-        return False
-    if has_upstream is True and not spec.upstream_pr:
-        return False
-    if has_upstream is False and spec.upstream_pr:
-        return False
-    return True
-
-
-def _spec_to_row(spec) -> dict[str, Any]:
-    """Convert PatchSpec → flat dict for table/json rendering.
-
-    Adds a derived ``production_default`` field that flags entries
-    where ``default_on=True`` but the patch is only a marker
-    (``implementation_status='marker_only'``) — these have no
-    apply module, so the operator-facing label "Default-on" can
-    mislead. Honest values:
-
-      "applied"          default_on + full apply_module
-      "marker"           default_on + marker_only (no runtime effect)
-      "opt-in"           default_on=False
-      "blocked"          implementation_status in {partial, placeholder}
-                         or lifecycle in {retired, research}
-    """
-    impl = getattr(spec, "implementation_status", "full") or "full"
-    if impl in ("partial", "placeholder"):
-        prod_default = "blocked"
-    elif spec.lifecycle in ("retired", "research"):
-        prod_default = "blocked"
-    elif spec.default_on and impl == "marker_only":
-        prod_default = "marker"
-    elif spec.default_on:
-        prod_default = "applied"
-    else:
-        prod_default = "opt-in"
-    return {
-        "patch_id": spec.patch_id,
-        "tier": spec.tier,
-        "lifecycle": spec.lifecycle,
-        "family": spec.family,
-        "default_on": spec.default_on,
-        "production_default": prod_default,
-        "implementation_status": impl,
-        "env_flag": spec.env_flag or "",
-        "upstream_pr": spec.upstream_pr,
-        "title": (spec.title or "")[:80],
-        "apply_module": spec.apply_module or "",
-    }
+_matches_filters = _listing.matches_filters
+_spec_to_row = _listing.spec_to_row_dict
+_coerce_iter = _listing._coerce_iter
 
 
 # ─── `sndr patches list` ─────────────────────────────────────────────────
 
 
 def _run_list(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
-
-    rows: list[dict[str, Any]] = []
-    for spec in iter_patch_specs():
-        if not _matches_filters(
-            spec,
-            tier=opts.tier,
-            lifecycle=opts.lifecycle,
-            family=opts.family,
-            default_on=(True if opts.default_on
-                        else (False if opts.opt_in else None)),
-            has_upstream=(True if opts.has_upstream
-                          else (False if opts.no_upstream else None)),
-        ):
-            continue
-        rows.append(_spec_to_row(spec))
-
-    rows.sort(key=lambda r: r["patch_id"])
+    typed_rows = _listing.list_patches(
+        tier=opts.tier,
+        lifecycle=opts.lifecycle,
+        family=opts.family,
+        default_on=(True if opts.default_on
+                    else (False if opts.opt_in else None)),
+        has_upstream=(True if opts.has_upstream
+                      else (False if opts.no_upstream else None)),
+    )
+    rows: list[dict[str, Any]] = [asdict(r) for r in typed_rows]
 
     if opts.json:
         print(json.dumps({"count": len(rows), "patches": rows}, indent=2))
@@ -209,30 +143,17 @@ def _run_list(opts: argparse.Namespace) -> int:
 
 
 def _run_explain(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-    from vllm.sndr_core.dispatcher.spec import patch_spec_for
-
-    pid = opts.patch_id
-    meta = PATCH_REGISTRY.get(pid)
-    if meta is None:
-        # Try case-insensitive lookup so operators can type `p67` or `pn82`.
-        for key in PATCH_REGISTRY:
-            if key.lower() == pid.lower():
-                meta = PATCH_REGISTRY[key]
-                pid = key
-                break
-    if meta is None:
-        _io.error(f"patch_id {pid!r} not found in PATCH_REGISTRY")
-        # Helpful suggestion: list closest prefix matches
-        prefix = pid[:2].upper()
-        candidates = sorted(
-            k for k in PATCH_REGISTRY if k.startswith(prefix)
-        )[:8]
+    view = _explain.explain_patch(opts.patch_id)
+    if view is None:
+        _io.error(f"patch_id {opts.patch_id!r} not found in PATCH_REGISTRY")
+        candidates = _explain.suggest_candidates(opts.patch_id)
         if candidates:
             _io.info(f"did you mean: {', '.join(candidates)}")
         return 2
 
-    spec = patch_spec_for(pid, meta)
+    pid = view.patch_id
+    meta = view.meta
+    spec = view.spec
 
     if opts.json:
         # Convert spec dataclass into a plain dict for JSON dump.
@@ -293,17 +214,18 @@ def _run_explain(opts: argparse.Namespace) -> int:
             f"{meta.get('deprecation_reason', '(no reason)')}"
         )
 
-    # Live decision — if dispatcher can run on this host, show what it
-    # would decide right now. Wrapped in try because should_apply pulls in
-    # model_detect / config_detect which may fail on Mac / no-vllm hosts.
+    # Live decision — if the API layer was able to probe ``should_apply``
+    # it returns the verdict + reason; otherwise the field reads
+    # ``(unavailable: <ExceptionType>)`` to match the historical CLI
+    # output on hosts without a vllm runtime.
     _io.info("")
-    try:
-        from vllm.sndr_core.dispatcher import should_apply
-        applied, reason = should_apply(pid)
+    if view.live_decision is not None:
+        applied, reason = view.live_decision
         verdict = "APPLY" if applied else "SKIP"
         _row("Live decision", f"{verdict} — {reason}")
-    except Exception as e:
-        _row("Live decision", f"(unavailable: {type(e).__name__})")
+    else:
+        err = view.live_decision_error or "unknown"
+        _row("Live decision", f"(unavailable: {err})")
 
     return 0
 
@@ -466,20 +388,14 @@ def _run_pn95_status(opts: argparse.Namespace) -> int:
 
 
 def _run_doctor(opts: argparse.Namespace) -> int:
-    from vllm.sndr_core.dispatcher import (
-        PATCH_REGISTRY,
-        validate_registry,
-    )
-    from vllm.sndr_core.dispatcher.spec import (
-        validate_apply_module_coverage,
-    )
-
-    issues = validate_registry()
-    coverage = validate_apply_module_coverage()
+    report = _doctor.run_doctor()
+    issues = list(report.issues)
+    coverage = report.coverage
+    registry_size = report.registry_size
 
     if opts.json:
         print(json.dumps({
-            "registry_size": len(PATCH_REGISTRY),
+            "registry_size": registry_size,
             "validation": [
                 {"severity": i.severity, "patch_id": i.patch_id,
                  "message": i.message}
@@ -495,7 +411,7 @@ def _run_doctor(opts: argparse.Namespace) -> int:
         return _exit_for_issues(issues, opts.strict)
 
     _io.banner("sndr patches doctor",
-               f"{len(PATCH_REGISTRY)} entries, "
+               f"{registry_size} entries, "
                f"{coverage.mapped}/{coverage.total} have apply_module")
 
     # Validation summary
@@ -864,30 +780,9 @@ def _run_diff_upstream(opts: argparse.Namespace) -> int:
          (heuristic: pin metadata not always present, fallback = list
          all patches with `upstream_pr` so the operator can audit).
     """
-    from vllm.sndr_core.dispatcher import PATCH_REGISTRY
-    from vllm.sndr_core.dispatcher.spec import iter_patch_specs
-
-    merged_upstream: list[dict[str, Any]] = []
-    has_upstream_pr: list[dict[str, Any]] = []
-
-    for spec in iter_patch_specs():
-        meta = PATCH_REGISTRY.get(spec.patch_id) or {}
-        if spec.lifecycle == "merged_upstream":
-            merged_upstream.append({
-                "patch_id": spec.patch_id,
-                "title": (spec.title or "")[:80],
-                "upstream_pr": spec.upstream_pr,
-                "credit": meta.get("credit", ""),
-            })
-            continue
-        if spec.upstream_pr:
-            has_upstream_pr.append({
-                "patch_id": spec.patch_id,
-                "title": (spec.title or "")[:80],
-                "upstream_pr": spec.upstream_pr,
-                "lifecycle": spec.lifecycle,
-                "default_on": spec.default_on,
-            })
+    report = _diff_upstream.diff_upstream()
+    merged_upstream: list[dict[str, Any]] = list(report.merged_upstream)
+    has_upstream_pr: list[dict[str, Any]] = list(report.has_upstream_pr)
 
     if opts.json:
         print(json.dumps({
@@ -923,106 +818,68 @@ def _run_diff_upstream(opts: argparse.Namespace) -> int:
 # ─── `sndr patches bundles ...` ──────────────────────────────────────────
 
 
-# Bundle catalog mirrors tests/bundles/test_stage7_bundles_smoke.py.
-# Kept here as a typed list because there's no runtime BUNDLES catalog
-# in `vllm/sndr_core/bundles/__init__.py` yet — module imports are
-# ordered by file, but that's not a stable enumeration source for CLI.
-_BUNDLES: list[tuple[str, str, str, str]] = [
-    # (module_name, umbrella_flag, tier, description)
-    (
-        "tool_parsing_qwen3coder",
-        "BUNDLE_TOOL_PARSING_QWEN3CODER",
-        "community",
-        "P15 + P61c + P64(×2) + PN56 — Qwen3-coder tool-parser fixes.",
-    ),
-    (
-        "reasoning_qwen3",
-        "BUNDLE_REASONING_QWEN3",
-        "community",
-        "P12 + P27 + P59 + P61 + P61b + PN51 — Qwen3 reasoning parser.",
-    ),
-    (
-        "attention_gdn_spec",
-        "BUNDLE_ATTENTION_GDN_SPEC",
-        "community",
-        "P60 + P60b — GDN spec-decode pipeline atomic apply.",
-    ),
-    (
-        "attention_tq_multi_query",
-        "BUNDLE_ATTENTION_TQ_MULTI_QUERY",
-        "community",
-        "P67 + P67b — TQ multi-query kernel + spec verify routing.",
-    ),
-    (
-        "spec_decode_async_cleanup",
-        "BUNDLE_SPEC_DECODE_ASYNC_CLEANUP",
-        "community",
-        "P79b + P79c + P79d — async cleanup of spec-decode artifacts.",
-    ),
-]
+# Back-compat shim: legacy tests import ``patches._BUNDLES``. The
+# canonical catalog now lives in ``product_api.patches.bundles``.
+_BUNDLES = _bundles.BUNDLES_CATALOG
 
 
 def _run_bundles_list(opts: argparse.Namespace) -> int:
+    specs = _bundles.list_bundles()
     if opts.json:
         print(json.dumps([
             {
-                "name": name,
-                "umbrella_flag": flag,
-                "tier": tier,
-                "description": desc,
+                "name": b.name,
+                "umbrella_flag": b.umbrella_flag,
+                "tier": b.tier,
+                "description": b.description,
             }
-            for name, flag, tier, desc in _BUNDLES
+            for b in specs
         ], indent=2))
         return 0
 
-    _io.banner("SNDR Bundles", f"{len(_BUNDLES)} atomic multi-patch orchestrators")
-    for name, flag, tier, desc in _BUNDLES:
-        _io.info(f"  • {name}  [{tier}]")
-        _io.info(f"      flag:  SNDR_ENABLE_{flag}=1")
-        _io.info(f"      desc:  {desc}")
+    _io.banner("SNDR Bundles", f"{len(specs)} atomic multi-patch orchestrators")
+    for b in specs:
+        _io.info(f"  • {b.name}  [{b.tier}]")
+        _io.info(f"      flag:  SNDR_ENABLE_{b.umbrella_flag}=1")
+        _io.info(f"      desc:  {b.description}")
         _io.info("")
     return 0
 
 
 def _run_bundles_explain(opts: argparse.Namespace) -> int:
     target = opts.name
-    matches = [b for b in _BUNDLES if b[0] == target]
-    if not matches:
+    spec = _bundles.explain_bundle(target)
+    if spec is None:
         _io.error(f"bundle {target!r} not found")
-        _io.info(f"available: {', '.join(b[0] for b in _BUNDLES)}")
+        available = ", ".join(b[0] for b in _bundles.BUNDLES_CATALOG)
+        _io.info(f"available: {available}")
         return 2
-    name, flag, tier, desc = matches[0]
 
-    # Try import + describe its component patches via reflection.
-    try:
-        mod = __import__(
-            f"vllm.sndr_core.bundles.{name}", fromlist=["apply"]
-        )
-        has_apply = callable(getattr(mod, "apply", None))
-    except Exception as e:
-        mod = None
-        has_apply = False
-        _io.warn(f"  bundle module failed to import: {type(e).__name__}: {e}")
+    if spec.import_error is not None:
+        _io.warn(f"  bundle module failed to import: {spec.import_error}")
 
     if opts.json:
         print(json.dumps({
-            "name": name,
-            "umbrella_flag": flag,
-            "tier": tier,
-            "description": desc,
-            "module": f"vllm.sndr_core.bundles.{name}",
-            "has_apply": has_apply,
+            "name": spec.name,
+            "umbrella_flag": spec.umbrella_flag,
+            "tier": spec.tier,
+            "description": spec.description,
+            "module": spec.module_path,
+            "has_apply": bool(spec.has_apply),
         }, indent=2))
         return 0
 
-    _io.banner(f"Bundle: {name}", desc[:60])
-    _io.info(f"  Tier:           {tier}")
-    _io.info(f"  Umbrella flag:  SNDR_ENABLE_{flag}=1  (or GENESIS_ENABLE_{flag}=1)")
-    _io.info(f"  Module:         vllm.sndr_core.bundles.{name}")
-    _io.info(f"  apply():        {'callable' if has_apply else 'MISSING'}")
+    _io.banner(f"Bundle: {spec.name}", spec.description[:60])
+    _io.info(f"  Tier:           {spec.tier}")
+    _io.info(
+        f"  Umbrella flag:  SNDR_ENABLE_{spec.umbrella_flag}=1  "
+        f"(or GENESIS_ENABLE_{spec.umbrella_flag}=1)"
+    )
+    _io.info(f"  Module:         {spec.module_path}")
+    _io.info(f"  apply():        {'callable' if spec.has_apply else 'MISSING'}")
     _io.info("")
     _io.info("  Description:")
-    _io.info(f"    {desc}")
+    _io.info(f"    {spec.description}")
     return 0
 
 
