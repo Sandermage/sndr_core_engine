@@ -120,9 +120,10 @@ consolidation pass:
 | --- | --- |
 | [`../README.md`](../README.md) | Project overview, quick install, hardware tested, architecture. |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | Per-version changelog (technical, deep — single source of truth). |
-| [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Top-level contributor onboarding (links here). |
 | [`../SECURITY.md`](../SECURITY.md) | Security policy + private disclosure email. |
 | [`../LICENSE`](../LICENSE) | Apache-2.0. |
+
+Contributor onboarding lives at [`CONTRIBUTING.md`](CONTRIBUTING.md) (this `docs/` folder, listed above).
 
 ## Auto-generated content
 

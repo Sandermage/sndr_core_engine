@@ -3,7 +3,7 @@
 > **Wave 10 update (2026-05-15)** — the legacy per-config `start_*.sh` /
 > `bare_metal_*.sh` shell scripts have been superseded by the unified
 > V2 preset launcher (`sndr launch <preset>`). The shell scripts are
-> archived under [`_archive/superseded_by_model_configs/`](_archive/superseded_by_model_configs/).
+> archived under [`_archive/superseded_by_model_configs/`](_archive/superseded_by_model_configs/) <!-- audit-links: allow -->  (historical path; subdir removed in post-Wave-10 cleanup).
 > The canonical operator UX is now:
 >
 > ```bash
@@ -31,7 +31,7 @@ each in two flavors:
 - `bare_metal_*.sh` — Native (assumes vLLM via pip + symlink `sndr_core`)
 
 After Wave 10 these scripts moved to
-[`_archive/superseded_by_model_configs/`](_archive/superseded_by_model_configs/).
+[`_archive/superseded_by_model_configs/`](_archive/superseded_by_model_configs/) <!-- audit-links: allow -->  (historical path; subdir removed in post-Wave-10 cleanup).
 The TP=2 + TP=1 hardware bench tables below remain accurate; the
 "`start_*.sh`" / "`bare_metal_*.sh`" filename column has been replaced
 by the canonical V2 preset alias.
@@ -149,7 +149,7 @@ The Docker scripts work identically inside a Proxmox VM as long as:
   `start_*.sh` exactly as on bare metal
 
 For fine-grained NUMA / IRQ pinning details on Proxmox, see
-[`../docs/BENCHMARK_GUIDE.md`](../../docs/BENCHMARK_GUIDE.md#scenario-3-proxmox-vm--ubuntu-vm).
+[`../docs/BENCHMARKS.md`](../../docs/BENCHMARKS.md) (former BENCHMARK_GUIDE.md content consolidated 2026-05-16).
 
 ## WSL2
 
@@ -222,5 +222,6 @@ the memory index, the relevant launch script lives in `_archive/`.
   homelab; tool-call validated, stress-tested ≥ 200 min, well-known number.
 - `_archive/` = historical or experimental; not maintained.
 
-For benchmarks see [`../../docs/BENCHMARK_GUIDE.md`](../../docs/BENCHMARK_GUIDE.md)
+For benchmarks see [`../../docs/BENCHMARKS.md`](../../docs/BENCHMARKS.md)
+(former BENCHMARK_GUIDE.md content consolidated 2026-05-16)
 and the unified suite at [`../../tools/genesis_bench_suite.py`](../../tools/genesis_bench_suite.py).

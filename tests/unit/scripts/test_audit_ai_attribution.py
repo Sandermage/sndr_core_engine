@@ -171,10 +171,10 @@ class TestInlineAllowMarker:
     """Inline operator-acknowledged override marker."""
 
     def test_marker_on_same_line_waives(self, audit_mod):
-        text = (
-            "- Removed the \"AI-assisted by author\" / \"Claude-assisted\" "
-            "attribution <!-- audit-ai-attribution: allow -->\n"
-        )
+        # Fixture: single-line text with the violation + marker on the
+        # same line. The trailing comment marker on THIS source line
+        # also suppresses audit_ai_attribution's self-scan of this file.
+        text = "- Removed the \"AI-assisted by author\" / \"Claude-assisted\" attribution <!-- audit-ai-attribution: allow -->\n"  # noqa: E501  <!-- audit-ai-attribution: allow -->
         findings = audit_mod.scan_text(text)
         assert findings == [], (
             f"inline allow marker should waive the line, got {findings}"
@@ -183,10 +183,12 @@ class TestInlineAllowMarker:
     def test_marker_on_different_line_does_not_waive(self, audit_mod):
         """The marker must be on the SAME line as the violation; a
         marker on a different line does not waive."""
-        text = (
-            "<!-- audit-ai-attribution: allow -->\n"
-            "Co-Authored-By: Claude <bot@example.com>\n"
-        )
+        # Build the multi-line fixture without putting Co-Authored-By
+        # token verbatim in our own source — split the literal so the
+        # self-audit doesn't trip on this file. Trailing source-line
+        # markers belt-and-braces.
+        co_auth = "Co-Authored" + "-By: Claude <bot@example.com>\n"  # noqa  <!-- audit-ai-attribution: allow -->
+        text = "<!-- audit-ai-attribution: allow -->\n" + co_auth
         findings = audit_mod.scan_text(text)
         assert len(findings) == 1, (
             f"marker on prior line must not waive subsequent line, "
@@ -198,10 +200,23 @@ class TestScopeFilter:
     """``_in_scope`` filter excludes binaries + private + retired."""
 
     def test_python_file_in_scope(self, audit_mod):
+        # Use a different audit script — audit_ai_attribution.py itself
+        # is on the self-exempt list (it carries the patterns it forbids).
+        assert audit_mod._in_scope(
+            "scripts/audit_links.py",
+            audit_mod._EXCLUDED_SUBTREES_DEFAULT,
+        ) is True
+
+    def test_audit_self_path_excluded(self, audit_mod):
+        """Audit-tooling self-exemption — circular by design."""
         assert audit_mod._in_scope(
             "scripts/audit_ai_attribution.py",
             audit_mod._EXCLUDED_SUBTREES_DEFAULT,
-        ) is True
+        ) is False
+        assert audit_mod._in_scope(
+            "tests/unit/scripts/test_audit_ai_attribution.py",
+            audit_mod._EXCLUDED_SUBTREES_DEFAULT,
+        ) is False
 
     def test_markdown_file_in_scope(self, audit_mod):
         assert audit_mod._in_scope(

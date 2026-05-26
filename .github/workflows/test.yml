@@ -118,6 +118,16 @@ jobs:
         run: |
           python3 scripts/audit_v2_modeldef_vs_hardware_pin.py
 
+      - name: Markdown link integrity audit
+        # §9.A.3 — verify every tracked-tree markdown link resolves to
+        # an existing path. External URLs (http/https/mailto), out-of-repo
+        # paths, inline code spans, and fenced code blocks are skipped.
+        # Anchor verification is opt-in (`--anchors`) and run as a separate
+        # operator-driven gate (`make audit-links-strict`) — it surfaces
+        # pre-existing TOC drift that belongs to the doc-reconcile track.
+        run: |
+          python3 scripts/audit_links.py
+
       - name: Attribution-label policy audit
         # §9.A.6 — forbid syntactic AI-attribution constructs in tracked
         # source (Co-Authored-By trailer with AI agent name, Generated-by

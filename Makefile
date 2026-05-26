@@ -57,10 +57,16 @@ audit-v2-modeldef-vs-hardware-pin: ## V2 ModelDef ↔ hardware canonical-pin dri
 audit-ai-attribution: ## Attribution-label policy: forbid AI-agent Co-Authored-By / Generated-by / robot-emoji markers (§9.A.6)
 	$(PYTHON) scripts/audit_ai_attribution.py
 
+audit-links: ## Markdown link integrity: in-tree path existence (default); anchors opt-in via `--anchors` (§9.A.3)
+	$(PYTHON) scripts/audit_links.py
+
+audit-links-strict: ## Markdown link integrity STRICT: path + GitHub-slug anchor verification (operator-run; surfaces TOC drift)
+	$(PYTHON) scripts/audit_links.py --anchors
+
 audit-shim-window: ## Historical-path compatibility shim integrity (E.1/E.2/E.3/E.4/E.5)
 	$(PYTHON) scripts/audit_shim_window.py
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-shim-window ## Run all 9 CI gates fast-fail
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-shim-window ## Run all 10 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 

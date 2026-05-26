@@ -62,7 +62,7 @@ labels: bug
 - [ ] `genesis doctor` (any failures reported?)
 - [ ] `genesis verify --quick`
 - [ ] Re-running with `GENESIS_DISABLE=1` to confirm it's our code (not vLLM upstream)
-- [ ] Searching closed issues + [docs/CLIFFS.md](../../docs/CLIFFS.md) + [docs/OOM_RECIPES.md](../../docs/OOM_RECIPES.md)
+- [ ] Searching closed issues + [docs/TROUBLESHOOTING.md](../../docs/TROUBLESHOOTING.md) (covers former CLIFFS.md + OOM_RECIPES.md content per 2026-05-16 consolidation)
 
 ## Additional context
 

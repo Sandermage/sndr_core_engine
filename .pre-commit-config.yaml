@@ -194,6 +194,20 @@ repos:
         pass_filenames: false
         files: '(vllm/sndr_core/model_configs/builtin/hardware/.*\.yaml|vllm/sndr_core/model_configs/builtin/model/.*\.yaml|vllm/sndr_core/model_configs/schema_v2\.py|scripts/audit_v2_modeldef_vs_hardware_pin\.py|tests/unit/scripts/test_audit_v2_modeldef_vs_hardware_pin\.py)$'
 
+      - id: genesis-audit-links
+        name: Genesis markdown link integrity (§9.A.3)
+        # Verify [text](path) and [ref]: path resolve to tracked-tree
+        # files. Path-only by default (anchors are opt-in via
+        # `make audit-links-strict` for operator-run doc reconciliation).
+        # Skips http(s) URLs, mailto, paths resolving outside the repo
+        # (sibling private trees), inline code spans (regex / shell
+        # snippets that look like links), and fenced code blocks.
+        # Inline `<!-- audit-links: allow -->` waives a line.
+        entry: python3 scripts/audit_links.py
+        language: system
+        pass_filenames: false
+        files: '\.md$'
+
       - id: genesis-audit-ai-attribution
         name: Genesis attribution-label policy (§9.A.6)
         # Forbid syntactic AI-attribution constructs in tracked source:

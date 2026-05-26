@@ -147,6 +147,19 @@ _EXCLUDED_SUBTREES_INCLUDE_PRIVATE: tuple[str, ...] = (
 )
 
 
+# Audit-tooling self-exemption. The audit script's docstring + regex
+# literals + label strings contain the patterns it forbids by
+# necessity (they describe what to detect). Its test file contains
+# the same patterns as test fixtures. Scanning these files would be
+# circular — the audit can't detect attribution by describing
+# attribution syntax without containing examples of it. Operators
+# inspecting the audit's correctness read these files directly.
+_SELF_EXEMPT_PATHS: frozenset[str] = frozenset({
+    "scripts/audit_ai_attribution.py",
+    "tests/unit/scripts/test_audit_ai_attribution.py",
+})
+
+
 @dataclasses.dataclass
 class Finding:
     path: str
@@ -173,6 +186,8 @@ def _git_ls_files() -> list[str]:
 
 def _in_scope(path: str, excluded_subtrees: tuple[str, ...]) -> bool:
     """Return True if ``path`` should be scanned."""
+    if path in _SELF_EXEMPT_PATHS:
+        return False
     if any(path.startswith(prefix) for prefix in excluded_subtrees):
         return False
     suffix = Path(path).suffix.lower()
