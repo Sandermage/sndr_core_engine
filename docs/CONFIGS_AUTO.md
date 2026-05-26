@@ -4,7 +4,7 @@
 > Source: `vllm/sndr_core/model_configs/builtin/*.yaml`
 > Companion to curated [CONFIGS.md](CONFIGS.md) (narrative).
 
-Generated: 2026-05-15T22:58:20Z
+Generated: 2026-05-26T02:00:58Z
 Total configs: **12**
 
 ## By lifecycle

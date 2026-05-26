@@ -24,7 +24,7 @@ never ship publicly.
 | Browse the patch catalogue + compatibility matrix | [`PATCHES.md`](PATCHES.md) |
 | Read the technical design appendices (PN95, GDN, ...) | [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) |
 
-## File catalogue (22 markdown files)
+## File catalogue (26 markdown files)
 
 ### Installation & quickstart
 
@@ -145,7 +145,7 @@ consolidation pass, sibling topics were merged into single
 operator-facing references so the surface matches industry-standard
 docs/ layouts (vllm-project/vllm, sgl-project/sglang,
 huggingface/transformers all keep ≤ 15 narrative .md files in
-their main docs tree). The current 21 files map to the previous
+their main docs tree). The current 26 files map to the previous
 38 as follows:
 
 - `QUICKSTART.md` ← `QUICKSTART.md` (rewritten) + `DAY_1_CHECKLIST.md`.

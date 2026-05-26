@@ -29,7 +29,7 @@ If you're not sure whether your idea fits, open a Discussion first. Cheap to ask
 
 ## How to add a new patch
 
-Step-by-step. Read [PATCHES.md](PATCHES.md) and [COMPATIBILITY.md](PATCHES.md) first to understand the conventions.
+Step-by-step. Read [PATCHES.md](PATCHES.md) (which absorbs the former `COMPATIBILITY.md` content) first to understand the conventions.
 
 ### 1. Pick the right directory
 
@@ -157,7 +157,7 @@ grep "PNN" vllm/sndr_core/env.py  # must find canonical form
 
 `default_on=True` reserved для bug fixes validated на 2+ workloads. New patches start False; promoted в later PR after bench.
 
-`lifecycle="stable"` blocked by ratchet (see [STABLE_PROMOTION_CHECKLIST.md](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)): 0 currently. Don't claim stable без green ratchet.
+`lifecycle="stable"` blocked by ratchet (see [CONTRIBUTING.md § Promoting a patch to lifecycle=stable](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)): **14** currently. Don't claim stable без green ratchet.
 
 After registering, regenerate auto-docs + verify:
 ```bash
@@ -529,7 +529,7 @@ PN33 and PN35 are the reference examples.
 
 ### Triton kernels
 
-- Power-of-2 dims wherever possible. If you must support non-power-of-2 (e.g., GQA=24/4=6 heads-per-KV), use `next_power_of_2` + a `lane_valid` mask. Document the cliff in [CLIFFS.md](TROUBLESHOOTING.md).
+- Power-of-2 dims wherever possible. If you must support non-power-of-2 (e.g., GQA=24/4=6 heads-per-KV), use `next_power_of_2` + a `lane_valid` mask. Document the cliff in [TROUBLESHOOTING.md (cliffs section)](TROUBLESHOOTING.md).
 - Sanitize Inf/NaN at dequant boundaries. We've been bitten by silent NaN propagation through softmax — see the v7.22 P67 sanitized variant in [PATCHES.md](PATCHES.md).
 - BLOCK_SIZE / num_warps / num_stages should be configurable via env override for sweep tuning.
 
@@ -607,7 +607,7 @@ fix(patch): P67 anchor drift on vllm pin fe9c3d6c5
 docs(cliffs): add Cliff 7 (DFlash 24GB OOM at >80K ctx)
 perf(kernel): P67 LOG2E fuse +2.1% on TQ k8v4
 test: add unit test for P94 prefix-cache hash backend
-chore: bump pin reference in COMPATIBILITY.md
+chore: bump pin reference in PATCHES.md
 ```
 
 Allowed types: `feat`, `fix`, `docs`, `perf`, `test`, `chore`, `refactor`, `revert`.

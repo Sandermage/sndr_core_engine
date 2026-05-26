@@ -146,7 +146,7 @@ Key flags:
 | `--preflight-only` | off | Run preflight gates and exit; never exec vLLM. |
 | `--pull` | off | `docker pull` the preset's image before exec. |
 | `--check-deps` | off | Run `sndr deps inspect` against the preset; abort on missing dep. |
-| `--policy {compat,safe,minimal}` | unset | Filter `cfg.genesis_env` through the `patch_plan` resolver. See [PATCH_PLAN.md](PATCHES.md). |
+| `--policy {compat,safe,minimal}` | unset | Filter `cfg.genesis_env` through the `patch_plan` resolver. See [PATCHES.md § patch-plan policy](PATCHES.md). |
 
 Pre-launch warnings surface for enabled patches with
 `implementation_status` in `{partial, placeholder, marker_only}` so
@@ -1019,8 +1019,8 @@ inline comments inside each model YAML.
 
 ## See also
 
-- [PATCH_PLAN.md](PATCHES.md) — `--policy compat|safe|minimal` deep dive
+- [PATCHES.md § patch-plan policy](PATCHES.md) — `--policy compat|safe|minimal` deep dive
 - [CONFIGURATION.md](CONFIGURATION.md) — runtime env knobs + preset selection
 - [PATCHES.md](PATCHES.md) — patch taxonomy + lifecycle
 - [INSTALL.md](INSTALL.md) — first-time install walkthrough
-- [BENCHMARK_GUIDE.md](BENCHMARKS.md) — bench methodology + reproduction
+- [BENCHMARKS.md § methodology](BENCHMARKS.md) — bench methodology + reproduction

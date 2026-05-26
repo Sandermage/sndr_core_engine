@@ -61,7 +61,7 @@ registry — production-eligible Wave 10 backports + legacy
 pre-dispatcher overlays that have been validated against the
 v11 baselines. The full list is in [`PATCHES_AUTO.md`](PATCHES_AUTO.md);
 the policy that decides which subset is allowed in production
-presets is in [`PATCH_PLAN.md`](PATCHES.md).
+presets is in [PATCHES.md § patch-plan policy](PATCHES.md).
 
 A fresh Genesis install without any preset still respects the
 per-patch `default_on` flag; production launch scripts under

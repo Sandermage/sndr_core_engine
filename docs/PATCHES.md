@@ -40,7 +40,7 @@ added as a registry patch.
 | Lifecycle=legacy (pre-dispatcher) | 33 |
 | Lifecycle=retired | 15 |
 | Lifecycle=research | 4 |
-| Lifecycle=stable | 15 (PN33, PN35, G4_01, G4_02, G4_03, G4_04, G4_05, G4_09, G4_11, G4_12, G4_13, G4_14, G4_16, G4_23, G4_25 — ratchet active with `stable_kind` declared; see [STABLE_PROMOTION_CHECKLIST.md](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)) |
+| Lifecycle=stable | 14 (G4_01, G4_02, G4_03, G4_04, G4_05 [retired], G4_09, G4_11, G4_12, G4_13, G4_14, G4_16, G4_23, G4_25, PN33, PN35 — ratchet active with `stable_kind` declared; see [CONTRIBUTING.md § Promoting a patch to lifecycle=stable](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)) |
 | Lifecycle=coordinator | 2 (env-flag-only, no real binding) |
 | Implementation status=full | 173 |
 | Implementation status=marker_only / placeholder / partial / retired | 30 (17 + 2 + 7 + 4) |

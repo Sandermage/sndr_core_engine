@@ -6,8 +6,8 @@ If you're new to Genesis, read [../docs/QUICKSTART.md](../docs/QUICKSTART.md) fi
 
 > 📊 **Full machine-readable config inventory** — auto-generated from
 > `vllm/sndr_core/model_configs/builtin/*.yaml` — at
-> [**`CONFIGS_AUTO.md`**](CONFIGS_AUTO.md). Includes 11 built-in configs
-> (5 stable + 2 tested + 1 experimental + 2 community-test + 1 retired)
+> [**`CONFIGS_AUTO.md`**](CONFIGS_AUTO.md). Includes 12 built-in configs
+> (5 stable + 2 tested + 2 experimental + 2 community-test + 1 retired)
 > with reference_metrics, hardware targets, KV dtype, MTP K, max_ctx.
 > Regenerate via `python3 scripts/generate_configs_md.py`. CI gate: `--check`.
 

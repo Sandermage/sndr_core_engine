@@ -231,7 +231,7 @@ Add to any config to declare runtime compatibility:
 deploy:
   docker: true        # tested & shipped (default for all builtin configs)
   podman: true        # opt-in: docker-compatible with --device nvidia.com/gpu=all
-  kubernetes: false   # opt-in: NOT YET implemented (helm/manifest TODO)
+  kubernetes: false   # opt-in: shipped via `sndr service install --runtime kubernetes` (Deployment + Service + ConfigMap manifest under ~/.sndr/k8s/; audit C3 closure 2026-05-16). Default false so operators opt in explicitly.
   lxc_proxmox: false  # opt-in: NOT YET implemented; Proxmox kernel 6.17.x
                       # has known asyncio footgun → use bare_metal instead
                       # (see noonghunna club-3090 CONTAINER_RUNTIMES.md)

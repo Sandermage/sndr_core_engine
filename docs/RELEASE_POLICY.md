@@ -190,11 +190,19 @@ python3 scripts/attach_bench_proof.py \
 ```
 
 After cycling all 8 prod presets, `proof-status` should report
-~122/227 (~54%) in `bench_with_baseline` — the by-design ceiling
+~122/228 (~54%) in `bench_with_baseline` — the by-design ceiling
 for the current registry (subset of patches enabled by any
-`prod-*` preset). The remaining ~104 stay `static_only` by design —
+`prod-*` preset). The remaining ~106 stay `static_only` by design —
 they are experimental opt-in patches that no production preset
 enables.
+
+Note on denominators in this section: **109** = production-subset
+(line 137 — patches eligible for bench gates), **169** = eligible
+count at the 2026-05-16 R-01 audit snapshot (CHANGELOG entry below),
+**226** = total registry count at the 2026-05-22 attachment-state
+snapshot (line 148), **228** = current registry count. Historical
+snapshot numbers (109/169/226) are dated and preserved; only the
+forward projection above tracks the live registry total.
 
 ### Per-preset coverage cheatsheet
 

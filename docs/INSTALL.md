@@ -164,9 +164,13 @@ genesis-vllm-patches/
 │   └── charts/_generate.py            # matplotlib chart regenerator
 │
 ├── docs/                              # Long-form documentation
-│   ├── INSTALL.md (this file)  COMMANDS.md  PATCHES.md  QUICKSTART.md
-│   ├── BENCHMARKS.md  HARDWARE.md  COMPATIBILITY.md  GLOSSARY.md
-│   ├── upstream/                      # PR-decision docs + STABLE_PROMOTION_CHECKLIST.md
+│   ├── INSTALL.md (this file)  CLI_REFERENCE.md  PATCHES.md  QUICKSTART.md
+│   ├── BENCHMARKS.md  HARDWARE.md  CONTRIBUTING.md  GLOSSARY.md
+│   ├── MODELS.md  CONFIGS.md  CONFIGURATION.md  ROUTING.md
+│   ├── RELEASE_POLICY.md  CORE_ENGINE_BOUNDARY.md  LICENSE_POLICY.md
+│   ├── FAQ.md  TROUBLESHOOTING.md  PATCH_DESIGNS.md  PRESETS.md  USAGE.md
+│   ├── README.md  SPONSORS.md  CREDITS.md  MODEL_CONFIG_LAUNCHER.md
+│   ├── PATCHES_AUTO.md  CONFIGS_AUTO.md  (auto-generated)
 │   └── _internal/                     # Operator-private notes (gitignored)
 │
 ├── pytest.ini                         # single canonical test root
