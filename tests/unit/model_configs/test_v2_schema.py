@@ -123,6 +123,73 @@ class TestModelDef:
         with pytest.raises(SchemaError):
             _make_model(capabilities=bad).validate()
 
+    # ─── D.10 enum validation (CONFIG-UX-D10-D11-ENUM.1, 2026-05-26) ──────
+
+    @pytest.mark.parametrize(
+        "arch",
+        ["dense", "hybrid_gdn_moe", "hybrid_mamba", "moe",
+         "gemma4_dense", "gemma4_moe"],
+    )
+    def test_attention_arch_accepts_allowed(self, arch):
+        ModelCapabilities(attention_arch=arch).validate()
+
+    def test_attention_arch_rejects_unknown(self):
+        bad = ModelCapabilities(attention_arch="mystery_arch")
+        with pytest.raises(SchemaError, match="attention_arch"):
+            bad.validate()
+
+    @pytest.mark.parametrize("parser", [None, "qwen3_coder", "gemma4"])
+    def test_tool_call_parser_accepts_allowed(self, parser):
+        ModelCapabilities(
+            attention_arch="dense", tool_call_parser=parser,
+        ).validate()
+
+    def test_tool_call_parser_rejects_unknown(self):
+        bad = ModelCapabilities(
+            attention_arch="dense", tool_call_parser="custom_parser",
+        )
+        with pytest.raises(SchemaError, match="tool_call_parser"):
+            bad.validate()
+
+    @pytest.mark.parametrize("parser", [None, "qwen3"])
+    def test_reasoning_parser_accepts_allowed(self, parser):
+        ModelCapabilities(
+            attention_arch="dense", reasoning_parser=parser,
+        ).validate()
+
+    def test_reasoning_parser_rejects_unknown(self):
+        bad = ModelCapabilities(
+            attention_arch="dense", reasoning_parser="custom_v2",
+        )
+        with pytest.raises(SchemaError, match="reasoning_parser"):
+            bad.validate()
+
+    @pytest.mark.parametrize(
+        "dtype",
+        [None, "auto", "fp16", "fp8_e5m2", "fp8_e4m3", "turboquant_k8v4"],
+    )
+    def test_kv_cache_dtype_accepts_allowed(self, dtype):
+        ModelCapabilities(
+            attention_arch="dense", kv_cache_dtype=dtype,
+        ).validate()
+
+    def test_kv_cache_dtype_rejects_unknown(self):
+        bad = ModelCapabilities(
+            attention_arch="dense", kv_cache_dtype="int4_k8v4",
+        )
+        with pytest.raises(SchemaError, match="kv_cache_dtype"):
+            bad.validate()
+
+    # ─── D.11 license enum validation ─────────────────────────────────────
+
+    @pytest.mark.parametrize("lic", ["apache-2.0", "gemma-license"])
+    def test_license_accepts_allowed(self, lic):
+        _make_model(license=lic).validate()
+
+    def test_license_rejects_unknown(self):
+        with pytest.raises(SchemaError, match="license"):
+            _make_model(license="proprietary-2026").validate()
+
 
 class TestModelRequires:
     def test_default_minimums(self):

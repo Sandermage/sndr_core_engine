@@ -93,6 +93,51 @@ def _check_schema_version(value: int) -> None:
 # ─── ModelDef ──────────────────────────────────────────────────────────────
 
 
+# D.10 (CONFIG-UX-D10-D11-ENUM.1, 2026-05-26) — enum-validate the
+# capability fields. Python's `Literal` is a type-checker hint only;
+# the dataclass does NOT raise at runtime if a YAML supplies an
+# unknown value. The tuples below + the runtime check in
+# `ModelCapabilities.validate()` give us actual rejection. To add a
+# new value, extend the corresponding tuple AND the Literal hint
+# above it, then add a registry/YAML example that uses it.
+ALLOWED_ATTENTION_ARCH = (
+    "dense",
+    "hybrid_gdn_moe",
+    "hybrid_mamba",
+    "moe",
+    "gemma4_dense",
+    "gemma4_moe",
+)
+ALLOWED_TOOL_CALL_PARSERS = (
+    None,
+    "qwen3_coder",
+    "gemma4",
+)
+ALLOWED_REASONING_PARSERS = (
+    None,
+    "qwen3",
+)
+ALLOWED_KV_CACHE_DTYPES = (
+    None,
+    "auto",
+    "fp16",
+    "fp8_e5m2",
+    "fp8_e4m3",
+    "turboquant_k8v4",
+)
+
+# D.11 (CONFIG-UX-D10-D11-ENUM.1, 2026-05-26) — license enum-validation.
+# Genesis tracks the license of the underlying checkpoint a ModelDef
+# wraps; the audit gate forbids unknown values so a new license slug
+# always lands with conscious operator review (extend this tuple AND
+# document the rationale in the ModelDef's `notes`). Used by both
+# `ModelDef.license` (line 169) and `HardwareDef.license` (line 878).
+ALLOWED_LICENSES = (
+    "apache-2.0",
+    "gemma-license",
+)
+
+
 @dataclass
 class ModelCapabilities:
     """Inherent model capabilities — these change only when the model itself
@@ -101,7 +146,12 @@ class ModelCapabilities:
     set means a different ModelDef entry.
     """
     attention_arch: Literal[
-        "dense", "hybrid_gdn_moe", "hybrid_mamba", "moe",
+        "dense",
+        "hybrid_gdn_moe",
+        "hybrid_mamba",
+        "moe",
+        "gemma4_dense",
+        "gemma4_moe",
     ]
     tool_call_parser: Optional[str] = None
     reasoning_parser: Optional[str] = None
@@ -110,6 +160,26 @@ class ModelCapabilities:
     kv_cache_dtype: Optional[str] = None
 
     def validate(self) -> None:
+        if self.attention_arch not in ALLOWED_ATTENTION_ARCH:
+            raise SchemaError(
+                f"capabilities.attention_arch={self.attention_arch!r} "
+                f"must be one of {ALLOWED_ATTENTION_ARCH}"
+            )
+        if self.tool_call_parser not in ALLOWED_TOOL_CALL_PARSERS:
+            raise SchemaError(
+                f"capabilities.tool_call_parser={self.tool_call_parser!r} "
+                f"must be one of {ALLOWED_TOOL_CALL_PARSERS}"
+            )
+        if self.reasoning_parser not in ALLOWED_REASONING_PARSERS:
+            raise SchemaError(
+                f"capabilities.reasoning_parser={self.reasoning_parser!r} "
+                f"must be one of {ALLOWED_REASONING_PARSERS}"
+            )
+        if self.kv_cache_dtype not in ALLOWED_KV_CACHE_DTYPES:
+            raise SchemaError(
+                f"capabilities.kv_cache_dtype={self.kv_cache_dtype!r} "
+                f"must be one of {ALLOWED_KV_CACHE_DTYPES}"
+            )
         if self.spec_decode is not None:
             self.spec_decode.validate()
 
@@ -214,6 +284,12 @@ class ModelDef:
             raise SchemaError("model.model_path required")
         if not self.title or not self.maintainer:
             raise SchemaError("model requires title + maintainer")
+        if self.license not in ALLOWED_LICENSES:
+            raise SchemaError(
+                f"model.license={self.license!r} must be one of "
+                f"{ALLOWED_LICENSES} (extend ALLOWED_LICENSES in "
+                "schema_v2.py with operator review)"
+            )
         self.capabilities.validate()
         self.requires.validate()
         for k, v in self.patches.items():
