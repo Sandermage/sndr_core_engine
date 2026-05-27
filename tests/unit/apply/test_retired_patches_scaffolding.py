@@ -1,27 +1,33 @@
 # SPDX-License-Identifier: Apache-2.0
-"""M.1.1.T3.A scaffolding tests for retired-patch declarative path.
+"""M.1.1.T3 declarative retired-patch tests — schema + pilot invariants.
 
-Covers the empty-skeleton state of ``_RETIRED_PATCHES`` +
-``_retired_patch_handler`` + ``_register_retired_patches`` without
-touching the live :data:`apply._state.PATCH_REGISTRY` (the
-``tests/unit/dispatcher/fixtures/apply_registry.json`` snapshot is
-the byte-identity guard for the live registry).
+Covers ``_RETIRED_PATCHES`` table shape + ``RetiredPatchSpec`` dataclass
++ ``_retired_patch_handler`` + ``_register_retired_patches`` after the
+T3.B-PILOT-OF-1 migration landed P8 as the first declarative entry.
 
-T3.A invariants
-───────────────
+History
+───────
+  M.1.1.T3.A   (commit f2886e4f) — scaffolding landed; ``_RETIRED_PATCHES``
+                                   empty; ``dict[str, str]`` value type.
+  M.1.1.T3.B-PILOT-OF-1            schema → ``dict[str, RetiredPatchSpec]``;
+                                   P8 migrated as the only AST-confirmed
+                                   pure retired stub. See
+                                   ``sndr_private/planning/audits/
+                                    M1_T3_SCOPE_REVISION_2026-05-27_RU.md``
+                                   for the bulk-thesis correction.
+
+T3.B-PILOT-OF-1 invariants
+──────────────────────────
   * ``_RETIRED_PATCHES`` is exposed at module scope as a ``dict``.
-  * In T3.A it is empty — no entries migrated yet; T3.B populates.
-  * ``_retired_patch_handler(name, reason)`` returns a zero-arg
-    callable that produces ``PatchResult(name, "skipped", reason)``.
-  * ``_register_retired_patches()`` is callable and idempotent on the
-    empty dict (call it twice → no growth in PATCH_REGISTRY).
-
-The synthetic-population scenario (T3.B preview) is exercised via
-``monkeypatch.setattr`` on the module-level ``_RETIRED_PATCHES`` so
-the live registry is not mutated; the test captures the
-pre-population registry length and asserts that exactly one new
-entry is appended when a synthetic stub is registered, then
-restores state.
+  * Contains the P8 entry (1 declarative migration).
+  * Each entry value is a frozen ``RetiredPatchSpec`` carrying name,
+    wrapped_name, reason.
+  * ``_retired_patch_handler(spec)`` returns a zero-arg callable that
+    produces ``PatchResult(spec.name, "skipped", spec.reason)`` and
+    has ``__name__ == spec.wrapped_name`` so the apply_registry.json
+    snapshot's ``wrapped_name`` field stays byte-identical.
+  * Synthetic-entry test still works: a monkeypatch'd ``RetiredPatchSpec``
+    registers exactly one pair, with the registry restored on exit.
 """
 from __future__ import annotations
 
@@ -35,12 +41,12 @@ def _import_dispatch_module():
     return mod
 
 
-# ─── Schema invariants (T3.A empty-skeleton) ──────────────────────────────
+# ─── Schema invariants ────────────────────────────────────────────────────
 
 
-class TestRetiredPatchesScaffolding:
-    """The declarative table exists, is the expected shape, and is
-    empty until T3.B starts migrating retired stubs."""
+class TestRetiredPatchesSchema:
+    """The declarative table exists with the post-T3.B-PILOT schema:
+    a ``dict[str, RetiredPatchSpec]`` carrying the migrated entries."""
 
     def test_retired_patches_dict_present(self):
         mod = _import_dispatch_module()
@@ -50,40 +56,71 @@ class TestRetiredPatchesScaffolding:
         )
         assert isinstance(mod._RETIRED_PATCHES, dict)
 
-    def test_retired_patches_empty_in_t3a(self):
-        """T3.A scaffolding ships the skeleton empty. Any entry here
-        BEFORE T3.B starts migration would mean a stale leftover —
-        fail loudly so the schema decision (sibling dict / tuple /
-        dataclass) gets made deliberately."""
+    def test_retired_patch_spec_dataclass_exposed(self):
         mod = _import_dispatch_module()
-        assert mod._RETIRED_PATCHES == {}, (
-            "_RETIRED_PATCHES is non-empty in T3.A scaffolding — "
-            "if T3.B has started migration, also update the snapshot "
-            "fixture and this assertion in the same commit"
+        assert hasattr(mod, "RetiredPatchSpec"), (
+            "RetiredPatchSpec dataclass missing — schema regression"
         )
+        spec = mod.RetiredPatchSpec(name="X", wrapped_name="y", reason="z")
+        # Frozen — mutation raises FrozenInstanceError.
+        with pytest.raises(Exception):
+            spec.name = "Z"  # type: ignore[misc]
+
+    def test_p8_pilot_entry_present(self):
+        """T3.B-PILOT-OF-1 migrated P8. The declarative table must
+        carry the exact name / wrapped_name / reason captured pre-
+        migration; otherwise apply_registry.json drifts."""
+        mod = _import_dispatch_module()
+        key = "P8 KV hybrid reporting (per-token capacity)"
+        assert key in mod._RETIRED_PATCHES, (
+            "P8 pilot entry missing from _RETIRED_PATCHES — "
+            "migration rollback would shift PATCH_REGISTRY order"
+        )
+        spec = mod._RETIRED_PATCHES[key]
+        assert isinstance(spec, mod.RetiredPatchSpec)
+        assert spec.name == key
+        assert spec.wrapped_name == "apply_patch_8_kv_hybrid_reporting"
+        assert spec.reason == "retired 2026-05-04 (upstream refactor superseded)"
 
 
-# ─── _retired_patch_handler shape (callable, returns PatchResult) ─────────
+# ─── _retired_patch_handler shape ─────────────────────────────────────────
 
 
 class TestRetiredPatchHandler:
     """The handler factory builds a no-op apply() callable that
-    matches the byte-identical behaviour of the hand-written retired
-    stubs in this file."""
+    matches the byte-identical behaviour of the hand-written stubs
+    it replaces. ``__name__`` MUST be set to ``spec.wrapped_name`` so
+    ``register_patch`` propagates it to the snapshot-visible
+    ``__wrapped__.__name__`` attribute."""
 
     def test_returns_callable(self):
         mod = _import_dispatch_module()
-        handler = mod._retired_patch_handler("X", "Y")
+        spec = mod.RetiredPatchSpec(name="X", wrapped_name="apply_x", reason="Y")
+        handler = mod._retired_patch_handler(spec)
         assert callable(handler)
+
+    def test_callable_name_set_to_wrapped_name(self):
+        """The snapshot test reads ``fn.__wrapped__.__name__``;
+        ``register_patch`` sets ``__wrapped__`` to the original fn —
+        which here is the handler. Therefore ``handler.__name__``
+        must equal ``spec.wrapped_name`` BEFORE registration."""
+        mod = _import_dispatch_module()
+        spec = mod.RetiredPatchSpec(
+            name="X", wrapped_name="apply_patch_synthetic_x", reason="Y",
+        )
+        handler = mod._retired_patch_handler(spec)
+        assert handler.__name__ == "apply_patch_synthetic_x"
 
     def test_callable_returns_patch_result(self):
         mod = _import_dispatch_module()
         from vllm.sndr_core.apply._state import PatchResult
 
-        handler = mod._retired_patch_handler(
-            "TEST-PATCH name (synthetic)",
-            "retired 2026-05-27 (synthetic test)",
+        spec = mod.RetiredPatchSpec(
+            name="TEST-PATCH name (synthetic)",
+            wrapped_name="apply_patch_test_synthetic",
+            reason="retired 2026-05-27 (synthetic test)",
         )
+        handler = mod._retired_patch_handler(spec)
         result = handler()
         assert isinstance(result, PatchResult)
         assert result.name == "TEST-PATCH name (synthetic)"
@@ -95,7 +132,8 @@ class TestRetiredPatchHandler:
         times. Catches a future bug where someone caches the
         PatchResult object or mutates it on the first call."""
         mod = _import_dispatch_module()
-        handler = mod._retired_patch_handler("A", "B")
+        spec = mod.RetiredPatchSpec(name="A", wrapped_name="apply_a", reason="B")
+        handler = mod._retired_patch_handler(spec)
         first = handler()
         second = handler()
         assert first.status == "skipped"
@@ -104,63 +142,123 @@ class TestRetiredPatchHandler:
         assert first.reason == second.reason == "B"
 
 
+# ─── P8 migrated entry — direct invocation parity ─────────────────────────
+
+
+class TestP8MigratedInvocation:
+    """The migrated P8 entry, when invoked through PATCH_REGISTRY,
+    must produce a PatchResult byte-identical to the pre-migration
+    hand-written stub. This is the strongest single-stub guard against
+    refactor drift in the declarative path."""
+
+    def test_p8_invocation_matches_pre_migration(self):
+        from vllm.sndr_core.apply._state import PATCH_REGISTRY, PatchResult
+
+        # Find the P8 entry by decorator name (insertion order means
+        # it's at position 0, but locate explicitly for robustness).
+        p8_entries = [
+            (i, name, fn) for i, (name, fn) in enumerate(PATCH_REGISTRY)
+            if name == "P8 KV hybrid reporting (per-token capacity)"
+        ]
+        assert len(p8_entries) == 1, (
+            f"P8 must appear exactly once in PATCH_REGISTRY; "
+            f"found {len(p8_entries)} occurrence(s)"
+        )
+        pos, name, fn = p8_entries[0]
+
+        # Position 0 in the pre-migration snapshot.
+        assert pos == 0, (
+            f"P8 expected at PATCH_REGISTRY position 0 (pre-migration), "
+            f"got position {pos} — apply_registry.json byte-identity broken"
+        )
+
+        # wrapped_name visible through __wrapped__.__name__
+        wrapped = getattr(fn, "__wrapped__", None)
+        assert wrapped is not None
+        assert wrapped.__name__ == "apply_patch_8_kv_hybrid_reporting"
+
+        # Invocation parity — every field of the PatchResult matches
+        # what the hand-written stub used to return.
+        result = fn()
+        assert isinstance(result, PatchResult)
+        assert result.name == "P8 KV hybrid reporting (per-token capacity)"
+        assert result.status == "skipped"
+        assert result.reason == "retired 2026-05-04 (upstream refactor superseded)"
+
+
 # ─── _register_retired_patches behaviour ─────────────────────────────────
 
 
 class TestRegisterRetiredPatches:
     """The registration loop iterates ``_RETIRED_PATCHES`` and routes
-    each entry through ``register_patch``. T3.A: empty dict → no-op.
-    Synthetic-population test below uses monkeypatch so the live
-    registry stays clean."""
+    each entry through ``register_patch``. The synthetic-entry test
+    uses monkeypatch so the live registry stays clean afterwards."""
 
-    def test_idempotent_on_empty_dict(self):
-        mod = _import_dispatch_module()
-        from vllm.sndr_core.apply import _state
+    def test_idempotent_invocation(self):
+        """Re-invoking ``_register_retired_patches()`` re-registers
+        every entry — by design. This test captures the increment in
+        ``PATCH_REGISTRY`` length and then trims the re-registrations
+        so subsequent tests see byte-identical state.
 
-        before_len = len(_state.PATCH_REGISTRY)
-        mod._register_retired_patches()
-        mod._register_retired_patches()
-        after_len = len(_state.PATCH_REGISTRY)
-        assert before_len == after_len, (
-            "_register_retired_patches() must be a no-op on the empty "
-            f"_RETIRED_PATCHES dict, got delta "
-            f"{after_len - before_len}"
-        )
-
-    def test_synthetic_entry_registers_one_pair(self, monkeypatch):
-        """T3.B preview: when ``_RETIRED_PATCHES`` carries entries,
-        ``_register_retired_patches()`` appends one ``(name, callable)``
-        tuple per entry to ``PATCH_REGISTRY``.
-
-        Uses monkeypatch on the module-level dict so the live
-        registry list is mutated only inside this test; the appended
-        tuple is removed before the test exits so subsequent test
-        modules + the snapshot fixture see the canonical state.
+        (T3.A's "idempotent on empty dict" test no longer applies
+        because P8 is populated. The runtime guarantee is: the boot-
+        time registration in this file fires exactly once at module
+        load; re-invocation is an explicit test-only operation that
+        must be cleaned up.)
         """
         mod = _import_dispatch_module()
         from vllm.sndr_core.apply import _state
 
-        synthetic_name = "M.1.1.T3.A.synthetic test patch"
-        synthetic_reason = "retired (synthetic test only)"
         before_len = len(_state.PATCH_REGISTRY)
-
-        monkeypatch.setitem(
-            mod._RETIRED_PATCHES, synthetic_name, synthetic_reason,
-        )
+        n_entries = len(mod._RETIRED_PATCHES)
         try:
             mod._register_retired_patches()
-            # The decorator appended exactly one tuple to
-            # _state.PATCH_REGISTRY; verify shape + content.
-            assert len(_state.PATCH_REGISTRY) == before_len + 1
+            assert len(_state.PATCH_REGISTRY) == before_len + n_entries
+        finally:
+            if len(_state.PATCH_REGISTRY) > before_len:
+                del _state.PATCH_REGISTRY[before_len:]
+
+    def test_synthetic_entry_registers_one_pair(self, monkeypatch):
+        """T3.B preview: when ``_RETIRED_PATCHES`` gains an additional
+        entry, ``_register_retired_patches()`` appends one new
+        ``(name, callable)`` tuple per entry to ``PATCH_REGISTRY``.
+
+        Uses ``monkeypatch.setitem`` so the live dict gains the
+        synthetic entry only inside this test; the appended
+        registration tuples are removed before the test exits so
+        subsequent test modules + the snapshot fixture see the
+        canonical state.
+        """
+        mod = _import_dispatch_module()
+        from vllm.sndr_core.apply import _state
+
+        synthetic_name = "M.1.1.T3.synthetic test patch"
+        synthetic_spec = mod.RetiredPatchSpec(
+            name=synthetic_name,
+            wrapped_name="apply_patch_synthetic_t3",
+            reason="retired (synthetic test only)",
+        )
+        before_len = len(_state.PATCH_REGISTRY)
+        n_existing = len(mod._RETIRED_PATCHES)
+
+        monkeypatch.setitem(mod._RETIRED_PATCHES, synthetic_name, synthetic_spec)
+        try:
+            mod._register_retired_patches()
+            # _register_retired_patches re-registers ALL entries, so the
+            # registry grew by (n_existing + 1).
+            assert len(_state.PATCH_REGISTRY) == before_len + n_existing + 1
+            # The synthetic entry is the last one registered.
             name, fn = _state.PATCH_REGISTRY[-1]
             assert name == synthetic_name
             assert callable(fn)
-            # Invoking the registered callable still produces the
-            # _skipped() result the handler factory wired in.
+            wrapped = getattr(fn, "__wrapped__", None)
+            assert wrapped is not None
+            assert wrapped.__name__ == "apply_patch_synthetic_t3"
+            # Invoking the registered callable produces the expected result.
             result = fn()
             assert result.status == "skipped"
             assert result.name == synthetic_name
-            assert result.reason == synthetic_reason
+            assert result.reason == "retired (synthetic test only)"
         finally:
             # Always restore registry length so other tests +
             # snapshot fixtures see byte-identical state.

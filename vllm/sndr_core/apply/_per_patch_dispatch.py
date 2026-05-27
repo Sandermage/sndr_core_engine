@@ -26,6 +26,7 @@ Migration history:
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Callable
 
 # Import shared state (registry, _APPLY_MODE, helpers, types).
@@ -46,69 +47,114 @@ log = logging.getLogger("genesis.apply_all")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#                  RETIRED PATCH DECLARATIVE SCAFFOLDING (T3.A)
+#               RETIRED PATCH DECLARATIVE REGISTRY (T3.A + T3.B-PILOT)
 # ═══════════════════════════════════════════════════════════════════════════
 #
-# M.1.1.T3.A (2026-05-27): scaffolding for the upcoming retired-stub
-# collapse. T3.B will migrate the 145 retired ``@register_patch`` stubs
-# in this file (each is a ~15-LOC docstring + 2-line
-# ``return _skipped(...)`` wrapper) into the declarative
-# ``_RETIRED_PATCHES`` table below. T3.A only puts the rails in place —
-# the dict is empty, the registration loop is a no-op, ``PATCH_REGISTRY``
-# is unchanged, and ``apply_registry.json`` / ``decision_no_env.json``
-# snapshots pass byte-identically.
+# M.1.1.T3.A (2026-05-27) — scaffolding landed in commit f2886e4f.
+# M.1.1.T3.B-PILOT-OF-1 (2026-05-27) — schema finalised + P8 migrated.
 #
-# Schema notes for T3.B
-# ─────────────────────
-# The current schema (``dict[str, str]``: decorator-name → skip-reason)
-# only captures the two pieces of state the inner ``_skipped()`` call
-# needs. T3.B will need to additionally preserve the original
-# ``apply_patch_*_*`` function name so the ``wrapped_name`` field in
-# ``tests/unit/dispatcher/fixtures/apply_registry.json`` stays
-# byte-identical across the migration. The natural T3.B options are:
+# Status & scope correction
+# ─────────────────────────
+# The M.1.R recon (``M1_DISPATCHER_TIER_MATRIX_R_2026-05-27_RU.md``)
+# estimated "145 retired stubs" available for declarative collapse.
+# Strict AST analysis during T3.B-PILOT found that 144 of those 145
+# ``_skipped(...)``-bearing functions are **conditional-skip** patches
+# (real ``try``/``if`` branching with ``_failed(...)`` paths, multiple
+# return points), not pure retired stubs. Only **P8 KV hybrid reporting
+# (per-token capacity)** matches the pure-retired-stub shape.
 #
-#   1. Keep ``dict[str, str]`` and add a sibling
-#      ``_RETIRED_PATCH_WRAPPED_NAMES: dict[str, str]`` mapping
-#      decorator-name → wrapped-function-name.
-#   2. Promote to ``dict[str, tuple[str, str]]`` carrying
-#      ``(wrapped_name, reason)`` per entry.
-#   3. Use a small frozen dataclass per entry for forward extensibility
-#      (retire-date, supersession_ref, etc.).
+# Consequence:
+#   - The promised "−2200 LOC" Tier-3 collapse is moot.
+#   - Conditional-skip patches are not pilot-eligible and need a
+#     different abstraction (or no abstraction at all). See
+#     ``sndr_private/planning/audits/M1_T3_SCOPE_REVISION_2026-05-27_RU.md``
+#     for the full forensic record + future-work pointers.
 #
-# T3.A leaves the schema unchanged from the GO-specified
-# ``dict[str, str]`` so the surface remains minimal; T3.B picks the
-# schema evolution informed by what the per-patch migration actually
-# needs to express. The
-# ``tests/unit/dispatcher/fixtures/apply_registry.json`` snapshot is
-# the byte-identity guard for any schema choice.
+# This block stays as the canonical path for **truly retired** patches
+# that may appear in future (e.g. when an upstream merge supersedes
+# a Genesis backport). Each new retired patch flows through
+# ``_RETIRED_PATCHES`` instead of growing another hand-written stub
+# in ``_per_patch_dispatch.py``.
+#
+# Byte-identical position invariant
+# ─────────────────────────────────
+# ``_register_retired_patches()`` is called BEFORE the first
+# hand-written ``@register_patch`` below. Entries in
+# ``_RETIRED_PATCHES`` therefore occupy positions 0..K-1 of
+# :data:`apply._state.PATCH_REGISTRY`. **P8 was historically at
+# position 0** (the first hand-written decorator) so migrating P8 to
+# position 0 of the declarative table preserves the snapshot. Future
+# additions must respect this — if a retired patch needs to land at
+# position N>0 in the boot order, do not migrate it without first
+# moving the registration call site to the correct point in the file.
 
 
-# Empty in T3.A — T3.B will populate via per-patch migration.
-_RETIRED_PATCHES: dict[str, str] = {}
+@dataclass(frozen=True)
+class RetiredPatchSpec:
+    """Declarative metadata for a retired/superseded apply-patch stub.
+
+    Fields:
+      name          Decorator name (PATCH_REGISTRY tuple element 0;
+                    appears in boot logs).
+      wrapped_name  Original ``apply_patch_*_*`` function name; the
+                    ``_retired_patch_handler`` factory sets this on
+                    the returned callable so
+                    ``tests/unit/dispatcher/fixtures/apply_registry.json``
+                    ``wrapped_name`` stays byte-identical with the
+                    pre-migration snapshot.
+      reason        Skip-reason text passed to ``_skipped(name, reason)``.
+
+    Frozen so the table reads as immutable data. Future fields
+    (retire_date, supersession_ref, related_upstream_pr, ...) can be
+    added with default values without breaking call sites.
+    """
+    name: str
+    wrapped_name: str
+    reason: str
 
 
-def _retired_patch_handler(name: str, reason: str) -> Callable[[], PatchResult]:
+_RETIRED_PATCHES: dict[str, RetiredPatchSpec] = {
+    # P8 — first pilot migration (T3.B-PILOT-OF-1, 2026-05-27).
+    # Lived as a hand-written stub at this file's position 0 (the
+    # first @register_patch) for ~3 months after upstream
+    # vllm 0.20.2rc1.dev9+g01d4d1ad3 refactored
+    # ``_report_kv_cache_config`` and superseded Genesis P8's
+    # text-patch anchors. See registry.py ``"P8"`` for the full
+    # lifecycle marker.
+    "P8 KV hybrid reporting (per-token capacity)": RetiredPatchSpec(
+        name="P8 KV hybrid reporting (per-token capacity)",
+        wrapped_name="apply_patch_8_kv_hybrid_reporting",
+        reason="retired 2026-05-04 (upstream refactor superseded)",
+    ),
+}
+
+
+def _retired_patch_handler(
+    spec: RetiredPatchSpec,
+) -> Callable[[], PatchResult]:
     """Build a no-op apply()-shape callable for a retired patch.
 
-    The returned function emits ``_skipped(name, reason)`` when invoked,
-    matching the byte-identical behaviour of the hand-written retired
-    stubs in this file. Separated from
-    :func:`_register_retired_patches` so unit tests can exercise the
-    handler shape without touching the live
-    :data:`apply._state.PATCH_REGISTRY`.
+    The returned function emits ``_skipped(spec.name, spec.reason)``
+    when invoked, matching the byte-identical behaviour of the
+    hand-written retired stubs that previously lived in this file.
 
-    NOTE for T3.B: the returned closure has its ``__name__`` defaulting
-    to ``"_apply"``. When ``_RETIRED_PATCHES`` gains real entries, the
-    migration loop will need to either rename each handler to the
-    original ``apply_patch_*_*`` function name (so the snapshot's
-    ``wrapped_name`` field stays byte-identical) OR plumb the wrapped
-    name through this helper as a third argument. The decision is
-    deferred to T3.B because it depends on the chosen schema
-    evolution (sibling dict / tuple value / frozen dataclass — see
-    the section comment above).
+    ``__name__`` is set to ``spec.wrapped_name`` BEFORE the
+    ``register_patch`` decorator wraps the callable — the decorator
+    copies ``fn.__name__`` onto the instrumented wrap, and the
+    apply_registry.json snapshot reads ``__wrapped__.__name__``. The
+    end result: ``PATCH_REGISTRY[i][1].__wrapped__.__name__`` returns
+    the original ``apply_patch_*_*`` name, identical to pre-migration.
+
+    Separated from :func:`_register_retired_patches` so unit tests
+    can exercise the handler shape without touching the live
+    :data:`apply._state.PATCH_REGISTRY`.
     """
+    reason = spec.reason
+    name = spec.name
+
     def _apply() -> PatchResult:
         return _skipped(name, reason)
+    _apply.__name__ = spec.wrapped_name
     return _apply
 
 
@@ -117,25 +163,24 @@ def _register_retired_patches() -> None:
     :func:`register_patch` so each retired stub appears in
     :data:`apply._state.PATCH_REGISTRY` at boot.
 
-    Idempotent on an empty dict — T3.A invokes this immediately to
-    keep the registration call site stable, but the loop is a no-op
-    until T3.B starts populating ``_RETIRED_PATCHES``. The
-    ``apply_registry.json`` snapshot fixture verifies the
-    ``PATCH_REGISTRY`` count + name pairs stay unchanged across this
-    commit.
+    Idempotent on an empty dict, and on a populated dict the call is
+    deterministic — entries register in ``_RETIRED_PATCHES`` insertion
+    order, which IS the contract: the apply_registry.json snapshot
+    pins each entry's position.
+
+    This is called once at module load time (below) so the
+    declarative entries occupy the lowest positions in PATCH_REGISTRY
+    before any hand-written ``@register_patch`` decorator below this
+    point gets a chance to register.
     """
-    for name, reason in _RETIRED_PATCHES.items():
-        handler = _retired_patch_handler(name, reason)
-        register_patch(name)(handler)
+    for spec in _RETIRED_PATCHES.values():
+        handler = _retired_patch_handler(spec)
+        register_patch(spec.name)(handler)
 
 
-# Register declaratively-listed retired patches. The dict is empty in
-# T3.A, so this is a no-op — the call is here to lock the placement
-# in the file's module-load order before any hand-written
-# ``@register_patch`` decorations below. T3.B will move stubs into
-# ``_RETIRED_PATCHES`` one batch at a time; each migration commit will
-# verify byte-identical ``apply_registry.json`` + ``decision_no_env.json``
-# snapshots before landing.
+# Register declaratively-listed retired patches.
+# T3.A: rails landed; dict empty.
+# T3.B-PILOT-OF-1: P8 migrated; dict has 1 entry registered first.
 _register_retired_patches()
 
 
@@ -143,24 +188,25 @@ _register_retired_patches()
 #                       PATCH IMPLEMENTATIONS
 # ═══════════════════════════════════════════════════════════════════════════
 
-@register_patch("P8 KV hybrid reporting (per-token capacity)")
-def apply_patch_8_kv_hybrid_reporting() -> PatchResult:
-    """Patch 8: RETIRED 2026-05-04 — upstream refactored the API.
-
-    Original purpose: closed the 3.76× KV-cache gap on Qwen3.6-35B-A3B by
-    excluding Mamba groups from the per-token capacity divisor.
-
-    Retired because vllm 0.20.2rc1.dev9+g01d4d1ad3 refactored
-    `_report_kv_cache_config` to call `get_max_concurrency_for_kv_cache_config`,
-    which already handles hybrid groups correctly upstream — our text-patch
-    anchors no longer match. See dispatcher.py PATCH_REGISTRY entry for the
-    diff-analysis lifecycle marker (`lifecycle: retired_2026-05-04`).
-
-    Skipping silently to avoid a DRIFT WARNING in every boot log. The wiring
-    file is kept on disk for git-history reference but never invoked.
-    """
-    name = "P8 KV hybrid reporting (per-token capacity)"
-    return _skipped(name, "retired 2026-05-04 (upstream refactor superseded)")
+# P8 KV hybrid reporting (per-token capacity)
+#   M.1.1.T3.B-PILOT-OF-1 (2026-05-27) — migrated to declarative
+#   ``_RETIRED_PATCHES`` above. The original hand-written stub was a
+#   2-line ``return _skipped(name, reason)`` body that registered at
+#   PATCH_REGISTRY position 0; the declarative entry continues to
+#   register at position 0 because ``_register_retired_patches()``
+#   runs before the first hand-written ``@register_patch`` below.
+#   apply_registry.json snapshot byte-identical post-migration.
+#
+#   Historical lifecycle rationale (preserved here for git blame):
+#     Original purpose — closed the 3.76× KV-cache gap on
+#     Qwen3.6-35B-A3B by excluding Mamba groups from the per-token
+#     capacity divisor. Retired because vllm
+#     0.20.2rc1.dev9+g01d4d1ad3 refactored ``_report_kv_cache_config``
+#     to call ``get_max_concurrency_for_kv_cache_config``, which
+#     already handles hybrid groups correctly upstream — our
+#     text-patch anchors no longer match.
+#   See ``dispatcher.registry.PATCH_REGISTRY["P8"]`` for the full
+#   diff-analysis lifecycle marker.
 
 
 @register_patch("P3 TurboQuant BF16->FP8 cast (Ampere fix)")
