@@ -26,6 +26,7 @@ Migration history:
 from __future__ import annotations
 
 import logging
+from typing import Callable
 
 # Import shared state (registry, _APPLY_MODE, helpers, types).
 # Using `from ._state import ...` for the names — `_state._APPLY_MODE` is
@@ -42,6 +43,100 @@ from ._state import (
 )
 
 log = logging.getLogger("genesis.apply_all")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#                  RETIRED PATCH DECLARATIVE SCAFFOLDING (T3.A)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# M.1.1.T3.A (2026-05-27): scaffolding for the upcoming retired-stub
+# collapse. T3.B will migrate the 145 retired ``@register_patch`` stubs
+# in this file (each is a ~15-LOC docstring + 2-line
+# ``return _skipped(...)`` wrapper) into the declarative
+# ``_RETIRED_PATCHES`` table below. T3.A only puts the rails in place —
+# the dict is empty, the registration loop is a no-op, ``PATCH_REGISTRY``
+# is unchanged, and ``apply_registry.json`` / ``decision_no_env.json``
+# snapshots pass byte-identically.
+#
+# Schema notes for T3.B
+# ─────────────────────
+# The current schema (``dict[str, str]``: decorator-name → skip-reason)
+# only captures the two pieces of state the inner ``_skipped()`` call
+# needs. T3.B will need to additionally preserve the original
+# ``apply_patch_*_*`` function name so the ``wrapped_name`` field in
+# ``tests/unit/dispatcher/fixtures/apply_registry.json`` stays
+# byte-identical across the migration. The natural T3.B options are:
+#
+#   1. Keep ``dict[str, str]`` and add a sibling
+#      ``_RETIRED_PATCH_WRAPPED_NAMES: dict[str, str]`` mapping
+#      decorator-name → wrapped-function-name.
+#   2. Promote to ``dict[str, tuple[str, str]]`` carrying
+#      ``(wrapped_name, reason)`` per entry.
+#   3. Use a small frozen dataclass per entry for forward extensibility
+#      (retire-date, supersession_ref, etc.).
+#
+# T3.A leaves the schema unchanged from the GO-specified
+# ``dict[str, str]`` so the surface remains minimal; T3.B picks the
+# schema evolution informed by what the per-patch migration actually
+# needs to express. The
+# ``tests/unit/dispatcher/fixtures/apply_registry.json`` snapshot is
+# the byte-identity guard for any schema choice.
+
+
+# Empty in T3.A — T3.B will populate via per-patch migration.
+_RETIRED_PATCHES: dict[str, str] = {}
+
+
+def _retired_patch_handler(name: str, reason: str) -> Callable[[], PatchResult]:
+    """Build a no-op apply()-shape callable for a retired patch.
+
+    The returned function emits ``_skipped(name, reason)`` when invoked,
+    matching the byte-identical behaviour of the hand-written retired
+    stubs in this file. Separated from
+    :func:`_register_retired_patches` so unit tests can exercise the
+    handler shape without touching the live
+    :data:`apply._state.PATCH_REGISTRY`.
+
+    NOTE for T3.B: the returned closure has its ``__name__`` defaulting
+    to ``"_apply"``. When ``_RETIRED_PATCHES`` gains real entries, the
+    migration loop will need to either rename each handler to the
+    original ``apply_patch_*_*`` function name (so the snapshot's
+    ``wrapped_name`` field stays byte-identical) OR plumb the wrapped
+    name through this helper as a third argument. The decision is
+    deferred to T3.B because it depends on the chosen schema
+    evolution (sibling dict / tuple value / frozen dataclass — see
+    the section comment above).
+    """
+    def _apply() -> PatchResult:
+        return _skipped(name, reason)
+    return _apply
+
+
+def _register_retired_patches() -> None:
+    """Register every entry in ``_RETIRED_PATCHES`` via
+    :func:`register_patch` so each retired stub appears in
+    :data:`apply._state.PATCH_REGISTRY` at boot.
+
+    Idempotent on an empty dict — T3.A invokes this immediately to
+    keep the registration call site stable, but the loop is a no-op
+    until T3.B starts populating ``_RETIRED_PATCHES``. The
+    ``apply_registry.json`` snapshot fixture verifies the
+    ``PATCH_REGISTRY`` count + name pairs stay unchanged across this
+    commit.
+    """
+    for name, reason in _RETIRED_PATCHES.items():
+        handler = _retired_patch_handler(name, reason)
+        register_patch(name)(handler)
+
+
+# Register declaratively-listed retired patches. The dict is empty in
+# T3.A, so this is a no-op — the call is here to lock the placement
+# in the file's module-load order before any hand-written
+# ``@register_patch`` decorations below. T3.B will move stubs into
+# ``_RETIRED_PATCHES`` one batch at a time; each migration commit will
+# verify byte-identical ``apply_registry.json`` + ``decision_no_env.json``
+# snapshots before landing.
+_register_retired_patches()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
