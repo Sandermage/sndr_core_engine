@@ -278,7 +278,25 @@ class ModelConfig:
     # ── Validation + audit ──
 
     def validate(self) -> None:
-        """Hard schema check — raises SchemaError on any violation."""
+        """Hard schema check — raises SchemaError on any violation.
+
+        M.5.3 restructure (2026-05-27): the original 158-LOC method is
+        split into private named helpers below. Error messages,
+        exception class, and check ordering are preserved byte-identical
+        so existing callers + tests see no behavioural delta.
+        """
+        self._validate_identity()
+        self._validate_community_lifecycle()
+        self._validate_cudagraph_mode()
+        self._validate_sub_components()
+        self._validate_path_c_tier_guard()
+        self._validate_compatibility_matrix()
+
+    # ── validate() helpers (M.5.3 internal split) ──
+
+    def _validate_identity(self) -> None:
+        """Identity fields: key, schema_version, title, description,
+        maintainer, model_path, lifecycle enum."""
         if not self.key:
             raise SchemaError("ModelConfig.key required")
         if self.schema_version != SCHEMA_VERSION_CURRENT:
@@ -307,7 +325,10 @@ class ModelConfig:
                 f"community-prod (got '{self.lifecycle}')"
             )
 
-        # ── Community lifecycle gates (W-A 2026-05-06) ──
+    def _validate_community_lifecycle(self) -> None:
+        """Community-lifecycle gates (W-A 2026-05-06): the
+        ``community_submitted`` flag and the community-prod
+        promotion gates."""
         community_states = {"community-test", "community-dev", "community-prod"}
         if self.community_submitted and self.lifecycle not in community_states:
             raise SchemaError(
@@ -329,6 +350,9 @@ class ModelConfig:
                     f"distinct verified_by entries (cross-rig validation). "
                     f"Got {len(self.verified_by)} entries: {self.verified_by}."
                 )
+
+    def _validate_cudagraph_mode(self) -> None:
+        """``cudagraph_mode`` enum check."""
         valid_cg = {"NONE", "PIECEWISE", "FULL", "FULL_AND_PIECEWISE",
                     "FULL_DECODE_ONLY"}
         if self.cudagraph_mode not in valid_cg:
@@ -337,6 +361,15 @@ class ModelConfig:
                 f"{sorted(valid_cg)} (got '{self.cudagraph_mode}')"
             )
 
+    def _validate_sub_components(self) -> None:
+        """Delegate validation to each present sub-component dataclass.
+
+        Order preserved from the pre-M.5.3 monolith so any test that
+        depends on which error surfaces first sees the same path. The
+        ``OffloadConfig`` branch additionally runs the Path A hybrid-GDN
+        guard inline because the guard reads ``offload.cpu_offload_gib``
+        AND ``cache_config.tiers`` together.
+        """
         self.hardware.validate()
         if self.spec_decode is not None:
             self.spec_decode.validate()
@@ -358,36 +391,7 @@ class ModelConfig:
             self.overrides.validate()
         if self.offload is not None:
             self.offload.validate()
-            # Hybrid-GDN guard (Path A): CPU offload + hybrid GDN crashes
-            # in vLLM/SGLang/LMCache. Detect by PN59 streaming-GDN env
-            # being set on this config (canonical hybrid signal).
-            uses_hybrid_gdn = (
-                "1" == self.genesis_env.get(
-                    "GENESIS_ENABLE_PN59_STREAMING_GDN", "")
-            )
-            # Path C relaxation (PN95 v7.73.x): Path A is gated unless
-            # cache_config.tiers is declared AND exclude_mamba_ssm=True.
-            # PN95's tier manager filters MambaSpec groups out of the
-            # demote candidate set, so SSM state never gets touched.
-            path_c_active = (
-                self.cache_config is not None
-                and self.cache_config.tiers
-                and self.cache_config.exclude_mamba_ssm
-            )
-            if (uses_hybrid_gdn and self.offload.cpu_offload_gib > 0
-                    and not path_c_active):
-                raise SchemaError(
-                    "OffloadConfig.cpu_offload_gib > 0 is incompatible "
-                    "with hybrid-GDN models (PN59 enabled). Mamba SSM "
-                    "state lives outside the KV pool and CPU offload "
-                    "crashes upstream. See "
-                    "docs/_internal/research/club3090_issue58_long_ctx_"
-                    "vision_oom_2026-05-09.md for the full analysis. "
-                    "v7.73.x Path C lifts this restriction — declare "
-                    "`cache_config.tiers` with `exclude_mamba_ssm: true` "
-                    "(default true) to use the PN95 tier manager that "
-                    "filters MambaSpec groups out of demotion."
-                )
+            self._validate_offload_hybrid_gdn_guard()
         if self.artifacts is not None:
             self.artifacts.validate()
         if self.service is not None:
@@ -404,10 +408,44 @@ class ModelConfig:
             self.proxmox.validate()
         if self.bootstrap is not None:
             self.bootstrap.validate()
-        # Path C: hybrid-GDN configs that opt INTO PN95 tiers MUST keep
-        # exclude_mamba_ssm=True (refusing to override is a deliberate
-        # safety belt — the validator should never let a bad config
-        # reach the dispatcher).
+
+    def _validate_offload_hybrid_gdn_guard(self) -> None:
+        """Hybrid-GDN guard (Path A): CPU offload + hybrid GDN crashes
+        in vLLM/SGLang/LMCache. Detect by PN59 streaming-GDN env
+        being set on this config (canonical hybrid signal)."""
+        uses_hybrid_gdn = (
+            "1" == self.genesis_env.get(
+                "GENESIS_ENABLE_PN59_STREAMING_GDN", "")
+        )
+        # Path C relaxation (PN95 v7.73.x): Path A is gated unless
+        # cache_config.tiers is declared AND exclude_mamba_ssm=True.
+        # PN95's tier manager filters MambaSpec groups out of the
+        # demote candidate set, so SSM state never gets touched.
+        path_c_active = (
+            self.cache_config is not None
+            and self.cache_config.tiers
+            and self.cache_config.exclude_mamba_ssm
+        )
+        if (uses_hybrid_gdn and self.offload.cpu_offload_gib > 0
+                and not path_c_active):
+            raise SchemaError(
+                "OffloadConfig.cpu_offload_gib > 0 is incompatible "
+                "with hybrid-GDN models (PN59 enabled). Mamba SSM "
+                "state lives outside the KV pool and CPU offload "
+                "crashes upstream. See "
+                "docs/_internal/research/club3090_issue58_long_ctx_"
+                "vision_oom_2026-05-09.md for the full analysis. "
+                "v7.73.x Path C lifts this restriction — declare "
+                "`cache_config.tiers` with `exclude_mamba_ssm: true` "
+                "(default true) to use the PN95 tier manager that "
+                "filters MambaSpec groups out of demotion."
+            )
+
+    def _validate_path_c_tier_guard(self) -> None:
+        """Path C: hybrid-GDN configs that opt INTO PN95 tiers MUST
+        keep ``exclude_mamba_ssm=True`` (refusing to override is a
+        deliberate safety belt — the validator should never let a bad
+        config reach the dispatcher)."""
         uses_hybrid_gdn = (
             "1" == self.genesis_env.get(
                 "GENESIS_ENABLE_PN59_STREAMING_GDN", "")
@@ -423,8 +461,10 @@ class ModelConfig:
                 "(disables Path C) OR set `exclude_mamba_ssm: true`."
             )
 
-        # S2.5 (2026-05-12): CompatibilityMatrix forbidden rules как hard
-        # error. Discouraged уходят в audit() как soft warnings.
+    def _validate_compatibility_matrix(self) -> None:
+        """S2.5 (2026-05-12): CompatibilityMatrix forbidden rules as
+        hard error. Discouraged rules surface via ``audit()`` as soft
+        warnings; see :func:`model_config_audit.audit_model_config`."""
         forbidden, _ = COMPATIBILITY_MATRIX.evaluate(self)
         if forbidden:
             lines = [
@@ -439,37 +479,13 @@ class ModelConfig:
     def audit(self) -> list[str]:
         """Soft warnings for risky-but-not-invalid configurations.
 
-        Examples: TQ k8v4 + hybrid model without P98, --enable-prefix-
-        caching on hybrid GDN, etc. Operator can choose to ignore.
+        Thin delegation to
+        :func:`vllm.sndr_core.model_configs.model_config_audit.audit_model_config`
+        — operator-visible message wording lives there.
         """
-        warnings: list[str] = []
-        # TQ k8v4 + hybrid GDN model needs P98 (vs vllm#40941 lock).
-        # Hybrid GDN models: 27B Lorbus int4, NOT 35B-A3B-FP8 (dense MoE).
-        # Detection: PN59_STREAMING_GDN=1 in env is the canonical signal —
-        # operator only enables PN59 on hybrid models.
-        if self.kv_cache_dtype == "turboquant_k8v4":
-            pn59_on = self.genesis_env.get(
-                "GENESIS_ENABLE_PN59_STREAMING_GDN") == "1"
-            int4_lorbus = "int4" in self.model_path.lower() and \
-                "AutoRound" in self.model_path
-            if (pn59_on or int4_lorbus) and \
-                    "GENESIS_ENABLE_P98" not in self.genesis_env:
-                warnings.append(
-                    "P98 should be enabled for TQ k8v4 + hybrid GDN model "
-                    "(WorkspaceManager fix vs vllm#40941). "
-                    "Add GENESIS_ENABLE_P98=1 to genesis_env."
-                )
-        # Reference metrics expected for stable lifecycle
-        if self.lifecycle == "stable" and self.reference_metrics is None:
-            warnings.append(
-                "stable lifecycle should have reference_metrics — "
-                "operators can't run `verify` without baseline values."
-            )
-        # S2.5 (2026-05-12): CompatibilityMatrix discouraged rules.
-        _, discouraged = COMPATIBILITY_MATRIX.evaluate(self)
-        for rule, msg in discouraged:
-            warnings.append(f"[{rule.id}] {rule.title}: {msg}")
-        return warnings
+        from .model_config_audit import audit_model_config
+
+        return audit_model_config(self)
 
     # ── Render (M.5.2: thin delegations to ``model_configs.emitters``) ──
 
