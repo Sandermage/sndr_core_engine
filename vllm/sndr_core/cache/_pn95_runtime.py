@@ -35,29 +35,10 @@ _TM: Optional[Any] = None  # vllm.sndr_core.cache.tier_manager.TierManager
 _LAST_GROUP_IDS_BY_HASH: dict = {}  # cleared on reset_for_tests
 
 
-def _enabled() -> bool:
-    """True iff GENESIS_ENABLE_PN95_TIER_AWARE_CACHE=1."""
-    return os.environ.get(
-        "GENESIS_ENABLE_PN95_TIER_AWARE_CACHE", "0"
-    ).strip().lower() in ("1", "true", "yes", "on")
-
-
-def _phase5_virt_enabled() -> bool:
-    """Path C v1.0 Phase 5 master gate — KV pool virtualization.
-
-    Default OFF for safety. When enabled:
-      - Anchor #9 inflates available_memory in pre-flight check by CPU tier capacity
-      - Anchor #10 caps physical KVCacheTensor allocation to GPU-only memory
-      - Anchor #11+ (later sessions) wire up logical/physical block split
-
-    Independent from GENESIS_ENABLE_PN95_TIER_AWARE_CACHE — Phase 5 virt
-    requires both: PN95 base infrastructure AND VIRT opt-in.
-    """
-    if not _enabled():
-        return False  # virt requires PN95 base
-    return os.environ.get(
-        "GENESIS_PN95_VIRT_ENABLE", "0"
-    ).strip().lower() in ("1", "true", "yes", "on")
+# M.4.1 — env-gate predicates extracted to `.pn95.gates`. The
+# re-exports below keep ``_pn95_runtime._enabled`` / ``_phase5_virt_enabled``
+# importable at the original dotted path for tests and text-patch anchors.
+from .pn95.gates import _enabled, _phase5_virt_enabled  # noqa: E402
 
 
 def pn95_extra_logical_memory_bytes() -> int:
@@ -128,16 +109,8 @@ def _pn95_stream() -> Optional[Any]:
     return _PN95_CUDA_STREAM
 
 
-def _pn95_async_enabled() -> bool:
-    """Path C v1.0 Quality-First Sprint Q1 B1 — async stream gate.
-
-    Default ON — async stream usage is lossless (stream sync ensures
-    correctness). Operator can disable via GENESIS_PN95_ASYNC_STREAM=0
-    for debugging or если cudagraph capture issues observed.
-    """
-    return os.environ.get(
-        "GENESIS_PN95_ASYNC_STREAM", "1"
-    ).strip().lower() in ("1", "true", "yes", "on")
+# M.4.1 — `_pn95_async_enabled` extracted to `.pn95.gates`.
+from .pn95.gates import _pn95_async_enabled  # noqa: E402
 
 
 def _pn95_gpu_to_cpu_bytes(view: Any) -> bytes:
@@ -172,21 +145,8 @@ def _pn95_gpu_to_cpu_bytes(view: Any) -> bytes:
     return bytes(cpu_tensor.numpy().tobytes())
 
 
-def _pn95_use_stream_pool() -> bool:
-    """Stream-pool mode (upstream PR #40020-style event polling).
-
-    When enabled, demote/promote submit work into the pooled-stream queue
-    in _pn95_stream_pool and synchronize via end_event.synchronize() on
-    that stream — no host-blocking torch.cuda.current_stream().synchronize()
-    on the default stream. The default stream stays free to dispatch the
-    next attention forward while PCIe DMA runs on the pooled stream.
-
-    Default OFF (singleton stream path stays exact). Set
-    GENESIS_PN95_USE_STREAM_POOL=1 to opt in.
-    """
-    return os.environ.get(
-        "GENESIS_PN95_USE_STREAM_POOL", "0",
-    ).strip().lower() in ("1", "true", "yes", "on")
+# M.4.1 — `_pn95_use_stream_pool` extracted to `.pn95.gates`.
+from .pn95.gates import _pn95_use_stream_pool  # noqa: E402
 
 
 def _pn95_gpu_to_cpu_bytes_batch_v2(views: list) -> list:
@@ -1556,31 +1516,11 @@ def notify_admit(request: Any, prev_n_cached: int, new_n_cached: int,
         log.warning("[PN95] notify_admit failed silently: %s", e)
 
 
-def _pn95_prefetch_neighbors_enabled() -> bool:
-    """Env gate: GENESIS_PN95_PREFETCH_NEIGHBORS=1 enables auto-warm.
-
-    When a vllm prefix-cache hit lands in notify_touch, we know the
-    request will likely traverse adjacent block_hashes next. If any of
-    those neighbors are in L2 / disk (not yet in L1 pinned), pre-warm
-    them into the pinned pool so the next promote_on_miss is fast.
-    Default OFF — operators turn on when running multi-stream workloads
-    where adjacency matters more than one-shot.
-    """
-    return os.environ.get(
-        "GENESIS_PN95_PREFETCH_NEIGHBORS", "0",
-    ).strip().lower() in ("1", "true", "yes", "on")
-
-
-def _pn95_prefetch_window() -> int:
-    """How many trailing block_hashes from the admit-order tail to pre-warm
-    around a touch event. Default 8 — small enough that the warm-up cost
-    stays under typical attention compute time.
-    """
-    try:
-        return max(0, min(64, int(os.environ.get(
-            "GENESIS_PN95_PREFETCH_WINDOW", "8"))))
-    except (ValueError, TypeError):
-        return 8
+# M.4.1 — prefetch env gates extracted to `.pn95.gates`.
+from .pn95.gates import (  # noqa: E402
+    _pn95_prefetch_neighbors_enabled,
+    _pn95_prefetch_window,
+)
 
 
 def notify_touch(block_hash: Any, group_ids: list,
@@ -1921,7 +1861,14 @@ def init_mamba_exclusions_from_kv_groups(kv_cache_groups: Any) -> int:
 
 _TICK_COUNTER = 0
 _TICK_LAST_FREE_MIB = 0
-# Path C v1.0 Phase 3 — observability counters
+# Path C v1.0 Phase 3 — observability counters.
+#
+# M.4.1 note: ownership stays in this module (not `.pn95.metrics`) because
+# ~10 test sites rebind `rt._PN95_STATS` via ``monkeypatch.setattr``,
+# which would break a cross-module name alias. The functions that READ
+# this dict (``get_pn95_stats`` / ``_pn95_dump_stats_if_due``) live in
+# `.pn95.metrics` and late-import this name so the monkeypatch path
+# continues to work. State ownership reorganization is deferred to M.4.2.
 _PN95_STATS = {
     "ticks_total": 0,
     "ticks_pressure_check": 0,
@@ -1940,12 +1887,8 @@ _FREE_MIB_CACHE_TTL: int = 5  # cache mem_get_info for N consecutive ticks
 _FREE_MIB_CACHE_VALID: int = 0
 
 
-def _read_env_int(name: str, default: int) -> int:
-    """Read int env var with fail-silent fallback."""
-    try:
-        return int(os.environ.get(name, str(default)))
-    except (ValueError, TypeError):
-        return default
+# M.4.1 — `_read_env_int` extracted to `.pn95.gates`.
+from .pn95.gates import _read_env_int  # noqa: E402
 
 
 def _refresh_env_cache() -> None:
@@ -1975,122 +1918,12 @@ def _gpu_free_mib() -> int:
         return 0
 
 
-def get_pn95_stats() -> dict:
-    """Path C v1.0 Phase 3 observability — returns counter snapshot.
-
-    Used by the `sndr report` CLI and operator-facing tools to surface
-    PN95 activity without needing access to the EngineCore worker process.
-    """
-    snapshot = dict(_PN95_STATS)
-    # Phase 4 — augment with prefix-store stats
-    snapshot["prefix_store_entries"] = len(_PN95_PREFIX_STORE)
-    snapshot["prefix_store_bytes_used"] = _PN95_PREFIX_STORE_BYTES_USED
-    snapshot["prefix_store_promote_hits"] = _PN95_STATS.get(
-        "prefix_promote_hits", 0
-    )
-    snapshot["prefix_store_demotes"] = _PN95_STATS.get(
-        "prefix_demote_count", 0
-    )
-    # A1 — compression stats
-    raw = _PN95_STATS.get("compress_raw_bytes_total", 0)
-    stored = _PN95_STATS.get("compress_stored_bytes_total", 0)
-    snapshot["compress_raw_bytes_total"] = raw
-    snapshot["compress_stored_bytes_total"] = stored
-    snapshot["compress_ratio"] = round(raw / stored, 3) if stored > 0 else 1.0
-    snapshot["compress_lib"] = _PN95_COMPRESS_LIB or "uninit"
-    # B1 — async stream stats
-    snapshot["async_stream_enabled"] = _pn95_async_enabled()
-    snapshot["async_demote_count"] = _PN95_STATS.get("async_demote_count", 0)
-    snapshot["async_promote_count"] = _PN95_STATS.get("async_promote_count", 0)
-    # B2 — batched demote ops (each batch processes N layers with 1 sync)
-    snapshot["async_batch_demote_count"] = _PN95_STATS.get(
-        "async_batch_demote_count", 0
-    )
-    # B3 — batched promote ops (each batch processes N layers с 1 wait_stream)
-    snapshot["async_batch_promote_count"] = _PN95_STATS.get(
-        "async_batch_promote_count", 0
-    )
-    # OBS1 — hit rate calculation для operator monitoring
-    lookups_total = _PN95_STATS.get("prefix_lookups_total", 0)
-    cold_misses = _PN95_STATS.get("prefix_lookups_cold_miss", 0)
-    snapshot["prefix_lookups_total"] = lookups_total
-    snapshot["prefix_lookups_cold_miss"] = cold_misses
-    snapshot["prefix_hit_rate"] = (
-        round((lookups_total - cold_misses) / lookups_total, 3)
-        if lookups_total > 0 else 0.0
-    )
-    # Prefetch API stats — visibility into batched warm-up activity.
-    # If prefetch_calls > 0, L2→L1 hits/misses indicate whether the
-    # caller is correctly predicting near-future block accesses.
-    for k, v in _PN95_PREFETCH_STATS.items():
-        snapshot[k] = v
-
-    # Layer-aware demote priority — top-5 hottest layer access counts.
-    # Useful for diagnosing whether some attention layers monopolize the
-    # promote path (which justifies more aggressive cold-layer demote)
-    # or whether access is uniform (then ordering is a no-op).
-    snapshot["layer_aware_demote_enabled"] = _pn95_layer_aware_enabled()
-    if _PN95_LAYER_ACCESS_COUNTS:
-        top_hot = sorted(
-            _PN95_LAYER_ACCESS_COUNTS.items(), key=lambda kv: -kv[1],
-        )[:5]
-        snapshot["layer_access_top5_hot"] = {k: v for k, v in top_hot}
-        snapshot["layer_access_distinct"] = len(_PN95_LAYER_ACCESS_COUNTS)
-        snapshot["layer_access_total_observations"] = sum(
-            _PN95_LAYER_ACCESS_COUNTS.values()
-        )
-    # L1 pinned pool stats — surfaces hit-rate of the fast PCIe DMA path
-    # vs the pageable L2 fallback. Operator can spot "pool too small" via
-    # high l1_full_skips, or "no demote pressure" via zero l1_demote_writes.
-    snapshot["l1_demote_writes"] = _PN95_STATS.get("l1_demote_writes", 0)
-    snapshot["l1_promote_hits"] = _PN95_STATS.get("l1_promote_hits", 0)
-    try:
-        pool = _pn95_l1_pool()
-        if pool is not None:
-            pool_stats = pool.stats()
-            snapshot["l1_pool_enabled"] = True
-            snapshot["l1_slots_capacity"] = pool_stats.get("slots_capacity", 0)
-            snapshot["l1_slot_size_bytes"] = pool_stats.get("slot_size_bytes", 0)
-            snapshot["l1_slots_used"] = pool_stats.get("slots_used", 0)
-            snapshot["l1_bytes_used"] = pool_stats.get("bytes_used", 0)
-            snapshot["l1_full_skips"] = pool_stats.get("l1_full_skips", 0)
-            snapshot["l1_evictions"] = pool_stats.get("l1_evictions", 0)
-        else:
-            snapshot["l1_pool_enabled"] = False
-    except Exception:
-        snapshot["l1_pool_enabled"] = False
-    return snapshot
-
-
-def _pn95_dump_stats_if_due() -> None:
-    """OBS1 — periodic stats dump к JSON file для operator visibility.
-
-    Called from scheduler_tick. Throttled by tick counter и env-gated.
-    Atomic write (tmp + rename) so operator can `cat` safely.
-
-    Env vars:
-      GENESIS_PN95_STATS_FILE=/tmp/pn95_stats.json (default; empty disables)
-      GENESIS_PN95_STATS_INTERVAL=100 (dump every N ticks)
-    """
-    try:
-        path = os.environ.get("GENESIS_PN95_STATS_FILE", "/tmp/pn95_stats.json")
-        if not path:
-            return
-        try:
-            interval = int(os.environ.get("GENESIS_PN95_STATS_INTERVAL", "50"))
-        except (ValueError, TypeError):
-            interval = 50
-        if interval <= 0 or _TICK_COUNTER % interval != 0:
-            return
-        import json
-        snapshot = get_pn95_stats()
-        snapshot["timestamp"] = int(__import__("time").time())
-        tmp_path = path + ".tmp"
-        with open(tmp_path, "w") as f:
-            json.dump(snapshot, f, indent=2, default=str)
-        os.replace(tmp_path, path)
-    except Exception:
-        pass  # fail-silent — observability never breaks production
+# M.4.1 — `get_pn95_stats` and `_pn95_dump_stats_if_due` extracted to
+# `.pn95.metrics`. They late-import the foreign state (`_PN95_PREFIX_STORE`,
+# `_PN95_PREFETCH_STATS`, `_PN95_LAYER_ACCESS_COUNTS`, `_PN95_COMPRESS_LIB`,
+# `_pn95_l1_pool`, `_TICK_COUNTER`) from this module to avoid a circular
+# import; M.4.2 will move those singletons into focused modules too.
+from .pn95.metrics import get_pn95_stats, _pn95_dump_stats_if_due  # noqa: E402
 
 
 # ─── Path C v1.0 Phase 4 — prefix-cache extension to CPU pinned RAM ──────
@@ -2365,31 +2198,18 @@ _PN95_LAYER_ACCESS_RESET_THRESHOLD = 10_000_000
 #
 # Default off (threshold=0). Operators set >=2 when serving chat workloads
 # where most prefill blocks are one-shot.
+# Lookup hit tracker — ownership stays here for M.4.1 (same reason
+# as ``_PN95_STATS``: test sites may rebind via monkeypatch). The
+# ``_pn95_record_lookup`` function lives in `.pn95.metrics` and
+# late-imports this state.
 _PN95_HIT_COUNTS: dict = {}
 _PN95_HIT_TRACKER_MAX = 64_000
 
-
-def _pn95_store_threshold() -> int:
-    try:
-        return max(0, int(os.environ.get("GENESIS_PN95_STORE_THRESHOLD", "0")))
-    except (ValueError, TypeError):
-        return 0
+from .pn95.metrics import _pn95_record_lookup  # noqa: E402
 
 
-def _pn95_record_lookup(block_hash: Any) -> int:
-    """Bump hit counter for a block_hash on every promote query. Returns
-    post-bump count. Bounded by _PN95_HIT_TRACKER_MAX (LRU eviction)."""
-    global _PN95_HIT_COUNTS
-    n = _PN95_HIT_COUNTS.get(block_hash, 0) + 1
-    if n == 1 and len(_PN95_HIT_COUNTS) >= _PN95_HIT_TRACKER_MAX:
-        # FIFO drop — keep tracker bounded, lose oldest counter.
-        try:
-            oldest = next(iter(_PN95_HIT_COUNTS))
-            _PN95_HIT_COUNTS.pop(oldest, None)
-        except StopIteration:
-            pass
-    _PN95_HIT_COUNTS[block_hash] = n
-    return n
+# M.4.1 — `_pn95_store_threshold` extracted to `.pn95.gates`.
+from .pn95.gates import _pn95_store_threshold  # noqa: E402
 
 
 def _pn95_should_demote(block_hash: Any) -> bool:
@@ -2416,13 +2236,8 @@ def _pn95_should_demote(block_hash: Any) -> bool:
 #     GENESIS_PN95_PINNED_POOL_MB budget
 #
 # Default 1 (no grouping). 2-4 typical sweet spots for production.
-def _pn95_block_size_factor() -> int:
-    try:
-        v = int(os.environ.get("GENESIS_PN95_BLOCK_SIZE_FACTOR", "1"))
-    except (ValueError, TypeError):
-        v = 1
-    # Clamp to sensible range; 8+ rarely helps and uses lots of pinned slots.
-    return max(1, min(8, v))
+# M.4.1 — `_pn95_block_size_factor` extracted to `.pn95.gates`.
+from .pn95.gates import _pn95_block_size_factor  # noqa: E402
 
 
 def pn95_demote_batch(block_id_hash_pairs: list) -> int:
@@ -2468,10 +2283,8 @@ def pn95_demote_batch(block_id_hash_pairs: list) -> int:
     return n_demoted
 
 
-def _pn95_layer_aware_enabled() -> bool:
-    return os.environ.get(
-        "GENESIS_ENABLE_PN95_LAYER_AWARE_DEMOTE", "0",
-    ).strip().lower() in ("1", "true", "yes", "on")
+# M.4.1 — `_pn95_layer_aware_enabled` extracted to `.pn95.gates`.
+from .pn95.gates import _pn95_layer_aware_enabled  # noqa: E402
 
 
 def _pn95_record_layer_promote(layer_name: str) -> None:
