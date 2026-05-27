@@ -4648,6 +4648,44 @@ def apply_patch_N104_dump_stacks_on_timeout() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN104 pre-compile prefill+decode+sampler at boot")
+def apply_patch_PN104_precompile_prefill() -> PatchResult:
+    """Patch PN104: pre-compile prefill+decode+sampler kernels at boot.
+
+    Three gaps in `compile_or_warm_up_model()`:
+
+    1. Prefill: cudagraph capture sizes [5,40] (decode batch sizes) were
+       used to decide whether to pre-compile the max prefill shape (8192).
+       Since 5 and 40 are in-range, endpoint was skipped → zero warmup
+       iterations → 5-10 min AOT stall on first request.
+       Fix: exclude cudagraph sizes from the `all_sizes` check.
+
+    2. Decode: after prefill warmup, runs a decode-mode _dummy_run to
+       pre-compile auxiliary Triton kernels (slot mapping, MTP prepare,
+       TQ decode stages, etc.) not covered by prefill-only warmup.
+
+    3. Sampler: _dummy_run alone does NOT call _dummy_sampler_run, so
+       sampler and rejection-sampler kernels (expand_kernel,
+       eagle_prepare_inputs_padded_kernel) were never pre-compiled.
+       Fix: calls _dummy_sampler_run(hidden_states) after decode warmup.
+
+    Auto-applies (no opt-in env). Zero runtime overhead.
+    """
+    name = "PN104 pre-compile max prefill shape at boot"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: wiring ready")
+    try:
+        from vllm._genesis.wiring import patch_warmup_precompile_prefill
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = patch_warmup_precompile_prefill.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #                             MAIN ORCHESTRATOR
 # ═══════════════════════════════════════════════════════════════════════════
