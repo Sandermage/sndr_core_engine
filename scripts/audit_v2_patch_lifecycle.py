@@ -61,6 +61,14 @@ ALLOWED_RETIRED_PATCHES: dict[str, str] = {
     "PN19": "carry-over from W-A; replacement is part of PN-series consolidation work",
     "PN52": "still actively consumed by 27B INT4 / 35B FP8 prod path",
     "P94":  "enabled in 27B INT4 TQ + 35B FP8 prod — operator review pending",
+    "PN82": (
+        "K.1.R 2026-05-28 — vllm#41873 merged at 39d5fa96 in window "
+        "dev371→626fa9bb, byte-equivalent retire. Env flag still set in "
+        "9 model_config YAMLs (27B + 35B prod path); the wiring now "
+        "self-skips with a retirement-stub return so leaving the env "
+        "set is harmless. Will be cleaned out of YAMLs at next config "
+        "audit cycle, not blocking the pin bump."
+    ),
 }
 
 
