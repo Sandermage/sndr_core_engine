@@ -4686,6 +4686,39 @@ def apply_patch_PN104_precompile_prefill() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN105 revert JIT monitor + missing V1 warmup (#40137 #43009 #42165 #43879)")
+def apply_patch_PN105_fix_jit_warmup() -> PatchResult:
+    """Patch PN105: revert JIT monitor activation + warm up missing V1 kernels.
+
+    Problem: PR #40137 added a Triton JIT compilation monitor that warns
+    about compilation during inference (upstream issues #43009, #41865).
+    V1 warmup does not cover slot mapping, KV-zero, and copy-page-indices
+    kernels, causing 2+ min compilation latency on first request and DP
+    deadlocks when multiple workers try to compile simultaneously.
+
+    Fix:
+    1. Remove the JIT monitor activation (revert #40137) — ends the noise
+    2. do_not_specialize=["num_tokens"] on slot mapping kernel (#42165)
+    3. Warm up V1 slot mapping kernel before JIT monitor (if still present)
+    4. Warm up KV-zero kernel during boot
+
+    Status: auto-applies based on available targets.
+    """
+    name = "PN105 revert JIT monitor + missing V1 warmup"
+    if not _APPLY_MODE:
+        return _applied(name, "dry-run: wiring ready")
+    try:
+        from vllm._genesis.wiring.patch_PN105_fix_jit_warmup import apply as apply_fix
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = apply_fix()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #                             MAIN ORCHESTRATOR
 # ═══════════════════════════════════════════════════════════════════════════
