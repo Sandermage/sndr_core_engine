@@ -114,7 +114,16 @@ PN11_REPLACEMENT = (
 
 
 def _make_patcher() -> TextPatcher | None:
-    target = resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+    # K.1.R.R.2 fallback (2026-05-29): upstream split gdn_linear_attn.py
+    # into mamba/gdn/{base,qwen,olmo,kimi}_gdn_linear_attn.py in
+    # dev371 -> nightly-626fa9bb window. PN11 anchor (`b = b.reshape(...)`)
+    # is byte-identical at qwen_gdn_linear_attn.py:690 on new pin.
+    target = (
+        resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+        or resolve_vllm_file(
+            "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+        )
+    )
     if target is None:
         return None
     return TextPatcher(

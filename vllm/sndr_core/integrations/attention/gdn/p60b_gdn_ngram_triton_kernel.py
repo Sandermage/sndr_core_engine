@@ -291,7 +291,17 @@ GDN_CONV_FN_NEW = (
 
 
 def _make_gdn_caller_patcher() -> TextPatcher | None:
-    target = resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+    # K.1.R.R.2 fallback (2026-05-29): upstream split gdn_linear_attn.py
+    # in dev371 -> nightly-626fa9bb window. P60b GDN_CONV_FN_OLD
+    # anchor (`mixed_qkv_non_spec = causal_conv1d_fn(`) is preserved
+    # at qwen_gdn_linear_attn.py:1366 on new pin. causal_conv1d.py
+    # 1st target unaffected (path unchanged in mamba/ops/).
+    target = (
+        resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+        or resolve_vllm_file(
+            "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+        )
+    )
     if target is None:
         return None
     return TextPatcher(
