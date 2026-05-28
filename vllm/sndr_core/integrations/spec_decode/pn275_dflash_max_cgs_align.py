@@ -54,6 +54,31 @@ Non-goals:
     The DFlash hold gate (audit-side) stays in place until the
     smoke validates the fix.
 
+K.1.R anchor audit 2026-05-28
+-----------------------------
+Partial drift detected against new pin nightly-626fa9bb (multi-arch digest
+sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f,
+upstream SHA 626fa9bba5663a5cf6a870debf031ee344ddb822):
+
+  * ``_PN275_VALIDATOR_WAIVER_ANCHOR`` in ``config/vllm.py`` — DRIFT
+    (`if self.compilation_config.cudagraph_capture_sizes is not None:`
+    is gone from the new file; upstream restructured the validator
+    surface around the cudagraph_capture_sizes consistency check).
+  * ``_PN275_SELF_INSTALL_ANCHOR`` in ``config/utils.py`` — DRIFT
+    (`def replace(dataclass_instance: ConfigT, /, **kwargs) -> ConfigT:`
+    signature line shifted in the new file).
+
+Status under new pin: TextPatcher emits "anchor not found" warning and
+``apply()`` returns ``skipped``. Patch self-skips cleanly; runtime
+behaviour is identical to upstream (the DFlash-incompat root cause
+the patch worked around may have been resolved by the upstream
+``config/vllm.py`` restructure — investigation deferred to a separate
+anchor-refresh slice once new-pin rig validation confirms DFlash boot
+succeeds without PN275).
+
+No registry change — the patch remains default-OFF; operators
+enabling it on the new pin see a clean skip not a crash.
+
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
 

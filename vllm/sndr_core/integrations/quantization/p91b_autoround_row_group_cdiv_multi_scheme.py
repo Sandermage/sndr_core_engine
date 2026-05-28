@@ -84,6 +84,40 @@ SAFETY MODEL
   When OFF, behavior is upstream nightly.
 - Idempotent via `GENESIS_P91B_MARKER_BASE` substring check per file.
 
+K.1.R anchor audit 2026-05-28
+-----------------------------
+Significant drift detected against new pin nightly-626fa9bb (multi-arch digest
+sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f,
+upstream SHA 626fa9bba5663a5cf6a870debf031ee344ddb822):
+
+  * ``inc.py`` — 1 of 4 anchors PASS; 3 of 4 DRIFT including the
+    primary ``P91B_INC_DEV338_ANCHOR``, ``P91B_W4A8_FP8_ANCHOR``,
+    ``P91B_WNA16_ANCHOR``. Upstream refactored ``inc.py`` such that
+    the ``scales_and_zp_size = input_size_per_partition // ...`` pattern
+    no longer appears in the new source — the bug class P91B targets
+    may have been resolved by an unrelated upstream restructure, OR
+    moved to a parent class we'd need to walk.
+
+Status under new pin: TextPatcher per-anchor self-skip; ``apply()``
+returns ``skipped`` for the inc.py sub-patches. P91B remains default-OFF
+opt-in only — runtime on new pin is unchanged for everyone not enabling
+the multi-scheme cdiv overlay.
+
+Re-anchoring P91B against the new inc.py is non-trivial because the
+target code surface (`scales_and_zp_size = ...`) has been refactored
+out of inc.py entirely. A separate analysis slice would need to:
+  1. Walk the new inc.py inheritance chain to find where scales_and_zp
+     are computed.
+  2. Confirm whether the floor-div bug class still manifests on AutoRound
+     INT4/INT8 checkpoints (it may have been resolved by the same
+     restructure).
+  3. Either re-anchor against the new code surface or retire P91B as
+     incidentally-fixed-by-restructure.
+
+For now: keep self-skip behaviour; document deferred re-anchor status
+above. Operator opt-in remains technically possible (env flag is read)
+but produces clean no-op apply.
+
 Author backport: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
 Reference PR: vllm#39460 (closed without merge, supersession chain
 #40281/#41588 also closed; fix abandoned upstream).

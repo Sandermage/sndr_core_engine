@@ -108,6 +108,58 @@ Operator must explicitly disable PN59/PN54 in YAML config to enable PN79.
 27B PROD config recommended: PN59=0, PN79=1 (per empirical "PN59 dead code"
 finding).
 
+K.1.R anchor audit 2026-05-28 — STABLE PATCH critical findings
+--------------------------------------------------------------
+Per-sub-patch state against new pin nightly-626fa9bb (multi-arch digest
+sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f,
+upstream SHA 626fa9bba5663a5cf6a870debf031ee344ddb822):
+
+  * Sub-1 (chunk.py): ✓ ALL 7 anchors PASS byte-equivalent.
+    Target file ``model_executor/layers/fla/ops/chunk.py`` unchanged
+    in the relevant surfaces.
+  * Sub-2 (chunk_delta_h.py): ✓ ALL 7 anchors PASS byte-equivalent.
+    Target file ``model_executor/layers/fla/ops/chunk_delta_h.py``
+    unchanged in the relevant kernel surfaces.
+  * Sub-3 (gdn_linear_attn.py): ⚠ FILE MOVED upstream.
+    The monolithic ``model_executor/layers/mamba/gdn_linear_attn.py``
+    was REFACTORED INTO model-specific files:
+      ``model_executor/layers/mamba/gdn/__init__.py``
+      ``model_executor/layers/mamba/gdn/base.py`` (common base class)
+      ``model_executor/layers/mamba/gdn/kimi_gdn_linear_attn.py``
+      ``model_executor/layers/mamba/gdn/olmo_gdn_linear_attn.py``
+      ``model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py``
+    The 3 anchors (3A FORWARD_CUDA, 3B FORWARD_NATIVE, 3C GATHER_SCATTER)
+    no longer resolve — ``resolve_vllm_file`` returns None for the
+    old path, ``apply()`` returns ``skipped``. Re-anchoring requires
+    splitting Sub-3 into per-model sub-patches (one each for
+    qwen_gdn_linear_attn.py + olmo_gdn_linear_attn.py + base.py).
+    Deferred to ``ANCHOR_REFRESH_K1R.2``.
+  * Sub-4 (olmo_hybrid.py): ⚠ 1 anchor DRIFT.
+    ``ANCHOR_4A_OLMO_FORWARD_CORE_OLD`` substring
+    `if attn_metadata.num_prefills > 0:` no longer matches in the
+    new file — the gather/scatter elimination site shifted. Patch
+    self-skips on the new pin (TextPatcher anchor-not-found warning,
+    apply returns ``skipped``).
+
+Status under new pin: PN79 still applies on Sub-1 + Sub-2 (the kernel
++ orchestrator paths) but NOT Sub-3 + Sub-4. The kernel-level wins
+remain; the gather/scatter elimination at call sites is deferred
+until the per-model file split is properly re-anchored.
+
+STABLE patch contract preservation:
+  * ``stable_kind="text-patch"`` semantics preserved.
+  * ``anchor_manifest.json`` covers the file paths that exist on the
+    PRIOR pin (dev371) — the manifest accurately reflects what the
+    patch targeted at promotion time. Updating the manifest to point
+    at the new file structure is a separate slice once Sub-3 is
+    re-anchored against the per-model files.
+
+This is the highest-priority follow-up out of K.1.R for the new pin
+because PN79 is STABLE + production-validated; degrading 2 of 4 sub-
+patches to silent skip is acceptable temporarily but should not become
+the steady state. See ``K_1_R_R_ANCHOR_REFRESH_2026-05-28_RU.md`` for
+the deferred re-anchor scope.
+
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 Backport of: Kermit-C vllm-project/vllm#41824 (OPEN as of 2026-05-07).
 """

@@ -53,6 +53,14 @@ SAFETY MODEL
   is upstream byte-for-byte
 - Pure additive — does not delete or rewrite any existing logic
 
+K.1.R anchor audit 2026-05-28
+-----------------------------
+Both anchors PASS against new pin nightly-626fa9bb (multi-arch digest
+sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f,
+upstream SHA 626fa9bba5663a5cf6a870debf031ee344ddb822). 2/2 anchor
+matches byte-equivalent in `config/vllm.py`. No refresh required.
+Upstream PR #40385 remains OPEN at audit time — patch stays load-bearing.
+
 Author backport: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 Original PR: vllm#40385 (OPEN). Issue: vllm#40121.
 """

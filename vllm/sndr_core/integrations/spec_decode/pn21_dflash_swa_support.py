@@ -87,6 +87,30 @@ SAFETY MODEL
   not block others (best-effort for SWA support).
 - Auto-no-op once vllm#40898 merges (drift markers).
 
+K.1.R anchor audit 2026-05-28
+-----------------------------
+Partial drift detected against new pin nightly-626fa9bb (multi-arch digest
+sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f,
+upstream SHA 626fa9bba5663a5cf6a870debf031ee344ddb822):
+
+  * ``PN21_ALGOS_ANCHOR`` in ``transformers_utils/configs/speculators/algos.py``
+    — DRIFT (`aux_layer_ids = config_dict["aux_hidden_state_layer_ids"]`
+    line shifted in the new file; upstream restructured the speculator
+    algos config consumer).
+  * ``PN21_DFLASH_ANCHOR`` in ``v1/spec_decode/dflash.py`` — DRIFT
+    (`per_group, per_layer = super().build_per_group_and_layer_attn_metadata(`
+    line shifted; upstream may have changed the super() call signature
+    or moved the call site).
+
+Status under new pin: TextPatcher per-anchor self-skip; ``apply()``
+returns ``skipped`` per-file on first anchor miss without affecting
+other files in the multi-file patcher. Patch is default-OFF and
+opt-in only for DFlash variants — runtime behaviour on the new pin
+is unchanged for everyone not using DFlash.
+
+Companion to PN275 — both reside on DFlash-validation deferred track
+until rig confirms DFlash boots on new pin without these workarounds.
+
 Author: backport for Genesis from jianc99's vllm#40898.
 """
 from __future__ import annotations

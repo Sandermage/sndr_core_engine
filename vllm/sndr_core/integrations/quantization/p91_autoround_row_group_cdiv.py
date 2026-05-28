@@ -116,6 +116,37 @@ SAFETY MODEL
   When OFF, behavior is upstream nightly.
 - Idempotent via marker; drift-aware on three anchor sites.
 
+K.1.R anchor audit 2026-05-28
+-----------------------------
+Significant drift detected against new pin nightly-626fa9bb (multi-arch digest
+sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f,
+upstream SHA 626fa9bba5663a5cf6a870debf031ee344ddb822):
+
+  * ``gptq_marlin.py`` — FILE REMOVED upstream. The v7.62.2 refresh
+    already added a fallback resolution to ``auto_gptq.py`` (current
+    name); the gptq_marlin sub-patch is now a confirmed self-skip via
+    ``resolve_vllm_file`` returning None for the missing file.
+  * ``auto_gptq.py`` — 3 of 4 anchors PASS; ``P91_PARAM_ANCHOR``
+    (`def load_row_parallel_weight(self, loaded_weight: torch.Tensor):`)
+    DRIFT — upstream renamed or modified the signature line.
+  * ``parameter.py`` — 1 of 4 anchors PASS; 3 of 4 DRIFT including
+    ``P91_GM_ANCHOR_FLOOR_INPUT_SIZE``, ``P91_GM_ANCHOR_FLOOR_PARTITION``,
+    ``P91_GM_ANCHOR_REGISTER_SCALES``. Upstream restructured
+    parameter.py around the loader+scales registration paths.
+
+Status under new pin: TextPatcher per-anchor self-skip; ``apply()``
+returns partial-skip per sub-patch. P91 remains default-OFF and
+opt-in via ``GENESIS_ENABLE_P91=1`` — runtime behaviour on new pin
+is unchanged for everyone not explicitly enabling AutoRound
+INT4/INT8 row-group cdiv fix.
+
+Upstream PR #39460 itself remains CLOSED-WITHOUT-MERGE per K.1.R
+PR audit — the fix never landed, so the bug class is still latent
+in mainline. P91 retains research-track value but loses the
+defensive-overlay anchor surface; full re-anchoring is a separate
+slice gated on rig validation of whether the bug class still
+manifests on AutoRound checkpoints under the new pin.
+
 Author backport: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
 Original PR: vllm#39460.
 """

@@ -58,6 +58,14 @@ Compatibility
 - Idempotent (marker check)
 - Auto-no-op once vllm#23679 (or equivalent) lands upstream
 
+K.1.R anchor audit 2026-05-28
+-----------------------------
+Anchor PASSES against new pin nightly-626fa9bb (multi-arch digest
+sha256:674922aae790c2cbf45f4e844098d227b80d40a74bfc7797a444d213a221879f,
+upstream SHA 626fa9bba5663a5cf6a870debf031ee344ddb822). The
+`config/vllm.py` target file kept the same surface around our anchor;
+1/1 anchor matched byte-equivalent. No refresh required.
+
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
 from __future__ import annotations
