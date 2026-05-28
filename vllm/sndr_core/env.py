@@ -168,9 +168,15 @@ class Flags:
     PN90_PROBABILISTIC_DRAFT = "PN90_PROBABILISTIC_DRAFT"
     # Path C v7.73.x / club-3090 #58 — tier-aware KV cache (PN95)
     PN95_TIER_AWARE_CACHE = "PN95_TIER_AWARE_CACHE"
-    # Sprint 2.6 v2 — CUDA graph dispatch trace wire-in
-    PN122_CG_DISPATCH_TRACE = "PN122"  # renamed 2026-05-14 from SPRINT26_CG_DISPATCH_TRACE
-    SPRINT26_CG_DISPATCH_TRACE = "PN122"  # legacy alias for backward compat (1 release)
+    # Sprint 2.6 v2 — CUDA graph dispatch trace wire-in (PN122).
+    # Canonical constant is defined further below at the dispatcher-trace
+    # block (PN122_CG_DISPATCH_TRACE = "PN122_CG_DISPATCH_TRACE"). The
+    # earlier `= "PN122"` alias and the legacy SPRINT26_CG_DISPATCH_TRACE
+    # alias were dead Python code (zero callsites, produced an orphan
+    # "PN122" value in known_flags()); dropped 2026-05-28 STAGE-6-
+    # HARDENING.2B. The runtime legacy env-var alias
+    # GENESIS_ENABLE_SPRINT26_CG_DISPATCH_TRACE continues to be read by
+    # string literal in apply/_per_patch_dispatch.py — unaffected.
     # PN282 — Spec-decode acceptance proxy metric (production sibling
     # of PN248's debug log trace). Wraps rejection_sample and emits
     # sndr_spec_decode_* Prometheus series on the worker's existing
@@ -189,8 +195,15 @@ class Flags:
     # moe family
     P37 = "P37"  # MoE intermediate cache
     PN27_REVERT_PLUGGABLE_MOE = "PN27_REVERT_PLUGGABLE_MOE"
-    # Wave 9 dev209 perf-restore — persistent Marlin MoE workspace (PN96)
-    PN96 = "PN96"
+    # Wave 9 dev209 perf-restore — persistent Marlin MoE workspace.
+    # Canonical Flag is PN96B (defined elsewhere in this class). The
+    # bare `PN96 = "PN96"` alias was dead Python code (zero callsites,
+    # produced an orphan "PN96" value in known_flags()); dropped
+    # 2026-05-28 STAGE-6-HARDENING.2B. The legacy env-var compat shim
+    # GENESIS_ENABLE_PN96 / GENESIS_DISABLE_PN96 continues to be read
+    # by string literal in
+    # integrations/moe/pn96b_marlin_persistent_workspace.py (lines
+    # 90-91 + 115) — unaffected by this cleanup.
 
     # quantization family
     P81_FP8_BLOCK_SCALED_M_LE_8 = "P81_FP8_BLOCK_SCALED_M_LE_8"
