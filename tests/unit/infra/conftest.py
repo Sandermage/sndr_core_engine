@@ -35,6 +35,11 @@ _STABLE_REGISTRY_TARGETS = [
              ".pn35_inputs_embeds_optional"),
     ("PN33", "vllm.sndr_core.integrations.worker"
              ".pn33_spec_decode_warmup_k"),
+    # Added 2026-05-28 (STAGE-6-HARDENING.1): G4_04 graduates from
+    # _MANIFEST_TRACKING_DEFERRED to first-class manifest coverage now
+    # that the pristine gemma4.py fixture is in place.
+    ("G4_04", "vllm.sndr_core.integrations.model_compat.gemma4"
+              ".g4_04_gemma4_awq_moe_keys_remap"),
 ]
 
 

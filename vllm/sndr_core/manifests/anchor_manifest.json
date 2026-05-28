@@ -132,6 +132,22 @@
       },
       "size_bytes": 46108
     },
+    "model_executor/models/gemma4.py": {
+      "md5_pristine": "ff843002c69f9d2aced01c99325e2b21",
+      "patches": {
+        "G4_04.Sub-1": {
+          "anchors": {
+            "awq_moe_keys_remap": {
+              "anchor_md5": "e45b645ad335ab9eadb60f78b813a15f",
+              "byte_length": 192,
+              "byte_offset": 65671,
+              "replacement_md5": "bb1ccb645d47d1560b09369ecc57da9b"
+            }
+          }
+        }
+      },
+      "size_bytes": 67993
+    },
     "model_executor/models/olmo_hybrid.py": {
       "md5_pristine": "63ab5a2d29b29b522693188a8da2e421",
       "patches": {
@@ -191,11 +207,11 @@
       "size_bytes": 316188
     }
   },
-  "generated_at": "2026-05-11T22:36:00Z",
+  "generated_at": "2026-05-28T18:10:24Z",
   "generated_by": "vllm.sndr_core.wiring.anchor_manifest.assemble_manifest",
   "manifest_version": 1,
   "pins": {
-    "genesis": "v11.0.0+wave9_dev209",
-    "vllm": "0.20.2rc1.dev209+g5536fc0c0"
+    "genesis": "11.0.0",
+    "vllm": "unknown"
   }
 }

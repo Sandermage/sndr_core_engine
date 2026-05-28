@@ -7,6 +7,9 @@ build-time anchor validation tests (`test_patcher_anchors_invariants.py`).
 
 - PN79 fixtures: vllm `0.20.2rc1.dev93+g51f22dcfd` (extracted 2026-05-07)
 - PN33+PN35 fixtures: vllm `0.20.2rc1.dev209+g5536fc0c0` (extracted 2026-05-12)
+- G4_04 fixture: vllm `0.20.2rc1.dev338+gbf0d2dc6d` (extracted 2026-05-28,
+  full SHA `bf0d2dc6d764f7ab1a69504f60a55883ec6d9b39`, sourced from
+  GitHub raw at the pinned commit)
 
 These files were extracted from `vllm/vllm-openai:nightly` Docker image
 at the noted pin. 3 of 4 PN79 files are bit-identical to dev9 / dev60
@@ -24,6 +27,7 @@ across 84+ dev versions). Only `gdn_linear_attn.py` shifted in dev93
 | olmo_hybrid.py | 63ab5a2d29b29b522693188a8da2e421 | 1179 | Olmo-Hybrid model with `_forward_core` gather/scatter pattern (PN79 Sub-4 target) |
 | gpu_model_runner.py | ac61702177b286d0d7239050fd07cbbc | 7179 | v1 worker GPU model runner (PN33.Sub-1 + PN35.Sub-1 targets) |
 | llm_base_proposer.py | b2b5def581d27d4654e66d83b4ff4998 | 1638 | v1 spec-decode LLM base proposer (PN35.Sub-2 target) |
+| gemma4.py | ff843002c69f9d2aced01c99325e2b21 | 1721 | Gemma 4 model `load_weights._weight_iterator` (G4_04 Sub-1 target — AWQ MoE keys remap, vendors vllm#40886) |
 
 ## Update procedure
 

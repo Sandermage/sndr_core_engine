@@ -186,4 +186,60 @@ def is_applied() -> bool:
     return marker_present_in_target(patcher)
 
 
-__all__ = ["GENESIS_G4_04_MARKER", "apply", "is_applied"]
+# ════════════════════════════════════════════════════════════════════════
+# Build-time manifest registration (P2.1 Site Map — STABLE ratchet)
+# ════════════════════════════════════════════════════════════════════════
+#
+# `register_for_manifest()` is called by scripts/build_anchor_manifest.py
+# at BUILD TIME (not runtime) to enroll G4_04's sub-patcher into the
+# anchor-offset manifest. It constructs the same TextPatcher object
+# pointed at the PRISTINE FIXTURE under tests/legacy/pristine_fixtures/
+# (gemma4.py extracted at vllm 0.20.2rc1.dev338+gbf0d2dc6d) so it works
+# without a live vllm install. Runtime apply() above is unaffected — it
+# still uses resolve_vllm_file() to find the live install.
+
+
+def _make_patcher_for_fixture(
+    name: str, fixture_path, *, patch_id: str,
+) -> TextPatcher:
+    """Build a TextPatcher targeting a pristine fixture file (build mode)."""
+    return TextPatcher(
+        patch_name=name,
+        target_file=str(fixture_path),
+        marker=GENESIS_G4_04_MARKER,
+        sub_patches=[
+            TextPatch(
+                name="awq_moe_keys_remap",
+                anchor=_ANCHOR,
+                replacement=_REPLACEMENT,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=["Genesis G4_04"],
+        patch_id=patch_id,
+    )
+
+
+def register_for_manifest(*, pristine_root) -> None:
+    """Register G4_04's sub-patcher into the Site Map registry, using
+    the pristine `gemma4.py` fixture under `pristine_root`.
+
+    Called by `scripts/build_anchor_manifest.py` and by
+    `tests/unit/infra/conftest.py` (STABLE ratchet seed). Idempotent:
+    re-registering with the same patcher is a no-op.
+    """
+    from vllm.sndr_core.wiring.patcher_registry import register_text_patcher
+
+    register_text_patcher(
+        "G4_04.Sub-1",
+        _make_patcher_for_fixture(
+            "G4_04 Sub-1 gemma4.py (build mode)",
+            pristine_root / "gemma4.py",
+            patch_id="G4_04.Sub-1",
+        ),
+    )
+
+
+__all__ = [
+    "GENESIS_G4_04_MARKER", "apply", "is_applied", "register_for_manifest",
+]

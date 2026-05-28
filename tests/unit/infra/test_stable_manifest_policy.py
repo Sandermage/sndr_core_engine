@@ -55,15 +55,11 @@ MANIFEST_PATH = REPO_ROOT / "vllm" / "sndr_core" / "manifests" / "anchor_manifes
 # Adding an entry here is the explicit "I am deferring step 5 of
 # STABLE_PROMOTION_CHECKLIST". The exception must be removed when
 # the corresponding pristine fixture is added + manifest is rebuilt.
-_MANIFEST_TRACKING_DEFERRED: dict[str, str] = {
-    # G4_04: targets `vllm/model_executor/models/gemma4.py`. Pristine
-    # fixture not yet extracted into tests/legacy/pristine_fixtures/.
-    # G4_04 IS production-validated (has production_validated_pins for
-    # dev338+dev371) and uses TextPatcher properly — the deferred step
-    # is solely the pristine fixture sourcing + manifest rebuild.
-    # Action-item: see TEST_DEBT_AUDIT_R_2026-05-28_RU.md §3 Cluster 4.
-    "G4_04": "vllm/model_executor/models/gemma4.py",
-}
+#
+# Currently empty — G4_04 graduated 2026-05-28 (STAGE-6-HARDENING.1).
+# The dict shape is preserved so future deferrals follow the same
+# documented pattern.
+_MANIFEST_TRACKING_DEFERRED: dict[str, str] = {}
 
 
 def _stable_patches() -> list[tuple[str, dict]]:

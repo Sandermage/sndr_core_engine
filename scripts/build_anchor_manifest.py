@@ -82,6 +82,11 @@ def _trigger_patcher_registration():
                  ".pn35_inputs_embeds_optional"),
         ("PN33", "vllm.sndr_core.integrations.worker"
                  ".pn33_spec_decode_warmup_k"),
+        # Added 2026-05-28 (STAGE-6-HARDENING.1): G4_04 stable AWQ MoE
+        # keys remap for Gemma 4 26B-A4B; pristine gemma4.py extracted
+        # at vllm 0.20.2rc1.dev338+gbf0d2dc6d.
+        ("G4_04", "vllm.sndr_core.integrations.model_compat.gemma4"
+                  ".g4_04_gemma4_awq_moe_keys_remap"),
     ]
 
     for pid, mod_path in _REGISTRY_TARGETS:
@@ -217,6 +222,8 @@ _KNOWN_REL_PATHS = {
     # Added 2026-05-12 (Wave 9 STABLE-prep for PN33 + PN35):
     "gpu_model_runner.py": "v1/worker/gpu_model_runner.py",
     "llm_base_proposer.py": "v1/spec_decode/llm_base_proposer.py",
+    # Added 2026-05-28 (STAGE-6-HARDENING.1 for G4_04):
+    "gemma4.py": "model_executor/models/gemma4.py",
 }
 
 
