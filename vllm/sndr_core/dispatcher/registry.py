@@ -5212,7 +5212,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "source": "vllm_pr_backport",
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.g4_60a_tq_sliding_window_spec",
         "lifecycle": "experimental",
-        "credit": "Upstream cherry-pick from vllm PR #42637 (lesj0610, OPEN as of 2026-05-17). Adds TQSlidingWindowSpec frozen dataclass with tq_slot_size field + tightens TQFullAttentionSpec.merge isinstance assertion. Prerequisite for G4_60g per-layer TQ dispatch and G4_60e mixed-route detection. Source: vllm/v1/kv_cache_interface.py lines 501-522 in PR HEAD fdeb14981.",
+        "credit": "Project-owned cherry-pick from vllm PR #42637 (lesj0610). Adds TQSlidingWindowSpec frozen dataclass with tq_slot_size field + tightens TQFullAttentionSpec.merge isinstance assertion. Prerequisite for G4_60g per-layer TQ dispatch and G4_60e mixed-route detection. Source: vllm/v1/kv_cache_interface.py lines 501-522 in PR HEAD fdeb14981. Retirement is an operator decision (switch overlay strategy or supersede), NOT a wait on upstream merge — see sndr_private/planning/audits/LOCAL_PR42637_CLOSURE_R_2026-05-28_RU.md.",
         "upstream_pr": "https://github.com/vllm-project/vllm/pull/42637",
         "requires_patches": [],
         "conflicts_with": [],

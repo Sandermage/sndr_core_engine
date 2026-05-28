@@ -69,11 +69,18 @@ phase, after all of the following are true:
 2. The β'-A launcher md5 invariant has either been retired by the
    operator or re-baselined against the canonical
    `attention/turboquant/overlays/pr42637/` path.
-3. The PR42637 / current-pin decision no longer requires a
-   historical bind-mount path for reproducibility.
-4. Both primary and rig worktrees are already converged on the same
+3. Both primary and rig worktrees are already converged on the same
    dev commit, so removing the shim cannot be reintroduced by a stale
    integration branch.
+
+**The overlay itself is treated as project-owned canonical code**
+under `attention/turboquant/overlays/pr42637/` (verbatim copy of
+vllm PR #42637 source). Retirement of THIS shim directory is NOT
+gated on the upstream PR42637 merging — it's gated only on the two
+operator-controlled launcher conditions above. The «wait for
+upstream merge» framing that previous revisions of this file
+carried has been retired (2026-05-28); see
+`sndr_private/planning/audits/LOCAL_PR42637_CLOSURE_R_2026-05-28_RU.md`.
 
 The retirement commit must delete this README, delete the symlink,
 remove the R1 carve-out in `scripts/audit_phase3_relocation.py`, and

@@ -1,15 +1,26 @@
-# Upstream PR #42637 overlay files
+# PR #42637 overlay files — Genesis project-owned canonical surface
 
 **Source**: https://github.com/vllm-project/vllm/pull/42637
-**PR HEAD**: `fdeb14981` (2026-05-16)
-**Author**: lesj0610 ("Mixed-attention KV quantization for Gemma 4 models")
+**Source PR HEAD**: `fdeb14981` (2026-05-16)
+**Source author**: lesj0610 ("Mixed-attention KV quantization for Gemma 4 models")
 **License**: Apache-2.0 (preserved from upstream)
+
+**Status (2026-05-28 onward):** **project-owned canonical overlay.**
+These 6 files are vendored in the Genesis tree as the authoritative
+runtime surface for Gemma 4 TurboQuant mixed-attention. They are
+bind-mounted at container boot via launcher flags. Genesis no longer
+treats the upstream PR42637 merge as a precondition for closing the
+overlay surface — retirement is an operator decision (switch overlay
+strategy, supersede with a different PR, or stock vllm replaces the
+surface), not a wait on the original PR. See
+`sndr_private/planning/audits/LOCAL_PR42637_CLOSURE_R_2026-05-28_RU.md`
+for the policy reframing.
 
 ## Что это
 
-Verbatim копии 6 файлов из upstream PR #42637 для bind-mount overlay в
-running vllm container. Эти файлы заменяют соответствующие dev371
-оригиналы в site-packages при container boot, реализуя полный
+Vendored copies of 6 files from upstream PR #42637 for bind-mount
+overlay в running vllm container. Эти файлы заменяют соответствующие
+dev371 оригиналы в site-packages при container boot, реализуя полный
 TurboQuant mixed-attention KV quantization для Gemma 4 (sliding + full
 primary + full shared K=V tier dispatch).
 

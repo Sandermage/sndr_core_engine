@@ -19,12 +19,15 @@ overlay sentinel files, retirement-wording markers in the README).
 Current shim manifest (single entry, 2026-05-26):
 
   - ``vllm/sndr_core/integrations/gemma4/`` — historical path for the
-    PR42637 turboquant overlay. The canonical location is
-    ``vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/``.
-    Retirement gated on (a) all ``~/start_g4_*.sh`` launchers
-    re-baselined or archived, (b) launcher md5 invariant retired or
-    re-baselined, (c) PR42637 / current-pin decision no longer
-    requires the historical bind-mount path.
+    turboquant overlay. The canonical location is
+    ``vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/``,
+    treated as project-owned canonical code (not pending upstream
+    merge). Retirement gated only on operator-controlled launcher
+    coordination: (a) all ``~/start_g4_*.sh`` launchers re-baselined
+    or archived, (b) launcher md5 invariant retired or re-baselined.
+    See ``sndr_private/planning/audits/LOCAL_PR42637_CLOSURE_R_2026-05-28_RU.md``
+    for the policy reframing — the «wait for PR42637 upstream merge»
+    condition that earlier revisions carried has been retired.
 
 Rules enforced per shim (E.1–E.5):
 
