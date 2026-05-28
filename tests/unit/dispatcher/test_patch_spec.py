@@ -187,13 +187,20 @@ class TestIterPatchSpecs:
             )
 
     def test_pn82_present_with_canonical_module(self):
+        """PN82 retired 2026-05-28 (K.1.R pin bump audit) — superseded by
+        vllm#41873 merge at 39d5fa96 within window dev371→626fa9bb. The
+        spec still resolves (registry retains entry for audit trail) but
+        the apply_module path now points at _retired/."""
         from vllm.sndr_core.dispatcher import iter_patch_specs
         specs = {s.patch_id: s for s in iter_patch_specs()}
         assert "PN82" in specs
         assert specs["PN82"].apply_module == (
-            "vllm.sndr_core.integrations.worker.pn82_mamba_cudagraph_prefill_zero"
+            "vllm.sndr_core.integrations._retired."
+            "pn82_mamba_cudagraph_prefill_zero"
         )
         assert specs["PN82"].upstream_pr == 41873
+        # Confirms retirement lifecycle is recorded in spec, gates downstream tooling.
+        assert specs["PN82"].lifecycle == "retired"
 
 
 # ─── Coverage report ───────────────────────────────────────────────────────

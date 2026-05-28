@@ -1837,30 +1837,22 @@ def apply_patch_pn91_developer_role_normalizer() -> PatchResult:
     return _failed(name, reason)
 
 
-@register_patch("PN82 Mamba CUDA-graph stale prefill rows (vllm#41873)")
+@register_patch("PN82 Mamba CUDA-graph stale prefill rows (vllm#41873) — RETIRED")
 def apply_patch_N82_mamba_cudagraph_prefill_zero() -> PatchResult:
-    """PN82: backport of vllm#41873 — zero `is_prefilling` for padded
-    CUDA-graph rows so Mamba/hybrid backends don't read stale True
-    values left over from `condense()` rotation.
+    """PN82 RETIRED 2026-05-28 (K.1.R pin bump audit) — superseded by
+    vllm#41873 merge at 39d5fa96a7c687f9ed7e14a5a52064965356cede in the
+    window dev371 → 626fa9bba566. Deep-diff confirmed byte-equivalent
+    `is_prefilling[num_reqs:] = False` insertion.
 
-    Status: opt-in via GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO=1.
-    Default OFF until smoke validation on hybrid CUDA-graph configs.
+    Wiring module moved to integrations/_retired/. This wrapper now
+    self-skips so legacy dispatch path returns clean.
     """
-    name = "PN82 Mamba CUDA-graph prefill zero (vllm#41873)"
-    if not _state._APPLY_MODE:
-        return _applied(name, "dry-run: text-patch ready")
-    try:
-        from vllm.sndr_core.integrations.worker import (
-            pn82_mamba_cudagraph_prefill_zero as _wiring,
-        )
-    except Exception as e:
-        return _failed(name, f"wiring import failed: {e}")
-    status, reason = _wiring.apply()
-    if status == "applied":
-        return _applied(name, reason)
-    if status == "skipped":
-        return _skipped(name, reason)
-    return _failed(name, reason)
+    return _skipped(
+        "PN82 Mamba CUDA-graph prefill zero (vllm#41873)",
+        "RETIRED 2026-05-28 — superseded by upstream merge at "
+        "39d5fa96a (vllm#41873) included in pin 626fa9bb. "
+        "Wiring lives in integrations/_retired/pn82_*.py for audit trail.",
+    )
 
 
 @register_patch("PN54 GDN contiguous-call dedup (P0.7 Cliff 2b)")

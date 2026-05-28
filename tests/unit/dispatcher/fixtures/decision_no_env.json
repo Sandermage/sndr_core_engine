@@ -245,6 +245,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN57_TQ_CENTROIDS_DISK_CACHE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN282",
+    "applied": false,
+    "reason": "strict opt-in — set SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN122",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN122_CG_DISPATCH_TRACE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

@@ -588,6 +588,18 @@
     "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn57_tq_centroids_disk_cache"
   },
   {
+    "patch_id": "PN282",
+    "family": "observability",
+    "lifecycle": "coordinator",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.observability.pn282_spec_decode_acceptance_metric"
+  },
+  {
     "patch_id": "PN122",
     "family": "observability",
     "lifecycle": "experimental",
@@ -914,14 +926,14 @@
   {
     "patch_id": "PN82",
     "family": "worker",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO",
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.worker.pn82_mamba_cudagraph_prefill_zero"
+    "apply_module": "vllm.sndr_core.integrations._retired.pn82_mamba_cudagraph_prefill_zero"
   },
   {
     "patch_id": "PN55",

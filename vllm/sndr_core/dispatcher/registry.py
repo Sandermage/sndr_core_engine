@@ -2205,14 +2205,24 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "PN82": {
-        "title": "Mamba CUDA-graph stale `is_prefilling` padded rows — vllm#41873 backport",
+        "title": "Mamba CUDA-graph stale `is_prefilling` padded rows — vllm#41873 backport (RETIRED — merged in dev371→626fa9bb window)",
         "tier": "community",
         "family": "worker",
         "env_flag": "GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO",
         "default_on": False,
-        "lifecycle": "experimental",
+        "lifecycle": "retired",
         "category": "perf_hotfix",
-        "apply_module": "vllm.sndr_core.integrations.worker.pn82_mamba_cudagraph_prefill_zero",
+        "apply_module": "vllm.sndr_core.integrations._retired.pn82_mamba_cudagraph_prefill_zero",
+        "superseded_by": (
+            "vllm#41873 (merged 2026-05-21T22:42:43Z at commit "
+            "39d5fa96a7c687f9ed7e14a5a52064965356cede — in window dev371 → "
+            "626fa9bba566; K.1.R deep-diff 2026-05-28 confirmed byte-equivalent "
+            "`is_prefilling[num_reqs:] = False` insertion at the same "
+            "post-assignment location in vllm/v1/worker/gpu_model_runner.py:2270 "
+            "— Genesis 3-line in-place comment vs upstream 2-line comment is "
+            "the only cosmetic delta, functional change identical)"
+        ),
+        "vllm_version_range": "<0.21.1rc0+g626fa9bba5",
         "credit": (
             "Backport of vllm-project/vllm#41873 (OPEN as of 2026-05-07). "
             "After CUDA-graph batch padding via condense(), the boolean "

@@ -156,6 +156,8 @@ class TestSpecLoopResultShape:
         monkeypatch.setenv("SNDR_APPLY_VIA_SPECS", "1")
         o = _orch()
         stats = o.run(verbose=False, apply=False)
-        # Find PN82's entry — recently added, has apply_module
-        pn82_results = [r for r in stats.results if "PN82" in r.name]
-        assert pn82_results, "PN82 must appear in spec-loop results"
+        # Find PN116's entry — active experimental backport with apply_module
+        # (PN82 retired 2026-05-28 K.1.R pin bump audit — vllm#41873 merged
+        # upstream at 39d5fa96 within window dev371→626fa9bb).
+        pn116_results = [r for r in stats.results if "PN116" in r.name]
+        assert pn116_results, "PN116 must appear in spec-loop results"

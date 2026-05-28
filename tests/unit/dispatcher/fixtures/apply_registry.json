@@ -244,7 +244,7 @@
     "wrapped_name": "apply_patch_pn91_developer_role_normalizer"
   },
   {
-    "name": "PN82 Mamba CUDA-graph stale prefill rows (vllm#41873)",
+    "name": "PN82 Mamba CUDA-graph stale prefill rows (vllm#41873) — RETIRED",
     "wrapped_name": "apply_patch_N82_mamba_cudagraph_prefill_zero"
   },
   {

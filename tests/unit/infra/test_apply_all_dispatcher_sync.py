@@ -119,7 +119,10 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # ─── Spec-decode telemetry / safety opt-ins (R3 audit 2026-05-21) ─
     # PN256/PN261/PN262/PN262B/PN271/PN275 use overlay loader. PN274 is
     # coordinator-only (apply_module=None) for operator visibility.
+    # PN282 (STAGE-6-HARDENING.2C 2026-05-28) — non-dispatcher boot
+    # coordinator, registry-only.
     "PN256", "PN261", "PN262", "PN262B", "PN271", "PN274", "PN275",
+    "PN282",
     # ─── Misc backports without per_patch_dispatch wiring ─────────────
     # P8 retired tombstone (kv_hybrid_reporting — registered for audit
     # trail only, retired lifecycle).
