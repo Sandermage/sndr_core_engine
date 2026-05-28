@@ -84,8 +84,19 @@ _NEW_BETA = (
 
 
 def _make_patcher() -> TextPatcher | None:
-    target = resolve_vllm_file(
-        "model_executor/layers/mamba/gdn_linear_attn.py"
+    # K.1.R.R fallback (2026-05-29): upstream moved gdn_linear_attn.py
+    # into per-model mamba/gdn/{qwen,olmo,kimi}_gdn_linear_attn.py
+    # structure in the dev371 -> nightly-626fa9bb window. Genesis P46
+    # anchor text (`g = torch.empty(...)` / `beta_output = torch.empty(...)`)
+    # is byte-identical in the new qwen_gdn_linear_attn.py:1760-1761.
+    # Try old monolithic path first (still canonical on dev371 baseline),
+    # fall back to qwen-specific file (Qwen3.6 27B + 35B are the
+    # primary PROD path for this patch).
+    target = (
+        resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+        or resolve_vllm_file(
+            "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+        )
     )
     if target is None:
         return None
@@ -160,13 +171,21 @@ def apply() -> tuple[str, str]:
 
 
 def is_applied() -> bool:
-    target = resolve_vllm_file(
-        "model_executor/layers/mamba/gdn_linear_attn.py"
+    # K.1.R.R fallback (2026-05-29): match _make_patcher() resolution.
+    target = (
+        resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+        or resolve_vllm_file(
+            "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+        )
     )
-    if target is None or not target.exists():
+    if target is None:
+        return False
+    from pathlib import Path
+    target_path = Path(target) if not isinstance(target, Path) else target
+    if not target_path.exists():
         return False
     try:
-        return GENESIS_P46_MARKER in target.read_text()
+        return GENESIS_P46_MARKER in target_path.read_text()
     except Exception:
         return False
 

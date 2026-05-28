@@ -102,7 +102,18 @@ _NEW_ALLOC = (
 
 
 def _make_patcher() -> TextPatcher | None:
-    target = resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+    # K.1.R.R fallback (2026-05-29): upstream moved gdn_linear_attn.py
+    # into per-model mamba/gdn/{qwen,olmo,kimi}_gdn_linear_attn.py
+    # split in dev371 -> nightly-626fa9bb window. P28 anchor text
+    # (`core_attn_out = torch.zeros(...)`) is byte-identical in
+    # new qwen_gdn_linear_attn.py. Old path stays canonical for
+    # dev371 baseline; new path covers 626fa9bb+.
+    target = (
+        resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+        or resolve_vllm_file(
+            "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+        )
+    )
     if target is None:
         return None
     return TextPatcher(

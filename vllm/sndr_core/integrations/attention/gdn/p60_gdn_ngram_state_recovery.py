@@ -296,7 +296,19 @@ GDN_LINATTN_DEC_NEW = (
 
 
 def _make_gdn_linattn_patcher() -> TextPatcher | None:
-    target = resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+    # K.1.R.R fallback (2026-05-29): upstream moved gdn_linear_attn.py
+    # into per-model mamba/gdn/{qwen,olmo,kimi}_gdn_linear_attn.py
+    # split in dev371 -> nightly-626fa9bb window. P60 CORE/DEC anchor
+    # texts (`ssm_state = self_kv_cache[1]` start) still match
+    # qwen_gdn_linear_attn.py — 3 occurrences at lines 1317, 1544, 1612.
+    # Old path stays canonical on dev371 baseline; new path covers
+    # 626fa9bb+ for Qwen3.6 27B/35B PROD path.
+    target = (
+        resolve_vllm_file("model_executor/layers/mamba/gdn_linear_attn.py")
+        or resolve_vllm_file(
+            "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
+        )
+    )
     if target is None:
         return None
     return TextPatcher(
