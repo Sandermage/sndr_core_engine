@@ -458,6 +458,8 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     "0.20.1rc1.dev16+g7a1eb8ac2",
     # v7.70 pin-bump target (validated 2026-05-04, Test 4 boot+smoke+tool-call clean)
     "0.20.2rc1.dev9+g01d4d1ad3",
+    # v0.20.2 stable release (finalized from dev9 RC; Docker Hub: vllm/vllm-openai:v0.20.2)
+    "0.20.2",
 )
 
 
