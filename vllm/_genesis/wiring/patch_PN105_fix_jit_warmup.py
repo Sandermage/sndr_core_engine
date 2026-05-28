@@ -143,7 +143,7 @@ def _make_warmup_py_patcher():
                     "\n"
                     "    V1 request input preparation calls BlockTable.compute_slot_mapping().\n"
                     "    The legacy _dummy_run() path does not exercise this kernel.\n"
-                    "    """\n"
+                    '    """\n'
                     "    block_table = model_runner.input_batch.block_table\n"
                     "    if not block_table.block_tables:\n"
                     "        return\n"
