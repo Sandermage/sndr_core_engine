@@ -102,7 +102,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.pn262_flash_attn_drafter_trace")
+log = logging.getLogger("genesis.spec_decode.pn262_flash_attn_drafter_trace")
 
 GENESIS_PN262_MARKER = (
     "Genesis PN262 FlashAttn drafter KV cache shape/stride trace + "

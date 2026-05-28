@@ -113,7 +113,7 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-log = logging.getLogger("genesis.gemma4.g4_62_tq_kernel_warmup")
+log = logging.getLogger("genesis.turboquant.g4_62_tq_kernel_warmup")
 
 if TYPE_CHECKING:
     import torch

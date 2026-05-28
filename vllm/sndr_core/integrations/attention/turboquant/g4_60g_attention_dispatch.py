@@ -111,7 +111,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_60g_attention_dispatch")
+log = logging.getLogger("genesis.turboquant.g4_60g_attention_dispatch")
 
 GENESIS_G4_60G_MARKER = (
     "Genesis G4_60g Attention.get_kv_cache_spec TQ-first dispatch with "

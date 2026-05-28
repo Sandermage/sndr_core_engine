@@ -156,7 +156,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_67_tq_spec_verify_route")
+log = logging.getLogger("genesis.turboquant.g4_67_tq_spec_verify_route")
 
 GENESIS_G4_67_MARKER = (
     "Genesis G4_67 TurboQuantAttentionImpl spec-verify K+1 routing "

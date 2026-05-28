@@ -103,7 +103,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_60k_arg_utils")
+log = logging.getLogger("genesis.turboquant.g4_60k_arg_utils")
 
 GENESIS_G4_60K_MARKER = (
     "Genesis G4_60k EngineArgs.create_engine_config wrap: TQ skip-layer "

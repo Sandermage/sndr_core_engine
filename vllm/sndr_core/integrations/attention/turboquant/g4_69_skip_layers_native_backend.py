@@ -115,7 +115,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_69_skip_layers_native_backend")
+log = logging.getLogger("genesis.turboquant.g4_69_skip_layers_native_backend")
 
 GENESIS_G4_69_MARKER = (
     "Genesis G4_69 per-layer native attention backend for skip-listed "

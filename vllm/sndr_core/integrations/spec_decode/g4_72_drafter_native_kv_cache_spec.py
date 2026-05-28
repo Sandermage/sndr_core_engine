@@ -116,7 +116,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_72_drafter_native_kv_cache_spec")
+log = logging.getLogger("genesis.spec_decode.g4_72_drafter_native_kv_cache_spec")
 
 GENESIS_G4_72_MARKER = (
     "Genesis G4_72 Force native FullAttentionSpec/SlidingWindowSpec for "

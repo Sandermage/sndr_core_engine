@@ -95,7 +95,7 @@ import os
 
 from ...model_compat.gemma4._gemma4_detect import env_truthy, is_gemma4_arch
 
-log = logging.getLogger("genesis.gemma4.g4_19_turboquant_kv")
+log = logging.getLogger("genesis.turboquant.g4_19_turboquant_kv")
 
 GENESIS_G4_19_MARKER = (
     "Genesis G4_19 gemma4 TurboQuant KV cache v1 "

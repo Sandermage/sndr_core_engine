@@ -98,7 +98,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_60b_tq_attn_overlay")
+log = logging.getLogger("genesis.turboquant.g4_60b_tq_attn_overlay")
 
 GENESIS_G4_60B_MARKER = (
     "Genesis G4_60b verify turboquant_attn.py PR #42637 overlay is active"

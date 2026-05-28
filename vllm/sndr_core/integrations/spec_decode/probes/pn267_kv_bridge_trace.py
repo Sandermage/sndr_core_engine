@@ -125,7 +125,7 @@ import logging
 import os
 from typing import Any
 
-log = logging.getLogger("genesis.gemma4.pn267_kv_bridge_trace")
+log = logging.getLogger("genesis.spec_decode.pn267_kv_bridge_trace")
 
 GENESIS_PN267_MARKER = (
     "Genesis PN267 K/V bridge feasibility trace (G4_78-0 probe — "

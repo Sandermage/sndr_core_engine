@@ -123,7 +123,7 @@ import threading
 import types
 from typing import Optional
 
-log = logging.getLogger("genesis.gemma4.g4_19c")
+log = logging.getLogger("genesis.turboquant.g4_19c")
 
 GENESIS_G4_19C_MARKER = (
     "Genesis G4_19c attention K/V round-trip wrapper v3 "

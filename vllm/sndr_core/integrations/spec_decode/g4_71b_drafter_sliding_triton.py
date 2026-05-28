@@ -79,7 +79,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_71b_drafter_sliding_triton")
+log = logging.getLogger("genesis.spec_decode.g4_71b_drafter_sliding_triton")
 
 GENESIS_G4_71B_MARKER = (
     "Genesis G4_71b Route drafter sliding (head_size=256) layers to "

@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_60d_tq_store_overlay")
+log = logging.getLogger("genesis.turboquant.g4_60d_tq_store_overlay")
 
 GENESIS_G4_60D_MARKER = (
     "Genesis G4_60d verify triton_turboquant_store.py PR #42637 "

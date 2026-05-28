@@ -110,7 +110,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_60h_tq_config_augment")
+log = logging.getLogger("genesis.turboquant.g4_60h_tq_config_augment")
 
 GENESIS_G4_60H_MARKER = (
     "Genesis G4_60h TurboQuantConfig augment: align_kv_sharing_skip_layers "

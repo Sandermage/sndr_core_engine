@@ -73,7 +73,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from .kernels.g4_tq_cache import G4TurboQuantConfig  # noqa: F401
 
-log = logging.getLogger("genesis.gemma4.g4_19_registry")
+log = logging.getLogger("genesis.turboquant.g4_19_registry")
 
 GENESIS_G4_19_REGISTRY_MARKER = (
     "Genesis G4_19 module-level config registry v1 "

@@ -73,7 +73,7 @@ import logging
 import os
 from typing import Any
 
-log = logging.getLogger("genesis.gemma4.pn270_drafter_kv_proj_audit")
+log = logging.getLogger("genesis.spec_decode.pn270_drafter_kv_proj_audit")
 
 GENESIS_PN270_MARKER = "Genesis PN270 drafter K/V projection audit"
 

@@ -125,7 +125,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_61_tq_shared_workspace")
+log = logging.getLogger("genesis.turboquant.g4_61_tq_shared_workspace")
 
 GENESIS_G4_61_MARKER = (
     "Genesis G4_61 share TQ decode workspace across layers via "

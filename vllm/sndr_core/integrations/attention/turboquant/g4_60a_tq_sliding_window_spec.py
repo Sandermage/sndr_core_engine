@@ -99,7 +99,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_60a_tq_sliding_spec")
+log = logging.getLogger("genesis.turboquant.g4_60a_tq_sliding_spec")
 
 GENESIS_G4_60A_MARKER = (
     "Genesis G4_60a inject TQSlidingWindowSpec into "

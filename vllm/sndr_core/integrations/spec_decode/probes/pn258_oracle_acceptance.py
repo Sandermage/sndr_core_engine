@@ -82,7 +82,7 @@ from typing import List
 
 import torch
 
-log = logging.getLogger("genesis.gemma4.pn258_oracle_acceptance")
+log = logging.getLogger("genesis.spec_decode.pn258_oracle_acceptance")
 
 _ENV = "GENESIS_ENABLE_PN258_ORACLE_ACCEPTANCE"
 _ENV_SELF = "GENESIS_ENABLE_PN258_SELF_ORACLE"

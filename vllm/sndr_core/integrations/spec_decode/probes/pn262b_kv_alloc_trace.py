@@ -93,7 +93,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.pn262b_kv_alloc_trace")
+log = logging.getLogger("genesis.spec_decode.pn262b_kv_alloc_trace")
 
 GENESIS_PN262B_MARKER = (
     "Genesis PN262-B KV cache allocator/reshape/proposer-init diagnostic "

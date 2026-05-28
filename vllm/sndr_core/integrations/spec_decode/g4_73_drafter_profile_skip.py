@@ -101,7 +101,7 @@ import logging
 import os
 import threading
 
-log = logging.getLogger("genesis.gemma4.g4_73_drafter_profile_skip")
+log = logging.getLogger("genesis.spec_decode.g4_73_drafter_profile_skip")
 
 GENESIS_G4_73_MARKER = (
     "Genesis G4_73 Skip drafter.dummy_run during profile_run "

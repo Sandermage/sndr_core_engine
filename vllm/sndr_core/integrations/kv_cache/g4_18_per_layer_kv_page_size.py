@@ -67,7 +67,7 @@ import logging
 
 from ..model_compat.gemma4._gemma4_detect import env_truthy, is_gemma4_arch
 
-log = logging.getLogger("genesis.gemma4.g4_18_per_layer_kv_page_size")
+log = logging.getLogger("genesis.kv_cache.g4_18_per_layer_kv_page_size")
 
 GENESIS_G4_18_MARKER = (
     "Genesis G4_18 gemma4 per-layer KV page-size v1 "

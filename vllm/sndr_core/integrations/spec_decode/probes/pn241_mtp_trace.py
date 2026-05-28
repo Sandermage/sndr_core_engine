@@ -34,7 +34,7 @@ import os
 
 import torch
 
-log = logging.getLogger("genesis.gemma4.pn241_mtp_trace")
+log = logging.getLogger("genesis.spec_decode.pn241_mtp_trace")
 
 _ENV = "GENESIS_ENABLE_PN241_MTP_TRACE"
 _LOG_PATH = "/tmp/genesis_pn241_mtp_trace.log"

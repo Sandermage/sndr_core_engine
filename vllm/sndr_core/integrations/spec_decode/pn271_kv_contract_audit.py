@@ -109,7 +109,7 @@ import os
 from collections import defaultdict
 from typing import Any
 
-log = logging.getLogger("genesis.gemma4.pn271_spec_decode_kv_contract_audit")
+log = logging.getLogger("genesis.spec_decode.pn271_spec_decode_kv_contract_audit")
 
 GENESIS_PN271_MARKER = "Genesis PN271 SpecDecode KV contract audit"
 

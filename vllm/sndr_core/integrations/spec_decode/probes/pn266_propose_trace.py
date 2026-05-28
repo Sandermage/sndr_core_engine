@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.pn266_propose_trace")
+log = logging.getLogger("genesis.spec_decode.pn266_propose_trace")
 
 GENESIS_PN266_MARKER = "Genesis PN266 propose() input trace (G4_77 design probe)"
 

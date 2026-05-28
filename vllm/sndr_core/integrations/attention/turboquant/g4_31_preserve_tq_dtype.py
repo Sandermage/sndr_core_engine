@@ -75,7 +75,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_31_tq_dtype_preserve")
+log = logging.getLogger("genesis.turboquant.g4_31_tq_dtype_preserve")
 
 GENESIS_G4_31_MARKER = (
     "Genesis G4_31 preserve turboquant_* kv_cache_dtype against AWQ "

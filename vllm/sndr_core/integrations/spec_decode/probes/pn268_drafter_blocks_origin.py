@@ -76,7 +76,7 @@ import logging
 import os
 from typing import Any
 
-log = logging.getLogger("genesis.gemma4.pn268_drafter_blocks_origin")
+log = logging.getLogger("genesis.spec_decode.pn268_drafter_blocks_origin")
 
 GENESIS_PN268_MARKER = "Genesis PN268 drafter num_blocks origin trace"
 

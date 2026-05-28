@@ -30,7 +30,7 @@ import os
 
 import torch
 
-log = logging.getLogger("genesis.gemma4.pn248_acceptance_trace")
+log = logging.getLogger("genesis.spec_decode.pn248_acceptance_trace")
 
 _ENV = "GENESIS_ENABLE_PN248_ACCEPTANCE_TRACE"
 _LOG_PATH = "/tmp/genesis_pn248_acceptance_trace.log"

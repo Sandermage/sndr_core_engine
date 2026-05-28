@@ -100,7 +100,7 @@ import logging
 import os
 from typing import Any
 
-log = logging.getLogger("genesis.gemma4.pn269_a0_block_table_trace")
+log = logging.getLogger("genesis.spec_decode.pn269_a0_block_table_trace")
 
 GENESIS_PN269_MARKER = (
     "Genesis PN269 G4_78-A0 trace: target/drafter block_table accessibility"

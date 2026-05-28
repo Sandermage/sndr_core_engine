@@ -55,7 +55,7 @@ import os
 
 from ...model_compat.gemma4._gemma4_detect import env_truthy
 
-log = logging.getLogger("genesis.gemma4.g4_19b_tq_kv_spec")
+log = logging.getLogger("genesis.turboquant.g4_19b_tq_kv_spec")
 
 GENESIS_G4_19B_MARKER = (
     "Genesis G4_19b gemma4 TurboQuant KV spec integration v1 "

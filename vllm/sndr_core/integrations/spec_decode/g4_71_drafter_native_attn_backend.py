@@ -100,7 +100,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_71_drafter_native_attn_backend")
+log = logging.getLogger("genesis.spec_decode.g4_71_drafter_native_attn_backend")
 
 GENESIS_G4_71_MARKER = (
     "Genesis G4_71 Force FlashAttn attention backend for Gemma 4 MTP "

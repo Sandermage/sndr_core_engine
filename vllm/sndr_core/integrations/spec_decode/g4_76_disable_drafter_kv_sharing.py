@@ -85,7 +85,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_76_disable_drafter_kv_sharing")
+log = logging.getLogger("genesis.spec_decode.g4_76_disable_drafter_kv_sharing")
 
 GENESIS_G4_76_MARKER = (
     "Genesis G4_76 Disable Gemma4Proposer._setup_gemma4_kv_sharing — "

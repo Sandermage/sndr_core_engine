@@ -38,7 +38,7 @@ import inspect
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_60c_tq_decode_overlay")
+log = logging.getLogger("genesis.turboquant.g4_60c_tq_decode_overlay")
 
 GENESIS_G4_60C_MARKER = (
     "Genesis G4_60c verify triton_turboquant_decode.py PR #42637 "

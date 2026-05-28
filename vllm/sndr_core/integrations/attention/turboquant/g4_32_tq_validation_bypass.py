@@ -61,7 +61,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_32_tq_validation_bypass")
+log = logging.getLogger("genesis.turboquant.g4_32_tq_validation_bypass")
 
 GENESIS_G4_32_MARKER = (
     "Genesis G4_32 TurboQuant validate_configuration bypass v1 "

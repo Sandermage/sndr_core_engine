@@ -119,7 +119,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_74_drafter_hnd_layout")
+log = logging.getLogger("genesis.spec_decode.g4_74_drafter_hnd_layout")
 
 GENESIS_G4_74_MARKER = (
     "Genesis G4_74 Drafter HND layout enforcement post-reshape "

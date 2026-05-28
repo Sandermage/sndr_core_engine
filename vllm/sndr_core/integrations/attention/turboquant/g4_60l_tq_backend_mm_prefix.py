@@ -109,7 +109,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_60l")
+log = logging.getLogger("genesis.turboquant.g4_60l")
 
 GENESIS_G4_60L_MARKER = (
     "Genesis G4_60L — supports_mm_prefix=True override on stock "

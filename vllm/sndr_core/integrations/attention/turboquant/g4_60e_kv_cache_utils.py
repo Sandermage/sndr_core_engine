@@ -96,7 +96,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_60e_kv_cache_utils")
+log = logging.getLogger("genesis.turboquant.g4_60e_kv_cache_utils")
 
 GENESIS_G4_60E_MARKER = (
     "Genesis G4_60e kv_cache_utils.py patches: "

@@ -133,8 +133,9 @@ REFERENCES
 
   * Stock P65 source: `vllm/sndr_core/integrations/attention/turboquant/
     p65_turboquant_spec_cg_downgrade.py`
-  * Overlay source: `vllm/sndr_core/integrations/gemma4/upstream_overlay_
-    pr42637/turboquant_attn.py` (search for `[Genesis P65 v2 inlined]`)
+  * Overlay source: `vllm/sndr_core/integrations/attention/turboquant/
+    overlays/pr42637/turboquant_attn.py` (search for
+    `[Genesis P65 v2 inlined]`)
   * Diagnostic chain: PN253 → PN254 → PN255 → PN256 → PN257a (Genesis
     investigation 2026-05-18)
   * vLLM upstream issue tracking: see UPSTREAM_ISSUE_GEMMA4_TQ_MTP_K1_
@@ -147,7 +148,7 @@ from __future__ import annotations
 import logging
 import os
 
-log = logging.getLogger("genesis.gemma4.g4_68_tq_spec_cg_downgrade_overlay")
+log = logging.getLogger("genesis.turboquant.g4_68_tq_spec_cg_downgrade_overlay")
 
 GENESIS_G4_68_MARKER = (
     "Genesis G4_68 verify P65 v2 inlined in PR #42637 turboquant_attn overlay"
@@ -202,8 +203,8 @@ def apply() -> tuple[str, str]:
             "not found — P65 v2 inline appears to be missing from the "
             "PR #42637 overlay source. Restore the "
             "[Genesis P65 v2 inlined] block on TurboQuantMetadataBuilder "
-            "in vllm/sndr_core/integrations/gemma4/upstream_overlay_"
-            "pr42637/turboquant_attn.py."
+            "in vllm/sndr_core/integrations/attention/turboquant/"
+            "overlays/pr42637/turboquant_attn.py."
         )
 
     p65_env_set = os.environ.get(_ENV_P65, "").strip().lower() in (
