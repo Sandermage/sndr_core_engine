@@ -224,12 +224,13 @@ def validate_entry(patch_id: str, meta: dict[str, Any]) -> list[SchemaIssue]:
                 message="env_flag must be string",
             ))
         elif not re.match(
-            r"^(GENESIS_|SNDR_ALLOW_)[A-Z][A-Za-z0-9_]*$", meta["env_flag"]
+            r"^(GENESIS_|SNDR_ENABLE_|SNDR_ALLOW_)[A-Z][A-Za-z0-9_]*$",
+            meta["env_flag"],
         ):
             issues.append(SchemaIssue(
                 patch_id=patch_id, field="env_flag", severity="ERROR",
                 message=f"env_flag {meta['env_flag']!r} doesn't match "
-                        f"^(GENESIS_|SNDR_ALLOW_)[A-Z][A-Za-z0-9_]*$",
+                        f"^(GENESIS_|SNDR_ENABLE_|SNDR_ALLOW_)[A-Z][A-Za-z0-9_]*$",
             ))
 
     # Lifecycle enum

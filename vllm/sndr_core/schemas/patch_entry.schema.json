@@ -16,7 +16,7 @@
     "env_flag": {
       "type": "string",
       "description": "Master env variable. Must start with 'GENESIS_ENABLE_' or be a shared family flag.",
-      "pattern": "^(GENESIS_|SNDR_ALLOW_)[A-Z][A-Za-z0-9_]*$"
+      "pattern": "^(GENESIS_|SNDR_ENABLE_|SNDR_ALLOW_)[A-Z][A-Za-z0-9_]*$"
     },
     "default_on": {
       "type": "boolean",

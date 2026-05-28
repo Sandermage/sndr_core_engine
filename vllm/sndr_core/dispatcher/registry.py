@@ -1216,7 +1216,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "requires_patches": [],
         "conflicts_with": [],
-        "composes_with": ["PN248"],
+        # PN248 was a debug-log trace predecessor referenced in the credit
+        # text. It was never promoted to a registry entry — drop the
+        # composes_with reference (K.1.R.R.1 cleanup 2026-05-28). The
+        # text reference in the credit stays as historical context.
+        "composes_with": [],
         "applies_to": {"model_arch": ["*"]},
     },
     "PN122": {  # renamed 2026-05-14 from SPRINT26_CG_DISPATCH_TRACE — long ID violated P[N]?\d+ convention + auto-derivation
