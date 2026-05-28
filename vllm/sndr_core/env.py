@@ -235,7 +235,11 @@ class Flags:
     # back-compat at Stage 2. Stage 10 may rename to SNDR_ENABLE_<canonical>.
     P67_TQ_MULTI_QUERY_KERNEL = "P67_TQ_MULTI_QUERY_KERNEL"
     P67_SPARSE_V = "P67_SPARSE_V"
-    P67B_SPEC_VERIFY_ROUTING = "P67B_SPEC_VERIFY_ROUTING"  # currently no env (P67 reuse)
+    # Flags.P67B_SPEC_VERIFY_ROUTING was a reserved-for-future Flag that
+    # never received an env-var binding (comment said "P67 reuse") and
+    # accumulated zero callsites in the entire codebase. Dropped
+    # 2026-05-28 STAGE-6-HARDENING.2D. If a future P67B patch lands, add
+    # the Flag at that time with a concrete env name.
     P82 = "P82"  # SGLang acceptance threshold
     PN21_DFLASH_SWA = "PN21_DFLASH_SWA"
     PN22_LOCAL_ARGMAX_TP = "PN22_LOCAL_ARGMAX_TP"
