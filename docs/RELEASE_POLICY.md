@@ -38,7 +38,7 @@ runs under `evidence/patch_proof/`.
 Why this is the gate: every patch the registry advertises must at least
 *resolve* before release; bench data quality varies per patch and is
 hardware-bound, so making it mandatory would block every release until
-operators re-bench all 228 entries on their rig. See
+operators re-bench all 229 entries on their rig. See
 `audit_release_check_baseline-optional` rationale in the Makefile for
 the historical decision.
 
@@ -56,7 +56,7 @@ comparison (`bench_with_baseline`). This is the strictest mode and
 takes the longest to satisfy because every patch needs a reference
 bench run.
 
-Currently 0/228 entries carry `bench_with_baseline`. Operators who
+Currently 0/229 entries carry `bench_with_baseline`. Operators who
 want to adopt this gate should:
 
 1. Promote the **default-on patches in production presets** first
@@ -119,7 +119,7 @@ target date for re-enabling the strict gate.
 ## Operator runbook — promoting the production subset to `bench_with_baseline`
 
 This section is the step-by-step recipe for going from the public
-release gate (`require-static`, 228/228 covered out-of-the-box) to
+release gate (`require-static`, 229/229 covered out-of-the-box) to
 the hardened ratchet (`require-bench` or `require-baseline`) on the
 practical subset that actually ships in production presets.
 
@@ -190,7 +190,7 @@ python3 scripts/attach_bench_proof.py \
 ```
 
 After cycling all 8 prod presets, `proof-status` should report
-~122/228 (~54%) in `bench_with_baseline` — the by-design ceiling
+~122/229 (~53%) in `bench_with_baseline` — the by-design ceiling
 for the current registry (subset of patches enabled by any
 `prod-*` preset). The remaining ~106 stay `static_only` by design —
 they are experimental opt-in patches that no production preset
@@ -200,7 +200,7 @@ Note on denominators in this section: **109** = production-subset
 (line 137 — patches eligible for bench gates), **169** = eligible
 count at the 2026-05-16 R-01 audit snapshot (CHANGELOG entry below),
 **226** = total registry count at the 2026-05-22 attachment-state
-snapshot (line 148), **228** = current registry count. Historical
+snapshot (line 148), **229** = current registry count. Historical
 snapshot numbers (109/169/226) are dated and preserved; only the
 forward projection above tracks the live registry total.
 

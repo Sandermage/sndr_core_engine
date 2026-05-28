@@ -184,7 +184,14 @@ class Flags:
     # legacy alias GENESIS_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC warns once.
     # Boot-applied from sndr_core/__init__.py, not via dispatcher (matches
     # PN248 sibling pattern).
-    PN282_SPEC_DECODE_ACCEPTANCE_METRIC = "PN282_SPEC_DECODE_ACCEPTANCE_METRIC"
+    # 2026-05-28 STAGE-6-HARDENING.2C — Flag value tracks the canonical
+    # env-var tail (SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC) so the
+    # bidirectional Flags ↔ registry coverage check passes after PN282
+    # was registered as a coordinator entry. The attribute name keeps
+    # the PN282_ prefix for ID symmetry with the rest of the Flags class;
+    # is_enabled() reads the value, so the env var name resolves to
+    # SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC as before.
+    PN282_SPEC_DECODE_ACCEPTANCE_METRIC = "SPEC_DECODE_ACCEPTANCE_METRIC"
 
     # kv_cache family
     P5B = "P5B"  # page size pad smaller

@@ -1187,6 +1187,38 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
+    "PN282": {
+        "title": "Spec-decode acceptance proxy metric (Prometheus, non-dispatcher boot patch)",
+        "tier": "community",
+        "family": "observability",
+        "env_flag": "SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC",
+        "default_on": False,
+        "category": "observability",
+        "implementation_status": "marker_only",
+        "source": "genesis_original",
+        "apply_module": None,
+        "lifecycle": "coordinator",
+        "credit": (
+            "STAGE_6_HARDENING.2C registration (2026-05-28). PN282 is a "
+            "production sibling of PN248's debug-log trace: wraps "
+            "rejection_sample and emits sndr_spec_decode_* Prometheus "
+            "series on the worker's existing /metrics endpoint. "
+            "Boot-applied directly from sndr_core/__init__.py (matches "
+            "PN248 sibling pattern), not via the dispatcher pipeline — "
+            "hence apply_module=None and lifecycle=coordinator. Canonical "
+            "env name is SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC; the "
+            "legacy alias GENESIS_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC is "
+            "accepted with a one-shot deprecation warning. Registering "
+            "this coordinator entry closes the Stage-6 orphan-flag gap "
+            "and makes the metric discoverable via standard tooling "
+            "(`sndr explain PN282`, generated patch docs)."
+        ),
+        "upstream_pr": None,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN248"],
+        "applies_to": {"model_arch": ["*"]},
+    },
     "PN122": {  # renamed 2026-05-14 from SPRINT26_CG_DISPATCH_TRACE — long ID violated P[N]?\d+ convention + auto-derivation
         "title": "Sprint 2.6 v2 — CUDA graph dispatch trace wire-in (formerly SPRINT26_CG_DISPATCH_TRACE)",
         "tier": "community",

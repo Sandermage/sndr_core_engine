@@ -4,23 +4,23 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-26T21:58:04Z
-Total entries: **228**
+Generated: 2026-05-28T18:35:33Z
+Total entries: **229**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **228**
+- `tier=community`: **229**
 
 ### By lifecycle
-- `lifecycle=coordinator`: **2**
+- `lifecycle=coordinator`: **3**
 - `lifecycle=experimental`: **159**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **16**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **51** / 228
+### Default-on at boot: **51** / 229
 
 ### By family
 - `attention.flash`: 2
@@ -36,7 +36,7 @@ Total entries: **228**
 - `middleware`: 3
 - `moe`: 6
 - `multimodal`: 1
-- `observability`: 1
+- `observability`: 2
 - `offload`: 3
 - `quantization`: 5
 - `reasoning`: 9
@@ -254,11 +254,12 @@ Total entries: **228**
 |---|---|---|:---:|---|:---:|---|
 | **PN62** | `community` | `experimental` | · | `GENESIS_ENABLE_PN62` | — | Text-only ViT scratch skip via skip_mm_profiling flip (3-5 GiB save) |
 
-### `observability` (1)
+### `observability` (2)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **PN122** | `community` | `experimental` | · | `GENESIS_ENABLE_PN122_CG_DISPATCH_TRACE` | — | Sprint 2.6 v2 — CUDA graph dispatch trace wire-in (formerly SPRINT26_CG_DISPA... |
+| **PN282** | `community` | `coordinator` | · | `SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC` | — | Spec-decode acceptance proxy metric (Prometheus, non-dispatcher boot patch) |
 
 ### `offload` (3)
 

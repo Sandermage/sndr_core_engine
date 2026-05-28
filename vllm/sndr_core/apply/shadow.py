@@ -135,6 +135,9 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     "PN261",           # TQ decode cache layout assert
     "PN271",           # KV contract audit (registry-only)
     "PN274",           # spec-decode KV adapter coordinator (lifecycle=coordinator)
+    "PN282",           # spec-decode acceptance metric coordinator (boot-applied
+                       # from sndr_core/__init__.py, not via dispatcher;
+                       # STAGE-6-HARDENING.2C registration 2026-05-28)
 })
 
 
