@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+# Status: ⚠️ Production w/ caveats
+# Caveats: fastest single-stream code-gen in 27B family (97.6 TPS bench
+#   2026-05-05), but bf16 KV / no TQ k8v4 — concurrency-limited. For
+#   multi-conc serving switch to sister qwen3.6-27b-int4-autoround-tq-k8v4.
 # Genesis V2 model definition — Qwen3.6-27B-int4-AutoRound + TRUE DFlash N=5.
 # Uses a SEPARATE Qwen3.6-27B-DFlash drafter checkpoint (z-lab).
 #

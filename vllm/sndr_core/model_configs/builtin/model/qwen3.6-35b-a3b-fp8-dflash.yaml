@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+# Status: ⚠️ Production w/ caveats
+# Caveats: single-stream path only (bf16 KV, no TQ k8v4); requires separate
+#   /models/Qwen3.6-35B-A3B-DFlash drafter checkpoint. For multi-conc serving
+#   use sister qwen3.6-35b-a3b-fp8 (TQ k8v4 + MTP K=3 + 644 TPS @ conc=8).
 # Genesis V2 model definition — Qwen 3.6 35B-A3B FP8 + DFlash N=3 spec-decode.
 # Sister of qwen3.6-35b-a3b-fp8 (MTP K=3 + TQ k8v4 KV).
 # Same target checkpoint, but DFlash needs a SEPARATE drafter model,

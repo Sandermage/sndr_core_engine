@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+# Status: 🧪 Experimental
+# Caveats: G4_08 K-pad + G4_18 per-layer KV have implementation_status="partial".
+#   Explicit experimental overlay — flips G4_02/G4_13 guards OFF, enables
+#   G4_08/G4_18. Use base gemma-4-26b-a4b-it-awq.yaml for stable production.
 # Genesis V2 model definition — Gemma 4 26B-A4B AWQ-4bit EXPERIMENTAL overlay.
 #
 # Per audit GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU section P0:

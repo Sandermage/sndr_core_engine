@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+# Status: 🧪 Experimental
+# Caveats: G4_NN family patches (Marlin K-pad + asymmetric KV-heads) not
+#   yet server-validated on rig. Projected bench only. Promotion to ✅
+#   requires: verify-full + 5×5 bench n=25 + soak-continuous PASS on 2× A5000.
 # Genesis V2 model definition — Gemma 4 26B-A4B-it AWQ-4bit (cyankiwi) + MTP.
 # 128-expert MoE; sliding+global asymmetric KV-heads (sliding=8, full=2).
 # Genesis G4_NN family closes Marlin K-dim (K=352%64≠0) + asymmetric KV.

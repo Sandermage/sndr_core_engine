@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+# Status: 🧪 Experimental
+# Caveats: projected bench only (~80-100 TPS dense decode, MTP K=3).
+#   Server validation pending — promote to ✅ after verify-full + 5×5 bench
+#   n=25 + soak PASS on 2× A5000. club-3090 ref `dual.yml` = 108/142 TPS.
 # Genesis V2 model definition — Gemma 4 31B AWQ-4bit (cyankiwi) + MTP assistant.
 # Dense architecture; MTP K=3 spec decode via google/gemma-4-31B-it-assistant.
 # Tested on 2× A5000 (SM 8.6) — uses Genesis G4_NN family patches.

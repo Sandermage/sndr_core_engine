@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+# Status: 🧪 Experimental
+# Caveats: MTP n=8 code-optimized sister. club-3090 ref (2× 3090) =
+#   101/142 TPS @ MTP n=8 (vs n=4: code +9% / narr −3%). Our 2× A5000
+#   rig not bench-validated for this profile — pending A/B vs n=4 sister.
 # Genesis V2 model definition — Gemma 4 31B AWQ-4bit + MTP K=8 (CODE profile).
 # Per audit GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU section P1:
 #   "31B добавить профили mtp_n4_default, mtp_n8_code".

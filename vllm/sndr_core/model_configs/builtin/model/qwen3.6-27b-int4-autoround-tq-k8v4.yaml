@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+# Status: ✅ Production
+# Cross-rig parity: club-3090 dual.yml v7.72.2 + Genesis (2× 3090 PCIe 250W) =
+#   89.78 / 117.60 TPS single-stream; our 2× A5000 = 120 single / 292 @ conc=4.
+#   Wave 9 ref: long_gen_sustained_tps 109.8 + tool 10/10.
 # Genesis V2 model definition — Qwen 3.6 27B INT4 (Lorbus AutoRound) + TurboQuant k8v4 KV.
 # Hybrid GDN architecture; MTP K=3 spec decode; turboquant_k8v4 KV cache.
 # Source: legacy `a5000-2x-27b-int4-tq-k8v4.yaml` (Wave 9 dev209 validated).

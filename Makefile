@@ -90,7 +90,10 @@ audit-external-findings-strict: ## External findings tracker strict — promotes
 audit-shim-window: ## Historical-path compatibility shim integrity (E.1/E.2/E.3/E.4/E.5)
 	$(PYTHON) scripts/audit_shim_window.py
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window ## Run all 14 CI gates fast-fail
+audit-yaml-status-enum: ## Status: enum invariant — every builtin model YAML declares ✅/⚠️/🧪/👁️/⏸️/🗑️ + Caveats (club-3090 convention)
+	$(PYTHON) scripts/audit_yaml_status_enum.py --strict
+
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum ## Run all 15 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 

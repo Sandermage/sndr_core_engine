@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+# Status: 👁️ Preview
+# Caveats: community example for club-3090 #58 Path A reference (DENSE +
+#   CPU offload). NOT for hybrid-GDN production stack — validator raises if
+#   PN59 is enabled. No bench targets; promotion blocked by scope mismatch.
 # Genesis V2 model definition — Qwen3.6-7B-Instruct (DENSE — community example).
 # Used for: club-3090 #58 Path A reference (DENSE + CPU offload).
 # NOT for hybrid-GDN production stack (validator raises if PN59 is enabled).

@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
+# Status: ✅ Production
+# Cross-rig parity: club-3090 dual/preview-mtp.yml = 90/115 TPS single-stream
+#   on 2× 3090 (vLLM MTP × MoE penalty); our P67 multi-query kernel + TQ k8v4
+#   delivers 211 single / 644 @ conc=8 on 2× A5000. Genesis PROD reference.
 # Genesis V2 model definition — Qwen 3.6 35B-A3B FP8 (Sander PROD reference).
 # Source-of-truth identity + capabilities + canonical patches.
 # POC migration from legacy combined `a5000-2x-35b-prod.yaml`.
