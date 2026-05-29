@@ -208,36 +208,36 @@ def _make_unbind_revert_patcher() -> TextPatcher | None:
         ),
         target_file=str(target),
         marker=GENESIS_PN286_MARKER,
-        patches=[
+        sub_patches=[
             # Forward decode site
             TextPatch(
-                old_text=(
+                name="PN286.fwd_unbind",
+                anchor=(
                     "        # For decoder and cross-attention, use KV cache as before\n"
                     "        key_cache, value_cache = kv_cache.unbind(1)"
                 ),
-                new_text=(
+                replacement=(
                     "        # For decoder and cross-attention, use KV cache as before\n"
                     "        # [Genesis PN286] SM 8.6 layout revert for #42095 perf regression\n"
                     "        from vllm.platforms import current_platform as _g_pn286_platform\n"
                     "        _g_pn286_unbind = 0 if _g_pn286_platform.is_device_capability(86) else 1\n"
                     "        key_cache, value_cache = kv_cache.unbind(_g_pn286_unbind)"
                 ),
-                description="PN286 forward unbind axis SM 8.6 gate",
             ),
             # do_kv_cache_update site
             TextPatch(
-                old_text=(
+                name="PN286.update_unbind",
+                anchor=(
                     "        else:\n"
                     "            key_cache, value_cache = kv_cache.unbind(1)"
                 ),
-                new_text=(
+                replacement=(
                     "        else:\n"
                     "            # [Genesis PN286] SM 8.6 layout revert paired with shape patch\n"
                     "            from vllm.platforms import current_platform as _g_pn286_platform\n"
                     "            _g_pn286_unbind = 0 if _g_pn286_platform.is_device_capability(86) else 1\n"
                     "            key_cache, value_cache = kv_cache.unbind(_g_pn286_unbind)"
                 ),
-                description="PN286 do_kv_cache_update unbind axis SM 8.6 gate",
             ),
         ],
     )
