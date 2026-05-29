@@ -203,10 +203,46 @@ def _weight_norm(mod: Any) -> float | None:
         return None
 
 
-def _classify_layout(shape: tuple[int, ...] | None) -> str:
+def _classify_layout(
+    shape: tuple[int, ...] | None,
+    dtype: Any | None = None,
+) -> str:
+    """Classify a KV cache shape into a layout family.
+
+    Pure shape (+ optional dtype) inspection — no backend handle. Used
+    by ``extract_contract`` to populate ``KVContract.kv_cache_layout``.
+
+    K.1.R.R.3 (2026-05-29): extended to recognize TurboQuant's 4-dim
+    packed layout (``TQ_PACKED``) and 3-dim Mamba state tensors
+    (``MAMBA_STATE``). Previously these fell through to ``"unknown"``,
+    masking real configuration in audit reports.
+
+    Disambiguation note (HND vs NHD): when ``shape[0] == 2`` and
+    ``shape[1] == 2`` (a 2-block warmup cache), the shape alone
+    cannot distinguish layouts. This routine picks ``HND``, matching
+    the pre-#42095 convention. ``layout_introspect.block_dim_of``
+    with a backend handle is unambiguous (sentinel num_blocks).
+    """
     if shape is None or len(shape) < 2:
         return "unknown"
-    # KV cache convention: dim with size 2 is the K/V split axis.
+
+    # TurboQuant packed: 4-D + uint8 + slot_size dim > 2.
+    # K and V share a single byte slot per (block, position, head);
+    # there is no leading 2-axis to split.
+    if len(shape) == 4 and int(shape[3]) > 2:
+        try:
+            import torch
+            if dtype == torch.uint8:
+                return "TQ_PACKED"
+        except ImportError:
+            pass
+
+    # Mamba state: 3-D, num_blocks-first, downstream dims encode
+    # the per-state shape spec (conv state, temporal, SSM).
+    if len(shape) == 3:
+        return "MAMBA_STATE"
+
+    # HND / NHD via the dim-with-size-2 convention.
     if int(shape[0]) == 2:
         return "HND"
     if int(shape[1]) == 2:
@@ -269,16 +305,22 @@ def _kernel_expected_layout(impl_class: str | None) -> str | None:
 
 
 def _walk_attn_kv_cache(inner_attn: Any) -> tuple[
-        tuple[int, ...] | None, str | None]:
+        tuple[int, ...] | None, str | None, Any | None]:
     """Pull live kv_cache shape+dtype from bound Attention module.
-    Returns (shape, dtype_str). Both None if absent."""
+
+    Returns (shape, dtype_str, dtype). All three are None if absent.
+
+    K.1.R.R.3 (2026-05-29): also returns the raw torch dtype object
+    so callers (specifically ``_classify_layout``) can match against
+    ``torch.uint8`` without re-resolving the live tensor.
+    """
     try:
         kv = getattr(inner_attn, "kv_cache", None)
         if kv is None:
-            return None, None
-        return tuple(kv.shape), str(kv.dtype)
+            return None, None, None
+        return tuple(kv.shape), str(kv.dtype), kv.dtype
     except Exception:
-        return None, None
+        return None, None, None
 
 
 def extract_contract(
@@ -305,8 +347,8 @@ def extract_contract(
     )
 
     # KV cache
-    kv_shape, kv_dtype_real = _walk_attn_kv_cache(inner)
-    kv_layout = _classify_layout(kv_shape)
+    kv_shape, kv_dtype_real, kv_dtype_obj = _walk_attn_kv_cache(inner)
+    kv_layout = _classify_layout(kv_shape, kv_dtype_obj)
     kv_dtype_decl = _safe_attr(inner, "kv_cache_dtype")
     block_size = None
     if kv_shape is not None and len(kv_shape) >= 3:

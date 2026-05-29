@@ -127,15 +127,52 @@ def _warmup_one_tq_layer(layer, impl, *, device, block_size, block_table_stride,
     batch_size = max_num_decode_tokens
     slot_size_aligned = getattr(impl.tq_config, "slot_size_aligned", 24) if hasattr(impl, "tq_config") else 24
 
+    # K.1.R.R.3 (2026-05-29): use LayoutIntrospect.build_warmup_kv_cache
+    # rather than hardcode the warmup tensor shape. The previous
+    # ``torch.zeros((2, block_size, num_kv_heads, slot_size_aligned))``
+    # was visually ambiguous (``2`` here was ``num_blocks=2``, not the
+    # K/V split axis) and would silently desync from the TQ backend if
+    # the backend's declared shape ever changed. Sourcing the shape
+    # from the backend's ``get_kv_cache_shape`` keeps the warmup tensor
+    # in lockstep with whatever layout the kernels actually expect.
+    try:
+        from vllm.sndr_core.integrations.spec_decode.layout_introspect import (
+            build_warmup_kv_cache,
+        )
+        from vllm.v1.attention.backends.turboquant_attn import (
+            TurboQuantAttentionBackend,
+        )
+    except ImportError as e:
+        log.warning(
+            "[PN130] LayoutIntrospect / TurboQuantAttentionBackend not "
+            "importable: %s — falling back to hardcoded shape",
+            e,
+        )
+        TurboQuantAttentionBackend = None
+        build_warmup_kv_cache = None
+
     try:
         query = torch.zeros(
             (batch_size, impl.num_heads, impl.head_size),
             dtype=model_dtype, device=device,
         )
-        kv_cache = torch.zeros(
-            (2, block_size, impl.num_kv_heads, slot_size_aligned),
-            dtype=torch.uint8, device=device,
-        )
+        if TurboQuantAttentionBackend is not None and build_warmup_kv_cache is not None:
+            kv_cache = build_warmup_kv_cache(
+                TurboQuantAttentionBackend,
+                num_blocks=2,
+                block_size=block_size,
+                num_kv_heads=impl.num_kv_heads,
+                head_size=impl.head_size,
+                cache_dtype_str=getattr(layer, "kv_cache_dtype", "turboquant_k8v4"),
+                dtype=torch.uint8,
+                device=device,
+            )
+        else:
+            # Defensive fallback — matches pre-K.1.R.R.3 shape.
+            kv_cache = torch.zeros(
+                (2, block_size, impl.num_kv_heads, slot_size_aligned),
+                dtype=torch.uint8, device=device,
+            )
         block_table = torch.zeros(
             (batch_size, block_table_stride), dtype=torch.int32, device=device
         )
