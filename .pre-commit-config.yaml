@@ -263,6 +263,21 @@ repos:
         pass_filenames: false
         files: '(vllm/sndr_core/model_configs/builtin/model/.*\.yaml|scripts/audit_yaml_status_enum\.py)$'
 
+      - id: genesis-audit-pn59-cliff2b
+        name: Genesis PN59 Cliff 2b marker guard (v7.72.5+ — club-3090 #22/#182)
+        # PN59 streaming-GDN driver must carry the four v7.72.5 Level 2
+        # markers that close Cliff 2b on chunked-prefill (single-card
+        # 24 GB OOM at >50K). External users (club-3090 #182) demonstrated
+        # silent regression when Genesis is pinned to v7.72.2 — PN59
+        # eligibility check rejects chunked-prefill and routes onto the
+        # vanilla (B, NT, H, V, K) materialization. This gate fails loud
+        # at CI instead of waiting for a 24 GB rig to OOM. Read-only,
+        # no torch deps. Fires on the driver source or the audit itself.
+        entry: python3 scripts/audit_pn59_cliff2b_markers.py --strict
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/kernels/streaming_gdn_driver\.py|scripts/audit_pn59_cliff2b_markers\.py)$'
+
       - id: genesis-audit-ai-attribution
         name: Genesis attribution-label policy (§9.A.6)
         # Forbid syntactic AI-attribution constructs in tracked source:

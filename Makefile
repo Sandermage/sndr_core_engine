@@ -93,7 +93,10 @@ audit-shim-window: ## Historical-path compatibility shim integrity (E.1/E.2/E.3/
 audit-yaml-status-enum: ## Status: enum invariant — every builtin model YAML declares ✅/⚠️/🧪/👁️/⏸️/🗑️ + Caveats (club-3090 convention)
 	$(PYTHON) scripts/audit_yaml_status_enum.py --strict
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum ## Run all 15 CI gates fast-fail
+audit-pn59-cliff2b: ## PN59 streaming-GDN driver carries v7.72.5 Level 2 markers (Cliff 2b regression guard — club-3090 #22/#182)
+	$(PYTHON) scripts/audit_pn59_cliff2b_markers.py --strict
+
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b ## Run all 16 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
