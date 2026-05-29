@@ -5,12 +5,12 @@
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
 Generated: 2026-05-28T19:40:49Z
-Total entries: **229**
+Total entries: **230**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **229**
+- `tier=community`: **230**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **3**
@@ -20,7 +20,7 @@ Total entries: **229**
 - `lifecycle=retired`: **17**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **51** / 229
+### Default-on at boot: **51** / 230
 
 ### By family
 - `attention.flash`: 2

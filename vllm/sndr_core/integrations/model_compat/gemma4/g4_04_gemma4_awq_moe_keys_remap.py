@@ -127,7 +127,10 @@ _REPLACEMENT = (
 
 
 def _make_patcher() -> TextPatcher | None:
-    target_file = resolve_vllm_file("vllm/model_executor/models/gemma4.py")
+    # K.1.R.R.6 (2026-05-29): fixed path prefix — resolve_vllm_file expects
+    # path relative to vllm package root (no "vllm/" prefix). Bug found via
+    # gemma4 boot log audit showing this patch silently skipping despite env.
+    target_file = resolve_vllm_file("model_executor/models/gemma4.py")
     if target_file is None:
         return None
     return TextPatcher(

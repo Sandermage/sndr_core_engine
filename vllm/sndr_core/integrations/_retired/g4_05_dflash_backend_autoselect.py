@@ -107,7 +107,11 @@ _REPLACEMENT = (
 
 
 def _make_patcher() -> TextPatcher | None:
-    target_file = resolve_vllm_file("vllm/v1/spec_decode/dflash.py")
+    # K.1.R.R.6 (2026-05-29): fixed path prefix — resolve_vllm_file expects
+    # path relative to vllm package root (no "vllm/" prefix). Bug found via
+    # gemma4 boot log audit. Patch is retired but anchor lookup still runs;
+    # without fix, prints "not resolvable in this pin" warning unnecessarily.
+    target_file = resolve_vllm_file("v1/spec_decode/dflash.py")
     if target_file is None:
         return None
     return TextPatcher(

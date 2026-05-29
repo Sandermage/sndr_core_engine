@@ -56,9 +56,9 @@ ratchet that tracks this expansion.
 
 | Channel | Address |
 | --- | --- |
-| USDT (BEP-20) | `0x1E8C74aC4f37A201733D185b2293e9D69f305306` |
+| USDT (BEP-20) | `0x1E8C74aC4f37A201733D185b2303e9D69f305306` |
 | USDT (TRC-20) | `TSyVYTA4PK22w3tZ7vgoc1itjXU5p4Vfks` |
-| ETH (mainnet) | `0x1E8C74aC4f37A201733D185b2293e9D69f305306` |
+| ETH (mainnet) | `0x1E8C74aC4f37A201733D185b2303e9D69f305306` |
 | BTC | `bc1q9tau6xqgrv5jjgst63yjux550gslq6nm7y7q9f` |
 | PayPal | `sander.odessa@gmail.com` |
 
