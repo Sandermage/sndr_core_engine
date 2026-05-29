@@ -4,7 +4,7 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-28T19:40:49Z
+Generated: 2026-05-29T15:09:44Z
 Total entries: **230**
 
 ## Statistics
@@ -14,16 +14,16 @@ Total entries: **230**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **3**
-- `lifecycle=experimental`: **158**
+- `lifecycle=experimental`: **159**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **17**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **51** / 230
+### Default-on at boot: **52** / 230
 
 ### By family
-- `attention.flash`: 2
+- `attention.flash`: 3
 - `attention.gdn`: 20
 - `attention.turboquant`: 50
 - `compile_safety`: 13
@@ -49,12 +49,13 @@ Total entries: **230**
 
 ## Patches by family
 
-### `attention.flash` (2)
+### `attention.flash` (3)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **P100** | `community` | `experimental` | · | `GENESIS_ENABLE_P100` | [#41127](https://github.com/vllm-project/vllm/pull/41127) | FlashInfer FULL CUDA graph for spec-decode (vllm#41127) |
 | **PN17** | `community` | `experimental` | · | `GENESIS_ENABLE_PN17_FA2_LSE_CLAMP` | — | "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue |
+| **PN286** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86` | — | "FA KV cache layout revert for Ampere SM 8.6 (closes |
 
 ### `attention.gdn` (20)
 

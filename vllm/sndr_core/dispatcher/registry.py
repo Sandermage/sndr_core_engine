@@ -3394,7 +3394,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "tier": "community",
         "family": "attention.flash",
         "env_flag": "GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86",
-        "default_on": False,
+        # K.1.R.R.7 (2026-05-29): flip default_on=True after empirical
+        # validation. Patch self-skips on non-SM-8.6 hardware via
+        # current_platform.is_device_capability(86) check. On SM 8.6:
+        # - 35B FP8 dense MoE: +6.6% TPS (validated, 2 runs)
+        # - 27B Lorbus + TQ k8v4: neutral (MTP layer in TQ overlay group)
+        # No negative cases observed. Safe to enable by default.
+        "default_on": True,
         "category": "perf_hotfix",
         "credit": (
             "Genesis-original 2026-05-29 (K.1.R.R.5). Upstream vllm#42095 "

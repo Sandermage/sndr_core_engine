@@ -1288,7 +1288,7 @@
     "family": "attention.flash",
     "lifecycle": "experimental",
     "tier": "community",
-    "default_on": false,
+    "default_on": true,
     "env_flag": "GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
