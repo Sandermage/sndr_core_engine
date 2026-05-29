@@ -461,6 +461,31 @@ async def run_session(
                 )
             tool_calls = metrics.get("tool_calls") or []
             valid_tool = bool(tool_calls and tool_calls[0]["function"]["name"])
+            # Validate tool_call.arguments is parseable JSON before
+            # appending to history. qwen3_coder × MTP at depth can emit
+            # truncated mid-JSON-string arguments (club-3090 #178
+            # arg-corruption mode); appending the broken tool_call would
+            # poison every subsequent turn with HTTP 400 "Unterminated
+            # string" on history validation. Empirically observed on
+            # 35B PROD coder baseline 2026-05-29: session 1 turns 9-12
+            # failed cascading after a broken tool_call at turn 8.
+            if valid_tool:
+                args_str = tool_calls[0]["function"].get("arguments") or ""
+                try:
+                    json.loads(args_str) if args_str else None
+                    args_ok = True
+                except json.JSONDecodeError:
+                    args_ok = False
+                if not args_ok:
+                    metrics["malformed_tool_args"] = True
+                    metrics["malformed_args_preview"] = args_str[:120]
+                    valid_tool = False  # treat as no-tool for history
+                    print(
+                        f"    ⚠ malformed tool_call.arguments — JSON "
+                        f"parse failed at depth (club-3090 #178). "
+                        f"Synthetic placeholder injected; ramp continues.",
+                        flush=True,
+                    )
             content = metrics.get("content") or ""
             # Assistant turn — append what model actually produced, so
             # next turn's accumulated context reflects reality.
@@ -533,6 +558,9 @@ def _summarize(all_turns: list[dict]) -> dict:
         if t.get("error") is None and (t.get("completion_tokens") or 0) > 0
     ]
     silent_empty_count = sum(1 for t in all_turns if t.get("silent_empty"))
+    malformed_args_count = sum(
+        1 for t in all_turns if t.get("malformed_tool_args")
+    )
     errors = [t for t in all_turns if t.get("error")]
     if successful:
         ttfts = [t["ttft_ms"] for t in successful if t.get("ttft_ms")]
@@ -546,6 +574,7 @@ def _summarize(all_turns: list[dict]) -> dict:
             "total_turns": len(all_turns),
             "successful_turns": len(successful),
             "silent_empty_turns": silent_empty_count,
+            "malformed_tool_args_turns": malformed_args_count,
             "error_turns": len(errors),
             "ttft_p50_ms": statistics.median(ttfts) if ttfts else None,
             "ttft_p95_ms": (
@@ -576,6 +605,7 @@ def _summarize(all_turns: list[dict]) -> dict:
             "total_turns": len(all_turns),
             "successful_turns": 0,
             "silent_empty_turns": silent_empty_count,
+            "malformed_tool_args_turns": malformed_args_count,
             "error_turns": len(errors),
             "note": "no successful turns — endpoint or tool-parser broken",
         }

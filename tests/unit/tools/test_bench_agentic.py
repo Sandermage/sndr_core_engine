@@ -127,6 +127,38 @@ def test_summarize_silent_empty_detection() -> None:
         assert summary["ttft_growth_ms_p50"] >= 0
 
 
+def test_summarize_counts_malformed_tool_args() -> None:
+    """Regression coverage for the 2026-05-29 fix — bench tool must
+    track malformed_tool_args_turns separately from error_turns. This
+    surfaces club-3090 #178 (qwen3_coder × MTP arg-corruption at depth)
+    even when our defensive history-injection prevents a cascade.
+    """
+    mod = _import_tool()
+    turns = [
+        # Good turn
+        {"turn": 1, "session": 1, "ttft_ms": 100.0, "decode_tps": 50.0,
+         "completion_tokens": 80, "prompt_tokens": 200,
+         "finish_reason": "tool_calls", "error": None,
+         "silent_empty": False, "malformed_tool_args": False},
+        # Malformed args turn — caught by defense, ramp continues
+        {"turn": 2, "session": 1, "ttft_ms": 150.0, "decode_tps": 48.0,
+         "completion_tokens": 70, "prompt_tokens": 400,
+         "finish_reason": "tool_calls", "error": None,
+         "silent_empty": False, "malformed_tool_args": True,
+         "malformed_args_preview": '{"file_path":"/some/lo'},
+        # Subsequent turn still works because defense skipped poisoned
+        # tool_call from prior history
+        {"turn": 3, "session": 1, "ttft_ms": 160.0, "decode_tps": 47.0,
+         "completion_tokens": 90, "prompt_tokens": 700,
+         "finish_reason": "tool_calls", "error": None,
+         "silent_empty": False, "malformed_tool_args": False},
+    ]
+    summary = mod._summarize(turns)
+    assert summary["successful_turns"] == 3
+    assert summary["malformed_tool_args_turns"] == 1
+    assert summary["error_turns"] == 0  # defense kicked in, no cascade
+
+
 def test_summarize_handles_all_errors() -> None:
     mod = _import_tool()
     turns = [
