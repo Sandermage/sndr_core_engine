@@ -214,7 +214,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     except Exception as e:
         log.warning("Platform summary failed: %s", e)
 
-    # [Genesis pin-gate] Sander 2026-05-04 — "защита от дурака". Runs in
+    # [Genesis pin-gate] Sander 2026-05-04 — "foolproof guard". Runs in
     # BOTH plugin auto-load (run() called from register()) AND CLI PRE-pass
     # (run() called from main()). Strict mode = sys.exit(2) on unknown pin.
     try:
@@ -340,7 +340,7 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # Banner
     log.info(
         "Genesis Unified Patch v7.0 — Ampere FP8 + TQ + MoE + Hybrid + bugfixes. "
-        "Philosophy: МЫ ЧИНИМ, НЕ ЛОМАЕМ."
+        "Philosophy: we fix, we do not break."
     )
 
     # Validate _state.PATCH_REGISTRY shape + dependency graph at boot. Issues are
@@ -864,7 +864,7 @@ def main() -> int:
     Pass `--verify-rebinds` for post-register verification (additional
     verification + non-zero exit code if any rebind not live).
 
-    Per Sander 2026-05-04: enforce vllm pin allowlist (защита от дурака).
+    Per Sander 2026-05-04: enforce vllm pin allowlist (foolproof guard).
     Set GENESIS_VLLM_PIN_POLICY=strict in production start scripts to
     sys.exit(2) on unknown pin instead of just warning.
     """

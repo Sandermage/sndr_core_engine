@@ -226,7 +226,7 @@ def demote_on_evict(block_hash: Any, block_id: int) -> bool:
         from .demote_policy import _pn95_sort_layers_cold_first
         eligible_layers = _pn95_sort_layers_cold_first(eligible_layers)
 
-        # ONE batched async copy для all N layer views (~16× less sync overhead).
+        # ONE batched async copy for all N layer views (~16× less sync overhead).
         from .transfer import _pn95_gpu_to_cpu_bytes_batch
         layer_views = [v for _name, v in eligible_layers]
         raw_bytes_list = _pn95_gpu_to_cpu_bytes_batch(layer_views)
@@ -391,7 +391,7 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
                 _rt._PN95_STATS.setdefault("disk_to_ram_promotes_total", 0)
                 _rt._PN95_STATS["disk_to_ram_promotes_total"] += 1
     if layer_data is None:
-        # OBS1 — cold miss: vllm asked, мы тоже не имели данных
+        # OBS1 — cold miss: vllm asked and we had no data either
         _rt._PN95_STATS["prefix_lookups_cold_miss"] = (
             _rt._PN95_STATS.get("prefix_lookups_cold_miss", 0) + 1
         )
@@ -407,9 +407,9 @@ def promote_on_miss(block_pool: Any, block_hash_with_group_id: Any) -> Any:
         # Sprint Q1 B3 — collect all eligible (view, bytes) pairs, then ONE
         # batched async CPU→GPU copy (single wait_stream vs N).
         #
-        # NOTE: Sequential decompress kept (measured B5 parallel slower на 17
-        # layers — zstd decompress ~80μs total too fast для ThreadPool overhead).
-        # `_pn95_decompress_bytes_batch` available для future bulk warmup
+        # NOTE: Sequential decompress kept (measured B5 parallel slower on 17
+        # layers — zstd decompress ~80μs total is too fast for ThreadPool overhead).
+        # `_pn95_decompress_bytes_batch` available for future bulk warmup
         # scenarios (many small entries) where parallelism does pay off.
         eligible_views = []
         eligible_bytes = []
@@ -673,8 +673,8 @@ def pn95_materialize_virtual_block(
     `virt_block.block_id` to this returned value. We don't mutate here
     to keep this helper testable.
 
-    Race safety: relies on ref_cnt=0 invariant — donors не active в
-    request block_tables. vllm v1 GIL serializes access.
+    Race safety: relies on the ref_cnt=0 invariant — donors are not
+    active in request block_tables. vllm v1 GIL serializes access.
     """
     from vllm.sndr_core.cache import _pn95_runtime as _rt
     if not _enabled() or not _phase5_virt_enabled():
@@ -710,7 +710,7 @@ def pn95_materialize_virtual_block(
                 continue
             # Skip non-cached (no bytes worth saving — but still valid donor)
             # Actually any physical_resident block is valid donor; cached
-            # ones are PREFERRED because we can save их bytes для restore
+            # ones are PREFERRED because we can save their bytes for restore
             cur_id = getattr(cur, "block_id", -1)
             cur_meta = _rt._PN95_BLOCK_METADATA.get((pool_id, cur_id))
             if cur_meta is None or not cur_meta.get("physical_resident", False):
@@ -722,11 +722,11 @@ def pn95_materialize_virtual_block(
         if donor is None:
             return None
 
-        # Capture donor's bytes к CPU prefix store (only if cached)
+        # Capture donor's bytes to CPU prefix store (only if cached)
         donor_hash = getattr(donor, "block_hash", None)
         donor_phys_id = donor.block_id  # physical_resident → block_id == physical_block_id
         if donor_hash is not None:
-            # Best-effort capture — failure не critical (just lose cache hit later)
+            # Best-effort capture — failure is not critical (just lose cache hit later)
             try:
                 demote_on_evict(donor_hash, donor_phys_id)
             except Exception:
@@ -755,12 +755,12 @@ def pn95_materialize_virtual_block(
         # donor (which will get new id virt_id) is now virtual
         _rt._PN95_BLOCK_METADATA[(pool_id, virt_id)] = new_virtual_meta
 
-        # Donor block stays в free_queue. Mutate его block_id к virt_id
-        # so future free_queue traversal sees correct (mutated) id.
-        # Caller mutates virt_block.block_id к donor_phys_id separately.
+        # Donor block stays in free_queue. Mutate its block_id to virt_id
+        # so future free_queue traversal sees the correct (mutated) id.
+        # Caller mutates virt_block.block_id to donor_phys_id separately.
         try:
             donor.block_id = virt_id
-            # Clear donor's hash — его bytes теперь на CPU (or never were cached)
+            # Clear donor's hash — its bytes are now on CPU (or never were cached)
             if hasattr(donor, "_block_hash"):
                 donor._block_hash = None
         except Exception:

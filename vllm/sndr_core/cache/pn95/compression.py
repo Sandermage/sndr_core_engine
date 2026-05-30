@@ -205,18 +205,18 @@ def _pn95_compress_bytes(data: bytes) -> bytes:
             return data
     except Exception:
         return data
-    # Only use compression if it saved >5% (avoid overhead на already-compressed data)
+    # Only use compression if it saved >5% (avoid overhead on already-compressed data)
     if len(compressed) >= int(len(data) * 0.95):
         return data
     return compressed
 
 
 def _pn95_compress_pool():
-    """Path C v1.0 Sprint Q1 B4 — lazy-init ThreadPoolExecutor для parallel
+    """Path C v1.0 Sprint Q1 B4 — lazy-init ThreadPoolExecutor for parallel
     compression. zstd/lz4/zlib release GIL during compression — multiple
     threads truly parallel.
 
-    Returns None если threading unavailable (which doesn't happen in CPython).
+    Returns None if threading unavailable (which doesn't happen in CPython).
     Default 4 workers (env GENESIS_PN95_COMPRESS_THREADS).
     """
     from vllm.sndr_core.cache import _pn95_runtime as _rt
@@ -239,14 +239,14 @@ def _pn95_compress_pool():
 def _pn95_compress_bytes_batch(data_list: list) -> list:
     """Path C v1.0 Sprint Q1 B4 — parallel batched compression.
 
-    Compress N bytes objects concurrently через ThreadPool. zstd/lz4/zlib
+    Compress N bytes objects concurrently via ThreadPool. zstd/lz4/zlib
     release Python GIL during native compression → real parallelism.
 
     For 17-layer demote with ~100KB blocks: sequential = ~1.7ms total,
     parallel (4 threads) = ~0.5ms total = ~3-4× speedup.
 
-    Returns list of compressed bytes в same order. Empty list if input empty.
-    Falls back к sequential если pool unavailable.
+    Returns list of compressed bytes in same order. Empty list if input empty.
+    Falls back to sequential if pool unavailable.
     """
     if not data_list:
         return []
@@ -261,15 +261,15 @@ def _pn95_compress_bytes_batch(data_list: list) -> list:
 def _pn95_decompress_bytes_batch(data_list: list) -> list:
     """Path C v1.0 Sprint Q1 B5 — parallel batched decompression.
 
-    Mirror of B4 (_pn95_compress_bytes_batch) для promote path. zstd/lz4/zlib
+    Mirror of B4 (_pn95_compress_bytes_batch) for the promote path. zstd/lz4/zlib
     release Python GIL during decompression → real parallelism.
 
     For 17-layer promote with mixed compressed sizes:
     sequential ~340μs total, parallel (4 threads) ~85μs total = ~4× speedup.
 
-    Returns list of decompressed bytes в same order. Backward-compatible:
+    Returns list of decompressed bytes in same order. Backward-compatible:
     uncompressed entries pass through unchanged (auto-detected via magic bytes
-    в underlying _pn95_decompress_bytes).
+    in the underlying _pn95_decompress_bytes).
     """
     if not data_list:
         return []

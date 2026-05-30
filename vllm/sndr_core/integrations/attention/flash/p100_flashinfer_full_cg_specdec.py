@@ -3,7 +3,7 @@
 
 Backport of vllm#41127 ("Enable native FlashInfer full CUDA graph support
 for SpecDec w/out TRT-LLM"). PR open 2026-04-28. Per Sander direct request:
-"не ждём, изучаем, импортируем".
+"don't wait — study, import".
 
 ================================================================
 WHY THIS MATTERS

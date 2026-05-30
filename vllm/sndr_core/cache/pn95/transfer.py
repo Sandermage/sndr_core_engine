@@ -111,9 +111,9 @@ def _pn95_stream() -> Optional[Any]:
 def _pn95_gpu_to_cpu_bytes(view: Any) -> bytes:
     """Path C v1.0 Sprint Q1 B1 — async-aware GPU→CPU byte copy.
 
-    Uses _pn95_stream когда available so demote PCIe transfer doesn't
-    block default stream compute. Synchronous fallback preserves existing
-    behavior (and correctness) когда CUDA unavailable.
+    Uses _pn95_stream when available so demote PCIe transfer does not
+    block default-stream compute. Synchronous fallback preserves existing
+    behaviour (and correctness) when CUDA is unavailable.
 
     Returns bytes — caller may compress via _pn95_compress_bytes(...).
 
@@ -144,20 +144,21 @@ def _pn95_gpu_to_cpu_bytes(view: Any) -> bytes:
 def _pn95_cpu_to_gpu_copy(view: Any, src_bytes: bytes) -> int:
     """Path C v1.0 Sprint Q1 B1 — async-aware CPU→GPU byte copy.
 
-    Critical: writes к GPU view must be visible на default stream before
-    subsequent attention forward reads it. Achieved via:
-      `current_stream.wait_stream(_pn95_stream)` after copy.
+    Critical: writes to the GPU view must be visible on the default
+    stream before the subsequent attention forward reads it. Achieved
+    via `current_stream.wait_stream(_pn95_stream)` after copy.
 
-    This makes default stream wait for our copy WITHOUT blocking CPU thread.
+    This makes the default stream wait for our copy WITHOUT blocking
+    the CPU thread.
 
-    Returns number of bytes copied. Synchronous fallback preserves current
-    behavior когда CUDA unavailable.
+    Returns number of bytes copied. Synchronous fallback preserves
+    current behaviour when CUDA is unavailable.
     """
     import numpy as np
     import torch
     from vllm.sndr_core.cache import _pn95_runtime as _rt
     # np.frombuffer returns read-only array; torch.from_numpy then warns.
-    # .copy() makes writable copy — safe для torch consumption.
+    # .copy() makes writable copy — safe for torch consumption.
     src_arr = np.frombuffer(src_bytes, dtype=np.uint8).copy()
     src_cpu = torch.from_numpy(src_arr)
 
@@ -193,14 +194,14 @@ def _pn95_cpu_to_gpu_copy(view: Any, src_bytes: bytes) -> int:
 def _pn95_gpu_to_cpu_bytes_batch(views: list) -> list:
     """Path C v1.0 Sprint Q1 B2 — batched async GPU→CPU byte copy.
 
-    Same effect as N calls к _pn95_gpu_to_cpu_bytes but with ONE
+    Same effect as N calls to _pn95_gpu_to_cpu_bytes but with ONE
     stream.synchronize() instead of N. For 17-attention-layer demote,
     this saves ~16× stream sync overhead (~10-50 μs each → 160-800 μs total).
 
     Critical: PCIe DMA engine processes batched copies more efficiently
     too — multiple in-flight transfers overlap better than serial.
 
-    Returns list of bytes в same order as input views. Empty list if
+    Returns list of bytes in same order as input views. Empty list if
     views empty.
 
     Async stream usage controlled by GENESIS_PN95_ASYNC_STREAM (default ON).
@@ -215,7 +216,7 @@ def _pn95_gpu_to_cpu_bytes_batch(views: list) -> list:
     from vllm.sndr_core.cache import _pn95_runtime as _rt
     stream = _pn95_stream() if _pn95_async_enabled() else None
     if stream is None:
-        # Synchronous fallback — equivalent к N sequential _pn95_gpu_to_cpu_bytes calls.
+        # Synchronous fallback — equivalent to N sequential _pn95_gpu_to_cpu_bytes calls.
         # Each .cpu() triggers its own sync; same as before B2 introduced.
         return [
             bytes(v.contiguous().view(torch.uint8).reshape(-1).cpu().numpy().tobytes())
@@ -227,7 +228,7 @@ def _pn95_gpu_to_cpu_bytes_batch(views: list) -> list:
         for v in views:
             v_u8 = v.contiguous().view(torch.uint8).reshape(-1)
             cpu_tensors.append(v_u8.to("cpu", non_blocking=True))
-    # ONE sync для all N copies — saves (N-1) × ~10-50 μs overhead.
+    # ONE sync for all N copies — saves (N-1) × ~10-50 μs overhead.
     stream.synchronize()
     _rt._PN95_STATS["async_demote_count"] = (
         _rt._PN95_STATS.get("async_demote_count", 0) + len(views)
@@ -243,17 +244,18 @@ def _pn95_cpu_to_gpu_copy_batch(views: list, src_bytes_list: list) -> int:
 
     Mirror of B2 (_pn95_gpu_to_cpu_bytes_batch) for the promote path.
     Same correctness primitive (current_stream.wait_stream(_pn95_stream))
-    but ONE wait_stream call для N layer copies vs N individual calls.
+    but ONE wait_stream call for N layer copies vs N individual calls.
 
     Args:
       views: list of GPU tensor views (one per layer)
-      src_bytes_list: list of raw CPU bytes (decompressed уже), same length
+      src_bytes_list: list of raw CPU bytes (already decompressed), same length
 
     Returns: number of layers successfully copied (0 if mismatched lengths
     or empty input).
 
-    Critical: like single-block helper, default stream waits for our copy
-    via wait_stream() — no race против subsequent attention forward.
+    Critical: like the single-block helper, the default stream waits for
+    our copy via wait_stream() — no race against the subsequent attention
+    forward.
     """
     if not views or not src_bytes_list or len(views) != len(src_bytes_list):
         return 0
@@ -266,7 +268,7 @@ def _pn95_cpu_to_gpu_copy_batch(views: list, src_bytes_list: list) -> int:
     stream = _pn95_stream() if _pn95_async_enabled() else None
 
     if stream is None:
-        # Synchronous fallback — equivalent к N sequential _pn95_cpu_to_gpu_copy calls.
+        # Synchronous fallback — equivalent to N sequential _pn95_cpu_to_gpu_copy calls.
         n_total = 0
         for view, src_bytes in zip(views, src_bytes_list):
             src_arr = np.frombuffer(src_bytes, dtype=np.uint8).copy()

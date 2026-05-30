@@ -104,7 +104,7 @@ VALID_CATEGORIES = (
 # at apply time but still tracked in the registry.
 VALID_IMPLEMENTATION_STATUSES = (
     "live",              # generic active patch (default fallback)
-    "full",              # явно "fully wired" production-ready (stable lifecycle)
+    "full",              # explicitly "fully wired" production-ready (stable lifecycle)
     "text_patch",        # text-edit on vllm source
     "runtime_hook",      # class/method monkey-patch
     "middleware",        # FastAPI/ASGI/logging middleware
@@ -113,8 +113,8 @@ VALID_IMPLEMENTATION_STATUSES = (
     "placeholder",       # entry exists but apply path TBD
     "partial",           # honest "Phase 1 of 2" — instrumentation/wire-in present
                          # but full feature pending next phase. Used by PN95 v0.5.
-    "scaffold",          # код есть, но без production validation — research-tier
-    "coordinator",       # bundles/forward-shim, без apply (P5b паттерн)
+    "scaffold",          # code is present but without production validation — research-tier
+    "coordinator",       # bundles/forward-shim, no apply (P5b pattern)
     "experimental",      # impl exists but lacks A/B / cross-rig validation
     "retired",           # superseded by another patch
     "research",          # opt-in research path, not for PROD
@@ -213,12 +213,12 @@ def infer_category(family: str) -> str:
 
 
 def infer_implementation_status(meta: dict, patch_id: str = "") -> str:
-    """Derive `implementation_status` через registry_metadata overlay.
+    """Derive `implementation_status` via the registry_metadata overlay.
 
-    Делегирует в `dispatcher.registry_metadata.derive_metadata`, который
-    учитывает EXPLICIT_OVERRIDES + lifecycle + filesystem test detection.
-    Старый lifecycle-only fallback оставлен для legacy call sites без
-    patch_id.
+    Delegates to `dispatcher.registry_metadata.derive_metadata`, which
+    takes EXPLICIT_OVERRIDES + lifecycle + filesystem test detection
+    into account. The old lifecycle-only fallback is kept for legacy
+    call sites without a patch_id.
     """
     explicit = meta.get("implementation_status")
     if isinstance(explicit, str) and explicit:

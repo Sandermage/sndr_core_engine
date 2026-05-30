@@ -87,8 +87,8 @@ Active runtime install COMPLETE; idempotent via module-level
 ``_PN65_REFORMAT_FILTER_INSTALLED`` flag.
 
 Author: Sandermage 2026-05-05; Wave 6 v3 logging-only rewrite 2026-05-09
-(closes Sander's ask: "ищи варианты решения по pn65 ... которые бы не
-выдавали регрессию по скорости и стабильности").
+(closes Sander's ask: "look for PN65 designs that do not regress
+speed or stability").
 """
 from __future__ import annotations
 

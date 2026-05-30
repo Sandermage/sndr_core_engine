@@ -48,29 +48,29 @@ class KubernetesConfig:
     readiness_initial_delay: int = 600
     notes: str = ""
 
-    # S3.3 (audit P3-3, 2026-05-12): дополнительные deployment knobs.
-    # nodeSelector — labels на pod'е, чтобы scheduler выбрал нужную node
-    # (например `gpu-class=a5000`). Пустой dict → omit nodeSelector
-    # block из рендера.
+    # S3.3 (audit P3-3, 2026-05-12): additional deployment knobs.
+    # nodeSelector — labels on the pod so the scheduler picks the right
+    # node (e.g. `gpu-class=a5000`). Empty dict → omit the nodeSelector
+    # block from the render.
     node_selector: dict[str, str] = field(default_factory=dict)
 
-    # PVC bindings — `pvc_name -> mount_path`. Когда заданы, renderer
-    # эмитит PersistentVolumeClaim resources (operator должен иметь
-    # соответствующие PVs или storageClass) И mounts через
-    # `volumes[].persistentVolumeClaim.claimName`. Если использовать
-    # hostPath (legacy `storage`) — оставить pvc пустым.
+    # PVC bindings — `pvc_name -> mount_path`. When provided, the
+    # renderer emits PersistentVolumeClaim resources (operator must
+    # have matching PVs or a storageClass) AND mounts via
+    # `volumes[].persistentVolumeClaim.claimName`. To use hostPath
+    # (legacy `storage`) leave pvc empty.
     pvc: dict[str, str] = field(default_factory=dict)
 
-    # PVC sizing (GiB per claim). Default 100 GiB on каждом claim'е если
-    # не указано. Структура: `{claim_name: size_gib}`.
+    # PVC sizing (GiB per claim). Default 100 GiB on each claim when
+    # unset. Shape: `{claim_name: size_gib}`.
     pvc_size_gib: dict[str, int] = field(default_factory=dict)
 
-    # PVC storageClassName. Пусто → operator должен иметь default class.
+    # PVC storageClassName. Empty → operator must have a default class.
     pvc_storage_class: str = ""
 
-    # Secret references — `secret_name -> mount_path`. Полезно для
-    # bearer tokens / wandb keys. Содержимое секрета НЕ генерируется
-    # renderer'ом — operator создаёт его вручную через `kubectl create
+    # Secret references — `secret_name -> mount_path`. Useful for
+    # bearer tokens / wandb keys. The secret content is NOT generated
+    # by the renderer — operator creates it manually via `kubectl create
     # secret generic …`.
     secret_mounts: dict[str, str] = field(default_factory=dict)
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Genesis defensive guards — canonical vendor/chip/model/dependency detection.
 
-Philosophy: МЫ ЧИНИМ, НЕ ЛОМАЕМ.
+Philosophy: we fix, we do not break.
 Every helper is fail-safe: returns a safe default (False/None) on any exception.
 If detection cannot complete, we SKIP the patch — never crash the engine.
 
@@ -517,12 +517,12 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     "0.21.1rc0",  # git tag form
     "0.21.1rc0+gd735968f6d63",  # canonical dev-pin form (gh tag)
     "0.21.1rc0+gbf610c2f5676",  # docker hub nightly SHA (12-char)
-    # Реальная version string которую vllm рапортует когда image
-    # `nightly-bf610c2f56764e1b30bc6065f4ceace3d6e59036` запущен:
-    # `0.20.2rc1.dev371+gbf610c2f5`. Это означает internal version
-    # стрингу build-script'а собирает в `0.20.2rc1.dev<NNN>+g<SHA[:10]>`
-    # формате, не tag-based. Добавляю обе формы (commit-based +
-    # nightly-tag-based) чтобы pin-gate не warning'овался.
+    # Real version string vllm reports when the image
+    # `nightly-bf610c2f56764e1b30bc6065f4ceace3d6e59036` is running:
+    # `0.20.2rc1.dev371+gbf610c2f5`. The build script formats the
+    # internal version string as `0.20.2rc1.dev<NNN>+g<SHA[:10]>`
+    # rather than tag-based. We include both forms (commit-based +
+    # nightly-tag-based) so pin-gate does not warn.
     "0.20.2rc1.dev371+gbf610c2f5",
     # 2026-05-28 — K.1.R pin bump audit target.
     # vllm/vllm-openai:nightly Docker Hub tag pushed 2026-05-28T06:17 UTC,
@@ -613,7 +613,7 @@ def assert_vllm_pin_allowed(
     > "warn" (default). Set policy="strict" in production start scripts to
     fail fast on accidental pin drift.
 
-    Per Sander 2026-05-04 ("защита от дурака"): never silently apply
+    Per Sander 2026-05-04 ("foolproof guard"): never silently apply
     patches against an unvalidated pin. The allowlist must be updated
     explicitly when a new pin is qualified.
     """

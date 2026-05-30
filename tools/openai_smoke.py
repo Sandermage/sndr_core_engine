@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""OpenAI-совместимый smoke-тест для Genesis PROD endpoint.
+"""OpenAI-compatible smoke test for the Genesis PROD endpoint.
 
-Проверяет ключевые контракты ответа:
+Checks the key response contracts:
 
-  1. HTTP 200 на POST /v1/chat/completions.
-  2. choice.finish_reason ∈ {stop, length}.
-  3. (опционально, флаг --assert-content) message.content не пустой,
-     даже при коротких max_tokens. Это аудитный контракт P0-3 — модели
-     с reasoning-режимом (Qwen3 thinking) могут расходовать budget на
-     reasoning и возвращать content=null. Smoke ловит этот класс
-     regression'ов.
+  1. HTTP 200 on POST /v1/chat/completions.
+  2. choice.finish_reason in {stop, length}.
+  3. (optional, --assert-content flag) message.content is non-empty,
+     even on short max_tokens. This is the P0-3 audit contract —
+     reasoning-mode models (Qwen3 thinking) can burn budget on
+     reasoning and return content=null. The smoke catches that class
+     of regressions.
 
-Использование:
+Usage:
 
     python3 tools/openai_smoke.py \\
         --host http://127.0.0.1:8101 \\
@@ -21,10 +21,10 @@
         --assert-content
 
 Exit codes:
-  0  все ассерты прошли
+  0  all asserts passed
   1  http error / unexpected response shape
-  2  assert-content failure (content пустой)
-  3  finish_reason неожиданный (не stop/length)
+  2  assert-content failure (content empty)
+  3  finish_reason unexpected (not stop/length)
 """
 from __future__ import annotations
 
@@ -42,25 +42,25 @@ def main() -> int:
     parser.add_argument("--max-tokens", type=int, default=128)
     parser.add_argument(
         "--prompt", default="Say OK",
-        help="user-сообщение",
+        help="user message",
     )
     parser.add_argument(
         "--assert-content", action="store_true",
-        help="требовать message.content непустым (P0-3 контракт)",
+        help="require message.content to be non-empty (P0-3 contract)",
     )
     parser.add_argument(
         "--enable-thinking", default=None,
         help=(
-            "Передать chat_template_kwargs.enable_thinking явно. "
-            "Значения: 'true', 'false'. Не задано — default модели."
+            "Pass chat_template_kwargs.enable_thinking explicitly. "
+            "Values: 'true', 'false'. Unset — model default."
         ),
     )
     parser.add_argument(
         "--timeout", type=float, default=60.0,
-        help="HTTP timeout сек",
+        help="HTTP timeout in seconds",
     )
     parser.add_argument("--json", action="store_true",
-                          help="выводить parsed JSON ответа")
+                          help="emit parsed JSON of the response")
     args = parser.parse_args()
 
     body: dict = {
@@ -121,12 +121,12 @@ def main() -> int:
 
     if args.assert_content and not content:
         print(
-            f"assert-content failed: message.content пустой "
+            f"assert-content failed: message.content empty "
             f"(reasoning_chars={len(reasoning)}; finish={finish}). "
-            f"Для Qwen3-style моделей передайте "
-            f"chat_template_kwargs.enable_thinking=false ИЛИ установите "
-            f"GENESIS_PN16_CLASSIFIER_MAX_TOKENS чтобы PN16 V7 "
-            f"ограничил max_tokens на short-answer requests.",
+            f"For Qwen3-style models pass "
+            f"chat_template_kwargs.enable_thinking=false OR set "
+            f"GENESIS_PN16_CLASSIFIER_MAX_TOKENS so PN16 V7 "
+            f"caps max_tokens on short-answer requests.",
             file=sys.stderr,
         )
         return 2

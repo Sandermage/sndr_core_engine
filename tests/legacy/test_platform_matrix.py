@@ -5,7 +5,7 @@ Each test simulates a specific platform (NVIDIA Ampere/Ada/Hopper/Blackwell,
 AMD ROCm, Intel XPU, CPU) and verifies that all kernels behave correctly
 (apply OR gracefully skip).
 
-This validates the "МЫ ЧИНИМ, НЕ ЛОМАЕМ" guarantee: no kernel ever crashes
+This validates the "we fix, we do not break" guarantee: no kernel ever crashes
 the engine regardless of platform.
 
 Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
@@ -192,7 +192,7 @@ class TestPlatformMatrix:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#                    "МЫ ЧИНИМ, НЕ ЛОМАЕМ" invariants
+#                    "we fix, we do not break" invariants
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestNeverBreakInvariants:

@@ -3,8 +3,9 @@
 """audit_rig_divergence.py — local-only skeleton for primary↔rig drift
 (§9.A.9, AUDIT-CLOSURE.2, 2026-05-27).
 
-Operator scope (2026-05-27): "если нужен SSH к rig, это отдельный
-approval boundary. Без approval сделать local-only skeleton + tests."
+Operator scope (2026-05-27): "if SSH to the rig is required, that is
+a separate approval boundary. Without approval, build a local-only
+skeleton + tests."
 
 Default mode — **LOCAL-ONLY (no rig contact)**
 ───────────────────────────────────────────────

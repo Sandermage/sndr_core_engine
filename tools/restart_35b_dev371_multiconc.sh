@@ -167,10 +167,10 @@ exec vllm serve --model /models/Qwen3.6-35B-A3B-FP8 \
   --speculative-config '"'"'{"method": "mtp", "num_speculative_tokens": 3}'"'"' \
   --chat-template /tmp/genesis/chat_templates/qwen3.6_enhanced.jinja'
 
-echo "→ Контейнер стартанул. Жду API готовности..."
+echo "-> Container started. Waiting for API readiness..."
 for i in $(seq 1 90); do
   if curl -fsS -m 2 -H "Authorization: Bearer genesis-local" http://localhost:8000/v1/models > /dev/null 2>&1; then
-    echo "→ API готов через ${i}× 5s = $((i*5))s"
+    echo "-> API ready after ${i}x 5s = $((i*5))s"
     exit 0
   fi
   sleep 5

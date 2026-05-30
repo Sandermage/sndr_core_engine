@@ -89,8 +89,8 @@ The hook signature ``apply_hook(serving, request)`` and import path
 V2 is a behavioural refactor of the existing PN16 wiring text-patch.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
-v1 → v2 refactor 2026-05-09 (Wave 6 closure: Sander's "PN16 можно
-реализовать иначе чтобы не терялась скорость").
+v1 → v2 refactor 2026-05-09 (Wave 6 closure: Sander's "PN16 can be
+implemented differently so we don't lose speed").
 """
 from __future__ import annotations
 
