@@ -2,12 +2,12 @@
 """PN95 Quality-First Sprint Q1 B2 — batched async demote tests.
 
 Validates `_pn95_gpu_to_cpu_bytes_batch` correctness:
-- Batch result identical к N sequential _pn95_gpu_to_cpu_bytes calls
+- Batch result identical to N sequential _pn95_gpu_to_cpu_bytes calls
 - Empty list handled
 - Stats counters incremented correctly
 - CUDA stream batching reduces sync count (verified indirectly)
 
-CUDA-dependent tests skipped когда no CUDA available.
+CUDA-dependent tests skipped when no CUDA is available.
 """
 from __future__ import annotations
 
@@ -61,12 +61,12 @@ def test_get_pn95_stats_exposes_batch_field(monkeypatch):
     assert isinstance(stats["async_batch_demote_count"], int)
 
 
-# ─── CUDA correctness tests (skipped без CUDA) ───────────────────────
+# ─── CUDA correctness tests (skipped without CUDA) ───────────────────
 
 
 @pytest.mark.skipif(not _has_cuda(), reason="CUDA not available")
 def test_batch_produces_identical_bytes_to_sequential():
-    """Batch result must be byte-identical к sequential helper calls."""
+    """Batch result must be byte-identical to sequential helper calls."""
     import torch
     # Create 5 distinct GPU tensors
     views = [
@@ -118,7 +118,7 @@ def test_batch_fallback_when_async_disabled(monkeypatch):
 
 @pytest.mark.skipif(not _has_cuda(), reason="CUDA not available")
 def test_batch_preserves_order():
-    """Output bytes must be в same order as input views."""
+    """Output bytes must be in same order as input views."""
     import torch
     # Distinct values so order matters
     views = [

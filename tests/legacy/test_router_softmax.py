@@ -159,7 +159,7 @@ class TestRouterSoftmaxMathematicalCorrectness:
 
 
 class TestRouterSoftmaxPlatformSafety:
-    """Group 4: 'МЫ ЧИНИМ, НЕ ЛОМАЕМ' — all platforms work."""
+    """Group 4: 'we fix, we do not break' — all platforms work."""
 
     def test_cpu_works(self):
         """CPU platform: function must work (may or may not upcast)."""

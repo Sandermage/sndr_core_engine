@@ -90,9 +90,9 @@ class TestInferImplementationStatus:
         assert infer_implementation_status(meta) == "research"
 
     def test_default_to_live(self):
-        """Без patch_id и без explicit `implementation_status` — fallback в lifecycle-based.
+        """Without patch_id and without explicit `implementation_status` — fallback to lifecycle-based.
         `stable` → `full` (production-grade default, audit P1-2 closure 2026-05-12).
-        Без lifecycle вообще — `live` (generic fallback).
+        Without lifecycle at all — `live` (generic fallback).
         """
         assert infer_implementation_status({"lifecycle": "stable"}) == "full"
         assert infer_implementation_status({}) == "live"

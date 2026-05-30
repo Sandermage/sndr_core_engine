@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Build the Genesis Site Map anchor offset manifest.
 
-Узел 3 of P2.1 design (2026-05-07). One-shot CLI tool — typically run
+Node 3 of P2.1 design (2026-05-07). One-shot CLI tool — typically run
 once per vllm pin upgrade. Output is committed to the repo at
 `vllm/sndr_core/manifests/anchor_manifest.json` and serves as the
 ground-truth for Phase 3 runtime O(1) anchor lookup.
@@ -25,7 +25,7 @@ Usage:
 
 Exit codes:
     0  success — manifest written and self-verified
-    1  no patchers registered (ничего не делать)
+    1  no patchers registered (nothing to do)
     2  schema validation failed
     3  verify_against_source failed (anchor doesn't actually exist
        in pristine — patcher metadata broken)

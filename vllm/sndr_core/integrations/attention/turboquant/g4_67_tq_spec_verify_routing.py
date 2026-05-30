@@ -19,7 +19,7 @@ Upstream ``TurboQuantAttentionImpl._prefill_attention`` reads
 
 Without this fix, operators must use ``--compilation-config
 '{"cudagraph_mode":"NONE"}'`` to avoid degenerate output, which causes
-a **4.9× TPS slowdown** (validated 2026-05-17 на A5000:
+a **4.9× TPS slowdown** (validated 2026-05-17 on A5000:
 118 TPS production → 24 TPS overlay+NONE).
 
 ================================================================
@@ -63,7 +63,7 @@ ALTERNATIVES & RELATIONSHIPS
     requires custom kernel maintenance. Pin-gated to dev16-dev93 in
     registry — NOT applicable on dev371.
 
-  * **PR #40914** (мой upstream) — equivalent fix via synth_seq_lens
+  * **PR #40914** (our upstream submission) — equivalent fix via synth_seq_lens
     routing through EXISTING decode kernel. OPEN, awaits maintainer
     review. This G4_67 is the Genesis backport of it for Gemma 4
     while we wait for merge.
@@ -142,7 +142,7 @@ RISK
 REFERENCES
 ================================================================
 
-  * Upstream PR (мой): https://github.com/vllm-project/vllm/pull/40914
+  * Upstream PR (ours): https://github.com/vllm-project/vllm/pull/40914
   * Original issue: https://github.com/vllm-project/vllm/issues/40880
   * Genesis P67 / P67b (alternative fix): see
     ``integrations/attention/turboquant/p67_turboquant_multi_query_kernel.py``
@@ -175,7 +175,7 @@ def _env_enabled() -> bool:
 
 
 def apply() -> tuple[str, str]:
-    """Monkey-patch TurboQuantAttentionImpl.forward с spec-verify dispatch."""
+    """Monkey-patch TurboQuantAttentionImpl.forward with spec-verify dispatch."""
     global _APPLIED, _ORIGINAL_FORWARD
 
     if not _env_enabled():

@@ -14,7 +14,7 @@ shared-K=V cache attention, continuation prefill restructuring). That
 file CANNOT be monkey-patched piecewise — its internal methods call
 each other through closures and shared state.
 
-The only realistic way to land PR #42637 on a Genesis fork без waiting
+The only realistic way to land PR #42637 on a Genesis fork without waiting
 for upstream merge is **file-level bind-mount overlay**: replace the
 ``site-packages/vllm/v1/attention/backends/turboquant_attn.py`` file
 inside the container at runtime via ``docker run -v <overlay>:<target>:ro``.
@@ -67,9 +67,9 @@ Genesis launcher ``start_g4_60_full_overlay.sh`` does this automatically.
 DEPENDENCIES
 ================================================================
 
-  * Bind-mount must be in place при container start (this patch только
+  * Bind-mount must be in place at container start (this patch only
     verifies; it doesn't perform the mount itself).
-  * Compatible с G4_60a/e/g/h/k (monkey-patches on top of overlay).
+  * Compatible with G4_60a/e/g/h/k (monkey-patches on top of overlay).
     When overlay is active, G4_60a/h injections become no-ops because
     the overlay file already defines the symbols natively.
   * G4_61 + G4_62 (workspace + warmup) also remain useful — they patch
@@ -81,7 +81,7 @@ SCOPE
 
 Active only when ``GENESIS_ENABLE_G4_60B_TQ_ATTN_OVERLAY=1``. Pure
 diagnostic — no monkey-patching here. Failure mode: returns ``error``
-with explanation если overlay missing.
+with explanation if overlay missing.
 
 ================================================================
 REFERENCES

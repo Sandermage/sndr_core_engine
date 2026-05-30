@@ -4,7 +4,7 @@
 Validates:
 - prefix_lookups_total and prefix_lookups_cold_miss counters
 - prefix_hit_rate calculation
-- Periodic JSON dump функция (no errors, valid JSON, atomic write)
+- Periodic JSON dump function (no errors, valid JSON, atomic write)
 - Env gates (disable via empty path)
 """
 from __future__ import annotations
@@ -114,7 +114,7 @@ def test_dump_disabled_with_empty_path(monkeypatch, tmp_path):
     monkeypatch.setattr(rt, "_TICK_COUNTER", 1)
 
     rt._pn95_dump_stats_if_due()  # must NOT create any file
-    # Nothing к check — disabled means no-op
+    # Nothing to check — disabled means no-op
 
 
 def test_dump_throttled_by_interval(monkeypatch, tmp_path):
@@ -136,7 +136,7 @@ def test_dump_throttled_by_interval(monkeypatch, tmp_path):
 
 
 def test_dump_atomic_no_partial_writes(monkeypatch, tmp_path):
-    """Dump uses rename для atomic write — no .tmp file remains on success."""
+    """Dump uses rename for atomic write — no .tmp file remains on success."""
     monkeypatch.setenv("GENESIS_ENABLE_PN95_TIER_AWARE_CACHE", "1")
     target = tmp_path / "stats.json"
     monkeypatch.setenv("GENESIS_PN95_STATS_FILE", str(target))

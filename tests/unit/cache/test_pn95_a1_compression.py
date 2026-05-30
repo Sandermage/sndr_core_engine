@@ -116,8 +116,8 @@ def test_random_data_no_benefit_returns_original(monkeypatch):
 
 
 def test_decompress_passes_through_uncompressed(monkeypatch):
-    """Critical: decompress must NOT corrupt entries без compression header.
-    Backward-compat для PN95 stores written before A1."""
+    """Critical: decompress must NOT corrupt entries without a compression header.
+    Backward-compat for PN95 stores written before A1."""
     monkeypatch.setenv("GENESIS_PN95_CPU_COMPRESS", "zstd")
     raw = b"arbitrary uncompressed payload " * 100
     out = rt._pn95_decompress_bytes(raw)
@@ -125,7 +125,7 @@ def test_decompress_passes_through_uncompressed(monkeypatch):
 
 
 def test_decompress_handles_short_data():
-    """Decompress на data shorter than magic header — must pass through."""
+    """Decompress on data shorter than the magic header — must pass through."""
     assert rt._pn95_decompress_bytes(b"") == b""
     assert rt._pn95_decompress_bytes(b"abc") == b"abc"  # < 4 bytes
 

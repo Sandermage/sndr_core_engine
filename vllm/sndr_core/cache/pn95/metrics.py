@@ -60,11 +60,11 @@ def get_pn95_stats() -> dict:
     snapshot["async_batch_demote_count"] = _rt._PN95_STATS.get(
         "async_batch_demote_count", 0
     )
-    # B3 — batched promote ops (each batch processes N layers с 1 wait_stream)
+    # B3 — batched promote ops (each batch processes N layers with 1 wait_stream)
     snapshot["async_batch_promote_count"] = _rt._PN95_STATS.get(
         "async_batch_promote_count", 0
     )
-    # OBS1 — hit rate calculation для operator monitoring
+    # OBS1 — hit rate calculation for operator monitoring
     lookups_total = _rt._PN95_STATS.get("prefix_lookups_total", 0)
     cold_misses = _rt._PN95_STATS.get("prefix_lookups_cold_miss", 0)
     snapshot["prefix_lookups_total"] = lookups_total
@@ -117,9 +117,9 @@ def get_pn95_stats() -> dict:
 
 
 def _pn95_dump_stats_if_due() -> None:
-    """OBS1 — periodic stats dump к JSON file для operator visibility.
+    """OBS1 — periodic stats dump to JSON file for operator visibility.
 
-    Called from scheduler_tick. Throttled by tick counter и env-gated.
+    Called from scheduler_tick. Throttled by tick counter and env-gated.
     Atomic write (tmp + rename) so operator can `cat` safely.
 
     Env vars:

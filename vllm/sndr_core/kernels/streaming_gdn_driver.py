@@ -216,7 +216,7 @@ def streaming_chunk_gated_delta_rule_fwd(
     # are ALWAYS populated by vLLM — so PN59 silently bypassed to vanilla
     # on the EXACT path it was supposed to fix, then OOMed.
     #
-    # Three-mode resolution (Sander 2026-05-05 PM, "защита и там и там"):
+    # Three-mode resolution (Sander 2026-05-05 PM, "defense at both layers"):
     #
     #   GENESIS_PN59_STRICT_NO_METADATA=auto  (DEFAULT, new behavior):
     #       VRAM-aware. When metadata is present AND streaming-enabled:

@@ -5,8 +5,8 @@ Tests the 10 acceptance gates in `sndr_private/planning/audits/
 CONFIG_UX_R_2026-05-24_RU.md` §13.3:
 
   Gate 1 — all 21 existing preset YAMLs load unchanged
-  Gate 2 — composed ModelConfig byte-identical для all 21 presets без `card:`
-  Gate 3 — new preset с full `card:` validates clean
+  Gate 2 — composed ModelConfig byte-identical for all 21 presets without `card:`
+  Gate 3 — new preset with full `card:` validates clean
   Gate 4 — PresetCard validation errors precise + actionable
   Gate 5 — EvidenceVisibility round-trips correctly
   Gate 6 — OverridePolicy parses for all 4 classes
@@ -388,7 +388,7 @@ class TestGate6OverridePolicy:
         assert p.effective_class(role) == role
 
     def test_none_role_derives_production(self):
-        """Legacy profiles без `role` field → treated as production class."""
+        """Legacy profiles without `role` field → treated as production class."""
         p = OverridePolicy()
         assert p.effective_class(None) == "production"
 
