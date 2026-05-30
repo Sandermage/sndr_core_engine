@@ -312,7 +312,11 @@ class TestDispatcherLicenseGate:
         # Either tier-gate fired (preferred) or another gate above. Accept
         # either, but log if it's not the tier-gate.
         if "tier=engine" in reason:
-            assert "license" in reason.lower() or "no_key" in reason.lower()
+            # `licens` matches both "license" and "licensing" (the
+            # NO_PACKAGE reason currently uses the latter form).
+            assert (
+                "licens" in reason.lower() or "no_key" in reason.lower()
+            )
 
     def test_engine_patch_proceeds_with_license(self, monkeypatch):
         """License key set + engine package present + env-flag truthy →
@@ -332,9 +336,16 @@ class TestDispatcherLicenseGate:
         if env_flag:
             monkeypatch.setenv(env_flag, "1")
         decision, reason = should_apply(pid)
-        # Either applies cleanly or is skipped for a non-license reason
+        # Either applies cleanly or is skipped for a non-license reason.
+        # `licens` substring covers both "license" and "licensing"; the
+        # NO_PACKAGE skip (engine package missing) also contains
+        # "licensing" in its boilerplate so we exempt that path explicitly.
         if not decision:
-            assert "license" not in reason.lower(), (
+            non_license_skip = (
+                "licens" not in reason.lower()
+                or "vllm.sndr_engine not installed" in reason
+            )
+            assert non_license_skip, (
                 f"unexpected license-related skip with key set: {reason}"
             )
 

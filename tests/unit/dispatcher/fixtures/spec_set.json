@@ -1323,7 +1323,7 @@
     "patch_id": "PN289",
     "family": "observability",
     "lifecycle": "experimental",
-    "tier": "community",
+    "tier": "engine",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN289_PROCESS_INFO",
     "has_upstream_pr": false,
@@ -1341,7 +1341,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "vllm.sndr_core.integrations.tool_parsing.g4_t1_gemma4_tool_parser_pr42006_overlay"
+    "apply_module": "vllm.sndr_core.integrations.tool_parsing.g4_t1_pr42006_marker"
   },
   {
     "patch_id": "PN17",

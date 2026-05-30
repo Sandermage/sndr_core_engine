@@ -3600,7 +3600,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "PN289": {
         "title": "Genesis process-info Prometheus gauge (§6.H10 enterprise observability)",
-        "tier": "community",
+        "tier": "engine",
         "family": "observability",
         "env_flag": "GENESIS_ENABLE_PN289_PROCESS_INFO",
         "default_on": False,
@@ -3688,7 +3688,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "tool_call_parser": "gemma4",
         },
-        "apply_module": "vllm.sndr_core.integrations.tool_parsing.g4_t1_gemma4_tool_parser_pr42006_overlay",
+        # apply_module points at a thin marker module rather than the
+        # vendored parser (which imports `regex` and is intentionally
+        # not loaded in-process). The vendored file is deployed via
+        # the operator-side bind-mount; the marker just provides the
+        # apply() contract row for the dispatcher.
+        "apply_module": "vllm.sndr_core.integrations.tool_parsing.g4_t1_pr42006_marker",
         "lifecycle": "experimental",
         "implementation_status": "marker_only",
         "composes_with": ["PN287", "PN288"],

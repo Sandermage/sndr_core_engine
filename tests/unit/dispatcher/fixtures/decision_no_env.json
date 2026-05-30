@@ -552,7 +552,7 @@
   {
     "patch_id": "PN289",
     "applied": false,
-    "reason": "strict opt-in — set GENESIS_ENABLE_PN289_PROCESS_INFO=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+    "reason": "tier=engine: vllm.sndr_engine not installed — engine-tier patches require the commercial SNDR Engine package. Contact Sandermage for licensing or use community-tier alternatives."
   },
   {
     "patch_id": "G4_T1",

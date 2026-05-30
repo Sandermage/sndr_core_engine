@@ -69,6 +69,17 @@ ALLOWED_RETIRED_PATCHES: dict[str, str] = {
         "set is harmless. Will be cleaned out of YAMLs at next config "
         "audit cycle, not blocking the pin bump."
     ),
+    "PN132": (
+        "Iron-rule-#11 retire 2026-05-30 (session commit 6082d8a4) — "
+        "upstream vllm#42739 merged 2026-05-23 at d19db10974587 in window "
+        "dev371→626fa9bb, root-cause fix (stride-aware Triton kernel) is "
+        "strictly better than PN132's `.contiguous()` workaround. Env flag "
+        "still set in 8 model_config YAMLs (gemma4 26B/31B + qwen3.6 27B "
+        "dflash/tq + 35B fp8 dflash/full); the wiring's apply() now "
+        "self-skips via inspect.signature check for the post-merge "
+        "`mask_value` kwarg, so leaving the env set is harmless on the new "
+        "pin. Will be cleaned out of YAMLs at next config audit cycle."
+    ),
 }
 
 

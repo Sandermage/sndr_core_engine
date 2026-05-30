@@ -138,6 +138,19 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     "PN282",           # spec-decode acceptance metric coordinator (boot-applied
                        # from sndr_core/__init__.py, not via dispatcher;
                        # STAGE-6-HARDENING.2C registration 2026-05-28)
+    # ── 2026-05-30 session additions — spec-driven from inception ──
+    "PN288",           # qwen3_coder tool-call finish_reason override
+                       # (§1.3 Phase B+C; serving-layer text-patch
+                       # delegating to middleware helper; canonical
+                       # registry-driven apply path, no legacy entry)
+    "PN289",           # Genesis process-info Prometheus gauge
+                       # (§6.H10 enterprise observability; *_info
+                       # pattern, no legacy register table presence
+                       # by design — emits a gauge, not a runtime
+                       # mutation)
+    "G4_T1",           # Gemma4 tool-parser PR #42006 vendor marker;
+                       # apply_module is the marker stub, actual
+                       # vendored file is operator-side bind-mount
 })
 
 
