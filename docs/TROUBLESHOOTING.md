@@ -834,42 +834,53 @@ enablement.
 
 ### Bug Class 13 — model-quality intrinsic limits
 
-**Symptom**: tool-call bench shows `5/7 deterministic` (or similar
-sub-100% rate) across multiple consecutive runs, with the failing
-cases reliably stopping in the thinking channel before emitting the
-tool_call marker.
+**Status update 2026-05-31**: the gemma4-31B `5/7 deterministic`
+result that originally motivated Class 13 is now **resolved** —
+it was NOT a model intrinsic limit. The two failures-of-seven were
+caused by the v1 G4_T1 vendor (PR #42006 segment-replay) mis-handling
+MTP K=4 multi-delimiter-per-delta streaming events, compounded by a
+host-side memory tune issue. With the G4_T1 v2 vendor (PR #42237
+hermes-style accumulated-text rescan) AND gpu-memory-utilization
+lowered from 0.92 → 0.80 (gives Genesis P38 TQ continuation-prefill
+workspace its 1 GiB alloc headroom), the bench achieves 35/35 across
+7 edge cases × 5 runs in both streaming and non-streaming modes (see
+`tools/g4_tool_bench.py`). Document retained for future cases that
+genuinely hit a model-intrinsic ceiling — the diagnostic procedure is
+still valid, the gemma4-31B example was misdiagnosed.
 
-**Real example**: gemma4-31B AWQ-4bit + TQ4bit_nc + MTP K=4 on PROD
-config emits well-formed `<|tool_call>call:get_weather{...}` for
-direct prompts (5 cases) but stops mid-thinking for "Reason about
-which city, then call" prompts (2 cases). Same residual on dev371
-base pin AND on 626fa9bb after all launcher fixes — confirms this is
-a model-quality intrinsic limit (4-bit weights + 4-bit kv cache + K=4
-speculative compounding errors), NOT a config bug.
+**Symptom (generic)**: tool-call bench shows a sub-100% rate that
+reproduces deterministically across many consecutive runs, with the
+failing cases failing in exactly the same way every time AND no
+obvious config drift (env flags match YAML, launcher mounts correct,
+parser overlay verified).
 
-**Detection**:
+**Diagnostic procedure** (apply in order):
 
-1. Run the bench 3 times consecutively on a stable launcher.
-2. If failures are deterministic (same cases fail every run) AND the
-   passing cases reach 100% deterministically → Class 13.
-3. If failures are stochastic (different cases fail across runs) → it
-   is a state corruption / non-determinism issue. Try
-   `--override-generation-config` with greedy (`T=0`, `top_k=1`).
+1. **Greedy decode**. Run with `temperature=0 top_k=1 top_p=1.0`. If
+   failures are now consistent across runs but still non-zero → step 2.
+2. **Use streaming-aware bench harness**. Some bugs only manifest in
+   streaming SSE path (where the tool parser sees deltas) not in the
+   non-streaming `extract_tool_calls` path. Run BOTH modes and
+   compare. If streaming fails but non-streaming passes → parser bug
+   (check vendor PR list at `dispatcher/registry.py:G4_T1`).
+3. **Disable HTTP keep-alive**. Add `Connection: close` to the bench
+   harness request headers. If failures drop → parser instance is
+   leaking state between requests on the same socket (the gemma4-31B
+   case 5 nested-object failure was exactly this — filed back to PR
+   #42237 thread for fix in the underlying parser).
+4. **Disable MTP**. K=4 speculative decoding amplifies model
+   non-determinism slightly. If failures drop with K=1 or K=0 → spec
+   decode is contributing.
+5. **Step the model precision UP one tier** (AWQ-4bit → FP8 or
+   FP16). If failures STILL persist at higher precision → genuine
+   Class 13 model intrinsic limit. Otherwise → quantization-induced.
 
-**Fix options** (in decreasing impact / decreasing config disruption):
+Only after all five steps fail to bring the bench to 100% should
+the result be labeled Class 13 in the operator runbook.
 
-1. Use a higher-precision model variant (AWQ-8bit or FP16) — best
-   reliability, biggest config change.
-2. Disable MTP — same throughput on structured configs (MTP K=4 buys
-   little for `max_num_seqs=1`), simpler decode path, sometimes 1
-   extra case passes.
-3. Tighten `override-generation-config` to greedy
-   (`temperature=0, top_k=1, top_p=1`).
-4. Vendor community parser fixes (e.g. G4_T1 for gemma4 PR #42006
-   overlay) — covers parse-side bugs but not model-output bugs.
-5. Accept the intrinsic limit and report the rate in operator docs;
-   PROD-realistic cases (direct tool requests without forced
-   thinking) reach 100% deterministic.
+**Mitigation if Class 13 IS confirmed** (no current PROD case as of
+2026-05-31): use a higher-precision model variant, or accept the
+intrinsic rate and report it explicitly in operator docs.
 
 ### Pin policy (2026-05-30 unification)
 
@@ -943,7 +954,7 @@ python3 tools/genesis_bench_suite.py --quick --ctx 8k \
 | 27B Lorbus INT4 TQ | 116-125 | 8-9 | 110-120 | 3-10 | **7/7** ✓ |
 | 35B A3B FP8 | 210 | 4.4 | 117 | 5-7 | **7/7** ✓ |
 | gemma4-26B-A4B MoE | 114 | 6.0 | 71 | 22-30 | **7/7** ✓ |
-| gemma4-31B Dense TQ MTP-K4 | 28-39 | 6-9 | 70-170 | 10-30 | **5/7** ✓ (Class 13 limit; PROD-realistic cases 100%) |
+| gemma4-31B Dense TQ MTP-K4 | 28-39 | 6-9 | 70-170 | 10-30 | **35/35** ✓ (G4_T1 v2 + Connection: close + gpu-mem-util 0.80; both streaming + non-streaming, 7 cases × 5 runs) |
 
 A more than 10% deviation from these on a fresh boot is suspicious
 and warrants investigation via:
