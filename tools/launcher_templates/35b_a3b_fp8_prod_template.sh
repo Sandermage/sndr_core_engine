@@ -42,6 +42,7 @@ docker run -d \
   -v ${GENESIS_COMPILE_CACHE_DIR}/compile-cache-35b:/root/.cache/vllm/torch_compile_cache \
   -v ${GENESIS_TRITON_CACHE_DIR}/triton-cache-35b:/root/.triton/cache \
   -v ${GENESIS_PROJECT_ROOT}/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core \
+  -v ${GENESIS_PROJECT_ROOT}:/genesis-vllm-patches:rw \
   -e NCCL_P2P_DISABLE=1 \
   # ── system_env (23 vars from hardware YAML) ──
   -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:256 \
@@ -78,6 +79,7 @@ docker run -d \
   -c "set -e; \
       pip install --quiet --disable-pip-version-check --root-user-action=ignore \
         pandas==2.2.3 scipy==1.14.1 xxhash==3.5.0 pyyaml packaging zstandard==0.23.0 2>&1 | tail -2; \
+      pip install -e /genesis-vllm-patches --no-deps --quiet --disable-pip-version-check --root-user-action=ignore 2>&1 | tail -2; \
       python3 -m vllm.sndr_core.apply 2>&1 | tee /tmp/genesis_boot.log | tail -5; \
       exec vllm serve \
         --model /models/Qwen3.6-35B-A3B-FP8 \
