@@ -4,7 +4,7 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-29T20:04:47Z
+Generated: 2026-05-30T01:11:36Z
 Total entries: **231**
 
 ## Statistics
@@ -153,7 +153,7 @@ Total entries: **231**
 | **PN129** | `community` | `experimental` | · | `GENESIS_ENABLE_PN129_SLOT_MAPPING_WARMUP` | [#42165](https://github.com/vllm-project/vllm/pull/42165) | V1 slot mapping kernel warmup (backport vllm#42165, 1 kernel + do_not_special... |
 | **PN130** | `community` | `experimental` | · | `GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP` | [#42215](https://github.com/vllm-project/vllm/pull/42215) | TurboQuant decode kernel warmup (backport vllm#42215, 1 kernel + workspace pr... |
 | **PN132** | `community` | `experimental` | · | `GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS` | [#42739](https://github.com/vllm-project/vllm/pull/42739) | Triton top-k/top-p contiguous logits fix (backport vllm#42739) |
-| **PN134** | `community` | `retired` | · | `GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211` | [#42686](https://github.com/vllm-project/vllm/pull/42686) | torch.compile fullgraph patch для PyTorch 2.11 (backport vllm#42686) — BENCH-... |
+| **PN134** | `community` | `retired` | · | `GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211` | [#42686](https://github.com/vllm-project/vllm/pull/42686) | torch.compile fullgraph patch for PyTorch 2.11 (backport vllm#42686) — BENCH-... |
 
 ### `gemma4` (18)
 
