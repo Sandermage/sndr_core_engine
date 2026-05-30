@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""PN134 — torch.compile fullgraph patch для PyTorch 2.11 (backport vllm#42686).
+"""PN134 — torch.compile fullgraph patch for PyTorch 2.11 (backport vllm#42686).
 
 ================================================================
 !!! RETIRED 2026-05-15 — BENCH-VALIDATED REGRESSOR !!!
@@ -27,29 +27,29 @@ where the cost model may behave correctly. Lifecycle in registry is
 ORIGINAL PROBLEM STATEMENT (for context)
 ================================================================
 
-vLLM issue #27828 + pytorch/pytorch#176994: Inductor materialization
-heuristic в PyTorch 2.11 не реализует useful intermediate tensors
-которые reused несколько раз. Результат:
+vLLM issue #27828 + pytorch/pytorch#176994: the Inductor
+materialization heuristic in PyTorch 2.11 does not realize useful
+intermediate tensors that are reused several times. Result:
 
-  - residual в fused_add_rms_norm пересчитывается каждый раз
-  - cascade re-computation через весь модель
-  - Inflated compile cache + slower forward (для torch.compile mode)
+  - the residual in fused_add_rms_norm is recomputed every time
+  - cascade re-computation across the whole model
+  - inflated compile cache + slower forward (for torch.compile mode)
 
-Fix landed в PyTorch 2.12 (https://github.com/pytorch/pytorch/pull/176994).
-PR #42686 backports simplified version для 2.11.
+Fix landed in PyTorch 2.12 (https://github.com/pytorch/pytorch/pull/176994).
+PR #42686 backports a simplified version for 2.11.
 
-Применимо к нам?
-  - Мы НА PyTorch 2.11 → ИДЕАЛЬНО применимо
-  - VLLM_USE_AOT_COMPILE=True (наш default)
-  - torch.compile активен на всех 41 модель layers
-  - Без fix — потенциально лишние recompute операции
+Applicable to us?
+  - We are ON PyTorch 2.11 → IDEAL match
+  - VLLM_USE_AOT_COMPILE=True (our default)
+  - torch.compile is active on all 41 model layers
+  - Without the fix — potentially redundant recompute ops
 
 ================================================================
 FIX
 ================================================================
 
 Monkey-patches `torch._inductor.ir.StorageBox.should_realize_on_reuse`
-с size-aware cost model:
+with a size-aware cost model:
 
     total_read_bytes = sum read_bytes
     output_bytes = numel * dtype_itemsize
@@ -57,12 +57,12 @@ Monkey-patches `torch._inductor.ir.StorageBox.should_realize_on_reuse`
     if total_read_bytes * (users - 1) >= output_bytes * (1 + users):
         return True  # materialize
 
-Это означает: tensor реализуется когда чтение его n раз дороже
-чем 1× write + n× read. Включает special cases:
-  - heavy ops (exp, sigmoid) на CPU → realize
+Meaning: a tensor is realized when reading it n times costs more
+than 1x write + n x read. Special cases included:
+  - heavy ops (exp, sigmoid) on CPU → realize
   - large inner_fn → realize
 
-PN134 backport через runtime monkey-patch на StorageBox.
+PN134 backports via runtime monkey-patch on StorageBox.
 
 ================================================================
 EXPECTED IMPACT
@@ -71,15 +71,15 @@ EXPECTED IMPACT
   - Inductor compile cache hit rate ↑
   - First-prefill forward latency: -2..-8 ms (less recompute)
   - Memory pressure ↓ (cached intermediates)
-  - Boot time: slight increase (cache warming) → амортизируется
+  - Boot time: slight increase (cache warming) — amortizes
 
 ================================================================
 SAFETY
 ================================================================
 
-  - Только PyTorch 2.11 (2.12+ имеет fix native, 2.10- не поддерживает)
-  - Idempotent (флаг на StorageBox class)
-  - Auto-skip когда torch != 2.11
+  - Only PyTorch 2.11 (2.12+ has the fix natively, 2.10- is unsupported)
+  - Idempotent (flag on the StorageBox class)
+  - Auto-skip when torch != 2.11
 
 Author: Sandermage 2026-05-15. Backport vllm#42686 (OPEN).
 """
@@ -154,7 +154,7 @@ _ENV_OVERRIDE_REGRESSION = "GENESIS_PN134_FORCE_DESPITE_REGRESSION"
 
 
 def apply() -> tuple[str, str]:
-    """Monkey-patch StorageBox.should_realize_on_reuse для PyTorch 2.11.
+    """Monkey-patch StorageBox.should_realize_on_reuse for PyTorch 2.11.
 
     RETIRED 2026-05-15: bench-validated -25% TPS regression on
     hybrid_gdn_moe. The monkey-patch affects the ENTIRE Inductor
@@ -189,7 +189,7 @@ def apply() -> tuple[str, str]:
         try:
             import torch
             return "skipped", (
-                f"PN134 only для torch 2.11 (running {torch.__version__}); "
+                f"PN134 only for torch 2.11 (running {torch.__version__}); "
                 f"2.12+ has native fix, 2.10- doesn't need it"
             )
         except ImportError:
@@ -211,15 +211,15 @@ def apply() -> tuple[str, str]:
 
     log.info(
         "[PN134] installed: StorageBox.should_realize_on_reuse "
-        "теперь использует size-aware cost model (backport "
-        "pytorch#176994 для torch 2.11). Inductor compilation "
-        "должен realize чаще shared intermediates."
+        "now uses a size-aware cost model (backport "
+        "pytorch#176994 for torch 2.11). Inductor compilation "
+        "should realize shared intermediates more often."
     )
     return "applied", (
         "PN134 installed: torch.compile fullgraph materialization "
-        "heuristic patched на PyTorch 2.11 (vllm#42686 backport). "
+        "heuristic patched on PyTorch 2.11 (vllm#42686 backport). "
         "Expected: -2..-8 ms prefill, lower inductor compile cache "
-        "miss rate. Auto-skip когда torch != 2.11."
+        "miss rate. Auto-skip when torch != 2.11."
     )
 
 

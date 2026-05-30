@@ -2,59 +2,59 @@
 """PN130 — TurboQuant decode kernel warmup (backport vllm-project/vllm#42215).
 
 ================================================================
-ЗАЧЕМ
+WHY
 ================================================================
 
-`_tq_grouped_decode_stage1` (наш PN119 kernel) и связанные TQ
-decode kernels JIT'ятся на первом user request. Также — `workspace`
-allocator pre-fills отбрасывается после `lock_workspace()` (см.
-#42544 описание).
+`_tq_grouped_decode_stage1` (our PN119 kernel) and the related TQ
+decode kernels JIT-compile on the first user request. The
+`workspace` allocator pre-fills are also dropped after
+`lock_workspace()` (see #42544 description).
 
-PN130 закрывает 1 из 8 JIT warnings + предотвращает workspace
-re-allocation на первом decode.
+PN130 closes 1 of 8 JIT warnings and prevents workspace
+re-allocation on the first decode.
 
 ================================================================
-КАК
+HOW
 ================================================================
 
-Upstream PR #42215 (OPEN) добавляет:
-  1. `turboquant_decode_warmup(model, ...)` в новом модуле
-     `vllm/model_executor/warmup/turboquant_warmup.py`
-  2. Iterates `Attention` layers, ищет TQ backend (`kv_cache_dtype`
-     starts with `turboquant_`)
-  3. Dedupes по `_TurboQuantDecodeWarmupKey` (group params: heads,
-     head_dim, block_size, etc.)
-  4. Для каждого unique config: вызывает `impl._decode_attention()`
-     с synthetic тензорами → JIT compiles `_tq_decode_stage1/2` +
-     allocates workspace до lock'a
+Upstream PR #42215 (OPEN) adds:
+  1. `turboquant_decode_warmup(model, ...)` in a new module
+     `vllm/model_executor/warmup/turboquant_warmup.py`.
+  2. Iterates `Attention` layers, looking for the TQ backend
+     (`kv_cache_dtype` starts with `turboquant_`).
+  3. Dedupes by `_TurboQuantDecodeWarmupKey` (group params: heads,
+     head_dim, block_size, etc.).
+  4. For each unique config calls `impl._decode_attention()` with
+     synthetic tensors → JIT compiles `_tq_decode_stage1/2` and
+     allocates workspace before the lock.
 
-PN130 backport через runtime monkey-patch:
-  • Wraps `Worker.compile_or_warm_up_model`
-  • После original warmup, итерирует attention layers модели
-  • Для TQ layers вызывает `_decode_attention()` с synthetic data
-  • Идемпотентен (dedupe по config tuple)
+PN130 backports via runtime monkey-patch:
+  • Wraps `Worker.compile_or_warm_up_model`.
+  • After the original warmup iterates the model's attention layers.
+  • For TQ layers it calls `_decode_attention()` with synthetic data.
+  • Idempotent (dedupe by config tuple).
 
 ================================================================
 SAFETY
 ================================================================
 
   • Default OFF — opt-in via GENESIS_ENABLE_PN130_TQ_DECODE_WARMUP=1
-  • Защитные импорты (TurboQuantAttentionImpl, TurboQuantMetadata)
-  • Auto-skip когда kv_cache_dtype != turboquant_*
-  • Auto-skip V2/enforce_eager
-  • try/except защита на каждый layer
+  • Defensive imports (TurboQuantAttentionImpl, TurboQuantMetadata)
+  • Auto-skip when kv_cache_dtype != turboquant_*
+  • Auto-skip on V2 / enforce_eager
+  • try/except guard around each layer
 
 ================================================================
-КОМПОЗИЦИЯ
+COMPOSITION
 ================================================================
 
-  • Stack'ируется с PN128 (eagle warmup) + PN129 (slot_mapping)
-  • Mutually exclusive с #42215 если PR landed
-  • Pairs с P22 (TQ prealloc) + PN119 (TQ grouped decode kernel)
-  • Закрывает 1 из оставшихся 8 JIT warnings
-  • После PN128+PN129+PN130 остаются только:
-      - _zero_kv_blocks_kernel  (требует V1→V2 switch)
-      - _fwd_kernel_stage2      (требует V1→V2 switch)
+  • Stacks with PN128 (eagle warmup) + PN129 (slot_mapping).
+  • Mutually exclusive with #42215 if the PR lands.
+  • Pairs with P22 (TQ prealloc) + PN119 (TQ grouped decode kernel).
+  • Closes 1 of the remaining 8 JIT warnings.
+  • After PN128+PN129+PN130 only these remain:
+      - _zero_kv_blocks_kernel  (requires V1->V2 switch)
+      - _fwd_kernel_stage2      (requires V1->V2 switch)
 
 Author: Sandermage 2026-05-15. Backport vllm#42215 (OPEN).
 """
@@ -81,7 +81,7 @@ def _env_enabled() -> bool:
 
 
 def _make_warmup_key(impl, block_size, block_table_stride, model_dtype):
-    """Dedupe key (только важные launch-constexpr fields)."""
+    """Dedupe key (only the important launch-constexpr fields)."""
     return (
         impl.num_kv_heads,
         impl.head_size,
@@ -101,7 +101,7 @@ def _make_warmup_key(impl, block_size, block_table_stride, model_dtype):
 
 def _warmup_one_tq_layer(layer, impl, *, device, block_size, block_table_stride,
                          max_num_decode_tokens, model_dtype):
-    """Один pass TQ decode warmup для конкретного слоя."""
+    """A single TQ decode warmup pass for one layer."""
     import torch
 
     try:
@@ -228,7 +228,7 @@ def _iter_tq_layers(model):
 
 
 def _run_tq_warmup(worker):
-    """Главная entry — итерирует TQ layers и запускает warmup."""
+    """Main entry — iterate TQ layers and run warmup."""
     import torch
 
     runner = getattr(worker, "model_runner", None)
@@ -243,14 +243,14 @@ def _run_tq_warmup(worker):
     device = runner.device
     model_dtype = getattr(runner.model_config, "dtype", torch.float16)
 
-    # Block size + stride извлекаем из kv_cache_config
+    # Extract block size + stride from kv_cache_config
     kv_cfg = getattr(runner, "kv_cache_config", None)
     if kv_cfg is None:
         log.debug("[PN130] kv_cache_config None — skip")
         return
 
-    block_size = 16  # дефолт V1 для TQ
-    # Block table stride — берём из input_batch если есть
+    block_size = 16  # V1 default for TQ
+    # Block table stride — take from input_batch if available
     try:
         bt_stride = runner.input_batch.block_table.block_tables[0].block_table.shape[1]
     except (AttributeError, IndexError):
@@ -298,8 +298,8 @@ def apply() -> tuple[str, str]:
     if not _env_enabled():
         return "skipped", (
             f"PN130 disabled (set {_ENV_ENABLE}=1 — backport vllm#42215, "
-            f"TQ decode kernel warmup, закрывает _tq_grouped_decode_stage1 "
-            f"JIT spike + workspace pre-alloc до lock'a)"
+            f"TQ decode kernel warmup; closes _tq_grouped_decode_stage1 "
+            f"JIT spike + workspace pre-alloc before lock)"
         )
 
     if _APPLIED:
@@ -339,14 +339,14 @@ def apply() -> tuple[str, str]:
     _APPLIED = True
 
     log.info(
-        "[PN130] installed: Worker.compile_or_warm_up_model теперь "
-        "warmup'ит TQ decode kernels на boot. Backport vllm#42215."
+        "[PN130] installed: Worker.compile_or_warm_up_model now "
+        "warms up TQ decode kernels at boot. Backport vllm#42215."
     )
     return "applied", (
         "PN130 installed: TurboQuant decode kernel warmup wired into V1 "
         "compile_or_warm_up_model. Backport vllm-project/vllm#42215. "
-        "Закрывает _tq_grouped_decode_stage1 JIT spike + workspace "
-        "pre-alloc до lock'a."
+        "Closes _tq_grouped_decode_stage1 JIT spike + workspace "
+        "pre-alloc before lock."
     )
 
 

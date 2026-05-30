@@ -2,51 +2,51 @@
 """PN132 — Triton top-k/top-p contiguous logits fix (backport vllm#42739).
 
 ================================================================
-ПРОБЛЕМА
+PROBLEM
 ================================================================
 
-PR #42739 (OPEN, 2026-05-15) фиксит correctness bug в
-`apply_top_k_top_p_triton()` для случая non-contiguous logits.
+PR #42739 (OPEN, 2026-05-15) fixes a correctness bug in
+`apply_top_k_top_p_triton()` for non-contiguous logits.
 
-Triton kernel `apply_top_k_top_p` вычисляет row pointer как
-`base + row_id * VOCAB_SIZE` — это предполагает contiguous
-row-major layout. Если `logits` — это non-contiguous view
-(например после `index_select` или slicing), kernel читает
-WRONG memory и выдаёт garbage scores.
+The Triton kernel `apply_top_k_top_p` computes the row pointer as
+`base + row_id * VOCAB_SIZE`, which assumes a contiguous row-major
+layout. If `logits` is a non-contiguous view (e.g. after
+`index_select` or slicing), the kernel reads WRONG memory and
+returns garbage scores.
 
-Импакт:
-  - Молчаливая correctness регрессия (нет error, просто wrong top-k mask)
-  - Affects ANY caller через `apply_top_k_top_p_triton()` если
-    upstream slicing создаёт non-contiguous view
+Impact:
+  - Silent correctness regression (no error — just wrong top-k mask)
+  - Affects ANY caller of `apply_top_k_top_p_triton()` when
+    upstream slicing produces a non-contiguous view
 
-Применимо к нам?
-  - У нас VLLM_USE_FLASHINFER_SAMPLER=1 → top-k/top-p
-    использует FlashInfer path, не Triton
-  - НО fallback на Triton возможен (если FlashInfer не поддерживает
-    конкретную combo top-k + top-p + temperature)
-  - Defense-in-depth — применяем
+Applicable to us?
+  - We run VLLM_USE_FLASHINFER_SAMPLER=1, so top-k/top-p normally
+    uses the FlashInfer path, not Triton.
+  - BUT fallback to Triton is possible (when FlashInfer cannot
+    handle a specific top-k + top-p + temperature combo).
+  - Defense-in-depth — apply.
 
 ================================================================
 FIX
 ================================================================
 
-3-line addition в apply_top_k_top_p_triton:
+3-line addition in apply_top_k_top_p_triton:
 
     if not logits.is_contiguous():
         logits = logits.contiguous()
 
-PN132 backport через text-patch на функцию (3 lines insertion
-после assert dtype, перед batch_size unpacking).
+PN132 backports via text-patch on the function (3-line insertion
+after the dtype assert, before batch_size unpacking).
 
 ================================================================
 COMPOSITION
 ================================================================
 
-  - Safe with VLLM_USE_FLASHINFER_SAMPLER=1 (наш default) —
-    Triton path не используется обычно
-  - Стэкаются с другими top-k/top-p patches (никаких нет у нас)
-  - Auto-skip когда upstream lands (drift marker)
-  - Idempotent через text-patch marker
+  - Safe with VLLM_USE_FLASHINFER_SAMPLER=1 (our default) —
+    the Triton path is usually unused.
+  - Stacks with other top-k/top-p patches (none on our side).
+  - Auto-skip when upstream lands (drift marker).
+  - Idempotent via the text-patch marker.
 
 Author: Sandermage 2026-05-15. Backport vllm#42739 (OPEN).
 """
@@ -127,8 +127,8 @@ def apply() -> tuple[str, str]:
     _APPLIED = True
 
     log.info(
-        "[PN132] installed: apply_top_k_top_p_triton теперь guarantee "
-        "logits contiguous перед Triton kernel. Backport vllm#42739."
+        "[PN132] installed: apply_top_k_top_p_triton now guarantees "
+        "contiguous logits before the Triton kernel. Backport vllm#42739."
     )
     return "applied", (
         "PN132 installed: Triton top-k/top-p contiguous fix wired "
