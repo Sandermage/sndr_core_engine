@@ -10,7 +10,7 @@ the end of every section). This page is the connective tissue: enough
 to get unstuck without context-switching, but not a replacement for
 the per-topic deep-dives.
 
-> Stack as of 2026-05-22:
+> Stack as of 2026-05-30:
 > Genesis `v12.0.0` (231 PATCH_REGISTRY entries) ·
 > vLLM `0.21.1rc0+g626fa9bba5` ·
 > Reference rig: 2× RTX A5000 24 GB · driver ≥ 580.126 · CUDA 13.
