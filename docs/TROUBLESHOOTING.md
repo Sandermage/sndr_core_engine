@@ -782,6 +782,192 @@ sndr license status --json | jq -e '.core == "public (unlicensed)"'
 sndr launch prod-35b --preflight-only
 ```
 
+## Enterprise operator runbook
+
+Operational guidance derived from the 2026-05-30 multi-model
+session. Captures the launcher-config invariants every PROD container
+must meet to reach enterprise-grade reliability.
+
+### Launcher invariants (all PROD launchers)
+
+Every PROD launcher MUST contain the following docker-run / vllm-serve
+arguments. Missing ANY of them is a Class-1 config drift that breaks
+operator-visible features silently:
+
+| Argument | Required for | Failure mode if missing |
+|---|---|---|
+| `--enable-auto-tool-choice` | tool-call API | server returns `400: requires --enable-auto-tool-choice` |
+| `--tool-call-parser <name>` | tool-call extraction | tool_calls[] always empty |
+| `--reasoning-parser <name>` | thinking-then-tool flow | model emits `<channel>thought` as content, never closes |
+| `--override-generation-config '{"temperature":0.6,"top_p":0.95,"top_k":20}'` | deterministic tool-call | non-deterministic 3-7/7 across runs |
+| `--served-model-name <name>` | client API stability | clients hit the model path basename, breaks routing |
+| `--api-key <key>` | auth | requests return `401: Unauthorized` |
+| `-e GENESIS_ENABLE_<PATCH>=1` (per active patch) | per `default_on=True` strict-opt-in policy 2026-05-17 | patch registered but never fires (silent no-op) |
+
+The default_on=True informational policy (Class-12 bug — see Bug
+Classes section below) means EVERY patch validated for the model needs
+its env flag set explicitly in the launcher, even when the registry
+says `default_on=True`. The registry value is documentation; the
+launcher is the source of truth.
+
+### Bug Class 12 — strict-opt-in policy
+
+**Policy**: per Sander directive 2026-05-17
+(`vllm/sndr_core/dispatcher/decision.py:355-386`), `default_on=True`
+in the registry does NOT auto-apply the patch. Every patch — including
+those marked `default_on=True` — requires its `GENESIS_ENABLE_*` env
+var explicitly set in the launcher script. Escape hatch:
+`GENESIS_LEGACY_DEFAULT_ON=1` (pre-2026-05-17 semantics).
+
+**Detection**:
+
+```bash
+docker exec <container> python3 -m vllm.sndr_core.compat.cli self-test
+docker exec <container> cat /tmp/genesis_boot.log | grep -E '<PATCH>: (skipped|applied)'
+docker inspect <container> --format '{{.Config.Env}}' | grep GENESIS_ENABLE_<patch>
+```
+
+**Fix when caught**: append `-e GENESIS_ENABLE_<patch>=1` to the
+launcher's `docker run` block. There are ~52 patches with
+`default_on=True` in the registry — each requires explicit
+enablement.
+
+### Bug Class 13 — model-quality intrinsic limits
+
+**Symptom**: tool-call bench shows `5/7 deterministic` (or similar
+sub-100% rate) across multiple consecutive runs, with the failing
+cases reliably stopping in the thinking channel before emitting the
+tool_call marker.
+
+**Real example**: gemma4-31B AWQ-4bit + TQ4bit_nc + MTP K=4 on PROD
+config emits well-formed `<|tool_call>call:get_weather{...}` for
+direct prompts (5 cases) but stops mid-thinking for "Reason about
+which city, then call" prompts (2 cases). Same residual on dev371
+base pin AND on 626fa9bb after all launcher fixes — confirms this is
+a model-quality intrinsic limit (4-bit weights + 4-bit kv cache + K=4
+speculative compounding errors), NOT a config bug.
+
+**Detection**:
+
+1. Run the bench 3 times consecutively on a stable launcher.
+2. If failures are deterministic (same cases fail every run) AND the
+   passing cases reach 100% deterministically → Class 13.
+3. If failures are stochastic (different cases fail across runs) → it
+   is a state corruption / non-determinism issue. Try
+   `--override-generation-config` with greedy (`T=0`, `top_k=1`).
+
+**Fix options** (in decreasing impact / decreasing config disruption):
+
+1. Use a higher-precision model variant (AWQ-8bit or FP16) — best
+   reliability, biggest config change.
+2. Disable MTP — same throughput on structured configs (MTP K=4 buys
+   little for `max_num_seqs=1`), simpler decode path, sometimes 1
+   extra case passes.
+3. Tighten `override-generation-config` to greedy
+   (`temperature=0, top_k=1, top_p=1`).
+4. Vendor community parser fixes (e.g. G4_T1 for gemma4 PR #42006
+   overlay) — covers parse-side bugs but not model-output bugs.
+5. Accept the intrinsic limit and report the rate in operator docs;
+   PROD-realistic cases (direct tool requests without forced
+   thinking) reach 100% deterministic.
+
+### Pin policy (2026-05-30 unification)
+
+The canonical PROD pin is `vllm/vllm-openai:nightly` (currently
+resolves to commit `626fa9bb` per the K.1.R.R promotion 2026-05-30).
+The previous canonical pin is `vllm/vllm-openai:nightly-previous`
+(currently `bf610c2f5` = dev371). All other intermediate nightly tags
+should be cleaned via `docker rmi` periodically (operator hygiene).
+
+The 4 PROD models target the same `:nightly` tag in their launchers
+to maintain pin uniformity. Exception: `gemma4-31B` may be temporarily
+pinned to `:nightly-previous` if a 626fa9bb regression is observed
+(analog to A11 guardrail for 27B's `-8.66%` TPS regression on the new
+pin). Such pin pinning MUST be documented in the launcher header
+comment.
+
+### Observability stack (PN287 + PN288 + PN289 + trace surface)
+
+The enterprise observability flow combines four Genesis surfaces:
+
+1. **PN287** (qwen3_coder args observer) — labeled Counter at
+   `vllm:qwen3_tool_parser_pn287_*_total{model, ctx_bucket}` surfacing
+   malformed tool_call.arguments by model + context-depth bucket.
+2. **PN288** (finish_reason override) — labeled Counter at
+   `vllm:pn288_finish_reason_override_total{model, channel, action}`
+   surfacing dry-run / would-downgrade / downgraded / kept events.
+3. **PN289** (process info) — gauge `genesis_process_info` with
+   value 1 labeled `(preset, profile, workload_class, K, backend,
+   patch_hash, model, pin)`. JOIN against any vllm-builtin metric
+   via `* on(instance) group_left(...) genesis_process_info`.
+4. **Trace surface** (`sndr trace list/collect/summarize` + `sndr
+   support-bundle`) — collects 11 known diagnostic trace files
+   (`/tmp/genesis_*.log`) into a single tarball for off-rig
+   analysis.
+
+Activation (each is opt-in via env flag):
+
+```bash
+-e GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER=1
+-e GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE=1
+-e GENESIS_PN288_DRY_RUN=1   # default ON when PN288 enabled — Phase B
+-e GENESIS_ENABLE_PN289_PROCESS_INFO=1
+-e GENESIS_PRESET=prod-35b
+-e GENESIS_PROFILE=35b-balanced
+-e GENESIS_WORKLOAD_CLASS=free_chat
+```
+
+PN288 Phase C activation runbook (after 2-4 weeks of Phase B data —
+the operator decides):
+
+```bash
+-e GENESIS_PN288_DRY_RUN=0   # activates actual finish_reason override
+-e GENESIS_PN288_MIN_ARGS_LENGTH=5   # default
+-e GENESIS_PN288_MAX_ARGS_LENGTH=200 # default; tighten to empirical p10/p90
+```
+
+### Bench expectations per model (PROD reference)
+
+These are the canonical bench targets every PROD container should
+hit on the unified `:nightly` pin. Bench command:
+
+```bash
+python3 tools/genesis_bench_suite.py --quick --ctx 8k \
+    --host localhost --port <port> --api-key <key> \
+    --model <served-model-name> \
+    --skip-stress --skip-ctx-probe --skip-multi-turn
+```
+
+| Model | wall_TPS | TPOT ms | TTFT ms | CV % | Tool-call (positive) |
+|---|---:|---:|---:|---:|:---:|
+| 27B Lorbus INT4 TQ | 116-125 | 8-9 | 110-120 | 3-10 | **7/7** ✓ |
+| 35B A3B FP8 | 210 | 4.4 | 117 | 5-7 | **7/7** ✓ |
+| gemma4-26B-A4B MoE | 114 | 6.0 | 71 | 22-30 | **7/7** ✓ |
+| gemma4-31B Dense TQ MTP-K4 | 28-39 | 6-9 | 70-170 | 10-30 | **5/7** ✓ (Class 13 limit; PROD-realistic cases 100%) |
+
+A more than 10% deviation from these on a fresh boot is suspicious
+and warrants investigation via:
+
+1. `sndr trace list --container <c>` to see what's being written.
+2. `sndr support-bundle --container <c>` to gather host + container
+   facts for off-rig analysis.
+3. `docker exec <c> python3 -m vllm.sndr_core.compat.cli self-test`
+   to verify the registry contract.
+
+### Known operator decisions deferred
+
+These items appear in the operator's internal planning notes and
+explicitly need operator approval — they are NOT bugs:
+
+| Item | Status | Operator action |
+|---|---|---|
+| A11 | 27B PROD stays on dev371 until regression mechanism identified | hold; bench shows -8.66% TPS on 626fa9bb (verified empirically 2026-05-30) |
+| §3.4 | 27B nsys profile (45 min rig + 2-4h parse) | scheduling decision |
+| §3.1 / PN288 Phase C | flip `GENESIS_PN288_DRY_RUN=0` after 2-4 weeks of evidence | data-driven, see PN288 runbook above |
+| Q2 | Public `origin/dev` push | per current policy: **NOT touched**, only private `sndr-dev/dev` is synced |
+| G9 | CONFIG-UX D.9 Codex ProfileDef sub-fields | review + approve |
+| H1, H5, P6, P7 | Codex PN282/283 + ProfileDef adoption decisions | review + approve |
+
 ## Reporting new cliffs
 
 If you hit something that isn't here, please:
