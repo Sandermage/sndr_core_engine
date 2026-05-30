@@ -2565,7 +2565,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "SNDR_WORKSPACE_001 credit for the merge-and-retire plan."
         ),
         "upstream_pr": 42551,  # 2026-05-14 PR sweep — same retire trigger as SNDR_WORKSPACE_001
-        "upstream_pr_relationship": "backport",
+        # relationship corrected 2026-05-30: PN34 was retired as an
+        # INTERNAL duplicate of SNDR_WORKSPACE_001, NOT because
+        # vllm#42551 merged (it's still DRAFT/OPEN). `backport` was
+        # incorrect — it implied PR-merge would supersede us. The
+        # correct framing is `related_not_superseding`: same fault
+        # site as #42551, but the retire driver was de-duplication
+        # with SNDR_WORKSPACE_001. audit_upstream_status now classifies
+        # PN34 as RELATED-NOT-SUPERSEDING (informational) instead of
+        # STALE-RETIRED (weird-state alarm).
+        "upstream_pr_relationship": "related_not_superseding",
         "requires_patches": ["PN33"],
         "superseded_by": "SNDR_WORKSPACE_001",
         "lifecycle": "retired",  # 2026-05-14 PR sweep audit — duplicate of SNDR_WORKSPACE_001
