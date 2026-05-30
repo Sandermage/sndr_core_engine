@@ -110,6 +110,70 @@ counters: dict[str, int] = {
     "warnings_emitted": 0,
 }
 
+# §2.4 Phase A labels — per-model + per-context-depth bucketing on the
+# Prometheus surface so PN288 evidence-gathering can distinguish:
+#   - Frequency by model (35B-A3B suspect vs 27B vs gemma4)
+#   - Frequency by context depth (PN287 hypothesis: depth ~20K spike)
+# Cardinality budget: 3 models × 4 ctx_buckets = 12 series per counter;
+# well within Prometheus best practice ceiling.
+_LABEL_NAMES = ("model", "ctx_bucket")
+_CTX_BUCKET_LIMITS: tuple[tuple[int, str], ...] = (
+    (5_000,   "0-5K"),
+    (15_000,  "5-15K"),
+    (30_000,  "15-30K"),
+)
+_CTX_BUCKET_OVERFLOW = "30K+"
+
+
+def _ctx_bucket(n_tokens: int) -> str:
+    """Map an integer token count to one of 4 context-depth buckets."""
+    for upper, name in _CTX_BUCKET_LIMITS:
+        if n_tokens < upper:
+            return name
+    return _CTX_BUCKET_OVERFLOW
+
+
+def _extract_request_and_ctx(
+    call_args: tuple, call_kwargs: dict,
+) -> tuple[str, str]:
+    """Best-effort extraction of (model, ctx_bucket) for label tagging.
+
+    Signature of ``Qwen3CoderToolParser.extract_tool_calls_streaming`` is
+    ``(self, previous_text, current_text, delta_text, previous_token_ids,
+    current_token_ids, delta_token_ids, request)``. vLLM serving.py calls
+    it with kwargs in current pin (0.21.1rc1+), but downstream wrappers
+    or older pins may call positionally. Handle both.
+
+    Returns ``("unknown", "<bucket>")`` on any extraction failure — never
+    raises. The observer must never crash a user request to capture
+    telemetry.
+    """
+    request = call_kwargs.get("request")
+    current_token_ids = call_kwargs.get("current_token_ids")
+    # Positional fallback (parser receives `self` separately, so call_args
+    # is 0-indexed at previous_text). current_token_ids is the 5th arg
+    # (index 4), request is the 7th (index 6).
+    if request is None and len(call_args) >= 7:
+        request = call_args[6]
+    if current_token_ids is None and len(call_args) >= 5:
+        current_token_ids = call_args[4]
+    model = "unknown"
+    if request is not None:
+        try:
+            m = getattr(request, "model", None)
+            if isinstance(m, str) and m:
+                model = m
+        except Exception:
+            pass
+    n_tokens = 0
+    if current_token_ids is not None:
+        try:
+            n_tokens = len(current_token_ids)
+        except Exception:
+            pass
+    return model, _ctx_bucket(n_tokens)
+
+
 # Prometheus Counter handles — lazily created on first apply() to avoid
 # import-time cost in torch-less environments (tests, lint, docs build).
 _prom_extract_total: Any = None
@@ -150,24 +214,32 @@ def _setup_prometheus_counters() -> bool:
             documentation=(
                 "PN287 Qwen3CoderToolParser tool_call arguments observed "
                 "via extract_tool_calls_streaming wrap. Includes valid + "
-                "malformed; subtract malformed_total for clean count."
+                "malformed; subtract malformed_total for clean count. "
+                "Labels: model (served-model-name from request), "
+                "ctx_bucket (token-count bucket: 0-5K/5-15K/15-30K/30K+)."
             ),
+            labelnames=_LABEL_NAMES,
         )
         _prom_malformed_total = Counter(
             name=f"{_PREFIX}malformed_total",
             documentation=(
                 "PN287 tool_call.arguments that failed json.loads — likely "
                 "max_tokens truncation mid-JSON-string (club-3090 #178). "
-                "Read-only observation; does NOT mutate output."
+                "Read-only observation; does NOT mutate output. Labels: "
+                "model, ctx_bucket — operator queries can pivot by both "
+                "to evaluate PN288 trigger criteria per §2.4 Phase A."
             ),
+            labelnames=_LABEL_NAMES,
         )
         _prom_warnings_total = Counter(
             name=f"{_PREFIX}warnings_total",
             documentation=(
                 "PN287 structured WARN log emissions. Deduplicated per "
                 "(parser-id, tool-name) within a single request — actual "
-                "count of distinct malformed events surfaced to logs."
+                "count of distinct malformed events surfaced to logs. "
+                "Labels: model, ctx_bucket."
             ),
+            labelnames=_LABEL_NAMES,
         )
         return True
     except (ValueError, AttributeError) as exc:
@@ -195,6 +267,9 @@ def _make_wrapped_streaming(original_fn):
     @functools.wraps(original_fn)
     def wrapped(self, *args, **kwargs):
         result = original_fn(self, *args, **kwargs)
+        # Per-request labels for Prometheus (cheap; extracted once per
+        # call regardless of how many tool entries we inspect below).
+        model_label, ctx_label = _extract_request_and_ctx(args, kwargs)
         # Post-invocation: inspect accumulated tool-call args. The parser
         # stores per-tool accumulated state on `prev_tool_call_arr`.
         try:
@@ -209,13 +284,17 @@ def _make_wrapped_streaming(original_fn):
                 continue
             counters["tool_calls_total"] += 1
             if _prom_extract_total is not None:
-                _prom_extract_total.inc()
+                _prom_extract_total.labels(
+                    model=model_label, ctx_bucket=ctx_label,
+                ).inc()
             try:
                 json.loads(args_str)
             except (ValueError, TypeError):
                 counters["tool_calls_malformed_args"] += 1
                 if _prom_malformed_total is not None:
-                    _prom_malformed_total.inc()
+                    _prom_malformed_total.labels(
+                        model=model_label, ctx_bucket=ctx_label,
+                    ).inc()
                 # Dedup by self-identity + tool name within same request.
                 seen_key = id(self), entry.get("name") or "?"
                 seen_set = getattr(self, "_pn287_seen", None) or set()
@@ -225,16 +304,20 @@ def _make_wrapped_streaming(original_fn):
                 self._pn287_seen = seen_set
                 counters["warnings_emitted"] += 1
                 if _prom_warnings_total is not None:
-                    _prom_warnings_total.inc()
+                    _prom_warnings_total.labels(
+                        model=model_label, ctx_bucket=ctx_label,
+                    ).inc()
                 # Keep payload preview tight to avoid log floods.
                 preview = args_str[:80].replace("\n", "\\n")
                 log.warning(
                     "[PN287] qwen3_coder tool_call.arguments unparseable — "
-                    "name=%s len=%d preview=%r. Likely max_tokens truncation "
-                    "mid-JSON-string (club-3090 #178). Downstream clients "
-                    "should validate before re-feeding to chat history; "
-                    "see tools/bench_agentic.py defense pattern.",
+                    "name=%s len=%d preview=%r model=%s ctx_bucket=%s. "
+                    "Likely max_tokens truncation mid-JSON-string "
+                    "(club-3090 #178). Downstream clients should validate "
+                    "before re-feeding to chat history; see "
+                    "tools/bench_agentic.py defense pattern.",
                     entry.get("name") or "?", len(args_str), preview,
+                    model_label, ctx_label,
                 )
         return result
 

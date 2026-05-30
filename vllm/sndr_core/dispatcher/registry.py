@@ -3486,7 +3486,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "`_args_validation_installed` marker. Existing P64+PN56+P61C "
             "3-layer defense does NOT cover this surface — they fix "
             "streaming-extractor early-return / XML-parse fallback / SSE "
-            "deferred-commit respectively, none validate final args JSON."
+            "deferred-commit respectively, none validate final args JSON. "
+            "§2.4 Phase A (2026-05-30): Prometheus counters relabeled "
+            "with (model, ctx_bucket) — buckets 0-5K / 5-15K / 15-30K / "
+            "30K+ on len(current_token_ids); model from request.model. "
+            "Cardinality = ~3 models × 4 buckets = 12 series per counter, "
+            "well within Prometheus best-practice ceiling. The labeled "
+            "data unlocks evidence-based PN288 trigger criteria (e.g. "
+            "'fire only on 35B-A3B + ctx≥15K') instead of a global flag."
         ),
         "upstream_pr": None,
         "applies_to": {
