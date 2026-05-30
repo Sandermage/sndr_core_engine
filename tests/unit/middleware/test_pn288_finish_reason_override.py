@@ -436,13 +436,216 @@ def test_labeled_counter_segregates_channels(monkeypatch):
 def test_public_exports_lock():
     mod = _import_mod()
     for name in [
-        "is_enabled", "is_dry_run", "setup_prometheus_counters",
+        "is_enabled", "is_dry_run",
+        "get_min_args_length", "get_max_args_length",
+        "setup_prometheus_counters",
         "decide_streaming_finish_reason",
         "decide_non_streaming_is_tool_calls",
-        "counters", "_validate_tool_call_args", "_safe_model_name",
+        "counters", "_validate_tool_call_args",
+        "_args_length_in_band", "_safe_model_name",
         "_ACTION_WOULD_DOWNGRADE", "_ACTION_DOWNGRADED",
         "_ACTION_KEPT_VALID", "_ACTION_KEPT_NO_LENGTH",
+        "_ACTION_KEPT_OUT_OF_RANGE",
     ]:
         assert name in mod.__all__, (
             f"{name!r} must be in __all__ for downstream stability"
         )
+
+
+# ─── Phase C threshold guards ──────────────────────────────────────────
+
+
+def test_get_min_max_args_length_defaults(monkeypatch):
+    mod = _import_mod()
+    monkeypatch.delenv("GENESIS_PN288_MIN_ARGS_LENGTH", raising=False)
+    monkeypatch.delenv("GENESIS_PN288_MAX_ARGS_LENGTH", raising=False)
+    assert mod.get_min_args_length() == 5
+    assert mod.get_max_args_length() == 200
+
+
+def test_get_args_length_respects_env(monkeypatch):
+    mod = _import_mod()
+    monkeypatch.setenv("GENESIS_PN288_MIN_ARGS_LENGTH", "10")
+    monkeypatch.setenv("GENESIS_PN288_MAX_ARGS_LENGTH", "500")
+    assert mod.get_min_args_length() == 10
+    assert mod.get_max_args_length() == 500
+
+
+def test_get_args_length_invalid_env_falls_back_to_default(monkeypatch):
+    """Operator typos in env vars must not crash the observer."""
+    mod = _import_mod()
+    monkeypatch.setenv("GENESIS_PN288_MIN_ARGS_LENGTH", "not_a_number")
+    monkeypatch.setenv("GENESIS_PN288_MAX_ARGS_LENGTH", "also_bad")
+    assert mod.get_min_args_length() == 5
+    assert mod.get_max_args_length() == 200
+
+
+def test_args_length_in_band_true_for_canonical_truncated_args():
+    """The PN287 evidence band (5-80 chars) is the typical truncated
+    tool_call.arguments length when max_tokens hits mid-JSON-string."""
+    mod = _import_mod()
+    # 22 chars — exactly the PN287 evidence sample.
+    parser = _Parser([{"name": "Read",
+                       "arguments": '{"file_path":"/some/lo'}])
+    assert mod._args_length_in_band(parser) is True
+
+
+def test_args_length_in_band_false_below_min():
+    mod = _import_mod()
+    # 3 chars — too short, likely our probe parse-failure not a real
+    # truncation.
+    parser = _Parser([{"name": "Read", "arguments": '{"a'}])
+    assert mod._args_length_in_band(parser) is False
+
+
+def test_args_length_in_band_false_above_max():
+    mod = _import_mod()
+    # 250 chars — too long, likely a real structured tool call that
+    # parse-failed for a different reason (we don't want to corrupt it).
+    bad_long = '{"x":"' + ("y" * 240) + '"'
+    parser = _Parser([{"name": "Read", "arguments": bad_long}])
+    assert mod._args_length_in_band(parser) is False
+
+
+def test_args_length_in_band_false_with_no_real_args():
+    """Empty / placeholder args (`""` / `"{}"`) don't count as real
+    truncation evidence — the band check returns False so PN288 takes
+    no action."""
+    mod = _import_mod()
+    parser = _Parser([
+        {"name": "Read", "arguments": ""},
+        {"name": "Edit", "arguments": "{}"},
+    ])
+    assert mod._args_length_in_band(parser) is False
+
+
+def test_args_length_in_band_all_must_pass(monkeypatch):
+    """Mixed-length args: if ANY non-empty entry is out of band, the
+    helper returns False — refuse to downgrade the whole request."""
+    mod = _import_mod()
+    parser = _Parser([
+        {"name": "Read", "arguments": '{"x":"y'},        # 7 chars, in
+        {"name": "Edit", "arguments": "x" * 500},        # 500, out
+    ])
+    assert mod._args_length_in_band(parser) is False
+
+
+# ─── Streaming dispatcher Phase C path ────────────────────────────────
+
+
+def test_streaming_phase_c_out_of_range_keeps_upstream(monkeypatch):
+    """When PN288 is enabled, DRY_RUN=0 (Phase C), AND args length is
+    OUT of band → upstream verdict preserved, counter records
+    KEPT_OUT_OF_RANGE."""
+    mod = _import_mod()
+    _reset(mod)
+    monkeypatch.setenv(
+        "GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE", "1",
+    )
+    monkeypatch.setenv("GENESIS_PN288_DRY_RUN", "0")
+    # Length 500 — outside default band.
+    bad_long = [{"name": "Read", "arguments": "x" * 500}]
+    out = mod.decide_streaming_finish_reason(
+        **_streaming_kwargs(parser_prev_args=bad_long),
+    )
+    # Upstream stays — Phase C refuses to downgrade.
+    assert out == "tool_calls"
+    assert mod.counters[("streaming",
+                          mod._ACTION_KEPT_OUT_OF_RANGE)] == 1
+    assert ("streaming", mod._ACTION_DOWNGRADED) not in mod.counters
+
+
+def test_streaming_phase_c_in_band_downgrades(monkeypatch):
+    """Same setup as above but with in-band args — should downgrade."""
+    mod = _import_mod()
+    _reset(mod)
+    monkeypatch.setenv(
+        "GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE", "1",
+    )
+    monkeypatch.setenv("GENESIS_PN288_DRY_RUN", "0")
+    out = mod.decide_streaming_finish_reason(
+        **_streaming_kwargs(parser_prev_args=_BAD_ARGS),
+    )
+    assert out == "length"
+    assert mod.counters[("streaming", mod._ACTION_DOWNGRADED)] == 1
+    assert ("streaming", mod._ACTION_KEPT_OUT_OF_RANGE) not in mod.counters
+
+
+def test_streaming_dry_run_out_of_range_records_correctly(monkeypatch):
+    """In Phase B (dry-run): out-of-range args still surface the
+    KEPT_OUT_OF_RANGE counter — operators learn the safety guard
+    fired BEFORE flipping DRY_RUN=0."""
+    mod = _import_mod()
+    _reset(mod)
+    monkeypatch.setenv(
+        "GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE", "1",
+    )
+    monkeypatch.delenv("GENESIS_PN288_DRY_RUN", raising=False)
+    bad_long = [{"name": "Read", "arguments": "x" * 500}]
+    out = mod.decide_streaming_finish_reason(
+        **_streaming_kwargs(parser_prev_args=bad_long),
+    )
+    assert out == "tool_calls"  # upstream stays in dry-run
+    assert mod.counters[("streaming",
+                          mod._ACTION_KEPT_OUT_OF_RANGE)] == 1
+    # No would_downgrade event — the safety guard short-circuits BEFORE
+    # the dry-run counter fires.
+    assert ("streaming", mod._ACTION_WOULD_DOWNGRADE) not in mod.counters
+
+
+def test_streaming_custom_band_via_env_alters_decision(monkeypatch):
+    """When the operator tightens the band, Phase C declines requests
+    that the default band would have downgraded. This is the key
+    Phase C tuning lever — narrow the band first, observe via PN287,
+    then widen."""
+    mod = _import_mod()
+    _reset(mod)
+    monkeypatch.setenv(
+        "GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE", "1",
+    )
+    monkeypatch.setenv("GENESIS_PN288_DRY_RUN", "0")
+    # Tighten the band to [50, 200) — the 22-char canonical sample
+    # falls below the new floor.
+    monkeypatch.setenv("GENESIS_PN288_MIN_ARGS_LENGTH", "50")
+    out = mod.decide_streaming_finish_reason(
+        **_streaming_kwargs(parser_prev_args=_BAD_ARGS),
+    )
+    # 22 chars < new min (50) → kept_out_of_range, no downgrade.
+    assert out == "tool_calls"
+    assert mod.counters[("streaming",
+                          mod._ACTION_KEPT_OUT_OF_RANGE)] == 1
+
+
+# ─── Non-streaming dispatcher Phase C path ────────────────────────────
+
+
+def test_non_streaming_phase_c_out_of_range_keeps_upstream(monkeypatch):
+    mod = _import_mod()
+    _reset(mod)
+    monkeypatch.setenv(
+        "GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE", "1",
+    )
+    monkeypatch.setenv("GENESIS_PN288_DRY_RUN", "0")
+    bad_long = [{"name": "Read", "arguments": "x" * 500}]
+    out = mod.decide_non_streaming_is_tool_calls(
+        **_ns_kwargs(parser_prev_args=bad_long),
+    )
+    # Upstream True stays.
+    assert out is True
+    assert mod.counters[("non_streaming",
+                          mod._ACTION_KEPT_OUT_OF_RANGE)] == 1
+
+
+def test_non_streaming_phase_c_in_band_downgrades(monkeypatch):
+    mod = _import_mod()
+    _reset(mod)
+    monkeypatch.setenv(
+        "GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE", "1",
+    )
+    monkeypatch.setenv("GENESIS_PN288_DRY_RUN", "0")
+    out = mod.decide_non_streaming_is_tool_calls(
+        **_ns_kwargs(parser_prev_args=_BAD_ARGS),
+    )
+    assert out is False
+    assert mod.counters[("non_streaming",
+                          mod._ACTION_DOWNGRADED)] == 1

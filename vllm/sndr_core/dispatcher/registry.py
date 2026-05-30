@@ -3526,7 +3526,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "composes_with": ["P64", "PN56", "P61c"],
     },
     "PN288": {
-        "title": "qwen3_coder tool_call finish_reason override — Phase B dry-run scaffold",
+        "title": "qwen3_coder tool_call finish_reason override — Phase B+C with length-band safety guard",
         "tier": "community",
         "family": "serving",
         "env_flag": "GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE",
@@ -3567,8 +3567,27 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Prometheus counter: vllm:pn288_finish_reason_override_total "
             "with labels (model, channel ∈ {streaming, non_streaming}, "
             "action ∈ {would_downgrade, downgraded, kept_tool_calls_args_valid, "
-            "kept_tool_calls_no_length_trunc}). Cardinality ~3 × 2 × 4 = 24 "
-            "series. References §1.3 of UNIFIED_DEVELOPMENT_PLAN."
+            "kept_tool_calls_no_length_trunc, "
+            "kept_tool_calls_args_length_out_of_range}). Cardinality ~3 × 2 × 5 = 30 "
+            "series. References §1.3 of UNIFIED_DEVELOPMENT_PLAN. "
+            "PHASE C SAFETY GUARDS (2026-05-30): added length-band check "
+            "before downgrade — args length must fall in "
+            "[GENESIS_PN288_MIN_ARGS_LENGTH (default 5), "
+            "GENESIS_PN288_MAX_ARGS_LENGTH (default 200)). Real "
+            "max_tokens-truncated tool_call args are typically 5-80 chars "
+            "(PN287 evidence band); args outside the window are more likely "
+            "a different parse-failure mode where downgrade would corrupt "
+            "a real long tool call. The kept_tool_calls_args_length_out_of_range "
+            "action surfaces the guard's firings so operators can tune the "
+            "band BEFORE flipping DRY_RUN=0. ACTIVATION RUNBOOK (B→C): "
+            "(1) enable PN287+PN288 in PROD launcher (DRY_RUN default=1); "
+            "(2) observe vllm:pn288_finish_reason_override_total{action="
+            "'would_downgrade'} + PN287 malformed_total{model,ctx_bucket} "
+            "for 2-4 weeks; (3) verify *_out_of_range stays low; (4) if "
+            "frequency concentrates on (35B-A3B + ctx≥15K) per PN287 "
+            "labels, tighten MIN/MAX_ARGS_LENGTH to empirical p10/p90 of "
+            "malformed args lengths; (5) flip GENESIS_PN288_DRY_RUN=0 — "
+            "downgraded action label starts firing in PROD."
         ),
         "upstream_pr": None,
         "applies_to": {

@@ -4,7 +4,7 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-30T15:01:36Z
+Generated: 2026-05-30T16:47:55Z
 Total entries: **232**
 
 ## Statistics
@@ -320,7 +320,7 @@ Total entries: **232**
 | **PN73** | `community` | `experimental` | · | `GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE` | — | PN73 — safe `tool_calls.arguments` string→dict normalization |
 | **PN91** | `community` | `experimental` | · | `GENESIS_ENABLE_PN91_DEVELOPER_ROLE` | — | PN91 — `developer` role pre-render normalizer (OpenAI Responses API compat) |
 | **PN127** | `community` | `experimental` | · | `GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE` | — | Qwen 3.5/3.6 enhanced chat-template auto-install (closes club-3090#53/#72) |
-| **PN288** | `community` | `experimental` | · | `GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE` | — | qwen3_coder tool_call finish_reason override — Phase B dry-run scaffold |
+| **PN288** | `community` | `experimental` | · | `GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE` | — | qwen3_coder tool_call finish_reason override — Phase B+C with length-band saf... |
 
 ### `spec_decode` (33)
 

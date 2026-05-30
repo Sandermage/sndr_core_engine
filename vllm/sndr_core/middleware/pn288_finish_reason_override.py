@@ -81,12 +81,22 @@ log = logging.getLogger("genesis.middleware.pn288_finish_reason_override")
 
 _ENV_ENABLE = "GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE"
 _ENV_DRY_RUN = "GENESIS_PN288_DRY_RUN"
+# Phase C safety guards (defaults chosen for the canonical
+# club-3090 #178 / PN287 evidence band — truncated tool_call args are
+# typically 5-80 chars when max_tokens cuts a real mid-JSON-string).
+# Operators can tighten or widen these via env before flipping
+# GENESIS_PN288_DRY_RUN=0 in Phase C activation.
+_ENV_MIN_ARGS_LENGTH = "GENESIS_PN288_MIN_ARGS_LENGTH"
+_ENV_MAX_ARGS_LENGTH = "GENESIS_PN288_MAX_ARGS_LENGTH"
+_DEFAULT_MIN_ARGS_LENGTH = 5
+_DEFAULT_MAX_ARGS_LENGTH = 200
 
 # Sentinels mirrored on the Prometheus action label; constants here so
 # tests can reference them without hard-coding strings.
 _ACTION_WOULD_DOWNGRADE = "would_downgrade"
 _ACTION_DOWNGRADED = "downgraded"
 _ACTION_KEPT_VALID = "kept_tool_calls_args_valid"
+_ACTION_KEPT_OUT_OF_RANGE = "kept_tool_calls_args_length_out_of_range"
 _ACTION_KEPT_NO_LENGTH = "kept_tool_calls_no_length_trunc"
 
 _LABEL_NAMES = ("model", "channel", "action")
@@ -121,6 +131,63 @@ def is_dry_run() -> bool:
     when PN288 is enabled — the operator must explicitly flip
     ``GENESIS_PN288_DRY_RUN=0`` after evidence justifies it."""
     return _env_truthy(_ENV_DRY_RUN, default=True)
+
+
+def _env_int(name: str, default: int) -> int:
+    """Read an int env var. Returns the default on missing or invalid.
+    Never raises — observability must stay silent on operator typos."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw.strip())
+    except (ValueError, AttributeError):
+        return default
+
+
+def get_min_args_length() -> int:
+    """Lower bound (inclusive) for the `arguments` length window where
+    PN288 is willing to act. Below this we assume the args were never
+    started — likely a parse error in our own probe rather than a real
+    truncation event. Defaults to ``_DEFAULT_MIN_ARGS_LENGTH`` (5)."""
+    return _env_int(_ENV_MIN_ARGS_LENGTH, _DEFAULT_MIN_ARGS_LENGTH)
+
+
+def get_max_args_length() -> int:
+    """Upper bound (exclusive) for the `arguments` length window. Args
+    longer than this almost never come from a true mid-string truncation
+    — they're more likely a real parse failure in a long tool call we
+    don't want to corrupt by downgrading. Defaults to
+    ``_DEFAULT_MAX_ARGS_LENGTH`` (200)."""
+    return _env_int(_ENV_MAX_ARGS_LENGTH, _DEFAULT_MAX_ARGS_LENGTH)
+
+
+def _args_length_in_band(tool_parser: Any) -> bool:
+    """True iff ALL non-empty args fields fall within the PN288 length
+    window. Used as a Phase C safety guard: only intervene when the
+    evidence strongly suggests a max_tokens truncation (short args,
+    not a long structured tool call where the parse failure has a
+    different cause)."""
+    if tool_parser is None:
+        return False
+    try:
+        arr = getattr(tool_parser, "prev_tool_call_arr", None) or []
+    except Exception:
+        return False
+    lo = get_min_args_length()
+    hi = get_max_args_length()
+    saw_real_args = False
+    for entry in arr:
+        if not isinstance(entry, dict):
+            continue
+        args_str = entry.get("arguments") or ""
+        if not args_str or args_str == "{}":
+            continue
+        saw_real_args = True
+        n = len(args_str)
+        if not (lo <= n < hi):
+            return False
+    return saw_real_args
 
 
 # ─── Prometheus setup ──────────────────────────────────────────────────
@@ -160,9 +227,14 @@ def setup_prometheus_counters() -> bool:
                 "Labels: model (request.model), "
                 "channel (streaming|non_streaming), "
                 "action (would_downgrade|downgraded|"
-                "kept_tool_calls_args_valid|kept_tool_calls_no_length_trunc). "
+                "kept_tool_calls_args_valid|kept_tool_calls_no_length_trunc|"
+                "kept_tool_calls_args_length_out_of_range). "
                 "Phase B dry-run mode increments only would_downgrade + "
-                "kept_*; Phase C also fires downgraded."
+                "kept_*; Phase C also fires downgraded. The "
+                "*_out_of_range action fires when args are unparseable "
+                "but length falls outside the [GENESIS_PN288_MIN_ARGS_"
+                "LENGTH, GENESIS_PN288_MAX_ARGS_LENGTH) safety window — "
+                "operator should investigate via PN287 counters."
             ),
             labelnames=_LABEL_NAMES,
         )
@@ -307,7 +379,25 @@ def decide_streaming_finish_reason(
                action=_ACTION_KEPT_VALID)
         return upstream_verdict
 
-    # Trigger condition met: tool_calls + length + unparseable args.
+    # Phase C safety guard: only intervene when the args length falls
+    # in the canonical truncation window. Real max_tokens-truncated
+    # tool_call args are typically short (the PN287 evidence band is
+    # 5-80 chars). Args outside the window are more likely a different
+    # parse failure mode — refuse to downgrade and let the operator
+    # investigate via PN287 counters.
+    if not _args_length_in_band(tool_parser):
+        _track(model=model, channel="streaming",
+               action=_ACTION_KEPT_OUT_OF_RANGE)
+        log.info(
+            "[PN288] args unparseable but length outside "
+            "[%d, %d) — refusing to downgrade (model=%s; channel="
+            "streaming). Investigate via PN287 counters.",
+            get_min_args_length(), get_max_args_length(), model,
+        )
+        return upstream_verdict
+
+    # Trigger condition met: tool_calls + length + unparseable args
+    # in band.
     if is_dry_run():
         _track(model=model, channel="streaming",
                action=_ACTION_WOULD_DOWNGRADE)
@@ -315,9 +405,10 @@ def decide_streaming_finish_reason(
             "[PN288 dry-run] WOULD downgrade finish_reason "
             "'tool_calls' → 'length' (model=%s; channel=streaming; "
             "tool_call.arguments unparseable + output.finish_reason="
-            "'length'). Set GENESIS_PN288_DRY_RUN=0 after evidence "
-            "review to enable Phase C behavior change.",
-            model,
+            "'length' + args length in band [%d, %d)). Set "
+            "GENESIS_PN288_DRY_RUN=0 after evidence review to enable "
+            "Phase C behavior change.",
+            model, get_min_args_length(), get_max_args_length(),
         )
         return upstream_verdict
 
@@ -385,6 +476,18 @@ def decide_non_streaming_is_tool_calls(
                action=_ACTION_KEPT_VALID)
         return upstream_verdict
 
+    # Phase C safety guard: see streaming branch above.
+    if not _args_length_in_band(tool_parser):
+        _track(model=model, channel="non_streaming",
+               action=_ACTION_KEPT_OUT_OF_RANGE)
+        log.info(
+            "[PN288] args unparseable but length outside "
+            "[%d, %d) — refusing to downgrade (model=%s; channel="
+            "non_streaming). Investigate via PN287 counters.",
+            get_min_args_length(), get_max_args_length(), model,
+        )
+        return upstream_verdict
+
     if is_dry_run():
         _track(model=model, channel="non_streaming",
                action=_ACTION_WOULD_DOWNGRADE)
@@ -392,9 +495,10 @@ def decide_non_streaming_is_tool_calls(
             "[PN288 dry-run] WOULD downgrade finish_reason "
             "'tool_calls' → 'length' (model=%s; channel=non_streaming; "
             "tool_call.arguments unparseable + output.finish_reason="
-            "'length'). Set GENESIS_PN288_DRY_RUN=0 after evidence "
-            "review to enable Phase C behavior change.",
-            model,
+            "'length' + args length in band [%d, %d)). Set "
+            "GENESIS_PN288_DRY_RUN=0 after evidence review to enable "
+            "Phase C behavior change.",
+            model, get_min_args_length(), get_max_args_length(),
         )
         return upstream_verdict
 
@@ -411,15 +515,19 @@ def decide_non_streaming_is_tool_calls(
 __all__ = [
     "is_enabled",
     "is_dry_run",
+    "get_min_args_length",
+    "get_max_args_length",
     "setup_prometheus_counters",
     "decide_streaming_finish_reason",
     "decide_non_streaming_is_tool_calls",
     "counters",
     "_track",
     "_validate_tool_call_args",
+    "_args_length_in_band",
     "_safe_model_name",
     "_ACTION_WOULD_DOWNGRADE",
     "_ACTION_DOWNGRADED",
     "_ACTION_KEPT_VALID",
     "_ACTION_KEPT_NO_LENGTH",
+    "_ACTION_KEPT_OUT_OF_RANGE",
 ]

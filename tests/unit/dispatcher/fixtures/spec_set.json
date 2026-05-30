@@ -1003,7 +1003,7 @@
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN34_WORKSPACE_LOCK_RELAX",
     "has_upstream_pr": true,
-    "upstream_pr_relationship": "backport",
+    "upstream_pr_relationship": "related_not_superseding",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn34_workspace_lock_runtime_relax"
   },
