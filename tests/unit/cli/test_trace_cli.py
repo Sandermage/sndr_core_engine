@@ -306,3 +306,259 @@ def test_fmt_size_renders_bytes_kb_mb() -> None:
     assert tmod._fmt_size(1024 * 1024) == "1.0MB"
     assert tmod._fmt_size(5 * 1024 * 1024) == "5.0MB"
     assert tmod._fmt_size(1024 * 1024 * 1024) == "1.0GB"
+
+
+# ─── collect (§6.H7) ─────────────────────────────────────────────────
+
+
+def test_collect_subcommand_is_registered() -> None:
+    r = _run("collect", "--help")
+    assert r.returncode == 0, r.stderr
+    out = r.stdout
+    assert "--container" in out
+    assert "--trace" in out
+    assert "--output-dir" in out
+    assert "--json" in out
+
+
+def test_collect_requires_container_flag() -> None:
+    r = _run("collect")
+    assert r.returncode != 0
+    combined = r.stdout + r.stderr
+    assert "--container" in combined.lower() or "required" in combined.lower()
+
+
+def test_default_output_dir_uses_container_and_utc_stamp(monkeypatch) -> None:
+    """The default output dir must encode the container name + a UTC
+    timestamp so multiple collections don't overwrite each other and
+    cross-timezone bundles stay unambiguous."""
+    import vllm.sndr_core.cli.trace as tmod
+    out = tmod._default_output_dir("vllm-35b-prod")
+    assert out.startswith("./genesis_traces_vllm-35b-prod_")
+    # 8-digit date + T + 6-digit time + Z (UTC).
+    assert "T" in out and out.endswith("Z")
+
+
+def test_default_output_dir_sanitizes_path_separators(monkeypatch) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    out = tmod._default_output_dir("foo/bar")
+    assert "/bar" not in out.replace("./", "")
+    assert "foo-bar" in out
+
+
+def test_collect_unknown_trace_id_returns_2() -> None:
+    r = _run("collect", "--container", "any", "--trace", "nope_id")
+    assert r.returncode == 2
+    combined = r.stdout + r.stderr
+    assert "unknown trace id" in combined.lower()
+
+
+def test_collect_no_docker_returns_3() -> None:
+    """Without docker on PATH, collect must surface a clear error."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        env_extra = {"PATH": tmpdir}
+        r = _run(
+            "collect", "--container", "any",
+            env_extra=env_extra,
+        )
+    assert r.returncode == 3
+    combined = r.stdout + r.stderr
+    assert "docker" in combined.lower()
+
+
+def test_collect_no_live_traces_returns_zero_and_empty_json(monkeypatch) -> None:
+    """When the container exists but no genesis_* file is being
+    written, collect returns 0 with an empty `collected` list — the
+    operator just learns there's nothing to grab."""
+    import vllm.sndr_core.cli.trace as tmod
+    monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(tmod, "_container_ls_tmp", lambda c: {})
+
+    import argparse
+    args = argparse.Namespace(
+        trace_cmd="collect", container="empty", trace_id=None,
+        output_dir=None, json=True, func=tmod.run_collect,
+    )
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = tmod.run_collect(args)
+    assert rc == 0
+    payload = json.loads(buf.getvalue())
+    assert payload["collected"] == []
+    assert payload["output_dir"] is None
+    assert payload["container"] == "empty"
+
+
+def test_collect_copies_each_present_trace(monkeypatch, tmp_path) -> None:
+    """End-to-end happy path: container reports two genesis_* files;
+    collect calls docker cp once per file and reports both as
+    collected. docker cp is stubbed — we only verify the call shape
+    and the reported payload, not real I/O."""
+    import vllm.sndr_core.cli.trace as tmod
+    monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(
+        tmod, "_container_ls_tmp",
+        lambda c: {
+            "genesis_boot.log": (10240, "2026-05-30 14:00:00 +0000"),
+            "genesis_pn248_acceptance_trace.log":
+                (2048, "2026-05-30 14:01:00 +0000"),
+        },
+    )
+
+    cp_calls: list[tuple[str, str, str]] = []
+
+    def fake_cp(container, src, dst):
+        cp_calls.append((container, src, dst))
+        return True, "ok"
+
+    monkeypatch.setattr(tmod, "_docker_cp", fake_cp)
+
+    import argparse
+    args = argparse.Namespace(
+        trace_cmd="collect", container="vllm-rig",
+        trace_id=None,
+        output_dir=str(tmp_path), json=True,
+        func=tmod.run_collect,
+    )
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = tmod.run_collect(args)
+    assert rc == 0
+    payload = json.loads(buf.getvalue())
+    assert len(payload["collected"]) == 2
+    assert all(
+        c["dst"].startswith(str(tmp_path)) for c in payload["collected"]
+    )
+    assert len(cp_calls) == 2
+    # All cp calls hit our container.
+    assert all(c[0] == "vllm-rig" for c in cp_calls)
+
+
+def test_collect_trace_id_filter_limits_to_one(monkeypatch, tmp_path) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(
+        tmod, "_container_ls_tmp",
+        lambda c: {
+            "genesis_boot.log": (10240, "2026-05-30 14:00:00 +0000"),
+            "genesis_pn248_acceptance_trace.log":
+                (2048, "2026-05-30 14:01:00 +0000"),
+        },
+    )
+
+    cp_calls: list[tuple[str, str, str]] = []
+
+    def fake_cp(container, src, dst):
+        cp_calls.append((container, src, dst))
+        return True, "ok"
+
+    monkeypatch.setattr(tmod, "_docker_cp", fake_cp)
+
+    import argparse
+    args = argparse.Namespace(
+        trace_cmd="collect", container="vllm-rig",
+        trace_id="boot",
+        output_dir=str(tmp_path), json=True,
+        func=tmod.run_collect,
+    )
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = tmod.run_collect(args)
+    assert rc == 0
+    payload = json.loads(buf.getvalue())
+    assert len(payload["collected"]) == 1
+    assert payload["collected"][0]["id"] == "boot"
+    # docker cp was called exactly once, only for the boot log.
+    assert len(cp_calls) == 1
+    assert cp_calls[0][1] == "/tmp/genesis_boot.log"
+
+
+def test_collect_docker_cp_error_surfaces_in_errors_list(
+    monkeypatch, tmp_path,
+) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
+    monkeypatch.setattr(
+        tmod, "_container_ls_tmp",
+        lambda c: {"genesis_boot.log": (1024, "2026-05-30 14:00:00 +0000")},
+    )
+    def fake_cp_fail(container, src, dst):
+        return False, "Error: No such container"
+
+    monkeypatch.setattr(tmod, "_docker_cp", fake_cp_fail)
+
+    import argparse
+    args = argparse.Namespace(
+        trace_cmd="collect", container="missing",
+        trace_id=None,
+        output_dir=str(tmp_path), json=True,
+        func=tmod.run_collect,
+    )
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = tmod.run_collect(args)
+    # Exit 1 because at least one error.
+    assert rc == 1
+    payload = json.loads(buf.getvalue())
+    assert payload["collected"] == []
+    assert len(payload["errors"]) == 1
+    assert "No such container" in payload["errors"][0]["error"]
+
+
+# ─── _docker_cp helper ─────────────────────────────────────────────
+
+
+def test_docker_cp_no_binary_returns_false(monkeypatch) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    monkeypatch.setattr(tmod.shutil, "which", lambda name: None)
+    ok, msg = tmod._docker_cp("c", "/tmp/x", "/tmp/y")
+    assert ok is False
+    assert "PATH" in msg or "docker" in msg
+
+
+def test_docker_cp_nonzero_returncode_returns_false(monkeypatch) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
+
+    class FakeRun:
+        returncode = 1
+        stdout = ""
+        stderr = "Error response from daemon: No such container: nope\n"
+
+    monkeypatch.setattr(tmod.subprocess, "run", lambda *a, **kw: FakeRun())
+    ok, msg = tmod._docker_cp("nope", "/tmp/x", "/tmp/y")
+    assert ok is False
+    assert "No such container" in msg
+
+
+def test_docker_cp_success_returns_true(monkeypatch) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
+
+    class FakeRun:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    monkeypatch.setattr(tmod.subprocess, "run", lambda *a, **kw: FakeRun())
+    ok, msg = tmod._docker_cp("c", "/tmp/x", "/tmp/y")
+    assert ok is True
+    assert msg == "ok"
+
+
+def test_docker_cp_timeout_returns_false(monkeypatch) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    monkeypatch.setattr(tmod.shutil, "which", lambda name: "/usr/bin/docker")
+
+    def raise_timeout(*a, **kw):
+        raise tmod.subprocess.TimeoutExpired(cmd=a[0], timeout=30)
+
+    monkeypatch.setattr(tmod.subprocess, "run", raise_timeout)
+    ok, msg = tmod._docker_cp("c", "/tmp/x", "/tmp/y")
+    assert ok is False
+    assert "raised" in msg or "TimeoutExpired" in msg

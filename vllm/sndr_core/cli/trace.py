@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
-"""§6.H6 (UNIFIED_DEVELOPMENT_PLAN) — `sndr trace list` subcommand.
+"""§6.H6 + §6.H7 (UNIFIED_DEVELOPMENT_PLAN) — `sndr trace list/collect`.
 
-Foundational verb for the plan's §6.H trace surface:
+Verbs for the plan's §6.H trace surface:
 
-  * H6 ``sndr trace list`` — this commit. List known traces, optionally
-    pull live size/mtime from a running container.
-  * H7 ``sndr trace collect --container <name>`` — copy a trace out.
-  * H8 ``sndr trace summarize <log-file>`` — quick stat analysis.
-  * H9 ``sndr support-bundle`` — bundle all enabled traces.
+  * H6 ``sndr trace list`` — list known traces, optionally pull live
+    size/mtime from a running container.
+  * H7 ``sndr trace collect --container <name>`` — copy live traces
+    out of a container into a host directory; default output is a
+    timestamped subfolder under cwd.
+  * H8 ``sndr trace summarize <log-file>`` — quick stat analysis
+    (NEXT).
+  * H9 ``sndr support-bundle`` — bundle all enabled traces (NEXT).
 
 H6 surfaces the operator-facing question "what diagnostic traces exist
 and which are currently being written?" via the catalog at
@@ -37,7 +40,7 @@ from typing import Any, Optional
 from . import _io
 
 
-__all__ = ["add_argparser", "run_list"]
+__all__ = ["add_argparser", "run_list", "run_collect"]
 
 
 def add_argparser(subparsers: Any) -> None:
@@ -89,6 +92,44 @@ def add_argparser(subparsers: Any) -> None:
         ),
     )
     p_list.set_defaults(func=run_list)
+
+    # ── collect (§6.H7) ─────────────────────────────────────────────
+    p_collect = sub.add_parser(
+        "collect",
+        help=(
+            "Copy live trace files out of a container into a host "
+            "directory."
+        ),
+        description=(
+            "For every TRACE_CATALOG entry that has a live file in "
+            "the named container, `docker cp` it to the host. Default "
+            "output dir is `./genesis_traces_<container>_<timestamp>/`."
+        ),
+    )
+    p_collect.add_argument(
+        "--container", required=True,
+        help="Name of a running vLLM container.",
+    )
+    p_collect.add_argument(
+        "--trace", default=None, dest="trace_id",
+        help=(
+            "Limit collection to a single trace id (e.g. "
+            "`pn248_acceptance`). Without this flag, every present "
+            "trace is collected."
+        ),
+    )
+    p_collect.add_argument(
+        "--output-dir", default=None,
+        help=(
+            "Host directory to copy traces into. Created if absent. "
+            "Default: `./genesis_traces_<container>_<UTC-timestamp>/`."
+        ),
+    )
+    p_collect.add_argument(
+        "--json", action="store_true",
+        help="Machine-readable JSON report instead of human view.",
+    )
+    p_collect.set_defaults(func=run_collect)
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────
@@ -157,6 +198,43 @@ def _fmt_size(n: int) -> str:
             return f"{n_f:.1f}{unit}"
         n //= 1024
     return f"{n}B"  # unreachable
+
+
+def _docker_cp(container: str, src: str, dst: str) -> tuple[bool, str]:
+    """Run ``docker cp <container>:<src> <dst>``.
+
+    Returns ``(ok, message)``. Failures (no docker, container stopped,
+    file missing, timeout) become ``(False, <reason>)`` — never raise.
+    """
+    if not shutil.which("docker"):
+        return False, "docker binary not on $PATH"
+    try:
+        r = subprocess.run(
+            ["docker", "cp", f"{container}:{src}", dst],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"docker cp raised: {exc}"
+    if r.returncode != 0:
+        # docker cp prints the error on stderr.
+        return False, (r.stderr or r.stdout).strip().splitlines()[-1]
+    return True, "ok"
+
+
+def _default_output_dir(container: str) -> str:
+    """`./genesis_traces_<container>_<UTC-stamp>/`.
+
+    UTC stamp avoids cross-timezone confusion when bundles travel
+    between operators / rigs.
+    """
+    import datetime
+    stamp = datetime.datetime.now(
+        datetime.timezone.utc,
+    ).strftime("%Y%m%dT%H%M%SZ")
+    # Sanitize container name — replace path separators with `-` so the
+    # directory name is always safe.
+    safe = container.replace("/", "-").replace("\\", "-")
+    return f"./genesis_traces_{safe}_{stamp}"
 
 
 # ─── Runner ───────────────────────────────────────────────────────────
@@ -285,4 +363,134 @@ def run_list(args: argparse.Namespace) -> int:
 
     print()
     print(f"  Total: {total_listed} trace(s).")
+    return 0
+
+
+# ─── run_collect (§6.H7) ──────────────────────────────────────────────
+
+
+def run_collect(args: argparse.Namespace) -> int:
+    """Copy every present trace from a container into a host directory."""
+    import os
+    from vllm.sndr_core.observability.trace_catalog import (
+        TRACE_CATALOG, find_by_id,
+    )
+
+    # Resolve which traces to attempt.
+    if args.trace_id:
+        spec = find_by_id(args.trace_id)
+        if spec is None:
+            _io.error(
+                f"unknown trace id {args.trace_id!r}. "
+                f"Run `sndr trace list` to see valid ids."
+            )
+            return 2
+        wanted = (spec,)
+    else:
+        wanted = TRACE_CATALOG
+
+    # Snapshot live state once so we know what's actually present.
+    live_state = _container_ls_tmp(args.container)
+    if not live_state and not shutil.which("docker"):
+        _io.error(
+            "docker binary not on $PATH — `sndr trace collect` needs "
+            "docker to run `docker exec` + `docker cp`."
+        )
+        return 3
+    if not live_state:
+        # Either container stopped / wrong name / nothing being written.
+        if args.json:
+            print(json.dumps({
+                "container": args.container,
+                "output_dir": None,
+                "collected": [],
+                "skipped": [{"id": s.id, "reason": "not present"}
+                            for s in wanted],
+                "errors": [],
+            }, indent=2))
+        else:
+            _io.warn(
+                f"docker exec {args.container} ls /tmp returned no "
+                "genesis_* files — nothing to collect."
+            )
+        return 0
+
+    # Determine output dir.
+    output_dir = args.output_dir or _default_output_dir(args.container)
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+    except OSError as exc:
+        _io.error(f"could not create output dir {output_dir!r}: {exc}")
+        return 4
+
+    collected: list[dict] = []
+    skipped: list[dict] = []
+    errors: list[dict] = []
+
+    for spec in wanted:
+        basename = spec.container_path.split("/")[-1]
+        live = live_state.get(basename)
+        if live is None:
+            skipped.append({
+                "id": spec.id, "container_path": spec.container_path,
+                "reason": "not present in container",
+            })
+            continue
+        dst = os.path.join(output_dir, basename)
+        ok, msg = _docker_cp(
+            container=args.container,
+            src=spec.container_path,
+            dst=dst,
+        )
+        if not ok:
+            errors.append({
+                "id": spec.id, "container_path": spec.container_path,
+                "dst": dst, "error": msg,
+            })
+            continue
+        size_bytes, mtime = live
+        collected.append({
+            "id": spec.id,
+            "patch_id": spec.patch_id,
+            "container_path": spec.container_path,
+            "dst": dst,
+            "size_bytes": size_bytes,
+            "mtime": mtime,
+        })
+
+    # ── JSON report ─────────────────────────────────────────────────
+    if args.json:
+        print(json.dumps({
+            "container": args.container,
+            "output_dir": output_dir,
+            "collected": collected,
+            "skipped": skipped,
+            "errors": errors,
+        }, indent=2))
+        return 0 if not errors else 1
+
+    # ── Human view ─────────────────────────────────────────────────
+    print(f"sndr trace collect — {args.container} → {output_dir}")
+    print("─" * 70)
+    if collected:
+        print(f"\n  Collected ({len(collected)}):")
+        for c in collected:
+            print(f"    ✓ {c['id']:24s}  {_fmt_size(c['size_bytes'])}")
+            print(f"        from: {c['container_path']}")
+            print(f"        to:   {c['dst']}")
+    if skipped:
+        print(f"\n  Skipped — not present ({len(skipped)}):")
+        for s in skipped:
+            print(f"    · {s['id']:24s}  ({s['reason']})")
+    if errors:
+        print(f"\n  Errors ({len(errors)}):")
+        for e in errors:
+            print(f"    ✗ {e['id']:24s}  {e['error']}")
+
+    print()
+    if errors:
+        print(f"  Done with errors: {len(collected)} ok, "
+              f"{len(errors)} failed.")
+        return 1
+    print(f"  Done: {len(collected)} trace(s) collected.")
     return 0
