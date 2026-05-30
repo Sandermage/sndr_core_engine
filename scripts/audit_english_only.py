@@ -57,6 +57,25 @@ EXCLUDE_DIRS = {
     ".git",
 }
 
+# Per-file waivers — Cyrillic in these files is INTENTIONAL and audited.
+# Each entry maps a repo-relative path to the rationale. Waived files are
+# omitted from --strict counts entirely; they still show up in default
+# report mode under [WAIVED].
+WAIVERS: dict[str, str] = {
+    "scripts/audit_english_only.py": (
+        "The Cyrillic regex pattern itself ([Ѐ-ӿԀ-ԯ]) is functional code, "
+        "not a comment or string. Required for the audit to detect "
+        "Cyrillic characters at all."
+    ),
+    "tests/probes/streaming_thinking_probe.py": (
+        "Multilingual streaming x thinking test fixtures. Russian Bitcoin "
+        "analyst prompts simulate real Sander production usage (multi-"
+        "paragraph RAG + tool-call streaming). Translating would alter "
+        "the test semantic; the model must work correctly with the "
+        "Russian input."
+    ),
+}
+
 CYRILLIC_RE = re.compile(r"[Ѐ-ӿԀ-ԯ]")
 
 
@@ -85,12 +104,14 @@ def count_cyrillic(path: Path) -> int:
     return len(CYRILLIC_RE.findall(text))
 
 
-def scan_all() -> dict[str, int]:
+def scan_all(include_waivers: bool = True) -> dict[str, int]:
     counts: dict[str, int] = {}
     for path in iter_targets():
         n = count_cyrillic(path)
         if n > 0:
             rel = str(path.relative_to(REPO_ROOT))
+            if not include_waivers and rel in WAIVERS:
+                continue
             counts[rel] = n
     return counts
 
@@ -141,7 +162,9 @@ def main() -> int:
     current = scan_all()
 
     if args.update_baseline:
-        write_baseline(current)
+        # Baseline tracks NON-waivered files only; waivered entries
+        # are documented in the WAIVERS dict above instead.
+        write_baseline({k: v for k, v in current.items() if k not in WAIVERS})
         return 0
 
     baseline = load_baseline()
@@ -150,6 +173,8 @@ def main() -> int:
     improvements: list[tuple[str, int, int]] = []
 
     for rel, n in sorted(current.items()):
+        if rel in WAIVERS:
+            continue
         b = baseline.get(rel)
         if b is None:
             new_files.append((rel, n))
@@ -205,11 +230,18 @@ def main() -> int:
                 print(f"  ✓ {p}")
             if len(cleaned) > 10:
                 print(f"    ... and {len(cleaned) - 10} more")
+        waived_present = sorted(p for p in current if p in WAIVERS)
+        if waived_present:
+            print(f"\n[WAIVED] {len(waived_present)} intentional exceptions:")
+            for p in waived_present:
+                print(f"  ~ {p}: {current[p]} chars — {WAIVERS[p][:60]}…")
         if improvements or cleaned:
             print("\nrun `--update-baseline` to lock in improvements")
 
     if args.strict:
-        return 1 if current else 0
+        # Strict mode: anything outside WAIVERS is a violation.
+        non_waived = scan_all(include_waivers=False)
+        return 1 if non_waived else 0
     if args.check:
         return 1 if (new_files or regressions) else 0
     return 0
