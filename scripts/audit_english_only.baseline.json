@@ -1,8 +1,8 @@
 {
   "rule": "English only in code (CLAUDE.md user rule). Baseline captures currently-tolerated counts; new violations or regressions vs this baseline fail audit. Translate + regenerate baseline as you clean files.",
   "totals": {
-    "files": 58,
-    "chars": 8916
+    "files": 56,
+    "chars": 8603
   },
   "files": {
     "scripts/audit_config_catalog.py": 3,
@@ -54,9 +54,7 @@
     "vllm/sndr_core/integrations/kv_cache/pn95_tier_aware_cache.py": 5,
     "vllm/sndr_core/integrations/middleware/pn65_access_log.py": 71,
     "vllm/sndr_core/integrations/reasoning/pn58_spec_reasoning_boundary.py": 3,
-    "vllm/sndr_core/integrations/serving/p107_mtp_truncation_detector.py": 144,
     "vllm/sndr_core/integrations/serving/pn127_chat_template_qwen36.py": 808,
-    "vllm/sndr_core/integrations/spec_decode/pn133_mtp_scheduler_empty_output.py": 169,
     "vllm/sndr_core/kernels/streaming_gdn_driver.py": 14,
     "vllm/sndr_core/middleware/lazy_reasoner.py": 44,
     "vllm/sndr_core/model_configs/types/compatibility.py": 1474,

@@ -2,35 +2,35 @@
 """PN133 — MTP scheduler empty-output accounting fix (backport vllm#42722).
 
 ================================================================
-ПРОБЛЕМА
+PROBLEM
 ================================================================
 
-PR #42722 (OPEN, 2026-05-15) фиксит scheduler bug когда MTP/spec
-draft tokens scheduled, но model_runner возвращает empty
-generated_token_ids.
+PR #42722 (OPEN, 2026-05-15) fixes a scheduler bug where MTP/spec
+draft tokens are scheduled but model_runner returns an empty
+generated_token_ids list.
 
-Сейчас scheduler code:
+Current scheduler code:
 
     if scheduled_spec_token_ids and generated_token_ids:
         num_draft_tokens = len(scheduled_spec_token_ids)
         num_accepted = len(generated_token_ids) - 1
         num_rejected = num_draft_tokens - num_accepted
 
-Если `generated_token_ids` пустой:
-  - Условие False → scheduler НЕ accounts rejected draft tokens
-  - num_computed_tokens остаётся caught up with num_tokens_with_spec
-  - Scheduler думает что request сделал прогресс
-  - Но request НЕ finished → scheduler stops issuing work
-  - Request permanently stuck (unschedulable)
+When `generated_token_ids` is empty:
+  - Condition False → scheduler does NOT account rejected draft tokens
+  - num_computed_tokens stays caught up with num_tokens_with_spec
+  - Scheduler thinks the request made progress
+  - But the request is NOT finished → scheduler stops issuing work
+  - Request is permanently stuck (unschedulable)
 
-Pre-fix bug: scheduler crash через `len([]) - 1 = -1` →
+Pre-fix bug: scheduler crash via `len([]) - 1 = -1` →
 Prometheus counter ValueError.
 
-Применимо к нам?
-  - MTP K=3 sync mode — наш setup
-  - Бенч stable обычно, но при error conditions
+Applicable to us?
+  - MTP K=3 sync mode — our setup
+  - Bench is usually stable, but under error conditions
     (request abortion, async race, model OOM partial output)
-    может trigger this stuck-request bug
+    can trigger this stuck-request bug
 
 ================================================================
 FIX
@@ -45,7 +45,7 @@ PR diff:
     +    num_accepted = max(len(generated_token_ids) - 1, 0)
          num_rejected = num_draft_tokens - num_accepted
 
-PN133 backport через runtime monkey-patch на
+PN133 backports via runtime monkey-patch on
 `Scheduler.update_from_output`.
 
 ================================================================
@@ -53,8 +53,8 @@ SAFETY
 ================================================================
 
   - Default OFF — opt-in via GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX=1
-  - Защитные импорты + idempotency
-  - Не raise — failure path = log.warning + fallback
+  - Defensive imports + idempotency
+  - Does not raise — failure path = log.warning + fallback
 
 Author: Sandermage 2026-05-15. Backport vllm#42722 (OPEN).
 """
@@ -80,7 +80,7 @@ def _env_enabled() -> bool:
 
 
 def apply() -> tuple[str, str]:
-    """Text-patch на scheduler.py — fix empty generated_token_ids accounting."""
+    """Text-patch on scheduler.py — fix empty generated_token_ids accounting."""
     global _APPLIED
 
     if not _env_enabled():
@@ -103,7 +103,7 @@ def apply() -> tuple[str, str]:
     if target is None:
         return "skipped", "scheduler.py not resolvable"
 
-    # Двухчастный fix:
+    # Two-part fix:
     # 1. `if scheduled_spec_token_ids and generated_token_ids:` →
     #    `if scheduled_spec_token_ids:`
     # 2. `num_accepted = len(generated_token_ids) - 1` →

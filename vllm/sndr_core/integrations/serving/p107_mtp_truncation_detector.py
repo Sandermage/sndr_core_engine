@@ -1,21 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for P107 — vllm#41467 backport: MTP truncation detector.
 
-При MTP K≥1 + tools + reasoning parser возможна редкая (≈0.25% по
-автору на Qwen3.6-27B-FP8) ситуация: модель производит EOS на
-boundary reasoning→tool_call. finish_reason=stop + tools configured +
-ни tool_calls, ни content не отдано → silent client-side error.
+With MTP K>=1 + tools + reasoning parser there is a rare (~0.25% per
+author measurement on Qwen3.6-27B-FP8) condition: the model emits EOS
+at the reasoning->tool_call boundary. finish_reason=stop + tools
+configured + neither tool_calls nor content delivered → silent
+client-side error.
 
-Решение: defensive guard в `chat_completion_stream_generator` которая
-detect'ит этот combo и raise GenerationError (retryable) вместо
-silent stop. Клиент получит SSE error event и retry.
+Fix: defensive guard in `chat_completion_stream_generator` that
+detects this combo and raises GenerationError (retryable) instead of
+emitting a silent stop. The client receives an SSE error event and
+retries.
 
-Affects прямо наш PROD: 27B Lorbus + MTP K=3 + tools — exactly the
-config which author reported. P107 — safety net на уже defended path
-(P59/P60/P61/P62/P64/P68/P69 family).
+Directly affects our PROD: 27B Lorbus + MTP K=3 + tools — exactly
+the config the author reported. P107 is a safety net on top of an
+already-defended path (P59/P60/P61/P62/P64/P68/P69 family).
 
-Default OFF — defensive backport. Risk: low, добавляет один extra
-branch в hot path, не аффектит happy path.
+Default OFF — defensive backport. Risk: low; adds one extra branch
+in the hot path, no effect on the happy path.
 
 Author: Sandermage backport (ToastyTheBot, vllm#41467).
 """

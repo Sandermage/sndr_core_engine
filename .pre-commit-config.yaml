@@ -278,6 +278,21 @@ repos:
         pass_filenames: false
         files: '(vllm/sndr_core/kernels/streaming_gdn_driver\.py|scripts/audit_pn59_cliff2b_markers\.py)$'
 
+      - id: genesis-audit-english-only
+        name: Genesis english-only-in-code (CLAUDE.md user rule)
+        # Cyrillic-char ratchet-down gate. Default --check mode fails ONLY
+        # on regression vs scripts/audit_english_only.baseline.json (new
+        # files with Russian, or existing files with HIGHER count than
+        # baseline). After cleaning a file, run
+        #   python3 scripts/audit_english_only.py --update-baseline
+        # to lock in the improvement so it can't regress. Strict mode is
+        # available via `make audit-english-only` (eventually) once all
+        # files reach zero.
+        entry: python3 scripts/audit_english_only.py --check
+        language: system
+        pass_filenames: false
+        files: '(vllm/sndr_core/.*\.py|scripts/.*\.py|tools/.*\.(py|sh)|tests/.*\.py|scripts/audit_english_only(\.py|\.baseline\.json))$'
+
       - id: genesis-audit-ai-attribution
         name: Genesis attribution-label policy (§9.A.6)
         # Forbid syntactic AI-attribution constructs in tracked source:
