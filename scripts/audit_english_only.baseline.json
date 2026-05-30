@@ -1,8 +1,8 @@
 {
   "rule": "English only in code (CLAUDE.md user rule). Baseline captures currently-tolerated counts; new violations or regressions vs this baseline fail audit. Translate + regenerate baseline as you clean files.",
   "totals": {
-    "files": 25,
-    "chars": 8179
+    "files": 24,
+    "chars": 6705
   },
   "files": {
     "scripts/audit_english_only.py": 4,
@@ -28,7 +28,6 @@
     "vllm/sndr_core/integrations/middleware/pn65_access_log.py": 71,
     "vllm/sndr_core/integrations/serving/pn127_chat_template_qwen36.py": 808,
     "vllm/sndr_core/middleware/lazy_reasoner.py": 44,
-    "vllm/sndr_core/model_configs/types/compatibility.py": 1474,
     "vllm/sndr_core/model_configs/types/runtime.py": 249
   }
 }
