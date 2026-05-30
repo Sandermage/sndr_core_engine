@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """G4_19c — Round-trip K,V through G4-TurboQuant inside Gemma4Attention.
 
+RETIRED 2026-05-29 — see `dispatcher/registry.py` G4_19C entry. This
+module is preserved on disk for git-blame + operator rollback, but
+`apply()` self-skips on the current pin. Do NOT enable the env flag
+without re-reading the registry note and the §1.4 G4_19C Phase A+B
+closure rationale.
+
 ================================================================
 WHAT THIS DOES (and what it doesn't)
 ================================================================

@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for Patch N34 — WorkspaceManager runtime lock relaxation.
 
+RETIRED — duplicate of SNDR_WORKSPACE_001 (see registry entry). File
+preserved on disk for git-blame + operator rollback; the runtime hook
+no longer fires on the current pin. New work on the workspace-manager
+lock should go through SNDR_WORKSPACE_001, not PN34.
+
 ================================================================
 PN34 — companion to PN33 for the runtime decode path
 ================================================================

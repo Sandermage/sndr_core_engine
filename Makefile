@@ -99,7 +99,10 @@ audit-pn59-cliff2b: ## PN59 streaming-GDN driver carries v7.72.5 Level 2 markers
 audit-english-only: ## English-only-in-code rule (CLAUDE.md) — ratchet-down gate against baseline
 	$(PYTHON) scripts/audit_english_only.py --check
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only audit-override-policy-strict ## Run all 18 CI gates fast-fail
+audit-lifecycle-docstring-sync: ## Registry `lifecycle` vs docstring RETIRED/TOMBSTONED markers drift (catches PN108-class drift)
+	$(PYTHON) scripts/audit_lifecycle_docstring_sync.py --strict
+
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only audit-override-policy-strict audit-lifecycle-docstring-sync ## Run all 19 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 

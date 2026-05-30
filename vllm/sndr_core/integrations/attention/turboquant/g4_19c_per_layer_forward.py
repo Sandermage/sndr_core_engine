@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """G4_19c per-layer specialized forward — Phase 7.G4.G4_19C-FULLGRAPH-AUDIT.
 
+RETIRED 2026-05-29 — see `dispatcher/registry.py` G4_19C entry and the
+companion `g4_19c_attention_wrapper.py` header. This module is preserved
+on disk for git-blame + operator rollback; the per-layer factory is no
+longer called at boot on the current pin.
+
 Companion to ``g4_19c_attention_wrapper.py``. Hosts the two specialized
 forward closures and the install-time factory that returns the right
 one per layer.
