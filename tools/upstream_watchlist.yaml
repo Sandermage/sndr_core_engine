@@ -71,6 +71,62 @@ watch:
       to verifier. Genesis P77 (adaptive ngram K) is orthogonal but
       complementary. Port as PN90 when upstream merges.
 
+  - upstream: vllm#26504
+    status: open
+    local_patches: []
+    action: port
+    since: 2026-05-31
+    notes: |
+      DynamicProposer — per-sequence adaptive K based on rolling
+      acceptance-rate window. Claims +5-12% TPS on mixed workload
+      vs static K. **Limitation for Genesis**: PR extends
+      `EagleProposer` directly, NOT MTP-compatible as-written. Our
+      4 PROD models use MTP K=3/K=4 (not Eagle). Backport requires
+      MTP adaptation: either inherit from MTP-proposer instead of
+      Eagle, or extract a mixin/composition pattern. STUDY done
+      2026-05-31 (see commit a074e900 follow-up notes). PR has
+      `needs-rebase` label — wait for author to rebase before
+      attempting the MTP-adapt backport. Acceptance threshold +
+      hysteresis algorithm is generic enough to lift.
+
+  # ─── Tool parsers ──────────────────────────────────────────────────
+  - upstream: vllm#42006
+    status: open
+    local_patches: [G4_T1]
+    action: retire
+    since: 2026-05-30
+    notes: |
+      Gemma4 MTP streaming multi-tool-calls fix — segment-replay
+      refactor of `_extract_streaming`. Vendored as G4_T1 v1 overlay
+      `g4_t1_gemma4_tool_parser_pr42006_overlay.py` (matches
+      noonghunna/club-3090 stack 2026-05-08). On merge: delete both
+      v1 and v2 overlay files + remove `-v` mount in launcher
+      `start_gemma4-tq-mtp-structured-k4.sh`. SUPERSEDED locally by
+      the v2 vendor of PR #42237 (see next entry) but kept here for
+      retire-on-merge symmetry.
+
+  - upstream: vllm#42237
+    status: open
+    local_patches: [G4_T1]
+    action: retire
+    since: 2026-05-31
+    notes: |
+      Gemma4 streaming tool parser REWRITE in Hermes/Kimi style
+      (accumulated text + rescan + diff). Net -103 LOC vs PR #42006
+      and drops the third-party `regex` import. Currently vendored
+      as G4_T1 v2 overlay
+      `g4_t1_v2_gemma4_tool_parser_pr42237_overlay.py` — this is
+      the file the launcher bind-mounts as of 2026-05-31. Empirical
+      result on gemma4-31B AWQ-4bit + TQ k8v4 + MTP K=4: 35/35 tool
+      calls (7 cases × 5 runs, both streaming and non-streaming,
+      with `Connection: close` header — see Bug Class 13 notes in
+      docs/TROUBLESHOOTING.md). On merge: delete both overlay files
+      + remove launcher `-v` mount. The HTTP keep-alive parser
+      state-leak (case 5 nested-object missing closing `"}` two
+      chars on runs 2..N when client uses keep-alive) is a residual
+      vLLM-side bug worth flagging to the PR author when the merge
+      is being prepared.
+
   - upstream: vllm#36138
     status: merged
     local_patches: [P59, P62, P64]
