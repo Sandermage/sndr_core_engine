@@ -733,3 +733,151 @@ def test_summarize_human_view_renders_boot_failure_list(tmp_path) -> None:
     assert "Boot apply summary" in out
     assert "PN999" in out
     assert "PN1000" in out
+
+
+# ─── PN248 acceptance summarizer ───────────────────────────────────
+
+
+def _make_pn248_trace(lines: list[tuple[list[int], list[int]]]) -> str:
+    """Build a synthetic PN248 trace from `(num_drafts, accepted)`
+    per-call pairs. Each pair becomes an ENTER + EXIT line."""
+    out = []
+    for i, (drafts, accepted) in enumerate(lines, start=1):
+        out.append(
+            f"[PN248 call={i}] ENTER max_spec_len=3 "
+            f"num_draft_tokens={drafts} draft_ids(first 20)=[10,20,30] "
+            f"target_argmax(first 20)=[10,20,40] bonus_token_ids=[5]"
+        )
+        out.append(
+            f"[PN248 call={i}] EXIT  output_token_ids(shape=[1,4])="
+            f"[[5,10,20,-1]] accepted_per_req={accepted}"
+        )
+    return "\n".join(out) + "\n"
+
+
+def test_parse_int_list_handles_typical_inputs() -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    assert tmod._parse_int_list("1, 2, 3") == [1, 2, 3]
+    assert tmod._parse_int_list("") == []
+    assert tmod._parse_int_list("  1 ,2 ,3,") == [1, 2, 3]
+    # Garbage entries are silently skipped.
+    assert tmod._parse_int_list("1, bogus, 3") == [1, 3]
+
+
+def test_pn248_summary_counts_calls_proposed_accepted(tmp_path) -> None:
+    """Canonical happy path: 3 calls, varying draft + accept counts."""
+    import vllm.sndr_core.cli.trace as tmod
+    p = tmp_path / "genesis_pn248_acceptance_trace.log"
+    p.write_text(_make_pn248_trace([
+        ([3, 3], [2, 2]),    # call 1: 6 proposed, 4 accepted
+        ([3], [1]),          # call 2: 3 proposed, 1 accepted
+        ([3, 3, 3], [3, 0, 2]),  # call 3: 9 proposed, 5 accepted
+    ]))
+    s = tmod.summarize_pn248_acceptance(str(p))
+    assert s["kind"] == "acceptance"
+    assert s["total_calls"] == 3
+    assert s["total_drafts_proposed"] == 6 + 3 + 9
+    assert s["total_drafts_accepted"] == 4 + 1 + 5
+    # 10 / 18 = 0.555…
+    assert abs(s["acceptance_rate"] - (10 / 18)) < 1e-9
+    assert s["capture_errors"] == 0
+
+
+def test_pn248_summary_histogram_groups_accept_counts(tmp_path) -> None:
+    """Histogram aggregates per-request accept counts across all
+    EXIT lines so the operator sees the distribution at a glance."""
+    import vllm.sndr_core.cli.trace as tmod
+    p = tmp_path / "genesis_pn248_acceptance_trace.log"
+    p.write_text(_make_pn248_trace([
+        ([3, 3], [3, 2]),
+        ([3, 3], [2, 1]),
+        ([3, 3], [0, 3]),
+    ]))
+    s = tmod.summarize_pn248_acceptance(str(p))
+    # 6 requests in total; distribution: 0->1, 1->1, 2->2, 3->2.
+    assert s["acceptance_histogram"] == {0: 1, 1: 1, 2: 2, 3: 2}
+    # mean = sum(per_req) / req_count = (3+2+2+1+0+3) / 6 = 11/6
+    assert abs(s["mean_accepted_per_request"] - (11 / 6)) < 1e-9
+
+
+def test_pn248_summary_handles_capture_errors(tmp_path) -> None:
+    """`ENTER err=` / `EXIT err=` lines must increment capture_errors
+    and not contribute to the proposed/accepted counters — the probe
+    failed for that call, the rate would be miscounted otherwise."""
+    import vllm.sndr_core.cli.trace as tmod
+    p = tmp_path / "genesis_pn248_acceptance_trace.log"
+    p.write_text(
+        "[PN248 call=1] ENTER max_spec_len=3 num_draft_tokens=[3] "
+        "draft_ids(first 20)=[10] target_argmax(first 20)=[10] "
+        "bonus_token_ids=[5]\n"
+        "[PN248 call=1] EXIT  output_token_ids(shape=[1,4])=[[5,10,-1,-1]] "
+        "accepted_per_req=[1]\n"
+        "[PN248 call=2] ENTER err=AttributeError: no detach\n"
+        "[PN248 call=3] ENTER err=RuntimeError: cuda\n"
+    )
+    s = tmod.summarize_pn248_acceptance(str(p))
+    assert s["capture_errors"] == 2
+    assert s["total_drafts_proposed"] == 3
+    assert s["total_drafts_accepted"] == 1
+
+
+def test_pn248_summary_empty_or_garbage_file_does_not_crash(tmp_path) -> None:
+    import vllm.sndr_core.cli.trace as tmod
+    p = tmp_path / "genesis_pn248_acceptance_trace.log"
+    p.write_text("nothing related here\nanother random line\n")
+    s = tmod.summarize_pn248_acceptance(str(p))
+    assert s["total_calls"] == 0
+    assert s["total_drafts_proposed"] == 0
+    assert s["total_drafts_accepted"] == 0
+    # No proposals → acceptance_rate is None (not div-by-zero).
+    assert s["acceptance_rate"] is None
+    assert s["mean_accepted_per_request"] is None
+    assert s["acceptance_histogram"] == {}
+
+
+def test_summarize_dispatches_to_acceptance_handler(tmp_path) -> None:
+    """End-to-end: a file basename matching the PN248 trace pattern
+    automatically gets the acceptance summary fields."""
+    p = tmp_path / "genesis_pn248_acceptance_trace.log"
+    p.write_text(_make_pn248_trace([([3], [2])]))
+    r = _run("summarize", str(p), "--json")
+    assert r.returncode == 0, r.stderr
+    payload = json.loads(r.stdout)
+    summary = payload["summary"]
+    assert summary["kind"] == "acceptance"
+    assert summary["total_calls"] == 1
+    assert summary["total_drafts_proposed"] == 3
+    assert summary["total_drafts_accepted"] == 2
+
+
+def test_summarize_human_view_renders_acceptance_block(tmp_path) -> None:
+    """Human view shows the acceptance block + histogram below the
+    generic size/line preview block."""
+    p = tmp_path / "genesis_pn248_acceptance_trace.log"
+    p.write_text(_make_pn248_trace([
+        ([3, 3], [3, 2]),
+        ([3, 3], [2, 1]),
+    ]))
+    r = _run("summarize", str(p))
+    assert r.returncode == 0, r.stderr
+    out = r.stdout
+    assert "PN248 acceptance summary" in out
+    # 8 accepted / 12 proposed = 66.7%.
+    assert "66.667%" in out or "66.7%" in out
+    # Histogram present.
+    assert "Acceptance histogram" in out
+
+
+def test_pn248_summary_correctly_counts_distinct_calls(tmp_path) -> None:
+    """ENTER + EXIT for the same call_id must not double-count the
+    decode step; total_calls is the cardinality of `call=<N>` ids."""
+    import vllm.sndr_core.cli.trace as tmod
+    p = tmp_path / "genesis_pn248_acceptance_trace.log"
+    p.write_text(_make_pn248_trace([
+        ([3], [2]),
+        ([3], [1]),
+    ]))
+    s = tmod.summarize_pn248_acceptance(str(p))
+    # 2 calls → 4 lines (ENTER + EXIT × 2) but total_calls = 2.
+    assert s["total_calls"] == 2
+    assert s["total_lines"] == 4

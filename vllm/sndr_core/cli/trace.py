@@ -53,6 +53,7 @@ __all__ = [
     "add_argparser", "add_support_bundle_argparser",
     "run_list", "run_collect", "run_summarize", "run_support_bundle",
     "detect_trace_kind", "summarize_boot_log", "summarize_generic",
+    "summarize_pn248_acceptance",
     "collect_host_facts", "collect_container_facts",
 ]
 
@@ -723,6 +724,105 @@ def summarize_boot_log(path: str, max_preview: int = 160) -> dict:
     return base
 
 
+# PN248 trace format anchors. See
+# vllm/sndr_core/integrations/spec_decode/probes/pn248_acceptance_trace.py
+# for the producer side; format is stable across patch versions.
+#
+# ENTER:   `[PN248 call=<N>] ENTER ... num_draft_tokens=[<a>, <b>, ...] ...`
+# EXIT:    `[PN248 call=<N>] EXIT  ... accepted_per_req=[<a>, <b>, ...]`
+# err:     `[PN248 call=<N>] ENTER err=<exc>: <msg>`  (or EXIT err=...)
+_PN248_NUM_DRAFTS_RE = re.compile(r"num_draft_tokens=\[([^\]]*)\]")
+_PN248_ACCEPTED_RE = re.compile(r"accepted_per_req=\[([^\]]*)\]")
+_PN248_CALL_ID_RE = re.compile(r"\[PN248 call=(\d+)\]")
+_PN248_ERR_RE = re.compile(r"\[PN248 call=\d+\]\s+(ENTER|EXIT)\s+err=")
+
+
+def _parse_int_list(raw: str) -> list[int]:
+    """Parse a `[1, 2, 3]` inner string into a list of ints.
+
+    Tolerates trailing commas + arbitrary whitespace. Returns an empty
+    list on any parse failure — the summarizer must never crash on a
+    partially-formed log line."""
+    out: list[int] = []
+    for chunk in raw.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        try:
+            out.append(int(chunk))
+        except ValueError:
+            continue
+    return out
+
+
+def summarize_pn248_acceptance(
+    path: str, max_preview: int = 160,
+) -> dict:
+    """Per-kind summary for `genesis_pn248_acceptance_trace.log`.
+
+    Single streaming pass extracts:
+      * total_calls      — distinct `[PN248 call=<N>]` ids observed
+      * total_drafts_proposed   — Σ num_draft_tokens across all ENTER lines
+      * total_drafts_accepted   — Σ accepted_per_req across all EXIT lines
+      * acceptance_rate         — accepted / proposed (None if proposed=0)
+      * acceptance_histogram    — {accept_count: line_count} from per-req
+                                  accepted_per_req values
+      * mean_accepted_per_request — float; None if no EXIT lines parsed
+      * capture_errors          — count of `ENTER err=` / `EXIT err=` lines
+                                  (PN248 records its own probe failures)
+
+    A high `capture_errors` count signals the wrap itself is misfiring
+    — the operator should investigate the producer before trusting the
+    rate figures.
+    """
+    base = summarize_generic(path, max_preview=max_preview)
+    total_proposed = 0
+    total_accepted = 0
+    call_ids: set[int] = set()
+    histogram: dict[int, int] = {}
+    capture_errors = 0
+    req_lines = 0
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            # Track distinct call ids (gives total_calls without
+            # double-counting ENTER+EXIT for the same step).
+            m = _PN248_CALL_ID_RE.search(line)
+            if m is not None:
+                call_ids.add(int(m.group(1)))
+
+            if _PN248_ERR_RE.search(line):
+                capture_errors += 1
+                continue
+
+            m_drafts = _PN248_NUM_DRAFTS_RE.search(line)
+            if m_drafts is not None:
+                total_proposed += sum(_parse_int_list(m_drafts.group(1)))
+                continue
+
+            m_acc = _PN248_ACCEPTED_RE.search(line)
+            if m_acc is not None:
+                per_req = _parse_int_list(m_acc.group(1))
+                total_accepted += sum(per_req)
+                req_lines += len(per_req)
+                for v in per_req:
+                    histogram[v] = histogram.get(v, 0) + 1
+
+    base["kind"] = "acceptance"
+    base["total_calls"] = len(call_ids)
+    base["total_drafts_proposed"] = total_proposed
+    base["total_drafts_accepted"] = total_accepted
+    base["acceptance_rate"] = (
+        total_accepted / total_proposed if total_proposed > 0 else None
+    )
+    base["mean_accepted_per_request"] = (
+        total_accepted / req_lines if req_lines > 0 else None
+    )
+    # Sort histogram by accept count for stable output.
+    base["acceptance_histogram"] = dict(sorted(histogram.items()))
+    base["capture_errors"] = capture_errors
+    return base
+
+
 def run_summarize(args: argparse.Namespace) -> int:
     import os
     path = args.log_file
@@ -736,6 +836,10 @@ def run_summarize(args: argparse.Namespace) -> int:
     try:
         if kind == "boot":
             summary = summarize_boot_log(path, max_preview=max_preview)
+        elif kind == "acceptance":
+            summary = summarize_pn248_acceptance(
+                path, max_preview=max_preview,
+            )
         else:
             summary = summarize_generic(path, max_preview=max_preview)
             summary["kind"] = kind
@@ -771,6 +875,35 @@ def run_summarize(args: argparse.Namespace) -> int:
             print(f"  Failed patches ({len(summary['failed_patches'])}):")
             for pid in summary["failed_patches"]:
                 print(f"    ✗ {pid}")
+
+    elif summary["kind"] == "acceptance":
+        print()
+        print("  PN248 acceptance summary:")
+        print(f"    total decode calls:   {summary['total_calls']:,}")
+        print(f"    drafts proposed:      "
+              f"{summary['total_drafts_proposed']:,}")
+        print(f"    drafts accepted:      "
+              f"{summary['total_drafts_accepted']:,}")
+        rate = summary["acceptance_rate"]
+        if rate is None:
+            print("    acceptance rate:      (no drafts proposed)")
+        else:
+            print(f"    acceptance rate:      {rate:.3%}")
+        mean = summary["mean_accepted_per_request"]
+        if mean is None:
+            print("    mean accepted/req:    (no EXIT lines parsed)")
+        else:
+            print(f"    mean accepted/req:    {mean:.2f}")
+        if summary["capture_errors"]:
+            print(f"    ⚠ capture errors:     {summary['capture_errors']} "
+                  "(probe itself misfired — investigate producer)")
+        if summary["acceptance_histogram"]:
+            print()
+            print("  Acceptance histogram (accepted-per-request → "
+                  "line count):")
+            for accept_count, n in summary["acceptance_histogram"].items():
+                bar = "█" * min(40, n)
+                print(f"    {accept_count:>3d}: {n:>7,d}  {bar}")
 
     return 0
 
@@ -927,6 +1060,8 @@ def run_support_bundle(args: argparse.Namespace) -> int:
                     kind = detect_trace_kind(basename)
                     if kind == "boot":
                         summary = summarize_boot_log(dst)
+                    elif kind == "acceptance":
+                        summary = summarize_pn248_acceptance(dst)
                     else:
                         summary = summarize_generic(dst)
                         summary["kind"] = kind
