@@ -13,7 +13,7 @@
 .PHONY: help test gates audit docs precommit paths-env clean \
         test-pin-gate test-iron-rule test-family test-doc-sync \
         audit-upstream audit-yaml docs-check docs-write doctor \
-        evidence evidence-release evidence-json
+        evidence evidence-release evidence-json gui-build
 
 # Default target — show help.
 .DEFAULT_GOAL := help
@@ -96,7 +96,10 @@ audit-yaml-status-enum: ## Status: enum invariant — every builtin model YAML d
 audit-pn59-cliff2b: ## PN59 streaming-GDN driver carries v7.72.5 Level 2 markers (Cliff 2b regression guard — club-3090 #22/#182)
 	$(PYTHON) scripts/audit_pn59_cliff2b_markers.py --strict
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b ## Run all 16 CI gates fast-fail
+audit-english-only: ## English-only-in-code rule (CLAUDE.md) — ratchet-down gate against baseline
+	$(PYTHON) scripts/audit_english_only.py --check
+
+gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only ## Run all 17 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
@@ -393,6 +396,13 @@ clean: ## Remove __pycache__, .pytest_cache, .bak files
 
 doctor: ## Run sndr doctor (genesis CLI health check)
 	$(PYTHON) -m vllm.sndr_core.cli doctor
+
+gui-build: ## Build the web UI and bundle it into the package for the daemon to serve
+	cd gui/web && npm ci && npm run build
+	rm -rf vllm/sndr_core/product_api/web_static
+	cp -R gui/web/dist vllm/sndr_core/product_api/web_static
+	@echo "✓ GUI built and copied to vllm/sndr_core/product_api/web_static"
+	@echo "  Run: $(PYTHON) -m vllm.sndr_core.cli gui-api  → serves UI + API on one port"
 
 # ─── Integration (gated on GENESIS_INTEGRATION_ENDPOINT) ─────────────
 #

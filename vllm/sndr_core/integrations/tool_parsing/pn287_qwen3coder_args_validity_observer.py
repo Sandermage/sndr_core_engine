@@ -281,7 +281,7 @@ def apply() -> tuple[str, str]:
             f"flipping `lifecycle=retired` in registry"
         )
 
-    # Set up Prometheus Counter integration — auto-exposed на vLLM's
+    # Set up Prometheus Counter integration — auto-exposed via vLLM's
     # existing /metrics endpoint via default REGISTRY (idempotent across
     # patch re-apply; safe to call multiple times).
     prom_ready = _setup_prometheus_counters()
@@ -302,7 +302,7 @@ def apply() -> tuple[str, str]:
 
     prom_note = (
         " + Prometheus counters registered on default REGISTRY "
-        "(vllm:qwen3_tool_parser_pn287_*) — auto-exposed на /metrics"
+        "(vllm:qwen3_tool_parser_pn287_*) — auto-exposed on /metrics"
         if prom_ready
         else " (prometheus_client unavailable — module-global dict only)"
     )
