@@ -1308,6 +1308,18 @@
     "apply_module": "vllm.sndr_core.integrations.tool_parsing.pn287_qwen3coder_args_validity_observer"
   },
   {
+    "patch_id": "PN288",
+    "family": "serving",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.serving.pn288_tool_finish_reason_override"
+  },
+  {
     "patch_id": "PN17",
     "family": "attention.flash",
     "lifecycle": "experimental",

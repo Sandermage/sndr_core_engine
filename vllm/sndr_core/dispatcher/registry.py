@@ -3504,6 +3504,60 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["P64", "PN56", "P61c"],
     },
+    "PN288": {
+        "title": "qwen3_coder tool_call finish_reason override — Phase B dry-run scaffold",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE",
+        "default_on": False,
+        "category": "stability",
+        "credit": (
+            "Genesis-original 2026-05-30 (§1.3 of the unified plan, "
+            "Phase B). Mutating companion to PN287's observation patch: "
+            "when upstream serving.py would emit finish_reason='tool_calls' "
+            "BUT the accumulated tool_call.arguments doesn't parse as JSON "
+            "AND the underlying output.finish_reason is 'length' (max_tokens "
+            "cut mid-JSON-string), PN288 downgrades the response to "
+            "finish_reason='length'. OpenAI-format clients (Cline, Claude "
+            "Code, openai-python, openai-node) treat 'length' as the "
+            "canonical retry-with-higher-max_tokens signal, so the downgrade "
+            "lets them auto-recover instead of cascading a poisoned "
+            "tool_call into chat history. Text-patches "
+            "OpenAIServingChat._create_chat_completion at two anchors "
+            "(serving.py:884-893 streaming if-block + serving.py:1306-1310 "
+            "non-streaming bool, both verified live on pin 626fa9bb 2026-05-30). "
+            "Decision logic lives in the companion middleware module "
+            "vllm.sndr_core.middleware.pn288_finish_reason_override so it "
+            "is unit-testable without applying the overlay; both call sites "
+            "are wrapped in try/except so any failure falls back to upstream. "
+            "Phase B (this commit): full text-patch + helper + Prometheus "
+            "labels (model, channel, action), but GENESIS_PN288_DRY_RUN=1 "
+            "is the default when PN288 is enabled — the patch LOGS 'WOULD "
+            "downgrade' + counter-increments, then emits upstream's verdict "
+            "unchanged. Phase C (future, operator decision): flip "
+            "GENESIS_PN288_DRY_RUN=0 after 2-4 weeks of Phase A (PN287 "
+            "labeled counters) + Phase B (would_downgrade counter) evidence "
+            "justifies the behavior change. Default OFF; only the PN287 "
+            "observation surface is on by operator action. Risk: behavior "
+            "change is irreversible per request; 'length' for tool_calls "
+            "is unusual-but-valid in the OpenAI spec — strict clients may "
+            "behave unexpectedly. Composes with P64+PN56+P61c (parser-layer "
+            "defenses) — PN288 sits at serving layer, no anchor overlap. "
+            "Prometheus counter: vllm:pn288_finish_reason_override_total "
+            "with labels (model, channel ∈ {streaming, non_streaming}, "
+            "action ∈ {would_downgrade, downgraded, kept_tool_calls_args_valid, "
+            "kept_tool_calls_no_length_trunc}). Cardinality ~3 × 2 × 4 = 24 "
+            "series. References §1.3 of UNIFIED_DEVELOPMENT_PLAN."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            "tool_call_parser": "qwen3_coder",
+        },
+        "apply_module": "vllm.sndr_core.integrations.serving.pn288_tool_finish_reason_override",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+        "composes_with": ["P64", "PN56", "P61c", "PN287"],
+    },
     "PN17": {
         "title": "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue #11)",
         "tier": "community",

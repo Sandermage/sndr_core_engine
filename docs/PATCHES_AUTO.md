@@ -4,23 +4,23 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-30T01:11:36Z
-Total entries: **231**
+Generated: 2026-05-30T14:51:22Z
+Total entries: **232**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **231**
+- `tier=community`: **232**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **3**
-- `lifecycle=experimental`: **159**
+- `lifecycle=experimental`: **160**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **18**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **52** / 231
+### Default-on at boot: **52** / 232
 
 ### By family
 - `attention.flash`: 3
@@ -41,7 +41,7 @@ Total entries: **231**
 - `quantization`: 5
 - `reasoning`: 9
 - `scheduler`: 8
-- `serving`: 9
+- `serving`: 10
 - `spec_decode`: 33
 - `streaming`: 4
 - `tool_parsing`: 6
@@ -307,7 +307,7 @@ Total entries: **231**
 | **P79c** | `community` | `experimental` | · | `GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP` | [#37629](https://github.com/vllm-project/vllm/pull/37629) | Stale spec_token_ids cleanup for unscheduled requests (vllm#37629) |
 | **P79d** | `community` | `experimental` | · | `GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD` | [#38624](https://github.com/vllm-project/vllm/pull/38624) | Preempt async-discard backport (vllm#38624) |
 
-### `serving` (9)
+### `serving` (10)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -320,6 +320,7 @@ Total entries: **231**
 | **PN73** | `community` | `experimental` | · | `GENESIS_ENABLE_PN73_TOOL_ARGS_SAFE_NORMALIZE` | — | PN73 — safe `tool_calls.arguments` string→dict normalization |
 | **PN91** | `community` | `experimental` | · | `GENESIS_ENABLE_PN91_DEVELOPER_ROLE` | — | PN91 — `developer` role pre-render normalizer (OpenAI Responses API compat) |
 | **PN127** | `community` | `experimental` | · | `GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE` | — | Qwen 3.5/3.6 enhanced chat-template auto-install (closes club-3090#53/#72) |
+| **PN288** | `community` | `experimental` | · | `GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE` | — | qwen3_coder tool_call finish_reason override — Phase B dry-run scaffold |
 
 ### `spec_decode` (33)
 
