@@ -83,6 +83,8 @@ from .gateway import add_argparser as _gateway_argparser  # P1.6 thin gateway wr
 from .routing import add_argparser as _routing_argparser  # Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT
 from .preset import add_argparser as _preset_argparser  # CONFIG-UX.3 native preset surface
 from .config_catalog import add_argparser as _config_catalog_argparser  # CONFIG-UX.5.2 derived catalog CLI
+from .gui_api import add_argparser as _gui_api_argparser  # GUI Product API daemon
+from .trace import add_argparser as _trace_argparser  # §6.H6 trace catalog CLI
 
 __all__ = ["cli_main"]
 
@@ -242,6 +244,8 @@ def cli_main(argv: list[str] | None = None) -> int:
     _routing_argparser(subparsers)       # routing-table (Phase 7.G4.WORKLOAD-GATE-POLICY.IMPLEMENT)
     _preset_argparser(subparsers)        # CONFIG-UX.3 preset list/show/explain/recommend
     _config_catalog_argparser(subparsers) # CONFIG-UX.5.2 derived catalog build/verify/show/query
+    _gui_api_argparser(subparsers)       # read-only Product API daemon for GUI/web clients
+    _trace_argparser(subparsers)         # §6.H6 trace catalog (sndr trace list)
 
     # S2.5 (audit closure 2026-05-08): bench-compare A.json B.json
     p_bcmp = subparsers.add_parser(
