@@ -74,6 +74,11 @@ WAIVERS: dict[str, str] = {
         "the test semantic; the model must work correctly with the "
         "Russian input."
     ),
+    "tests/unit/scripts/test_audit_english_only.py": (
+        "Unit tests for the Cyrillic detector itself. The test inputs MUST "
+        "contain Cyrillic by design (regex-positive cases, sample fixtures "
+        "for count_cyrillic). Translating defeats the test purpose."
+    ),
 }
 
 CYRILLIC_RE = re.compile(r"[Ѐ-ӿԀ-ԯ]")
