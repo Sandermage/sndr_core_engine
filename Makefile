@@ -124,12 +124,18 @@ audit-legacy-imports: ## Forbid vllm.sndr_core.patches / vllm._genesis active im
 
 audit-public-paths: ## Etap 6.7: forbid private LAN IPs / home paths / usernames in public docs+code
 	@echo "=== audit-public-paths ==="
-	@bad=$$(rg -n "192\.168\.1\.10|/home/sander|sander@|User=sander" \
+	@# grep is universally available; previous `rg` invocation silently
+	@# returned empty (false-clean) on systems without ripgrep installed.
+	@bad=$$(grep -rEn "192\.168\.1\.10|/home/sander|sander@|User=sander" \
 	    README.md docs/ scripts/ tools/ benchmarks/ vllm/ \
-	    --glob '!sndr_private/**' \
-	    --glob '!**/_archive/**' \
-	    --glob '!**/_internal/**' \
-	    --glob '!tests/integration/baselines/**' \
+	    --include='*.py' --include='*.sh' --include='*.md' \
+	    --include='*.yaml' --include='*.yml' --include='*.json' \
+	    --include='*.toml' --include='*.jinja' --include='*.txt' \
+	    --exclude-dir='sndr_private' \
+	    --exclude-dir='_archive' \
+	    --exclude-dir='_internal' \
+	    --exclude-dir='baselines' \
+	    --exclude-dir='__pycache__' \
 	    2>/dev/null || true); \
 	if [ -n "$$bad" ]; then \
 	    echo "$$bad"; \

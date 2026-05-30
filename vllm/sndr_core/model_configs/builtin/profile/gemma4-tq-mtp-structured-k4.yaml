@@ -257,7 +257,7 @@ promotion:
   promote_to: null                                 # MTP stays profile-side; do not promote into model.patches
   notes: |
     This is the declarative form of the manually-validated launcher
-    start_g4_betaA_k1.sh on 192.168.1.10. P1.5 (render-launchers) will
+    start_g4_betaA_k1.sh on the operator's rig. P1.5 (render-launchers) will
     generate a launcher byte-equivalent to it (modulo cosmetic
     differences). Until then, this profile composes correctly via
     sndr profile show / sndr profile validate (P1.4) but does NOT
