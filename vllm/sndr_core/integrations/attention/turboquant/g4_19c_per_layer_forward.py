@@ -33,12 +33,14 @@ import torch
 
 __all__ = [
     "_g4_19c_roundtrip_tensor",
+    "_g4_19c_roundtrip_inline",
     "_active_forward",
     "make_per_layer_forward",
     "setup",
     "_WRITE_FN",
     "_READ_FN",
     "_BLOCK_SIZE",
+    "_OP_REGISTERED",
 ]
 
 
@@ -52,29 +54,86 @@ _WRITE_FN: Optional[Callable] = None
 _READ_FN: Optional[Callable] = None
 _BLOCK_SIZE: int = 128
 
+# Set True in ``setup()`` iff
+# ``vllm.sndr_core.kernels.g4_19c_roundtrip_customop._register_op_once()``
+# successfully registers ``torch.ops.genesis.g4_19c_roundtrip``. When
+# True, the hot-path dispatcher below routes through that opaque op,
+# giving Dynamo a proper ``fake_impl`` for FakeTensor shape inference
+# under ``torch.compile(fullgraph=True)`` (§1.4 of the unified plan).
+# When False (older vLLM without ``direct_register_custom_op`` or any
+# registration failure), the dispatcher falls back to the inline body —
+# functionally equivalent in eager mode.
+_OP_REGISTERED: bool = False
+
 
 def setup(write_fn: Callable, read_fn: Callable, block_size: int) -> None:
     """Wire the kernel pair + block-size that ``_active_forward`` will
     use. Called by ``apply()`` after the registry config is resolved.
+
+    §1.4 Phase A: this also registers the opaque op
+    ``torch.ops.genesis.g4_19c_roundtrip`` so the round-trip survives
+    ``torch.compile(fullgraph=True)``'s FakeTensor pass. Registration
+    failure is non-fatal — the dispatcher falls back to the inline
+    body and the patch keeps working in eager mode.
 
     Replacing these values after layers are constructed is supported
     in principle (the active forward reads the module globals at call
     time, not at install time), but in practice apply() runs once per
     process and these stay constant.
     """
-    global _WRITE_FN, _READ_FN, _BLOCK_SIZE
+    global _WRITE_FN, _READ_FN, _BLOCK_SIZE, _OP_REGISTERED
     _WRITE_FN = write_fn
     _READ_FN = read_fn
     _BLOCK_SIZE = block_size
+    # Lazy import — the customop module imports torch, which is fine
+    # because this file already does too; we keep the import local so
+    # any registration failure stays contained.
+    try:
+        from vllm.sndr_core.kernels.g4_19c_roundtrip_customop import (
+            _register_op_once,
+        )
+        _OP_REGISTERED = _register_op_once()
+    except Exception:
+        # Custom op registration is best-effort. The inline path below
+        # preserves correct numerics in eager mode; we only lose the
+        # ability to compile this layer under fullgraph if registration
+        # fails. Never propagate from setup().
+        _OP_REGISTERED = False
 
 
-# ─── allow_in_graph kernel entry ────────────────────────────────────────
-# Single Dynamo-visible entry point for the round-trip. Decorated with
-# ``torch.compiler.allow_in_graph`` so the fullgraph tracer treats this
-# as an opaque Tensor-returning op: it traces the call site, captures
-# the input tensors, and emits a call. Actual execution at run time
-# uses module-level _WRITE_FN / _READ_FN — eager-equivalent semantics
-# inside a compiled graph, no graph break.
+# ─── Inline round-trip body ─────────────────────────────────────────────
+# Kept separate so the customop module can re-use the exact same logic
+# (DRY) and so the dispatcher can fall back to this body in eager mode
+# when the opaque op is unavailable. Identical to the pre-§1.4 inline
+# helper — pure tensor ops + the kernel pair.
+
+
+def _g4_19c_roundtrip_inline(
+    x: torch.Tensor,
+    signs: torch.Tensor,
+    head_dim: int,
+    block_size: int,
+) -> torch.Tensor:
+    orig_shape = x.shape
+    num_kv_heads = orig_shape[-1] // head_dim
+    M = x.numel() // (num_kv_heads * head_dim)
+    x_3d = x.contiguous().view(M, num_kv_heads, head_dim)
+    packed, scale = _WRITE_FN(x_3d, signs, head_dim, block_size)
+    x_rt = _READ_FN(packed, scale, signs, head_dim, block_size, x.dtype)
+    return x_rt.view(orig_shape)
+
+
+# ─── Hot-path dispatcher ────────────────────────────────────────────────
+# Single Dynamo-visible entry point for the round-trip. When the opaque
+# op is registered, route through ``torch.ops.genesis.g4_19c_roundtrip``
+# which carries a registered ``fake_impl`` (shape/dtype propagation
+# without touching the Triton kernels) — this is what makes
+# ``fullgraph=True`` safe under FakeTensorMode.
+#
+# When the op isn't registered (older vLLM / registration failure / no
+# CUDA), fall back to the inline body via ``allow_in_graph``. That path
+# still crashes under fullgraph FakeTensor inference — but it preserves
+# the pre-§1.4 behavior, so we don't make anything worse than before.
 
 @torch.compiler.allow_in_graph
 def _g4_19c_roundtrip_tensor(
@@ -93,17 +152,17 @@ def _g4_19c_roundtrip_tensor(
     tensor attached to the module as ``self._g4_19c_signs``.
 
     This function is the ONLY Dynamo-visible Python helper called from
-    the active forward. ``allow_in_graph`` declares to the tracer
-    that this is an opaque Tensor-in, Tensor-out call: do not inline,
-    do not graph-break, emit a call.
+    the active forward. When the opaque op
+    ``torch.ops.genesis.g4_19c_roundtrip`` is registered (§1.4 Phase A
+    success path), the call dispatches to it and Dynamo uses the
+    registered ``fake_impl`` for shape inference. Otherwise we fall
+    back to the inline body — eager-mode equivalent.
     """
-    orig_shape = x.shape
-    num_kv_heads = orig_shape[-1] // head_dim
-    M = x.numel() // (num_kv_heads * head_dim)
-    x_3d = x.contiguous().view(M, num_kv_heads, head_dim)
-    packed, scale = _WRITE_FN(x_3d, signs, head_dim, block_size)
-    x_rt = _READ_FN(packed, scale, signs, head_dim, block_size, x.dtype)
-    return x_rt.view(orig_shape)
+    if _OP_REGISTERED:
+        return torch.ops.genesis.g4_19c_roundtrip(
+            x, signs, head_dim, block_size,
+        )
+    return _g4_19c_roundtrip_inline(x, signs, head_dim, block_size)
 
 
 # ─── Specialized active forward ─────────────────────────────────────────
