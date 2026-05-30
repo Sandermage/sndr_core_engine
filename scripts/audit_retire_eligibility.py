@@ -102,6 +102,21 @@ def bucket_to_verdict(bucket: str) -> str:
     return _BUCKET_TO_VERDICT.get(bucket, "UNKNOWN")
 
 
+def row_verdict(row) -> str:
+    """Lifecycle-aware verdict for a ``PatchAuditRow``.
+
+    A retired patch needs no parity work regardless of which bucket it
+    falls in — lifecycle takes precedence over the context-free
+    ``bucket_to_verdict`` mapping. This matters for the conflated
+    ``RELATED-NOT-SUPERSEDING`` bucket which can fire on either an
+    active patch (genuine NEEDS-DEEP-PARITY) or a retired patch (open
+    PR + explicit relationship marker — ALREADY-RETIRED).
+    """
+    if row.lifecycle == "retired":
+        return "ALREADY-RETIRED"
+    return bucket_to_verdict(row.category)
+
+
 def _audit_once(*, skip_network: bool) -> tuple[dict[str, int], list[dict]]:
     """Single ``run_audit`` invocation; return (counts, candidates)."""
     mod = _import_upstream_status_module()
@@ -109,7 +124,7 @@ def _audit_once(*, skip_network: bool) -> tuple[dict[str, int], list[dict]]:
     counter: Counter[str] = Counter()
     candidates: list[dict] = []
     for row in rows:
-        verdict = bucket_to_verdict(row.category)
+        verdict = row_verdict(row)
         counter[verdict] += 1
         if verdict == "RETIRE-CANDIDATE":
             candidates.append({

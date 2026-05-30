@@ -159,6 +159,83 @@ class TestParityWithUpstreamStatus:
             )
 
 
+class TestLifecycleOverridesBucket:
+    """Lifecycle=retired must always produce ALREADY-RETIRED, even when
+    ``categorize()`` returns a non-retired bucket (e.g. open PR + retired
+    patch + ``related_not_superseding`` → bucket ``RELATED-NOT-SUPERSEDING``
+    which the context-free map would otherwise route to NEEDS-DEEP-PARITY).
+
+    Discovered 2026-05-30: P61 (retired, PR vllm#40783 still open,
+    relationship=related_not_superseding) was wrongly tallied under
+    NEEDS-DEEP-PARITY. A retired patch needs no parity work — verdict
+    must follow lifecycle, not the bucket's informational name.
+    """
+
+    def _import_upstream(self):
+        path = REPO_ROOT / "scripts" / "audit_upstream_status.py"
+        spec = importlib.util.spec_from_file_location(
+            "_us_for_lifecycle_test", path,
+        )
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["_us_for_lifecycle_test"] = mod
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_retired_open_pr_related_not_superseding_is_already_retired(
+        self,
+    ):
+        upstream = self._import_upstream()
+        row_data = {
+            "pr": {"kind": "pr", "state": "open", "merged_at": None},
+            "lifecycle": "retired",
+            "upstream_pr_relationship": "related_not_superseding",
+        }
+        # Bucket stays informational (RELATED-NOT-SUPERSEDING) per the
+        # docstring of categorize() rule 6. Verdict must follow lifecycle.
+        assert upstream.categorize(row_data) == "RELATED-NOT-SUPERSEDING"
+        assert upstream.retire_eligibility(row_data) == "ALREADY-RETIRED"
+
+    def test_wrapper_audit_treats_retired_rows_as_already_retired(
+        self, audit_mod,
+    ):
+        """Wrapper's tally honors lifecycle override.
+
+        Build a synthetic ``PatchAuditRow`` with bucket=RELATED-NOT-SUPERSEDING
+        + lifecycle=retired and confirm the count goes to ALREADY-RETIRED,
+        not NEEDS-DEEP-PARITY."""
+        upstream = self._import_upstream()
+        row = upstream.PatchAuditRow(
+            patch_id="P_FAKE",
+            upstream_pr=99999,
+            pr_title="fake",
+            pr_state="open",
+            pr_merged_at=None,
+            lifecycle="retired",
+            has_superseded_by=True,
+            has_vllm_version_range=False,
+            category="RELATED-NOT-SUPERSEDING",
+            upstream_pr_relationship="related_not_superseding",
+        )
+        verdict = audit_mod.row_verdict(row)
+        assert verdict == "ALREADY-RETIRED"
+
+    def test_active_open_pr_related_not_superseding_stays_needs_deep_parity(
+        self,
+    ):
+        """Sanity: only lifecycle=retired overrides. An active patch
+        with the same RELATED-NOT-SUPERSEDING bucket still routes to
+        NEEDS-DEEP-PARITY (we want operators to inspect)."""
+        upstream = self._import_upstream()
+        row_data = {
+            "pr": {"kind": "pr", "state": "closed",
+                   "merged_at": "2026-01-01T00:00:00Z"},
+            "lifecycle": "stable",
+            "upstream_pr_relationship": "related_not_superseding",
+        }
+        assert upstream.categorize(row_data) == "RELATED-NOT-SUPERSEDING"
+        assert upstream.retire_eligibility(row_data) == "NEEDS-DEEP-PARITY"
+
+
 class TestLiveCorpus:
     """Live retire-eligibility report."""
 

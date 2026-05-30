@@ -311,6 +311,12 @@ def retire_eligibility(row_data: dict) -> str:
     the two stay in lockstep. Adding a new audit bucket requires updating
     this mapping; the test suite locks both surfaces.
 
+    Lifecycle override: when our patch is already `retired`, the verdict
+    is ALWAYS ALREADY-RETIRED regardless of bucket. The bucket is then a
+    purely informational record (e.g. `RELATED-NOT-SUPERSEDING` on an
+    open PR documents why the retire happened without that PR). No deep-
+    parity work is meaningful for a retired patch — it isn't applying.
+
     Operator contract: PIN.R recon scripts / agents MUST consult this
     function (or equivalent registry-aware filter) before producing a
     "retire-NOW" list. Reading PR merge dates without consulting
@@ -318,6 +324,8 @@ def retire_eligibility(row_data: dict) -> str:
     docs/_internal/PIN_R_SIDECLEANUP_DEEP_PARITY_AUDIT for the empirical
     proof.
     """
+    if row_data.get("lifecycle") == "retired":
+        return "ALREADY-RETIRED"
     bucket = categorize(row_data)
     if bucket == "NEWLY-MERGED":
         return "RETIRE-CANDIDATE"
