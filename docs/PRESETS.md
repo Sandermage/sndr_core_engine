@@ -156,11 +156,19 @@ into the private maintainer tree; the audit gate
 [`audit_public_docs.py`](../scripts/audit_public_docs.py) enforces.
 Private evidence in a card is fine because cards live next to source.
 
-## Quick reference — 14 production-facing presets
+## Quick reference — 14 production-facing presets (21 carded total)
 
-Manually curated from the cards at the time of writing
-(2026-05-24). Updated when new presets are annotated; auto-generation
-deferred to a future generator phase.
+Manually curated from the cards (last refresh 2026-05-30). After
+CONFIG-UX.2b closure (2026-05-30), **all 21 builtin presets carry
+operator cards**:
+
+- 14 `production_candidate` — listed below by family
+- 7 non-production (2 `qa`, 3 `example`, 1 `experimental`,
+  1 `bench_pending`) — listed at the end of this section under
+  [Non-production presets](#non-production-presets-7-carded)
+
+Updated when new presets are annotated; auto-generation deferred to a
+future generator phase.
 
 ### Qwen 3.6 27B INT4 TQ family — `qwen3_6_27b_int4_tq`
 
@@ -205,6 +213,23 @@ deferred to a future generator phase.
 |---|---:|---:|---|---|
 | `prod-gemma4-31b-tq-default` ★default | 1 | 1..2 | throughput | Dense 31B, MTP off, broad workload coverage. |
 | `prod-gemma4-31b-tq-mtp-structured-k4` | 4 | 1 | structured_throughput | β'-A control: K=4 structured + acceptance artefact gate. |
+
+### Non-production presets (7 carded)
+
+These cards exist so the operator product surface (`sndr preset
+list/show/explain/recommend`) covers the full builtin catalog. They
+are NOT eligible for production routing — `card.status` and
+`workload_deny` keep them out of the production allow-set.
+
+| Preset | Status | Audience | Mode | Best for |
+|---|---|---|---|---|
+| `qa-27b-tested` | qa | qa | throughput | Regression baseline vs `prod-27b-tq` (fp8 KV variant). |
+| `qa-27b-tq-1x` | qa | qa | throughput | Single-card 78K context; 27B TQ k8v4 QA. |
+| `example-2x-tier-aware` | example | dev | throughput | Path C tier-aware cache demo (PN95). |
+| `example-3090-dense-cpu-offload` | example | dev | latency | club-3090 Path A dense + CPU offload demo. |
+| `example-3090-tier-aware` | example | dev | long_context | club-3090 Path C tier-aware demo (145K ctx). |
+| `experimental-27b-tq-dflash-ab` | experimental | bench | structured_throughput | dflash A/B experimental variant. |
+| `long-ctx-27b` | bench_pending | bench | long_context | 280K context probe (fp8 KV); bench refresh pending. |
 
 ## Workload taxonomy
 
