@@ -1050,6 +1050,8 @@ explicitly need operator approval — they are NOT bugs:
 | Q2 | Public `origin/dev` push | per current policy: **NOT touched**, only private `sndr-dev/dev` is synced |
 | G9 | CONFIG-UX D.9 Codex ProfileDef sub-fields | review + approve |
 | H1, H5, P6, P7 | Codex PN282/283 + ProfileDef adoption decisions | review + approve |
+| Phase 5.3 | `--kv-cache-dtype-skip-layers` adoption (vllm#33695, merged) | review + bench — available in pin 626fa9bb, NOT in any committed YAML. Use case: gemma4 has alternating sliding-window/global attention layers; keeping sliding-window layers in fp16 while quantizing global layers gives +0.5-1.5 pp quality at small KV cost. Operator decides per-model whether the quality gain outweighs the KV headroom loss. |
+| Phase 5.5 | vllm#26504 DynamicProposer adoption | research + adapt — STUDY done 2026-05-31 (commit 324fe572). Vanilla PR extends `EagleProposer`, not MTP. Our 4 PROD models all use MTP K=3/K=4. Backport requires MTP-adapt (inherit from MTP proposer instead of Eagle, or extract mixin). Wait for upstream rebase, then ~2-3 day vendor effort. Acceptance-threshold + hysteresis algorithm is generic enough to lift. |
 
 ## Reporting new cliffs
 
