@@ -100,7 +100,7 @@ class TestMigrationTable:
         mod = _import_audit()
         table = mod.load_migration_table()
         on_disk = set(mod.list_v1_keys_on_disk())
-        assert len(on_disk) == 9  # 2026-06-01: 3× V1 sunsets — 2× EXAMPLE files + a5000-1x-27b-int4-tested
+        assert len(on_disk) == 8  # 2026-06-01: 4× V1 sunsets — 2× EXAMPLE + a5000-1x-27b-int4-tested + a5000-2x-35b-fp8-dflash
         missing = on_disk - set(table.keys())
         assert not missing, (
             f"V1 keys on disk but missing from migration table: {sorted(missing)}"
@@ -179,13 +179,19 @@ class TestBucketDistribution:
             First NON-EXAMPLE V1 file removed; gated by runtime-coupling
             audit (zero refs outside docs/tests/audit). New distribution:
             3 transparent, 0 needs-choice, 6 deprecated, 0 tombstone.
+          - 2026-06-01 (V1-SUNSET-#4): a5000-2x-35b-fp8-dflash retired
+            after comparative study of 6 LOW-risk candidates (zero test
+            refs, zero V1 cross-refs, V2 prod-qwen3.6-35b-dflash is
+            production_candidate with corrected max_model_len 65K
+            replacing V1's stale unsafe 160K). New distribution:
+            3 transparent, 0 needs-choice, 5 deprecated, 0 tombstone.
         """
         mod = _import_audit()
         report = mod.run_audit(stage=0)
         counts = report.count_by_bucket()
         assert counts.get("transparent", 0) == 3
         assert counts.get("needs_operator_choice", 0) == 0
-        assert counts.get("deprecated", 0) == 6
+        assert counts.get("deprecated", 0) == 5
         assert counts.get("tombstone", 0) == 0
 
 
@@ -197,18 +203,19 @@ class TestSeverityPerStage:
         """At Stage 0, non-tombstone buckets all emit warn (regardless of strict)."""
         mod = _import_audit()
         report = mod.run_audit(stage=0)
-        # 9 warnings (was 12 pre-2026-06-01; 3× V1 sunsets: 2× EXAMPLE
-        # files + a5000-1x-27b-int4-tested retired). Tombstone empty.
+        # 8 warnings (was 12 pre-2026-06-01; 4× V1 sunsets: 2× EXAMPLE
+        # files + a5000-1x-27b-int4-tested + a5000-2x-35b-fp8-dflash
+        # retired). Tombstone empty.
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 9
+        assert counts.get("warn", 0) == 8
 
     def test_stage_2_default_all_warn(self):
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=False)
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 9
+        assert counts.get("warn", 0) == 8
 
     def test_stage_2_strict_non_transparent_error(self):
         """Stage 2 + strict: non-transparent buckets emit ERROR;
@@ -216,16 +223,16 @@ class TestSeverityPerStage:
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=True)
         counts = report.count_by_severity()
-        # transparent (3) stay warn; deprecated (6) → error
-        # (was deprecated=9 at original ship; 3× retired 2026-06-01)
-        assert counts.get("error", 0) == 6
+        # transparent (3) stay warn; deprecated (5) → error
+        # (was deprecated=9 at original ship; 4× retired 2026-06-01)
+        assert counts.get("error", 0) == 5
         assert counts.get("warn", 0) == 3
 
     def test_stage_3_non_transparent_error(self):
         mod = _import_audit()
         report = mod.run_audit(stage=3)
         counts = report.count_by_severity()
-        assert counts.get("error", 0) == 6
+        assert counts.get("error", 0) == 5
         assert counts.get("warn", 0) == 3
 
 
@@ -246,8 +253,8 @@ class TestJSONOutput:
         # Operators reverting with SNDR_V1_ROLLOUT_STAGE=0 still see
         # functionally identical behavior for non-tombstone buckets.
         assert data["stage"] == DEFAULT_STAGE
-        assert data["v1_keys_on_disk"] == 9  # 2026-06-01: 3× V1 sunsets
-        assert data["table_entries"] == 9
+        assert data["v1_keys_on_disk"] == 8  # 2026-06-01: 4× V1 sunsets
+        assert data["table_entries"] == 8
 
     def test_json_finding_shape(self):
         result = _run_cli("--json")

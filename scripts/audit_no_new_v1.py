@@ -46,7 +46,6 @@ FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     "a5000-2x-27b-int4-tested.yaml",
     "a5000-2x-27b-int4-tq-k8v4-dflash.yaml",
     "a5000-2x-27b-int4-tq-k8v4.yaml",
-    "a5000-2x-35b-fp8-dflash.yaml",
     "a5000-2x-35b-prod.yaml",
     "a5000-2x-tier-aware-EXAMPLE.yaml",
     # single-3090-dense-cpu-offload-EXAMPLE.yaml retired 2026-06-01
@@ -57,6 +56,10 @@ FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     # a5000-1x-27b-int4-tested.yaml retired 2026-06-01
     # — V2 equivalent: preset `qa-qwen3.6-27b-tq-1x`. Third V1 sunset
     # (first NON-EXAMPLE V1 file — ZERO runtime refs per audit).
+    # a5000-2x-35b-fp8-dflash.yaml retired 2026-06-01
+    # — V2 equivalent: preset `prod-qwen3.6-35b-dflash` (V2 trims
+    # max_model_len 160K → 65K post-dev371 DFlash memory accounting fix).
+    # Fourth V1 sunset.
 })
 
 

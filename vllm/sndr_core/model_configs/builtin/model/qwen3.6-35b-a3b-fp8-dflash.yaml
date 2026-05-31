@@ -7,7 +7,7 @@
 # Sister of qwen3.6-35b-a3b-fp8 (MTP K=3 + TQ k8v4 KV).
 # Same target checkpoint, but DFlash needs a SEPARATE drafter model,
 # default-fp16 KV (no TQ), bfloat16 dtype, single-stream sizing.
-# Migrated from legacy a5000-2x-35b-fp8-dflash.yaml (Phase 3, 2026-05-12).
+# Migrated from legacy a5000-2x-35b-fp8-dflash.yaml (Phase 3, 2026-05-12; V1 source retired 2026-06-01 in V1 sunset #4).
 #
 # Per-line comment style — same W-B exemplar discipline as 35B PROD.
 
@@ -181,7 +181,7 @@ patches:
   # GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211: KEEP OFF — retired 2026-05-15 (-25% TPS bench regressor on hybrid_gdn_moe; affects ALL spec-decode paths including DFlash via Inductor cache blow-up).
 
 notes:
-  - "Migrated from legacy a5000-2x-35b-fp8-dflash (2026-05-12). Needs separate
+  - "Migrated from legacy a5000-2x-35b-fp8-dflash (2026-05-12; V1 source retired 2026-06-01 in V1 sunset #4). Needs separate
     Qwen3.6-35B-A3B-DFlash drafter checkpoint on host (/models/Qwen3.6-35B-A3B-DFlash)."
   - "Use this variant for single-stream code-gen throughput. For concurrent serving
     use MTP variant qwen3.6-35b-a3b-fp8."

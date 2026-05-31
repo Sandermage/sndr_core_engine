@@ -1383,7 +1383,7 @@ Post-rename stale refs degrade silently — `module_for` returning `None` doesn'
 - `a5000-2x-35b-prod`: P61 removed (retired no-op)
 - `a5000-2x-27b-dflash-true`: P61 removed
 - `a5000-2x-27b-int4-tested`: P61+P100+PN13 removed
-- `a5000-2x-35b-fp8-dflash`: P61 removed
+- `a5000-2x-35b-fp8-dflash`: P61 removed (retired 2026-06-01 in V1 sunset #4; V2 equivalent: preset `prod-qwen3.6-35b-dflash`, max_model_len 160K → 65K post-dev371 fix)
 
 ### Tunables tested (sweeps)
 - **P67_NUM_KV_SPLITS** sweep на 27B (my 5×2 methodology): 16=118.43, 32=117.04, 48=115.32, 64=115.95. Canonical sanity (5×5): P67=16 = 132.28 TPS / 100.9 TTFT; P67=32 = **131.48 TPS / 97.1 TTFT** / CV 4.76%. TPS/TPOT TIED within CV ~5%, but **P67=32 wins TTFT by 3.7% + tighter CV + Sprint 1 default**. **Locked-in P67=32** для PROD.
