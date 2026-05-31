@@ -1093,6 +1093,67 @@ chat prompts will give 30-70 % lower TPS on any TQ + MTP K≥3
 launcher and that is *not* a config bug — it is the MTP
 acceptance profile interacting with the workload distribution.
 
+**MTP K sweep on gemma4-31B (added 2026-05-31)**: The structured
+launcher currently ships with `num_speculative_tokens=4`. Three
+alternative K values were A/B benched on the same 4-workload
+spread to characterize the speed-quality tradeoff:
+
+| Workload | MTP-OFF | K=3 | **K=4 (default)** |
+|---|---:|---:|---:|
+| chat | 19.92 (-15.4%) | **44.76 (+90.2%)** ✓ | 23.54 |
+| code | 22.16 (-46.9%) | 43.50 (+4.2%) | 41.73 |
+| count | 21.40 (-59.1%) | 44.09 (-15.8%) | **52.37** |
+| json | 36.68 (-31.4%) | 41.32 (-22.7%) | **53.47** |
+
+Findings:
+
+  1. **MTP-OFF is universally worse** (-15% to -59%) on this config.
+     This empirically refutes the older 2026-05-19 milestone note
+     that claimed "drafter acceptance is 0%, MTP is no-op or slower"
+     — that was true at the milestone's pin/state but the
+     G4_71..G4_76 architectural stack + PN256/PN259/PN261/PN271
+     dev-chain extras that the launcher ships TODAY *do* make MTP
+     accept tokens. Removing MTP loses 30-60% on structured
+     workloads and 15% on chat.
+
+  2. **K=4 wins big on structured workloads** (count +18% over K=3,
+     json +29% over K=3). With high-redundancy outputs the drafter
+     hits ≥80% acceptance per step and the K=4 lookahead recovers
+     ~4× tokens per forward.
+
+  3. **K=3 wins big on chat workloads** (+90% over K=4!) because
+     free-form prose has lower per-token predictability — K=4
+     wastes time on draft-rejection cycles that K=3 avoids.
+
+  4. **K=2 crashed at boot** in this combo (vllm-gemma4-31b-k2-k4
+     container exit code 1 right after Genesis dispatcher apply
+     log; root cause not chased because K=2 wasn't strictly better
+     than K=3 on any axis our user values).
+
+**Operator recommendation**: pick K based on the dominant workload of
+the actual production traffic mix:
+
+  - **Chat-heavy aggregation** → switch the gemma4-31b structured
+    launcher's `num_speculative_tokens` from 4 to 3, accept the
+    -16% / -23% on structured-count / structured-json in exchange
+    for +90% on chat.
+  - **Structured-heavy** (JSON output, agent tool-call args, code
+    completion, counted lists) → keep K=4 as-is.
+  - **Mixed traffic** → run two launchers on different ports
+    (`start_gemma4-31b_k3.sh` for chat-role, the current
+    `start_gemma4-tq-mtp-structured-k4.sh` for structured-role) and
+    have the aggregator route by detected request shape (tool_calls
+    present → structured, free-form `messages[*].content` → chat).
+    This pair of launchers is created on the rig but neither is the
+    default at session-close — operator must decide before promoting.
+
+Other 3 PROD models (27B / 35B / 26B) already ship K=3 (qwen3.6) or
+no-MTP (gemma4-26B) — same chat-friendly default. The K=4 outlier
+was a 2026-05-23 migration choice for the structured-role profile
+when MTP did not yet have a usable acceptance rate (see
+`docs/_internal/GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20.md`).
+The current empirical state warrants revisiting that choice.
+
 ### Observability stack (PN287 + PN288 + PN289 + trace surface)
 
 The enterprise observability flow combines four Genesis surfaces:
