@@ -138,6 +138,34 @@ Use `bash /home/sander/start_gemma4-31b-tq-default.sh` going forward.
 - Both V2 launchers boot cleanly with no `--tool-call-parser gemma4`
   reference; Genesis patches still apply (G4_19_TURBOQUANT_KV etc.)
 
+### Post-rename qwen launcher validation (Stage G)
+
+A/B verification that the qwen3.6 mass-rename (commit 91daa11d) did
+NOT break the qwen model path:
+
+- `bash /home/sander/start_qwen3.6-35b-balanced.sh` → boots clean,
+  served-model-name `qwen3.6-35b-a3b`, generates coherent reasoning
+  chain about MoE architecture (60-word constraint task). Confirms
+  qwen3.6 rename is wire-clean end-to-end.
+
+- `bash /home/sander/start_qwen3.6-27b-tq-k8v4.sh` → FAILS at engine
+  init with `ValueError: To serve at least one request with the
+  model's max seq len (262144), 7.11 GiB KV cache is needed, which
+  is larger than the available KV cache memory (1.81 GiB).`
+
+  Root cause: profile `qwen3.6-27b-tq-k8v4.yaml` was bench-validated
+  at 256K context on vllm pin `dcacdf9a` (2026-05-14 progressive
+  ladder PASS at 200K/230K/256K). The current pin `626fa9bba` has a
+  different KV-budget accounting and the 256K context no longer
+  fits on 2× A5000 at `gpu_memory_utilization=0.92`.
+
+  This is **NOT a rename bug** — same config would have failed
+  pre-rename. It is an Iron-Rule-#11 style validation drift: the
+  profile carries stale evidence from an older pin. Re-validation
+  required on current pin OR sizing_override needs adjustment.
+  Documented as separate follow-up; out of scope for this rename
+  cleanup commit.
+
 ---
 
 ## [Unreleased] — SNDR_MTP_DYNAMIC_K_001 scope correction (2026-05-31)
