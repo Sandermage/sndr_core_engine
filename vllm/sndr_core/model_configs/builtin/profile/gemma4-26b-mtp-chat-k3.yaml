@@ -45,7 +45,16 @@ kind: profile
 id: gemma4-26b-mtp-chat-k3
 parent_model: gemma-4-26b-a4b-it-awq
 maintainer: sandermage
-status: experimental                              # promote to validated after operator A/B observation window
+status: validated                                 # promoted experimental → validated 2026-06-01 after all 5
+                                                   # workloads bench at CV ≤ 5% on pin `626fa9bba` (mean:
+                                                   # free_chat 149.65 CV=2.5%, code_gen 213.19 CV=0.5%,
+                                                   # summarize 162.58 CV=0.4%, count 224.69 CV=1.3%,
+                                                   # tool_json 220.87 CV=0.2%). 26B-A4B path needed NO
+                                                   # patches_delta additions (no TQ stack — uses
+                                                   # kv_cache_dtype=auto), unlike the 31B sibling which
+                                                   # required adding G4_60A-L + G4_61/62 + G4_32 + P65 +
+                                                   # G4_68 + G4_69 + G4_70 patches (commit 16eea839).
+                                                   # See CHANGELOG 2026-06-01.
 created: '2026-05-31'
 
 # ─── Runtime role ──────────────────────────────────────────────────────
