@@ -108,7 +108,7 @@ class TestGate3RedactionParity:
     def test_json_output_uses_generator_marker_shape(self):
         """JSON output keeps the generator's `{redacted: true, ...}`
         marker form verbatim — machine consumers expect structured."""
-        result = _run_cli("show", "--json", "preset/prod-gemma4-26b-a4b-multiconc")
+        result = _run_cli("show", "--json", "preset/prod-gemma4-26b-multiconc")
         assert result.returncode == 0
         data = json.loads(result.stdout)
         ev_refs = data.get("card_evidence_refs", [])
@@ -123,7 +123,7 @@ class TestGate3RedactionParity:
     def test_terminal_output_uses_human_redaction(self):
         """Terminal output replaces the generator's marker with a
         human-readable `[REDACTED private evidence]` string."""
-        result = _run_cli("show", "preset/prod-gemma4-26b-a4b-multiconc")
+        result = _run_cli("show", "preset/prod-gemma4-26b-multiconc")
         assert result.returncode == 0
         # The card_evidence_refs field in terminal output should
         # contain the human redaction string
@@ -137,8 +137,8 @@ class TestGate3RedactionParity:
         any CLI leaf's stdout on the full corpus."""
         for args in (
             ["build", "--stdout"],
-            ["show", "preset/prod-gemma4-26b-a4b-multiconc"],
-            ["show", "--json", "preset/prod-gemma4-26b-a4b-multiconc"],
+            ["show", "preset/prod-gemma4-26b-multiconc"],
+            ["show", "--json", "preset/prod-gemma4-26b-multiconc"],
             ["query", "--row-type", "any"],
         ):
             result = _run_cli(*args)

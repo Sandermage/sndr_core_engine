@@ -43,45 +43,45 @@ class TestExistingProfilesLoadUnchanged:
     # OTHER profile setting role-related fields fails this test
     # (the per-field assertions below catch the leak).
     _RUNTIME_ROLE_EXEMPTIONS = frozenset({
-        "gemma4-tq-default",                # role=default, no spec/compression/etc.
-        "gemma4-tq-mtp-structured-k4",      # role=structured, full structured config
+        "gemma4-31b-tq-default",                # role=default, no spec/compression/etc.
+        "gemma4-31b-tq-mtp-structured-k4",      # role=structured, full structured config
         # Phase 7.G4.26B-A4B.B0 (2026-05-23): 26B-A4B MoE profiles.
         # All four profiles set `role` (default or structured), so they
         # need exemption from the "role must be None" rule. The
         # spec_decode_override side of each profile is updated post-
         # VARIANT-A-FIX (2026-05-23):
         #
-        #   gemma4-a4b-no-mtp        role=default,    spec_override=null (was K=1)
-        #   gemma4-a4b-mtp-k4        role=structured, spec_override=K=4
-        #   gemma4-a4b-multiconc     role=structured, spec_override=K=4 (was default+K=4)
-        #   gemma4-a4b-multiconc-k1  role=default,    spec_override=null (was K=1)
+        #   gemma4-26b-no-mtp        role=default,    spec_override=null (was K=1)
+        #   gemma4-26b-mtp-k4        role=structured, spec_override=K=4
+        #   gemma4-26b-multiconc     role=structured, spec_override=K=4 (was default+K=4)
+        #   gemma4-26b-multiconc-k1  role=default,    spec_override=null (was K=1)
         #
         # The default-role profiles now also satisfy `10_default_clean`
         # (all runtime-role blocks null when role=default).
-        "gemma4-a4b-no-mtp",                # role=default, no MTP
-        "gemma4-a4b-mtp-k4",                # role=structured, MTP K=4
-        "gemma4-a4b-multiconc",             # role=structured, MTP K=4, max_num_seqs=8
-        "gemma4-a4b-multiconc-k1",          # role=default, no MTP, max_num_seqs=8
-        # 2026-05-31 — gemma4-tq-mtp-chat-k3 chat-role MTP K=3 mirror
+        "gemma4-26b-no-mtp",                # role=default, no MTP
+        "gemma4-26b-mtp-k4",                # role=structured, MTP K=4
+        "gemma4-26b-multiconc",             # role=structured, MTP K=4, max_num_seqs=8
+        "gemma4-26b-multiconc-k1",          # role=default, no MTP, max_num_seqs=8
+        # 2026-05-31 — gemma4-31b-tq-mtp-chat-k3 chat-role MTP K=3 mirror
         # of structured-k4. Role=structured (carries spec_decode +
         # compression + backend + routing + validation), partitions
         # workload classes denied by K=4's artifact (free_chat,
         # code_gen, summarization). See bench in
         # vllm/sndr_core/integrations/spec_decode/artifacts/
-        # gemma4-tq-mtp-chat-k3.json — global delta +19%, free-form
+        # gemma4-31b-tq-mtp-chat-k3.json — global delta +19%, free-form
         # delta +105.7% vs K=4. Promote to validated after operator
         # observation window.
-        "gemma4-tq-mtp-chat-k3",            # role=structured, MTP K=3 chat-role
-        # 2026-05-31 — gemma4-a4b-mtp-chat-k3 same architecture on
+        "gemma4-31b-tq-mtp-chat-k3",            # role=structured, MTP K=3 chat-role
+        # 2026-05-31 — gemma4-26b-mtp-chat-k3 same architecture on
         # the 26B MoE A4B target (mirror-sibling of
-        # gemma4-a4b-mtp-k4). Bench in
+        # gemma4-26b-mtp-k4). Bench in
         # vllm/sndr_core/integrations/spec_decode/artifacts/
-        # gemma4-a4b-mtp-chat-k3.json — global delta +2.4%,
+        # gemma4-26b-mtp-chat-k3.json — global delta +2.4%,
         # free-form delta +13.0% vs K=4 sibling. Smaller magnitude
         # than 31B's chat-k3 because the MoE drafter has higher
         # per-token acceptance on free-form prose; direction
         # identical (K=3 chat wins, K=4 structured wins).
-        "gemma4-a4b-mtp-chat-k3",           # role=structured, MTP K=3 chat-role (MoE A4B)
+        "gemma4-26b-mtp-chat-k3",           # role=structured, MTP K=3 chat-role (MoE A4B)
     })
 
     def test_all_builtin_profiles_load_with_new_fields_default_none(self):
@@ -121,14 +121,14 @@ class TestExistingProfilesLoadUnchanged:
             assert p.validation is None, f"{pid}: validation set"
 
     def test_p1_3_builtin_gemma4_tq_default_loads(self):
-        """gemma4-tq-default (P1.3): role=default, no runtime-role
+        """gemma4-31b-tq-default (P1.3): role=default, no runtime-role
         sub-blocks. Inherits ModelDef canonical patches as-is, except
         for a profile-local G4_19C disable (TEMPORARY pending Phase
         7.G4.G4_19C-FULLGRAPH-AUDIT — wrapper has unresolved Dynamo
         fullgraph-trace issues; profile-local override boots without
         the K/V round-trip wrapper, functionally matching the hand-
         launcher beta'-A reference)."""
-        p = load_profile("gemma4-tq-default")
+        p = load_profile("gemma4-31b-tq-default")
         p.validate()
         assert p.role == "default"
         assert p.parent_model == "gemma-4-31b-it-awq"
@@ -148,9 +148,9 @@ class TestExistingProfilesLoadUnchanged:
         assert p.patches_delta.override == {}
 
     def test_p1_3_builtin_gemma4_structured_k4_loads(self):
-        """gemma4-tq-mtp-structured-k4 (P1.3): full structured config
+        """gemma4-31b-tq-mtp-structured-k4 (P1.3): full structured config
         with MTP K=4, skip-list 58,59, artifact validation reference."""
-        p = load_profile("gemma4-tq-mtp-structured-k4")
+        p = load_profile("gemma4-31b-tq-mtp-structured-k4")
         p.validate()
         assert p.role == "structured"
         assert p.parent_model == "gemma-4-31b-it-awq"
@@ -185,7 +185,7 @@ class TestExistingProfilesLoadUnchanged:
         }
         # Validation
         assert p.validation is not None
-        assert p.validation.artifact_id == "gemma4-tq-mtp-structured-k4"
+        assert p.validation.artifact_id == "gemma4-31b-tq-mtp-structured-k4"
         assert p.validation.config_hash == "71c874d7ffedae04"
         # patches_delta.enable populated (P1.3 transitional — moves to
         # backend_plan in P1.5)
@@ -352,10 +352,10 @@ class TestProfileDefRuntimeRole:
         assert isinstance(p.spec_decode_override, SpecDecodeConfig)
 
     def test_full_structured_profile_validates(self):
-        """End-to-end shape of what the gemma4-tq-mtp-structured-k4
+        """End-to-end shape of what the gemma4-31b-tq-mtp-structured-k4
         profile (P1.3) will look like."""
         p = _bare_profile(
-            id="gemma4-tq-mtp-structured-k4",
+            id="gemma4-31b-tq-mtp-structured-k4",
             parent_model="gemma-4-31b-it-awq",
             status="validated",
             role="structured",
@@ -376,7 +376,7 @@ class TestProfileDefRuntimeRole:
                 intended_workloads=["structured_count", "tool_json"],
             ),
             validation=ValidationArtifactRef(
-                artifact_id="gemma4-tq-mtp-structured-k4",
+                artifact_id="gemma4-31b-tq-mtp-structured-k4",
                 config_hash="71c874d7ffedae04",
             ),
         )
@@ -385,7 +385,7 @@ class TestProfileDefRuntimeRole:
     def test_default_profile_validates(self):
         """End-to-end shape of the default-role profile (P1.3)."""
         p = _bare_profile(
-            id="gemma4-tq-default",
+            id="gemma4-31b-tq-default",
             parent_model="gemma-4-31b-it-awq",
             status="validated",
             role="default",
@@ -461,9 +461,9 @@ class TestSpecDecodeAttentionBackend:
             c.validate()
 
     def test_structured_profile_yaml_loads_attention_backend(self):
-        """Smoke: the gemma4-tq-mtp-structured-k4 YAML carries
+        """Smoke: the gemma4-31b-tq-mtp-structured-k4 YAML carries
         attention_backend=FLASH_ATTN after P1.7c."""
-        p = load_profile("gemma4-tq-mtp-structured-k4")
+        p = load_profile("gemma4-31b-tq-mtp-structured-k4")
         p.validate()
         assert p.spec_decode_override.attention_backend == "FLASH_ATTN"
 
@@ -477,7 +477,7 @@ class TestSpecDecodeAttentionBackend:
         )
         import json as _json
 
-        p = load_profile("gemma4-tq-mtp-structured-k4")
+        p = load_profile("gemma4-31b-tq-mtp-structured-k4")
         m = load_model("gemma-4-31b-it-awq")
         hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
         cfg = compose(m, hw, p)

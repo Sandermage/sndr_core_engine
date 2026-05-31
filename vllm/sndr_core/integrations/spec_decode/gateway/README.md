@@ -21,7 +21,7 @@ bash ~/start_g4_betaA_k1.sh 4
 # Terminal 3 — gateway
 export GENESIS_GATEWAY_DEFAULT_URL=http://localhost:8101
 export GENESIS_GATEWAY_STRUCTURED_URL=http://localhost:8102
-export GENESIS_GATEWAY_PROFILE=gemma4-tq-mtp-structured-k4
+export GENESIS_GATEWAY_PROFILE=gemma4-31b-tq-mtp-structured-k4
 python -m vllm.sndr_core.integrations.spec_decode.gateway
 
 # Terminal 4 — verify routing
@@ -65,7 +65,7 @@ warning on each first read.
 |---|---|---|
 | `SNDR_GATEWAY_DEFAULT_URL` | `http://localhost:8101` | default upstream |
 | `SNDR_GATEWAY_STRUCTURED_URL` | `http://localhost:8102` | structured upstream |
-| `SNDR_GATEWAY_PROFILE` | `gemma4-tq-mtp-structured-k4` | which artifact to load |
+| `SNDR_GATEWAY_PROFILE` | `gemma4-31b-tq-mtp-structured-k4` | which artifact to load |
 | `SNDR_GATEWAY_BIND_HOST` | `0.0.0.0` | gateway bind host |
 | `SNDR_GATEWAY_BIND_PORT` | `8100` | gateway bind port |
 | `SNDR_GATEWAY_HEALTH_INTERVAL` | `5` | upstream probe interval (s) |

@@ -190,7 +190,7 @@ async def proxy_request(
     # accepted; else the fallback profile.
     profile_label = (
         artifact.profile if (label == "structured" and artifact is not None)
-        else "gemma4-tq-default"
+        else "gemma4-31b-tq-default"
     )
 
     log.info(

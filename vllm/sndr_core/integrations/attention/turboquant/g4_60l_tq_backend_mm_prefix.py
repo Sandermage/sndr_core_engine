@@ -99,7 +99,7 @@ ENV FLAG
 
 ``GENESIS_ENABLE_G4_60L_TQ_BACKEND_MM_PREFIX=1`` enables the
 override. Default OFF; opted in via the
-``gemma4-tq-mtp-structured-k4`` profile's ``patches_delta.enable``
+``gemma4-31b-tq-mtp-structured-k4`` profile's ``patches_delta.enable``
 block.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.

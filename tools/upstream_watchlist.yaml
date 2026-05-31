@@ -159,7 +159,7 @@ watch:
       `g4_t1_gemma4_tool_parser_pr42006_overlay.py` (matches
       noonghunna/club-3090 stack 2026-05-08). On merge: delete both
       v1 and v2 overlay files + remove `-v` mount in launcher
-      `start_gemma4-tq-mtp-structured-k4.sh`. SUPERSEDED locally by
+      `start_gemma4-31b-tq-mtp-structured-k4.sh`. SUPERSEDED locally by
       the v2 vendor of PR #42237 (see next entry) but kept here for
       retire-on-merge symmetry.
 

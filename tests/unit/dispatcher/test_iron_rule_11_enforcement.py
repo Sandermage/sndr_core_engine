@@ -84,7 +84,7 @@ _RETIRED_NO_SUPERSEDE_WAIVER = {
     # (2026-05-22).
     "G4_78": "internal architecture decision (drafter_kv_sharing=physical, P1.8 A2)",
     # G4_19C torch.compile FakeTensor incompatibility found on rig boot
-    # 2026-05-29 (gemma4-tq-mtp-structured-k4 container). _g4_19c_
+    # 2026-05-29 (gemma4-31b-tq-mtp-structured-k4 container). _g4_19c_
     # roundtrip_tensor custom kernel not wrapped as opaque op; Dynamo
     # raises "Cannot access data pointer of Tensor (FakeTensor)" during
     # fake-tensor tracing through Gemma4Attention.forward. No upstream

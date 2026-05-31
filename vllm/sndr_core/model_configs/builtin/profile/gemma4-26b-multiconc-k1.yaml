@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 profile — gemma4-a4b-multiconc-k1
+# Genesis V2 profile — gemma4-26b-multiconc-k1
 # Role: K=1 multi-conc HISTORICAL BENCH BASELINE (not a production preset).
 #
 # Created by Phase 7.G4.26B-A4B.B4-PRE (2026-05-23) as the K=1 control
-# sibling of `gemma4-a4b-multiconc` for the B4 structured-JSON
+# sibling of `gemma4-26b-multiconc` for the B4 structured-JSON
 # multi-conc bench. After B4 closed with K=4 winning +12.8% over K=1
 # at conc=8, this profile stays as a diagnostic baseline only — kept
 # committed so the K=1 vs K=4 comparison can be reproduced on future
@@ -20,14 +20,14 @@
 # default + all runtime-role blocks null is the clean default
 # contract).
 #
-# Sizing: identical to gemma4-a4b-multiconc EXCEPT MTP K. Same
+# Sizing: identical to gemma4-26b-multiconc EXCEPT MTP K. Same
 # max_model_len=16K, max_num_seqs=8, gpu_memory_utilization=0.85.
 # This is intentional — the bench isolates the K-axis from all other
 # dimensions.
 
 schema_version: 2
 kind: profile
-id: gemma4-a4b-multiconc-k1
+id: gemma4-26b-multiconc-k1
 parent_model: gemma-4-26b-a4b-it-awq
 maintainer: sandermage
 status: experimental                              # B4-PRE creates this; B4 actual is its first bench
@@ -45,7 +45,7 @@ routing: null
 validation: null
 
 # ─── Sizing override ───────────────────────────────────────────────────
-# Identical to gemma4-a4b-multiconc — only K differs between the two.
+# Identical to gemma4-26b-multiconc — only K differs between the two.
 sizing_override:
   max_model_len: 16384
   gpu_memory_utilization: 0.85
@@ -73,7 +73,7 @@ patches_delta:
 # ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
 # Class `bench` — diagnostic baseline for the B4 K=1 vs K=4 comparator.
 # Private evidence only (sndr_private/runs/...); not production traffic.
-# K=4 sibling (gemma4-a4b-multiconc) wins on Mode A structured.
+# K=4 sibling (gemma4-26b-multiconc) wins on Mode A structured.
 override_policy:
   override_class: bench
   reason: "Gemma4 26B-A4B K=1 multi-conc B4 comparator — 209.1 TPS Mode A (diagnostic baseline)"
@@ -93,7 +93,7 @@ promotion:
   notes: |
     Bench cycle CLOSED 2026-05-23 (Phase 7.G4.26B-A4B.B4).
 
-    B4 actual result: K=4 (sibling profile gemma4-a4b-multiconc)
+    B4 actual result: K=4 (sibling profile gemma4-26b-multiconc)
     wins +12.8% over this K=1 baseline on Mode A short-structured
     JSON at conc=8 (235.9 vs 209.1 TPS). Mode B (xgrammar) K=4
     reached 271.4 TPS / 100% schema match.
@@ -103,7 +103,7 @@ promotion:
     comparison can be reproduced on future vllm-pin bumps without
     needing to re-create the preset infrastructure. Operators should
     not pick this preset for production multi-conc workloads — use
-    prod-gemma4-26b-a4b-multiconc (K=4 short-structured) for that
+    prod-gemma4-26b-multiconc (K=4 short-structured) for that
     operational niche, or prod-35b-multiconc for free-chat
     multi-conc throughput.
 

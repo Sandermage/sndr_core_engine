@@ -90,7 +90,7 @@ def add_argparser(subparsers: Any) -> None:
     p.add_argument(
         "--profile", default=None,
         help="Profile/artifact id to load "
-             "(default: gemma4-tq-mtp-structured-k4 unless env set).",
+             "(default: gemma4-31b-tq-mtp-structured-k4 unless env set).",
     )
     p.add_argument(
         "--health-interval", default=None,

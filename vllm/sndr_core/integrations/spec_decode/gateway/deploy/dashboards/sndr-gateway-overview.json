@@ -111,14 +111,14 @@
       "datasource": {"type": "prometheus", "uid": "${ds}"},
       "targets": [
         {
-          "expr": "sum by (k) (rate(sndr_spec_decode_accepted_per_call_total{profile=\"gemma4-tq-mtp-structured-k4\"}[5m]))",
+          "expr": "sum by (k) (rate(sndr_spec_decode_accepted_per_call_total{profile=\"gemma4-31b-tq-mtp-structured-k4\"}[5m]))",
           "legendFormat": "k={{k}}"
         }
       ],
       "fieldConfig": {
         "defaults": {"custom": {"stacking": {"mode": "normal"}}}
       },
-      "description": "Per-rejection_sample-call distribution of accepted draft tokens (PN282 metric on the structured upstream). Healthy beta'-A K=4 shows mass at k in {2,3,4}; sustained collapse to k=0 is the rollback-L1 signal. Profile label is hardcoded to gemma4-tq-mtp-structured-k4 until a second structured profile exists."
+      "description": "Per-rejection_sample-call distribution of accepted draft tokens (PN282 metric on the structured upstream). Healthy beta'-A K=4 shows mass at k in {2,3,4}; sustained collapse to k=0 is the rollback-L1 signal. Profile label is hardcoded to gemma4-31b-tq-mtp-structured-k4 until a second structured profile exists."
     },
     {
       "id": 6,

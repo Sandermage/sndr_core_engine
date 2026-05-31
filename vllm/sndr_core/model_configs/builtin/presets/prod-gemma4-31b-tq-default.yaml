@@ -20,7 +20,7 @@
 
 model: gemma-4-31b-it-awq                        # cyankiwi/gemma-4-31B-it-AWQ-4bit + native gemma4_dense
 hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
-profile: gemma4-tq-default                       # default role: MTP OFF, TQ-only patches inherited from ModelDef
+profile: gemma4-31b-tq-default                       # default role: MTP OFF, TQ-only patches inherited from ModelDef
 
 # CONFIG-UX.2 — operator card (2026-05-24)
 card:

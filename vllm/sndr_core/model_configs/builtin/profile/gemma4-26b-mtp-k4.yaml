@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 profile — gemma4-a4b-mtp-k4
+# Genesis V2 profile — gemma4-26b-mtp-k4
 # Role: structured — MTP K=4 for gemma-4-26b-a4b-it-awq (MoE A=4B).
 #
-# Sibling of gemma4-a4b-no-mtp (K=1 control). Together they implement
+# Sibling of gemma4-26b-no-mtp (K=1 control). Together they implement
 # the K=1 vs K=4 fair-comparison test for the MoE arch, mirroring the
 # B1.1 + B1.2 work on 31B dense.
 #
@@ -20,7 +20,7 @@
 
 schema_version: 2
 kind: profile
-id: gemma4-a4b-mtp-k4
+id: gemma4-26b-mtp-k4
 parent_model: gemma-4-26b-a4b-it-awq
 maintainer: sandermage
 status: experimental                              # not yet boot-validated; B0 creates this file
@@ -81,7 +81,7 @@ override_policy:
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:
   validation_required:
-    - "26B-A4B B1 smoke: boot prod-gemma4-26b-a4b-mtp-k4 through V2 compose without G4_08/G4_18 runtime failures"
+    - "26B-A4B B1 smoke: boot prod-gemma4-26b-mtp-k4 through V2 compose without G4_08/G4_18 runtime failures"
     - "26B-A4B B1 free-chat bench: PN248 acceptance distribution measured — k-distribution should shape similar to B1.1 31B free-chat (high k=0, low mean) IF workload-gate hypothesis generalizes"
     - "26B-A4B B1 structured JSON bench: PN248 mean k ≥ 2.0 (within 0.5 of 31B's 2.79 on structured); schema pass close to K=1 sibling"
     - "no measurable quality regression vs K=1 control on either workload"

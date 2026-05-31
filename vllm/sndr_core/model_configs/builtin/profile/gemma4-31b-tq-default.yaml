@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 profile — gemma4-tq-default
+# Genesis V2 profile — gemma4-31b-tq-default
 # Role: default — production-safe MTP-OFF runtime for gemma-4-31b-it-awq.
 #
-# This profile pairs with `gemma4-tq-mtp-structured-k4` (the structured-
+# This profile pairs with `gemma4-31b-tq-mtp-structured-k4` (the structured-
 # role sibling). Together they implement the post-Variant-A architecture
 # where MTP is a workload-conditional runtime behavior rather than an
 # inherent ModelDef capability:
@@ -13,7 +13,7 @@
 #                 ONLY for tool_json + structured_count workloads
 #
 # Composition expectations (verified by P1.3 gates):
-#   compose(gemma-4-31b-it-awq, hw, gemma4-tq-default).spec_decode == None
+#   compose(gemma-4-31b-it-awq, hw, gemma4-31b-tq-default).spec_decode == None
 #   compose(...).genesis_env has no SNDR_G4_TQ_FORCE_SKIP_LAYERS
 #   compose(...).genesis_env inherits model.patches as-is (27 entries)
 #
@@ -24,7 +24,7 @@
 
 schema_version: 2
 kind: profile
-id: gemma4-tq-default
+id: gemma4-31b-tq-default
 parent_model: gemma-4-31b-it-awq                 # post-Variant-A: ModelDef has spec_decode=null
 maintainer: sandermage
 status: validated                                 # canonical default mode for Gemma 4 31B AWQ

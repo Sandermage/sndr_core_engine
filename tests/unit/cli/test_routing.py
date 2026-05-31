@@ -76,10 +76,10 @@ class TestPresetCoverage:
     def test_26b_a4b_presets_all_present(self, table):
         keys = {p["preset_key"] for p in table["presets"]}
         for required_key in (
-            "prod-gemma4-26b-a4b-default",
-            "prod-gemma4-26b-a4b-mtp-k4",
-            "prod-gemma4-26b-a4b-multiconc",
-            "prod-gemma4-26b-a4b-multiconc-k1",
+            "prod-gemma4-26b-default",
+            "prod-gemma4-26b-mtp-k4",
+            "prod-gemma4-26b-multiconc",
+            "prod-gemma4-26b-multiconc-k1",
         ):
             assert required_key in keys, f"missing preset {required_key}"
 
@@ -134,7 +134,7 @@ class TestRoutingRules:
         match = [
             r for r in table["routing_rules"]
             if r["model_family"] == "gemma4_moe_26b_a4b"
-            and r["preset_key"] == "prod-gemma4-26b-a4b-mtp-k4"
+            and r["preset_key"] == "prod-gemma4-26b-mtp-k4"
             and "single_stream" in r["when"].get("concurrency_mode", [])
             and "short" in r["when"].get("expected_output_length", [])
         ]
@@ -144,7 +144,7 @@ class TestRoutingRules:
         match = [
             r for r in table["routing_rules"]
             if r["model_family"] == "gemma4_moe_26b_a4b"
-            and r["preset_key"] == "prod-gemma4-26b-a4b-multiconc"
+            and r["preset_key"] == "prod-gemma4-26b-multiconc"
             and "multi_conc" in r["when"].get("concurrency_mode", [])
             and "short" in r["when"].get("expected_output_length", [])
         ]
@@ -166,13 +166,13 @@ class TestRoutingRules:
         sf_idx = next(
             (i for i, r in enumerate(rules)
              if r["model_family"] == "gemma4_moe_26b_a4b"
-             and r["preset_key"] == "prod-gemma4-26b-a4b-mtp-k4"),
+             and r["preset_key"] == "prod-gemma4-26b-mtp-k4"),
             None,
         )
         mc_idx = next(
             (i for i, r in enumerate(rules)
              if r["model_family"] == "gemma4_moe_26b_a4b"
-             and r["preset_key"] == "prod-gemma4-26b-a4b-multiconc"),
+             and r["preset_key"] == "prod-gemma4-26b-multiconc"),
             None,
         )
         assert mc_idx is not None and sf_idx is not None

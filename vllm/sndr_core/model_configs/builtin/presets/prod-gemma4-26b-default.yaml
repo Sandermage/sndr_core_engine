@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, K=1 MTP control (default).
-# `sndr launch prod-gemma4-26b-a4b-default` resolves to (model, hardware, profile).
+# `sndr launch prod-gemma4-26b-default` resolves to (model, hardware, profile).
 #
 # Default-mode preset for the MoE A=4B target. Pairs with:
-#   prod-gemma4-26b-a4b-mtp-k4         — K=4 positive-case (structured)
-#   prod-gemma4-26b-a4b-multiconc      — K=4 + conc=8 (Qwen 35B-A3B analog)
+#   prod-gemma4-26b-mtp-k4         — K=4 positive-case (structured)
+#   prod-gemma4-26b-multiconc      — K=4 + conc=8 (Qwen 35B-A3B analog)
 #
 # "Default" here means: MTP K=1 control (effective MTP-off baseline).
-# See gemma4-a4b-no-mtp profile docstring for why this is K=1 and not
+# See gemma4-26b-no-mtp profile docstring for why this is K=1 and not
 # spec_decode=null (26B-A4B ModelDef pre-dates Variant A migration).
 #
 # Bench status (2026-05-23):
@@ -17,7 +17,7 @@
 
 model: gemma-4-26b-a4b-it-awq                    # MoE 128 experts, top_k=8, A=4B active, AWQ-4bit
 hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
-profile: gemma4-a4b-no-mtp                        # K=1 control (MTP off-by-design; profile docstring explains K=1 mechanism)
+profile: gemma4-26b-no-mtp                        # K=1 control (MTP off-by-design; profile docstring explains K=1 mechanism)
 
 # CONFIG-UX.2 — operator card (2026-05-24)
 card:
@@ -62,10 +62,10 @@ card:
   evidence_visibility: private
   tradeoffs:
     - "K=1 (no draft tokens) → conservative latency, lower TPS than K=4 sibling."
-    - "Single-stream only (canonical concurrency=2); see prod-gemma4-26b-a4b-multiconc for high-conc workloads."
+    - "Single-stream only (canonical concurrency=2); see prod-gemma4-26b-multiconc for high-conc workloads."
   do_not_use:
     - condition: "high-concurrency workloads (>2 concurrent requests)"
-      reason: "Sizing tuned for max_num_seqs=2; use prod-gemma4-26b-a4b-multiconc above that."
+      reason: "Sizing tuned for max_num_seqs=2; use prod-gemma4-26b-multiconc above that."
     - condition: "structured_json.long workloads"
       reason: "32K context envelope ok for short structured; long-context structured loses on Gemma4 MoE."
   card_version: 1

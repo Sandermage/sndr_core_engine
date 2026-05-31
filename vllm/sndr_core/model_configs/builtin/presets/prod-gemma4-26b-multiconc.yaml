@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, short structured-JSON
 # multi-conc preset (NOT a generic free-chat throughput preset).
-# `sndr launch prod-gemma4-26b-a4b-multiconc` resolves to (model, hardware, profile).
+# `sndr launch prod-gemma4-26b-multiconc` resolves to (model, hardware, profile).
 #
 # ┌─────────────────────────────────────────────────────────────────────┐
 # │ INTENDED USE — read before picking this preset                      │
@@ -41,13 +41,13 @@
 # the harness for B3, where the policy verdict was MIXED.)
 #
 # Sibling presets:
-#   prod-gemma4-26b-a4b-default          — K=1 single-stream control
-#   prod-gemma4-26b-a4b-mtp-k4           — K=4 single-stream structured
-#   prod-gemma4-26b-a4b-multiconc-k1     — K=1 multi-conc baseline (B4-PRE comparator)
+#   prod-gemma4-26b-default          — K=1 single-stream control
+#   prod-gemma4-26b-mtp-k4           — K=4 single-stream structured
+#   prod-gemma4-26b-multiconc-k1     — K=1 multi-conc baseline (B4-PRE comparator)
 
 model: gemma-4-26b-a4b-it-awq
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: gemma4-a4b-multiconc                     # max_num_seqs=8, MTP K=4, max_model_len 16K
+profile: gemma4-26b-multiconc                     # max_num_seqs=8, MTP K=4, max_model_len 16K
 
 # CONFIG-UX.2 — operator card (2026-05-24)
 card:
@@ -81,7 +81,7 @@ card:
     typical_output_tokens: 200
   routing_family: gemma4_moe_26b_a4b
   default_for_family: false
-  fallback_preset: prod-gemma4-26b-a4b-multiconc-k1
+  fallback_preset: prod-gemma4-26b-multiconc-k1
   primary_metric:
     kind: agg_TPS
     value: 235.9

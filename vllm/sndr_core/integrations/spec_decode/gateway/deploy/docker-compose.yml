@@ -108,7 +108,7 @@ services:
       VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
       # β′-A K=4 validated structured profile.
       # Match keys with vllm/sndr_core/integrations/spec_decode/artifacts/
-      # gemma4-tq-mtp-structured-k4.json so guard verdict =
+      # gemma4-31b-tq-mtp-structured-k4.json so guard verdict =
       # FUNCTIONALLY_VALIDATED.
       SNDR_ENABLE_G4_60A_TQ_SLIDING_SPEC: "1"
       SNDR_ENABLE_G4_60B_TQ_ATTN_OVERLAY: "1"
@@ -176,7 +176,7 @@ services:
     environment:
       SNDR_GATEWAY_DEFAULT_URL: http://default:8101
       SNDR_GATEWAY_STRUCTURED_URL: http://structured:8102
-      SNDR_GATEWAY_PROFILE: gemma4-tq-mtp-structured-k4
+      SNDR_GATEWAY_PROFILE: gemma4-31b-tq-mtp-structured-k4
       SNDR_GATEWAY_BIND_PORT: "8100"
       SNDR_GATEWAY_HEALTH_INTERVAL: "5"
       SNDR_GATEWAY_TIMEOUT: "120"

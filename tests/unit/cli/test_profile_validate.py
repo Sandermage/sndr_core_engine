@@ -38,12 +38,12 @@ from vllm.sndr_core.cli.profile import (
 
 class TestPositiveCases:
     def test_gemma4_tq_default_validates_clean(self):
-        issues, status = validate_profile("gemma4-tq-default")
+        issues, status = validate_profile("gemma4-31b-tq-default")
         assert status == "ok", f"unexpected issues: {issues}"
         assert issues == []
 
     def test_gemma4_structured_k4_validates_clean(self):
-        issues, status = validate_profile("gemma4-tq-mtp-structured-k4")
+        issues, status = validate_profile("gemma4-31b-tq-mtp-structured-k4")
         assert status == "ok", f"unexpected issues: {issues}"
         assert issues == []
 
@@ -83,7 +83,7 @@ class TestArtifactMissing:
         )
         synthetic = ProfileDef(
             schema_version=2, kind="profile",
-            id="gemma4-tq-mtp-structured-k4-ghost",
+            id="gemma4-31b-tq-mtp-structured-k4-ghost",
             parent_model="gemma-4-31b-it-awq",
             maintainer="tests",
             status="experimental",
@@ -99,7 +99,7 @@ class TestArtifactMissing:
         from vllm.sndr_core.model_configs import registry_v2
 
         def fake_load(pid):
-            if pid == "gemma4-tq-mtp-structured-k4-ghost":
+            if pid == "gemma4-31b-tq-mtp-structured-k4-ghost":
                 return synthetic
             return registry_v2.load_profile.__wrapped__(pid) if hasattr(
                 registry_v2.load_profile, "__wrapped__"
@@ -111,7 +111,7 @@ class TestArtifactMissing:
             fake_load,
         )
 
-        issues, status = validate_profile("gemma4-tq-mtp-structured-k4-ghost")
+        issues, status = validate_profile("gemma4-31b-tq-mtp-structured-k4-ghost")
         errors = [i for i in issues if i["severity"] == _SEV_ERROR]
         check_06 = [i for i in errors if i["check"] == "06_artifact_present"]
         assert check_06, (
@@ -134,20 +134,20 @@ class TestConfigHashMismatch:
 
         synthetic = ProfileDef(
             schema_version=2, kind="profile",
-            id="gemma4-tq-mtp-structured-k4-badhash",
+            id="gemma4-31b-tq-mtp-structured-k4-badhash",
             parent_model="gemma-4-31b-it-awq",
             maintainer="tests",
             status="experimental",
             patches_delta=PatchesDelta(),
             role="structured",
             validation=ValidationArtifactRef(
-                artifact_id="gemma4-tq-mtp-structured-k4",
+                artifact_id="gemma4-31b-tq-mtp-structured-k4",
                 config_hash="deadbeefcafebabe",  # wrong hash
             ),
         )
 
         def fake_load(pid):
-            if pid == "gemma4-tq-mtp-structured-k4-badhash":
+            if pid == "gemma4-31b-tq-mtp-structured-k4-badhash":
                 return synthetic
             from vllm.sndr_core.model_configs import registry_v2 as real
             return real.load_profile(pid)
@@ -157,7 +157,7 @@ class TestConfigHashMismatch:
             fake_load,
         )
 
-        issues, status = validate_profile("gemma4-tq-mtp-structured-k4-badhash")
+        issues, status = validate_profile("gemma4-31b-tq-mtp-structured-k4-badhash")
         errors = [i for i in issues if i["severity"] == _SEV_ERROR]
         check_07 = [i for i in errors if i["check"] == "07_config_hash"]
         assert check_07, f"expected 07_config_hash ERROR; got {issues}"
@@ -179,7 +179,7 @@ class TestWorkloadIntersection:
 
         synthetic = ProfileDef(
             schema_version=2, kind="profile",
-            id="gemma4-tq-mtp-structured-k4-denied-intent",
+            id="gemma4-31b-tq-mtp-structured-k4-denied-intent",
             parent_model="gemma-4-31b-it-awq",
             maintainer="tests",
             status="experimental",
@@ -190,7 +190,7 @@ class TestWorkloadIntersection:
                 # code_gen is in artifact.denied_workloads; tool_json allowed
             ),
             validation=ValidationArtifactRef(
-                artifact_id="gemma4-tq-mtp-structured-k4",
+                artifact_id="gemma4-31b-tq-mtp-structured-k4",
                 config_hash="71c874d7ffedae04",
             ),
         )
@@ -223,7 +223,7 @@ class TestWorkloadIntersection:
 
         synthetic = ProfileDef(
             schema_version=2, kind="profile",
-            id="gemma4-tq-mtp-structured-k4-empty-intersect",
+            id="gemma4-31b-tq-mtp-structured-k4-empty-intersect",
             parent_model="gemma-4-31b-it-awq",
             maintainer="tests",
             status="experimental",
@@ -233,7 +233,7 @@ class TestWorkloadIntersection:
                 intended_workloads=["code_gen"],  # NOT in artifact.allowed
             ),
             validation=ValidationArtifactRef(
-                artifact_id="gemma4-tq-mtp-structured-k4",
+                artifact_id="gemma4-31b-tq-mtp-structured-k4",
                 config_hash="71c874d7ffedae04",
             ),
         )
@@ -268,7 +268,7 @@ class TestDefaultCleanContract:
 
         synthetic = ProfileDef(
             schema_version=2, kind="profile",
-            id="gemma4-tq-default-dirty",
+            id="gemma4-31b-tq-default-dirty",
             parent_model="gemma-4-31b-it-awq",
             maintainer="tests",
             status="experimental",
@@ -319,7 +319,7 @@ class TestExitCodes:
         import subprocess, sys
         result = subprocess.run(
             [sys.executable, "-m", "vllm.sndr_core.cli",
-             "profile", "validate", "gemma4-tq-mtp-structured-k4",
+             "profile", "validate", "gemma4-31b-tq-mtp-structured-k4",
              "--json"],
             capture_output=True, text=True,
         )
@@ -331,5 +331,5 @@ class TestExitCodes:
         assert "warnings" in data
         assert "results" in data
         assert len(data["results"]) == 1
-        assert data["results"][0]["profile_id"] == "gemma4-tq-mtp-structured-k4"
+        assert data["results"][0]["profile_id"] == "gemma4-31b-tq-mtp-structured-k4"
         assert data["results"][0]["status"] == "ok"

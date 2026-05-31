@@ -14,7 +14,7 @@ is the text-patch overlay that wires that logic into
 
 Anchor strategy
 ---------------
-Verified live against the running ``vllm-gemma4-tq-mtp-structured-k4-k4``
+Verified live against the running ``vllm-gemma4-31b-tq-mtp-structured-k4-k4``
 container 2026-05-30 (pin 626fa9bb). Both anchors are stable across
 the 0.21.1rc0 → 0.21.1rc1+g626fa9bba window — none of the merged PRs
 between dev371 and 626fa9bb touched the finish_reason emission sites.

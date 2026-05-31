@@ -9,7 +9,7 @@ Or imported and mounted into another app via ``create_app()``.
 Env vars:
   GENESIS_GATEWAY_DEFAULT_URL      (default: http://localhost:8101)
   GENESIS_GATEWAY_STRUCTURED_URL   (default: http://localhost:8102)
-  GENESIS_GATEWAY_PROFILE          (default: gemma4-tq-mtp-structured-k4)
+  GENESIS_GATEWAY_PROFILE          (default: gemma4-31b-tq-mtp-structured-k4)
   GENESIS_GATEWAY_BIND_HOST        (default: 0.0.0.0)
   GENESIS_GATEWAY_BIND_PORT        (default: 8100)
   GENESIS_GATEWAY_HEALTH_INTERVAL  (seconds; default: 5)
@@ -81,7 +81,7 @@ def _build_state() -> GatewayState:
     structured_url = get_sndr_env(
         "GATEWAY_STRUCTURED_URL", "http://localhost:8102")
     profile = get_sndr_env(
-        "GATEWAY_PROFILE", "gemma4-tq-mtp-structured-k4")
+        "GATEWAY_PROFILE", "gemma4-31b-tq-mtp-structured-k4")
     timeout_s = get_sndr_env_float("GATEWAY_TIMEOUT", 120.0)
 
     state = GatewayState(

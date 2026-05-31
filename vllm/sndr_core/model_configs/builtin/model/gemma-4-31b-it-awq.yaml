@@ -41,7 +41,7 @@ capabilities:
   reasoning_parser: null                                 # Gemma 4 doesn't use <think> tags by default
   enable_auto_tool_choice: true                          # auto tool_choice on tool-mention prompts
   # Variant A migration (2026-05-20): MTP moved from ModelDef into the
-  # structured-role profile gemma4-tq-mtp-structured-k4. MTP is a
+  # structured-role profile gemma4-31b-tq-mtp-structured-k4. MTP is a
   # workload-conditional behavior, not an inherent model property:
   # structured workloads (tool_json, structured_count) benefit (+24%
   # on G5 bench); chat / summarization regress (-51%). The default-

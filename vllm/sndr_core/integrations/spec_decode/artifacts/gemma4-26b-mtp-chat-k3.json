@@ -41,9 +41,9 @@
     "vram_snapshot": []
   },
   "model_id": "gemma-4-26B-A4B-it-AWQ",
-  "notes": "K=3 chat-role bench 2026-05-31 on pin 0.21.1rc1.dev354+g626fa9bba. Mirror-sibling of gemma4-a4b-mtp-k4: K=4 was measured against the same prompt suite and shows the inverse trade-off (free_chat -13.0%, summarization -9.8%, code_gen +4.9%, structured_count +7.5%, tool_json +0.5%; geomean -2.3%). K=3 chat profile is +13.1% on free-form mean and +2.4% on global geomean vs the K=4 sibling — modest but consistent in the same direction as 31B (where K=3 vs K=4 was +105.7% / +19.0% — much larger because the 31B drafter has lower per-token acceptance on chat). Allowed_workloads narrowed to free_chat + summarization (where K=3 wins ≥ +7% vs K=4); code_gen excluded because K=4 wins it (+4.9%); structured workloads delegated to the K=4 sibling.",
+  "notes": "K=3 chat-role bench 2026-05-31 on pin 0.21.1rc1.dev354+g626fa9bba. Mirror-sibling of gemma4-26b-mtp-k4: K=4 was measured against the same prompt suite and shows the inverse trade-off (free_chat -13.0%, summarization -9.8%, code_gen +4.9%, structured_count +7.5%, tool_json +0.5%; geomean -2.3%). K=3 chat profile is +13.1% on free-form mean and +2.4% on global geomean vs the K=4 sibling — modest but consistent in the same direction as 31B (where K=3 vs K=4 was +105.7% / +19.0% — much larger because the 31B drafter has lower per-token acceptance on chat). Allowed_workloads narrowed to free_chat + summarization (where K=3 wins ≥ +7% vs K=4); code_gen excluded because K=4 wins it (+4.9%); structured workloads delegated to the K=4 sibling.",
   "patch_hash": "284477f9c91b07bd13a68a02aaf83fbbe1dc8e7b",
-  "profile": "gemma4-a4b-mtp-chat-k3",
+  "profile": "gemma4-26b-mtp-chat-k3",
   "prompt_suite": [
     "code_gen",
     "free_chat",

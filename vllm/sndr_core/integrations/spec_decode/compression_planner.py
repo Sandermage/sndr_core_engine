@@ -199,7 +199,7 @@ def plan_gemma4_tq_mtp_structured_k4(
         ))
 
     return CompressionPlan(
-        profile="gemma4-tq-mtp-structured-k4",
+        profile="gemma4-31b-tq-mtp-structured-k4",
         model_id=model_id,
         target_decisions=target_decisions,
         drafter_decisions=drafter_decisions,
@@ -228,7 +228,7 @@ def plan_gemma4_tq_default() -> CompressionPlan:
     """The current production default: TQ everywhere, MTP off."""
     layer_types = GEMMA4_DEFAULT_LAYER_TYPES
     return CompressionPlan(
-        profile="gemma4-tq-default",
+        profile="gemma4-31b-tq-default",
         model_id="cyankiwi/gemma-4-31B-it-AWQ-4bit",
         target_decisions=[
             LayerDecision(
@@ -258,8 +258,8 @@ def plan_gemma4_tq_default() -> CompressionPlan:
 
 #: profile name -> factory function
 PROFILES: dict[str, Any] = {
-    "gemma4-tq-default": plan_gemma4_tq_default,
-    "gemma4-tq-mtp-structured-k4": plan_gemma4_tq_mtp_structured_k4,
+    "gemma4-31b-tq-default": plan_gemma4_tq_default,
+    "gemma4-31b-tq-mtp-structured-k4": plan_gemma4_tq_mtp_structured_k4,
 }
 
 

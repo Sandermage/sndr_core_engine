@@ -5889,8 +5889,8 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "genesis_original",
         "apply_module": "vllm.sndr_core.integrations.spec_decode.g4_71b_drafter_sliding_triton",
-        "lifecycle": "experimental",  # operationally validated by the gemma4-tq-mtp-structured-k4 profile (status=validated), but registry-lifecycle stays experimental until production-default cutover
-        "credit": "Phase 3 bucket 3 registration (2026-05-21): G4_71B is load-bearing for the validated β'-A K=4 structured path (gemma4-tq-mtp-structured-k4 profile). The structured profile declares it via backend_plan.drafter_sliding=TRITON_ATTN. Companion to G4_75 (head_size=512 → TRITON_ATTN) — each owns a disjoint drafter head_size class. β control + PN271b proved the canonical TQ+MTP launcher has a kernel-vs-storage contract mismatch on drafter[0..2] (TurboQuantAttentionImpl reading native bf16 bytes as TQ-packed → acceptance=0). G4_71B forces drafter sliding layers to Triton NHD native bf16 so the safety guard accepts the configuration as EXACT_COPY. Required for production opt-in of the structured profile.",
+        "lifecycle": "experimental",  # operationally validated by the gemma4-31b-tq-mtp-structured-k4 profile (status=validated), but registry-lifecycle stays experimental until production-default cutover
+        "credit": "Phase 3 bucket 3 registration (2026-05-21): G4_71B is load-bearing for the validated β'-A K=4 structured path (gemma4-31b-tq-mtp-structured-k4 profile). The structured profile declares it via backend_plan.drafter_sliding=TRITON_ATTN. Companion to G4_75 (head_size=512 → TRITON_ATTN) — each owns a disjoint drafter head_size class. β control + PN271b proved the canonical TQ+MTP launcher has a kernel-vs-storage contract mismatch on drafter[0..2] (TurboQuantAttentionImpl reading native bf16 bytes as TQ-packed → acceptance=0). G4_71B forces drafter sliding layers to Triton NHD native bf16 so the safety guard accepts the configuration as EXACT_COPY. Required for production opt-in of the structured profile.",
         "upstream_pr": None,
         "requires_patches": ["G4_71"],
         "conflicts_with": [],
@@ -5965,7 +5965,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "retired",
         "retired_waiver": True,
         "retired_reason": (
-            "2026-05-29 boot failure on rig (dev371+, gemma4-tq-mtp-structured-k4 "
+            "2026-05-29 boot failure on rig (dev371+, gemma4-31b-tq-mtp-structured-k4 "
             "container): `_g4_19c_roundtrip_tensor` custom kernel is invoked from "
             "Gemma4Attention.forward path that Dynamo traces under torch.compile. "
             "The kernel was not wrapped as an opaque custom op (no torch.library."
@@ -5983,7 +5983,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Until then, the TQ KV cache contract for gemma4 is INCOMPLETE on "
             "the hot path — TQ allocation happens (G4_19) and memory accounting "
             "is correct (G4_19B) but actual K/V round-tripping does not engage. "
-            "Operationally OK because gemma4-tq-mtp-structured-k4 runs at very "
+            "Operationally OK because gemma4-31b-tq-mtp-structured-k4 runs at very "
             "small max_model_len=4096 / max_num_seqs=1, so TQ compression is not "
             "the bottleneck. Retirement keeps the wiring intact (no file move) "
             "for diff against a future fix candidate."
@@ -6042,7 +6042,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "source": "genesis_original",
         "apply_module": None,
         "lifecycle": "experimental",
-        "credit": "R3 registration (2026-05-21). Companion env to G4_69 / G4_60K. Emitted by spec_decode/backend_router.py compose path when a per-layer compression plan exists with native_source_layers. Consumed by the PR42637 bind-mount overlay at attention/turboquant/overlays/pr42637/kv_cache_utils.py to route mixed-allocator KV layout for the skip-list layers (58, 59 in the validated β'-A K=4 profile). Marker-only registry entry: the env is read inside the bind-mount overlay, not by an apply_module patch — registering it here closes the R3 audit gap and makes operator-facing config-keys catalog complete. Companions: G4_70B (FAIL_FAST), G4_69 (native-backend reroute), G4_60K (skip-list plumbing). The structured profile gemma4-tq-mtp-structured-k4 declares both G4_70 envs via patches_delta.enable.",
+        "credit": "R3 registration (2026-05-21). Companion env to G4_69 / G4_60K. Emitted by spec_decode/backend_router.py compose path when a per-layer compression plan exists with native_source_layers. Consumed by the PR42637 bind-mount overlay at attention/turboquant/overlays/pr42637/kv_cache_utils.py to route mixed-allocator KV layout for the skip-list layers (58, 59 in the validated β'-A K=4 profile). Marker-only registry entry: the env is read inside the bind-mount overlay, not by an apply_module patch — registering it here closes the R3 audit gap and makes operator-facing config-keys catalog complete. Companions: G4_70B (FAIL_FAST), G4_69 (native-backend reroute), G4_60K (skip-list plumbing). The structured profile gemma4-31b-tq-mtp-structured-k4 declares both G4_70 envs via patches_delta.enable.",
         "upstream_pr": None,
         "requires_patches": ["G4_69"],
         "conflicts_with": [],

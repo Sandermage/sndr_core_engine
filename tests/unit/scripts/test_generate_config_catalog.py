@@ -110,10 +110,10 @@ class TestRedactionEnforcement:
         target = next(
             (r for r in rows
              if r["row_type"] == "preset"
-             and r["id"] == "prod-gemma4-26b-a4b-multiconc"),
+             and r["id"] == "prod-gemma4-26b-multiconc"),
             None,
         )
-        assert target is not None, "expected prod-gemma4-26b-a4b-multiconc in catalog"
+        assert target is not None, "expected prod-gemma4-26b-multiconc in catalog"
         ev_refs = target["card_evidence_refs"]
         assert len(ev_refs) > 0
         for ref in ev_refs:

@@ -24,7 +24,7 @@ Pass criterion: response.choices[0].message.tool_calls has the expected
 function name AND parseable JSON arguments AND finish_reason == "tool_calls".
 
 Usage:
-  python3 g4_tool_bench.py --port 8102 --model gemma4-tq-mtp-structured-k4 --runs 1
+  python3 g4_tool_bench.py --port 8102 --model gemma4-31b-tq-mtp-structured-k4 --runs 1
 """
 import argparse
 import json
@@ -315,7 +315,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="localhost")
     ap.add_argument("--port", type=int, default=8102)
-    ap.add_argument("--model", default="gemma4-tq-mtp-structured-k4")
+    ap.add_argument("--model", default="gemma4-31b-tq-mtp-structured-k4")
     ap.add_argument("--runs", type=int, default=1, help="repeats per case")
     ap.add_argument("--max-tokens", type=int, default=400)
     ap.add_argument("--temperature", type=float, default=0.0)

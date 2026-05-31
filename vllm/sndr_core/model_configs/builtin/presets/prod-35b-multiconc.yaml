@@ -60,7 +60,7 @@ card:
   evidence_visibility: public
   tradeoffs:
     - "Aggregate throughput maximised; single-user TTFT increases vs prod-35b (243 ms vs 65 ms)."
-    - "Multi-conc free-chat reference; prod-gemma4-26b-a4b-multiconc loses on free-chat (-39%) but wins on short structured."
+    - "Multi-conc free-chat reference; prod-gemma4-26b-multiconc loses on free-chat (-39%) but wins on short structured."
   do_not_use:
     - condition: "single-user latency-critical chat"
       reason: "TTFT triples vs prod-35b; use prod-35b for single-user latency."

@@ -123,7 +123,7 @@ class TestGate8And9JSONRoundTrip:
         ids = {p["id"] for p in data["presets"]}
         # Spot-check a couple of expected ids
         assert "prod-35b" in ids
-        assert "prod-gemma4-26b-a4b-multiconc" in ids
+        assert "prod-gemma4-26b-multiconc" in ids
         assert "prod-27b-tq" in ids
 
 
@@ -132,7 +132,7 @@ class TestGate8And9JSONRoundTrip:
 
 class TestGate2ShowHumanView:
     def test_show_includes_workload_sections(self):
-        result = _run_cli("show", "prod-gemma4-26b-a4b-multiconc")
+        result = _run_cli("show", "prod-gemma4-26b-multiconc")
         assert result.returncode == 0
         assert "Workload allow" in result.stdout
         assert "Workload deny" in result.stdout
@@ -226,8 +226,8 @@ class TestGate4RecommendBasic:
         ids = [r["id"] for r in data["results"]]
         # Operator's explicit acceptance: Gemma4 K=4 must NOT be in
         # free_chat results.
-        assert "prod-gemma4-26b-a4b-mtp-k4" not in ids
-        assert "prod-gemma4-26b-a4b-multiconc" not in ids
+        assert "prod-gemma4-26b-mtp-k4" not in ids
+        assert "prod-gemma4-26b-multiconc" not in ids
         # Qwen multi-conc presets should be present
         assert "prod-35b-multiconc" in ids
         # Top result should have highest TPS
@@ -247,7 +247,7 @@ class TestGate4RecommendBasic:
         data = json.loads(result.stdout)
         ids = [r["id"] for r in data["results"]]
         # Both 35B-multiconc AND gemma4 multiconc allow this workload
-        assert "prod-gemma4-26b-a4b-multiconc" in ids
+        assert "prod-gemma4-26b-multiconc" in ids
         assert "prod-35b-multiconc" in ids
 
     def test_recommend_no_matches(self):

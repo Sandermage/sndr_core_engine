@@ -31,12 +31,12 @@ under ``integrations/`` (which is for patch code only).
 
 ```bash
 # vLLM default (MTP OFF, TQ-only, port 8101 by convention):
-python3 -m vllm.sndr_core.cli profile render-launchers gemma4-tq-default \
+python3 -m vllm.sndr_core.cli profile render-launchers gemma4-31b-tq-default \
     > /tmp/start_gemma4_default.sh
 bash /tmp/start_gemma4_default.sh
 
 # vLLM structured (β′-A K=4, port 8102):
-python3 -m vllm.sndr_core.cli profile render-launchers gemma4-tq-mtp-structured-k4 \
+python3 -m vllm.sndr_core.cli profile render-launchers gemma4-31b-tq-mtp-structured-k4 \
     > /tmp/start_gemma4_structured_k4.sh
 bash /tmp/start_gemma4_structured_k4.sh
 ```
@@ -88,9 +88,9 @@ correctly when both upstreams are REAL vLLM containers, not mocks.
 ### G5 acceptance criteria
 
 1. Boot vLLM default via ``sndr profile render-launchers
-   gemma4-tq-default`` → wait for ``/v1/models``
+   gemma4-31b-tq-default`` → wait for ``/v1/models``
 2. Boot vLLM structured via ``sndr profile render-launchers
-   gemma4-tq-mtp-structured-k4`` → wait for ``/v1/models`` AND
+   gemma4-31b-tq-mtp-structured-k4`` → wait for ``/v1/models`` AND
    guard log line ``verdict=FUNCTIONALLY_VALIDATED allowed=True``
 3. Bring up gateway container (``docker compose up -d gateway``
    from this directory) with default+structured URLs pointing at

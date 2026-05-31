@@ -317,7 +317,7 @@ class Gemma4MappingProvider(MappingProvider):
 
         For the Gemma4 β′-A path (TQ + skip-list 58,59 + G4_71b + G4_75
         + kv_sharing + no bridge), the profile is
-        ``gemma4-tq-mtp-structured-k4`` and the config_hash is computed
+        ``gemma4-31b-tq-mtp-structured-k4`` and the config_hash is computed
         over the live KV plan + MTP K + drafter backend choice.
         """
         try:
@@ -359,7 +359,7 @@ class Gemma4MappingProvider(MappingProvider):
                     and set(skip_layers) >= set(kv_share_targets)
                     and g71b_on and g75_on and kv_sharing_on
                     and not bridge_on and mtp_k == 4):
-                profile = "gemma4-tq-mtp-structured-k4"
+                profile = "gemma4-31b-tq-mtp-structured-k4"
             else:
                 # No profile we have an artifact for.
                 return None

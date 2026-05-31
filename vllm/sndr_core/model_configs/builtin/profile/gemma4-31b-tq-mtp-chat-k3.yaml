@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 profile — gemma4-tq-mtp-chat-k3
+# Genesis V2 profile — gemma4-31b-tq-mtp-chat-k3
 # Role: default — MTP K=3 chat-role runtime for gemma-4-31b-it-awq
 # targeting free_chat / code_gen / summarization workloads.
 #
-# Bench-validated mirror-sibling of `gemma4-tq-mtp-structured-k4`:
+# Bench-validated mirror-sibling of `gemma4-31b-tq-mtp-structured-k4`:
 # where K=4 is the validated structured-role profile (+24% structured,
 # -51% free-form, -14.7% global per its artifact), K=3 is the opposite
 # trade-off — chat workloads benefit from a smaller spec-decode lookahead
@@ -33,7 +33,7 @@
 # without overlap.
 #
 # Composition expectations (verified by P1.3 gates):
-#   compose(gemma-4-31b-it-awq, hw, gemma4-tq-mtp-chat-k3).spec_decode
+#   compose(gemma-4-31b-it-awq, hw, gemma4-31b-tq-mtp-chat-k3).spec_decode
 #     == {method: mtp, num_speculative_tokens: 3, ...}
 #   compose(...).genesis_env carries SNDR_G4_TQ_FORCE_SKIP_LAYERS=58,59
 #   compose(...).genesis_env inherits model.patches as-is (26 entries)
@@ -43,27 +43,27 @@
 #   docs/_internal/SNDR_RUNTIME_PROFILES_DESIGN_DECISIONS_2026-05-20.md
 #   docs/_internal/DEPLOYMENT_PROFILE_ROUTING_PLAN_2026-05-20.md
 #   docs/_internal/GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20.md
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-chat-k3.json
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
 #   vllm/sndr_core/integrations/spec_decode/request_router.py
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-structured-k4.json
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
 #     (mirror-sibling — denied set of K=4 = allowed set of this profile)
 
 schema_version: 2
 kind: profile
-id: gemma4-tq-mtp-chat-k3
+id: gemma4-31b-tq-mtp-chat-k3
 parent_model: gemma-4-31b-it-awq
 maintainer: sandermage
 status: experimental                              # promote to `validated` after operator A/B against
-                                                   # gemma4-tq-mtp-structured-k4 confirms aggregator
+                                                   # gemma4-31b-tq-mtp-structured-k4 confirms aggregator
                                                    # routing gains predicted by the artifact
 created: '2026-05-31'
 
 # ─── Runtime role ──────────────────────────────────────────────────────
 # role=structured because this profile carries spec_decode_override +
 # compression_plan + backend_plan + routing + validation — the same
-# runtime-role block stack used by gemma4-tq-mtp-structured-k4. The
+# runtime-role block stack used by gemma4-31b-tq-mtp-structured-k4. The
 # `default` role is reserved for production-safe MTP-OFF (the existing
-# gemma4-tq-default profile keeps that slot); both K=3 and K=4 are
+# gemma4-31b-tq-default profile keeps that slot); both K=3 and K=4 are
 # workload-gated structured-role siblings that the request_router
 # dispatches between based on signal + artifact intersection.
 #
@@ -76,7 +76,7 @@ role: structured
 # Runtime sizing — chat-role uses larger context budget than structured
 # K=4 (which intentionally caps at 4K to fit β'-A bench) because
 # free-form chat / summarization frequently exceeds 4K input tokens.
-# Values match the prior `gemma4-tq-default` envelope:
+# Values match the prior `gemma4-31b-tq-default` envelope:
 #
 #   max_model_len:        200000  — well below 256K hard ceiling
 #   gpu_memory_utilization: 0.90  — same as default; leaves headroom
@@ -143,7 +143,7 @@ routing:
 # drafter_backend=FLASH_ATTN) via
 # vllm.sndr_core.integrations.spec_decode.functional_artifact.compute_config_hash.
 validation:
-  artifact_id: gemma4-tq-mtp-chat-k3
+  artifact_id: gemma4-31b-tq-mtp-chat-k3
   config_hash: aba0bb6b158f7632
 
 # ─── Patches delta — same structured-specific runtime gates as K=4 ────
@@ -183,7 +183,7 @@ override_policy:
   override_class: bench
   reason: "Gemma4 31B chat-K=3 mirror of β'-A K=4 structured control; +19% global / +105% chat geomean vs K=4; partitions denied workload classes of K=4 (free_chat, code_gen, summarization)"
   evidence_refs:
-    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-chat-k3.json
+    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
   evidence_visibility: public
   expires_at: '2026-08-31'
   allowed_to_exceed_hardware_default: true
@@ -195,14 +195,14 @@ override_policy:
 # operator A/B observation window confirms aggregator gains.
 promotion:
   validation_required:
-    - "functional artifact gemma4-tq-mtp-chat-k3.json present and config_hash matches"
+    - "functional artifact gemma4-31b-tq-mtp-chat-k3.json present and config_hash matches"
     - "router intersects routing.intended_workloads ∩ artifact.allowed_workloads to {free_chat, code_gen, summarization}"
     - "structured workloads (structured_count, tool_json) NOT in artifact.allowed_workloads (denial preserved — K=4 sibling owns those)"
     - "no KERNEL_STORAGE_DTYPE_MISMATCH verdict from PN271/PN271b at boot"
     - "aggregator-measured chat workload gain ≥ +50% over default profile during observation window"
   promote_to: null                                 # K=3 stays profile-side; do not promote into model.patches
   notes: |
-    Companion to gemma4-tq-mtp-structured-k4. The two profiles together
+    Companion to gemma4-31b-tq-mtp-structured-k4. The two profiles together
     implement the role-split deployment topology documented in
     `docs/_internal/DEPLOYMENT_PROFILE_ROUTING_PLAN_2026-05-20.md`:
     a request_router-aware gateway dispatches per request signal

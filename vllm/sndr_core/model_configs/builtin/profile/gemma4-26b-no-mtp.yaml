@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 profile — gemma4-a4b-no-mtp
+# Genesis V2 profile — gemma4-26b-no-mtp
 # Role: default control — true no-MTP baseline for gemma-4-26b-a4b-it-awq.
 #
 # Phase 7.G4.26B-A4B.VARIANT-A-FIX (2026-05-23): MTP ownership has
@@ -20,15 +20,15 @@
 # blocks null is the clean default contract).
 #
 # This profile pairs with:
-#   gemma4-a4b-mtp-k4    — positive-case K=4 structured (single-stream)
-#   gemma4-a4b-multiconc — positive-case K=4 short-structured (multi-conc)
+#   gemma4-26b-mtp-k4    — positive-case K=4 structured (single-stream)
+#   gemma4-26b-multiconc — positive-case K=4 short-structured (multi-conc)
 # Use this profile for free-chat, code, summarization, and long-form
 # structured-JSON workloads where K=1 is the policy-default per
 # G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md.
 
 schema_version: 2
 kind: profile
-id: gemma4-a4b-no-mtp
+id: gemma4-26b-no-mtp
 parent_model: gemma-4-26b-a4b-it-awq
 maintainer: sandermage
 status: experimental                              # not yet boot-validated; Phase 7.G4.26B-A4B.B0 creates this file
@@ -101,7 +101,7 @@ override_policy:
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:
   validation_required:
-    - "26B-A4B B1 smoke: boot prod-gemma4-26b-a4b-default through V2 compose without G4_08/G4_18 runtime failures"
+    - "26B-A4B B1 smoke: boot prod-gemma4-26b-default through V2 compose without G4_08/G4_18 runtime failures"
     - "26B-A4B B1 free-chat bench: K=1 wall_TPS baseline established (no spec-decode regression vs ModelDef declared ~120-160 TPS projection)"
     - "26B-A4B B1 structured JSON pass-rate: parse 10/10 + schema_pass close to K=4 sibling (within 1-2 cases CV)"
   promote_to: null

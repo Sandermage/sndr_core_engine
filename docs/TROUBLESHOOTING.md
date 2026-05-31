@@ -1215,7 +1215,7 @@ the actual production traffic mix:
     completion, counted lists) → keep K=4 as-is.
   - **Mixed traffic** → run two launchers on different ports
     (`start_gemma4-31b_k3.sh` for chat-role, the current
-    `start_gemma4-tq-mtp-structured-k4.sh` for structured-role) and
+    `start_gemma4-31b-tq-mtp-structured-k4.sh` for structured-role) and
     have the aggregator route by detected request shape (tool_calls
     present → structured, free-form `messages[*].content` → chat).
     This pair of launchers is created on the rig but neither is the
@@ -1253,7 +1253,7 @@ mean) to justify a permanent V2 chat-role profile.
 **Conclusion**: K-tuning is **per-MODEL**, not universal. Of the 4
 PROD models, ONLY 31B has a measurable K-axis win available. The
 fix landed 2026-05-31 as the
-`gemma4-tq-mtp-chat-k3` V2 profile + matching FunctionalArtifact +
+`gemma4-31b-tq-mtp-chat-k3` V2 profile + matching FunctionalArtifact +
 preset (commit 284477f9). The architectural delivery is described
 in the next section.
 
@@ -1301,7 +1301,7 @@ false-negatives cost zero, so the gate is conservative by design
 ```bash
 GENESIS_GATEWAY_DEFAULT_URL=http://localhost:8101      # MTP-OFF upstream
 GENESIS_GATEWAY_STRUCTURED_URL=http://localhost:8102   # MTP-K=4 upstream
-GENESIS_GATEWAY_PROFILE=gemma4-tq-mtp-structured-k4    # artifact lookup key
+GENESIS_GATEWAY_PROFILE=gemma4-31b-tq-mtp-structured-k4    # artifact lookup key
 GENESIS_GATEWAY_BIND_PORT=8100                         # client-facing port
 GENESIS_GATEWAY_HEALTH_INTERVAL=5
 GENESIS_GATEWAY_TIMEOUT=120
@@ -1320,21 +1320,21 @@ python -m vllm.sndr_core.integrations.spec_decode.gateway
 |---|---|---|
 | qwen3.6-27B int4 | (none — direct launch) | 27b-tq-k8v4 / 27b-dflash / 27b-multiconc |
 | qwen3.6-35B A3B FP8 | (none — direct launch) | 35b-balanced / 35b-dflash / 35b-multiconc |
-| gemma4-26B A4B AWQ | gemma4-a4b-no-mtp + gemma4-a4b-multiconc-k1 | gemma4-a4b-mtp-k4 + gemma4-a4b-multiconc + **gemma4-a4b-mtp-chat-k3** (new 2026-05-31) |
-| gemma4-31B AWQ + TQ | gemma4-tq-default (MTP OFF) | gemma4-tq-mtp-structured-k4 + **gemma4-tq-mtp-chat-k3** (new 2026-05-31) |
+| gemma4-26B A4B AWQ | gemma4-26b-no-mtp + gemma4-26b-multiconc-k1 | gemma4-26b-mtp-k4 + gemma4-26b-multiconc + **gemma4-26b-mtp-chat-k3** (new 2026-05-31) |
+| gemma4-31B AWQ + TQ | gemma4-31b-tq-default (MTP OFF) | gemma4-31b-tq-mtp-structured-k4 + **gemma4-31b-tq-mtp-chat-k3** (new 2026-05-31) |
 
-**The new gemma4-tq-mtp-chat-k3 profile** (commit 284477f9) is the
+**The new gemma4-31b-tq-mtp-chat-k3 profile** (commit 284477f9) is the
 load-bearing architectural delivery from the K-sweep finding. It is a
 role-structured profile (carries spec_decode + compression + backend
 + routing + validation blocks) but its `routing.intended_workloads`
 is the COMPLEMENT of structured-k4's set:
 
 ```yaml
-# gemma4-tq-mtp-structured-k4.yaml
+# gemma4-31b-tq-mtp-structured-k4.yaml
 routing:
   intended_workloads: [structured_count, tool_json]
 
-# gemma4-tq-mtp-chat-k3.yaml
+# gemma4-31b-tq-mtp-chat-k3.yaml
 routing:
   intended_workloads: [free_chat, code_gen, summarization]
 ```
@@ -1353,14 +1353,14 @@ suite cleanly with no overlap and no gap.
 
 2. Keep the structured-k4 upstream running on its current port:
    ```bash
-   bash ~/start_gemma4-tq-mtp-structured-k4.sh   # port 8102
+   bash ~/start_gemma4-31b-tq-mtp-structured-k4.sh   # port 8102
    ```
 
 3. Start the gateway pointed at both:
    ```bash
    export GENESIS_GATEWAY_DEFAULT_URL=http://localhost:8113   # chat-k3
    export GENESIS_GATEWAY_STRUCTURED_URL=http://localhost:8102 # structured-k4
-   export GENESIS_GATEWAY_PROFILE=gemma4-tq-mtp-structured-k4
+   export GENESIS_GATEWAY_PROFILE=gemma4-31b-tq-mtp-structured-k4
    python -m vllm.sndr_core.integrations.spec_decode.gateway   # port 8100
    ```
 
@@ -1370,7 +1370,7 @@ suite cleanly with no overlap and no gap.
 
 5. After a multi-day observation window confirms aggregator TPS
    gain matches the artifact's projection, promote
-   `gemma4-tq-mtp-chat-k3.status` from `experimental` to `validated`
+   `gemma4-31b-tq-mtp-chat-k3.status` from `experimental` to `validated`
    and update the operator card maturity from `draft` to `validated`.
 
 ### Observability stack (PN287 + PN288 + PN289 + trace surface)

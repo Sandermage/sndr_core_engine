@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, MTP K=3 chat-role.
-# `sndr launch prod-gemma4-26b-a4b-mtp-chat-k3` resolves to (model, hardware, profile).
+# `sndr launch prod-gemma4-26b-mtp-chat-k3` resolves to (model, hardware, profile).
 #
 # Chat-role preset for the MoE A=4B target. MTP K=3 via the
 # 26B-A4B-it-assistant drafter. Mirror-sibling of
-# `prod-gemma4-26b-a4b-mtp-k4` (structured-role K=4 sibling) —
+# `prod-gemma4-26b-mtp-k4` (structured-role K=4 sibling) —
 # together they implement the role-split deployment topology
 # described in
 # `docs/_internal/DEPLOYMENT_PROFILE_ROUTING_PLAN_2026-05-20.md`
 # at the 26B MoE arch.
 #
 # Sibling presets:
-#   prod-gemma4-26b-a4b-default       — K=1 control (effective MTP-off)
-#   prod-gemma4-26b-a4b-mtp-k4        — K=4 structured-role
-#   prod-gemma4-26b-a4b-multiconc     — K=4 + conc=8
-#   prod-gemma4-26b-a4b-multiconc-k1  — K=1 + conc=8
+#   prod-gemma4-26b-default       — K=1 control (effective MTP-off)
+#   prod-gemma4-26b-mtp-k4        — K=4 structured-role
+#   prod-gemma4-26b-multiconc     — K=4 + conc=8
+#   prod-gemma4-26b-multiconc-k1  — K=1 + conc=8
 #
 # Bench evidence (2026-05-31, vllm pin 0.21.1rc1.dev354+g626fa9bba):
 #   profile_free_mean_tps:       K=3 145.40   K=4 128.67   +13.0%
@@ -29,7 +29,7 @@
 
 model: gemma-4-26b-a4b-it-awq
 hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: gemma4-a4b-mtp-chat-k3                   # K=3 + assistant; same single-stream sizing as K=4 sibling
+profile: gemma4-26b-mtp-chat-k3                   # K=3 + assistant; same single-stream sizing as K=4 sibling
 
 # CONFIG-UX.2 — operator card
 card:
@@ -64,15 +64,15 @@ card:
     typical_output_tokens: 2048
   routing_family: gemma4_moe_26b_a4b
   default_for_family: false
-  fallback_preset: prod-gemma4-26b-a4b-mtp-k4      # structured workloads fall back to K=4 sibling
+  fallback_preset: prod-gemma4-26b-mtp-k4      # structured workloads fall back to K=4 sibling
   primary_metric:
     kind: agg_TPS
     value: 188.482
-    source: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-a4b-mtp-chat-k3.json
+    source: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
     measured_at: 2026-05-31
   evidence_refs:
     - type: bench
-      path: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-a4b-mtp-chat-k3.json
+      path: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
       visibility: private
       note: |
         K=3 vs K=4 5-class A/B bench evidence on 26B-A4B; +13% free-form
@@ -83,7 +83,7 @@ card:
     - "Best deployed as a sibling upstream behind the spec_decode gateway, not as a single-launcher replacement for the K=4 preset."
   do_not_use:
     - condition: "structured workloads (tool_json, structured_count, code_gen)"
-      reason: "Use prod-gemma4-26b-a4b-mtp-k4 K=4 sibling. The chat-k3 artifact denies these workload classes."
+      reason: "Use prod-gemma4-26b-mtp-k4 K=4 sibling. The chat-k3 artifact denies these workload classes."
     - condition: "high-concurrency (>2)"
       reason: "Single-stream sizing; for concurrency >2 use the multiconc-K=1 or multiconc-K=4 siblings."
   card_version: 1

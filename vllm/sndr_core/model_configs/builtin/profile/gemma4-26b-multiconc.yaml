@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 profile — gemma4-a4b-multiconc
+# Genesis V2 profile — gemma4-26b-multiconc
 # Purpose: K=4 MTP + max_num_seqs=8 for SHORT STRUCTURED-JSON multi-conc.
 #          NOT a generic free-chat multi-conc throughput profile.
 #
@@ -54,7 +54,7 @@
 
 schema_version: 2
 kind: profile
-id: gemma4-a4b-multiconc
+id: gemma4-26b-multiconc
 parent_model: gemma-4-26b-a4b-it-awq
 maintainer: sandermage
 status: experimental                              # not yet boot-validated; B0 creates this file
@@ -73,7 +73,7 @@ created: '2026-05-23'
 # multi-conc semantic stays in sizing_override.max_num_seqs=8 below;
 # K-choice stays in spec_decode_override.
 role: structured
-spec_decode_override:                             # explicit K=4 (matches K=4 sibling gemma4-a4b-mtp-k4)
+spec_decode_override:                             # explicit K=4 (matches K=4 sibling gemma4-26b-mtp-k4)
   method: mtp
   num_speculative_tokens: 4
   model: /models/gemma-4-26B-A4B-it-assistant
@@ -125,7 +125,7 @@ override_policy:
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:
   validation_required:
-    - "26B-A4B B1 multiconc smoke: boot prod-gemma4-26b-a4b-multiconc through V2 compose without G4_08/G4_18 OR MoE expert-routing runtime failures"
+    - "26B-A4B B1 multiconc smoke: boot prod-gemma4-26b-multiconc through V2 compose without G4_08/G4_18 OR MoE expert-routing runtime failures"
     - "tools/multi_conc_bench.py --conc 8 --rounds 5 --max-tok 1024: agg_TPS measured + compared against Qwen 35B-A3B 672 TPS reference"
     - "no schema corruption / unicode garble at conc=8 (5-prompt smoke)"
     - "PN248 acceptance distribution at conc=8 captured and parsed"

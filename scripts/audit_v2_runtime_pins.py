@@ -189,7 +189,7 @@ _BARE_MUTABLE_TAGS = ("nightly", "latest", "main", "stable", "dev")
 # this list is removed from the registry, R-PIN-3 reports a tooling
 # error (the operator must update the list, not silently drop coverage).
 REPRESENTATIVE_RENDERS = (
-    ("gemma4-tq-mtp-structured-k4", "a5000-2x-24gbvram-16cpu-128gbram"),
+    ("gemma4-31b-tq-mtp-structured-k4", "a5000-2x-24gbvram-16cpu-128gbram"),
     ("35b-balanced", "a5000-2x-24gbvram-16cpu-128gbram"),
     ("tier-aware-3090", "single-3090-24gbvram"),
 )

@@ -52,7 +52,7 @@
 #     -v $REPO/vllm/sndr_core/integrations/tool_parsing/g4_t1_v2_gemma4_tool_parser_pr42237_overlay.py:$TGT/tool_parsers/gemma4_tool_parser.py:ro
 #
 # (where $TGT = /usr/local/lib/python3.12/dist-packages/vllm). The
-# launcher `start_gemma4-tq-mtp-structured-k4.sh` mounts a copy of this
+# launcher `start_gemma4-31b-tq-mtp-structured-k4.sh` mounts a copy of this
 # file as `/tmp/gemma4_tool_parser_FIXED.py` per G4_T1 v2 session
 # 2026-05-31.
 #

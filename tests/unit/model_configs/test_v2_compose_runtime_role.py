@@ -577,13 +577,13 @@ class TestAttentionBackendEmission:
 
     def test_real_structured_k4_profile_emits_turboquant(self):
         """End-to-end check against the actual builtin profile that
-        motivated this fix: gemma4-tq-mtp-structured-k4 has
+        motivated this fix: gemma4-31b-tq-mtp-structured-k4 has
         backend_plan.target_default=TURBOQUANT, kv_cache_dtype=
         turboquant_4bit_nc. Composing it must yield --attention-backend
         TURBOQUANT in vllm_extra_args."""
         model = load_model("gemma-4-31b-it-awq")
         hardware = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
-        profile = load_profile("gemma4-tq-mtp-structured-k4")
+        profile = load_profile("gemma4-31b-tq-mtp-structured-k4")
         cfg = compose(model, hardware, profile)
         assert "--attention-backend" in cfg.vllm_extra_args
         idx = cfg.vllm_extra_args.index("--attention-backend")
@@ -593,11 +593,11 @@ class TestAttentionBackendEmission:
         assert cfg.kv_cache_dtype == "turboquant_4bit_nc"
 
     def test_real_default_31b_profile_does_not_emit(self):
-        """The other 31B profile (gemma4-tq-default, backend_plan=null)
+        """The other 31B profile (gemma4-31b-tq-default, backend_plan=null)
         must NOT receive --attention-backend — regression guard against
         the fix leaking into unaffected presets."""
         model = load_model("gemma-4-31b-it-awq")
         hardware = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
-        profile = load_profile("gemma4-tq-default")
+        profile = load_profile("gemma4-31b-tq-default")
         cfg = compose(model, hardware, profile)
         assert "--attention-backend" not in cfg.vllm_extra_args

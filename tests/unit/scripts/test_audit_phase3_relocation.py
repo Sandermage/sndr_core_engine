@@ -360,7 +360,7 @@ def test_r3_flags_unknown_env_in_structured_profile(tmp_path, monkeypatch):
     in PENDING_REGISTRATION must be flagged as a violation."""
     mod = _load_module()
 
-    fake_profile = tmp_path / "gemma4-tq-mtp-structured-k4.yaml"
+    fake_profile = tmp_path / "gemma4-31b-tq-mtp-structured-k4.yaml"
     fake_profile.write_text(
         "patches_delta:\n"
         "  enable:\n"
@@ -392,7 +392,7 @@ def test_r3_pending_registration_demoted_to_info(tmp_path, monkeypatch):
     mod = _load_module()
 
     synthetic_env = "GENESIS_ENABLE_SOME_FUTURE_PENDING_PATCH"
-    fake_profile = tmp_path / "gemma4-tq-mtp-structured-k4.yaml"
+    fake_profile = tmp_path / "gemma4-31b-tq-mtp-structured-k4.yaml"
     fake_profile.write_text(
         "patches_delta:\n"
         "  enable:\n"

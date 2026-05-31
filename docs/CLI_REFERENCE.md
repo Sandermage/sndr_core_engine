@@ -722,7 +722,7 @@ card.
 
 ```bash
 sndr preset explain prod-35b
-sndr preset explain prod-gemma4-26b-a4b-multiconc --json
+sndr preset explain prod-gemma4-26b-multiconc --json
 ```
 
 The "Composed runtime (dry-run)" section reports `composed_key`,
@@ -757,7 +757,7 @@ matches `[a-z0-9._-]+`).
 Safety rule: a preset is **excluded** from results when the queried
 workload is in its `card.workload_deny`, even if `workload_allow` is
 broad or empty. Concrete example — `--workload free_chat --concurrency 8`
-will not return `prod-gemma4-26b-a4b-mtp-k4` (K=4 structured) because
+will not return `prod-gemma4-26b-mtp-k4` (K=4 structured) because
 its `workload_deny` lists `free_chat`.
 
 ---

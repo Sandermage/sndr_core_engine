@@ -96,7 +96,7 @@
   "model_id": "gemma-4-31B-it-AWQ-4bit",
   "notes": "\u03b2\u2032-A K=4 first measurement. structured +24%, free-form -51%, global -14.7%. Validated as conditional profile only.",
   "patch_hash": "eb4334c1a2097a98060077513c027568c53d05af",
-  "profile": "gemma4-tq-mtp-structured-k4",
+  "profile": "gemma4-31b-tq-mtp-structured-k4",
   "prompt_suite": [
     "code_gen",
     "free_chat",

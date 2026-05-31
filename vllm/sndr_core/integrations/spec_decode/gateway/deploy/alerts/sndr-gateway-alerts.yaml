@@ -143,7 +143,7 @@ groups:
       #   Conditional on the structured launcher setting:
       #     PROMETHEUS_MULTIPROC_DIR=/tmp/sndr-prom-mp
       #     SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC=1
-      #     SNDR_SPEC_DECODE_PROFILE_LABEL=gemma4-tq-mtp-structured-k4
+      #     SNDR_SPEC_DECODE_PROFILE_LABEL=gemma4-31b-tq-mtp-structured-k4
       #   Otherwise no series and the alert never fires (vector
       #   matching returns empty → alert is silently inert).
       #
@@ -170,10 +170,10 @@ groups:
       #   expr: |
       #     (
       #       sum by (profile) (rate(sndr_spec_decode_accepted_per_call_total{
-      #         k="0", profile="gemma4-tq-mtp-structured-k4"}[5m]))
+      #         k="0", profile="gemma4-31b-tq-mtp-structured-k4"}[5m]))
       #       /
       #       sum by (profile) (rate(sndr_spec_decode_calls_total{
-      #         profile="gemma4-tq-mtp-structured-k4"}[5m]))
+      #         profile="gemma4-31b-tq-mtp-structured-k4"}[5m]))
       #     ) > 0.60
       #   for: 5m
       #   labels:

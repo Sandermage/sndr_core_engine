@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 profile — gemma4-a4b-mtp-chat-k3
+# Genesis V2 profile — gemma4-26b-mtp-chat-k3
 # Role: structured — MTP K=3 chat-role for gemma-4-26b-a4b-it-awq
 # targeting free_chat + summarization workloads.
 #
-# Mirror-sibling of `gemma4-a4b-mtp-k4` (the K=4 structured-role
+# Mirror-sibling of `gemma4-26b-mtp-k4` (the K=4 structured-role
 # profile for the same MoE A4B model). The two together implement
 # the same workload-class partition for the 26B MoE arch that
-# `gemma4-tq-mtp-chat-k3` + `gemma4-tq-mtp-structured-k4` implement
+# `gemma4-31b-tq-mtp-chat-k3` + `gemma4-31b-tq-mtp-structured-k4` implement
 # for the 31B dense arch.
 #
 # Bench evidence (2026-05-31, vllm pin 0.21.1rc1.dev354+g626fa9bba,
@@ -36,13 +36,13 @@
 # Architectural cross-references:
 #   docs/_internal/SNDR_RUNTIME_PROFILES_DESIGN_DECISIONS_2026-05-20.md
 #   docs/_internal/DEPLOYMENT_PROFILE_ROUTING_PLAN_2026-05-20.md
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-a4b-mtp-chat-k3.json
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-a4b-mtp-k4.json (sibling)
-#   vllm/sndr_core/model_configs/builtin/profile/gemma4-a4b-mtp-k4.yaml (structured K=4)
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-k4.json (sibling)
+#   vllm/sndr_core/model_configs/builtin/profile/gemma4-26b-mtp-k4.yaml (structured K=4)
 
 schema_version: 2
 kind: profile
-id: gemma4-a4b-mtp-chat-k3
+id: gemma4-26b-mtp-chat-k3
 parent_model: gemma-4-26b-a4b-it-awq
 maintainer: sandermage
 status: experimental                              # promote to validated after operator A/B observation window
@@ -53,11 +53,11 @@ created: '2026-05-31'
 # profile that carries spec_decode_override + routing + validation
 # blocks MUST declare role=structured (or one of the other non-default
 # roles); role=default + spec_decode_override fails schema validation.
-# The default-role slot for 26B-A4B remains held by gemma4-a4b-no-mtp.
+# The default-role slot for 26B-A4B remains held by gemma4-26b-no-mtp.
 role: structured
 
 # MTP K=3 — same drafter model as the K=4 sibling. The K-axis is the
-# only delta between this profile and gemma4-a4b-mtp-k4.
+# only delta between this profile and gemma4-26b-mtp-k4.
 spec_decode_override:
   method: mtp
   num_speculative_tokens: 3
@@ -80,7 +80,7 @@ routing:
     - summarization
 
 validation:
-  artifact_id: gemma4-a4b-mtp-chat-k3
+  artifact_id: gemma4-26b-mtp-chat-k3
   config_hash: 717c7edc75754aea
 
 # ─── Sizing override ───────────────────────────────────────────────────
@@ -107,7 +107,7 @@ override_policy:
   override_class: bench
   reason: "Gemma4 26B-A4B chat-K=3 mirror of K=4 sibling; +13% free-form / +2.4% global vs K=4; partitions free_chat + summarization off the K=4 path where K=3 wins ≥ 7%"
   evidence_refs:
-    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-a4b-mtp-chat-k3.json
+    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json
   evidence_visibility: public
   expires_at: '2026-08-31'
   allowed_to_exceed_hardware_default: false
@@ -115,15 +115,15 @@ override_policy:
 # ─── Promotion contract ────────────────────────────────────────────────
 promotion:
   validation_required:
-    - "functional artifact gemma4-a4b-mtp-chat-k3.json present and config_hash matches"
+    - "functional artifact gemma4-26b-mtp-chat-k3.json present and config_hash matches"
     - "router intersects routing.intended_workloads ∩ artifact.allowed_workloads to {free_chat, summarization}"
     - "structured workloads (structured_count, tool_json, code_gen) NOT in artifact.allowed_workloads"
     - "no measurable quality regression vs K=4 sibling on free-chat acceptance distribution (PN248 mean delta within ±0.3)"
     - "aggregator-measured chat workload gain ≥ +10% over K=4 sibling during observation window"
   promote_to: null
   notes: |
-    Companion to gemma4-a4b-mtp-k4. Together implement the same
-    role-split deployment topology as gemma4-tq-mtp-chat-k3 +
-    gemma4-tq-mtp-structured-k4 do for the 31B dense arch, but with
+    Companion to gemma4-26b-mtp-k4. Together implement the same
+    role-split deployment topology as gemma4-31b-tq-mtp-chat-k3 +
+    gemma4-31b-tq-mtp-structured-k4 do for the 31B dense arch, but with
     smaller K-axis trade-offs because the 26B-A4B drafter has higher
     per-token acceptance on free-form prose than the 31B drafter.

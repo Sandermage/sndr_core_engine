@@ -135,7 +135,7 @@ def select_profile(
     *,
     request: dict | None,
     artifact: FunctionalArtifact | None,
-    fallback_profile: str = "gemma4-tq-default",
+    fallback_profile: str = "gemma4-31b-tq-default",
 ) -> ProfileSelection:
     """Pure function: request shape + optional artifact -> decision.
 

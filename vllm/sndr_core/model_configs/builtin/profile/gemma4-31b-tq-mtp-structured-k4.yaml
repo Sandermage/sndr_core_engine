@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 profile — gemma4-tq-mtp-structured-k4
+# Genesis V2 profile — gemma4-31b-tq-mtp-structured-k4
 # Role: structured — β'-A K=4 validated_conditional runtime for
 # gemma-4-31b-it-awq with MTP spec-decode targeting tool_json and
 # structured_count workloads.
@@ -29,7 +29,7 @@
 #   tool_json (response_format json_object / json_schema) → THIS profile
 #   structured_count (extra_body.workload_class)          → THIS profile
 #   free_chat / summarization / code_gen                   → fall back to
-#                                                            gemma4-tq-default
+#                                                            gemma4-31b-tq-default
 #
 # Architectural cross-references:
 #   docs/_internal/ACCEPTANCE_METRIC_DESIGN_2026-05-20.md
@@ -40,7 +40,7 @@
 
 schema_version: 2
 kind: profile
-id: gemma4-tq-mtp-structured-k4
+id: gemma4-31b-tq-mtp-structured-k4
 parent_model: gemma-4-31b-it-awq                 # post-Variant-A: ModelDef has spec_decode=null
 maintainer: sandermage
 status: validated                                 # PN282/PN283 validation 2026-05-20 evening passed all gates
@@ -133,8 +133,8 @@ routing:
 # config_hash is computed over (model_id, kv_plan, K, drafter_backend),
 # excluding the vLLM pin — stable across pin bumps.
 validation:
-  artifact_id: gemma4-tq-mtp-structured-k4
-  config_hash: 71c874d7ffedae04                  # see vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-structured-k4.json
+  artifact_id: gemma4-31b-tq-mtp-structured-k4
+  config_hash: 71c874d7ffedae04                  # see vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
 
 # ─── Patches delta — structured-specific runtime gates ────────────────
 # These envs are enabled by `start_g4_betaA_k1.sh` on the server but
@@ -226,8 +226,8 @@ patches_delta:
     GENESIS_ENABLE_G4_19C_ATTN_WRAP: '0'         # TEMPORARY — see Phase 7.G4.G4_19C-FULLGRAPH-AUDIT
 
 # ─── Override policy (CONFIG-UX.4.DEBT.1, 2026-05-24) ──────────────────
-# Class `bench` — public acceptance artifact is committed (gemma4-tq-mtp-
-# structured-k4.json with config_hash 71c874d7ffedae04), but the
+# Class `bench` — public acceptance artifact is committed (gemma4-31b-tq-
+# mtp-structured-k4.json with config_hash 71c874d7ffedae04), but the
 # acceptance artifact is per-method validation, not a TPS bench. Per-
 # preset config-block cross-validation is deferred to CONFIG-UX.4.
 # Re-evaluate after expires_at.
@@ -235,7 +235,7 @@ override_policy:
   override_class: bench
   reason: "Gemma4 31B β'-A K=4 structured control; very tight context 4K + max_num_seqs=1; β'-A acceptance-artifact-gated"
   evidence_refs:
-    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-structured-k4.json
+    - vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-structured-k4.json
   evidence_visibility: public
   expires_at: '2026-08-22'
   allowed_to_exceed_hardware_default: true
@@ -249,7 +249,7 @@ override_policy:
 # observation window per the opt-in plan completes.
 promotion:
   validation_required:
-    - "functional artifact gemma4-tq-mtp-structured-k4.json present and config_hash matches"
+    - "functional artifact gemma4-31b-tq-mtp-structured-k4.json present and config_hash matches"
     - "PN248 ↔ PN282 cross-check tolerance 0 maintained over observation window"
     - "router intersects routing.intended_workloads ∩ artifact.allowed_workloads to {structured_count, tool_json}"
     - "no KERNEL_STORAGE_DTYPE_MISMATCH verdict from PN271/PN271b at boot"

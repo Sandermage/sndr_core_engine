@@ -763,7 +763,7 @@ def render_profile_launcher(
     """Compose (model + hw + profile) and render a bash launcher script.
 
     Args:
-        profile_id: V2 ProfileDef id (e.g. ``gemma4-tq-mtp-structured-k4``).
+        profile_id: V2 ProfileDef id (e.g. ``gemma4-31b-tq-mtp-structured-k4``).
         hardware_id: optional HardwareDef id; if None, auto-picks the
             first hardware satisfying the parent model's requires.
 

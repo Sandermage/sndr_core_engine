@@ -89,9 +89,9 @@ contract change is ever needed.
 
 ```
 gemma4_moe_26b_a4b:
-  multi_conc + (structured_json | tool_call) + short  → prod-gemma4-26b-a4b-multiconc   (B4 evidence)
-  single_stream + (structured_json | tool_call) + short → prod-gemma4-26b-a4b-mtp-k4    (B2 evidence)
-  default                                              → prod-gemma4-26b-a4b-default   (K=1)
+  multi_conc + (structured_json | tool_call) + short  → prod-gemma4-26b-multiconc   (B4 evidence)
+  single_stream + (structured_json | tool_call) + short → prod-gemma4-26b-mtp-k4    (B2 evidence)
+  default                                              → prod-gemma4-26b-default   (K=1)
 
 gemma4_dense_31b:
   single_stream + (structured_json | tool_call)       → prod-gemma4-31b-tq-mtp-structured-k4   (B1.2 evidence + β'-A artifact)

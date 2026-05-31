@@ -3,9 +3,9 @@
 
 10 operator-facing acceptance gates:
 
-  G01  dry-run renders gemma4-tq-default as valid bash
+  G01  dry-run renders gemma4-31b-tq-default as valid bash
   G02  default does NOT contain MTP / spec-decode env
-  G03  dry-run renders gemma4-tq-mtp-structured-k4 as valid bash
+  G03  dry-run renders gemma4-31b-tq-mtp-structured-k4 as valid bash
   G04  structured contains skip-list 58,59
   G05  structured contains G4_71b + G4_75 backend routing
   G06  structured contains MTP K=4 (--speculative-config '{"method": "mtp", "num_speculative_tokens": 4, ...}')
@@ -85,24 +85,24 @@ def _parse_rendered_docker_envs(script: str) -> dict[str, str]:
 
 class TestDefaultProfileRender:
     def test_g01_default_renders_valid_bash_shebang(self):
-        script = render_profile_launcher("gemma4-tq-default")
+        script = render_profile_launcher("gemma4-31b-tq-default")
         assert script.startswith("#!/bin/bash\n")
         assert "set -e" in script
         assert "docker run -d --name" in script
 
     def test_g02_default_no_mtp_no_spec_decode(self):
-        script = render_profile_launcher("gemma4-tq-default")
+        script = render_profile_launcher("gemma4-31b-tq-default")
         assert "--speculative-config" not in script
         assert "method: mtp" not in script
         assert "method\":\"mtp" not in script
 
     def test_g02_default_no_skip_list_env(self):
-        script = render_profile_launcher("gemma4-tq-default")
+        script = render_profile_launcher("gemma4-31b-tq-default")
         assert "SNDR_G4_TQ_FORCE_SKIP_LAYERS" not in script
         assert "GENESIS_G4_TQ_FORCE_SKIP_LAYERS" not in script
 
     def test_g02_default_no_structured_backend_routing(self):
-        script = render_profile_launcher("gemma4-tq-default")
+        script = render_profile_launcher("gemma4-31b-tq-default")
         assert "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON" not in script
         assert "GENESIS_ENABLE_G4_75_DRAFTER_HEAD512_TRITON" not in script
 
@@ -113,13 +113,13 @@ class TestDefaultProfileRender:
 class TestStructuredProfileRender:
     @pytest.fixture(scope="class")
     def script(self):
-        return render_profile_launcher("gemma4-tq-mtp-structured-k4")
+        return render_profile_launcher("gemma4-31b-tq-mtp-structured-k4")
 
     def test_g03_structured_renders_valid_bash(self, script):
         assert script.startswith("#!/bin/bash\n")
         assert "set -e" in script
         assert "docker run -d --name" in script
-        assert "vllm-gemma4-tq-mtp-structured-k4-k${K}" in script
+        assert "vllm-gemma4-31b-tq-mtp-structured-k4-k${K}" in script
 
     def test_g04_structured_skip_list_58_59(self, script):
         assert "SNDR_G4_TQ_FORCE_SKIP_LAYERS=58,59" in script
@@ -286,7 +286,7 @@ class TestStructuredProfileRender:
 
     def test_default_pr42637_overlay_mounts_absent(self):
         """default profile does NOT have G4_60a..k → no overlay mounts."""
-        script = render_profile_launcher("gemma4-tq-default")
+        script = render_profile_launcher("gemma4-31b-tq-default")
         assert "overlays/pr42637" not in script
 
 
@@ -318,7 +318,7 @@ class TestP21ImagePinRouting:
     def test_image_line_present(self):
         """Rendered launcher has exactly one IMAGE="..." line."""
         script = render_profile_launcher(
-            "gemma4-tq-mtp-structured-k4",
+            "gemma4-31b-tq-mtp-structured-k4",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         image = self._extract_image_line(script)
@@ -334,7 +334,7 @@ class TestP21ImagePinRouting:
         hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
         expected = hw.runtime.docker.image  # type: ignore[union-attr]
         script = render_profile_launcher(
-            "gemma4-tq-mtp-structured-k4",
+            "gemma4-31b-tq-mtp-structured-k4",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         image = self._extract_image_line(script)
@@ -349,7 +349,7 @@ class TestP21ImagePinRouting:
         dev338 hash tag. The rendered launcher must NOT emit the bare
         :nightly tag (which is mutable on the host)."""
         script = render_profile_launcher(
-            "gemma4-tq-mtp-structured-k4",
+            "gemma4-31b-tq-mtp-structured-k4",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         image = self._extract_image_line(script)
@@ -370,7 +370,7 @@ class TestP21ImagePinRouting:
         hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
         expected = hw.runtime.docker.image  # type: ignore[union-attr]
         script = render_profile_launcher(
-            "gemma4-tq-default",
+            "gemma4-31b-tq-default",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         image = self._extract_image_line(script)
@@ -400,7 +400,7 @@ class TestP21ImagePinRouting:
         )
         with pytest.raises(SchemaError, match="hardware.runtime.docker"):
             render_profile_launcher(
-                "gemma4-tq-default",
+                "gemma4-31b-tq-default",
                 hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
             )
 
@@ -470,7 +470,7 @@ class TestKvCacheDtypeEmission:
 
     def test_gemma4_structured_still_emits_turboquant_4bit_nc(self):
         script = render_profile_launcher(
-            "gemma4-tq-mtp-structured-k4",
+            "gemma4-31b-tq-mtp-structured-k4",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         assert "  --kv-cache-dtype turboquant_4bit_nc \\" in script
@@ -494,7 +494,7 @@ class TestKvCacheDtypeEmission:
         }
         for profile_id in (
             "35b-balanced", "27b-tq-k8v4",
-            "gemma4-tq-mtp-structured-k4", "gemma4-tq-default",
+            "gemma4-31b-tq-mtp-structured-k4", "gemma4-31b-tq-default",
         ):
             script = render_profile_launcher(
                 profile_id,
@@ -645,7 +645,7 @@ class TestOutputFlags:
             [
                 sys.executable, "-m", "vllm.sndr_core.cli",
                 "profile", "render-launchers",
-                "gemma4-tq-default",
+                "gemma4-31b-tq-default",
                 "--output", str(tmp_path),
             ],
             capture_output=True, text=True,
@@ -654,7 +654,7 @@ class TestOutputFlags:
             f"expected 0; got {result.returncode}\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
-        out_file = tmp_path / "start_gemma4-tq-default.sh"
+        out_file = tmp_path / "start_gemma4-31b-tq-default.sh"
         assert out_file.exists(), f"{out_file} not created"
         assert out_file.stat().st_mode & 0o111, "output file not executable"
         content = out_file.read_text()
@@ -663,7 +663,7 @@ class TestOutputFlags:
     def test_g09_overwrite_without_force_fails(self, tmp_path):
         """Pre-existing target file + no --force → exit 1, no write."""
         # Pre-create a sentinel file at the target path
-        target = tmp_path / "start_gemma4-tq-default.sh"
+        target = tmp_path / "start_gemma4-31b-tq-default.sh"
         target.write_text("# preexisting sentinel\n")
         before_mtime = target.stat().st_mtime
 
@@ -671,7 +671,7 @@ class TestOutputFlags:
             [
                 sys.executable, "-m", "vllm.sndr_core.cli",
                 "profile", "render-launchers",
-                "gemma4-tq-default",
+                "gemma4-31b-tq-default",
                 "--output", str(tmp_path),
                 # NO --force
             ],
@@ -684,14 +684,14 @@ class TestOutputFlags:
         assert target.read_text() == "# preexisting sentinel\n"
 
     def test_g09_overwrite_with_force_succeeds(self, tmp_path):
-        target = tmp_path / "start_gemma4-tq-default.sh"
+        target = tmp_path / "start_gemma4-31b-tq-default.sh"
         target.write_text("# preexisting sentinel\n")
 
         result = subprocess.run(
             [
                 sys.executable, "-m", "vllm.sndr_core.cli",
                 "profile", "render-launchers",
-                "gemma4-tq-default",
+                "gemma4-31b-tq-default",
                 "--output", str(tmp_path),
                 "--force",
             ],
@@ -708,14 +708,14 @@ class TestOutputFlags:
             [
                 sys.executable, "-m", "vllm.sndr_core.cli",
                 "profile", "render-launchers",
-                "gemma4-tq-default",
+                "gemma4-31b-tq-default",
                 "--output", str(tmp_path),
                 "--dry-run",
             ],
             capture_output=True, text=True,
         )
         assert result.returncode == 0
-        out_file = tmp_path / "start_gemma4-tq-default.sh"
+        out_file = tmp_path / "start_gemma4-31b-tq-default.sh"
         assert not out_file.exists(), "dry-run should not write file"
         assert result.stdout.startswith("#!/bin/bash")
 
@@ -725,7 +725,7 @@ class TestOutputFlags:
             [
                 sys.executable, "-m", "vllm.sndr_core.cli",
                 "profile", "render-launchers",
-                "gemma4-tq-default",
+                "gemma4-31b-tq-default",
             ],
             capture_output=True, text=True,
         )
@@ -761,7 +761,7 @@ class TestP18ArtifactLookupRegression:
         know to emit the G4_76=0 envs, and the artifact lookup at the
         guard would return None."""
         from vllm.sndr_core.model_configs.registry_v2 import load_profile
-        p = load_profile("gemma4-tq-mtp-structured-k4")
+        p = load_profile("gemma4-31b-tq-mtp-structured-k4")
         assert p.backend_plan is not None
         assert p.backend_plan.drafter_kv_sharing == "physical", (
             "structured profile must declare drafter_kv_sharing=physical; "
@@ -777,7 +777,7 @@ class TestP18ArtifactLookupRegression:
         from vllm.sndr_core.model_configs.registry_v2 import (
             load_hardware, load_model, load_profile,
         )
-        p = load_profile("gemma4-tq-mtp-structured-k4")
+        p = load_profile("gemma4-31b-tq-mtp-structured-k4")
         m = load_model("gemma-4-31b-it-awq")
         hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
         cfg = compose(m, hw, p)
@@ -792,7 +792,7 @@ class TestP18ArtifactLookupRegression:
         """The rendered launcher (operator-facing) MUST contain both
         G4_76 disable envs at value 0. Without them the C2 verdict
         gate fails at boot."""
-        script = render_profile_launcher("gemma4-tq-mtp-structured-k4")
+        script = render_profile_launcher("gemma4-31b-tq-mtp-structured-k4")
         assert "-e SNDR_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING=0" in script
         assert "-e GENESIS_ENABLE_G4_76_DISABLE_DRAFTER_KV_SHARING=0" in script
 
@@ -857,7 +857,7 @@ class TestP18ArtifactLookupRegression:
         from vllm.sndr_core.model_configs.registry_v2 import (
             load_hardware, load_model, load_profile,
         )
-        p = load_profile("gemma4-tq-mtp-structured-k4")
+        p = load_profile("gemma4-31b-tq-mtp-structured-k4")
         m = load_model("gemma-4-31b-it-awq")
         hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
         cfg = compose(m, hw, p)

@@ -47,15 +47,15 @@ from vllm.sndr_core.integrations.spec_decode.request_router import (
 MODEL_CONFIGS = {
     "31b": {
         "model_id": "gemma-4-31B-it-AWQ-4bit",
-        "structured": ("gemma4-tq-mtp-structured-k4", "71c874d7ffedae04"),
-        "chat":       ("gemma4-tq-mtp-chat-k3",      "aba0bb6b158f7632"),
-        "fallback":   "gemma4-tq-default",
+        "structured": ("gemma4-31b-tq-mtp-structured-k4", "71c874d7ffedae04"),
+        "chat":       ("gemma4-31b-tq-mtp-chat-k3",      "aba0bb6b158f7632"),
+        "fallback":   "gemma4-31b-tq-default",
     },
     "26b": {
         "model_id": "gemma-4-26B-A4B-it-AWQ",
-        "structured": ("gemma4-a4b-mtp-k4",          None),  # no artifact for K=4 on 26B
-        "chat":       ("gemma4-a4b-mtp-chat-k3",     "717c7edc75754aea"),
-        "fallback":   "gemma4-a4b-no-mtp",
+        "structured": ("gemma4-26b-mtp-k4",          None),  # no artifact for K=4 on 26B
+        "chat":       ("gemma4-26b-mtp-chat-k3",     "717c7edc75754aea"),
+        "fallback":   "gemma4-26b-no-mtp",
     },
 }
 

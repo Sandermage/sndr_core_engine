@@ -68,7 +68,7 @@ GEMMA4_DIR = INTEGRATIONS / "gemma4"
 REGISTRY_FILE = REPO_ROOT / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
 STRUCTURED_PROFILE = (
     REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
-    / "profile" / "gemma4-tq-mtp-structured-k4.yaml"
+    / "profile" / "gemma4-31b-tq-mtp-structured-k4.yaml"
 )
 
 
@@ -274,7 +274,7 @@ def _registered_env_flags() -> set[str]:
 
 
 def _structured_profile_envs() -> list[str]:
-    """Parse the gemma4-tq-mtp-structured-k4 profile for GENESIS_/SNDR_ envs."""
+    """Parse the gemma4-31b-tq-mtp-structured-k4 profile for GENESIS_/SNDR_ envs."""
     if not STRUCTURED_PROFILE.is_file():
         return []
     text = STRUCTURED_PROFILE.read_text()

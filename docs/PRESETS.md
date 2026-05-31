@@ -202,10 +202,10 @@ future generator phase.
 
 | Preset | K | Concurrency | Mode | Best for |
 |---|---:|---:|---|---|
-| `prod-gemma4-26b-a4b-default` ★default | 1 | 1..2 | throughput | K=1 control / MTP off baseline; serves as fallback for K=4 siblings. |
-| `prod-gemma4-26b-a4b-mtp-k4` | 4 | 1..2 | structured_throughput | K=4 single-stream structured (tool_call / structured_json.short). |
-| `prod-gemma4-26b-a4b-multiconc` | 4 | 1..8 | structured_throughput | K=4 multi-conc structured (235.9 TPS @ conc=8 Mode A). |
-| `prod-gemma4-26b-a4b-multiconc-k1` | 1 | 1..8 | throughput | K=1 multi-conc B4 comparator (diagnostic baseline). |
+| `prod-gemma4-26b-default` ★default | 1 | 1..2 | throughput | K=1 control / MTP off baseline; serves as fallback for K=4 siblings. |
+| `prod-gemma4-26b-mtp-k4` | 4 | 1..2 | structured_throughput | K=4 single-stream structured (tool_call / structured_json.short). |
+| `prod-gemma4-26b-multiconc` | 4 | 1..8 | structured_throughput | K=4 multi-conc structured (235.9 TPS @ conc=8 Mode A). |
+| `prod-gemma4-26b-multiconc-k1` | 1 | 1..8 | throughput | K=1 multi-conc B4 comparator (diagnostic baseline). |
 
 ### Gemma 4 31B dense family — `gemma4_dense_31b_tq`
 

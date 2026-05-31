@@ -76,9 +76,9 @@
     ]
   },
   "model_id": "gemma-4-31B-it-AWQ-4bit",
-  "notes": "K=3 chat-role bench 2026-05-31 on pin 0.21.1rc1.dev354+g626fa9bba. Mirror-sibling of gemma4-tq-mtp-structured-k4: where K=4 is +24% structured / -51% free-form / -14.7% global, K=3 is the opposite trade-off: +105.7% free-form / -18.3% structured / +19% global. Global delta 19% exceeds promotion_gain_threshold 0.1 → validated_conditional eligible. Allowed workloads are the K=4 artifact's denied set (free_chat, code_gen, summarization); denied workloads are the K=4 artifact's allowed set (structured_count, tool_json) so the two profiles partition cleanly at the request_router boundary.",
+  "notes": "K=3 chat-role bench 2026-05-31 on pin 0.21.1rc1.dev354+g626fa9bba. Mirror-sibling of gemma4-31b-tq-mtp-structured-k4: where K=4 is +24% structured / -51% free-form / -14.7% global, K=3 is the opposite trade-off: +105.7% free-form / -18.3% structured / +19% global. Global delta 19% exceeds promotion_gain_threshold 0.1 → validated_conditional eligible. Allowed workloads are the K=4 artifact's denied set (free_chat, code_gen, summarization); denied workloads are the K=4 artifact's allowed set (structured_count, tool_json) so the two profiles partition cleanly at the request_router boundary.",
   "patch_hash": "0ab6fc8be0ecebcf928f0439e60c0e53f1e67516",
-  "profile": "gemma4-tq-mtp-chat-k3",
+  "profile": "gemma4-31b-tq-mtp-chat-k3",
   "prompt_suite": [
     "code_gen",
     "free_chat",

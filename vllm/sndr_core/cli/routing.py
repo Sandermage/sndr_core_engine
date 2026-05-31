@@ -213,7 +213,7 @@ def _build_routing_rules(presets: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "expected_output_length": ["short"],
                 "concurrency_mode":       ["multi_conc"],
             },
-            "preset_key": "prod-gemma4-26b-a4b-multiconc",
+            "preset_key": "prod-gemma4-26b-multiconc",
             "evidence": (
                 "B4 (2026-05-23): K=4 conc=8 Mode A 235.9 TPS vs K=1 209.1 TPS "
                 "(+12.8%); Mode B xgrammar 271.4 TPS / schema_rate 100%. See "
@@ -229,7 +229,7 @@ def _build_routing_rules(presets: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "expected_output_length": ["short"],
                 "concurrency_mode":       ["single_stream"],
             },
-            "preset_key": "prod-gemma4-26b-a4b-mtp-k4",
+            "preset_key": "prod-gemma4-26b-mtp-k4",
             "evidence": (
                 "B2 (2026-05-23): K=4 short-structured mean elapsed 443 ms "
                 "vs K=1 720 ms (-38%); parse_rate 10/10 vs 9/10. See "

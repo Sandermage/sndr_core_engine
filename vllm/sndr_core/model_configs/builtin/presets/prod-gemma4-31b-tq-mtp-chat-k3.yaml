@@ -3,7 +3,7 @@
 # `sndr launch prod-gemma4-31b-tq-mtp-chat-k3` resolves to (model, hardware, profile).
 #
 # Chat-role preset: MTP K=3 — empirically validated 2026-05-31 as the
-# default-role replacement for `gemma4-tq-default` (MTP OFF). Pairs
+# default-role replacement for `gemma4-31b-tq-default` (MTP OFF). Pairs
 # with `prod-gemma4-31b-tq-mtp-structured-k4` which is the structured-
 # role sibling (MTP K=4 gated on tool_json + structured_count workloads).
 #
@@ -19,7 +19,7 @@
 #   profile_structured_mean_tps: 43.057   (-18.3% vs K=4 structured)
 #   profile_geomean_tps:         43.608   (+19.0% vs K=4 structured)
 #   Decision: validated_conditional. See artifact at
-#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-chat-k3.json
+#   vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
 #
 # Hand-launcher reference: the rig carries `~/start_gemma4-31b_k3.sh`
 # (created 2026-05-31) as a manual K=3 control before this preset
@@ -29,7 +29,7 @@
 
 model: gemma-4-31b-it-awq                        # cyankiwi/gemma-4-31B-it-AWQ-4bit + native gemma4_dense
 hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
-profile: gemma4-tq-mtp-chat-k3                   # chat role: MTP K=3, +19% global / +105% chat vs K=4
+profile: gemma4-31b-tq-mtp-chat-k3                   # chat role: MTP K=3, +19% global / +105% chat vs K=4
 
 # CONFIG-UX.2 — operator card
 card:
@@ -62,16 +62,16 @@ card:
     typical_input_tokens: 2048
     typical_output_tokens: 2048
   routing_family: gemma4_dense_31b_tq
-  default_for_family: false                        # default_for_family stays with gemma4-tq-default
+  default_for_family: false                        # default_for_family stays with gemma4-31b-tq-default
                                                     # until operator promotes this profile
   primary_metric:
     kind: agg_TPS
     value: 43.608117
-    source: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-chat-k3.json
+    source: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
     measured_at: 2026-05-31
   evidence_refs:
     - type: bench
-      path: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-tq-mtp-chat-k3.json
+      path: vllm/sndr_core/integrations/spec_decode/artifacts/gemma4-31b-tq-mtp-chat-k3.json
       visibility: private
       note: |
         K=3 vs K=4 5-class A/B bench evidence, +19% global delta,
