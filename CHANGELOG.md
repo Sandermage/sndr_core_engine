@@ -80,6 +80,55 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
+## [Unreleased] — Renderer auto-pick fix + ProfileDef.target_hardware (2026-05-31)
+
+### Highlights
+
+Two-step closure of the V2 launcher auto-pick mis-rendering discovered
+during Stage G post-rename qwen validation. Initial qwen3.6-27b-tq-k8v4
+boot failure was misdiagnosed as KV-budget drift; root cause turned out
+to be `sndr profile render-launchers` auto-picking `a5000-1x` (smallest
+satisfying) instead of `a5000-2x` (largest VRAM the profile semantics
+target).
+
+### Changes
+
+1. **Commit `861e1fed`** — `_pick_default_hardware()` sort-order fix.
+   Old: `candidates[0]` from alphabetically-sorted `list_hardware()`
+   (picks `a5000-1x` for 27B INT4 model that fits both 1× and 2×).
+   New: sorts by total VRAM DESC and returns largest. Operators wanting
+   a smaller rig pass `--hardware <id>` explicitly.
+
+2. **Commit `3a9ee38c`** — `ProfileDef.target_hardware: Optional[str]`
+   new schema field. Closes the edge case where auto-pick logic (now
+   "prefer largest VRAM") mis-routes 3 variant profiles whose
+   semantics target a specific smaller rig: `qa-qwen3.6-27b-tq-1x`
+   (→ a5000-1x), `cpu-offload-3090` and `tier-aware-3090` (→ single-3090).
+   Renderer precedence: explicit `--hardware` > `profile.target_hardware`
+   > auto-pick.
+
+### Audit result
+
+All 23 V2 profiles re-rendered cleanly:
+
+- 20 → `a5000-2x-24gbvram-16cpu-128gbram` TP=2 (auto-pick default)
+- 2 → `single-3090-24gbvram` TP=1 (via target_hardware)
+- 1 → `a5000-1x-24gbvram-16cpu-128gbram` TP=1 (via target_hardware)
+
+Mismatches: **0**.
+
+### Verified
+
+- `pytest tests/unit/cli/test_profile_render_launchers.py
+  tests/unit/cli/test_profile_validate.py`: 58 passed
+- `bash /home/sander/start_qwen3.6-27b-tq-k8v4.sh` on rig with pin
+  626fa9bba: boots cleanly TP=2 + 256K context, serves `qwen3.6-27b`,
+  generates coherent reasoning for "Capital of Germany?" prompt
+- All 23 V2 launchers pass `bash -n` syntax check on rig
+- Reverted misdiagnosed profile changes (max_model_len → 262144)
+
+---
+
 ## [Unreleased] — V2 launcher coverage closure + legacy chat_default deprecation (2026-05-31)
 
 ### Highlights
