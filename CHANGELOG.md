@@ -80,6 +80,66 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
+## [Unreleased] — V2 launcher coverage closure + legacy chat_default deprecation (2026-05-31)
+
+### Highlights
+
+Closes V2 launcher coverage gap surfaced by the Phase 1-2 config audit:
+every renamed V2 PROD/QA/experimental profile now has a corresponding
+`sndr profile render-launchers`-generated launcher deployed to the rig
+at `/home/sander/start_<profile-id>.sh`.
+
+### Operator notes
+
+- 15 V2 launchers generated + deployed to rig (in addition to the 5
+  gemma4 launchers from the gemma4 rename commit):
+
+  - `start_qwen3.6-{27b,35b}-{dflash,multiconc,balanced,...}.sh`
+  - `start_gemma4-26b-{multiconc,multiconc-k1,no-mtp}.sh`
+  - `start_ab-qwen3.6-27b-tq-dflash.sh`
+  - `start_qa-qwen3.6-27b-{fp8kv,tq-1x}.sh`
+
+- All pass `bash -n` syntax check
+- All use `--entrypoint $LAUNCHER_DIR/run.sh` pattern (immune to
+  vllm image ENTRYPOINT drift observed post-pin-bump)
+- All pin to canonical SHA-pinned image
+  `vllm/vllm-openai:nightly-626fa9bba5663a5cf6a870debf031ee344ddb822`
+
+### Legacy chat_default_PROPER launcher deprecated
+
+`/home/sander/start_gemma4-31b_chat_default_PROPER.sh` produces garbage
+output (`la la la la la...`) post-pin-bump. Root cause:
+`--tool-call-parser gemma4 --enable-auto-tool-choice` references the
+`Gemma4ToolParser` class which does NOT exist in the current vllm pin
+(G4_14 reports "No Gemma4ToolParser-like class found in this vLLM
+pin; G4_14 is no-op").
+
+Confirmed via A/B test 2026-05-31:
+
+- Legacy launcher: `content: la la la la la la la la la...` (garbage)
+- V2 `start_gemma4-31b-tq-default.sh`: `content: "Tensor parallelism
+  splits large weight matrices across multiple GPUs. Instead of
+  duplicating the model, each GPU computes a partial result..."`
+  (coherent, correct)
+
+Both launchers serve the same profile semantics (MTP-OFF, TQ KV,
+broad workload safe). V2 just lacks the broken tool-parser flag.
+
+Operator action: rename of legacy file applied on rig
+(`start_gemma4-31b_chat_default_PROPER.sh.DEPRECATED_2026-05-31_use_V2_start_gemma4-31b-tq-default`).
+Use `bash /home/sander/start_gemma4-31b-tq-default.sh` going forward.
+
+### Verified
+
+- `curl http://localhost:8101/v1/chat/completions` (V2 default):
+  coherent chat response, no garbage
+- `curl http://localhost:8102/v1/chat/completions` (V2 structured-k4):
+  `"2 + 2 = 4"` — correct math
+- Both V2 launchers boot cleanly with no `--tool-call-parser gemma4`
+  reference; Genesis patches still apply (G4_19_TURBOQUANT_KV etc.)
+
+---
+
 ## [Unreleased] — SNDR_MTP_DYNAMIC_K_001 scope correction (2026-05-31)
 
 ### Audit findings
