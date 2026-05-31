@@ -127,6 +127,49 @@ watch:
       vLLM-side bug worth flagging to the PR author when the merge
       is being prepared.
 
+  - upstream: vllm#43074
+    status: open
+    local_patches: [Q3_T1]
+    action: retire
+    since: 2026-05-31
+    notes: |
+      [Bugfix] Qwen3Coder streaming: emit args when whole tool body
+      lands in one delta. PR #43074 fixes the EXACT bug class our
+      Q3_T1 v1 overlay addresses — the upstream state machine drops
+      tool_calls when MTP K=3 packs the whole `<function=NAME>...
+      </function></tool_call>` body into a single delta after
+      is_tool_call_started flipped on the prior delta. Reproduces
+      with `--tool-call-parser qwen3_coder --stream-interval 20
+      --speculative-config '{"method":"mtp","num_speculative_tokens":3}'`
+      on Qwen3.6-27B — exactly our 27B PROD launcher config.
+
+      Author's fix is a surgical +81/-41 LOC patch to the state
+      machine ("collapsed body" detection + emit args inline).
+      Our Q3_T1 v1 takes a different approach — full Hermes/Kimi
+      rescan + diff rewrite (~250 LOC of new method) — which is
+      more general (covers ALL packing patterns, not just "whole
+      body in one delta") but heavier. After upstream merges,
+      verify the fix covers our 7-case bench at 100% on both 27B
+      and 35B, then retire Q3_T1 v1.
+
+      Related (track but not primary retire triggers):
+        - vllm#40861 (Qwen3 XML and Coder streaming regression
+          fix, needs-rebase)
+        - vllm#39598 (streaming tool call empty fields with MTP
+          + qwen3coder early return, needs-rebase)
+        - vllm#41970 (Enable tool parser tests for Qwen3 Coder)
+        - vllm#37829 (stop string streaming at next <parameter=>
+          boundary, needs-rebase)
+        - vllm#43363 (refactor Use shared type coercion utilities
+          in Qwen3 XML — touches type-coercion path our Q3_T1 v1
+          also depends on via _convert_param_value)
+
+      Empirical state of Q3_T1 v1 on pin 0.21.1rc1.dev354+g626fa9bba:
+        qwen3.6-27b stream: 35/35 ✓ (was 1/7 = 14%)
+        qwen3.6-35b stream: 35/35 ✓ (was 2/14 = 14%)
+        non-streaming on both: unchanged 7/7
+      See Bug Class 15 in docs/TROUBLESHOOTING.md for full bench.
+
   - upstream: vllm#43909
     status: merged
     local_patches: []
