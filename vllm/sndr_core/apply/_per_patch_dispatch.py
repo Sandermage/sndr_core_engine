@@ -1519,6 +1519,34 @@ def apply_patch_sndr_workspace_001() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("SNDR_MTP_DYNAMIC_K_001 adaptive K MTP proposer (vllm#26504 port to DraftModelProposer)")
+def apply_patch_sndr_mtp_dynamic_k_001() -> PatchResult:
+    """SNDR_MTP_DYNAMIC_K_001: port of vllm#26504 (DynamicProposer)
+    to the DraftModelProposer base used by all 4 PROD MTP models.
+    Per-seq adaptive K with rolling acceptance-rate window +
+    hysteresis ±0.05 around configurable threshold (default 0.7).
+
+    Default OFF (env GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001=1 opt-in)
+    so static-K behaviour stays bit-identical to upstream until
+    operator A/B confirms the +5-12% TPS claim on this rig.
+    """
+    name = "SNDR_MTP_DYNAMIC_K_001 adaptive K MTP"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: monkey-patch ready")
+    try:
+        from vllm.sndr_core.integrations.spec_decode import (
+            g_dynamic_k_mtp_proposer as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN202 per-layer KV tensor split (Tier 2.A)")
 def apply_patch_pn202_per_layer_kv_split() -> PatchResult:
     """PN202: text-patch on kv_cache_utils.py Branch C → one tensor per layer.
