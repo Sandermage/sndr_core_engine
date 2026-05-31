@@ -54,7 +54,9 @@ FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     # — V2 equivalent: preset `example-3090-dense-cpu-offload`.
     # First V1 sunset (Phase 9 → Phase 10 transition proof-of-concept).
     # See CHANGELOG entry 2026-06-01 for the full retirement workflow.
-    "single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml",
+    # single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml retired 2026-06-01
+    # — V2 equivalent: preset `example-3090-tier-aware`. Second V1
+    # sunset (continues the EXAMPLE namespace cleanup).
 })
 
 

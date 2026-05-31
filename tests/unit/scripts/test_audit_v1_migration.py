@@ -100,7 +100,7 @@ class TestMigrationTable:
         mod = _import_audit()
         table = mod.load_migration_table()
         on_disk = set(mod.list_v1_keys_on_disk())
-        assert len(on_disk) == 11  # 2026-06-01: V1 sunset PoC retired single-3090-dense-cpu-offload-EXAMPLE
+        assert len(on_disk) == 10  # 2026-06-01: 2× V1 sunsets — single-3090-dense-cpu-offload-EXAMPLE + single-3090-hybrid-gdn-tier-aware-EXAMPLE
         missing = on_disk - set(table.keys())
         assert not missing, (
             f"V1 keys on disk but missing from migration table: {sorted(missing)}"
@@ -171,13 +171,17 @@ class TestBucketDistribution:
             actually deleted; demonstrates the Phase 9 → Phase 10 transition
             workflow. New distribution: 3 transparent, 0 needs-choice,
             8 deprecated, 0 tombstone.
+          - 2026-06-01 (V1-SUNSET-#2): single-3090-hybrid-gdn-tier-aware-
+            EXAMPLE retired. Second V1 file removed in same session,
+            continuing the EXAMPLE namespace cleanup. New distribution:
+            3 transparent, 0 needs-choice, 7 deprecated, 0 tombstone.
         """
         mod = _import_audit()
         report = mod.run_audit(stage=0)
         counts = report.count_by_bucket()
         assert counts.get("transparent", 0) == 3
         assert counts.get("needs_operator_choice", 0) == 0
-        assert counts.get("deprecated", 0) == 8
+        assert counts.get("deprecated", 0) == 7
         assert counts.get("tombstone", 0) == 0
 
 
@@ -189,18 +193,19 @@ class TestSeverityPerStage:
         """At Stage 0, non-tombstone buckets all emit warn (regardless of strict)."""
         mod = _import_audit()
         report = mod.run_audit(stage=0)
-        # 11 warnings (was 12 pre-2026-06-01; single-3090-dense-cpu-offload-EXAMPLE
-        # retired in V1 sunset PoC). Tombstone bucket is empty; no errors.
+        # 10 warnings (was 12 pre-2026-06-01; 2× V1 sunsets: single-3090-
+        # dense-cpu-offload-EXAMPLE + single-3090-hybrid-gdn-tier-aware-
+        # EXAMPLE retired). Tombstone bucket is empty; no errors.
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 11
+        assert counts.get("warn", 0) == 10
 
     def test_stage_2_default_all_warn(self):
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=False)
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 11
+        assert counts.get("warn", 0) == 10
 
     def test_stage_2_strict_non_transparent_error(self):
         """Stage 2 + strict: non-transparent buckets emit ERROR;
@@ -208,16 +213,16 @@ class TestSeverityPerStage:
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=True)
         counts = report.count_by_severity()
-        # transparent (3) stay warn; needs_choice (5) + deprecated (3) → error
-        # (was deprecated=4 pre-2026-06-01; single-3090-dense-cpu-offload-EXAMPLE retired)
-        assert counts.get("error", 0) == 8
+        # transparent (3) stay warn; deprecated (7) → error
+        # (was deprecated=9 at original ship; 2× retired 2026-06-01)
+        assert counts.get("error", 0) == 7
         assert counts.get("warn", 0) == 3
 
     def test_stage_3_non_transparent_error(self):
         mod = _import_audit()
         report = mod.run_audit(stage=3)
         counts = report.count_by_severity()
-        assert counts.get("error", 0) == 8
+        assert counts.get("error", 0) == 7
         assert counts.get("warn", 0) == 3
 
 
@@ -238,8 +243,8 @@ class TestJSONOutput:
         # Operators reverting with SNDR_V1_ROLLOUT_STAGE=0 still see
         # functionally identical behavior for non-tombstone buckets.
         assert data["stage"] == DEFAULT_STAGE
-        assert data["v1_keys_on_disk"] == 11  # 2026-06-01: V1 sunset PoC
-        assert data["table_entries"] == 11
+        assert data["v1_keys_on_disk"] == 10  # 2026-06-01: 2× V1 sunsets
+        assert data["table_entries"] == 10
 
     def test_json_finding_shape(self):
         result = _run_cli("--json")

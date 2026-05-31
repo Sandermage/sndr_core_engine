@@ -1904,7 +1904,7 @@ Per Sander 2026-05-11. All edits local only.
   `GENESIS_ENABLE_PN95_TIER_AWARE_CACHE=1` + `cache_config.tiers`.
 - **Dispatcher:** `apply_patch_N95_tier_aware_cache()` registered;
   `vllm/sndr_core/dispatcher/registry.py` PN95 entry; `Flags.PN95_TIER_AWARE_CACHE`.
-- **EXAMPLE config:** `model_configs/builtin/single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml`.
+- **EXAMPLE config:** `model_configs/builtin/single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml` (retired 2026-06-01 in V1 sunset; V2 equivalent: preset `example-3090-tier-aware`).
 - **Days deferred to live integration:** vision-token MM tagging
   (Day 5), Mamba runtime classifier walk (Day 6), live bench on
   27B Lorbus (Day 7).

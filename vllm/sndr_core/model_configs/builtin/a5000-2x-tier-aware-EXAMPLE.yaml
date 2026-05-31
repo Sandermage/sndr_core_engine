@@ -4,9 +4,11 @@
 # (Qwen3.6-27B-int4-AutoRound + TQ k8v4) under PROD launch args.
 #
 # UNIFIED_CONFIG plan 2026-05-09 — addresses the gap noted by Sander:
-# the original single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml is sized
-# for ONE GPU. This config sizes per-GPU (each TP worker gets its own
-# TierManager singleton with these tiers), so total resources are
+# the original single-3090 hybrid-gdn tier-aware EXAMPLE (retired
+# 2026-06-01; V2 equivalent: preset `example-3090-tier-aware`) is
+# sized for ONE GPU. This config sizes per-GPU (each TP worker gets
+# its own TierManager singleton with these tiers), so total resources
+# are
 # `tier_capacity × n_gpus` across the rig.
 
 key: a5000-2x-tier-aware-example
