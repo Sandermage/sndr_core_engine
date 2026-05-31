@@ -127,6 +127,96 @@ watch:
       vLLM-side bug worth flagging to the PR author when the merge
       is being prepared.
 
+  - upstream: vllm#43909
+    status: merged
+    local_patches: []
+    action: a-b-test
+    since: 2026-05-31
+    notes: |
+      [Bug] Fix gemma4 MTP IMA issue when TP>1 (CUDA error: illegal
+      memory access). Merged 2026-05-30 (after our pin 626fa9bb of
+      2026-05-28). Minimal +9/-1 LOC fix in
+      `vllm/model_executor/models/gemma4_mtp.py`: caches
+      `_stable_full_lm_head_weight` to prevent CUDA graph from
+      capturing a dangling pointer to a temp tensor (post all_gather
+      + slice). Author bench on Gemma-4-E2B-it shows 0.64s avg
+      latency for batch=16 input-len=512 output-len=128.
+
+      Vendored 2026-05-31 as Genesis G4_77 overlay (4-file
+      bind-mount to `/usr/local/lib/python3.12/dist-packages/
+      vllm/model_executor/models/gemma4_mtp.py`). A/B bench on
+      gemma4-31b AWQ + TQ k8v4 + MTP K=4 + TP=2 + 2× A5000 +
+      gpu-mem-util=0.80 (Bug Class 14 fix), 3 samples × 4
+      workloads, greedy decode, `Connection: close`:
+
+        | Workload | Baseline | With G4_77 | Δ |
+        |---|---:|---:|---:|
+        | chat | 23.54 | 20.27 | -13.9% |
+        | code | 41.73 | 42.95 | +2.9% |
+        | count | 52.37 | 50.05 | -4.4% |
+        | json | 53.47 | 47.63 | -10.9% |
+
+      NET NEGATIVE. Reverted. Likely cause: the cached tensor
+      (post all_gather across TP=2) consumes additional VRAM at
+      a config that is already running gpu-mem-util=0.80 to give
+      Genesis P38 TQ workspace its 1 GiB alloc. Reduced KV cache
+      → more KV churn on longer prompts → measurable regression
+      on chat (longest output) and JSON (structured but long).
+      The PR's author bench was on Gemma-4-E2B-it (much smaller
+      model, presumably more memory headroom). The IMA workaround
+      Genesis already ships (G4_71..G4_76 stack in launcher) may
+      also be incompatible with the upstream cache in subtle ways.
+      Re-evaluate after next pin bump if the upstream lands in
+      production builds.
+
+  - upstream: vllm#43803
+    status: merged
+    local_patches: []
+    action: a-b-test
+    since: 2026-05-31
+    notes: |
+      [Perf] remove seqlen from Mamba SSD chunk kernels. Merged
+      2026-05-28. +0/-10 LOC — removes a dead `seqlen` parameter
+      from 5 Mamba prefill kernels (`_chunk_cumsum_fwd_kernel`,
+      `_chunk_state_fwd_kernel`, `_chunk_scan_fwd_kernel`,
+      `_bmm_chunk_fwd_kernel`, `_causal_conv1d_fwd_kernel`).
+      Triton specializes plain `int` args by default, so every
+      prefill with a new total-token-count was triggering a
+      fresh JIT compile. Author claim on Nemotron-H-8B / A10G /
+      ShareGPT: Mean TTFT -17%, P99 TTFT -46%. Throughput
+      unchanged.
+
+      Vendored 2026-05-31 to qwen3.6-27b-int4-autoround
+      launcher as a 4-file bind-mount (`/tmp/mamba_fixed/
+      {causal_conv1d,ssd_bmm,ssd_chunk_scan,ssd_chunk_state}.py`).
+      Cleared ~/.triton/cache before measurement to force fresh
+      JIT path. A/B vs baseline 27B, 8-sample TTFT × 3 prompt
+      lengths, 3-sample TPS × 4 workloads, greedy, `Connection:
+      close`:
+
+        | Metric | Baseline | With #43803 | Δ |
+        |---|---:|---:|---:|
+        | TTFT short (5 tok prompt) | 151.3ms | 139.4ms | -7.9% |
+        | TTFT medium (80 tok prompt) | 169.7ms | 176.0ms | +3.7% (noise) |
+        | TTFT long (400 tok prompt) | 233.2ms | 232.5ms | -0.3% (noise) |
+        | TPS chat | 91.68 | 86.95 | -5.2% |
+        | TPS code | 113.53 | 113.05 | -0.4% (noise) |
+        | TPS count | 117.79 | 116.43 | -1.2% (noise) |
+        | TPS json | 105.61 | 107.77 | +2.0% |
+
+      NET marginal-to-negative. Reverted. Does NOT reproduce the
+      PR's claimed -17%/-46% on our config. Likely cause: our
+      qwen3.6-27B is a hybrid GDN + Mamba architecture, NOT pure
+      Mamba like Nemotron-H. The GDN layers dominate the prefill
+      hot path and the Mamba SSD kernels see fewer invocations
+      with varying seqlen — fewer JIT recompiles to save. The
+      TPS chat regression (-5.2%) is just outside the run-to-run
+      noise band (~3%) and may reflect a different code path
+      taken without the dead `seqlen` arg in our specific
+      configuration. Re-evaluate if Genesis later vendors a pure
+      Mamba model (e.g. nemotron-h-* family) where this PR's
+      architecture would actually apply.
+
   - upstream: vllm#36138
     status: merged
     local_patches: [P59, P62, P64]
