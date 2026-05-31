@@ -89,6 +89,64 @@ watch:
       attempting the MTP-adapt backport. Acceptance threshold +
       hysteresis algorithm is generic enough to lift.
 
+      MTP-adapt design sketch (2026-05-31 study, ready for vendor
+      session when upstream rebases):
+
+      Architecture target — extend DraftModelProposer instead of
+      EagleProposer. The DraftModelProposer (at
+      vllm/v1/spec_decode/draft_model.py in pin 0.21.1rc1.dev354+g626fa9bba)
+      is the assistant-model-based MTP proposer all 4 of our PROD
+      gemma4/qwen3.6 PROD models go through. It inherits from
+      SpecDecodeBaseProposer which already owns
+      `self.num_speculative_tokens` — the same attribute the
+      DynamicProposer mutates per-batch.
+
+      Algorithm port (1:1 with #26504 file):
+        1. Per-seq SequenceState (acceptance_rate_history deque
+           of len 10, num_spec_tokens int).
+        2. ACCEPTANCE_HISTORY_LEN=10, ACCEPTANCE_RATE_HYSTERESIS=0.05,
+           MIN_HISTORY_FOR_ADJUSTMENT=3, MIN_SPEC_TOKENS=1 — copy
+           the constants.
+        3. In propose() override:
+           a. Update sequence states from prev step's
+              `self.runner.input_batch.num_accepted_tokens_cpu`.
+           b. Cleanup states for finished req_ids.
+           c. Compute per_sequence_k via
+              _adjust_and_get_spec_tokens_for_batch().
+           d. Save self.num_speculative_tokens, set to
+              max(per_seq_k), call super().propose(), restore.
+           e. Pad the returned tensor to self.max_spec_tokens
+              columns so the runner expects a fixed shape.
+
+      Config plumbing:
+        - Add SpecConfig field `acceptance_rate_threshold: float =
+          0.7` (PR's default).
+        - Add method-name route: `--speculative-config
+          '{"method": "mtp_dynamic", "num_speculative_tokens": 4,
+            "acceptance_rate_threshold": 0.7, ...}'`
+        - SpecConfig.proposer_class resolution must dispatch
+          mtp_dynamic → Genesis MTPDynamicProposer.
+
+      Implementation surface (estimated 1-2 days):
+        - vllm/sndr_core/integrations/spec_decode/mtp_dynamic_proposer.py
+          (NEW, ~250 LOC mirroring PR #26504's structure with
+          DraftModelProposer base).
+        - vllm/sndr_core/integrations/spec_decode/spec_decode_config_routing.py
+          patch — add mtp_dynamic to method enum + dispatch.
+        - registry.py entry — PN_NEW with method=mtp_dynamic gate.
+        - Test on gemma4-31B (4-class workload) + qwen3.6-27B (chat
+          + structured). Expected +5-12% per the PR's claim; the
+          actual gain on our hybrid GDN+Mamba (27B) and MoE A3B
+          (35B) stacks would be the first empirical check.
+
+      Operator value: 31B chat-K=3 + structured-K=4 split currently
+      requires the spec_decode gateway to route per request. A
+      mtp_dynamic proposer would converge a SINGLE launcher to the
+      right K per-sequence automatically — no gateway needed for
+      the K-axis. The chat/structured workload-class semantic split
+      stays valid (different compression_plan / drafter behavior),
+      but the K choice within each profile becomes self-adapting.
+
   # ─── Tool parsers ──────────────────────────────────────────────────
   - upstream: vllm#42006
     status: open
