@@ -1881,26 +1881,38 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": (
             "Genesis-original port of vllm#26504 (whytem's DynamicProposer "
             "extending EagleProposer) to the DraftModelProposer base used "
-            "by all 4 PROD MTP models (gemma4-31B/26B assistant + qwen3.6-"
-            "27B/35B assistant). Algorithm verbatim from PR #26504: per-seq "
-            "SequenceState with rolling acceptance-rate window (len=10), "
-            "K-adjustment with hysteresis (avg_acc >= threshold+0.05 -> K++ "
-            "up to launcher cap; avg_acc <= threshold-0.05 -> K-- down to "
-            "MIN=1), called via monkey-patch on DraftModelProposer.__init__ "
-            "and .propose. Empirical claim from PR #26504 author: +5-12% "
-            "TPS on mixed workload vs static K. Operator value: removes "
-            "the need for the 31B chat-K=3 + structured-K=4 launcher split "
-            "(commits 284477f9 + 72435282) — a single launcher converges "
-            "to the right K per-sequence at runtime instead of requiring "
-            "the gateway to route per request signal. The workload-class "
-            "semantic split (different compression_plan / drafter behavior) "
-            "stays valid; only the K choice becomes self-adapting. "
-            "Default-off — operator must explicitly set the env flag "
-            "after A/B benching against the static-K baselines."
+            "by qwen3.6-27B/35B assistant-model MTP. Algorithm verbatim "
+            "from PR #26504: per-seq SequenceState with rolling "
+            "acceptance-rate window (len=10), K-adjustment with "
+            "hysteresis (avg_acc >= threshold+0.05 -> K++ up to launcher "
+            "cap; avg_acc <= threshold-0.05 -> K-- down to MIN=1), called "
+            "via monkey-patch on DraftModelProposer.__init__ and "
+            ".propose. SCOPE CORRECTION (2026-05-31): gemma4-31B/26B "
+            "MTP is NO-OP for this patch — `Gemma4Proposer` MRO is "
+            "`[Gemma4Proposer, SpecDecodeBaseProposer, object]` and "
+            "does NOT inherit from `DraftModelProposer`, so the "
+            "monkey-patch never reaches the gemma4 propose hot-path. "
+            "A separate Gemma4Proposer-targeted patch would be needed "
+            "for gemma4 adaptive K (future work). Empirical claim from "
+            "PR #26504 author: +5-12% TPS on mixed workload vs static K. "
+            "Operator value: for qwen3.6 models, removes the need for "
+            "the chat-K=3 + structured-K=4 launcher split — single "
+            "launcher converges to the right K per-sequence at runtime "
+            "instead of requiring the gateway to route per request "
+            "signal. The workload-class semantic split (different "
+            "compression_plan / drafter behavior) stays valid; only "
+            "the K choice becomes self-adapting. Default-off — operator "
+            "must explicitly set the env flag after A/B benching against "
+            "the static-K baselines on qwen3.6 specifically."
         ),
         "applies_to": {
             "spec_decode_method": ["mtp"],
             "vllm_version_range": (">=0.21.0", "<0.22.0"),
+            # Self-gating: monkey-patch installs on DraftModelProposer
+            # only. Models whose Proposer class doesn't inherit from
+            # DraftModelProposer (e.g. Gemma4Proposer extends
+            # SpecDecodeBaseProposer directly) are unaffected by MRO.
+            "proposer_mro_must_include": "DraftModelProposer",
         },
         "requires_patches": [],
         "conflicts_with": [],

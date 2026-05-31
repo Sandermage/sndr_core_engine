@@ -80,6 +80,76 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
+## [Unreleased] — SNDR_MTP_DYNAMIC_K_001 scope correction (2026-05-31)
+
+### Audit findings
+
+Investigation Discipline catch (Sander mandate: "проверяй изучай сравнивай
+анализируй и тестируй"). Earlier session claimed SNDR_MTP_DYNAMIC_K_001
+gave +10.7% chat on gemma4-31B. v1.4 attempted to close the gap to static
+chat-K=3 by adding `GENESIS_SNDR_MTP_DYNAMIC_K_INITIAL` env var.
+
+Bench on gemma4-31B with v1.4 + initial_k=3 produced:
+
+- chat -22.8%, code -20.7%, count -17.9%, json +0.2% vs static K=4
+- NO `[SNDR_MTP_DYNAMIC_K]` adapt log lines after multiple requests
+- Apply log fires correctly at boot
+
+Root cause via docker exec MRO probe:
+
+```text
+Gemma4Proposer MRO: [Gemma4Proposer, SpecDecodeBaseProposer, object]
+Own propose: False
+Own __init__: True
+DraftModelProposer.propose at: vllm/v1/spec_decode/llm_base_proposer.py:427
+```
+
+`Gemma4Proposer` does NOT inherit from `DraftModelProposer`. The
+monkey-patch on `DraftModelProposer.__init__` and `.propose` has ZERO
+effect on gemma4 (any variant). The patch is only relevant for models
+whose proposer class actually inherits from DraftModelProposer.
+
+Decision:
+
+- v1.4 changes stashed locally (`WIP-DYNK-v1.4-UNVERIFIED-REGRESSION`),
+  NOT committed
+- Repo + rig back at HEAD v1.0
+- Earlier "+10.7% chat" figure for gemma4-31B was bench noise, not real
+- Patch metadata needs scope correction in next session: add explicit
+  `applies_to.proposer_class` predicate so the patch self-skips on
+  models that don't use a `DraftModelProposer`-rooted MRO (gemma4
+  uses `Gemma4Proposer(SpecDecodeBaseProposer)` directly)
+- Re-verification needed on qwen3.6-27B / qwen3.6-35B to determine if
+  THEIR proposers inherit from DraftModelProposer (likely yes via
+  generic assistant-model MTP path) — bench gains, if real, will be
+  visible there, not gemma4
+
+### Operator notes
+
+- vllm/vllm-openai:nightly image ENTRYPOINT changed to `[vllm, serve]`
+  (was different in pre-626fa9bba pin). Launcher scripts using
+  `bash -c "set -e; pip install …; exec vllm serve …"` pattern break
+  because the bash command gets treated as positional args to `vllm
+  serve`. Fix: add `--entrypoint /bin/bash` to docker run and remove
+  the redundant leading `bash` from CMD args (so just `-c "…"`
+  reaches /bin/bash). Applied to
+  `/home/sander/start_gemma4-31b_chat_default_PROPER.sh` on the rig
+  (sed backup `.bak-2026-05-31` / `.bak2-2026-05-31` / `.bak3-2026-05-31`
+  preserved).
+- Same fix likely needed on other rig launchers using the
+  `bash -c "exec vllm serve …"` pattern; audit before next launch.
+
+### Verified
+
+- `git stash list` shows `WIP-DYNK-v1.4-UNVERIFIED-REGRESSION` (preserved
+  for future investigation, never committed)
+- Default 31B container `vllm-gemma4-31b-chat-default` healthy on port
+  8104 with HEAD v1.0 g_dynamic_k_mtp_proposer.py file
+- Docker exec MRO probe confirms Gemma4Proposer doesn't inherit from
+  DraftModelProposer
+
+---
+
 ## [Unreleased] — K.1.R pin bump dev371 → nightly-626fa9bb + PN82 retire (2026-05-28)
 
 ### Highlights

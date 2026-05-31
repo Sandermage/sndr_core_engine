@@ -3,8 +3,24 @@
 
 Vendor of vllm#26504 (DynamicProposer)'s per-seq adaptive K algorithm,
 adapted to extend `DraftModelProposer` instead of `EagleProposer` so it
-works with the assistant-model MTP path that all 4 PROD models use
-(gemma4-31B/26B assistant + qwen3.6-27B/35B assistant).
+works with the assistant-model MTP path used by qwen3.6 assistant
+drafters.
+
+Scope (verified via docker exec MRO probe on dev container 2026-05-31):
+
+  - Effective on: models whose Proposer class inherits from
+    `DraftModelProposer` (the generic assistant-model MTP path).
+    Confirmed for qwen3.6-27B / qwen3.6-35B assistant-model MTP.
+  - NO-OP on: `gemma4-31B` / `gemma4-26B` MTP.
+    Reason: `Gemma4Proposer` MRO is
+    `[Gemma4Proposer, SpecDecodeBaseProposer, object]` — it does NOT
+    inherit from `DraftModelProposer`, so the monkey-patch on
+    DraftModelProposer.__init__/.propose has no effect.
+    For gemma4 adaptive K, a separate `Gemma4Proposer`-targeted patch
+    is needed (future work).
+  - Self-gating: there is no runtime guard. The MRO of the actual
+    Proposer class self-gates whether the patched DraftModelProposer
+    methods reach the inference hot-path. Apply log fires regardless.
 
 Algorithm (1:1 port of PR #26504):
 
