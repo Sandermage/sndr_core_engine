@@ -1164,8 +1164,9 @@ whether the 31B K=3-beats-K=4 finding generalizes:
 |---|:---:|:---:|---:|---:|---:|---:|---:|---|
 | 27B int4+TQ | K=3 | K=2 | -7.9% | -8.0% | -8.8% | n/a | -1.7% | K=3 stays optimal |
 | 35B A3B-FP8 | K=3 | K=2 | -5.7% | -12.0% | -11.3% | -14.5% | -13.1% | K=3 stays optimal |
-| 26B A4B AWQ | K=3 | K=2 | **+3.4%** | -7.0% | -10.2% | **+7.0%** | -10.7% | K=3 stays optimal (chat gain too small) |
-| 31B AWQ+TQ | K=4 | K=3 | **+112%** | -6% | -24% | **+99%** | -21% | **K=3 is a different-trade-off win** |
+| 26B A4B AWQ | K=3 | K=2 | +3.4% | -7.0% | -10.2% | +7.0% | -10.7% | K=2 too small; see K=4 row |
+| 26B A4B AWQ | K=3 | K=4 | **+15.0%** | -4.7% | -7.0% | **+10.9%** | -0.5% | **K=3 split shipped (commit 72435282)** |
+| 31B AWQ+TQ | K=4 | K=3 | **+112%** | -6% | -24% | **+99%** | -21% | **K=3 split shipped (commit 284477f9)** |
 
 The 31B case is the OUTLIER. On 27B/35B/26B the drafter has high-enough
 per-token acceptance even on free-form prose that K=3 already pays for
@@ -1245,7 +1246,7 @@ python -m vllm.sndr_core.integrations.spec_decode.gateway
 |---|---|---|
 | qwen3.6-27B int4 | (none — direct launch) | 27b-tq-k8v4 / 27b-dflash / 27b-multiconc |
 | qwen3.6-35B A3B FP8 | (none — direct launch) | 35b-balanced / 35b-dflash / 35b-multiconc |
-| gemma4-26B A4B AWQ | gemma4-a4b-no-mtp + gemma4-a4b-multiconc-k1 | gemma4-a4b-mtp-k4 + gemma4-a4b-multiconc |
+| gemma4-26B A4B AWQ | gemma4-a4b-no-mtp + gemma4-a4b-multiconc-k1 | gemma4-a4b-mtp-k4 + gemma4-a4b-multiconc + **gemma4-a4b-mtp-chat-k3** (new 2026-05-31) |
 | gemma4-31B AWQ + TQ | gemma4-tq-default (MTP OFF) | gemma4-tq-mtp-structured-k4 + **gemma4-tq-mtp-chat-k3** (new 2026-05-31) |
 
 **The new gemma4-tq-mtp-chat-k3 profile** (commit 284477f9) is the
