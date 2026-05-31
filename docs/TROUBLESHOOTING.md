@@ -1147,26 +1147,156 @@ the actual production traffic mix:
     This pair of launchers is created on the rig but neither is the
     default at session-close — operator must decide before promoting.
 
-Other 3 PROD models (27B / 35B / 26B) already ship K=3 (qwen3.6) or
-no-MTP (gemma4-26B) — same chat-friendly default. The K=4 outlier
-was a 2026-05-23 migration choice for the structured-role profile
-when MTP did not yet have a usable acceptance rate (see
+Other 3 PROD models (27B / 35B / 26B) ship K=3 — this turned out
+to be empirically optimal across all 4 models tested (see K-sweep
+table below). The K=4 outlier was a 2026-05-23 migration choice
+for the structured-role profile when MTP did not yet have a usable
+acceptance rate (see
 `docs/_internal/GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20.md`).
-The current empirical state warrants revisiting that choice.
+The current empirical state warrants revisiting that choice — and
+the K=3 chat-role profile shipped 2026-05-31 (see next section)
+is the architectural answer.
 
-**K=2 sweep on 27B (followup 2026-05-31)**: to verify whether the
-31B K=3-beats-K=4 finding generalizes, ran an analogous K=3 → K=2
-A/B on qwen3.6-27B int4 + TQ + MTP. Result: 27B K=2 was uniformly
-WORSE than K=3 (-7.9% chat, -8.0% code, -8.8% count, -1.7% json
-single; -49% on conc=4 multi). Conclusion: **K-tuning is per-MODEL,
-not universal**. The 27B drafter has higher per-token acceptance
-even on free-form prose so its K=3 already pays for itself; K=2
-leaves spec-decode parallelism on the table. The 31B drafter has
-lower per-token acceptance on chat so K=4 wastes cycles K=3 doesn't.
-Same shape of finding — just inverts which K is "extra" — and
-empirically grounds the operator-decision recommendation above:
-DON'T touch 27B / 35B / 26B K; consider switching ONLY 31B K=4 → K=3
-for chat-heavy traffic.
+**Full K-sweep across all 4 PROD models (2026-05-31)** — to verify
+whether the 31B K=3-beats-K=4 finding generalizes:
+
+| Model | K=current | K=alt | chat Δ | code Δ | count Δ | summarization Δ | json Δ | Verdict |
+|---|:---:|:---:|---:|---:|---:|---:|---:|---|
+| 27B int4+TQ | K=3 | K=2 | -7.9% | -8.0% | -8.8% | n/a | -1.7% | K=3 stays optimal |
+| 35B A3B-FP8 | K=3 | K=2 | -5.7% | -12.0% | -11.3% | -14.5% | -13.1% | K=3 stays optimal |
+| 26B A4B AWQ | K=3 | K=2 | **+3.4%** | -7.0% | -10.2% | **+7.0%** | -10.7% | K=3 stays optimal (chat gain too small) |
+| 31B AWQ+TQ | K=4 | K=3 | **+112%** | -6% | -24% | **+99%** | -21% | **K=3 is a different-trade-off win** |
+
+The 31B case is the OUTLIER. On 27B/35B/26B the drafter has high-enough
+per-token acceptance even on free-form prose that K=3 already pays for
+itself; dropping to K=2 leaves spec-decode parallelism on the table.
+The 31B drafter (different model + different assistant arch) has
+lower per-token acceptance on chat workloads so K=4 wastes cycles
+that K=3 avoids — and the gain is large enough (+105.7% on free-form
+mean) to justify a permanent V2 chat-role profile.
+
+**Conclusion**: K-tuning is **per-MODEL**, not universal. Of the 4
+PROD models, ONLY 31B has a measurable K-axis win available. The
+fix landed 2026-05-31 as the
+`gemma4-tq-mtp-chat-k3` V2 profile + matching FunctionalArtifact +
+preset (commit 284477f9). The architectural delivery is described
+in the next section.
+
+### Multi-profile architecture (V2 ProfileDef + FunctionalArtifact + Gateway)
+
+The Genesis V2 ModelDef + ProfileDef + FunctionalArtifact +
+spec_decode Gateway stack already implements **per-workload runtime
+routing** at the deployment layer. The user-facing primitives:
+
+```text
+ModelDef (vllm/sndr_core/model_configs/builtin/model/<id>.yaml)
+   spec_decode: null  ← post-Variant-A; profiles supply spec config
+       ↓
+ProfileDef (vllm/sndr_core/model_configs/builtin/profile/<id>.yaml)
+   role: structured     spec_decode_override: {method, K, model}
+   compression_plan + backend_plan + routing.intended_workloads
+   validation: {artifact_id, config_hash}
+       ↓
+FunctionalArtifact (vllm/sndr_core/integrations/spec_decode/artifacts/<id>.json)
+   decision: validated_conditional | validated_global | denied
+   allowed_workloads + denied_workloads + per_class TPS metrics
+       ↓
+Preset (vllm/sndr_core/model_configs/builtin/presets/prod-<key>.yaml)
+   model + hardware + profile  ← composition triplet
+       ↓
+sndr launch prod-<key>           — renders + execs vLLM via canonical CLI
+   - role=default     → MTP OFF upstream (production-safe baseline)
+   - role=structured  → MTP-on upstream (workload-gated)
+       ↓
+spec_decode Gateway (port 8100)
+   request_router.select_profile(body, artifact)
+       ├─ response_format json_object | json_schema  → structured
+       ├─ tool_choice required / dict.type=function → structured
+       ├─ extra_body.workload_class in allowed_set  → structured
+       └─ else (no explicit signal)                 → default
+   → forwards to default upstream (e.g. 8101) or structured (8102)
+```
+
+The router NEVER reads prompt text — false-positives cost -50% TPS,
+false-negatives cost zero, so the gate is conservative by design
+(see `vllm/sndr_core/integrations/spec_decode/request_router.py`).
+
+**Gateway env knobs**:
+
+```bash
+GENESIS_GATEWAY_DEFAULT_URL=http://localhost:8101      # MTP-OFF upstream
+GENESIS_GATEWAY_STRUCTURED_URL=http://localhost:8102   # MTP-K=4 upstream
+GENESIS_GATEWAY_PROFILE=gemma4-tq-mtp-structured-k4    # artifact lookup key
+GENESIS_GATEWAY_BIND_PORT=8100                         # client-facing port
+GENESIS_GATEWAY_HEALTH_INTERVAL=5
+GENESIS_GATEWAY_TIMEOUT=120
+GENESIS_SPEC_DECODE_ARTIFACTS_DIR=...                  # extra artifacts dir
+```
+
+Run:
+
+```bash
+python -m vllm.sndr_core.integrations.spec_decode.gateway
+```
+
+**Profile inventory** as of 2026-05-31:
+
+| Model | Default-role profile | Structured-role profiles |
+|---|---|---|
+| qwen3.6-27B int4 | (none — direct launch) | 27b-tq-k8v4 / 27b-dflash / 27b-multiconc |
+| qwen3.6-35B A3B FP8 | (none — direct launch) | 35b-balanced / 35b-dflash / 35b-multiconc |
+| gemma4-26B A4B AWQ | gemma4-a4b-no-mtp + gemma4-a4b-multiconc-k1 | gemma4-a4b-mtp-k4 + gemma4-a4b-multiconc |
+| gemma4-31B AWQ + TQ | gemma4-tq-default (MTP OFF) | gemma4-tq-mtp-structured-k4 + **gemma4-tq-mtp-chat-k3** (new 2026-05-31) |
+
+**The new gemma4-tq-mtp-chat-k3 profile** (commit 284477f9) is the
+load-bearing architectural delivery from the K-sweep finding. It is a
+role-structured profile (carries spec_decode + compression + backend
++ routing + validation blocks) but its `routing.intended_workloads`
+is the COMPLEMENT of structured-k4's set:
+
+```yaml
+# gemma4-tq-mtp-structured-k4.yaml
+routing:
+  intended_workloads: [structured_count, tool_json]
+
+# gemma4-tq-mtp-chat-k3.yaml
+routing:
+  intended_workloads: [free_chat, code_gen, summarization]
+```
+
+…and the artifacts mirror this partition. A gateway running both
+upstreams routes per request signal to whichever upstream's artifact
+ALLOWS that workload class; the two profiles partition the 5-class
+suite cleanly with no overlap and no gap.
+
+**How an operator promotes the chat-k3 deployment**:
+
+1. Render + start the chat-k3 upstream on a sibling port:
+   ```bash
+   sndr launch prod-gemma4-31b-tq-mtp-chat-k3 --port 8113
+   ```
+
+2. Keep the structured-k4 upstream running on its current port:
+   ```bash
+   bash ~/start_gemma4-tq-mtp-structured-k4.sh   # port 8102
+   ```
+
+3. Start the gateway pointed at both:
+   ```bash
+   export GENESIS_GATEWAY_DEFAULT_URL=http://localhost:8113   # chat-k3
+   export GENESIS_GATEWAY_STRUCTURED_URL=http://localhost:8102 # structured-k4
+   export GENESIS_GATEWAY_PROFILE=gemma4-tq-mtp-structured-k4
+   python -m vllm.sndr_core.integrations.spec_decode.gateway   # port 8100
+   ```
+
+4. Aggregator / client points at the gateway (`localhost:8100`)
+   instead of either upstream directly. The request_router decides
+   per request which upstream to forward to.
+
+5. After a multi-day observation window confirms aggregator TPS
+   gain matches the artifact's projection, promote
+   `gemma4-tq-mtp-chat-k3.status` from `experimental` to `validated`
+   and update the operator card maturity from `draft` to `validated`.
 
 ### Observability stack (PN287 + PN288 + PN289 + trace surface)
 
