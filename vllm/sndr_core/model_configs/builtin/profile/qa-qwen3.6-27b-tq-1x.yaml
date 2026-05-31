@@ -9,6 +9,7 @@ parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent model file (shared wit
 maintainer: sandermage
 status: validated                                # validated as single-card QA — NOT 2× production
 created: '2026-05-07'
+target_hardware: a5000-1x-24gbvram-16cpu-128gbram # 2026-05-31: profile semantics target single-card rig — without this, `sndr profile render-launchers` auto-picks the largest-VRAM hardware (2× A5000), which contradicts the "1x" intent in the profile name. Operator can still override with --hardware.
 
 # ─── Patches delta — 1× single-card specific ───────────────────────────
 # Adds PN31 (FA varlen persistent out, designed for 1× 24GB single-GPU).

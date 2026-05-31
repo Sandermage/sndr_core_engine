@@ -806,7 +806,15 @@ def render_profile_launcher(
     model = load_model(profile.parent_model)
     model.validate()
     if hardware_id is None:
-        hw = _pick_default_hardware(model)
+        # Precedence: explicit profile.target_hardware (if set) overrides
+        # the model.requires-based auto-pick. This lets variant profiles
+        # like `qa-*-1x` and `*-3090` declare their specific rig without
+        # forcing operators to remember `--hardware` per profile.
+        if profile.target_hardware is not None:
+            hw = load_hardware(profile.target_hardware)
+            hw.validate()
+        else:
+            hw = _pick_default_hardware(model)
     else:
         hw = load_hardware(hardware_id)
         hw.validate()

@@ -9,6 +9,7 @@ parent_model: qwen3.6-7b-dense                   # parent: DENSE 7B model (NOT h
 maintainer: sandermage
 status: experimental                             # values: experimental|validated|deprecated
 created: '2026-05-09'
+target_hardware: single-3090-24gbvram            # 2026-05-31: profile targets single RTX 3090 (24GB consumer card with CPU offload for hot tensors). Without this, auto-pick selects largest-VRAM hardware (2× A5000) which contradicts the "3090" intent in the profile name.
 
 # ─── Patches delta — Path A guard: PN59 explicitly OFF ─────────────────
 # PN59 would raise with OffloadConfig.cpu_offload_gib > 0. No other

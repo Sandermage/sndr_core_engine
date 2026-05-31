@@ -9,6 +9,7 @@ parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent: 27B TQ k8v4 (single-c
 maintainer: sandermage
 status: experimental                             # values: experimental|validated|deprecated
 created: '2026-05-09'
+target_hardware: single-3090-24gbvram            # 2026-05-31: profile targets single RTX 3090 with PN95 tier-aware cache (cross-vendor 3090 + offload reference). Without this, auto-pick selects largest-VRAM hardware (2× A5000).
 
 # ─── Patches delta — Path C: tier-aware + vision page demotion ─────────
 # Mamba SSM state stays GPU-resident (mandatory for hybrid GDN correctness).

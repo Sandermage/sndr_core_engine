@@ -885,6 +885,19 @@ class ProfileDef:
     # wiring (audit-driven enforcement) lands in CONFIG-UX.4.
     override_policy: Optional["OverridePolicy"] = None
 
+    # 2026-05-31: optional target HardwareDef id. When set, `sndr profile
+    # render-launchers` (and any other auto-pick consumer) skips the
+    # default "largest VRAM among satisfying" heuristic and uses this
+    # hardware. Use cases:
+    #   - Single-card variant profiles (qa-*-1x) where the model fits
+    #     multiple hardware tiers but the profile semantics target a
+    #     specific smaller rig
+    #   - Hardware-specialised profiles (cpu-offload-3090, tier-aware-3090)
+    #     where the algorithm depends on the specific GPU
+    # When None (default) → auto-pick fires as usual. Operator can still
+    # override either with `--hardware <id>`.
+    target_hardware: Optional[str] = None
+
     def validate(self) -> None:
         _check_schema_version(self.schema_version)
         _check_kind(self.kind, "profile")
@@ -899,6 +912,8 @@ class ProfileDef:
             raise SchemaError(
                 f"profile.status={self.status!r} must be experimental|validated|promoted"
             )
+        if self.target_hardware is not None:
+            _check_id(self.target_hardware, "profile.target_hardware")
 
         # Runtime-role fields — all Optional, default None preserves prior behavior.
         if self.role is not None and self.role not in PROFILE_ROLES:
