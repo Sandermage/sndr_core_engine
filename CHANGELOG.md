@@ -1382,7 +1382,7 @@ Post-rename stale refs degrade silently — `module_for` returning `None` doesn'
 - `a5000-2x-27b-int4-tq-k8v4-dflash`: `lifecycle: retired` (V1 YAML retired 2026-06-01 in V1 sunset #5; V2 equivalent: preset `experimental-qwen3.6-27b-tq-dflash-ab` — A/B diagnostic, same model + envs + 131K ctx)
 - `a5000-2x-35b-prod`: P61 removed (retired no-op)
 - `a5000-2x-27b-dflash-true`: P61 removed (V1 YAML retired 2026-06-01 in V1 sunset #6; V2 equivalent: preset `prod-qwen3.6-27b-dflash` — transparent bucket, V2 composes byte-identical config DFlash N=5 single-stream)
-- `a5000-2x-27b-int4-tested`: P61+P100+PN13 removed
+- `a5000-2x-27b-int4-tested`: P61+P100+PN13 removed (V1 YAML retired 2026-06-01 in V1 sunset #8; V2 equivalent: preset `qa-qwen3.6-27b-tested` — sizing-identical 131K ctx / util 0.90 / seqs 2 / batched 4096 / fp8_e5m2 KV / MTP K=3; V2 explicitly disables 16 Wave 1/7/8 patches via patches_delta. Operator must consciously pick V2 because V2 ≠ byte-identical V1)
 - `a5000-2x-35b-fp8-dflash`: P61 removed (retired 2026-06-01 in V1 sunset #4; V2 equivalent: preset `prod-qwen3.6-35b-dflash`, max_model_len 160K → 65K post-dev371 fix)
 
 ### Tunables tested (sweeps)
@@ -1602,7 +1602,7 @@ Follow-up to audit F-013: 4 YAML configs had stale `container_name: vllm-server-
 
 - `a5000-2x-27b-int4-tq-k8v4.yaml` (27B PROD canonical) → `vllm-pn95-2xa5000`
 - `a5000-2x-35b-prod.yaml` (35B PROD) → `vllm-35b-prod`
-- `a5000-2x-27b-int4-tested.yaml` → `vllm-pn95-2xa5000-tested`
+- `a5000-2x-27b-int4-tested.yaml` → `vllm-pn95-2xa5000-tested` (V1 YAML retired 2026-06-01 in V1 sunset #8; preset `qa-qwen3.6-27b-tested` going forward)
 - `a5000-2x-27b-int4-tq-k8v4-dflash.yaml` → `vllm-pn95-2xa5000-dflash` (V1 YAML retired 2026-06-01; preset `experimental-qwen3.6-27b-tq-dflash-ab` going forward)
 
 YAMLs now match actual server start-script container names.

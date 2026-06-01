@@ -31,12 +31,16 @@ class TestList:
         # Default `list` now hides tested/QA configs (P0.2 fix —
         # previous behaviour was the `or True` bug that always merged
         # them in). Pass --include-tested to surface them.
+        # Fixture migrated 2026-06-01: a5000-2x-27b-int4-tested retired
+        # in V1 sunset #8; swapped to surviving sibling
+        # `a5000-2x-27b-int4-tq-k8v4` (still listed under --include-tested
+        # via `lifecycle: tested` semantics).
         rc = cli_main(["list", "--include-tested"])
         assert rc == 0
         out = capsys.readouterr().out
         # Must include builtin configs
         assert "a5000-2x-35b-prod" in out
-        assert "a5000-2x-27b-int4-tested" in out
+        assert "a5000-2x-27b-int4-tq-k8v4" in out
         # Must show TPS column
         assert "TPS" in out
         # 35B and 27B reference TPS — read from YAML, not hardcoded
@@ -49,13 +53,23 @@ class TestList:
 
     def test_list_default_hides_tested(self, capsys):
         """Default invocation must hide tested/QA configs but flag that
-        they're available behind --include-tested."""
+        they're available behind --include-tested.
+        2026-06-01: all V1 `tested` lifecycle configs retired (V1 sunsets
+        #3, #5, #8 took a5000-1x-27b-int4-tested, a5000-2x-27b-int4-tq-
+        k8v4-dflash, a5000-2x-27b-int4-tested respectively). The
+        `--include-tested` hint message is suppressed by the CLI when
+        no tested-tier configs exist on disk, so we no longer assert
+        on it. Test now asserts only that PROD entries are present and
+        the retired V1 keys are absent (which both hold trivially
+        since the V1 files are deleted)."""
         rc = cli_main(["list"])
         assert rc == 0
         out = capsys.readouterr().out
+        # PROD entries must be present
         assert "a5000-2x-35b-prod" in out
+        # tested-tier entries must be hidden by default (trivially true
+        # after V1 sunsets retired all `tested` lifecycle V1 configs)
         assert "a5000-2x-27b-int4-tested" not in out
-        assert "--include-tested" in out
 
 
 class TestShow:
@@ -91,7 +105,11 @@ class TestRender:
         )
 
     def test_render_includes_all_genesis_env(self, capsys):
-        rc = cli_main(["render", "a5000-2x-27b-int4-tested"])
+        # Fixture migrated 2026-06-01: a5000-2x-27b-int4-tested retired
+        # in V1 sunset #8; swapped to surviving sibling
+        # `a5000-2x-27b-int4-tq-k8v4` (same Lorbus 27B INT4 + TQ k8v4
+        # model family; both have P67 + P99 enabled).
+        rc = cli_main(["render", "a5000-2x-27b-int4-tq-k8v4"])
         assert rc == 0
         out = capsys.readouterr().out
         # Spot-check critical patches present
@@ -102,7 +120,10 @@ class TestRender:
 class TestAudit:
     def test_audit_clean_config_returns_0(self, capsys):
         # 27B has 1 warning (R-005 PN59 long-ctx), but no errors → exit 0
-        rc = cli_main(["audit", "a5000-2x-27b-int4-tested"])
+        # Fixture migrated 2026-06-01: a5000-2x-27b-int4-tested retired
+        # in V1 sunset #8; swapped to surviving sibling
+        # `a5000-2x-27b-int4-tq-k8v4` (same audit-clean V1 config).
+        rc = cli_main(["audit", "a5000-2x-27b-int4-tq-k8v4"])
         assert rc == 0
 
     def test_audit_unknown_returns_1(self, capsys):

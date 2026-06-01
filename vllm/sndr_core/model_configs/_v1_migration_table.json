@@ -14,11 +14,6 @@
       "v2_preset": "prod-qwen3.6-35b-balanced",
       "rationale": "Direct match — V2 preset composes identical config (FP8 + TQ k8v4 + MTP K=3 balanced)."
     },
-    "a5000-2x-27b-int4-tested": {
-      "bucket": "deprecated",
-      "v2_preset": "qa-qwen3.6-27b-tested",
-      "rationale": "V2 qa-qwen3.6-27b-tested profile sizing-identical to V1 (131K ctx / util 0.90 / seqs 2 / batched 4096 / fp8_e5m2 KV / MTP K=3). V2 explicitly disables 16 Wave 1/7/8 patches (P87/P91/P95/P70_AUTO_STRICT_NGRAM/PN56/PN52/PN30/PN66/PN67/PN82/PN90/P107/PN16/PN16_TOOL_THINK_BUDGET/PN16_CLASSIFIER_MAX_TOKENS/OBSERVABILITY) to preserve the May-5 bench snapshot; promote_to:null marks intentionally frozen. Functional V1 equivalent expressed in V2 explicit-delta form. -48% slower than TQ k8v4 sister — QA / community parity only (noonghunna club-3090 reference). (Reclassified 2026-05-26 from needs_operator_choice → deprecated after V1-SUNSET-PENDING-4.R confirmed V2 disable-list preserves V1 patch set.)"
-    },
     "a5000-1x-tier-aware-pn95": {
       "bucket": "deprecated",
       "v2_preset": "example-3090-tier-aware",

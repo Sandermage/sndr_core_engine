@@ -41,7 +41,6 @@ BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
 #   here so `make evidence` does not gate on the migration.
 FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     "a5000-1x-tier-aware-pn95.yaml",
-    "a5000-2x-27b-int4-tested.yaml",
     "a5000-2x-27b-int4-tq-k8v4.yaml",
     "a5000-2x-35b-prod.yaml",
     "a5000-2x-tier-aware-EXAMPLE.yaml",
@@ -73,6 +72,13 @@ FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     # context 32K+ bench refresh against current pin is deferred —
     # operator must refresh bench before promoting to production tier).
     # Seventh V1 sunset.
+    # a5000-2x-27b-int4-tested.yaml retired 2026-06-01
+    # — V2 equivalent: preset `qa-qwen3.6-27b-tested` (sizing-identical
+    # 131K ctx / util 0.90 / seqs 2 / batched 4096 / fp8_e5m2 KV /
+    # MTP K=3; V2 explicitly disables 16 Wave 1/7/8 patches via
+    # patches_delta — V2 ≠ byte-identical V1, operator must consciously
+    # pick). Eighth V1 sunset. Legacy CLI test fixtures migrated to
+    # surviving sibling `a5000-2x-27b-int4-tq-k8v4`.
 })
 
 

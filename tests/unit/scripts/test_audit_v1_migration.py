@@ -100,7 +100,7 @@ class TestMigrationTable:
         mod = _import_audit()
         table = mod.load_migration_table()
         on_disk = set(mod.list_v1_keys_on_disk())
-        assert len(on_disk) == 5  # 2026-06-01: 7× V1 sunsets (additionally a5000-2x-27b-int4-long-ctx)
+        assert len(on_disk) == 4  # 2026-06-01: 8× V1 sunsets (additionally a5000-2x-27b-int4-tested)
         missing = on_disk - set(table.keys())
         assert not missing, (
             f"V1 keys on disk but missing from migration table: {sorted(missing)}"
@@ -203,13 +203,22 @@ class TestBucketDistribution:
             bench refresh against current pin is deferred. New
             distribution: 2 transparent, 0 needs-choice, 3 deprecated,
             0 tombstone.
+          - 2026-06-01 (V1-SUNSET-#8): a5000-2x-27b-int4-tested retired
+            — V2 qa-qwen3.6-27b-tested sizing-identical (131K ctx / util
+            0.90 / seqs 2 / batched 4096 / fp8_e5m2 KV / MTP K=3); V2
+            explicitly disables 16 Wave 1/7/8 patches via patches_delta
+            to preserve May-5 bench snapshot (operator must consciously
+            pick — V2 ≠ byte-identical V1). Legacy CLI test fixtures
+            in tests/legacy/ migrated to surviving sibling
+            `a5000-2x-27b-int4-tq-k8v4`. New distribution:
+            2 transparent, 0 needs-choice, 2 deprecated, 0 tombstone.
         """
         mod = _import_audit()
         report = mod.run_audit(stage=0)
         counts = report.count_by_bucket()
         assert counts.get("transparent", 0) == 2
         assert counts.get("needs_operator_choice", 0) == 0
-        assert counts.get("deprecated", 0) == 3
+        assert counts.get("deprecated", 0) == 2
         assert counts.get("tombstone", 0) == 0
 
 
@@ -221,21 +230,21 @@ class TestSeverityPerStage:
         """At Stage 0, non-tombstone buckets all emit warn (regardless of strict)."""
         mod = _import_audit()
         report = mod.run_audit(stage=0)
-        # 5 warnings (was 12 pre-2026-06-01; 7× V1 sunsets in single
+        # 4 warnings (was 12 pre-2026-06-01; 8× V1 sunsets in single
         # day session: 2× EXAMPLE + a5000-1x-27b-int4-tested +
         # a5000-2x-35b-fp8-dflash + a5000-2x-27b-int4-tq-k8v4-dflash +
-        # a5000-2x-27b-dflash-true + a5000-2x-27b-int4-long-ctx
-        # retired). Tombstone empty.
+        # a5000-2x-27b-dflash-true + a5000-2x-27b-int4-long-ctx +
+        # a5000-2x-27b-int4-tested retired). Tombstone empty.
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 5
+        assert counts.get("warn", 0) == 4
 
     def test_stage_2_default_all_warn(self):
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=False)
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 5
+        assert counts.get("warn", 0) == 4
 
     def test_stage_2_strict_non_transparent_error(self):
         """Stage 2 + strict: non-transparent buckets emit ERROR;
@@ -243,19 +252,19 @@ class TestSeverityPerStage:
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=True)
         counts = report.count_by_severity()
-        # transparent (2) stay warn; deprecated (3) → error
-        # (was deprecated=9 at original ship; sunsets 1-7 reduced both
+        # transparent (2) stay warn; deprecated (2) → error
+        # (was deprecated=9 at original ship; sunsets 1-8 reduced both
         # transparent pool (1 retired: dflash-true) and deprecated
-        # pool (6 retired: 2× EXAMPLE, 1x-tested, fp8-dflash, tq-k8v4-
-        # dflash, long-ctx)).
-        assert counts.get("error", 0) == 3
+        # pool (7 retired: 2× EXAMPLE, 1x-tested, fp8-dflash, tq-k8v4-
+        # dflash, long-ctx, int4-tested)).
+        assert counts.get("error", 0) == 2
         assert counts.get("warn", 0) == 2
 
     def test_stage_3_non_transparent_error(self):
         mod = _import_audit()
         report = mod.run_audit(stage=3)
         counts = report.count_by_severity()
-        assert counts.get("error", 0) == 3
+        assert counts.get("error", 0) == 2
         assert counts.get("warn", 0) == 2
 
 
@@ -276,8 +285,8 @@ class TestJSONOutput:
         # Operators reverting with SNDR_V1_ROLLOUT_STAGE=0 still see
         # functionally identical behavior for non-tombstone buckets.
         assert data["stage"] == DEFAULT_STAGE
-        assert data["v1_keys_on_disk"] == 5  # 2026-06-01: 7× V1 sunsets
-        assert data["table_entries"] == 5
+        assert data["v1_keys_on_disk"] == 4  # 2026-06-01: 8× V1 sunsets
+        assert data["table_entries"] == 4
 
     def test_json_finding_shape(self):
         result = _run_cli("--json")

@@ -25,7 +25,7 @@ Total configs: **12**
 | ~~`a5000-2x-35b-fp8-dflash`~~ → V2 `prod-qwen3.6-35b-dflash` | `retired` | qwen3.6-35b-a3b | `null` | — | 160000 → 65K | 127.2 | — | 9/10 | 2026-05-06 (retired 2026-06-01) |
 | `a5000-2x-35b-prod` | `stable` | qwen3.6-35b-a3b | `turboquant_k8v4` | MTP K=3 | 320000 | 234.54 | 3.96 | 7/7 | 2026-05-09 |
 | ~~`a5000-1x-27b-int4-tested`~~ → V2 `qa-qwen3.6-27b-tq-1x` | `retired` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 78000 | 66.8 | — | 10/10 | 2026-05-05 (retired 2026-06-01) |
-| `a5000-2x-27b-int4-tested` | `tested` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 131072 | 57.4 | — | 10/10 | 2026-05-05 |
+| ~~`a5000-2x-27b-int4-tested`~~ → V2 `qa-qwen3.6-27b-tested` | `retired` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 131072 | 57.4 | — | 10/10 | 2026-05-05 (V1 YAML retired 2026-06-01) |
 | `a5000-1x-tier-aware-pn95` | `experimental` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 200000 | — | — | — | 2026-05-13 |
 | `a5000-2x-tier-aware-example` | `experimental` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 131072 | — | — | — | 2026-05-09 |
 | `single-3090-dense-cpu-offload-example` | `community-test` | qwen3.6-7b | `fp8_e5m2` | — | 65536 | — | — | — | 2026-05-09 |
@@ -238,7 +238,7 @@ Total configs: **12**
 | `stability_cv_pct` | `1.22` |
 
 
-### `a5000-2x-27b-int4-tested`
+### `a5000-2x-27b-int4-tested` (retired 2026-06-01 — use V2 `qa-qwen3.6-27b-tested`; original description preserved below)
 
 **Title**: 2× RTX A5000 — 27B INT4 + fp8 KV (TESTED — QA-only, not recommended)
 

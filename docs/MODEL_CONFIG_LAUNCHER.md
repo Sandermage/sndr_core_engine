@@ -44,7 +44,7 @@ Builtin convention (recommended for all tiers):
 | Example | Hardware | GPUs | Model | Flavor |
 |---|---|---|---|---|
 | `a5000-2x-35b-prod` | a5000 | 2x | 35b | prod |
-| `a5000-2x-27b-int4-tested` | a5000 | 2x | 27b-int4 | balanced |
+| ~~`a5000-2x-27b-int4-tested`~~ → V2 `qa-qwen3.6-27b-tested` | a5000 | 2x | 27b-int4 | balanced (V1 retired 2026-06-01) |
 | ~~`a5000-1x-27b-int4-tested`~~ → V2 `qa-qwen3.6-27b-tq-1x` | a5000 | 1x | 27b-int4 | balanced (V1 retired 2026-06-01) |
 | ~~`a5000-2x-27b-int4-long-ctx`~~ → V2 `long-ctx-qwen3.6-27b` | a5000 | 2x | 27b-int4 | long-ctx (V1 retired 2026-06-01) |
 
@@ -498,7 +498,8 @@ vllm/sndr_core/model_configs/
 └── builtin/
     # V1 monolithic — one YAML per (model, hardware, tuning) combo:
     ├── a5000-2x-35b-prod.yaml
-    ├── a5000-2x-27b-int4-tested.yaml
+    # a5000-2x-27b-int4-tested.yaml retired 2026-06-01
+    # — use V2 preset `qa-qwen3.6-27b-tested` instead
     # a5000-2x-27b-int4-long-ctx.yaml retired 2026-06-01
     # — use V2 preset `long-ctx-qwen3.6-27b` (sizing-identical 280K ctx)
     ├── a5000-2x-27b-int4-tq-k8v4.yaml

@@ -201,8 +201,12 @@ class TestBuiltinConfigsClean:
         assert errors == [], f"Builtin 35B config has errors: {errors}"
 
     def test_a5000_2x_27b_int4_balanced_no_errors(self):
+        # Fixture migrated 2026-06-01: a5000-2x-27b-int4-tested retired
+        # in V1 sunset #8; swapped to surviving sibling
+        # `a5000-2x-27b-int4-tq-k8v4` (same model family, same audit
+        # semantics — both are 2× A5000 + Lorbus 27B INT4).
         from vllm.sndr_core.model_configs import get
-        cfg = get("a5000-2x-27b-int4-tested")
+        cfg = get("a5000-2x-27b-int4-tq-k8v4")
         issues = audit(cfg)
         errors = [i for i in issues if i[1] == "error"]
         assert errors == [], f"Builtin 27B config has errors: {errors}"
