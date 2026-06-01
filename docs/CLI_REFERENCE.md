@@ -81,12 +81,15 @@ For env-var knobs see [`CONFIGURATION.md`](CONFIGURATION.md); for the
 | **experimental** | Surface may change; useful for advanced operators. |
 | **deferred** | Declared but not implemented yet; commands return a clean error. |
 
-`<preset>` accepts either:
+`<preset>` is a **V2 alias**, e.g. `prod-qwen3.6-35b-balanced`,
+`prod-qwen3.6-27b-tq-k8v4`, `long-ctx-qwen3.6-27b` (under
+`builtin/presets/`). The V1 monolithic preset tier (flat
+`builtin/<key>.yaml`) was fully retired 2026-06-01 (Phase 10 sunset);
+the V1+V2 resolver still accepts a V1 key as an opaque arg for
+back-compat dispatch (`_resolve_preset_v1_or_v2`) but every shipped
+V1 file is gone — operators get a clean "preset not found" error.
 
-- V1 monolithic key, e.g. `a5000-2x-35b-prod` (legacy presets in `builtin/`).
-- V2 alias, e.g. `prod-qwen3.6-35b-balanced`, `prod-qwen3.6-27b-tq-k8v4`, `long-ctx-qwen3.6-27b` (under `builtin/presets/`).
-
-The same V1+V2 resolver feeds `sndr launch`, `sndr compose`,
+The resolver feeds `sndr launch`, `sndr compose`,
 `sndr patches plan`, `sndr memory`, `sndr model-config diagnose`.
 
 ---
