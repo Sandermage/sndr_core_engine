@@ -80,6 +80,104 @@ on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 
 ---
 
+## [Unreleased] — V1 sunset 10× completed in single day session (2026-06-01)
+
+### Highlights
+
+10 V1 builtin files retired in one day, dropping the V1 baseline from
+12 → 2 (83.3% reduction). The last 2 remaining files are both
+TRANSPARENT bucket (V2 composes byte-identical config) and require
+test/prod-code refactor to retire.
+
+### Sunset bucket distribution evolution
+
+| Stage                 | V1 baseline | transparent | deprecated | needs-choice | tombstone |
+|-----------------------|:-----------:|:-----------:|:----------:|:------------:|:---------:|
+| Pre-session           | 12          | 3           | 9          | 0            | 0         |
+| After #1-#8 (deletes) | 4           | 2           | 2          | 0            | 0         |
+| After #9-#10 (PN95)   | 2           | 2           | 0          | 0            | 0         |
+
+### 10 sunsets — strategy log
+
+1. `single-3090-dense-cpu-offload-EXAMPLE` — PoC (pure docs/audit refs)
+2. `single-3090-hybrid-gdn-tier-aware-EXAMPLE` — EXAMPLE namespace
+3. `a5000-1x-27b-int4-tested` — ZERO runtime refs (cleanest by audit)
+4. `a5000-2x-35b-fp8-dflash` — comparative-study winner (0 tests)
+5. `a5000-2x-27b-int4-tq-k8v4-dflash` — self-flagged `lifecycle: retired`
+6. `a5000-2x-27b-dflash-true` — first TRANSPARENT-bucket sunset
+7. `a5000-2x-27b-int4-long-ctx` — comment-only refs
+8. `a5000-2x-27b-int4-tested` — first sunset with legacy test fixture migration
+9. `a5000-2x-tier-aware-EXAMPLE` — PN95 architectural unblock
+10. `a5000-1x-tier-aware-pn95` — twin sunset with #9
+
+### Methodology established
+
+1. **Runtime-coupling audit** replaces ref-count heuristic (commit `165c453f`)
+2. **Comparative study** of V1↔V2 functional equivalence per migration table rationale
+3. **Content preservation policy** — append annotations, NEVER truncate originals
+4. **Test fixture migration** — surviving sibling swap pattern (commit `47b5a004`)
+5. **Architectural unblock** — extract domain-specific data out of V1 ModelConfig (PN95 refactor, commits `<sha-1>` + `<sha-2>`)
+
+### Phase 10 plan for remaining 2 V1 files
+
+Both files are TRANSPARENT bucket (V2 byte-identical) but blocked by
+test/prod-code coupling rather than data semantics.
+
+#### `a5000-2x-27b-int4-tq-k8v4` — 6 active call sites
+
+| Site | Type | Migration path |
+|---|---|---|
+| `tests/unit/test_phase9_v1_freeze.py:102` | V1 freeze test by design | Refactor to use synthetic V1 fixture (tmp_path + monkey-patched `_BUILTIN_DIR`); OR retire test after Phase 10 V1 freeze concept itself is sunset |
+| `tests/unit/model_configs/test_package_versions.py:154` | Asserts `cfg.package_versions` field | V2 ModelConfig (via `load_alias`) does NOT carry `package_versions`. Migration requires either V2 ModelDef schema extension OR test refactor to assert versions from V2 `versions_override` path |
+| `tests/legacy/test_model_config_cli.py:112,126` | V1 CLI (`cli_main(["render", ...])`) | V1 CLI is itself in `compat/` namespace (compat-only). Either retire V1 CLI test suite OR migrate to V2 CLI testing surface |
+| `tests/legacy/test_community_lifecycle.py:163` | `cfg.validate()` | Likely V2-compatible: change `get(...)` → `load_alias("prod-qwen3.6-27b-tq-k8v4")` |
+| `tests/legacy/test_model_config_audit_rules.py:209` | `audit(get(...))` | Likely V2-compatible: same swap |
+
+Two-step migration: (1) swap V2-compatible sites first (low risk), (2) refactor V1-bound sites (high risk).
+
+#### `a5000-2x-35b-prod` — 12+ active call sites
+
+| Category | Count | Migration path |
+|---|---|---|
+| `tests/unit/test_phase9_v1_freeze.py` | 6 | Same synthetic-fixture refactor as above |
+| Prod code: `cli/{compose,config,install,report,launch}` + `compat/models/pull.py` + `kv_calc.py` + `__init__.py` | 6+ | Mostly docstring examples (already annotated with V2 hint via commit `569bd108`). Two paths actively call `get('a5000-2x-35b-prod')` in fallback chains — refactor to try V2 alias first |
+| `tests/unit/model_configs/test_package_versions.py` | 1 | Same `package_versions` blocker as tq-k8v4 |
+| `tests/legacy/test_*` | 4+ | Same V2-compatible swap pattern |
+
+#### Common blocker — `package_versions` schema field
+
+The V1 `ModelConfig` schema carries a `package_versions` field (pinned
+Python package versions: `pandas==2.2.3`, `scipy==1.14.1`, etc.). V2
+`ProfileDef`/`ModelDef` does NOT expose this field. Tests asserting
+`cfg.package_versions is not None` fail after V2 alias migration.
+
+Resolution paths (Phase 10 design decision):
+
+1. **Extend V2 schema**: add `package_versions` field to either
+   `ProfileDef` (per-profile pinning) or `ModelDef` (per-model pinning).
+   Update V2 `compose` to populate the field. Tests work unchanged.
+
+2. **Move package pins to a separate source-of-truth**: extract
+   pinned versions to `pyproject.toml` or a Genesis-internal manifest.
+   Tests refactor to read from new source.
+
+3. **Retire the `package_versions` tests**: if Genesis no longer pins
+   Python packages at the per-config level (it's a per-release pin),
+   the tests are obsolete and can be deleted.
+
+Operator + maintainer decision required before Phase 10 execution.
+
+### Verified
+
+- `python3 scripts/audit_no_new_v1.py`: "✓ V1 frozen — 2-entry baseline"
+- `pytest tests/unit/scripts tests/unit/model_configs
+  tests/unit/test_runtime_tunables.py`: 836 passed, 2 warnings
+- All 10 commits land cleanly on `dev` branch (no push)
+- PN95 architectural refactor preserves operator-visible behavior
+  (backward-compat aliases for legacy V1 env values)
+
+---
+
 ## [Unreleased] — chat-K3 promotion blocked by TURBOQUANT + gemma4 multimodal regression (2026-05-31)
 
 ### Audit findings
