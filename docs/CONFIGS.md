@@ -4,12 +4,15 @@ This guide walks an operator through adding a new model to Genesis end-to-end: f
 
 If you're new to Genesis, read [../docs/QUICKSTART.md](../docs/QUICKSTART.md) first. If you want the patch catalog, see [../docs/PATCHES.md](../docs/PATCHES.md). If you want the supported-versions matrix, see [docs/PATCHES.md](PATCHES.md).
 
-> 📊 **Full machine-readable config inventory** — auto-generated from
-> `vllm/sndr_core/model_configs/builtin/*.yaml` — at
-> [**`CONFIGS_AUTO.md`**](CONFIGS_AUTO.md). Includes 12 built-in configs
-> (5 stable + 2 tested + 2 experimental + 2 community-test + 1 retired)
-> with reference_metrics, hardware targets, KV dtype, MTP K, max_ctx.
-> Regenerate via `python3 scripts/generate_configs_md.py`. CI gate: `--check`.
+> 📊 **Full machine-readable config inventory** — V1 monolithic preset
+> tier was fully retired 2026-06-01 (Phase 10 sunset, commit `607385f1`).
+> All operator-facing presets now live under the V2 layered triplet
+> in [`vllm/sndr_core/model_configs/builtin/`](../vllm/sndr_core/model_configs/builtin/):
+> **10 model defs · 3 hardware envelopes · 23 profiles · 23 presets**
+> (16 `prod-*` + 7 non-prod, all carded). Discover via
+> `sndr preset list` / `sndr preset recommend`; per-preset narrative
+> tables in [`PRESETS.md`](PRESETS.md). [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md)
+> remains as a placeholder stub pending a V2 inventory generator.
 
 ---
 
