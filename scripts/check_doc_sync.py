@@ -195,6 +195,49 @@ _PATCHES_MD_STATS_PATTERNS: list[tuple[str, str]] = [
 ]
 
 
+# FAQ.md uses prose form (not table). Pattern captures the 5 buckets
+# from the registry-size answer at FAQ.md:36-37 (drift caught
+# 2026-06-01 — 174/17/4/7/2 had become 177/20/4/8/2).
+_FAQ_MD_BREAKDOWN_PATTERN = (
+    r"\*\*(\d+) entries\*\* — (\d+) full-implementation \+ (\d+) marker-only \+\s*"
+    r"(\d+) retired \+ (\d+) partial \+ (\d+) placeholder"
+)
+_FAQ_BREAKDOWN_KEYS = [
+    "total", "impl.full", "impl.marker_only",
+    "impl.retired", "impl.partial", "impl.placeholder",
+]
+
+
+def _check_faq_md_breakdown(stats: dict[str, int]) -> list[dict]:
+    """Verify the impl_status breakdown prose in docs/FAQ.md:36-37."""
+    path = REPO_ROOT / "docs" / "FAQ.md"
+    if not path.is_file():
+        return [{"doc": str(path), "error": "file not found"}]
+    text = path.read_text()
+    rel = path.relative_to(REPO_ROOT).as_posix()
+    m = re.search(_FAQ_MD_BREAKDOWN_PATTERN, text)
+    if not m:
+        return [{
+            "doc": rel, "line": 0, "found": None, "expected": stats["total"],
+            "pattern": _FAQ_MD_BREAKDOWN_PATTERN,
+            "match_text": "(prose form not found — wording changed?)",
+            "transition_pending": False,
+        }]
+    line_no = text[:m.start()].count("\n") + 1
+    mismatches: list[dict] = []
+    for i, key in enumerate(_FAQ_BREAKDOWN_KEYS):
+        found = int(m.group(i + 1))
+        expected = stats.get(key, 0)
+        if found != expected:
+            mismatches.append({
+                "doc": rel, "line": line_no, "found": found,
+                "expected": expected, "pattern": f"{_FAQ_MD_BREAKDOWN_PATTERN} [{key}]",
+                "match_text": m.group(0)[:80],
+                "transition_pending": False,
+            })
+    return mismatches
+
+
 def _check_patches_md_stats_table(stats: dict[str, int]) -> list[dict]:
     """Verify the Quick-stats table in docs/PATCHES.md matches stats.
 
@@ -306,6 +349,7 @@ def main() -> int:
     try:
         stats = compute_registry_stats(REGISTRY_PATH)
         all_mismatches.extend(_check_patches_md_stats_table(stats))
+        all_mismatches.extend(_check_faq_md_breakdown(stats))
     except Exception as e:
         print(f"WARN: stats-table check skipped: {e}", file=sys.stderr)
 

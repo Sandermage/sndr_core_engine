@@ -33,8 +33,8 @@ documented in [`RELEASE_POLICY.md`](RELEASE_POLICY.md).
 
 ### Q: How big is the patch registry today?
 
-**236 entries** — 174 full-implementation + 17 marker-only +
-4 retired + 7 partial + 2 placeholder. The current state is always
+**236 entries** — 177 full-implementation + 20 marker-only +
+4 retired + 8 partial + 2 placeholder. The current state is always
 in [`PATCHES_AUTO.md`](PATCHES_AUTO.md) (auto-generated from
 `vllm/sndr_core/dispatcher/registry.py`) and the narrative
 explanations in [`PATCHES.md`](PATCHES.md).
