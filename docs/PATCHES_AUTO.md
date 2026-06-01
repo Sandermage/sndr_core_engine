@@ -4,24 +4,24 @@
 > Source of truth: `vllm/sndr_core/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-05-31T05:45:46Z
-Total entries: **235**
+Generated: 2026-06-01T11:24:21Z
+Total entries: **236**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **233**
+- `tier=community`: **234**
 - `tier=engine`: **2**
 
 ### By lifecycle
-- `lifecycle=coordinator`: **3**
+- `lifecycle=coordinator`: **4**
 - `lifecycle=experimental`: **162**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **19**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **52** / 235
+### Default-on at boot: **52** / 236
 
 ### By family
 - `attention.flash`: 3
@@ -37,7 +37,7 @@ Total entries: **235**
 - `middleware`: 3
 - `moe`: 6
 - `multimodal`: 1
-- `observability`: 3
+- `observability`: 4
 - `offload`: 3
 - `quantization`: 5
 - `reasoning`: 9
@@ -256,12 +256,13 @@ Total entries: **235**
 |---|---|---|:---:|---|:---:|---|
 | **PN62** | `community` | `experimental` | · | `GENESIS_ENABLE_PN62` | — | Text-only ViT scratch skip via skip_mm_profiling flip (3-5 GiB save) |
 
-### `observability` (3)
+### `observability` (4)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **PN122** | `community` | `experimental` | · | `GENESIS_ENABLE_PN122_CG_DISPATCH_TRACE` | — | Sprint 2.6 v2 — CUDA graph dispatch trace wire-in (formerly SPRINT26_CG_DISPA... |
 | **PN282** | `community` | `coordinator` | · | `SNDR_ENABLE_SPEC_DECODE_ACCEPTANCE_METRIC` | — | Spec-decode acceptance proxy metric (Prometheus, non-dispatcher boot patch) |
+| **PN283** | `community` | `coordinator` | · | `SNDR_ENABLE_PN283_PROC_BRIDGE` | — | vLLM v1 multiprocess Prometheus directory bootstrap (non-dispatcher boot patch) |
 | **PN289** | `engine` | `experimental` | · | `GENESIS_ENABLE_PN289_PROCESS_INFO` | — | Genesis process-info Prometheus gauge (§6.H10 enterprise observability) |
 
 ### `offload` (3)

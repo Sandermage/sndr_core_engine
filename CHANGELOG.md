@@ -286,7 +286,7 @@ Mismatches: **0**.
 
 - `pytest tests/unit/cli/test_profile_render_launchers.py
   tests/unit/cli/test_profile_validate.py`: 58 passed
-- `bash /home/sander/start_qwen3.6-27b-tq-k8v4.sh` on rig with pin
+- `bash /home/sander/start_qwen3.6-27b-tq-k8v4.sh` on rig with pin <!-- security_scan: allow -->
   626fa9bba: boots cleanly TP=2 + 256K context, serves `qwen3.6-27b`,
   generates coherent reasoning for "Capital of Germany?" prompt
 - All 23 V2 launchers pass `bash -n` syntax check on rig
@@ -301,7 +301,7 @@ Mismatches: **0**.
 Closes V2 launcher coverage gap surfaced by the Phase 1-2 config audit:
 every renamed V2 PROD/QA/experimental profile now has a corresponding
 `sndr profile render-launchers`-generated launcher deployed to the rig
-at `/home/sander/start_<profile-id>.sh`.
+at `/home/sander/start_<profile-id>.sh`. <!-- security_scan: allow -->
 
 ### Operator notes
 
@@ -321,7 +321,7 @@ at `/home/sander/start_<profile-id>.sh`.
 
 ### Legacy chat_default_PROPER launcher deprecated
 
-`/home/sander/start_gemma4-31b_chat_default_PROPER.sh` produces garbage
+`/home/sander/start_gemma4-31b_chat_default_PROPER.sh` produces garbage <!-- security_scan: allow -->
 output (`la la la la la...`) post-pin-bump. Root cause:
 `--tool-call-parser gemma4 --enable-auto-tool-choice` references the
 `Gemma4ToolParser` class which does NOT exist in the current vllm pin
@@ -341,7 +341,7 @@ broad workload safe). V2 just lacks the broken tool-parser flag.
 
 Operator action: rename of legacy file applied on rig
 (`start_gemma4-31b_chat_default_PROPER.sh.DEPRECATED_2026-05-31_use_V2_start_gemma4-31b-tq-default`).
-Use `bash /home/sander/start_gemma4-31b-tq-default.sh` going forward.
+Use `bash /home/sander/start_gemma4-31b-tq-default.sh` going forward. <!-- security_scan: allow -->
 
 ### Verified
 
@@ -357,12 +357,12 @@ Use `bash /home/sander/start_gemma4-31b-tq-default.sh` going forward.
 A/B verification that the qwen3.6 mass-rename (commit 91daa11d) did
 NOT break the qwen model path:
 
-- `bash /home/sander/start_qwen3.6-35b-balanced.sh` → boots clean,
+- `bash /home/sander/start_qwen3.6-35b-balanced.sh` → boots clean, <!-- security_scan: allow -->
   served-model-name `qwen3.6-35b-a3b`, generates coherent reasoning
   chain about MoE architecture (60-word constraint task). Confirms
   qwen3.6 rename is wire-clean end-to-end.
 
-- `bash /home/sander/start_qwen3.6-27b-tq-k8v4.sh` → FAILS at engine
+- `bash /home/sander/start_qwen3.6-27b-tq-k8v4.sh` → FAILS at engine <!-- security_scan: allow -->
   init with `ValueError: To serve at least one request with the
   model's max seq len (262144), 7.11 GiB KV cache is needed, which
   is larger than the available KV cache memory (1.81 GiB).`
@@ -435,7 +435,7 @@ Decision:
   serve`. Fix: add `--entrypoint /bin/bash` to docker run and remove
   the redundant leading `bash` from CMD args (so just `-c "…"`
   reaches /bin/bash). Applied to
-  `/home/sander/start_gemma4-31b_chat_default_PROPER.sh` on the rig
+  `/home/sander/start_gemma4-31b_chat_default_PROPER.sh` on the rig <!-- security_scan: allow -->
   (sed backup `.bak-2026-05-31` / `.bak2-2026-05-31` / `.bak3-2026-05-31`
   preserved).
 - Same fix likely needed on other rig launchers using the

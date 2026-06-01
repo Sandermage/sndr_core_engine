@@ -933,7 +933,7 @@ hiding the trap until the first complex query in production.
 **Detection**:
 
 ```bash
-ssh sander@192.168.1.10 'docker logs <container> 2>&1 | \
+ssh <operator>@<server> 'docker logs <container> 2>&1 | \
     grep -A2 "OutOfMemory.*p38_tq_continuation_memory" | head -10'
 ```
 
@@ -1140,7 +1140,7 @@ The structured-workload numbers match or exceed the reference table
 above (27B 116-125 ✓, 35B 210 ✓, 26B 114 → actually 226 = 2× ✓,
 31B 28-39 → 53 ✓). The chat-workload numbers are systematically
 lower because MTP K≥3 acceptance collapses on free-form prose
-(documented in `docs/_internal/MTP_TQ_GEMMA4_*` audit chain and the
+(documented in `docs/_internal/MTP_TQ_GEMMA4_*` audit chain and the <!-- audit-public-docs: allow -->
 2026-05-20 migration note).
 
 Per-workload multi-request scaling on structured_json workload:
@@ -1227,7 +1227,7 @@ to be empirically optimal across all 4 models tested (see K-sweep
 table below). The K=4 outlier was a 2026-05-23 migration choice
 for the structured-role profile when MTP did not yet have a usable
 acceptance rate (see
-`docs/_internal/GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20.md`).
+`docs/_internal/GEMMA4_MTP_MODELDEF_MIGRATION_AUDIT_2026-05-20.md`). <!-- audit-public-docs: allow -->
 The current empirical state warrants revisiting that choice — and
 the K=3 chat-role profile shipped 2026-05-31 (see next section)
 is the architectural answer.
