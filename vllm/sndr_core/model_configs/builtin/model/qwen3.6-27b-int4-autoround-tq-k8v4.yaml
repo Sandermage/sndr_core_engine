@@ -153,7 +153,7 @@ patches:
   # ── Compatibility shims ──
   GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'        # Cliff 1B closure (Inductor opaque-op pool for SiluAndMul); NULL impact on 2×A5000, win for 24GB community
   # ── Lazy reasoner (PN16 v2) ──
-  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'             # PN16 v2 — cache-safe; default leaves chat_template_kwargs untouched. V1 RETIRED 2026-05-09 (Wave 6 −28% wall_TPS + 6× CV amplification на 35B); v2 production paths cache-safe.
+  GENESIS_ENABLE_PN16_LAZY_REASONER: '1'             # PN16 v2 — cache-safe; default leaves chat_template_kwargs untouched. V1 RETIRED 2026-05-09 (Wave 6 −28% wall_TPS + 6× CV amplification on 35B); v2 production paths cache-safe.
   GENESIS_PN16_TOOL_THINK_BUDGET: '200'              # V8 — short system msg cap on <think>. 27B bench: TPS ≈baseline noise, TPOT -7%, tool 8/8 (london_think FIXED)
   GENESIS_PN16_CLASSIFIER_MAX_TOKENS: '0'            # V7 OFF — V7 cap caused -3.7% wall_TPS measurement artifact
   # ── Sweep tunable ──

@@ -5,7 +5,7 @@
 WHY DEPRECATED
 ================================================================
 
-Investigation 2026-05-07 (Genesis MEMORY_DEEP_PLAN Этап 2.1):
+Investigation 2026-05-07 (Genesis MEMORY_DEEP_PLAN Phase 2.1):
 direct read of vllm pin source `vllm/v1/worker/gpu_model_runner.py`
 found that `capture_model()` already calls
 `torch.accelerator.empty_cache()` TWICE:

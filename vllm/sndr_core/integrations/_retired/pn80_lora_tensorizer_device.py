@@ -3,7 +3,7 @@
 
 Fixes OOM during LoRA tensorizer deserialization by passing `device`
 explicitly to `TensorDeserializer`. Without the device parameter,
-tensorizer first deserializes to host RAM (full model size, может быть
+tensorizer first deserializes to host RAM (full model size, possibly
 2-50 GB depending on LoRA rank), then transfers to GPU — peak host
 RAM blows up.
 

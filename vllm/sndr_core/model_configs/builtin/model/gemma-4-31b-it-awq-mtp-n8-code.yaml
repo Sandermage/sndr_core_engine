@@ -5,7 +5,7 @@
 #   rig not bench-validated for this profile — pending A/B vs n=4 sister.
 # Genesis V2 model definition — Gemma 4 31B AWQ-4bit + MTP K=8 (CODE profile).
 # Per audit GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU section P1:
-#   "31B добавить профили mtp_n4_default, mtp_n8_code".
+#   "31B: add mtp_n4_default + mtp_n8_code profiles".
 # Reference: club-3090 public A/B showed MTP n=8 gives code +9% TPS vs n=4
 # but narrative -3%. Use this profile ONLY for code/agent endpoints.
 #

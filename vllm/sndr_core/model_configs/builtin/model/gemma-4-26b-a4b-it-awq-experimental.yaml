@@ -6,8 +6,8 @@
 # Genesis V2 model definition — Gemma 4 26B-A4B AWQ-4bit EXPERIMENTAL overlay.
 #
 # Per audit GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU section P0:
-#   "G4_08/G4_18 перенести из default-on в experimental overlay,
-#    пока нет real server validation."
+#   "move G4_08/G4_18 from default-on into the experimental overlay
+#    until real server validation lands".
 #
 # This profile flips:
 #   G4_02 guard OFF  → allows boot when Marlin K%64≠0 path triggers
