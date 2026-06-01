@@ -57,6 +57,15 @@ card:
     max: 2
     canonical: 2
   K: 3
+  # 2026-06-01: fallback_preset added to satisfy audit_config_catalog
+  # `card_strict_validation` rule (K>1 production_candidate requires a
+  # K=1 fallback pointer of same routing_family). Points at the K=4
+  # structured-role sibling — mirrors the 26b chat-k3 → mtp-k4 pattern
+  # (chat-k3 denies structured_json.long + tool_call.long, exactly the
+  # workloads the structured-k4 sibling handles; the gateway router
+  # already routes those workload signals to structured-k4, so this
+  # fallback formalises the cross-role partnership in metadata form).
+  fallback_preset: prod-gemma4-31b-tq-mtp-structured-k4
   context:
     max_model_len: 200000
     typical_input_tokens: 2048

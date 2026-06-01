@@ -1223,6 +1223,41 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "composes_with": [],
         "applies_to": {"model_arch": ["*"]},
     },
+    "PN283": {
+        "title": "vLLM v1 multiprocess Prometheus directory bootstrap (non-dispatcher boot patch)",
+        "tier": "community",
+        "family": "observability",
+        "env_flag": "SNDR_ENABLE_PN283_PROC_BRIDGE",
+        "default_on": False,
+        "category": "observability",
+        "implementation_status": "marker_only",
+        "source": "genesis_original",
+        "apply_module": None,
+        "lifecycle": "coordinator",
+        "credit": (
+            "Genesis-original — Sandermage; PN283 / 2026-05-20. Sibling "
+            "of PN282 (same coordinator pattern): boots the multiprocess "
+            "Prometheus directory referenced by PROMETHEUS_MULTIPROC_DIR "
+            "before any patch hook runs, so PN282's worker-process "
+            "Counters have a writable value-file dir by the time "
+            "prometheus_client opens its first Counter/Gauge. Boot-applied "
+            "directly from sndr_core/__init__.py (matches PN248/PN282 "
+            "coordinator pattern), not via the dispatcher pipeline — "
+            "hence apply_module=None and lifecycle=coordinator. Canonical "
+            "env name SNDR_ENABLE_PN283_PROC_BRIDGE (mirrors PN282 "
+            "SNDR_ENABLE_* naming for non-dispatcher coordinator boot "
+            "patches). Registering this coordinator entry closes the "
+            "orphan-flag gap surfaced by audit_config_keys / "
+            "audit_v2_env_keys after the chat-K3 profile promotion "
+            "declared the env in gemma4-31b-tq-mtp-{chat-k3,structured-k4} "
+            "profiles."
+        ),
+        "upstream_pr": None,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN282"],
+        "applies_to": {"model_arch": ["*"]},
+    },
     "PN122": {  # renamed 2026-05-14 from SPRINT26_CG_DISPATCH_TRACE — long ID violated P[N]?\d+ convention + auto-derivation
         "title": "Sprint 2.6 v2 — CUDA graph dispatch trace wire-in (formerly SPRINT26_CG_DISPATCH_TRACE)",
         "tier": "community",

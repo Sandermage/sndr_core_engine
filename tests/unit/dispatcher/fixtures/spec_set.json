@@ -600,6 +600,18 @@
     "apply_module": "vllm.sndr_core.integrations.observability.pn282_spec_decode_acceptance_metric"
   },
   {
+    "patch_id": "PN283",
+    "family": "observability",
+    "lifecycle": "coordinator",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "SNDR_ENABLE_PN283_PROC_BRIDGE",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": false,
+    "apply_module": null
+  },
+  {
     "patch_id": "PN122",
     "family": "observability",
     "lifecycle": "experimental",
@@ -766,6 +778,18 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "vllm.sndr_core.integrations.worker.sndr_workspace_001_grow_after_lock"
+  },
+  {
+    "patch_id": "SNDR_MTP_DYNAMIC_K_001",
+    "family": "spec_decode",
+    "lifecycle": "experimental",
+    "tier": "engine",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.spec_decode.g_dynamic_k_mtp_proposer"
   },
   {
     "patch_id": "PN202",

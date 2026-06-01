@@ -96,9 +96,12 @@ class TestWalkers:
         # preset aliases (default + mtp-k4 + multiconc) → 20.
         # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): +1 multiconc-k1
         # preset alias → 21.
+        # chat-K3 promotion session (2026-06-01): +2 preset aliases
+        # (prod-gemma4-31b-tq-mtp-chat-k3 + prod-gemma4-26b-mtp-chat-k3
+        # promoted from profile-only to operator-facing presets) → 23.
         # Test name kept as "fifteen" for grep continuity; assertion
         # tracks current fleet.
-        assert len(entries) == 21
+        assert len(entries) == 23
         for e in entries:
             assert e.layer == "resolved-alias"
 

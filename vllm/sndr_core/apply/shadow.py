@@ -138,6 +138,11 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     "PN282",           # spec-decode acceptance metric coordinator (boot-applied
                        # from sndr_core/__init__.py, not via dispatcher;
                        # STAGE-6-HARDENING.2C registration 2026-05-28)
+    "PN283",           # prometheus_client multiprocess directory bootstrap
+                       # coordinator — sibling of PN282 (same boot pattern,
+                       # same SNDR_ENABLE_* canonical env naming); registered
+                       # 2026-06-01 to close orphan-flag gap surfaced by
+                       # audit_config_keys after chat-K3 profile promotion
     # ── 2026-05-30 session additions — spec-driven from inception ──
     "PN288",           # qwen3_coder tool-call finish_reason override
                        # (§1.3 Phase B+C; serving-layer text-patch

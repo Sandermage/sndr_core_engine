@@ -258,8 +258,23 @@ class TestDispatcherRegistry:
             # Most patches use GENESIS_ENABLE_*, but legacy patches use
             # GENESIS_LEGACY_* (placeholder for pre-dispatcher patches that
             # don't actually read an env var). Both are schema-clean.
-            assert meta["env_flag"].startswith("GENESIS_"), (
-                f"{pid} env_flag must start with GENESIS_"
+            #
+            # Non-dispatcher coordinator carve-out (PN282, PN283 — added
+            # 2026-05-28 + 2026-06-01): patches that boot directly from
+            # `sndr_core/__init__.py` rather than the dispatcher pipeline
+            # (lifecycle=coordinator + apply_module=None) use the
+            # `SNDR_ENABLE_*` prefix per operator decision documented in
+            # the registry entry credits. The dispatcher schema's
+            # `GENESIS_*` prefix rule is enforced only for entries that
+            # actually pass through the dispatcher pipeline.
+            is_coordinator = (
+                meta.get("lifecycle") == "coordinator"
+                and meta.get("apply_module") is None
+            )
+            allowed_prefixes = ("GENESIS_", "SNDR_") if is_coordinator else ("GENESIS_",)
+            assert meta["env_flag"].startswith(allowed_prefixes), (
+                f"{pid} env_flag {meta['env_flag']!r} must start with "
+                f"one of {allowed_prefixes}"
             )
 
     def test_v7_14_v7_15_patches_in_registry(self):

@@ -192,6 +192,10 @@
     "wrapped_name": "apply_patch_sndr_workspace_001"
   },
   {
+    "name": "SNDR_MTP_DYNAMIC_K_001 adaptive K MTP proposer (vllm#26504 port to DraftModelProposer)",
+    "wrapped_name": "apply_patch_sndr_mtp_dynamic_k_001"
+  },
+  {
     "name": "PN202 per-layer KV tensor split (Tier 2.A)",
     "wrapped_name": "apply_patch_pn202_per_layer_kv_split"
   },
