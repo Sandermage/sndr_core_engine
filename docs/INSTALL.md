@@ -182,7 +182,7 @@ genesis-vllm-patches/
 
 **Removed in v11.0.0**:
 
-- `vllm/_genesis/` — directory deleted entirely (236 files; tests
+- `vllm/_genesis/` — directory deleted entirely (235 files; tests
   migrated, code consolidated into `sndr_core`).
 - `patch_genesis_unified.py` — back-compat shim, no longer needed.
 - `vllm/sndr_core/wiring/patch_*.py` — replaced by canonical
