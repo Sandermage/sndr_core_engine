@@ -546,7 +546,7 @@ PN33 and PN35 are the reference examples.
 ### Per-PR minimum
 
 - **Unit test for every wiring patch.** `test_pNN_*.py` validates anchor exists, replacement is sane, marker present, idempotent.
-- **Family contract** — added automatically if your new patch belongs to one of the 18 covered families. The factory pattern means no extra work: if you put the file under `integrations/<family>/<file>.py` and register in PATCH_REGISTRY with the correct `family` field, the existing family contract covers your patch via the next pytest run.
+- **Family contract** — added automatically if your new patch belongs to one of the 23 covered families. The factory pattern means no extra work: if you put the file under `integrations/<family>/<file>.py` and register in PATCH_REGISTRY with the correct `family` field, the existing family contract covers your patch via the next pytest run.
 - **Boot smoke test.** Add your patch to a launch script, run it, paste the boot log section showing `APPLY` in the PR.
 - **Empirical bench.** `n >= 3` runs (5 preferred) with `tools/genesis_bench_suite.py`. Report mean, std, CV.
 
