@@ -12,6 +12,9 @@ answers the canonical question: **"will this model fit on my GPU?"**.
   # By registered preset key (fastest):
   python3 tools/kv_calc.py --preset a5000-2x-35b-prod
   python3 tools/kv_calc.py --preset a5000-2x-35b-prod --gpu-vram 24
+  # NOTE: V1 alias `a5000-2x-35b-prod` is Phase-9-frozen; V2 successor
+  # is `prod-qwen3.6-35b-balanced` (passable to --preset transparently
+  # via load_alias resolution).
 
   # By local model directory (reads config.json + sums safetensors):
   python3 tools/kv_calc.py --model /models/Qwen3.6-27B-int4-AutoRound \\

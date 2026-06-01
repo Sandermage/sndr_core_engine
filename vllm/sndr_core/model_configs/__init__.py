@@ -13,10 +13,15 @@ Layout:
     community/  — community-contributed verified configs
     user/       — operator's local configs (loaded if present, gitignored)
 
-Use:
+Use (V1 path, deprecated during Phase 9 freeze):
     from vllm.sndr_core.model_configs import load_all, get
     configs = load_all()
-    cfg = get('a5000-2x-35b-prod')
+    cfg = get('a5000-2x-35b-prod')  # V1 key; emits DeprecationWarning
+    print(cfg.to_launch_script())
+
+Use (V2 path, recommended — V1 sunset in progress 2026-06-01):
+    from vllm.sndr_core.model_configs.registry_v2 import load_alias
+    cfg = load_alias('prod-qwen3.6-35b-balanced')  # V2 preset alias
     print(cfg.to_launch_script())
 
 CLI: `python3 -m vllm.sndr_core.compat.model_config_cli list/show/render/launch/verify`
