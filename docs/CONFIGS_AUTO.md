@@ -26,8 +26,8 @@ Total configs: **12**
 | `a5000-2x-35b-prod` | `stable` | qwen3.6-35b-a3b | `turboquant_k8v4` | MTP K=3 | 320000 | 234.54 | 3.96 | 7/7 | 2026-05-09 |
 | ~~`a5000-1x-27b-int4-tested`~~ → V2 `qa-qwen3.6-27b-tq-1x` | `retired` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 78000 | 66.8 | — | 10/10 | 2026-05-05 (retired 2026-06-01) |
 | ~~`a5000-2x-27b-int4-tested`~~ → V2 `qa-qwen3.6-27b-tested` | `retired` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 131072 | 57.4 | — | 10/10 | 2026-05-05 (V1 YAML retired 2026-06-01) |
-| `a5000-1x-tier-aware-pn95` | `experimental` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 200000 | — | — | — | 2026-05-13 |
-| `a5000-2x-tier-aware-example` | `experimental` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 131072 | — | — | — | 2026-05-09 |
+| ~~`a5000-1x-tier-aware-pn95`~~ → PN95 tier_config `a5000-1x-pn95-long-ctx` | `retired` | qwen3.6-27b | `fp8_e5m2` | MTP K=3 | 200000 | — | — | — | 2026-05-13 (V1 retired 2026-06-01 via PN95 architectural unblock) |
+| ~~`a5000-2x-tier-aware-example`~~ → PN95 tier_config `a5000-2x-tier-aware` | `retired` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 131072 | — | — | — | 2026-05-09 (V1 retired 2026-06-01 via PN95 architectural unblock) |
 | `single-3090-dense-cpu-offload-example` | `community-test` | qwen3.6-7b | `fp8_e5m2` | — | 65536 | — | — | — | 2026-05-09 |
 | `single-3090-hybrid-gdn-tier-aware-example` | `community-test` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 145000 | — | — | — | 2026-05-09 |
 | ~~`a5000-2x-27b-int4-tq-k8v4-dflash`~~ → V2 `experimental-qwen3.6-27b-tq-dflash-ab` | `retired` | qwen3.6-27b | `turboquant_k8v4` | MTP K=3 | 131072 | 83.9 | — | 10/10 | 2026-05-06 (V1 YAML retired 2026-06-01) |
@@ -272,7 +272,7 @@ Total configs: **12**
 | `stability_cv_pct` | `1.31` |
 
 
-### `a5000-1x-tier-aware-pn95`
+### `a5000-1x-tier-aware-pn95` (retired 2026-06-01 — PN95 tier_specs now in `vllm/sndr_core/cache/pn95/tier_configs/a5000-1x-pn95-long-ctx.yaml`; original description preserved below)
 
 **Title**: Single A5000 — Qwen3.6-27B-INT4 fp8 + PN95 multi-tier offload
 
@@ -296,7 +296,7 @@ Total configs: **12**
 | `enabled_patches` (genesis_env) | 41 |
 
 
-### `a5000-2x-tier-aware-example`
+### `a5000-2x-tier-aware-example` (retired 2026-06-01 — PN95 tier_specs now in `vllm/sndr_core/cache/pn95/tier_configs/a5000-2x-tier-aware.yaml`; original description preserved below)
 
 **Title**: 2× A5000 — Path C tier-aware (Sandermage rig)
 

@@ -40,10 +40,8 @@ BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
 #   not a blocker for release. Until that lands the V1 entry stays
 #   here so `make evidence` does not gate on the migration.
 FROZEN_V1_BASELINE: frozenset[str] = frozenset({
-    "a5000-1x-tier-aware-pn95.yaml",
     "a5000-2x-27b-int4-tq-k8v4.yaml",
     "a5000-2x-35b-prod.yaml",
-    "a5000-2x-tier-aware-EXAMPLE.yaml",
     # single-3090-dense-cpu-offload-EXAMPLE.yaml retired 2026-06-01
     # — V2 equivalent: preset `example-3090-dense-cpu-offload`.
     # First V1 sunset (Phase 9 → Phase 10 transition proof-of-concept).
@@ -79,6 +77,17 @@ FROZEN_V1_BASELINE: frozenset[str] = frozenset({
     # patches_delta — V2 ≠ byte-identical V1, operator must consciously
     # pick). Eighth V1 sunset. Legacy CLI test fixtures migrated to
     # surviving sibling `a5000-2x-27b-int4-tq-k8v4`.
+    # a5000-2x-tier-aware-EXAMPLE.yaml retired 2026-06-01
+    # — Architectural unblock via PN95 refactor: extracted cache_config
+    # tier_specs to vllm/sndr_core/cache/pn95/tier_configs/. PN95 hook
+    # now reads from PN95-internal dir first, V1 ModelConfig fallback
+    # preserved. tier_configs/a5000-2x-tier-aware-example.yaml carries
+    # backward-compat alias for any operator still pointing at the V1
+    # key. Ninth V1 sunset.
+    # a5000-1x-tier-aware-pn95.yaml retired 2026-06-01
+    # — Same PN95 architectural unblock. tier_configs/a5000-1x-tier-
+    # aware-pn95.yaml carries backward-compat alias.
+    # Tenth V1 sunset. (Pairs with #9 in the same PN95 refactor.)
 })
 
 

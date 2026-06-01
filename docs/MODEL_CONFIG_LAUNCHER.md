@@ -509,8 +509,12 @@ vllm/sndr_core/model_configs/
     # — use V2 preset `prod-qwen3.6-27b-dflash` (transparent — byte-identical config)
     # a5000-2x-35b-fp8-dflash.yaml retired 2026-06-01
     # — use V2 preset `prod-qwen3.6-35b-dflash` instead
-    ├── a5000-1x-tier-aware-pn95.yaml
-    └── a5000-2x-tier-aware-EXAMPLE.yaml
+    # a5000-1x-tier-aware-pn95.yaml retired 2026-06-01
+    # — use PN95 tier_config `vllm/sndr_core/cache/pn95/tier_configs/
+    #   a5000-1x-pn95-long-ctx.yaml` instead
+    # a5000-2x-tier-aware-EXAMPLE.yaml retired 2026-06-01
+    # — use PN95 tier_config `vllm/sndr_core/cache/pn95/tier_configs/
+    #   a5000-2x-tier-aware.yaml` instead
     # single-3090-dense-cpu-offload-EXAMPLE.yaml retired 2026-06-01
     # — use V2 preset `example-3090-dense-cpu-offload` instead
     # single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml retired 2026-06-01

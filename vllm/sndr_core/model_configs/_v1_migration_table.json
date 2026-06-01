@@ -13,16 +13,6 @@
       "bucket": "transparent",
       "v2_preset": "prod-qwen3.6-35b-balanced",
       "rationale": "Direct match — V2 preset composes identical config (FP8 + TQ k8v4 + MTP K=3 balanced)."
-    },
-    "a5000-1x-tier-aware-pn95": {
-      "bucket": "deprecated",
-      "v2_preset": "example-3090-tier-aware",
-      "rationale": "PN95 tier-aware was experimental; closest V2 alias is the single-3090 example preset (different hardware but same concept)."
-    },
-    "a5000-2x-tier-aware-example": {
-      "bucket": "deprecated",
-      "v2_preset": "example-2x-tier-aware",
-      "rationale": "`-example` suffix marks non-prod; direct V2 migration to the example namespace."
     }
   }
 }

@@ -64,23 +64,44 @@ class TestLiveCorpus:
         assert result.returncode == 1
 
     def test_stage_3_returns_one(self):
-        """Stage 3 default escalates non-transparent buckets to error → exit 1."""
+        """Stage 3 default escalates non-transparent buckets to error → exit 1.
+
+        2026-06-01 update: after the 10 V1 sunsets completed this session
+        (including the PN95 architectural unblock for the 2 tier-aware
+        files), all remaining V1 keys are TRANSPARENT bucket
+        (a5000-2x-27b-int4-tq-k8v4 + a5000-2x-35b-prod). Transparent
+        bucket never errors at stage 3 — so the audit exits 0 now.
+
+        The original test invariant ("stage 3 escalates → 1") is still
+        covered by the synthetic unit tests in TestSeverityPerStage.
+        This live-corpus test now asserts the CORRECT post-sunset
+        state: exit 0 because no deprecated/needs-choice/tombstone
+        keys remain on disk.
+        """
         import os
         env = dict(os.environ)
         env["SNDR_V1_ROLLOUT_STAGE"] = "3"
         result = _run_cli(env=env)
-        assert result.returncode == 1
+        # Post 2026-06-01 sunsets: only transparent-bucket V1 keys remain.
+        assert result.returncode == 0
 
     def test_stage_3_with_disable_env_still_returns_one(self):
         """Stage 3 ERROR severity is NOT silenced by
         GENESIS_DISABLE_V1_DEPRECATION_WARNING (operator escape hatch
-        only silences WARN severity)."""
+        only silences WARN severity).
+
+        2026-06-01 update: same as test_stage_3_returns_one — post-
+        sunset live corpus has only transparent bucket entries, so
+        exit 0. The ERROR-not-silenced invariant is covered by
+        TestSeverityPerStage synthetic tests.
+        """
         import os
         env = dict(os.environ)
         env["SNDR_V1_ROLLOUT_STAGE"] = "3"
         env["GENESIS_DISABLE_V1_DEPRECATION_WARNING"] = "1"
         result = _run_cli(env=env)
-        assert result.returncode == 1
+        # Post 2026-06-01 sunsets: only transparent-bucket V1 keys remain.
+        assert result.returncode == 0
 
     def test_explicit_stage_flag_overrides_env(self):
         """`--stage N` overrides env-driven stage."""
@@ -100,7 +121,7 @@ class TestMigrationTable:
         mod = _import_audit()
         table = mod.load_migration_table()
         on_disk = set(mod.list_v1_keys_on_disk())
-        assert len(on_disk) == 4  # 2026-06-01: 8× V1 sunsets (additionally a5000-2x-27b-int4-tested)
+        assert len(on_disk) == 2  # 2026-06-01: 10× V1 sunsets (PN95 architectural unblock retired both tier-aware V1 files)
         missing = on_disk - set(table.keys())
         assert not missing, (
             f"V1 keys on disk but missing from migration table: {sorted(missing)}"
@@ -212,13 +233,21 @@ class TestBucketDistribution:
             in tests/legacy/ migrated to surviving sibling
             `a5000-2x-27b-int4-tq-k8v4`. New distribution:
             2 transparent, 0 needs-choice, 2 deprecated, 0 tombstone.
+          - 2026-06-01 (V1-SUNSET-#9 + #10): PN95 architectural unblock
+            — extracted PN95 tier_specs from V1 files
+            a5000-2x-tier-aware-EXAMPLE.yaml and a5000-1x-tier-aware-
+            pn95.yaml into PN95-internal dir vllm/sndr_core/cache/pn95/
+            tier_configs/. PN95 hook now reads from PN95-internal first,
+            V1 fallback preserved. Both V1 files retired together as
+            sunsets #9 (2x) + #10 (1x). New distribution: 2 transparent,
+            0 needs-choice, 0 deprecated, 0 tombstone.
         """
         mod = _import_audit()
         report = mod.run_audit(stage=0)
         counts = report.count_by_bucket()
         assert counts.get("transparent", 0) == 2
         assert counts.get("needs_operator_choice", 0) == 0
-        assert counts.get("deprecated", 0) == 2
+        assert counts.get("deprecated", 0) == 0
         assert counts.get("tombstone", 0) == 0
 
 
@@ -230,21 +259,22 @@ class TestSeverityPerStage:
         """At Stage 0, non-tombstone buckets all emit warn (regardless of strict)."""
         mod = _import_audit()
         report = mod.run_audit(stage=0)
-        # 4 warnings (was 12 pre-2026-06-01; 8× V1 sunsets in single
+        # 2 warnings (was 12 pre-2026-06-01; 10× V1 sunsets in single
         # day session: 2× EXAMPLE + a5000-1x-27b-int4-tested +
         # a5000-2x-35b-fp8-dflash + a5000-2x-27b-int4-tq-k8v4-dflash +
         # a5000-2x-27b-dflash-true + a5000-2x-27b-int4-long-ctx +
-        # a5000-2x-27b-int4-tested retired). Tombstone empty.
+        # a5000-2x-27b-int4-tested + 2× tier-aware retired via PN95
+        # architectural unblock). Tombstone empty.
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 4
+        assert counts.get("warn", 0) == 2
 
     def test_stage_2_default_all_warn(self):
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=False)
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 4
+        assert counts.get("warn", 0) == 2
 
     def test_stage_2_strict_non_transparent_error(self):
         """Stage 2 + strict: non-transparent buckets emit ERROR;
@@ -252,19 +282,18 @@ class TestSeverityPerStage:
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=True)
         counts = report.count_by_severity()
-        # transparent (2) stay warn; deprecated (2) → error
-        # (was deprecated=9 at original ship; sunsets 1-8 reduced both
-        # transparent pool (1 retired: dflash-true) and deprecated
-        # pool (7 retired: 2× EXAMPLE, 1x-tested, fp8-dflash, tq-k8v4-
-        # dflash, long-ctx, int4-tested)).
-        assert counts.get("error", 0) == 2
+        # All remaining V1 files are transparent bucket (both
+        # a5000-2x-27b-int4-tq-k8v4 and a5000-2x-35b-prod). 0 errors
+        # at strict stage 2. The 2 deprecated entries retired in PN95
+        # architectural unblock (2026-06-01 sunsets #9 + #10).
+        assert counts.get("error", 0) == 0
         assert counts.get("warn", 0) == 2
 
     def test_stage_3_non_transparent_error(self):
         mod = _import_audit()
         report = mod.run_audit(stage=3)
         counts = report.count_by_severity()
-        assert counts.get("error", 0) == 2
+        assert counts.get("error", 0) == 0
         assert counts.get("warn", 0) == 2
 
 
@@ -285,8 +314,8 @@ class TestJSONOutput:
         # Operators reverting with SNDR_V1_ROLLOUT_STAGE=0 still see
         # functionally identical behavior for non-tombstone buckets.
         assert data["stage"] == DEFAULT_STAGE
-        assert data["v1_keys_on_disk"] == 4  # 2026-06-01: 8× V1 sunsets
-        assert data["table_entries"] == 4
+        assert data["v1_keys_on_disk"] == 2  # 2026-06-01: 10× V1 sunsets
+        assert data["table_entries"] == 2
 
     def test_json_finding_shape(self):
         result = _run_cli("--json")
@@ -297,10 +326,12 @@ class TestJSONOutput:
             }
 
     def test_json_stage_override(self):
+        # 2026-06-01 update: post 10× V1 sunsets, all remaining V1 keys
+        # are transparent bucket → no errors at stage 3.
         result = _run_cli("--json", "--stage", "3")
         data = json.loads(result.stdout)
         assert data["stage"] == 3
-        assert data["has_errors"] is True
+        assert data["has_errors"] is False
 
 
 # ─── Backward-compat: audit_no_new_v1.py unchanged ──────────────────────────
