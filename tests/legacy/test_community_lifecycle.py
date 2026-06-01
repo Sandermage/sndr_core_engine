@@ -153,13 +153,18 @@ class TestExistingConfigsStillValid:
     """All 8 existing builtin configs must still validate after schema extension."""
 
     def test_a5000_2x_35b_prod(self):
-        from vllm.sndr_core.model_configs import registry
-        cfg = registry.get("a5000-2x-35b-prod")
+        # Phase 10 (2026-06-01): migrated from V1 registry.get() to V2
+        # load_alias() — V1 file scheduled for sunset, V2 alias
+        # composes byte-identical ModelConfig (TRANSPARENT bucket per
+        # migration table). cfg.validate() asserts schema parity.
+        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         assert cfg is not None
         cfg.validate()  # must still pass
 
     def test_a5000_2x_27b_int4_tq_k8v4(self):
-        from vllm.sndr_core.model_configs import registry
-        cfg = registry.get("a5000-2x-27b-int4-tq-k8v4")
+        # Phase 10 migration: V2 alias replaces V1 key (TRANSPARENT bucket).
+        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        cfg = load_alias("prod-qwen3.6-27b-tq-k8v4")
         assert cfg is not None
         cfg.validate()

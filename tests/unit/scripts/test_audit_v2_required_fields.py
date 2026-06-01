@@ -157,7 +157,11 @@ class TestLiveRepo:
         # (10 model + 3 hardware + 20 profile + 20 preset = 53).
         # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): +1 K=1 multiconc
         # profile + 1 preset alias (10 + 3 + 21 + 21 = 55).
-        assert len(results) == 55
+        # 2026-06-01 (V1 sunset session): chat-K3 promotion commits
+        # earlier in the session added 2 profile YAMLs + 2 preset
+        # aliases (gemma4-31b-tq-mtp-chat-k3 + gemma4-26b-mtp-chat-k3
+        # promotions) → 10 + 3 + 23 + 23 = 59.
+        assert len(results) == 59
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

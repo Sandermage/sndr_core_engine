@@ -94,7 +94,12 @@ class TestLiveRepo:
         # profiles (no new models / hardware) → 33.
         # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): +1 multiconc-k1
         # profile → 34.
-        assert len(results) == 34
+        # 2026-06-01 (V1 sunset session): +2 profile YAMLs added by
+        # chat-K3 promotion commits earlier in the session
+        # (gemma4-31b-tq-mtp-chat-k3 + gemma4-26b-mtp-chat-k3 promotions
+        # validated → 36. Current fleet: 10 model + 3 hardware + 23
+        # profile = 36.
+        assert len(results) == 36
 
 
 class TestScriptCLI:

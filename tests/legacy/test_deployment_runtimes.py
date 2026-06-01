@@ -227,10 +227,16 @@ class TestKubernetesRender:
     """Phase A 2026-05-06: --runtime kubernetes emits valid k8s YAML."""
 
     def test_kubernetes_render_emits_valid_yaml(self):
-        """Output must be parseable as YAML stream (3 documents)."""
+        """Output must be parseable as YAML stream (3 documents).
+
+        Phase 10 (2026-06-01): migrated from V1 registry.get() to V2
+        load_alias() — V1 file scheduled for sunset, V2 alias composes
+        byte-identical ModelConfig. _render_kubernetes() consumes the
+        ModelConfig shape unchanged.
+        """
         from vllm.sndr_core.compat.model_config_cli import _render_kubernetes
-        from vllm.sndr_core.model_configs import registry
-        cfg = registry.get("a5000-2x-35b-prod")
+        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         assert cfg is not None
         output = _render_kubernetes(cfg)
         # Strip header comments (everything before first `---`)
@@ -249,10 +255,14 @@ class TestKubernetesRender:
         assert "Service" in kinds, f"missing Service, got {kinds}"
 
     def test_kubernetes_render_includes_gpu_request(self):
-        """Deployment must request nvidia.com/gpu: <n_gpus>."""
+        """Deployment must request nvidia.com/gpu: <n_gpus>.
+
+        Phase 10 migration: V2 load_alias() replaces V1 get() (same
+        rationale as test_kubernetes_render_emits_valid_yaml above).
+        """
         from vllm.sndr_core.compat.model_config_cli import _render_kubernetes
-        from vllm.sndr_core.model_configs import registry
-        cfg = registry.get("a5000-2x-35b-prod")
+        from vllm.sndr_core.model_configs.registry_v2 import load_alias
+        cfg = load_alias("prod-qwen3.6-35b-balanced")
         output = _render_kubernetes(cfg)
         assert f"nvidia.com/gpu: {cfg.hardware.n_gpus}" in output
 
