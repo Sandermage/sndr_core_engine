@@ -27,7 +27,7 @@ Cliffs that aren't documented hurt every operator after you.
 | TPS dropped after vLLM pin bump | [Cliff 8](#cliff-8-anchor-drift-on-vllm-pin-bumps) |
 | Prefix-cache + MTP crash | [Recipe 6](#6-turboquant--specdecode--prefixcaching-crash) |
 | Driver / CUDA / NCCL mismatch | `sndr doctor`, then [`INSTALL.md`](INSTALL.md) |
-| V2 alias broken, V1 still works | [R-001](#r-001--v2-alias-resolution-broken) |
+| V2 alias resolution broken | [R-001](#r-001--v2-alias-resolution-broken) |
 | `sndr memory explain` mis-predicts | [R-004](#r-004--sndr-memory-explain-mispredicting-oom) |
 | Want to roll back the whole release | [Rollback playbook](#rollback-playbook) |
 
@@ -621,20 +621,34 @@ non-zero with `SchemaError` or `KeyError` from the V2 registry.
 Typically after a YAML edit in `model_configs/builtin/` or a vLLM
 pin bump that renamed an existing field.
 
+> ⚠ **V1 fallback removed 2026-06-01** (Phase 10 sunset, commit
+> `607385f1`). The old "disable V2, launch V1 preset" recovery path
+> no longer works because every shipped V1 YAML was deleted. The
+> only working revert is a `git revert` of the offending V2 schema
+> commit (which also restores the deleted V1 baseline if the
+> revert range reaches it); `GENESIS_DISABLE_V2_ALIAS=1` alone is
+> insufficient.
+
 **Revert.**
 
 ```bash
-# Disable V2 resolution; launcher falls back to V1 preset keys
-git revert --no-edit <SHA_OF_REGISTRY_V2_LANDING>
-# OR
-export GENESIS_DISABLE_V2_ALIAS=1
+# Revert the V2 schema commit that broke resolution
+git revert --no-edit <SHA_OF_BROKEN_V2_COMMIT>
+
+# If the offending commit predates Phase 10 V1 sunset, the revert
+# range will also restore the V1 baseline YAMLs; otherwise restore
+# the desired V1 file from history manually:
+git checkout <SHA_BEFORE_607385f1> -- \
+  vllm/sndr_core/model_configs/builtin/a5000-2x-35b-prod.yaml
 ```
 
 **Smoke.**
 
 ```bash
+sndr launch prod-qwen3.6-35b-balanced --preflight-only
+# Expect rc=0 after the revert restores a working V2 schema.
+# If you restored a V1 baseline above:
 sndr launch a5000-2x-35b-prod --preflight-only
-# Expect: rc=0, V1 docker emitter prints the same args operator used pre-V2.
 ```
 
 ### R-002 — Community SDK rejecting a known-good patch

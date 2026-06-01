@@ -224,18 +224,19 @@ context length, quantization scheme, speculative-decode draft model,
 every `GENESIS_ENABLE_*` env, every Docker mount, every NCCL tunable,
 the bench reference metrics. One YAML file = one reproducible boot.
 
-### Two coexisting schemas
+### Schema history — V1 retired, V2 canonical
 
-| Schema | Where | Shape |
-| --- | --- | --- |
-| **V1 (monolithic)** | `vllm/sndr_core/model_configs/builtin/<key>.yaml` | One big YAML containing everything (model + hardware + env + genesis_env + docker mounts + reference_metrics). |
-| **V2 (layered)** | `vllm/sndr_core/model_configs/builtin/{model,hardware,profile,presets}/` | Three pointer files (`model_id`, `hardware_id`, `profile_id`) wired together by a 3-line alias YAML under `presets/`. Composed on load. |
+| Schema | Where | Shape | Status |
+| --- | --- | --- | --- |
+| **V1 (monolithic)** | `vllm/sndr_core/model_configs/builtin/<key>.yaml` (flat) | One big YAML containing everything (model + hardware + env + genesis_env + docker mounts + reference_metrics). | **Retired 2026-06-01** (Phase 10 sunset cascade, commit `607385f1`) — every shipped V1 YAML deleted. |
+| **V2 (layered)** | `vllm/sndr_core/model_configs/builtin/{model,hardware,profile,presets}/` | Three pointer files (`model_id`, `hardware_id`, `profile_id`) wired together by a 3-line alias YAML under `presets/`. Composed on load. | **Canonical** — only active schema. |
 
-V2 is the modern interface — adding a new rig means writing one
-hardware YAML and reusing every model file. V1 is kept for historical
-configs that pre-date the layered split. Both load through the same
-composer; the launcher accepts either. New configs should be written
-in V2 form.
+V2 is the operator interface — adding a new rig means writing one
+hardware YAML and reusing every model file. The V1+V2 resolver
+(`_resolve_preset_v1_or_v2`) still accepts a V1 key as an opaque arg
+for back-compat dispatch, but every shipped V1 file is gone, so a
+bare V1 key resolves to a clean "preset not found" error. New configs
+MUST be written in V2 form.
 
 ### Browsing
 

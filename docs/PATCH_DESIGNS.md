@@ -543,7 +543,7 @@ problems forced a hard rename in v11.0.0:
 | `vllm/sndr_core/wiring/patch_*.py` | `vllm/sndr_core/integrations/<family>/<patch>.py` | Family taxonomy. |
 | `~/.genesis/` config dir | `~/.sndr/` (legacy alias honoured) | Canonical name. |
 | No CLI | `sndr launch / doctor / verify / model-config / deps / patches` | Operator UX. |
-| Single-format `model_configs/*.yaml` (V1 monolithic) | V1 still works + V2 layered (`model/`, `hardware/`, `profile/`, `presets/`) | Reusable building blocks. |
+| Single-format `model_configs/*.yaml` (V1 monolithic) | V2 layered (`model/`, `hardware/`, `profile/`, `presets/`); V1 monolithic tier fully retired 2026-06-01 Phase 10 sunset | Reusable building blocks. |
 
 ### What improved
 
