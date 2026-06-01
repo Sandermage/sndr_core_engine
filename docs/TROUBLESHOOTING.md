@@ -435,8 +435,9 @@ different scratch size; for GPTQ INT4 models peak is often
 ```bash
 # Pin to a known-good digest:
 docker pull vllm/vllm-openai:nightly@sha256:<KNOWN_GOOD_DIGEST>
-# Or fall back to the current Genesis pin (v12.0.0 current registry):
-docker pull vllm/vllm-openai:0.20.2rc1.dev371
+# Or fall back to the current Genesis pin (v12.0.0 current registry,
+# canonical: 0.21.1rc0+g626fa9bba5):
+docker pull vllm/vllm-openai:nightly
 ```
 
 **Prevention.** Never use `:nightly` in production without a digest

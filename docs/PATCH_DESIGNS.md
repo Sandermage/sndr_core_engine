@@ -352,7 +352,7 @@ log for "Inductor cache miss" frequency, then measure TTFT/TPS.
 
 ### Decision: do-not-implement until pin ≥ v0.22.x
 
-The current vLLM pin (dev371, `0.20.2rc1`) is in active development;
+The current vLLM pin (`0.21.1rc0+g626fa9bba5`) is in active development;
 upstream may land equivalent fusion in the next few months.
 Trade-off:
 

@@ -299,7 +299,7 @@ The supported reference path. All Genesis PROD runs use this image.
 ```bash
 git clone https://github.com/Sandermage/genesis-vllm-patches.git
 cd genesis-vllm-patches
-docker pull vllm/vllm-openai:0.20.2rc1.dev371   # current Genesis pin
+docker pull vllm/vllm-openai:nightly             # current Genesis pin (0.21.1rc0+g626fa9bba5)
 
 sndr launch prod-qwen3.6-35b-balanced                            # docker emission
 docker logs -f vllm-server                      # wait for startup
