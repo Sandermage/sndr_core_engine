@@ -48,9 +48,15 @@ class TestBaseline:
         mod = _import_script()
         assert isinstance(mod.FROZEN_V1_BASELINE, frozenset)
 
-    def test_baseline_non_empty(self):
+    def test_baseline_is_empty_after_phase10_sunset(self):
+        # Phase 10 Step 4 (2026-06-01): V1 monolithic preset tier 100%
+        # retired. Baseline went 12 → 0 through the sunset cascade.
+        # Empty baseline is the new canonical state — the freeze gate
+        # still enforces "no new V1 file added" (added set non-empty →
+        # exit 1) and the baseline is allowed to grow only via explicit
+        # bump signalling deliberate legacy-tier extension.
         mod = _import_script()
-        assert len(mod.FROZEN_V1_BASELINE) > 0
+        assert len(mod.FROZEN_V1_BASELINE) == 0
 
     def test_baseline_yaml_filenames(self):
         mod = _import_script()
@@ -132,16 +138,16 @@ class TestDriftDetection:
         assert rc == 1
 
     def test_removed_file_triggers_exit_1(self, tmp_path, monkeypatch):
+        # Phase 10 Step 4 (2026-06-01): FROZEN_V1_BASELINE is empty after
+        # the V1 sunset cascade. "Removed file" drift test now needs to
+        # synthesize a non-empty baseline + an absence — patch the
+        # constant directly to assert the drift detection path.
         mod = _import_script()
         builtin = tmp_path / "builtin"
         builtin.mkdir()
-        # Recreate baseline MINUS one entry
-        first = next(iter(sorted(mod.FROZEN_V1_BASELINE)))
-        for name in mod.FROZEN_V1_BASELINE:
-            if name == first:
-                continue
-            (builtin / name).write_text("# placeholder\n")
-
+        # Synthesize a baseline-of-one with the file MISSING from disk.
+        synthetic_baseline = frozenset({"synthetic-baseline-file.yaml"})
+        monkeypatch.setattr(mod, "FROZEN_V1_BASELINE", synthetic_baseline)
         monkeypatch.setattr(mod, "BUILTIN_DIR", builtin)
         monkeypatch.setattr(sys, "argv", ["audit_no_new_v1.py"])
         rc = mod.main()

@@ -8,6 +8,18 @@ from pathlib import Path
 import pytest
 
 
+# Phase 10 (2026-06-01): V1 sunset cascade — defensive skip-marker for
+# tests bound to the V1 monolithic preset key `a5000-2x-35b-prod`. When
+# the V1 YAML retires, V1-fixture-bound tests skip cleanly; non-V1
+# tests in this file (migrate/sweep/dispatch error paths) continue to run.
+_V1_35B_YAML = (Path(__file__).resolve().parents[3] / "vllm" / "sndr_core"
+                / "model_configs" / "builtin" / "a5000-2x-35b-prod.yaml")
+_skip_if_no_v1_35b = pytest.mark.skipif(
+    not _V1_35B_YAML.is_file(),
+    reason="V1 fixture a5000-2x-35b-prod.yaml retired (Phase 10 sunset)",
+)
+
+
 def _parse(module_name: str, args: list[str]) -> argparse.Namespace:
     """Parse args via the named CLI module's add_argparser."""
     import importlib
@@ -20,6 +32,7 @@ def _parse(module_name: str, args: list[str]) -> argparse.Namespace:
 
 # ─── C13 sndr service
 
+@_skip_if_no_v1_35b
 def test_service_install_argparser():
     ns = _parse("service", ["service", "install", "a5000-2x-35b-prod"])
     assert ns.service_cmd == "install"
@@ -38,6 +51,7 @@ def test_service_install_unknown_config_returns_2():
     assert run_install(ns) == 2
 
 
+@_skip_if_no_v1_35b
 def test_service_install_no_y10_block_returns_2(capsys):
     """35B PROD has no Y10 service block today → friendly warn + return 2."""
     from vllm.sndr_core.cli.service import run_install
@@ -50,6 +64,7 @@ def test_service_install_no_y10_block_returns_2(capsys):
 
 # ─── C14 sndr tune
 
+@_skip_if_no_v1_35b
 def test_tune_plan_argparser():
     ns = _parse("tune", ["tune", "plan", "a5000-2x-35b-prod"])
     assert ns.tune_cmd == "plan"
@@ -62,6 +77,7 @@ def test_tune_plan_unknown_config_returns_2():
     assert run_plan(ns) == 2
 
 
+@_skip_if_no_v1_35b
 def test_tune_plan_no_y8_returns_2(capsys):
     """35B PROD has no Y8 gpu_tuning today."""
     from vllm.sndr_core.cli.tune import run_plan
@@ -139,6 +155,7 @@ def test_migrate_yes_writes_changes(tmp_path):
 
 # ─── C3 sndr image
 
+@_skip_if_no_v1_35b
 def test_image_resolve_argparser():
     ns = _parse("image", ["image", "resolve", "a5000-2x-35b-prod"])
     assert ns.image_cmd == "resolve"
@@ -151,6 +168,7 @@ def test_image_resolve_unknown_config_returns_2():
     assert run_resolve(ns) == 2
 
 
+@_skip_if_no_v1_35b
 def test_image_resolve_35b_shows_declared_digest(capsys):
     from vllm.sndr_core.cli.image import run_resolve
     ns = _parse("image", ["image", "resolve", "a5000-2x-35b-prod"])

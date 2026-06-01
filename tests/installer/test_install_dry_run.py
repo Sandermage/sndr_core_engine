@@ -15,8 +15,21 @@ under --dry-run. These tests exercise the wizard in dry-run only.
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
 import pytest
+
+
+# Phase 10 (2026-06-01): V1 sunset — the B3 regression test asserts that
+# auto-match returns a key containing "a5000", which is V1-naming-bound.
+# V2 composed-triplet keys may still contain "a5000" via the hardware
+# layer; the explicit V1-key assertion stays V1-specific.
+_V1_DIR_INS = (Path(__file__).resolve().parents[2] / "vllm" / "sndr_core"
+               / "model_configs" / "builtin")
+_skip_if_no_v1_35b_ins = pytest.mark.skipif(
+    not (_V1_DIR_INS / "a5000-2x-35b-prod.yaml").is_file(),
+    reason="V1 fixture a5000-2x-35b-prod.yaml retired (Phase 10 sunset)",
+)
 
 
 def _make_opts(**kwargs) -> argparse.Namespace:
@@ -203,6 +216,7 @@ def test_gpu_keys_match_no_match():
     assert not _gpu_keys_match("rtx a5000", [""])
 
 
+@_skip_if_no_v1_35b_ins
 def test_match_preset_finds_a5000_2x_35b_prod():
     """B3 regression: 'NVIDIA RTX A5000' + 2 GPUs must match
     a5000-2x-35b-prod (which has gpu_match_keys=['rtx a5000'])."""

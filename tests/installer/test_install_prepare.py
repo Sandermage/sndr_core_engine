@@ -8,6 +8,21 @@ from pathlib import Path
 import pytest
 
 
+# Phase 10 (2026-06-01): V1 sunset — `sndr install --prepare` resolves
+# --config via V1 registry. Mark V1-bound tests for skip when V1 file
+# retires; argparse-shape + unknown/no-config tests keep running.
+_V1_DIR_PREP = (Path(__file__).resolve().parents[2] / "vllm" / "sndr_core"
+                / "model_configs" / "builtin")
+_skip_if_no_v1_35b_prep = pytest.mark.skipif(
+    not (_V1_DIR_PREP / "a5000-2x-35b-prod.yaml").is_file(),
+    reason="V1 fixture a5000-2x-35b-prod.yaml retired (Phase 10 sunset)",
+)
+_skip_if_no_v1_27b_prep = pytest.mark.skipif(
+    not (_V1_DIR_PREP / "a5000-2x-27b-int4-tq-k8v4.yaml").is_file(),
+    reason="V1 fixture a5000-2x-27b-int4-tq-k8v4.yaml retired (Phase 10 sunset)",
+)
+
+
 def _make_opts(**kwargs) -> argparse.Namespace:
     defaults = dict(
         dry_run=True,
@@ -45,6 +60,7 @@ def test_prepare_with_unknown_config_returns_2():
     assert rc == 2
 
 
+@_skip_if_no_v1_35b_prep
 def test_prepare_with_known_config_dry_run_succeeds():
     """--prepare --config <known-key> --dry-run completes cleanly."""
     from vllm.sndr_core.cli.install import run_install
@@ -53,6 +69,7 @@ def test_prepare_with_known_config_dry_run_succeeds():
     assert rc == 0
 
 
+@_skip_if_no_v1_35b_prep
 def test_prepare_pulls_workload_from_config():
     """When --workload is unset but --config has a workload_tag, prepare uses it."""
     from vllm.sndr_core.cli.install import run_install_prepare
@@ -64,6 +81,7 @@ def test_prepare_pulls_workload_from_config():
     assert opts.workload == "balanced"
 
 
+@_skip_if_no_v1_35b_prep
 def test_prepare_pulls_pin_from_config():
     """When --pin is 'stable' but --config has a vllm_pin_required,
     prepare overrides it to the exact pin."""
@@ -78,6 +96,7 @@ def test_prepare_pulls_pin_from_config():
     assert expected_pin in opts.pin
 
 
+@_skip_if_no_v1_35b_prep
 def test_argparser_registers_config_and_prepare_flags():
     from vllm.sndr_core.cli.install import add_argparser
     p = argparse.ArgumentParser()
@@ -93,6 +112,7 @@ def test_argparser_registers_config_and_prepare_flags():
     assert opts.prepare is True
 
 
+@_skip_if_no_v1_27b_prep
 def test_prepare_27b_works():
     from vllm.sndr_core.cli.install import run_install
     opts = _make_opts(prepare=True, config="a5000-2x-27b-int4-tq-k8v4")

@@ -13,6 +13,19 @@ _REPO = Path(__file__).resolve().parents[2]
 _TOOL = _REPO / "tools" / "kv_calc.py"
 
 
+# Phase 10 (2026-06-01): V1 sunset — kv_calc.py resolves --preset via V1
+# registry only. Mark V1-bound tests for skip when V1 file retires.
+_V1_DIR_KV = _REPO / "vllm" / "sndr_core" / "model_configs" / "builtin"
+_skip_if_no_v1_35b_kv = pytest.mark.skipif(
+    not (_V1_DIR_KV / "a5000-2x-35b-prod.yaml").is_file(),
+    reason="V1 fixture a5000-2x-35b-prod.yaml retired (Phase 10 sunset)",
+)
+_skip_if_no_v1_27b_kv = pytest.mark.skipif(
+    not (_V1_DIR_KV / "a5000-2x-27b-int4-tq-k8v4.yaml").is_file(),
+    reason="V1 fixture a5000-2x-27b-int4-tq-k8v4.yaml retired (Phase 10 sunset)",
+)
+
+
 def _run(args: list[str], **kwargs) -> tuple[int, str, str]:
     p = subprocess.run(
         [sys.executable, str(_TOOL), *args],
@@ -41,6 +54,7 @@ def test_kv_calc_preset_unknown_returns_2():
     assert "unknown preset" in err.lower()
 
 
+@_skip_if_no_v1_35b_kv
 def test_kv_calc_preset_35b_prod_human_output():
     """Live preset run on 35B PROD — model path doesn't exist on Mac
     but the breakdown still prints (KV/weights = 0 with warnings)."""
@@ -54,12 +68,14 @@ def test_kv_calc_preset_35b_prod_human_output():
     assert "GREEN" in out or "YELLOW" in out or "RED" in out
 
 
+@_skip_if_no_v1_27b_kv
 def test_kv_calc_preset_27b_human_output():
     rc, out, _ = _run(["--preset", "a5000-2x-27b-int4-tq-k8v4", "--gpu-vram", "24"])
     assert rc == 0
     assert "27b-int4-tq-k8v4" in out
 
 
+@_skip_if_no_v1_35b_kv
 def test_kv_calc_json_output_well_formed():
     rc, out, _ = _run(["--preset", "a5000-2x-35b-prod", "--json"])
     assert rc == 0
@@ -70,6 +86,7 @@ def test_kv_calc_json_output_well_formed():
     assert data["verdict"] in ("GREEN", "YELLOW", "RED", "n/a")
 
 
+@_skip_if_no_v1_35b_kv
 def test_kv_calc_ctx_override_via_k_suffix():
     """--ctx '128k' must be parsed as 128*1024."""
     rc, out, _ = _run([
@@ -80,6 +97,7 @@ def test_kv_calc_ctx_override_via_k_suffix():
     assert data["ctx"] == 128 * 1024
 
 
+@_skip_if_no_v1_35b_kv
 def test_kv_calc_gpu_vram_default_24():
     rc, out, _ = _run(["--preset", "a5000-2x-35b-prod", "--json"])
     assert rc == 0

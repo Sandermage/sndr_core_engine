@@ -37,6 +37,34 @@ def _import_script(name: str):
     return mod
 
 
+# Phase 10 (2026-06-01): V1 sunset cascade. Each step retires one V1 file
+# from FROZEN_V1_BASELINE until the baseline reaches the empty set. The
+# V1-deprecation-warning contract tests below exercise `registry.get(<key>)`
+# and need a key that still resolves; once the baseline empties, the tests
+# can't fire and are skipped at collection. The audit-no-new-v1 + V2 alias
+# silent tests continue to work regardless (drift detector + V2 contract
+# remain meaningful even after V1 is fully retired).
+_V1_BASELINE_KEYS = sorted(
+    p.stem for p in (REPO_ROOT / "vllm" / "sndr_core" / "model_configs"
+                     / "builtin").glob("*.yaml")
+    if p.is_file()
+)
+_V1_PRIMARY_KEY = _V1_BASELINE_KEYS[0] if _V1_BASELINE_KEYS else None
+_V1_SECONDARY_KEY = _V1_BASELINE_KEYS[1] if len(_V1_BASELINE_KEYS) >= 2 else None
+_skip_if_no_v1 = pytest.mark.skipif(
+    _V1_PRIMARY_KEY is None,
+    reason="Phase 10 V1 sunset complete — no V1 monolithic preset remains "
+           "to exercise the deprecation warning contract. The audit-no-new-v1 "
+           "+ V2 alias silent tests below remain enforceable and run.",
+)
+_skip_if_lt_2_v1 = pytest.mark.skipif(
+    _V1_SECONDARY_KEY is None,
+    reason="Phase 10 V1 sunset cascade reduced FROZEN_V1_BASELINE below 2 "
+           "entries — the 'distinct keys warn separately' contract needs ≥2 "
+           "live V1 keys to assert.",
+)
+
+
 @pytest.fixture(autouse=True)
 def _reset_warned_set():
     """Clear the one-warning-per-key cache before each test so warning
@@ -50,12 +78,13 @@ def _reset_warned_set():
         os.environ["GENESIS_DISABLE_V1_DEPRECATION_WARNING"] = saved
 
 
+@_skip_if_no_v1
 class TestV1DeprecationWarning:
     def test_first_load_emits_warning(self):
         from vllm.sndr_core.model_configs.registry import get
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            cfg = get("a5000-2x-35b-prod")
+            cfg = get(_V1_PRIMARY_KEY)
             assert cfg is not None
             dep = [w for w in captured
                    if issubclass(w.category, DeprecationWarning)]
@@ -67,7 +96,7 @@ class TestV1DeprecationWarning:
         from vllm.sndr_core.model_configs.registry import get
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            get("a5000-2x-35b-prod")
+            get(_V1_PRIMARY_KEY)
             dep = [w for w in captured
                    if issubclass(w.category, DeprecationWarning)]
             msg = str(dep[0].message)
@@ -87,19 +116,20 @@ class TestV1DeprecationWarning:
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
             for _ in range(5):
-                get("a5000-2x-35b-prod")
+                get(_V1_PRIMARY_KEY)
             dep = [w for w in captured
                    if issubclass(w.category, DeprecationWarning)]
             assert len(dep) == 1, (
                 f"warning fired {len(dep)} times — should be 1 per key"
             )
 
+    @_skip_if_lt_2_v1
     def test_different_keys_warn_separately(self):
         from vllm.sndr_core.model_configs.registry import get
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            get("a5000-2x-35b-prod")
-            get("a5000-2x-27b-int4-tq-k8v4")
+            get(_V1_PRIMARY_KEY)
+            get(_V1_SECONDARY_KEY)
             dep = [w for w in captured
                    if issubclass(w.category, DeprecationWarning)]
             assert len(dep) == 2, (
@@ -111,7 +141,7 @@ class TestV1DeprecationWarning:
         os.environ["GENESIS_DISABLE_V1_DEPRECATION_WARNING"] = "1"
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            cfg = get("a5000-2x-35b-prod")
+            cfg = get(_V1_PRIMARY_KEY)
             assert cfg is not None      # V1 path still works
             dep = [w for w in captured
                    if issubclass(w.category, DeprecationWarning)]
@@ -122,9 +152,9 @@ class TestV1DeprecationWarning:
         from vllm.sndr_core.model_configs.registry import get
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            cfg = get("a5000-2x-35b-prod")
+            cfg = get(_V1_PRIMARY_KEY)
         assert cfg is not None
-        assert cfg.key == "a5000-2x-35b-prod"
+        assert cfg.key == _V1_PRIMARY_KEY
         assert cfg.max_model_len > 0
         assert cfg.hardware.n_gpus > 0
 

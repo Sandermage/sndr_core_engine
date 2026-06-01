@@ -81,9 +81,9 @@ class TestPresetEnvOverlay:
 
 class TestSimulatePlan:
     def test_known_preset_returns_report(self):
-        report = plan.simulate_plan("a5000-2x-35b-prod")
+        report = plan.simulate_plan("prod-qwen3.6-35b-balanced")
         assert isinstance(report, PlanReport)
-        assert report.preset == "a5000-2x-35b-prod"
+        assert report.preset == "prod-qwen3.6-35b-balanced"
         assert report.profile == "any"
         # Buckets together cover the dispatcher iteration.
         assert len(report.apply) + len(report.skip) + len(report.errors) >= 100
@@ -102,11 +102,11 @@ class TestSimulatePlan:
         sentinel_key = "SNDR_TEST_M63_E2E_SENTINEL"
         monkeypatch.delenv(sentinel_key, raising=False)
         monkeypatch.setenv(sentinel_key, "preset-test-value")
-        plan.simulate_plan("a5000-2x-35b-prod")
+        plan.simulate_plan("prod-qwen3.6-35b-balanced")
         assert os.environ.get(sentinel_key) == "preset-test-value"
 
     def test_apply_rows_carry_required_keys(self):
-        report = plan.simulate_plan("a5000-2x-35b-prod")
+        report = plan.simulate_plan("prod-qwen3.6-35b-balanced")
         for row in list(report.apply) + list(report.skip):
             for key in ("patch_id", "title", "tier", "default_on",
                         "lifecycle", "reason"):
@@ -114,7 +114,7 @@ class TestSimulatePlan:
 
     def test_policy_compat_produces_resolver_payload(self):
         report = plan.simulate_plan(
-            "a5000-2x-35b-prod", policy="compat", explain=True,
+            "prod-qwen3.6-35b-balanced", policy="compat", explain=True,
         )
         assert report.resolver_payload is not None
         for key in ("policy", "included", "excluded",
@@ -123,7 +123,7 @@ class TestSimulatePlan:
 
     def test_explain_adds_note_field(self):
         report = plan.simulate_plan(
-            "a5000-2x-35b-prod", policy="compat", explain=True,
+            "prod-qwen3.6-35b-balanced", policy="compat", explain=True,
         )
         # At least one included decision carries an explain field.
         for d in report.resolver_payload["included"]:
@@ -133,7 +133,7 @@ class TestSimulatePlan:
 
     def test_production_profile_violations_typed(self):
         report = plan.simulate_plan(
-            "a5000-2x-35b-prod", profile="production",
+            "prod-qwen3.6-35b-balanced", profile="production",
         )
         # Violations are a tuple of dicts; may be empty depending on
         # registry state. Shape invariant only.

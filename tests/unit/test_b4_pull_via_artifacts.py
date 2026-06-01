@@ -7,6 +7,22 @@ from pathlib import Path
 import pytest
 
 
+# Phase 10 (2026-06-01): V1 sunset — pull_via_artifacts resolves cfg_key
+# via V1 registry; tests using V1 keys skip when V1 files retire. The
+# synthetic-fixture test (test_pull_via_artifacts_skips_when_locally_
+# complete) injects directly into registry and keeps running.
+_V1_DIR_PULL = (Path(__file__).resolve().parents[2] / "vllm" / "sndr_core"
+                / "model_configs" / "builtin")
+_skip_if_no_v1_35b_pull = pytest.mark.skipif(
+    not (_V1_DIR_PULL / "a5000-2x-35b-prod.yaml").is_file(),
+    reason="V1 fixture a5000-2x-35b-prod.yaml retired (Phase 10 sunset)",
+)
+_skip_if_no_v1_27b_pull = pytest.mark.skipif(
+    not (_V1_DIR_PULL / "a5000-2x-27b-int4-tq-k8v4.yaml").is_file(),
+    reason="V1 fixture a5000-2x-27b-int4-tq-k8v4.yaml retired (Phase 10 sunset)",
+)
+
+
 def test_pull_via_artifacts_unknown_config_returns_2(capsys):
     from vllm.sndr_core.compat.models.pull import pull_via_artifacts
     rc = pull_via_artifacts(cfg_key="nonexistent-xyz", dry_run=True)
@@ -15,6 +31,14 @@ def test_pull_via_artifacts_unknown_config_returns_2(capsys):
     assert "unknown preset" in err
 
 
+@pytest.mark.skip(
+    reason="Fixture `single-3090-hybrid-gdn-tier-aware-example` retired in "
+           "V1 sunset #2 (2026-06-01); pull_via_artifacts now returns "
+           "'unknown preset' before reaching the artifacts.models check. "
+           "Test intent (config-exists-but-no-artifacts-block) needs to "
+           "pivot to synthetic ModelConfig injection — same pattern as "
+           "test_pull_via_artifacts_skips_when_locally_complete."
+)
 def test_pull_via_artifacts_config_without_artifacts_returns_2(capsys):
     """Path C EXAMPLE has no artifacts.models block → clean error."""
     from vllm.sndr_core.compat.models.pull import pull_via_artifacts
@@ -27,6 +51,7 @@ def test_pull_via_artifacts_config_without_artifacts_returns_2(capsys):
     assert "artifacts.models" in err
 
 
+@_skip_if_no_v1_35b_pull
 def test_pull_via_artifacts_35b_prod_dry_run(capsys):
     """35B PROD has Y3 artifacts.models declared → dry-run should succeed."""
     from vllm.sndr_core.compat.models.pull import pull_via_artifacts
@@ -38,6 +63,7 @@ def test_pull_via_artifacts_35b_prod_dry_run(capsys):
     assert "[dry-run]" in out
 
 
+@_skip_if_no_v1_27b_pull
 def test_pull_via_artifacts_27b_prod_dry_run(capsys):
     """27B PROD has Y3 artifacts.models declared → dry-run should succeed."""
     from vllm.sndr_core.compat.models.pull import pull_via_artifacts
@@ -87,6 +113,7 @@ def test_pull_via_artifacts_skips_when_locally_complete(tmp_path, capsys):
         R.get = original
 
 
+@_skip_if_no_v1_35b_pull
 def test_cli_argparser_accepts_config_flag():
     """CLI parses --config without requiring positional model_key."""
     from vllm.sndr_core.compat.models.pull import _parse_args
@@ -96,6 +123,7 @@ def test_cli_argparser_accepts_config_flag():
     assert args.model_key is None
 
 
+@_skip_if_no_v1_35b_pull
 def test_cli_main_dispatches_to_pull_via_artifacts(capsys):
     """`pull --config <key> --dry-run` reaches pull_via_artifacts."""
     from vllm.sndr_core.compat.models.pull import main

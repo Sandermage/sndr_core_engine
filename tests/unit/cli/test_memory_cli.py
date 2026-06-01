@@ -31,12 +31,12 @@ class TestArgparser:
     def test_parses_explain_with_overrides(self):
         p = _make_parser()
         ns = p.parse_args([
-            "memory", "explain", "a5000-2x-35b-prod",
+            "memory", "explain", "prod-qwen3.6-35b-balanced",
             "--ctx", "128k", "--seqs", "4",
             "--kv-dtype", "fp8_e5m2", "--gpu-vram", "48",
             "--json",
         ])
-        assert ns.preset == "a5000-2x-35b-prod"
+        assert ns.preset == "prod-qwen3.6-35b-balanced"
         assert ns.ctx == "128k"
         assert ns.seqs == 4
         assert ns.kv_dtype == "fp8_e5m2"
@@ -93,13 +93,19 @@ class TestExplain:
 
     def test_real_preset_json_output(self, capsys):
         ns = argparse.Namespace(
-            preset="a5000-2x-35b-prod", gpu_vram=None, ctx=None,
+            preset="prod-qwen3.6-35b-balanced", gpu_vram=None, ctx=None,
             seqs=None, kv_dtype=None, json=True,
         )
         rc = M._run_explain(ns)
         assert rc == 0
         data = json.loads(capsys.readouterr().out)
-        assert data["preset"] == "a5000-2x-35b-prod"
+        # V2 alias `prod-qwen3.6-35b-balanced` resolves through load_alias
+        # → composed triplet key (model--hardware--profile form), not the
+        # alias name itself. Phase 10 (2026-06-01) migrated this test from
+        # V1 `a5000-2x-35b-prod` to V2 alias; the JSON `preset` field now
+        # carries the composed key. Assert by substring so V2 internals
+        # (hardware naming, separator format) can evolve.
+        assert "qwen3-6-35b-balanced" in data["preset"]
         assert "components" in data
         assert "utilization" in data
         # At least 4 components (weights, KV, activations, CUDA graph)
@@ -108,7 +114,7 @@ class TestExplain:
     def test_gpu_vram_override_changes_utilization(self, capsys):
         # First with default vram
         ns = argparse.Namespace(
-            preset="a5000-2x-35b-prod", gpu_vram=None, ctx=None,
+            preset="prod-qwen3.6-35b-balanced", gpu_vram=None, ctx=None,
             seqs=None, kv_dtype=None, json=True,
         )
         M._run_explain(ns)
@@ -116,7 +122,7 @@ class TestExplain:
 
         # Now override to 96 GiB (Blackwell-class)
         ns96 = argparse.Namespace(
-            preset="a5000-2x-35b-prod", gpu_vram="96", ctx=None,
+            preset="prod-qwen3.6-35b-balanced", gpu_vram="96", ctx=None,
             seqs=None, kv_dtype=None, json=True,
         )
         M._run_explain(ns96)
@@ -126,14 +132,14 @@ class TestExplain:
 
     def test_ctx_override_changes_kv_estimate(self, capsys):
         ns = argparse.Namespace(
-            preset="a5000-2x-35b-prod", gpu_vram=None,
+            preset="prod-qwen3.6-35b-balanced", gpu_vram=None,
             ctx="64k", seqs=None, kv_dtype=None, json=True,
         )
         M._run_explain(ns)
         small = json.loads(capsys.readouterr().out)
 
         ns2 = argparse.Namespace(
-            preset="a5000-2x-35b-prod", gpu_vram=None,
+            preset="prod-qwen3.6-35b-balanced", gpu_vram=None,
             ctx="256k", seqs=None, kv_dtype=None, json=True,
         )
         M._run_explain(ns2)
@@ -187,14 +193,17 @@ class TestSimulate:
 
 class TestDoctor:
     def test_doctor_json_lists_presets(self, capsys):
+        # Phase 10 Step 4 (2026-06-01): V1 monolithic preset tier 100%
+        # retired. `sndr memory doctor` iterates only the V1 registry
+        # (V2 doctor surface is a separate effort — out of Phase 10
+        # scope). With V1 empty, doctor returns 0 rows; the rendering
+        # contract (every row has preset + utilization|error) still
+        # holds vacuously over the empty list.
         ns = argparse.Namespace(json=True)
         rc = M._run_doctor(ns)
         assert rc == 0
         data = json.loads(capsys.readouterr().out)
         assert "presets" in data
-        # At least one builtin preset exists in the registry
-        assert len(data["presets"]) >= 1
-        # Each row has either utilization or error
         for row in data["presets"]:
             assert "preset" in row
             assert "utilization" in row or "error" in row

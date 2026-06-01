@@ -15,8 +15,22 @@ import argparse
 import io
 import json
 from contextlib import redirect_stdout
+from pathlib import Path
 
 import pytest
+
+
+# Phase 10 (2026-06-01): V1 sunset — TestV1PresetStillWorks is the
+# regression guard that V1 path KEEPS working during Phase 9 freeze;
+# becomes obsolete once V1 retires. Skip the class when V1 file gone.
+_V1_35B_YAML_447 = (Path(__file__).resolve().parents[3] / "vllm"
+                    / "sndr_core" / "model_configs" / "builtin"
+                    / "a5000-2x-35b-prod.yaml")
+_skip_if_no_v1_447 = pytest.mark.skipif(
+    not _V1_35B_YAML_447.is_file(),
+    reason="V1 fixture retired (Phase 10 sunset) — V1-path regression "
+           "guard no longer meaningful",
+)
 
 
 def _run(opts) -> tuple[int, str]:
@@ -46,6 +60,7 @@ def _default_opts(preset: str, json_mode: bool = False) -> argparse.Namespace:
 # ─── V1 path still works (regression guard) ───────────────────────────
 
 
+@_skip_if_no_v1_447
 class TestV1PresetStillWorks:
     def test_v1_preset_resolves(self):
         rc, out = _run(_default_opts("a5000-2x-35b-prod"))
@@ -201,6 +216,7 @@ class TestJSONOutputContract:
 
 
 class TestResolverHelper:
+    @_skip_if_no_v1_447
     def test_v1_resolves(self):
         from vllm.sndr_core.cli.memory import _resolve_preset_v1_or_v2
         cfg = _resolve_preset_v1_or_v2("a5000-2x-35b-prod")

@@ -126,6 +126,27 @@ def render_markdown(configs: list[dict]) -> str:
     lines.append(f"Total configs: **{len(configs)}**")
     lines.append("")
 
+    if not configs:
+        # Phase 10 (2026-06-01): V1 monolithic preset tier fully retired.
+        # Point operators at the V2 layered subdirs.
+        lines.append("> ℹ **V1 monolithic preset tier fully retired 2026-06-01** "
+                     "(Phase 10 sunset cascade complete). All operator-facing "
+                     "presets now live under the V2 layered triplet:")
+        lines.append(">")
+        lines.append("> - `builtin/model/<id>.yaml` — per-model defaults")
+        lines.append("> - `builtin/hardware/<id>.yaml` — per-rig host envelope")
+        lines.append("> - `builtin/profile/<id>.yaml` — workload profile (chat, balanced, long-ctx, etc.)")
+        lines.append("> - `builtin/presets/<alias>.yaml` — operator-facing alias bundling the triplet")
+        lines.append(">")
+        lines.append("> Discover via `sndr preset list` / `sndr preset recommend`.")
+        lines.append("> Load via `from vllm.sndr_core.model_configs.registry_v2 import load_alias`.")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+        lines.append("Regenerate: `python3 scripts/generate_configs_md.py`")
+        lines.append("Verify: `python3 scripts/generate_configs_md.py --check`")
+        return "\n".join(lines)
+
     # Statistics by lifecycle
     lifecycles: dict = {}
     for c in configs:
@@ -223,10 +244,10 @@ def main() -> int:
         return 2
 
     yaml_files = sorted(BUILTIN_DIR.glob("*.yaml"))
-    if not yaml_files:
-        print(f"ERROR: no YAML files in {BUILTIN_DIR}", file=sys.stderr)
-        return 2
-
+    # Phase 10 (2026-06-01): V1 monolithic preset tier 100% retired.
+    # Zero top-level YAMLs is the new canonical state; the generator
+    # emits a stub doc that points operators at the V2 layered triplet
+    # subdirs (model/, hardware/, profile/, presets/) instead of erroring.
     configs = [parse_yaml_top_level(p) for p in yaml_files]
     content = render_markdown(configs)
 

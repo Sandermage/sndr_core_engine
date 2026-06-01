@@ -1598,7 +1598,7 @@ The 21 xfailed tests across all 6 hand-written contracts + factory all stemmed f
 
 ### YAML pin sync + CONTRIBUTING expansion + memory final (2026-05-11)
 
-- **27B PROD canonical YAML** ([a5000-2x-27b-int4-tq-k8v4.yaml](vllm/sndr_core/model_configs/builtin/a5000-2x-27b-int4-tq-k8v4.yaml)) `vllm_pin_required` bumped `dev93+g51f22dcfd` → `dev209+g5536fc0c0` to match actual PROD pin + `genesis_pin: v11.0.0+wave8+phase2` + `last_validated: 2026-05-11`. Other 10 YAMLs document `last validated on pin X` — left as-is (updating without re-bench would be a lie); operators bump as they re-validate.
+- **27B PROD canonical YAML** ([a5000-2x-27b-int4-tq-k8v4.yaml](vllm/sndr_core/model_configs/builtin/a5000-2x-27b-int4-tq-k8v4.yaml)) <!-- audit-links: allow --> `vllm_pin_required` bumped `dev93+g51f22dcfd` → `dev209+g5536fc0c0` to match actual PROD pin + `genesis_pin: v11.0.0+wave8+phase2` + `last_validated: 2026-05-11`. Other 10 YAMLs document `last validated on pin X` — left as-is (updating without re-bench would be a lie); operators bump as they re-validate. (V1 file retired in Phase 10 sunset 2026-06-01; link preserved as historical reference.)
 - **scripts/moe_lookup_helper.sh** stale comment `vllm/sndr_core/paths/project_paths.py` → `vllm/sndr_core/locations/project_paths.py` (residual cleanup).
 - **CONTRIBUTING.md expanded** with 3 operator-facing sections:
   - **"Adding a new family contract"** — 40-line factory pattern template + invariants listed
@@ -1849,7 +1849,7 @@ Sprint 1 regression source remains unknown. PN17 ruled out. Other Wave 7 guards 
 - **P4** / **P12** / **P26** (legacy patches, pre-dispatcher era): wire detector auto-skips via upstream markers (`TurboQuantConfig.get_boundary_skip_layers`, `_tool_call_token_id`, `_cu_2` respectively). Lifecycle kept `"legacy"` (architectural property — pre-dispatcher auto-apply pattern, not a stage), but registry now carries `superseded_by` annotation + iron-rule-#11 study note documenting deep-diff state. Wire-detector skip is correct + safe; no behavioral change.
 - **P22** (already documented earlier): iron-rule-#11 case (b) — our patch does MORE (profiler-visibility hook on top of upstream class-shared buffer restructure). Investigation queued in registry note. Currently auto-skip safe but loses our improvement; need new hook site design on dev209's restructured `gpu_model_runner.capture_model` + current `TurboQuantAttentionImpl`.
 
-**Retire count now 7** (up from 5 pre-audit). 35B YAML [a5000-2x-35b-prod.yaml](vllm/sndr_core/model_configs/builtin/a5000-2x-35b-prod.yaml) updated: `vllm_pin_required: 0.20.2rc1.dev209+g5536fc0c0` + bench result annotation block + Sprint 1 baseline preserved as second-tier historical reference (`prev_long_gen_tps_sprint1: 241.35`). docs/PATCHES_AUTO.md regenerated (134 entries, 7 retired). 27B PROD restored on dev209 after.
+**Retire count now 7** (up from 5 pre-audit). 35B YAML [a5000-2x-35b-prod.yaml](vllm/sndr_core/model_configs/builtin/a5000-2x-35b-prod.yaml) <!-- audit-links: allow --> updated: `vllm_pin_required: 0.20.2rc1.dev209+g5536fc0c0` + bench result annotation block + Sprint 1 baseline preserved as second-tier historical reference (`prev_long_gen_tps_sprint1: 241.35`). docs/PATCHES_AUTO.md regenerated (134 entries, 7 retired). 27B PROD restored on dev209 after. (V1 file retired in Phase 10 sunset 2026-06-01; link preserved as historical reference.)
 
 ### Phase 2 — Bug-fix sweep post-dev209 boot (2026-05-11)
 

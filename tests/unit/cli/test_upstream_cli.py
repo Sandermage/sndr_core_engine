@@ -4,11 +4,28 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 import pytest
 
 from vllm.sndr_core.cli.upstream import (
     add_argparser, run_check, run_show, run_list,
+)
+
+
+# Phase 10 (2026-06-01): V1 sunset — `sndr upstream` resolves preset via
+# V1 registry only (no V2 alias dispatch yet). Mark V1-bound tests so
+# they skip when the V1 file retires; non-config-bound tests (list, top-
+# level dispatch, no-config check) continue to run.
+_V1_DIR_UP = (Path(__file__).resolve().parents[3] / "vllm" / "sndr_core"
+              / "model_configs" / "builtin")
+_skip_if_no_v1_35b_up = pytest.mark.skipif(
+    not (_V1_DIR_UP / "a5000-2x-35b-prod.yaml").is_file(),
+    reason="V1 fixture a5000-2x-35b-prod.yaml retired (Phase 10 sunset)",
+)
+_skip_if_no_v1_27b_up = pytest.mark.skipif(
+    not (_V1_DIR_UP / "a5000-2x-27b-int4-tq-k8v4.yaml").is_file(),
+    reason="V1 fixture a5000-2x-27b-int4-tq-k8v4.yaml retired (Phase 10 sunset)",
 )
 
 
@@ -28,6 +45,7 @@ def test_argparser_check_subcommand():
     assert ns.json is False
 
 
+@_skip_if_no_v1_35b_up
 def test_argparser_check_with_config():
     ns = _parse(["upstream", "check", "--config", "a5000-2x-35b-prod",
                  "--json", "--strict"])
@@ -41,6 +59,7 @@ def test_argparser_show_requires_positional():
         _parse(["upstream", "show"])
 
 
+@_skip_if_no_v1_35b_up
 def test_argparser_show_argument():
     ns = _parse(["upstream", "show", "a5000-2x-35b-prod"])
     assert ns.config == "a5000-2x-35b-prod"
@@ -83,6 +102,7 @@ def test_run_check_json_output_well_formed(capsys):
     assert data["known_good_count"] >= 1
 
 
+@_skip_if_no_v1_35b_up
 def test_run_check_with_config_json_includes_preset_keys(capsys):
     ns = _parse(["upstream", "check", "--config", "a5000-2x-35b-prod",
                  "--json"])
@@ -99,6 +119,7 @@ def test_run_show_unknown_config_returns_2(capsys):
     assert rc == 2
 
 
+@_skip_if_no_v1_35b_up
 def test_run_show_35b_prod_has_y11_block(capsys):
     """35B PROD declares an upstream block with required_pin."""
     ns = _parse(["upstream", "show", "a5000-2x-35b-prod"])
@@ -109,6 +130,7 @@ def test_run_show_35b_prod_has_y11_block(capsys):
     assert "0.20.2rc1.dev93" in out
 
 
+@_skip_if_no_v1_27b_up
 def test_run_show_27b_no_y11_block_handles_cleanly(capsys):
     """27B PROD doesn't yet declare an upstream block — show that gracefully."""
     ns = _parse(["upstream", "show", "a5000-2x-27b-int4-tq-k8v4"])

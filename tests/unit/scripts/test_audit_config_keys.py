@@ -32,17 +32,33 @@ def _import():
 
 
 class TestGatherYamls:
-    def test_returns_v1_and_v2(self):
+    def test_returns_v2_layered_corpus(self):
+        # Phase 10 Step 4 (2026-06-01): V1 monolithic preset tier 100%
+        # retired. _gather_yamls now returns ONLY V2 layered triplet
+        # files (model/, hardware/, profile/) — no top-level V1
+        # monoliths remain. The test previously named test_returns_v1_
+        # and_v2 asserted V1 presence; renamed to reflect post-sunset
+        # state.
         mod = _import()
         yamls = mod._gather_yamls()
         assert yamls, "expected to find committed YAMLs"
-        # Should find at least V1 monolithic in top-level builtin/
         paths = [p.relative_to(REPO_ROOT).as_posix() for p in yamls]
-        # V1 monolithic at the root of builtin/
+        # At least one V2 layered file under builtin/{model,hardware,profile}/
         assert any(
-            "model_configs/builtin/" in p
-            and p.rsplit("/", 1)[0].endswith("builtin")
+            "model_configs/builtin/model/" in p
+            or "model_configs/builtin/hardware/" in p
+            or "model_configs/builtin/profile/" in p
             for p in paths
+        )
+        # V1 monolithic at the root of builtin/ no longer exists.
+        v1_monoliths = [
+            p for p in paths
+            if "model_configs/builtin/" in p
+            and p.rsplit("/", 1)[0].endswith("builtin")
+        ]
+        assert v1_monoliths == [], (
+            f"Phase 10 V1 sunset complete — no V1 monoliths expected; "
+            f"got {v1_monoliths}"
         )
 
     def test_skips_presets(self):

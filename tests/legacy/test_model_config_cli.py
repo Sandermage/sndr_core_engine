@@ -9,10 +9,36 @@ test edits.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from vllm.sndr_core.compat.model_config_cli import main as cli_main
 from vllm.sndr_core.model_configs.registry import get as get_config
+
+
+# Phase 10 (2026-06-01): V1 sunset cascade. The CLI under test
+# (`compat/model_config_cli.py`) operates on V1 monolithic preset keys.
+# Once `FROZEN_V1_BASELINE` empties, the V1 CLI surface has no fixtures
+# to exercise and these per-key tests are skipped at collection. The
+# CLI module itself stays for now (V2 has its own CLI under
+# `cli/{compose,config,launch}`); once V2 CLI fully supersedes the V1
+# surface in operator workflows, this legacy test file becomes retired
+# as a whole (separate cleanup).
+_BUILTIN_DIR = (Path(__file__).resolve().parents[2] / "vllm" / "sndr_core"
+                / "model_configs" / "builtin")
+_V1_35B = "a5000-2x-35b-prod"
+_V1_27B = "a5000-2x-27b-int4-tq-k8v4"
+_skip_if_no_v1_35b = pytest.mark.skipif(
+    not (_BUILTIN_DIR / f"{_V1_35B}.yaml").is_file(),
+    reason=f"Phase 10 V1 sunset retired {_V1_35B}.yaml — V1 CLI test "
+           "surface obsolete for this fixture.",
+)
+_skip_if_no_v1_27b = pytest.mark.skipif(
+    not (_BUILTIN_DIR / f"{_V1_27B}.yaml").is_file(),
+    reason=f"Phase 10 V1 sunset retired {_V1_27B}.yaml — V1 CLI test "
+           "surface obsolete for this fixture.",
+)
 
 
 def _expected_tps(key: str) -> float:
@@ -27,6 +53,8 @@ def _expected_tps(key: str) -> float:
 
 
 class TestList:
+    @_skip_if_no_v1_35b
+    @_skip_if_no_v1_27b
     def test_list_succeeds_and_shows_builtins(self, capsys):
         # Default `list` now hides tested/QA configs (P0.2 fix —
         # previous behaviour was the `or True` bug that always merged
@@ -51,6 +79,7 @@ class TestList:
             f"35B PROD TPS {tps_35b:.2f} not visible in list output"
         )
 
+    @_skip_if_no_v1_35b
     def test_list_default_hides_tested(self, capsys):
         """Default invocation must hide tested/QA configs but flag that
         they're available behind --include-tested.
@@ -73,6 +102,7 @@ class TestList:
 
 
 class TestShow:
+    @_skip_if_no_v1_35b
     def test_show_known_key(self, capsys):
         rc = cli_main(["show", "a5000-2x-35b-prod"])
         assert rc == 0
@@ -91,6 +121,7 @@ class TestShow:
 
 
 class TestRender:
+    @_skip_if_no_v1_35b
     def test_render_emits_bash_script(self, capsys):
         rc = cli_main(["render", "a5000-2x-35b-prod"])
         assert rc == 0
@@ -104,6 +135,7 @@ class TestRender:
             f"render header should reference {tps:.2f} TPS"
         )
 
+    @_skip_if_no_v1_27b
     def test_render_includes_all_genesis_env(self, capsys):
         # Fixture migrated 2026-06-01: a5000-2x-27b-int4-tested retired
         # in V1 sunset #8; swapped to surviving sibling
@@ -118,6 +150,7 @@ class TestRender:
 
 
 class TestAudit:
+    @_skip_if_no_v1_27b
     def test_audit_clean_config_returns_0(self, capsys):
         # 27B has 1 warning (R-005 PN59 long-ctx), but no errors → exit 0
         # Fixture migrated 2026-06-01: a5000-2x-27b-int4-tested retired
@@ -133,6 +166,7 @@ class TestAudit:
 
 
 class TestWhere:
+    @_skip_if_no_v1_35b
     def test_where_shows_tier(self, capsys):
         rc = cli_main(["where", "a5000-2x-35b-prod"])
         assert rc == 0
@@ -141,6 +175,7 @@ class TestWhere:
 
 
 class TestNew:
+    @_skip_if_no_v1_35b
     def test_new_template_creates_user_config(self, tmp_path, monkeypatch,
                                                 capsys):
         monkeypatch.setenv("GENESIS_MODEL_CONFIG_DIR", str(tmp_path))
@@ -152,6 +187,7 @@ class TestNew:
         assert "key: my-test" in content
         assert "reference_metrics: null" in content  # cleared on clone
 
+    @_skip_if_no_v1_35b
     def test_new_no_overwrite_without_force(self, tmp_path, monkeypatch):
         monkeypatch.setenv("GENESIS_MODEL_CONFIG_DIR", str(tmp_path))
         cli_main(["new", "my-test", "--template", "a5000-2x-35b-prod"])
@@ -166,6 +202,7 @@ class TestVerify:
             cli_main(["verify", "bogus"])
         assert exc.value.code == 1
 
+    @_skip_if_no_v1_35b
     def test_verify_known_config_no_server_fails_predictably(self, capsys):
         # Without a running server, bench will fail → returns 1.
         # This is correct behaviour (operator must launch first).

@@ -47,6 +47,12 @@ class TestCollectors:
         out = R._collect_launch_dryrun(preset_key="totally-fake-preset-xyz")
         assert "not found" in out or "failed to load" in out
 
+    @pytest.mark.skipif(
+        not (Path(__file__).resolve().parents[3] / "vllm" / "sndr_core"
+             / "model_configs" / "builtin" / "a5000-2x-35b-prod.yaml"
+             ).is_file(),
+        reason="V1 fixture retired (Phase 10 sunset)",
+    )
     def test_collect_launch_dryrun_real_preset(self):
         out = R._collect_launch_dryrun(preset_key="a5000-2x-35b-prod")
         assert "vllm serve" in out or "render failed" in out
@@ -188,6 +194,14 @@ class TestBundleE2E:
         assert manifest["redaction"]["enabled"] is False
         assert manifest["redaction"]["hit_counts"] == {}
 
+    @pytest.mark.skipif(
+        not (Path(__file__).resolve().parents[3] / "vllm" / "sndr_core"
+             / "model_configs" / "builtin" / "a5000-2x-35b-prod.yaml"
+             ).is_file(),
+        reason="V1 fixture retired (Phase 10 sunset) — bundle CLI doesn't "
+               "support V2 alias dispatch yet (V2 bundle support is a "
+               "separate effort outside Phase 10 scope)",
+    )
     def test_bundle_with_preset(self, tmp_path):
         out_path = tmp_path / "preset-bundle.tar.gz"
         opts = argparse.Namespace(

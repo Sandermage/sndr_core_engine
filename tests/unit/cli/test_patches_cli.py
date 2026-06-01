@@ -259,12 +259,21 @@ class TestDoctor:
 
 class TestPlan:
     def test_plan_real_preset_produces_buckets(self, capsys):
-        # Pick a known builtin preset (35B PROD); structure must hold.
-        ns = argparse.Namespace(preset="a5000-2x-35b-prod", json=True)
+        # Phase 10 (2026-06-01): migrated V1 `a5000-2x-35b-prod` →
+        # V2 alias `prod-qwen3.6-35b-balanced` (transparent bucket per
+        # _v1_migration_table.json — V2 composes byte-identical config).
+        # `sndr patches plan` resolves preset via the dual V1/V2 path
+        # (`_resolve_preset_v1_or_v2`); the JSON `preset` field carries
+        # the resolved config's `.key`, which for V2 is the composed
+        # triplet form. Assert by substring to stay robust to V2
+        # internals evolving.
+        ns = argparse.Namespace(preset="prod-qwen3.6-35b-balanced", json=True)
         rc = P._run_plan(ns)
         assert rc == 0
         data = json.loads(capsys.readouterr().out)
-        assert data["preset"] == "a5000-2x-35b-prod"
+        # `sndr patches plan` preserves the alias name verbatim in JSON
+        # (no compose-key sanitization unlike `sndr memory explain`).
+        assert "qwen3.6-35b-balanced" in data["preset"]
         assert data["apply_count"] + data["skip_count"] >= 100
         assert isinstance(data["apply"], list)
         assert isinstance(data["skip"], list)
@@ -288,7 +297,9 @@ class TestPlan:
         monkeypatch.delenv(sentinel_key, raising=False)
         monkeypatch.setenv(sentinel_key, "preset-test-value")
 
-        ns = argparse.Namespace(preset="a5000-2x-35b-prod", json=True)
+        # Phase 10 (2026-06-01): migrated V1 → V2 alias (same transparent
+        # bucket migration as test_plan_real_preset_produces_buckets above).
+        ns = argparse.Namespace(preset="prod-qwen3.6-35b-balanced", json=True)
         P._run_plan(ns)
         # Env restored
         assert os.environ.get(sentinel_key) == "preset-test-value"

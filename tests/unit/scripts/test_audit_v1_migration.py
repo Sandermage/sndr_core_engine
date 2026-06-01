@@ -58,10 +58,16 @@ class TestLiveCorpus:
         )
 
     def test_strict_returns_one(self):
-        """Acceptance gate 2: --strict exits 1 (current corpus has 9
-        non-transparent V1 keys → 9 warnings → exit 1)."""
+        """Acceptance gate 2: --strict semantics.
+
+        2026-06-01 update: Phase 10 Step 4 retired the last 2 V1 files
+        (final sunset of transparent-bucket a5000-2x-35b-prod +
+        a5000-2x-27b-int4-tq-k8v4). With ZERO findings, --strict exits
+        0 (no warnings to escalate). The strict-escalation invariant
+        is now covered by the TestSeverityPerStage synthetic tests
+        only — live corpus exits cleanly at every stage."""
         result = _run_cli("--strict")
-        assert result.returncode == 1
+        assert result.returncode == 0
 
     def test_stage_3_returns_one(self):
         """Stage 3 default escalates non-transparent buckets to error → exit 1.
@@ -117,11 +123,15 @@ class TestLiveCorpus:
 
 class TestMigrationTable:
     def test_all_12_v1_keys_in_table(self):
-        """Acceptance gate 6: all 12 V1 keys present in migration table."""
+        """Acceptance gate 6: all V1 keys present in migration table.
+
+        2026-06-01 (Phase 10 Step 4): V1 monolithic preset tier FULLY
+        retired. on_disk == empty; table.keys() == empty. Invariant
+        (on_disk ⊆ table.keys()) holds vacuously."""
         mod = _import_audit()
         table = mod.load_migration_table()
         on_disk = set(mod.list_v1_keys_on_disk())
-        assert len(on_disk) == 2  # 2026-06-01: 10× V1 sunsets (PN95 architectural unblock retired both tier-aware V1 files)
+        assert len(on_disk) == 0
         missing = on_disk - set(table.keys())
         assert not missing, (
             f"V1 keys on disk but missing from migration table: {sorted(missing)}"
@@ -241,11 +251,23 @@ class TestBucketDistribution:
             V1 fallback preserved. Both V1 files retired together as
             sunsets #9 (2x) + #10 (1x). New distribution: 2 transparent,
             0 needs-choice, 0 deprecated, 0 tombstone.
+          - 2026-06-01 (Phase 10 Step 4 — FINAL SUNSET): the last 2
+            transparent-bucket V1 files retired —
+            a5000-2x-35b-prod.yaml (V2 equivalent
+            `prod-qwen3.6-35b-balanced`, byte-identical compose) +
+            a5000-2x-27b-int4-tq-k8v4.yaml (V2 equivalent
+            `prod-qwen3.6-27b-tq-k8v4`, byte-identical compose). V1
+            tier 100% retired. Final distribution: 0 transparent,
+            0 needs-choice, 0 deprecated, 0 tombstone. Audit gates
+            (audit_no_new_v1.py, audit_v1_migration.py) continue to
+            enforce the freeze contract — any future V1-tier addition
+            requires explicit baseline bump signalling deliberate
+            legacy extension.
         """
         mod = _import_audit()
         report = mod.run_audit(stage=0)
         counts = report.count_by_bucket()
-        assert counts.get("transparent", 0) == 2
+        assert counts.get("transparent", 0) == 0
         assert counts.get("needs_operator_choice", 0) == 0
         assert counts.get("deprecated", 0) == 0
         assert counts.get("tombstone", 0) == 0
@@ -267,14 +289,14 @@ class TestSeverityPerStage:
         # architectural unblock). Tombstone empty.
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 2
+        assert counts.get("warn", 0) == 0  # V1 tier fully retired 2026-06-01
 
     def test_stage_2_default_all_warn(self):
         mod = _import_audit()
         report = mod.run_audit(stage=2, strict_mode=False)
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 2
+        assert counts.get("warn", 0) == 0  # V1 tier fully retired 2026-06-01
 
     def test_stage_2_strict_non_transparent_error(self):
         """Stage 2 + strict: non-transparent buckets emit ERROR;
@@ -287,14 +309,14 @@ class TestSeverityPerStage:
         # at strict stage 2. The 2 deprecated entries retired in PN95
         # architectural unblock (2026-06-01 sunsets #9 + #10).
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 2
+        assert counts.get("warn", 0) == 0  # V1 tier fully retired 2026-06-01
 
     def test_stage_3_non_transparent_error(self):
         mod = _import_audit()
         report = mod.run_audit(stage=3)
         counts = report.count_by_severity()
         assert counts.get("error", 0) == 0
-        assert counts.get("warn", 0) == 2
+        assert counts.get("warn", 0) == 0  # V1 tier fully retired 2026-06-01
 
 
 # ─── JSON output ────────────────────────────────────────────────────────────
@@ -314,8 +336,8 @@ class TestJSONOutput:
         # Operators reverting with SNDR_V1_ROLLOUT_STAGE=0 still see
         # functionally identical behavior for non-tombstone buckets.
         assert data["stage"] == DEFAULT_STAGE
-        assert data["v1_keys_on_disk"] == 2  # 2026-06-01: 10× V1 sunsets
-        assert data["table_entries"] == 2
+        assert data["v1_keys_on_disk"] == 0  # 2026-06-01: V1 tier 100% retired (Phase 10 Step 4)
+        assert data["table_entries"] == 0
 
     def test_json_finding_shape(self):
         result = _run_cli("--json")

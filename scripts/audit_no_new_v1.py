@@ -40,8 +40,18 @@ BUILTIN_DIR = REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin"
 #   not a blocker for release. Until that lands the V1 entry stays
 #   here so `make evidence` does not gate on the migration.
 FROZEN_V1_BASELINE: frozenset[str] = frozenset({
-    "a5000-2x-27b-int4-tq-k8v4.yaml",
-    "a5000-2x-35b-prod.yaml",
+    # Phase 10 Step 4 (2026-06-01): V1 monolithic preset tier FULLY
+    # RETIRED. Final 2 transparent-bucket files deleted —
+    # a5000-2x-35b-prod (V2 equivalent: `prod-qwen3.6-35b-balanced`,
+    # composes byte-identical config) + a5000-2x-27b-int4-tq-k8v4 (V2:
+    # `prod-qwen3.6-27b-tq-k8v4`). 12 → 10 in the V1 sunset cascade
+    # (sunsets #1–#10), then 2 → 0 in this step. The Phase 9 freeze
+    # gate continues to enforce: any new top-level builtin/*.yaml must
+    # land as V2 layered triplet (model + hardware + profile) under
+    # the corresponding subdir; adding to V1 requires explicit
+    # baseline bump signalling deliberate legacy-tier extension.
+    # a5000-2x-27b-int4-tq-k8v4.yaml retired 2026-06-01 (final sunset).
+    # a5000-2x-35b-prod.yaml retired 2026-06-01 (final sunset).
     # single-3090-dense-cpu-offload-EXAMPLE.yaml retired 2026-06-01
     # — V2 equivalent: preset `example-3090-dense-cpu-offload`.
     # First V1 sunset (Phase 9 → Phase 10 transition proof-of-concept).

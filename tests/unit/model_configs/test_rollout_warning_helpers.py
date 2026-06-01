@@ -12,10 +12,26 @@ behavior changes.
 from __future__ import annotations
 
 import warnings
+from pathlib import Path
 
 import pytest
 
 from vllm.sndr_core.model_configs import registry, registry_v2
+
+
+# Phase 10 (2026-06-01): V1 sunset — class TestV1DeprecationBackwardCompat
+# + TestV1DeprecationStageBehavior assert helper behavior on the V1 key
+# `a5000-2x-35b-prod`, which depends on the migration table containing
+# that key (the helper resolves the bucket via the table). When V1 files
+# retire, the migration table entries are removed together, and these
+# specific-key tests stop making sense. Skip them at collection.
+_V1_YAML_RWH = (Path(__file__).resolve().parents[3] / "vllm" / "sndr_core"
+                / "model_configs" / "builtin" / "a5000-2x-35b-prod.yaml")
+_skip_if_no_v1_rwh = pytest.mark.skipif(
+    not _V1_YAML_RWH.is_file(),
+    reason="V1 fixture a5000-2x-35b-prod.yaml retired (Phase 10 sunset) — "
+           "_maybe_warn_v1_deprecation contract tests are V1-bound",
+)
 
 
 @pytest.fixture
@@ -36,6 +52,7 @@ def fresh_warn_state():
 # ─── _maybe_warn_v1_deprecation ────────────────────────────────────────────
 
 
+@_skip_if_no_v1_rwh
 class TestV1DeprecationBackwardCompat:
     def test_positional_signature_still_works(self, fresh_warn_state):
         """Old call sites (positional key only) must still work."""

@@ -13,16 +13,15 @@ Layout:
     community/  — community-contributed verified configs
     user/       — operator's local configs (loaded if present, gitignored)
 
-Use (V1 path, deprecated during Phase 9 freeze):
-    from vllm.sndr_core.model_configs import load_all, get
-    configs = load_all()
-    cfg = get('a5000-2x-35b-prod')  # V1 key; emits DeprecationWarning
-    print(cfg.to_launch_script())
-
-Use (V2 path, recommended — V1 sunset in progress 2026-06-01):
+Use (V2 path, canonical — V1 monolithic preset tier 100% retired
+2026-06-01 after the Phase 10 sunset cascade):
     from vllm.sndr_core.model_configs.registry_v2 import load_alias
     cfg = load_alias('prod-qwen3.6-35b-balanced')  # V2 preset alias
     print(cfg.to_launch_script())
+
+The legacy V1 `get()` path still resolves any operator-local YAMLs
+under `community/` or `user/` tiers and emits a DeprecationWarning
+for visibility; the builtin/ V1 layer is gone.
 
 CLI: `python3 -m vllm.sndr_core.compat.model_config_cli list/show/render/launch/verify`
 """

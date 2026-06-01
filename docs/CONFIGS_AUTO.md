@@ -4,89 +4,18 @@
 > Source: `vllm/sndr_core/model_configs/builtin/*.yaml`
 > Companion to curated [CONFIGS.md](CONFIGS.md) (narrative).
 
-Generated: 2026-06-01T01:35:48Z
-Total configs: **2**
+Generated: 2026-06-01T09:07:57Z
+Total configs: **0**
 
-## By lifecycle
-
-- `stable`: 2
-
-## Config matrix
-
-| Key | Lifecycle | Model | KV dtype | Spec | Max ctx | TPS | TPOT | Tool | Last validated |
-|---|:---:|---|---|:---:|---:|---:|---:|:---:|---|
-| `a5000-2x-27b-int4-tq-k8v4` | `stable` | qwen3.6-27b | `turboquant_k8v4` | — | 262144 | 131.67 | 7.34 | 7/7 | 2026-05-11 |
-| `a5000-2x-35b-prod` | `stable` | qwen3.6-35b-a3b | `turboquant_k8v4` | MTP K=3 | 320000 | 234.54 | 3.96 | 7/7 | 2026-05-09 |
-
-## Per-config details
-
-### `a5000-2x-27b-int4-tq-k8v4`
-
-**Title**: 2× RTX A5000 — 27B INT4 + TurboQuant k8v4 KV
-
-> Qwen3.6-27B-int4-AutoRound (Lorbus dense + GDN hybrid) + TurboQuant  k8v4 KV + MTP K=3 spec-decode. TQ trades 5-15% throughput vs fp8_e5m2  for 2-4× KV concurrency headroom. Use this when context >> g
-
-**Engine config:**
-
-| Field | Value |
-|---|---|
-| `lifecycle` | `stable` |
-| `workload_tag` | `balanced` |
-| `genesis_pin` | `v11.0.0+wave8+phase2` |
-| `vllm_pin_required` | `0.20.2rc1.dev209+g5536fc0c0` |
-| `model_path` | `/models/Qwen3.6-27B-int4-AutoRound` |
-| `kv_cache_dtype` | `turboquant_k8v4` |
-| `max_model_len` | `262144` |
-| `gpu_memory_utilization` | `0.92` |
-| `max_num_seqs` | `4` |
-| `max_num_batched_tokens` | `4096` |
-| `mtp_k` | — |
-| `enabled_patches` (genesis_env) | 60 |
-
-**Reference metrics (`genesis_bench_suite.py --quick`):**
-
-| Metric | Value |
-|---|---|
-| `long_gen_sustained_tps` | `131.67` |
-| `decode_tpot_ms` | `7.34` |
-| `ttft_ms` | `104.07` |
-| `tool_call_score` | `7/7` |
-| `stability_cv_pct` | `3.22` |
-
-
-### `a5000-2x-35b-prod`
-
-**Title**: 2× RTX A5000 — 35B-A3B FP8 PROD
-
-> Sander's production reference rig. Qwen3.6-35B-A3B FP8 MoE +  TurboQuant k8v4 KV + MTP K=3 spec-decode. Validated 192.6 TPS  sustained on 2× A5000 24 GB.
-
-**Engine config:**
-
-| Field | Value |
-|---|---|
-| `lifecycle` | `stable` |
-| `workload_tag` | `balanced` |
-| `genesis_pin` | `v11.0.0+wave8` |
-| `vllm_pin_required` | `0.20.2rc1.dev209+g5536fc0c0` |
-| `model_path` | `/models/Qwen3.6-35B-A3B-FP8` |
-| `kv_cache_dtype` | `turboquant_k8v4` |
-| `max_model_len` | `320000` |
-| `gpu_memory_utilization` | `0.90` |
-| `max_num_seqs` | `2` |
-| `max_num_batched_tokens` | `4096` |
-| `mtp_k` | 3 |
-| `enabled_patches` (genesis_env) | 58 |
-
-**Reference metrics (`genesis_bench_suite.py --quick`):**
-
-| Metric | Value |
-|---|---|
-| `long_gen_sustained_tps` | `234.54` |
-| `decode_tpot_ms` | `3.96` |
-| `ttft_ms` | `109.88` |
-| `tool_call_score` | `7/7` |
-| `stability_cv_pct` | `6.61` |
-
+> ℹ **V1 monolithic preset tier fully retired 2026-06-01** (Phase 10 sunset cascade complete). All operator-facing presets now live under the V2 layered triplet:
+>
+> - `builtin/model/<id>.yaml` — per-model defaults
+> - `builtin/hardware/<id>.yaml` — per-rig host envelope
+> - `builtin/profile/<id>.yaml` — workload profile (chat, balanced, long-ctx, etc.)
+> - `builtin/presets/<alias>.yaml` — operator-facing alias bundling the triplet
+>
+> Discover via `sndr preset list` / `sndr preset recommend`.
+> Load via `from vllm.sndr_core.model_configs.registry_v2 import load_alias`.
 
 ---
 

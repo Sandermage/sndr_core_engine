@@ -11,6 +11,17 @@ import pytest
 from vllm.sndr_core.cli.deps import add_argparser, run_check, run_plan
 
 
+# Phase 10 (2026-06-01): V1 sunset — `sndr deps` resolves --config via
+# V1 registry only. Mark V1-bound tests for skip when V1 file retires;
+# non-config-bound smoke tests (host inventory, JSON output) keep running.
+_V1_DEPS_YAML = (Path(__file__).resolve().parents[3] / "vllm" / "sndr_core"
+                 / "model_configs" / "builtin" / "a5000-2x-35b-prod.yaml")
+_skip_if_no_v1_deps = pytest.mark.skipif(
+    not _V1_DEPS_YAML.is_file(),
+    reason="V1 fixture a5000-2x-35b-prod.yaml retired (Phase 10 sunset)",
+)
+
+
 def _parse(args: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers()
@@ -25,6 +36,7 @@ def test_argparser_check_subcommand():
     assert ns.json is False
 
 
+@_skip_if_no_v1_deps
 def test_argparser_check_with_config_and_json():
     ns = _parse(["deps", "check", "--config", "a5000-2x-35b-prod", "--json"])
     assert ns.config == "a5000-2x-35b-prod"
@@ -37,6 +49,7 @@ def test_argparser_plan_requires_config():
         _parse(["deps", "plan"])
 
 
+@_skip_if_no_v1_deps
 def test_argparser_plan_with_strict():
     ns = _parse(["deps", "plan", "--config", "a5000-2x-35b-prod", "--strict"])
     assert ns.config == "a5000-2x-35b-prod"
@@ -60,6 +73,7 @@ def test_run_check_with_unknown_config_returns_2(capsys):
     assert rc == 2
 
 
+@_skip_if_no_v1_deps
 def test_run_check_with_known_config_emits_plan(capsys):
     """On a Mac with no docker/nvidia, the 35B config plan must surface
     blockers — and run_check returns 1.
@@ -85,6 +99,7 @@ def test_run_check_json_output_is_valid(capsys):
     assert "os" in parsed["inventory"]
 
 
+@_skip_if_no_v1_deps
 def test_run_check_json_with_config_includes_plan(capsys):
     ns = _parse(["deps", "check", "--config", "a5000-2x-35b-prod", "--json"])
     rc = run_check(ns)
@@ -101,6 +116,7 @@ def test_run_plan_unknown_config_returns_2(capsys):
     assert rc == 2
 
 
+@_skip_if_no_v1_deps
 def test_run_plan_strict_returns_1_on_blockers(capsys):
     """--strict flips a not-ready plan to exit 1; otherwise exit 0."""
     ns_strict = _parse(["deps", "plan", "--config", "a5000-2x-35b-prod",
@@ -114,6 +130,7 @@ def test_run_plan_strict_returns_1_on_blockers(capsys):
     assert rc == 0
 
 
+@_skip_if_no_v1_deps
 def test_run_check_writes_reports_to_dest(tmp_path, capsys):
     ns = _parse([
         "deps", "check",

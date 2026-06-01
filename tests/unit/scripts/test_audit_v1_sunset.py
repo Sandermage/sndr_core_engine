@@ -279,9 +279,12 @@ class TestLiveCorpus:
         assert "migration_table_entries" in data
         assert "stages" in data
         assert "counts" in data
-        # Live repo has 12 V1 monoliths frozen by audit_no_new_v1.
-        assert data["v1_files_on_disk"] >= 1
-        assert data["migration_table_entries"] >= 1
+        # Phase 10 Step 4 (2026-06-01): V1 monolithic preset tier 100%
+        # retired. v1_files_on_disk + migration_table_entries are both 0.
+        # The audit-no-new-v1 freeze contract still applies — any new
+        # top-level builtin/*.yaml requires explicit baseline bump.
+        assert data["v1_files_on_disk"] == 0
+        assert data["migration_table_entries"] == 0
         # No tombstone incidents on the live tree.
         assert data["tombstone_incidents"] == []
         # No untracked keys (audit_no_new_v1 keeps them in sync).
