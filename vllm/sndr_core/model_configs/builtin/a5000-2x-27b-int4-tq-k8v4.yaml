@@ -2,6 +2,23 @@
 # Genesis builtin model config — 27B Lorbus INT4 + TurboQuant k8v4 KV
 # Source: scripts/launch/_archive/superseded_by_model_configs/start_27b_int4_TQ_k8v4.sh
 #
+# ┌──────────────────────────────────────────────────────────────────┐
+# │ V1→V2 MIGRATION NOTE (2026-06-01):                                │
+# │                                                                   │
+# │ This file is V1 schema_version=1. V2 successor is preset          │
+# │ `prod-qwen3.6-27b-tq-k8v4` (TRANSPARENT bucket — V2 composes      │
+# │ byte-identical config).                                           │
+# │                                                                   │
+# │ V1 sunset for this key is BLOCKED on:                             │
+# │   - 9 active test fixtures (unit + legacy) call get(this_key)     │
+# │   - 5 fixtures migrated TO this key in V1 sunset #8 (2026-06-01)  │
+# │     would need a different fixture target before this file can    │
+# │     be retired                                                    │
+# │                                                                   │
+# │ Operators: prefer V2 alias via `sndr launch prod-qwen3.6-27b-tq-  │
+# │ k8v4` going forward. V1 path keeps working through Phase 9.       │
+# └──────────────────────────────────────────────────────────────────┘
+#
 # Sister of a5000-2x-27b-int4-balanced (fp8_e5m2 KV).
 # Same model + spec_decode + memory regime; swaps KV dtype to TQ k8v4.
 # Requires P4 (remove hybrid TQ rejection) + P98 (TQ WorkspaceManager

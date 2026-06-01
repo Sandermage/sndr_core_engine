@@ -1,4 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
+#
+# ┌──────────────────────────────────────────────────────────────────┐
+# │ V1→V2 MIGRATION NOTE (2026-06-01):                                │
+# │                                                                   │
+# │ This file is V1 schema_version=1. V2 successor is preset          │
+# │ `prod-qwen3.6-35b-balanced` (TRANSPARENT bucket — V2 composes     │
+# │ identical FP8 + TQ k8v4 + MTP K=3 balanced config).               │
+# │                                                                   │
+# │ V1 sunset BLOCKED on:                                             │
+# │   - 6 active V1 freeze tests in tests/unit/test_phase9_v1_freeze. │
+# │     py that LEGITIMATELY test V1 freeze behavior (cannot migrate) │
+# │   - 5 prod code references in cli/{compose,config,install,report} │
+# │     + compat/models/pull (use get('a5000-2x-35b-prod') as default │
+# │     fallback)                                                     │
+# │   - 5 other test references including test_package_versions which │
+# │     asserts cfg.package_versions field that V2 ModelConfig (via   │
+# │     load_alias) does NOT carry (V2 ModelDef schema doesn't expose │
+# │     package_versions)                                             │
+# │                                                                   │
+# │ Migration requires either (a) V2 ModelDef schema extension to     │
+# │ carry package_versions, or (b) refactor 5 tests + 5 prod paths    │
+# │ to a different source-of-truth for package pinning.               │
+# │                                                                   │
+# │ Operators: `sndr launch prod-qwen3.6-35b-balanced` is the V2      │
+# │ canonical entry point. V1 path stays functional through Phase 9.  │
+# └──────────────────────────────────────────────────────────────────┘
+#
 # Genesis builtin model config — Sander's PROD reference
 # Source: scripts/launch/start_35b_fp8_PROD.sh + bench 2026-05-05
 

@@ -1,4 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
+#
+# ┌──────────────────────────────────────────────────────────────────┐
+# │ V1→V2 MIGRATION NOTE (2026-06-01):                                │
+# │                                                                   │
+# │ This file is V1 schema_version=1. V2 successor is preset          │
+# │ `example-2x-tier-aware` (composes model + hardware + profile      │
+# │ `tier-aware-2x` triplet).                                         │
+# │                                                                   │
+# │ V1 sunset BLOCKED on PN95 runtime coupling: the value             │
+# │ `a5000-2x-tier-aware-example` is hardcoded as                     │
+# │ GENESIS_PN95_CONFIG_KEY in 3 callers:                             │
+# │   - profile/tier-aware-2x.yaml:21                                 │
+# │   - model/qwen3.6-27b-int4-autoround-tq-k8v4.yaml:157             │
+# │   - model/qwen3.6-35b-a3b-fp8.yaml:169                            │
+# │                                                                   │
+# │ PN95 hook (cache/pn95/hooks.py:231,437) reads `cache_config.      │
+# │ tiers` from this V1 file at runtime. To retire the V1 file the    │
+# │ tier_specs block (lines 98-124) needs to migrate to either:       │
+# │   (a) V2 profile `tier-aware-2x.yaml` + PN95 hook reads V2        │
+# │   (b) PN95-internal config dir (cache/pn95/tier_configs/)         │
+# │ Both options require PN95 hook code change.                       │
+# │                                                                   │
+# │ Operators: V2 launch path `sndr launch example-2x-tier-aware`     │
+# │ resolves correctly; PN95 still loads its config from THIS file    │
+# │ until the architectural migration lands.                          │
+# └──────────────────────────────────────────────────────────────────┘
+#
 # Path C v1.0 example for Sander's actual rig: 2× A5000 (24 GiB each) + TP=2.
 # Tier-aware KV cache config sized for the production hybrid-GDN target
 # (Qwen3.6-27B-int4-AutoRound + TQ k8v4) under PROD launch args.

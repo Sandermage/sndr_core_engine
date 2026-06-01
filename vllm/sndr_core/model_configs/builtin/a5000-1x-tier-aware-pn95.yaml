@@ -1,4 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
+#
+# ┌──────────────────────────────────────────────────────────────────┐
+# │ V1→V2 MIGRATION NOTE (2026-06-01):                                │
+# │                                                                   │
+# │ This file is V1 schema_version=1. V2 successor is preset          │
+# │ `example-3090-tier-aware` (closest match — same PN95 tier-aware   │
+# │ concept, different hardware tier).                                │
+# │                                                                   │
+# │ V1 sunset BLOCKED on PN95 runtime coupling: this file is the      │
+# │ single-A5000 PN95 tier-spec source; PN95 hook reads `cache_       │
+# │ config.tiers` via V1 get() at runtime.                            │
+# │                                                                   │
+# │ Architectural migration required (same as a5000-2x-tier-aware-    │
+# │ EXAMPLE.yaml) — move tier_specs to either V2 profile or PN95-     │
+# │ internal config dir.                                              │
+# │                                                                   │
+# │ Operators: keep using V1 path until PN95 hook refactor lands.     │
+# └──────────────────────────────────────────────────────────────────┘
+#
 # Genesis single-A5000 tier-aware config — Qwen3.6-27B + fp8 + PN95 offload.
 #
 # Goal: serve max_model_len 200K on ONE A5000 24 GB card via PN95 multi-tier
