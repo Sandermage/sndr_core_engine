@@ -14,7 +14,7 @@ env flag to toggle, upstream PR (if backported), and credit.
 > (`require-bench`, `require-baseline`) are available for operators
 > preparing a hardened deploy.
 
-## Current state (v12.0.0, 2026-05-22)
+## Current state (v12.0.0, 2026-06-01)
 
 **Total PATCH_REGISTRY entries:** 236 — range covers `P1`–`P109` legacy +
 `PN8`–`PN275` modern + `G4_01`–`G4_78` Gemma 4 family + sub-patches
