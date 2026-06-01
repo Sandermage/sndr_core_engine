@@ -111,7 +111,7 @@ target date for re-enabling the strict gate.
 
 - `Makefile` targets: `audit-release-check*`
 - CLI: `vllm/sndr_core/cli/patches.py::release_check`
-- Implementation: `vllm/sndr_core/audit/release_check.py`
+- Implementation: `vllm/sndr_core/proof/release_check.py`
 - CI workflow: `.github/workflows/test.yml` (`make evidence --release`)
 - Audit history is captured per-release in the production-readiness
   audit reports that maintainers attach to each release artifact.

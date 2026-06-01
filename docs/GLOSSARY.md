@@ -119,7 +119,7 @@ When upstream vLLM changes the code surrounding an anchor, the patch can fail to
 A logical patch implemented as several smaller atomic edits (e.g. P64 has sub-patches A through F). Useful when a single bug touches multiple files.
 
 ### Dispatcher
-The boot-time loader (`vllm/sndr_core/dispatcher.py`) that consults the `PATCH_REGISTRY`, evaluates env flags, runs `applies_to` and `conflicts_with` checks, and prints `[APPLY] / [SKIP] / [REC] / [OFF]` for every patch.
+The boot-time loader (`vllm/sndr_core/dispatcher/` package + `vllm/sndr_core/apply/orchestrator.py` boot loop) that consults the `PATCH_REGISTRY`, evaluates env flags, runs `applies_to` and `conflicts_with` checks, and prints `[APPLY] / [SKIP] / [REC] / [OFF]` for every patch.
 
 ### applies_to filter
 Per-patch metadata declaring which vLLM commit range, model family, GPU SM, or KV-cache dtype the patch supports. Skipped automatically when the boot environment does not match.

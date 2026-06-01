@@ -468,7 +468,7 @@ sndr model-config diagnose <key>           # runtime cross-check of env exports
 ## Failure modes & gotchas
 
 - **Schema error on unknown env name** — `R-011` catches `GENESIS_ENABLE_PXX_TYPO`. Fix the typo or add the patch to `PATCH_REGISTRY` first.
-- **`R-013` rejects vllm pin** — your pin isn't in `KNOWN_GOOD_VLLM_PINS` (in `vllm/sndr_core/guards.py`). Bump the allowlist if pin is genuinely validated.
+- **`R-013` rejects vllm pin** — your pin isn't in `KNOWN_GOOD_VLLM_PINS` (in `vllm/sndr_core/detection/guards.py`). Bump the allowlist if pin is genuinely validated.
 - **preflight fails on `genesis_pin`** — your local `git HEAD` short SHA doesn't match `genesis_pin`. Either git checkout the pinned commit, or update the YAML if your new commit is validated.
 - **diagnose says "register() complete: N applied / M skipped"** — patches in `genesis_env` that didn't fire show in M. Look at boot log for skip reason (model class mismatch / sm capability / opt-in).
 - **verify exits 1 on TPS drop** — tolerance breach. Either: regression to debug, or genuine ratchet → re-run `bench-and-update`.

@@ -536,7 +536,7 @@ PN33 and PN35 are the reference examples.
 ### General Python
 
 - We don't enforce a formatter on contributors, but we do run `ruff` on the maintainer side. PRs may be reformatted before merge.
-- Type hints encouraged on public surfaces (the modules under `vllm/sndr_core/dispatcher/`, `vllm/sndr_core/core.py` (TextPatcher API), and `vllm/sndr_core/apply/orchestrator.py`).
+- Type hints encouraged on public surfaces (the modules under `vllm/sndr_core/dispatcher/`, `vllm/sndr_core/core/text_patch.py` (TextPatcher API), and `vllm/sndr_core/apply/orchestrator.py`).
 - Logging via `logger = logging.getLogger("vllm.sndr_core")`. The pre-v11 `vllm._genesis` namespace was removed in v11.0.0 and no longer resolves — any new code (and any pre-v11 code being touched) must use `vllm.sndr_core`. Print only in the boot-summary path.
 
 ---
@@ -831,7 +831,7 @@ quick "I want to change X, where is X" reference.
 | Command | File | Purpose |
 | --- | --- | --- |
 | `sndr launch <preset>` | `vllm/sndr_core/cli/launch.py` | Render + exec a preset. |
-| `sndr doctor` | `vllm/sndr_core/cli/doctor.py` | Health check. |
+| `sndr doctor` | `vllm/sndr_core/compat/cli.py` (legacy bridge) + `vllm/sndr_core/cli/doctor_system.py` (extended) | Health check (basic + UNIFIED_CONFIG C1 extended). |
 | `sndr model-config` | `vllm/sndr_core/compat/model_config_cli.py` | Preset CRUD + bench. |
 | `sndr patches` | `vllm/sndr_core/cli/patches.py` | Registry browse / plan / release-check. |
 | `sndr service` | `vllm/sndr_core/cli/service.py` | systemd / compose / quadlet / k8s / proxmox lifecycle. |
