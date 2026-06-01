@@ -131,6 +131,126 @@ def count_registry_entries(registry_path: Path) -> int:
     return len(set(matches))
 
 
+def compute_registry_stats(registry_path: Path) -> dict[str, int]:
+    """Per-field counts parsed from registry.py source (torch-less).
+
+    Splits the file at each top-level entry boundary, then extracts
+    `lifecycle` / `implementation_status` / `apply_module` from each
+    block. Used by `_check_patches_md_stats_table()` to validate the
+    hand-maintained Quick-stats table in docs/PATCHES.md against
+    current ground truth.
+
+    Returns dict with: total, lifecycle.<value>, impl.<value>,
+    apply_module_set, apply_module_none.
+    """
+    text = registry_path.read_text()
+    # Anchor splits at top-level entries: `    "PATCH_ID": {`
+    anchors = list(re.finditer(r"^    \"([A-Za-z0-9_\-]+)\":\s*\{", text, flags=re.M))
+    blocks: list[tuple[str, str]] = []
+    for i, m in enumerate(anchors):
+        start = m.end()
+        end = anchors[i + 1].start() if i + 1 < len(anchors) else len(text)
+        blocks.append((m.group(1), text[start:end]))
+
+    from collections import Counter
+    life = Counter()
+    impl = Counter()
+    apply_set = 0
+    apply_none = 0
+    for _pid, body in blocks:
+        # lifecycle: "value"
+        m_life = re.search(r"\"lifecycle\":\s*\"([A-Za-z_]+)\"", body)
+        life[m_life.group(1) if m_life else "experimental"] += 1
+        m_impl = re.search(r"\"implementation_status\":\s*\"([A-Za-z_]+)\"", body)
+        if m_impl:
+            impl[m_impl.group(1)] += 1
+        m_am = re.search(r"\"apply_module\":\s*([^,\n]+)", body)
+        if m_am and m_am.group(1).strip() not in ("None", "None,"):
+            apply_set += 1
+        else:
+            apply_none += 1
+
+    stats = {"total": len(blocks), "apply_module_set": apply_set,
+             "apply_module_none": apply_none}
+    for k, v in life.items():
+        stats[f"lifecycle.{k}"] = v
+    for k, v in impl.items():
+        stats[f"impl.{k}"] = v
+    return stats
+
+
+# Patterns for the hand-maintained "Quick stats" table at the top of
+# docs/PATCHES.md (the one that ~2 weeks of registry growth stale-
+# drifted before catch). Each entry maps a regex (captures the
+# claimed integer in group 1) to a callable that, given `stats` from
+# `compute_registry_stats()`, returns the expected ground truth.
+_PATCHES_MD_STATS_PATTERNS: list[tuple[str, str]] = [
+    (r"\| Lifecycle=experimental \| (\d+) \|", "lifecycle.experimental"),
+    (r"\| Lifecycle=legacy \(pre-dispatcher\) \| (\d+) \|", "lifecycle.legacy"),
+    (r"\| Lifecycle=retired \| (\d+) \|", "lifecycle.retired"),
+    (r"\| Lifecycle=research \| (\d+) \|", "lifecycle.research"),
+    (r"\| Lifecycle=coordinator \| (\d+) ", "lifecycle.coordinator"),
+    (r"\| Implementation status=full \| (\d+) \|", "impl.full"),
+    (r"Apply-loop coverage \(apply_module set\) \| (\d+) / (\d+) ", "apply_module_set"),
+]
+
+
+def _check_patches_md_stats_table(stats: dict[str, int]) -> list[dict]:
+    """Verify the Quick-stats table in docs/PATCHES.md matches stats.
+
+    Reports each row that drifts (e.g. table claims `experimental=157`
+    but registry has 162). The Apply-loop coverage row has two
+    captures (numerator + denominator); both are checked.
+    """
+    path = REPO_ROOT / "docs" / "PATCHES.md"
+    if not path.is_file():
+        return [{"doc": str(path), "error": "file not found"}]
+    text = path.read_text()
+    rel = path.relative_to(REPO_ROOT).as_posix()
+    mismatches: list[dict] = []
+    for pattern, key in _PATCHES_MD_STATS_PATTERNS:
+        m = re.search(pattern, text)
+        if not m:
+            mismatches.append({
+                "doc": rel, "line": 0, "found": None,
+                "expected": stats.get(key, 0), "pattern": pattern,
+                "match_text": "(row not found — table structure changed?)",
+                "transition_pending": False,
+            })
+            continue
+        line_no = text[:m.start()].count("\n") + 1
+        # apply_module pattern captures (numerator, denominator)
+        if key == "apply_module_set":
+            num = int(m.group(1))
+            den = int(m.group(2))
+            if num != stats["apply_module_set"]:
+                mismatches.append({
+                    "doc": rel, "line": line_no, "found": num,
+                    "expected": stats["apply_module_set"],
+                    "pattern": pattern, "match_text": m.group(0)[:80],
+                    "transition_pending": False,
+                })
+            if den != stats["total"]:
+                mismatches.append({
+                    "doc": rel, "line": line_no, "found": den,
+                    "expected": stats["total"],
+                    "pattern": pattern + " [denominator]",
+                    "match_text": m.group(0)[:80],
+                    "transition_pending": False,
+                })
+            continue
+        found = int(m.group(1))
+        expected = stats.get(key, 0)
+        if found != expected:
+            mismatches.append({
+                "doc": rel, "line": line_no, "found": found,
+                "expected": expected, "pattern": pattern,
+                "match_text": m.group(0)[:80],
+                "transition_pending": False,
+            })
+    return mismatches
+
+
 def check_doc(doc_path: Path, expected_count: int, patterns: list[tuple[str, int]]) -> list[dict]:
     """Return list of mismatches in this doc.
 
@@ -179,6 +299,15 @@ def main() -> int:
     all_mismatches: list[dict] = []
     for doc_path, patterns in DOC_PATTERNS.items():
         all_mismatches.extend(check_doc(doc_path, expected, patterns))
+
+    # Phase 10.5 extension (2026-06-01): also validate the Quick-stats
+    # table in docs/PATCHES.md (lifecycle / impl_status / apply_module
+    # coverage rows) against per-field counts parsed from registry.
+    try:
+        stats = compute_registry_stats(REGISTRY_PATH)
+        all_mismatches.extend(_check_patches_md_stats_table(stats))
+    except Exception as e:
+        print(f"WARN: stats-table check skipped: {e}", file=sys.stderr)
 
     pending = [mm for mm in all_mismatches if mm.get("transition_pending")]
     errors = [
