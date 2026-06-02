@@ -106,6 +106,14 @@ _TARGETS: tuple[dict[str, str], ...] = (
         "needs": "",
         "summary": "Create a KVM VM with NVIDIA PCIe passthrough + cloud-init that installs Docker and runs the pinned stack.",
     },
+    {
+        "id": "sndr_daemon",
+        "label": "SNDR daemon (gui-api)",
+        "filename": "run-sndr-daemon.sh",
+        "kind": "bash",
+        "needs": "",
+        "summary": "Run the SNDR management daemon (Product API + GUI) on this server, bound to localhost. Reach it via SSH tunnel and switch the GUI's top connection to it for a native per-server view (its own patches / configs / patcher version).",
+    },
 )
 
 _TARGET_BY_ID = {t["id"]: t for t in _TARGETS}
@@ -535,6 +543,59 @@ def _commands_proxmox_vm(cfg):
     ]
 
 
+def _sndr_daemon_script(cfg, params) -> str:
+    """Launcher for the SNDR management daemon as a *sidecar container* built from
+    the running vLLM engine's image — that image already ships sndr_core + uvicorn,
+    whereas the bare host does not. A fresh container has no ``GENESIS_ENABLE_*``
+    env, so no patches apply: it is a clean, GPU-less management daemon serving the
+    server's own catalog/patches/configs (Path B). ``--network host`` + bind
+    127.0.0.1 keeps it on the loopback — reach it over an SSH tunnel."""
+    return (
+        "#!/usr/bin/env bash\n"
+        "# Run the SNDR management daemon as a sidecar container from the vLLM\n"
+        "# engine's image, RE-MOUNTING the same host sndr_core directory the engine\n"
+        "# uses (sndr_core is mounted in at runtime, not baked into the image). A\n"
+        "# fresh container has no GENESIS_ENABLE_* env, so no patches apply — a\n"
+        "# clean, GPU-less management daemon. --network host + bind LAN so the\n"
+        "# central GUI can switch straight to http://<this-host>:8765 (no tunnel).\n"
+        "set -euo pipefail\n"
+        'PORT="${SNDR_GUI_PORT:-8765}"\n'
+        'NAME="${SNDR_DAEMON_NAME:-sndr-daemon}"\n'
+        'BIND="${SNDR_BIND:-0.0.0.0}"\n'
+        "ENGINE=$(docker ps --filter name=vllm --format '{{.Names}}' | head -1)\n"
+        'if [ -z "$ENGINE" ]; then echo "no running vLLM container found"; exit 1; fi\n'
+        'IMAGE=$(docker inspect "$ENGINE" --format \'{{.Config.Image}}\')\n'
+        "# Replicate the host->container mount that puts sndr_core inside vllm.\n"
+        "MNT=$(docker inspect \"$ENGINE\" --format '{{range .Mounts}}{{.Source}}:{{.Destination}}{{println}}{{end}}' | grep '/vllm/sndr_core$' | head -1)\n"
+        'if [ -z "$MNT" ]; then echo "could not find the sndr_core mount on $ENGINE"; exit 1; fi\n'
+        'echo "[sndr] image=$IMAGE  mount=$MNT  bind=$BIND:$PORT"\n'
+        'docker rm -f "$NAME" >/dev/null 2>&1 || true\n'
+        "# Launch the Product API directly (not via the full `sndr` CLI) so the\n"
+        "# daemon needs only product_api/, immune to cli/ divergence between nodes.\n"
+        'docker run -d --name "$NAME" --restart unless-stopped --network host \\\n'
+        "  --entrypoint python3 \\\n"
+        '  -e SNDR_BIND="$BIND" -e SNDR_GUI_PORT="$PORT" -e SNDR_ENABLE_APPLY="${SNDR_ENABLE_APPLY:-}" \\\n'
+        '  -v "${MNT}:ro" \\\n'
+        '  "$IMAGE" \\\n'
+        "  -c \"import os; from vllm.sndr_core.product_api.http_app import run_server; "
+        "run_server(host=os.environ.get('SNDR_BIND','0.0.0.0'), port=int(os.environ.get('SNDR_GUI_PORT') or 8765), "
+        "enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY')))\"\n"
+        'echo "[sndr] container \'$NAME\' started — connect the GUI to http://<this-host>:$PORT"\n'
+    )
+
+
+def _commands_sndr_daemon(cfg):
+    # The script runs `docker run -d` (detached) so it returns immediately; then
+    # a health probe, dumping container logs if it isn't up yet.
+    return [
+        "chmod +x run-sndr-daemon.sh",
+        "./run-sndr-daemon.sh",
+        "sleep 4; curl -sf http://127.0.0.1:8765/api/v1/health >/dev/null 2>&1 "
+        "&& echo 'daemon healthy on 127.0.0.1:8765' "
+        "|| (echo 'not healthy yet — recent logs:'; docker logs --tail 25 sndr-daemon 2>&1 | tail -25)",
+    ]
+
+
 _RENDERERS = {
     "compose": (_artifact_compose, _commands_compose, True),
     "quadlet": (_artifact_quadlet, _commands_quadlet, True),
@@ -543,6 +604,7 @@ _RENDERERS = {
     "bare_metal": (None, _commands_bare_metal, False),
     "proxmox": (None, _commands_proxmox, False),
     "proxmox_vm": (None, _commands_proxmox_vm, False),
+    "sndr_daemon": (None, _commands_sndr_daemon, False),
 }
 
 
@@ -574,6 +636,8 @@ def build_deployment(
         content = _proxmox_script(cfg, params)
     elif target == "proxmox_vm":
         content = _proxmox_vm_script(cfg, params)
+    elif target == "sndr_daemon":
+        content = _sndr_daemon_script(cfg, params)
     elif target == "kubernetes":
         content = _artifact_kubernetes(cfg, resolved_paths, name_hint=preset_id)
     else:
