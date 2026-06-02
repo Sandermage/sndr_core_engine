@@ -157,6 +157,15 @@ audit-docs-stale: ## Supplement §3: forbid stale tokens (wiring/, _genesis, ret
 audit-source-refs-in-docs: ## docs/*.md `vllm/sndr_core/<path>.{py,yaml}` token resolution (Phase 10.5 E-extension)
 	@$(PYTHON) scripts/audit_source_refs_in_docs.py
 
+audit-docs-refs-in-source: ## Reverse direction: Python source `docs/<name>.md` token resolution (Phase 10.5 D-extension)
+	@$(PYTHON) scripts/audit_docs_refs_in_source.py
+
+audit-phase3-relocation: ## §0.5: gemma4 relocation invariants (R1/R2/R3/R4 — shim boundary, canonical apply path, config-keys catalog)
+	@$(PYTHON) scripts/audit_phase3_relocation.py
+
+audit-anchor-fragility: ## Phase 3.1: TextPatcher anchor LOC fragility ratchet (informational; warn at >=25 lines)
+	@$(PYTHON) scripts/audit_anchor_fragility.py
+
 audit-dirty-state-dev: ## §6.3 gate #6: dirty-state policy — dev tier (informational)
 	@$(PYTHON) scripts/check_dirty_state.py --tier dev
 
