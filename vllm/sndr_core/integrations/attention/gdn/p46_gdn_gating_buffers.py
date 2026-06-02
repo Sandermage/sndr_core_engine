@@ -43,10 +43,33 @@ from vllm.sndr_core.detection.guards import (
 from vllm.sndr_core.core import (
     TextPatch, TextPatcher, TextPatchResult,
 )
+# v11.1.0 P3.3: surface the GDN gating buffer pool through
+# PersistentBufferRegistry so operators can `sndr patches show
+# buffer_registry` and see this pool listed. Byte-equivalent — the
+# actual torch.empty() still happens inside
+# GdnGatingBufferManager.acquire_g / acquire_beta (process-wide pool,
+# allocate-once-keep-forever, pointer-stable for CUDA-graph capture).
+# The registry hook only exposes the pool name; tensor storage
+# ownership is unchanged.
+from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    PersistentBufferRegistry,
+    POOL_GDN_GATING,
+)
 
 log = logging.getLogger("genesis.wiring.p46_gdn_gating_buffers")
 
 GENESIS_P46_MARKER = "Genesis P46 GDN gating buffer pool v7.7"
+
+
+def ensure_pool_registered() -> None:
+    """Idempotent registry hook — exposes POOL_GDN_GATING in
+    PersistentBufferRegistry for operator visibility. No allocation,
+    no behavior change.
+
+    The real GDN gating tensors (g / beta_output) are owned by
+    vllm.sndr_core.kernels.gdn_gating_buffer.GdnGatingBufferManager.
+    """
+    PersistentBufferRegistry().get_pool(POOL_GDN_GATING)
 
 UPSTREAM_DRIFT_MARKERS = [
     "GdnGatingBufferManager",
@@ -153,6 +176,14 @@ def apply() -> tuple[str, str]:
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
+
+    # v11.1.0 P3.3: expose the pool name in the registry — no allocation,
+    # purely operator-visibility surface.
+    try:
+        ensure_pool_registered()
+    except Exception as e:
+        log.debug("[P46] registry pool registration failed (proceeding): %s", e)
+
     patcher = _make_patcher()
     if patcher is None:
         return "skipped", "gdn_linear_attn.py not found"
