@@ -28,7 +28,15 @@ Versioning:
 # `vllm/sndr_core/`; tests migrated to `tests/legacy/` (with import
 # rewrites) and `tests/unit/integrations/<family>/` for new-style canonical
 # layout. 2500 pytest pass / 0 fail / 79 skip on dev (CPU-only).
-SNDR_CORE_VERSION = "11.0.0"
+# v11.1.0 (2026-06-02): Phase 6 closeout — P3.1 pn118 v2 md5+full-file
+# PoC (workspace.py scope, companion to original pn118, default OFF),
+# P3.3 PersistentBufferRegistry (registration-only — allocator-level
+# routing deferred to v11.2.0+ pending bench validation; CUDA-graph
+# safety + storage-ownership integration on legacy allocators required
+# the conservative scope). Operator docs Phase 10 V1-sunset closeout
+# (CONFIGS V2-workflow + TROUBLESHOOTING R-002/R-009 V1-sunset-aware +
+# RELEASE_POLICY Wave 10 annotation). Registry: 236 → 237 entries.
+SNDR_CORE_VERSION = "11.1.0"
 
 # Back-compat alias. Tests + telemetry historically used `GENESIS_VERSION`.
 GENESIS_VERSION = SNDR_CORE_VERSION

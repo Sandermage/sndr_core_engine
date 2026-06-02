@@ -45,7 +45,13 @@ Release-type tags in the title give the shape of the release at a glance:
 
 ## Version index (newest first)
 
-### v11.0.0 series — SNDR Core (current)
+### v11.1.0 series — Phase 6 closeout (current)
+
+| Tag | Date | Type | Summary |
+|---|---|---|---|
+| `v11.1.0` | 2026-06-02 | release | Phase 6 P3.1 + P3.3 closeout + operator docs Phase 10 V1 sunset refresh + 237 registry entries |
+
+### v11.0.0 series — SNDR Core
 
 | Tag | Date | Type | Summary |
 |---|---|---|---|
@@ -77,6 +83,62 @@ Release-type tags in the title give the shape of the release at a glance:
 The current PROD canonical baseline is `v11.0.0+wave9_release_blockers_closed`
 on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 `PATCH_REGISTRY`, 32 default-ON, `make evidence` 40 / 40 green.
+
+---
+
+## [v11.1.0] — Phase 6 closeout (2026-06-02)
+
+### Highlights
+
+- **Phase 6 P3.1 closed** via `PN118_V2_MD5_WORKSPACE` PoC — single-file md5+full-file PoC of the PN119 reference pattern, scoped to `vllm/v1/worker/workspace.py` (one of pn118's two target files). Companion to original `PN118` (does NOT conflict — they compose: v2 covers workspace.py via md5 guard + full-file replacement; original pn118 retains coverage of `turboquant_attn.py` via anchors, detecting v2's Genesis marker on workspace.py and skipping re-anchoring there). Default OFF — opt-in via `GENESIS_ENABLE_PN118_V2_MD5_WORKSPACE=1`. Validates the single-file md5 pattern; pn118's second target + pn79's multi-file conversion deferred to v11.2.0+.
+
+- **Phase 6 P3.3 partial closure** via `PersistentBufferRegistry` — unified `BufferPool` + singleton `PersistentBufferRegistry` API + 4 patches registered (P36/PN12/P46/P39a). **Scope adapted from plan**: existing allocators (TurboQuantBufferManager, FFNIntermediateCache, GdnGatingBufferManager, FlaKktBufferManager) integrate with `GenesisPreallocBuffer` for CUDA-graph pointer stability and reserve-before-cudagraph semantics; replacing those with `BufferPool.acquire()` direct calls would NOT be byte-equivalent. The migration adds the **registration surface only** — each migrated module imports the registry + pool constant and calls `ensure_pool_registered()` in `apply()` for operator visibility (`sndr patches show buffer_registry` future CLI surface). Tensor storage ownership + allocation semantics + `torch.empty()` calls + per-layer attributes all UNCHANGED. The master plan's "−200 LOC unified allocator" benefit is deferred to v11.2.0+ pending bench validation on the rig.
+
+- **Phase 6 P3.7 fully materialized in git** (Batches 1-8 this release cycle): CLI thin-shell + Product API (~10K LOC + 391 tests + auth subsystem) + GUI React SPA (9 screens) + Tauri scaffold + 4 operator docs. Pre-release operator WIP for container management feature also snapshotted on this branch as `53e716f6`/`80fbff61`/`b9721664`/`c6099e11`.
+
+- **Operator docs Phase 10 V1-sunset closeout** (Track A):
+  - `docs/CONFIGS.md` "Step 2: Adapt a launch script" replaced with V2-preset workflow (16 prod + 7 non-prod presets via `sndr preset list/show/explain/recommend` + `sndr launch <preset>`); `cp scripts/start_*` recipe replaced with V2 layered triplet (`sndr config new model + edit + compose preset + launch`).
+  - `docs/TROUBLESHOOTING.md` R-002/R-007 smoke commands updated from V1 key `a5000-2x-35b-prod` to V2 alias `prod-qwen3.6-35b-balanced`. New subsection "Restoring a V1 baseline from history (emergency rollback)" documents the `git checkout 607385f1~ -- <V1.yaml>` recovery path.
+  - `docs/RELEASE_POLICY.md` lines 137-150 annotated as Wave 10-era snapshot (registry count = 169, bench-with-baseline = 81); re-derivation requires running `sndr patches release-check --mode require-bench-attached` against all 16 `prod-*` presets on the rig — deferred until next bench window.
+
+- **14 new evidence gates** wired this release cycle (`make evidence`: 46 → 60 → 60+ green). New gating gates: `audit-source-refs-in-docs`, `audit-docs-refs-in-source`, `audit-phase3-relocation`, `audit-pn59-cliff2b`, `audit-lifecycle-docstring-sync`, `audit-v2-runtime-pins`, `audit-v2-modeldef-vs-hardware-pin`, `audit-private-namespace`, `audit-shim-window`, `audit-wheel-contents`, `audit-yaml-status-enum`, `audit-override-policy`. Informational: `audit-anchor-fragility`, `audit-v1-sunset`, `audit-english-only`.
+
+- **Registry growth**: 236 → 237 entries (PN118_V2_MD5_WORKSPACE added). 10 docs updated to reflect new count (README + 9 docs/).
+
+### SNDR_MTP_DYNAMIC_K_001 first empirical bench (vllm#26504 port)
+
+- Tested on `prod-qwen3.6-35b-multiconc`, 2× A5000 TP=2, n=25 per arm
+- `wall_TPS`: 211.84 (OFF) vs 208.62 (ON) — Δ -1.52% within 11% CV
+- Welch t = -0.118, p = 0.9063 — **NOT_SIGNIFICANT**
+- Default OFF empirically validated for this preset
+- Plan §15.1 "+5-12% mixed workload" does NOT materialize on this workload
+- Follow-up candidates (v11.2.0+ bench window): threshold sweep (default 0.7 → 0.5/0.8), multi-turn agentic workload, 27B Lorbus INT4 comparison
+
+### Master plan status (post-release)
+
+- Phases 0-3: closed pre-this-release
+- Phase 4: closed per M.1.R amendment 2026-05-27
+- Phase 5: 4/5 PRs in pin; vllm#26504 default-OFF validated; tl.dot audit + p101 verified as non-actionable
+- Phase 6 P3.5/P3.6/P3.7: DONE in main
+- Phase 6 P3.1 (pn118 v2 workspace PoC): CLOSED for the workspace.py scope; pn118 turboquant_attn.py + pn79 multi-file deferred to v11.2.0+
+- Phase 6 P3.3 (buffer registry): REGISTRATION SURFACE landed; allocator-level routing deferred to v11.2.0+
+- All actionable master plan items either closed or deferred with explicit reasons
+
+### Out of scope (deferred to v11.2.0+)
+
+- `K_001` threshold sweep (need rig bench window)
+- `K_001` multi-turn agentic workload bench (need rig bench window)
+- `K_001` 27B comparison (need rig bench window)
+- `pn118` turboquant_attn.py md5 conversion (workspace.py PoC validates pattern first)
+- `pn79` multi-file md5 conversion (35 anchors across 3 files; PN119/PN118_V2_MD5_WORKSPACE single-file pattern validated; multi-file pattern requires separate design work)
+- `PersistentBufferRegistry` allocator-level routing — replace `TurboQuantBufferManager` / `FFNIntermediateCache` / `GdnGatingBufferManager` / `FlaKktBufferManager` internals with `BufferPool.acquire()` (CUDA-graph safety + storage-ownership integration requires bench validation)
+- `RELEASE_POLICY.md:157-` percentage re-derivation (needs rig bench attachment workflow)
+- Tauri desktop builds (needs Rust toolchain decision; scaffold landed `b608b6f4`)
+- Public `origin` (github.com/Sandermage/genesis-vllm-patches) push + PyPI/Docker Hub publish (separate Iron Rule #2 decision)
+
+### Branch state
+
+This release ships on `feat/container-management` (operator's working branch). The branch also carries the container-management feature spec (`4b371972`) + WIP implementation snapshots (`53e716f6`, `80fbff61`, `b9721664`, `c6099e11`). Container management feature is orthogonal to v11.1.0 enterprise hardening; both land together because the operator was working on container management while the enterprise hardening work landed on the same branch. The `v11.1.0` tag points at the final enterprise-hardening commit.
 
 ---
 
