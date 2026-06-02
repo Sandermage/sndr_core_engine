@@ -449,6 +449,62 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": ["PN59", "PN54"],
         "implementation_status": "full",
     },
+    "PN79_V2_MD5_CHUNK": {
+        "title": "PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk.py scope)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN79_V2_MD5_CHUNK",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis PoC of the PN119 md5+full-file pattern applied to "
+            "pn79's chunk.py target — sibling 1 of pn79's multi-file "
+            "conversion. pn79 originally targets 4 files (chunk.py, "
+            "chunk_delta_h.py, gdn_linear_attn.py, olmo_hybrid.py); the "
+            "last 2 have drifted out of upstream entirely (gdn split into "
+            "model-specific files under gdn/{kimi,olmo,qwen}_gdn_linear_"
+            "attn.py; olmo_hybrid.py removed). Drift finding during scout "
+            "(2026-06-03): pn79 silently applies only 3 of its 7 chunk.py "
+            "anchors on current pin (4 ANCHOR_1B/1D/1E_SIG/1E_APPLY_CALL "
+            "do not match upstream). md5+full-file pattern documents "
+            "this drift transparently and prevents the silent partial "
+            "apply. Composes with PN79 (Genesis marker prevents "
+            "re-anchoring on chunk.py post-v2). Default OFF — operator "
+            "opt-in for PoC validation."
+        ),
+        "upstream_pr": 41824,
+        "upstream_pr_relationship": "alternative_pattern",
+        "applies_to": {"model_class": ["qwen3_5", "qwen3_6", "qwen3_next"]},
+        "implementation_status": "full",
+        "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
+    "PN79_V2_MD5_CHUNK_DELTA_H": {
+        "title": "PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk_delta_h.py scope)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis PoC sibling 2 — chunk_delta_h.py scope. 3/4 pn79 "
+            "anchors apply cleanly on current pin (ANCHOR_2B_KERNEL_SIG "
+            "drifted). md5+full-file pattern catches this. Composes with "
+            "PN79 + PN79_V2_MD5_CHUNK. Default OFF."
+        ),
+        "upstream_pr": 41824,
+        "upstream_pr_relationship": "alternative_pattern",
+        "applies_to": {"model_class": ["qwen3_5", "qwen3_6", "qwen3_next"]},
+        "implementation_status": "full",
+        "apply_module": "vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk_delta_h",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "PN78": {
         "title": "[RETIRED] One-shot empty_cache() after CG warmup",
         "tier": "community",

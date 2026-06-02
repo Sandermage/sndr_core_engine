@@ -121,6 +121,19 @@ class Flags:
     P60_GDN_NGRAM_FIX = "P60_GDN_NGRAM_FIX"
     P60B_TRITON_KERNEL = "P60B_TRITON_KERNEL"
     PN79_INPLACE_SSM_STATE = "PN79_INPLACE_SSM_STATE"
+    # PN79 v2 — md5+full-file PoC, chunk.py scope (sibling 1 of pn79's
+    # multi-file conversion). pn79 originally targets 4 files: chunk.py,
+    # chunk_delta_h.py, gdn_linear_attn.py, olmo_hybrid.py. The latter 2
+    # have drifted out of upstream entirely (gdn split into model-specific
+    # files under gdn/, olmo_hybrid removed). This v2 sibling covers
+    # chunk.py — 3/7 pn79 anchors apply cleanly on current pin, 4 drifted.
+    # md5 pattern documents the drift transparently. Default OFF.
+    # v11.2.0 Phase 6 P3.1 continuation.
+    PN79_V2_MD5_CHUNK = "PN79_V2_MD5_CHUNK"
+    # PN79 v2 — md5+full-file PoC, chunk_delta_h.py scope (sibling 2).
+    # 3/4 pn79 anchors apply cleanly on current pin, 1 drifted.
+    # Default OFF. v11.2.0 Phase 6 P3.1 continuation.
+    PN79_V2_MD5_CHUNK_DELTA_H = "PN79_V2_MD5_CHUNK_DELTA_H"
 
     # attention.turboquant family (community subset; tier=engine elsewhere)
     P38B_COMPILE_SAFE = "P38B_COMPILE_SAFE"

@@ -1158,6 +1158,49 @@ def apply_patch_n118_v2_md5_turboquant_attn() -> PatchResult:
 
 
 @register_patch(
+    "PN79_V2_MD5_CHUNK md5+full-file PoC (PN119 ref pattern, chunk.py scope)"
+)
+def apply_patch_n79_v2_md5_chunk() -> PatchResult:
+    """PN79 v2 PoC sibling 1 — md5 guard + full-file replacement of
+    model_executor/layers/fla/ops/chunk.py.
+
+    Sibling of PN79_V2_MD5_CHUNK_DELTA_H. Together the two v2 patches
+    cover pn79's remaining-in-upstream targets (the two FLA ops files)
+    via md5+full-file replacements. pn79's original model-side targets
+    (gdn_linear_attn.py, olmo_hybrid.py) have drifted out of upstream
+    entirely (file split / file removed). Drift finding on current pin:
+    3/7 pn79 chunk.py anchors apply cleanly, 4 drifted.
+
+    Default OFF; opt-in via GENESIS_ENABLE_PN79_V2_MD5_CHUNK=1.
+    Composes with PN79 (Genesis marker prevents re-anchoring).
+    """
+    return _wiring_text_patch(
+        "PN79_V2_MD5_CHUNK md5+full-file PoC (PN119 ref pattern, chunk.py scope)",
+        "pn79_v2_md5_chunk",
+    )
+
+
+@register_patch(
+    "PN79_V2_MD5_CHUNK_DELTA_H md5+full-file PoC (PN119 ref pattern, chunk_delta_h.py scope)"
+)
+def apply_patch_n79_v2_md5_chunk_delta_h() -> PatchResult:
+    """PN79 v2 PoC sibling 2 — md5 guard + full-file replacement of
+    model_executor/layers/fla/ops/chunk_delta_h.py.
+
+    Sibling of PN79_V2_MD5_CHUNK. Drift finding on current pin: 3/4
+    pn79 chunk_delta_h.py anchors apply cleanly; ANCHOR_2B_KERNEL_SIG
+    drifted.
+
+    Default OFF; opt-in via GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H=1.
+    Composes with PN79 + PN79_V2_MD5_CHUNK.
+    """
+    return _wiring_text_patch(
+        "PN79_V2_MD5_CHUNK_DELTA_H md5+full-file PoC (PN119 ref pattern, chunk_delta_h.py scope)",
+        "pn79_v2_md5_chunk_delta_h",
+    )
+
+
+@register_patch(
     "PN119 TurboQuant k8v4 GQA head grouping kernel (backport: vllm#40792)"
 )
 def apply_patch_n119_tq_gqa_grouping() -> PatchResult:
