@@ -45,7 +45,13 @@ Release-type tags in the title give the shape of the release at a glance:
 
 ## Version index (newest first)
 
-### v11.1.0 series — Phase 6 closeout (current)
+### v11.2.0 series — Phase 6 P3.1 multi-file md5 PoC complete (current)
+
+| Tag | Date | Type | Summary |
+|---|---|---|---|
+| `v11.2.0` | 2026-06-03 | release | P3.1 multi-file md5 conversion via sibling PoC pattern: PN118 turboquant_attn.py + PN79 chunk.py + chunk_delta_h.py; 240 registry entries; documents anchor drift on production pin |
+
+### v11.1.0 series — Phase 6 closeout
 
 | Tag | Date | Type | Summary |
 |---|---|---|---|
@@ -83,6 +89,47 @@ Release-type tags in the title give the shape of the release at a glance:
 The current PROD canonical baseline is `v11.0.0+wave9_release_blockers_closed`
 on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 `PATCH_REGISTRY`, 32 default-ON, `make evidence` 40 / 40 green.
+
+---
+
+## [v11.2.0] — Phase 6 P3.1 multi-file md5 PoC complete (2026-06-03)
+
+### Highlights
+
+- **Phase 6 P3.1 multi-file md5 conversion CLOSED** via sibling-PoC pattern. Three new v2 patches landed completing pn118 + most of pn79's md5+full-file conversion:
+  - `PN118_V2_MD5_TURBOQUANT_ATTN` — companion to `PN118_V2_MD5_WORKSPACE` (v11.1.0); together the two v2 siblings cover both files in pn118's scope. Documents critical drift: pn118's `TQ_ANCHOR_INIT_OLD` anchor does NOT match upstream `turboquant_attn.py` at our PROD pin — pn118 silently no-ops on that anchor. The md5+full-file pattern detects ANY drift, eliminating silent partial-apply.
+  - `PN79_V2_MD5_CHUNK` — md5+full-file PoC for `model_executor/layers/fla/ops/chunk.py`. Empirically: only 3/7 of pn79's chunk.py anchors match current upstream (4 drifted — silent no-op coverage on production).
+  - `PN79_V2_MD5_CHUNK_DELTA_H` — md5+full-file PoC for `model_executor/layers/fla/ops/chunk_delta_h.py`. 3/4 anchors match; 1 drifted.
+
+- **Sibling-PoC pattern validated**. The v11.1.0 plan considered a "MultiFileMd5Patch" abstraction. Found unnecessary: N single-file md5 patches compose via Genesis markers (each sibling has unique marker, idempotent independently, composable with anchors-based original on un-converted files). Pattern works across multi-file conversions without new abstractions.
+
+- **pn79 partial conversion only — 2/4 files** (the other 2 are upstream-drifted out of existence at our pin):
+  - `gdn_linear_attn.py` — REMOVED from upstream; SPLIT into model-specific files under `model_executor/models/fla/{kimi,olmo,qwen}_gdn_linear_attn.py`. pn79's anchors for this file are dead.
+  - `olmo_hybrid.py` — REMOVED from upstream (functionality refactored into model-specific paths).
+  - Net: pn79's original 4-file × ~5-anchor coverage is reduced to chunk.py (3/7 working) + chunk_delta_h.py (3/4 working) on the current pin. v2 md5 patches make this transparent; original anchors silently partial-apply.
+
+- **Strongest empirical case for md5+full-file pattern**. Combined drift across pn118 + pn79 (5+ broken anchors + 2 deleted files) shows anchors silently rot on every pin bump. The md5 pattern fails loudly when upstream changes — operators see "md5 mismatch — patch skipped" rather than getting unverified partial-application semantics.
+
+- **Registry growth**: 237 → 240 entries (3 new v2 patches). All default OFF; opt-in via `GENESIS_ENABLE_PN118_V2_MD5_TURBOQUANT_ATTN=1` / `GENESIS_ENABLE_PN79_V2_MD5_CHUNK=1` / `GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H=1` for A/B validation on the rig.
+
+- **Triplet synced** (local + rig + sndr-dev/dev) at tag time. 60/60 evidence gates green on both local and rig post-merge. 10 unit tests pass (5 per pn79 v2 + 5 per pn118 v2 turboquant).
+
+### Master plan status (post-release)
+
+- Phase 6 P3.1 (anchor → md5+full-file): **fully closed** across pn118 + maximally closed across pn79 given upstream file deletions. Single-file md5 pattern + sibling composition validated as the canonical approach for multi-file conversions.
+- All other Phase status unchanged from v11.1.0.
+
+### Out of scope (deferred)
+
+- `K_001` threshold sweep + multi-turn agentic + 27B comparison — still need rig bench window
+- `PersistentBufferRegistry` allocator-level routing — still deferred pending bench validation
+- `RELEASE_POLICY.md` percentage re-derivation — still needs rig bench attachment workflow
+- Tauri desktop builds — still needs Rust toolchain decision
+- Public origin push — still a separate Iron Rule #2 decision
+
+### Branch state
+
+Ships on `feat/container-management` (same branch as v11.1.0 — operator's working branch). v11.2.0 tag points at the final P3.1 closeout commit.
 
 ---
 

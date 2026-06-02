@@ -36,7 +36,17 @@ Versioning:
 # the conservative scope). Operator docs Phase 10 V1-sunset closeout
 # (CONFIGS V2-workflow + TROUBLESHOOTING R-002/R-009 V1-sunset-aware +
 # RELEASE_POLICY Wave 10 annotation). Registry: 236 → 237 entries.
-SNDR_CORE_VERSION = "11.1.0"
+# v11.2.0 (2026-06-03): P3.1 multi-file md5 conversion fully closed via
+# sibling-PoC pattern. 3 more v2 patches landed (PN118_V2_MD5_TURBOQUANT_
+# ATTN + PN79_V2_MD5_CHUNK + PN79_V2_MD5_CHUNK_DELTA_H). pn118 multi-file
+# converted (2 sibling patches for 2 files); pn79 partial conversion
+# (2/4 files — gdn_linear_attn.py + olmo_hybrid.py are upstream-drifted
+# out of existence, gdn split into model-specific files under gdn/).
+# Strong empirical case for md5+full-file pattern: pn79 silently partial-
+# applies on current pin (only 3/7 chunk.py anchors + 3/4 chunk_delta_h.py
+# anchors match upstream). md5 pattern documents this drift transparently.
+# Registry: 237 → 240 entries. All default OFF; opt-in for A/B validation.
+SNDR_CORE_VERSION = "11.2.0"
 
 # Back-compat alias. Tests + telemetry historically used `GENESIS_VERSION`.
 GENESIS_VERSION = SNDR_CORE_VERSION
