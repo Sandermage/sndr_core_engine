@@ -79,10 +79,34 @@ from vllm.sndr_core.detection.guards import resolve_vllm_file, vllm_install_root
 from vllm.sndr_core.core import (
     TextPatch, TextPatcher, TextPatchResult,
 )
+# v11.1.0 P3.3: surface the TQ shared decode pool through
+# PersistentBufferRegistry so operators can `sndr patches show
+# buffer_registry` and see this pool listed. Byte-equivalent — the
+# actual torch.empty() still happens inside
+# GenesisPreallocBuffer.get_or_create (allocate-once-keep-forever,
+# pointer-stable, CUDA-graph safe). The registry hook only exposes
+# the pool name; tensor storage ownership is unchanged.
+from vllm.sndr_core.runtime.persistent_buffer_registry import (
+    PersistentBufferRegistry,
+    POOL_TQ_DECODE_SHARED,
+)
 
 log = logging.getLogger("genesis.wiring.p36_tq_shared_decode_buffers")
 
 GENESIS_P36_MARKER = "Genesis P36 TQ shared decode buffers v7.0"
+
+
+def ensure_pool_registered() -> None:
+    """Idempotent registry hook — exposes POOL_TQ_DECODE_SHARED in
+    PersistentBufferRegistry for operator visibility. No allocation,
+    no behavior change. Safe to call before / during / after the
+    text patch is applied.
+
+    The real TQ shared decode buffers are owned by
+    vllm.sndr_core.kernels.dequant_buffer.TurboQuantBufferManager via
+    GenesisPreallocBuffer.get_or_create — that path is untouched.
+    """
+    PersistentBufferRegistry().get_pool(POOL_TQ_DECODE_SHARED)
 
 UPSTREAM_DRIFT_MARKERS = [
     # PR #40655 signatures
@@ -212,6 +236,13 @@ def apply() -> tuple[str, str]:
 
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
+
+    # v11.1.0 P3.3: expose the pool name in the registry — no allocation,
+    # purely operator-visibility surface.
+    try:
+        ensure_pool_registered()
+    except Exception as e:
+        log.debug("[P36] registry pool registration failed (proceeding): %s", e)
 
     patcher = _make_patcher()
     if patcher is None:
