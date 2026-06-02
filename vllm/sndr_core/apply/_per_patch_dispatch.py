@@ -1115,6 +1115,28 @@ def apply_patch_n118_tq_workspace_fallback() -> PatchResult:
 
 
 @register_patch(
+    "PN118_V2_MD5_WORKSPACE md5+full-file PoC (PN119 ref pattern, workspace.py scope)"
+)
+def apply_patch_n118_v2_md5_workspace() -> PatchResult:
+    """PN118 v2 PoC — md5 guard + full-file replacement of workspace.py.
+
+    Validates the PN119 single-file md5 + full-file replacement pattern
+    against pn118's workspace.py target (scope correction from spec:
+    pn118 patches 2 files, this v2 covers only v1/worker/workspace.py).
+
+    Default OFF; opt-in via GENESIS_ENABLE_PN118_V2_MD5_WORKSPACE=1.
+    Composes with the original PN118 (not a replacement) — PN118
+    self-detects v2's Genesis marker on workspace.py and skips its 2
+    anchors there, but still applies its other 2 anchors on
+    v1/attention/backends/turboquant_attn.py.
+    """
+    return _wiring_text_patch(
+        "PN118_V2_MD5_WORKSPACE md5+full-file PoC (PN119 ref pattern, workspace.py scope)",
+        "pn118_v2_md5_workspace",
+    )
+
+
+@register_patch(
     "PN119 TurboQuant k8v4 GQA head grouping kernel (backport: vllm#40792)"
 )
 def apply_patch_n119_tq_gqa_grouping() -> PatchResult:

@@ -4257,6 +4257,45 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "requires_patches": [],
     },
+    "PN118_V2_MD5_WORKSPACE": {
+        "title": "PN118 v2 — md5+full-file PoC (PN119 reference pattern, workspace.py scope only)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_PN118_V2_MD5_WORKSPACE",
+        "default_on": False,
+        "category": "perf_hotfix",
+        "credit": (
+            "Genesis PoC of the PN119 single-file md5 + full-file "
+            "replacement pattern, applied to pn118's TurboQuant "
+            "workspace.py target. Master plan Phase 6 P3.1 closeout. "
+            "SCOPE CORRECTION from v11.1.0 spec: spec assumed pn118 "
+            "patches a single file at v1/attention/ops/workspace.py — "
+            "reality is pn118 patches TWO files (v1/worker/workspace.py "
+            "AND v1/attention/backends/turboquant_attn.py, 4 anchors "
+            "total). This v2 PoC is scoped to workspace.py only; the "
+            "original PN118 retains full coverage of turboquant_attn.py "
+            "via its anchors. PN118 self-detects v2's Genesis marker on "
+            "workspace.py and skips re-anchoring there, so the two "
+            "compose (not conflict) — both can be enabled simultaneously "
+            "without overlap. Default OFF so operators opt-in to A/B "
+            "test the md5 pattern against the anchor-based original. If "
+            "the PoC ships clean, future work converts pn79 (35 anchors "
+            "across 3 files) to a multi-file md5 pattern — that's "
+            "separate v11.2.0+ refactor because multi-file md5 pattern "
+            "is not yet validated."
+        ),
+        "upstream_pr": 42551,
+        "upstream_pr_relationship": "alternative_pattern",
+        "applies_to": {
+            "is_turboquant": True,  # same target file as PN118 (workspace.py)
+        },
+        "implementation_status": "full",
+        "apply_module": "vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_workspace",
+        "source": "vllm_pr_backport",
+        "lifecycle": "experimental",
+        "conflicts_with": [],
+        "requires_patches": [],
+    },
     "PN119": {
         "title": "TurboQuant k8v4 GQA head grouping kernel (vllm#40792)",
         "tier": "community",
