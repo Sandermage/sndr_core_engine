@@ -446,12 +446,25 @@ function useLiveStats(source: ContainerSource, name: string, online: boolean, pe
 
 function SourceCard({ source, name, onNavigate }: { source: ContainerSource; name: string; onNavigate?: NavFn }) {
   const [rep, setRep] = useState<SourceReport | null>(null);
+  const [engine, setEngine] = useState<{ reachable: boolean; port: number | null } | null>(null);
   useEffect(() => { api.containerSource(source, name).then(setRep).catch(() => setRep(null)); }, [source, name]);
+  // Engine readiness — is the vLLM API inside actually serving (not just the
+  // container running)? The live half of the proof, alongside config drift.
+  useEffect(() => {
+    let alive = true;
+    api.containerEngine(source, name).then((e) => { if (alive) setEngine(e); }).catch(() => { if (alive) setEngine(null); });
+    return () => { alive = false; };
+  }, [source, name]);
   if (!rep) return null;
   return (
     <section className="src-card">
       <div className="src-head">
         <Database size={14} />
+        {engine && (
+          engine.reachable
+            ? <span className="src-engine ok" title={`engine /health on :${engine.port}`}><span className="live-dot on" /> engine serving{engine.port ? ` :${engine.port}` : ""}</span>
+            : <span className="src-engine bad" title="container is up but the engine isn't answering /health"><AlertTriangle size={11} /> engine not responding</span>
+        )}
         {rep.preset_id ? (
           <>
             <span className="src-label">Source config</span>

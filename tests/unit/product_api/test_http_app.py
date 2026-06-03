@@ -793,6 +793,9 @@ class _FakeControl:
     def list_networks(self):
         return [{"name": "bridge", "driver": "bridge", "scope": "local"}]
 
+    def engine_health(self, name):
+        return {"reachable": True, "port": 8101, "status_code": 200}
+
     def logs(self, name, *, tail=200):
         return f"log of {name} (tail={tail})"
 
@@ -923,6 +926,13 @@ def test_alerts_config_get_and_gated_set():
     # set is gated by apply (stores a token / changes behavior)
     assert c.post("/api/v1/alerts/config", json={"enabled": True, "chat_id": "1"}).status_code == 403
     assert c.post("/api/v1/alerts/test", json={}).status_code == 403
+
+
+def test_container_engine_health(monkeypatch):
+    _patch_local(monkeypatch, _FakeControl())
+    r = _client().get("/api/v1/containers/vllm-35b-prod/engine")
+    assert r.status_code == 200
+    assert r.json() == {"reachable": True, "port": 8101, "status_code": 200}
 
 
 def test_container_source_report(monkeypatch):

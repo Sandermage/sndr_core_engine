@@ -3992,3 +3992,8 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 /* live field validation badge */
 .element-field-warn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--danger); }
 .element-field-hinted.invalid input, .element-field-hinted.invalid select { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent); }
+
+/* engine readiness badge in the source card */
+.src-engine { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 9px; border-radius: 999px; }
+.src-engine.ok { background: rgba(21,128,61,0.14); color: var(--ok); }
+.src-engine.bad { background: rgba(190,18,60,0.14); color: var(--danger); }

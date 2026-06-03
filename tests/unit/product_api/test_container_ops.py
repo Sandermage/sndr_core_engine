@@ -294,6 +294,31 @@ def test_socket_update_settings_posts_body():
     assert captured["body"]["RestartPolicy"] == {"Name": "unless-stopped"}
 
 
+def test_engine_port_extraction():
+    insp = {"NetworkSettings": {"Ports": {"9000/udp": [{"HostPort": "9000"}], "8101/tcp": [{"HostPort": "8101"}]}}}
+    assert co._engine_port(insp) == 8101
+    insp2 = {"HostConfig": {"PortBindings": {"8102/tcp": [{"HostPort": "18102"}]}}}
+    assert co._engine_port(insp2) == 18102
+    assert co._engine_port({}) is None
+
+
+def test_ssh_engine_health_probes_published_port():
+    inspect = json.dumps([{"NetworkSettings": {"Ports": {"8101/tcp": [{"HostPort": "8101"}]}}}])
+    ctrl, runner = _ssh({"inspect": (0, inspect, ""), "-sf": (0, "200", "")})
+    h = ctrl.engine_health("vllm-35b-prod")
+    assert h["reachable"] is True and h["port"] == 8101 and h["status_code"] == 200
+    # the probe curls the host-local engine port
+    assert any("http://127.0.0.1:8101/health" in c for c in runner.calls[-1])
+    with pytest.raises(co.NotManagedError):
+        ctrl.engine_health("postgres")
+
+
+def test_ssh_engine_health_no_port():
+    ctrl, _ = _ssh({"inspect": (0, json.dumps([{"NetworkSettings": {"Ports": {}}}]), "")})
+    h = ctrl.engine_health("vllm-35b-prod")
+    assert h["reachable"] is False and h["port"] is None
+
+
 def test_ssh_system_df_normalizes():
     rows = "\n".join(json.dumps(r) for r in [
         {"Type": "Images", "TotalCount": "5", "Active": "3", "Size": "2.5GB", "Reclaimable": "1GB (40%)"},

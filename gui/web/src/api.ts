@@ -1298,6 +1298,8 @@ export const api = {
     request<ImageScan>(`${containerBase(src)}/${encodeURIComponent(name)}/scan`),
   containerSource: (src: ContainerSource, name: string) =>
     request<SourceReport>(`${containerBase(src)}/${encodeURIComponent(name)}/source`),
+  containerEngine: (src: ContainerSource, name: string) =>
+    request<{ reachable: boolean; port: number | null; status_code: number | null; reason?: string }>(`${containerBase(src)}/${encodeURIComponent(name)}/engine`),
   systemDf: (src: ContainerSource) =>
     request<SystemDf>(src.kind === "host" ? `/api/v1/hosts/${encodeURIComponent(src.hostId)}/system/df` : "/api/v1/system/df"),
   containerSettings: (src: ContainerSource, name: string, s: ContainerSettings) =>

@@ -49,6 +49,23 @@ def _validate_net(network: str) -> None:
         raise ValueError(f"invalid network name: {network!r}")
 
 
+def _engine_port(inspect: dict[str, Any]) -> Optional[int]:
+    """First published host TCP port from a container inspect — the engine's
+    externally reachable port. Checks NetworkSettings.Ports then PortBindings."""
+    sources = [
+        (inspect.get("NetworkSettings", {}) or {}).get("Ports", {}) or {},
+        (inspect.get("HostConfig", {}) or {}).get("PortBindings", {}) or {},
+    ]
+    for ports in sources:
+        for key, binds in ports.items():
+            if str(key).endswith("/tcp") and binds:
+                try:
+                    return int(binds[0].get("HostPort"))
+                except (ValueError, TypeError, AttributeError):
+                    continue
+    return None
+
+
 # ─── env helpers ───────────────────────────────────────────────────────
 
 
@@ -376,6 +393,16 @@ class ContainerControl(ABC):
         self._ensure(name)
         return self._raw_stream_logs(name, tail=tail)
 
+    def engine_health(self, name: str) -> dict[str, Any]:
+        """Is the vLLM engine INSIDE this container actually serving? Probes its
+        published port's /health — distinguishes 'container running' from 'engine
+        crashed/loading' (the real readiness signal)."""
+        self._ensure(name)
+        port = _engine_port(self._raw_inspect(name))
+        if not port:
+            return {"reachable": False, "port": None, "reason": "no published TCP port"}
+        return self._raw_engine_probe(port)
+
     def list_stats(self) -> dict[str, dict[str, Any]]:
         """Live stats for ALL managed containers in one shot — name → summary.
 
@@ -464,6 +491,8 @@ class ContainerControl(ABC):
     def _raw_stream_logs(self, name: str, *, tail: int): ...
     @abstractmethod
     def _raw_list_stats(self) -> dict[str, dict[str, Any]]: ...
+    @abstractmethod
+    def _raw_engine_probe(self, port: int) -> dict[str, Any]: ...
     @abstractmethod
     def _raw_update_settings(self, name: str, *, cpus, memory, restart_policy) -> dict[str, Any]: ...
     @abstractmethod
@@ -650,6 +679,13 @@ class SshContainerControl(ContainerControl):
         # Normalize the CLI shape (CPUPerc/MemUsage strings) to the SAME compact
         # summary the socket backend returns, so the frontend has one contract.
         return _summarize_cli_stats(raw)
+
+    def _raw_engine_probe(self, port: int) -> dict[str, Any]:
+        # Probe the engine on the HOST (where the container publishes its port).
+        rc, out, _ = self._run(["curl", "-sf", "-m", "3", "-o", "/dev/null",
+                                "-w", "%{http_code}", f"http://127.0.0.1:{port}/health"])
+        code = int(out.strip()) if out.strip().isdigit() else None
+        return {"reachable": rc == 0 and code == 200, "port": port, "status_code": code}
 
     def _raw_list_stats(self) -> dict[str, dict[str, Any]]:
         rc, out, err = self._docker("stats", "--no-stream", "--format", "{{json .}}")
@@ -922,6 +958,19 @@ class SocketContainerControl(ContainerControl):
         if status != 200 or not isinstance(data, dict):
             raise ContainerOpError(f"docker API stats returned {status}")
         return _summarize_stats(data)
+
+    def _raw_engine_probe(self, port: int) -> dict[str, Any]:
+        # The node daemon runs --network host, so 127.0.0.1:<port> reaches the
+        # engine on the same host. stdlib HTTP, short timeout, never raises.
+        import http.client
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+            conn.request("GET", "/health")
+            code = conn.getresponse().status
+            conn.close()
+            return {"reachable": 200 <= code < 300, "port": port, "status_code": code}
+        except Exception:
+            return {"reachable": False, "port": port, "status_code": None}
 
     def _raw_list_stats(self) -> dict[str, dict[str, Any]]:
         # The socket is local (no handshake cost), so per-container is cheap; we

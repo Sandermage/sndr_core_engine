@@ -990,6 +990,10 @@ def create_app(
     async def container_source(name: str) -> dict[str, Any]:
         return _do_source(_local_control(), name)
 
+    @app.get("/api/v1/containers/{name}/engine")
+    async def container_engine(name: str) -> dict[str, Any]:
+        return _container_op(lambda: _local_control().engine_health(name))
+
     @app.get("/api/v1/containers/{name}/logs/stream")
     async def container_logs_stream(name: str, tail: int = Query(default=200, ge=1, le=5000)):
         return _stream_logs_response(_local_control(), name, tail)
@@ -1073,6 +1077,10 @@ def create_app(
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/source")
     async def host_container_source(host_id: str, name: str) -> dict[str, Any]:
         return _do_source(_host_control(host_id), name)
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/engine")
+    async def host_container_engine(host_id: str, name: str) -> dict[str, Any]:
+        return _container_op(lambda: _host_control(host_id).engine_health(name))
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/logs/stream")
     async def host_container_logs_stream(host_id: str, name: str, tail: int = Query(default=200, ge=1, le=5000)):
