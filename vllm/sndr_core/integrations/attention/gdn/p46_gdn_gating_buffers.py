@@ -68,8 +68,22 @@ def ensure_pool_registered() -> None:
 
     The real GDN gating tensors (g / beta_output) are owned by
     vllm.sndr_core.kernels.gdn_gating_buffer.GdnGatingBufferManager.
+    Allocation pattern is fixed-shape `(1, batch, num_heads)` keyed by
+    (batch, num_heads, dtype, device) — every dim is part of the pool
+    key so there are no variable dims. PersistentSlicePool with
+    `key_dims=3` handles this case as well as the slice+grow cases.
+
+    v11.3.0 bug fix: this was previously calling `get_pool()` which
+    creates a BufferPool. When GdnGatingBufferManager.acquire_g
+    (and acquire_beta) call `_get_backing_pool()` (via
+    `get_slice_pool()`), the registry would raise ValueError "pool was
+    registered as BufferPool, not PersistentSlicePool". Caused the
+    GDN gating cache to never engage on operators who imported the
+    integration module before any acquire — falling back to fresh
+    torch.empty() per call (the original allocator churn this patch
+    was supposed to eliminate).
     """
-    PersistentBufferRegistry().get_pool(POOL_GDN_GATING)
+    PersistentBufferRegistry().get_slice_pool(POOL_GDN_GATING)
 
 UPSTREAM_DRIFT_MARKERS = [
     "GdnGatingBufferManager",

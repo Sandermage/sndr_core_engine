@@ -117,8 +117,21 @@ def ensure_pool_registered() -> None:
 
     The real FFN intermediate scratch tensors are owned by the
     FFNIntermediateCache pool inside vLLM's patched SiluAndMul module.
+    Its allocation pattern is GROW-IN-PLACE + SLICE-ON-ACQUIRE (allocate
+    `[max_num_tokens, intermediate_size]` once, return slice views for
+    smaller requests, grow once on larger requests) — matches
+    PersistentSlicePool with key_dims=1.
+
+    v11.3.0 bug fix: this was previously calling `get_pool()` which
+    creates a BufferPool. When FFNIntermediateCache.acquire_silu_out
+    then calls `_get_backing_pool()` (via `get_slice_pool()`), the
+    registry would raise ValueError "pool was registered as BufferPool,
+    not PersistentSlicePool". This caused the FFN cache to never engage
+    on operators who imported the integration module before the storage
+    class — silently falling back to the upstream allocate-per-step
+    behaviour the patch was supposed to fix.
     """
-    PersistentBufferRegistry().get_pool(POOL_FFN_INTERMEDIATE_SCRATCH)
+    PersistentBufferRegistry().get_slice_pool(POOL_FFN_INTERMEDIATE_SCRATCH)
 
 
 # ─── Sub-patch: replace SiluAndMul.forward_cuda body ──────────────────────
