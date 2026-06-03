@@ -427,6 +427,10 @@ export default function App() {
   const [monitorJobId, setMonitorJobId] = useState<string | null>(null);
   const [jobActionBusy, setJobActionBusy] = useState<"" | "bench" | "evidence">("");
   const [commandOpen, setCommandOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Timestamp of the last bare `g` keypress — drives the `g <key>` two-stroke
+  // navigation chords (g p → Presets, etc.) within a short window.
+  const gChordRef = useRef(0);
   const [chatTarget, setChatTarget] = useState<ChatTarget | null>(null);
   const [settings, setSettings] = useState<GuiSettings>(() => loadGuiSettings());
 
@@ -777,14 +781,47 @@ export default function App() {
     void runRecommend(nextForm);
   }
 
-  // Global ⌘K / Ctrl-K opens the command palette (PegaProx-style quick nav).
+  // Global keyboard shortcuts: ⌘K palette, `?` help overlay, and GitHub/Linear
+  // -style `g <key>` navigation chords. All chords/single keys are suppressed
+  // while typing in a field so they never eat real input.
   useEffect(() => {
+    // section ← chord key (second stroke after `g`).
+    const G_NAV: Record<string, SectionId> = {
+      o: "overview", s: "setup", f: "fleet", h: "hosts", m: "models",
+      c: "configs", p: "presets", n: "containers", d: "doctor",
+      l: "launch-plan", b: "benchmarks",
+    };
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setCommandOpen((open) => !open);
-      } else if (event.key === "Escape") {
+        return;
+      }
+      if (event.key === "Escape") {
         setCommandOpen(false);
+        setShortcutsOpen(false);
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === "?") {
+        event.preventDefault();
+        setShortcutsOpen((open) => !open);
+        return;
+      }
+      const now = Date.now();
+      if (event.key === "g") {
+        gChordRef.current = now; // arm the chord
+        return;
+      }
+      if (now - gChordRef.current < 1200) {
+        const dest = G_NAV[event.key.toLowerCase()];
+        if (dest) {
+          event.preventDefault();
+          setActiveSection(dest);
+        }
+        gChordRef.current = 0; // consume (success or miss)
       }
     };
     window.addEventListener("keydown", onKey);
@@ -1652,6 +1689,10 @@ export default function App() {
             void loadAll();
             setCommandOpen(false);
           }}
+          onShortcuts={() => {
+            setShortcutsOpen(true);
+            setCommandOpen(false);
+          }}
           settings={settings}
           onSettings={updateSettings}
           searchItems={[
@@ -1679,7 +1720,63 @@ export default function App() {
           ]}
         />
       )}
+      {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
     </main>
+  );
+}
+
+// Keyboard-shortcut reference overlay (opened with `?`). Documents the global
+// chords so power users can discover them without leaving the keyboard.
+function ShortcutsModal({ onClose }: { onClose: () => void }) {
+  const groups: Array<{ title: string; rows: Array<[string[], string]> }> = [
+    { title: "Global", rows: [
+      [["⌘", "K"], "Open command palette"],
+      [["?"], "Toggle this shortcuts help"],
+      [["Esc"], "Close palette / dialog"],
+    ] },
+    { title: "Command palette", rows: [
+      [["↑", "↓"], "Move between results"],
+      [["↵"], "Run highlighted result"],
+    ] },
+    { title: "Go to (press g, then…)", rows: [
+      [["g", "o"], "Overview"],
+      [["g", "s"], "Setup"],
+      [["g", "f"], "Fleet"],
+      [["g", "h"], "Hosts"],
+      [["g", "m"], "Models"],
+      [["g", "c"], "Configs"],
+      [["g", "p"], "Presets"],
+      [["g", "n"], "Containers"],
+      [["g", "d"], "Doctor"],
+      [["g", "l"], "Launch Plan"],
+      [["g", "b"], "Benchmarks"],
+    ] },
+  ];
+  return (
+    <div className="dialog-backdrop" role="presentation" onClick={onClose}>
+      <section className="shortcuts-dialog" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onClick={(event) => event.stopPropagation()}>
+        <div className="shortcuts-head">
+          <Command size={16} />
+          <strong>Keyboard shortcuts</strong>
+          <button className="icon-only" onClick={onClose} aria-label="Close"><X size={15} /></button>
+        </div>
+        <div className="shortcuts-grid">
+          {groups.map((group) => (
+            <div className="shortcuts-group" key={group.title}>
+              <h4>{group.title}</h4>
+              {group.rows.map(([keys, label]) => (
+                <div className="shortcuts-row" key={label}>
+                  <span className="shortcuts-keys">
+                    {keys.map((key, i) => <kbd key={i}>{key}</kbd>)}
+                  </span>
+                  <span className="shortcuts-label">{label}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -9918,6 +10015,7 @@ function CommandPalette({
   onClose,
   onSection,
   onRefresh,
+  onShortcuts,
   settings,
   onSettings,
   searchItems
@@ -9925,6 +10023,7 @@ function CommandPalette({
   onClose: () => void;
   onSection: (section: SectionId) => void;
   onRefresh: () => void;
+  onShortcuts: () => void;
   settings: GuiSettings;
   onSettings: (patch: Partial<GuiSettings>) => void;
   searchItems: Array<{ icon: ReactNode; title: string; detail: string; keep?: boolean; run: () => void }>;
@@ -9940,6 +10039,7 @@ function CommandPalette({
     { icon: <PackageCheck size={16} />, title: "Patch Matrix", detail: "Patch lifecycle, default policy and registry coverage", run: () => onSection("patches") },
     { icon: themeIcon(nextTheme(settings.theme)), title: "Toggle Theme", detail: `Cycle themes (next: ${themeLabel(nextTheme(settings.theme))})`, keep: true, run: () => onSettings({ theme: nextTheme(settings.theme) }) },
     { icon: <Rows3 size={16} />, title: "Toggle Density", detail: "Switch comfortable/compact density", keep: true, run: () => onSettings({ density: settings.density === "compact" ? "comfortable" : "compact" }) },
+    { icon: <Command size={16} />, title: "Keyboard Shortcuts", detail: "Show all shortcuts and navigation chords (?)", run: onShortcuts },
     { icon: <Settings size={16} />, title: "Settings", detail: "Appearance, API, schema and admin", run: () => onSection("advanced") }
   ];
   const all = [...commands, ...searchItems];

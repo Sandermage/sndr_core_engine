@@ -1636,6 +1636,18 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .command-list small { color: var(--text-muted); font-size: 11.5px; }
 .command-list button svg:last-child { color: var(--text-faint); }
 
+/* ── Keyboard shortcuts overlay (?) ─────────────────────────────── */
+.shortcuts-dialog { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-5); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg); }
+.shortcuts-head { display: flex; align-items: center; gap: var(--sp-2); }
+.shortcuts-head strong { flex: 1; font-size: 15px; }
+.shortcuts-head svg:first-child { color: var(--accent-text); }
+.shortcuts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-4) var(--sp-5); }
+.shortcuts-group h4 { margin: 0 0 var(--sp-2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.shortcuts-row { display: flex; align-items: center; gap: var(--sp-2); padding: 4px 0; }
+.shortcuts-keys { display: inline-flex; gap: 3px; min-width: 64px; }
+.shortcuts-keys kbd { font-family: var(--mono); font-size: 11px; line-height: 1; padding: 3px 6px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); box-shadow: 0 1px 0 var(--border); color: var(--text); }
+.shortcuts-label { font-size: 12.5px; color: var(--text-2); }
+
 /* ============================================================ Responsive */
 
 @media (max-width: 1420px) {
