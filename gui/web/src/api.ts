@@ -980,6 +980,7 @@ export interface SourceReport {
   container: string; preset_id: string | null; linked_by: "label" | "name" | null;
   preset_title: string | null; drift: DriftItem[]; drift_count: number;
   live_patches: { flag: string; value: string }[]; live_patch_count: number;
+  patch_sync?: { in_sync: string[]; missing: string[]; extra: string[] };
 }
 export interface ContainerSettings { cpus?: number | null; memory?: number | null; restart_policy?: string | null; }
 

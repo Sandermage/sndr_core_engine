@@ -66,3 +66,13 @@ def test_live_patches_extracts_on_genesis_flags():
 def test_source_report_includes_live_patches():
     rep = cl.source_report("vllm-x", {"Config": {"Env": ["GENESIS_ENABLE_P82=1"], "Labels": {}}})
     assert rep["live_patch_count"] == 1 and rep["live_patches"][0]["flag"] == "GENESIS_ENABLE_P82"
+
+
+def test_reconcile_patches_in_sync_missing_extra():
+    expected = {"GENESIS_ENABLE_P82": "1", "GENESIS_ENABLE_PN90": "1", "GENESIS_ENABLE_OFF": "0"}
+    inspect = {"Config": {"Env": ["GENESIS_ENABLE_P82=1", "PN95_EXTRA=true"]}}  # P82 on, PN90 missing, PN95 extra
+    r = cl.reconcile_patches(expected, inspect)
+    assert r["in_sync"] == ["GENESIS_ENABLE_P82"]
+    assert r["missing"] == ["GENESIS_ENABLE_PN90"]   # config wants on, engine off
+    assert r["extra"] == ["PN95_EXTRA"]              # on in engine, not declared
+    assert "GENESIS_ENABLE_OFF" not in r["missing"]  # config has it off → not expected on

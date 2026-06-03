@@ -480,6 +480,17 @@ function SourceCard({ source, name, onNavigate }: { source: ContainerSource; nam
           {rep.drift.length > 12 && <div className="drift-more">+{rep.drift.length - 12} more</div>}
         </div>
       )}
+      {rep.patch_sync && (rep.patch_sync.missing.length > 0 || rep.patch_sync.extra.length > 0) && (
+        <div className="src-patch-sync">
+          {rep.patch_sync.missing.length > 0 && (
+            <span className="sps bad" title={rep.patch_sync.missing.join("\n")}><AlertTriangle size={11} /> {rep.patch_sync.missing.length} config patches NOT live</span>
+          )}
+          {rep.patch_sync.extra.length > 0 && (
+            <span className="sps warn" title={rep.patch_sync.extra.join("\n")}>{rep.patch_sync.extra.length} live patches not in config</span>
+          )}
+          {rep.patch_sync.in_sync.length > 0 && <span className="sps ok">{rep.patch_sync.in_sync.length} in sync</span>}
+        </div>
+      )}
       {rep.live_patch_count > 0 && (
         <div className="src-patches">
           <div className="src-patches-head">

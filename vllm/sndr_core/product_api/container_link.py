@@ -82,6 +82,22 @@ def live_patches(inspect: dict[str, Any]) -> list[dict[str, str]]:
     return sorted(out, key=lambda d: d["flag"])
 
 
+def reconcile_patches(expected_env: dict[str, str], inspect: dict[str, Any]) -> dict[str, list[str]]:
+    """Compare the patches the config DECLARES against what's LIVE in the engine.
+
+    - in_sync: config wants on AND engine has on
+    - missing: config wants on BUT engine has off/absent (a silent feature regression)
+    - extra:   on in the engine BUT not declared by the config (drift the other way)"""
+    declared = {k for k in (expected_env or {}) if _PATCH_ENV_RE.match(k)}
+    declared_on = {k for k in declared if str((expected_env or {})[k]).strip().lower() in _TRUTHY}
+    live = {p["flag"] for p in live_patches(inspect)}
+    return {
+        "in_sync": sorted(declared_on & live),
+        "missing": sorted(declared_on - live),
+        "extra": sorted(live - declared),
+    }
+
+
 def compute_drift(expected_image: str, expected_env: dict[str, str],
                   inspect: dict[str, Any]) -> list[dict[str, Any]]:
     """Diff a running container's runtime against its preset's declared config.
@@ -152,6 +168,7 @@ def source_report(name: str, inspect: dict[str, Any]) -> dict[str, Any]:
         drift = compute_drift(str(params.get("image") or ""), expected_env, inspect)
         report["drift"] = drift
         report["drift_count"] = len(drift)
+        report["patch_sync"] = reconcile_patches(expected_env, inspect)
     except Exception as exc:  # unknown/foreign preset — link without drift
         report["error"] = str(exc)
     return report
@@ -159,5 +176,5 @@ def source_report(name: str, inspect: dict[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "parse_env", "build_preset_index", "resolve_preset", "compute_drift",
-    "live_patches", "source_report", "invalidate_preset_index",
+    "live_patches", "reconcile_patches", "source_report", "invalidate_preset_index",
 ]
