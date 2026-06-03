@@ -46,7 +46,22 @@ Versioning:
 # applies on current pin (only 3/7 chunk.py anchors + 3/4 chunk_delta_h.py
 # anchors match upstream). md5 pattern documents this drift transparently.
 # Registry: 237 → 240 entries. All default OFF; opt-in for A/B validation.
-SNDR_CORE_VERSION = "11.2.0"
+# v11.3.0 (2026-06-03 evening): Enterprise hardening sweep + Phase 7
+# advance. Tier 1: PyPI Trusted-Publisher step in release.yml (OIDC +
+# environment=pypi); operator docs/SPEC_DECODE_GUIDE.md (315 lines);
+# 3 P3.2 shared-policy modules — GDN _contiguity_policy + NGRAM
+# _ngram_policy_orchestrator + TQ _workspace_policy (composition contracts
+# + audit helpers + 26 tests); P3.4 dispatcher migration readiness audit
+# (218 spec-ready + 22 intentionally unmapped + 0 real gaps confirmed,
+# v12.0 switch path documented). Tier 2: SNDR_EAGLE3_AUX_HIDDEN_001 ships
+# the EAGLE-3 model-side API surface (register_aux_hidden_state_hooks +
+# pop_aux_hidden_states) so when a Qwen3.6 EAGLE-3 drafter checkpoint
+# lands the wire-up is <1 day; Phase 7 research-track dossier consolidates
+# Suffix Decoding (DONE in P75) + EAGLE-3 (PREP DONE, drafter blocked) +
+# Mamba-3 (research-only watch list). Registry: 240 → 241 entries.
+# +1473 LOC documentation/audit + 0 LOC behavior change in any patch.
+# 49 new unit tests, all PASS. 60/60 evidence gates green on local+rig.
+SNDR_CORE_VERSION = "11.3.0"
 
 # Back-compat alias. Tests + telemetry historically used `GENESIS_VERSION`.
 GENESIS_VERSION = SNDR_CORE_VERSION

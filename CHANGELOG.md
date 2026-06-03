@@ -45,7 +45,13 @@ Release-type tags in the title give the shape of the release at a glance:
 
 ## Version index (newest first)
 
-### v11.2.0 series — Phase 6 P3.1 multi-file md5 PoC complete (current)
+### v11.3.0 series — Enterprise hardening sweep + Phase 7 advance (current)
+
+| Tag | Date | Type | Summary |
+|---|---|---|---|
+| `v11.3.0` | 2026-06-03 (eve) | release | Tier 1 enterprise hardening: PyPI Trusted-Publisher step + 3 P3.2 shared-policy modules (GDN/NGRAM/TQ workspace) + P3.4 dispatcher readiness audit + SPEC_DECODE_GUIDE. Tier 2 Phase 7: SNDR_EAGLE3_AUX_HIDDEN_001 ships EAGLE-3 model-side API surface; PHASE7_RESEARCH_TRACK consolidates Suffix Decoding (DONE) + EAGLE-3 (PREP) + Mamba-3 (watch). Registry 240→241; +1473 LOC docs/audit; 49 new tests PASS; 60/60 gates green |
+
+### v11.2.0 series — Phase 6 P3.1 multi-file md5 PoC complete
 
 | Tag | Date | Type | Summary |
 |---|---|---|---|
@@ -89,6 +95,137 @@ Release-type tags in the title give the shape of the release at a glance:
 The current PROD canonical baseline is `v11.0.0+wave9_release_blockers_closed`
 on vLLM nightly pin `0.20.2rc1.dev209+g5536fc0c0`. 152 patches in
 `PATCH_REGISTRY`, 32 default-ON, `make evidence` 40 / 40 green.
+
+---
+
+## [v11.3.0] — Enterprise hardening sweep + Phase 7 advance (2026-06-03 evening)
+
+### Highlights
+
+- **Tier 1 enterprise hardening (commit `04bc7143`)** — six high-value
+  documentation + audit deliverables consolidating the master plan's
+  P3.2 + P3.4 + Iron Rule #2 surfaces:
+
+  - **PyPI Trusted-Publisher step** in `.github/workflows/release.yml`
+    (OIDC `id-token: write` + `environment: pypi` + `pypa/gh-action-pypi-publish@release/v1`
+    with `skip-existing: true`). Operator-side setup: PyPI project
+    settings → Publishing → add Trusted Publisher (Owner: Sandermage,
+    Repo: genesis-vllm-patches, Workflow: release.yml, Env: pypi).
+    After that, every `v*` tag push auto-publishes to PyPI without
+    manual `twine` interaction.
+
+  - **`docs/SPEC_DECODE_GUIDE.md`** (315 lines) — operator-facing guide
+    explaining when to use MTP (current default) vs Suffix Decoding
+    (P75 — already wired) vs NGRAM (P70+P77+PN72 stack) vs K_001
+    (default OFF, empirically NOT_SIGNIFICANT across 3 bench cycles).
+    Includes switching recipes + bench reference paths + future work
+    (EAGLE-3 blocker, Mamba-3 watchlist).
+
+  - **3 P3.2 shared-policy modules** — composition contract +
+    runtime audit + drift surveillance for the three patch clusters
+    flagged by the master plan as consolidation candidates:
+    - `vllm/sndr_core/integrations/attention/gdn/_contiguity_policy.py`
+      — unified policy for PN11/PN54/PN50 (.contiguous() discipline
+      across 3 distinct insertion points in GDN forward path; 7/7 tests).
+    - `vllm/sndr_core/integrations/spec_decode/_ngram_policy_orchestrator.py`
+      — unified composition contract for P70/P77/P86/PN72/PN90
+      (orthogonal insertion points on NgramProposer pipeline; future
+      v12.x+ pluggable DecisionStrategy candidate documented; 9/9 tests).
+    - `vllm/sndr_core/integrations/attention/turboquant/_workspace_policy.py`
+      — unified composition for P98/P99/PN118/SNDR_WORKSPACE_001
+      (TurboQuant workspace area; PN118 is the only default_on;
+      future v12.x+ WorkspaceFacade extending TurboQuantBufferManager
+      documented; 10/10 tests).
+
+  - **`scripts/audit_dispatcher_migration_readiness.py`** + 6 unit
+    tests — P3.4 migration readiness: confirms 218 spec-ready + 22
+    intentionally unmapped + **0 real gaps**. v12.0.0 orchestrator
+    iteration switch path documented (estimated 2-3 days vs master
+    plan's 8-9 day estimate — auto-derivation already done).
+
+- **Tier 2 Phase 7 advance (commits `d53c26a5` + `079e05a4`)** —
+  EAGLE-3 model-side preparation + research-track consolidation:
+
+  - **`SNDR_EAGLE3_AUX_HIDDEN_001`** — Genesis-original Phase 7
+    EAGLE-3 model-side preparation. Ships the safe API surface
+    (`register_aux_hidden_state_hooks` + `pop_aux_hidden_states` +
+    `clear_aux_hidden_state_hooks`) so when a Qwen3.6 EAGLE-3 drafter
+    checkpoint lands the wire-up is <1 day. Default OFF + zero runtime
+    cost without explicit caller. Thread-safe via RLock, idempotent,
+    auto-detects layer attribute path (Qwen3.x / Llama-family
+    compatible). 17/17 unit tests including hook lifecycle, multi-shape
+    captures, env layer-id parsing, idempotency. Registry **240 → 241**.
+
+  - **`docs/PHASE7_RESEARCH_TRACK.md`** (161 lines) — single tracker
+    for the 3 Phase 7 directions with status + watch signals + revisit
+    triggers + estimated effort:
+    - **Suffix Decoding**: ✅ DONE (P75 wired, vllm#25784 in pin, docs
+      published)
+    - **EAGLE-3**: ⏳ model-side prep DONE; drafter wire-up blocked on
+      Qwen3.6 EAGLE-3 checkpoint (does not exist publicly yet)
+    - **Mamba-3 MIMO**: 📚 research-only (reference code in
+      state-spaces/mamba + fla-org/flash-linear-attention; no vLLM
+      serving support; no Qwen-3.x-Mamba3 target model)
+    Plus 5 adjacent research areas surfaced for future planning.
+
+### Verification
+
+- **49 new unit tests, all PASS**: 7 (GDN policy) + 9 (NGRAM policy) +
+  10 (TQ workspace policy) + 6 (dispatcher readiness audit) + 17
+  (EAGLE-3 prep)
+- **60/60 evidence gates green** on both local + rig
+- **0 LOC behavior change** in any existing patch — Tier 1 modules
+  are documentation + read-only audit surfaces; Tier 2 EAGLE-3 patch
+  has zero runtime cost without explicit caller
+- **+1,473 LOC docs/audit/tests**; 10 doc counter bumps (240 → 241)
+
+### Iron Rule #2 (public release decisions) — status
+
+| Item | Status |
+|---|---|
+| Wheel + sdist build via CI | ✅ done in `release.yml` |
+| SBOM (CycloneDX + SPDX) attached | ✅ done in `release.yml` |
+| PyPI Trusted Publisher step | ✅ **NEW** in v11.3.0 — operator does PyPI side setup once |
+| Public origin push | ⏳ operator decision (sndr-dev is private; no public push yet) |
+| Tauri desktop builds | 📚 scaffold only (commit `b608b6f4`); deferred to next release |
+| Docker Hub image publish | 📚 not configured; deferred |
+
+### Master plan status (post-v11.3.0)
+
+| Phase | Status |
+|---|---|
+| 0–3 (stop-bleeding, registry SoT, cleanup, Triton tune) | ✅ closed |
+| 4 (Apply dispatch consolidation) | ✅ closed per M.1.R amendment |
+| 5 (perf cherry-picks) | ✅ 4/5 PRs in pin; K_001 empirically NOT_SIGNIFICANT × 3 |
+| 6 P3.1 (anchor → md5+full-file) | ✅ closed in v11.2.0 (sibling-PoC pattern) |
+| 6 P3.2 (code consolidation) | ⏳ shared-policy modules + audit shipped in v11.3.0 (Tier 1); code-level merge documented for v12.x+ |
+| 6 P3.3 (PersistentBufferRegistry) | ⏳ PersistentSlicePool + PN12/P46 migrated in v11.2.0; P39a/P36 deferred (bench window) |
+| 6 P3.4 (dispatcher migration) | ⏳ migration readiness audit in v11.3.0 (218/241 spec-ready, 0 real gaps); switch deferred to v12.0.0 |
+| 6 P3.5/P3.6/P3.7 (refactors + GUI) | ✅ done in main |
+| 7 Suffix Decoding | ✅ P75 wired + SPEC_DECODE_GUIDE.md (v11.3.0) |
+| 7 EAGLE-3 model-side | ✅ SNDR_EAGLE3_AUX_HIDDEN_001 in v11.3.0 |
+| 7 EAGLE-3 drafter | ⏳ blocked on Qwen3.6 EAGLE-3 checkpoint |
+| 7 Mamba-3 MIMO | 📚 watchlist (no target model) |
+
+### Out of scope (deferred to v12.0.0+)
+
+- Code-level P3.2 deep refactor (WorkspaceFacade extending
+  TurboQuantBufferManager) — requires CUDA-graph safety bench
+- P3.4 orchestrator iteration switch (iter_patch_specs in apply chain)
+  — 2-3 days dedicated session
+- P39a + P36 full BufferPool migration (registration-only landed in
+  v11.1.0; allocator-level routing needs bench)
+- EAGLE-3 drafter wire-up (template ready; awaits Qwen3.6 EAGLE-3
+  checkpoint)
+- Mamba-3 architecture port (awaits Qwen-3.x-Mamba3 target model)
+- Public github.com/Sandermage/genesis-vllm-patches push + first PyPI
+  publish (operator Iron Rule #2 decisions)
+
+### Branch state
+
+This release ships on `feat/container-management` (same branch as
+v11.2.0). Triplet (local / rig / sndr-dev) fully synchronized at
+commit `079e05a4` before tag.
 
 ---
 
