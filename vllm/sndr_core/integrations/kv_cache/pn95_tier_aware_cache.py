@@ -37,7 +37,7 @@ from vllm.sndr_core.core import (
 log = logging.getLogger("genesis.pn95")
 
 GENESIS_PN95_MARKER = (
-    "Genesis PN95 tier-aware KV cache + vision sub-tier (Path C v7.73.x)"
+    "Genesis PN95 tier-aware KV cache + vision sub-tier (Path C v7.73.x_v11.3.0_hotpath)"
 )
 
 # ─── Anchor 1: single_type_kv_cache_manager.py::cache_blocks ──────────
@@ -56,13 +56,20 @@ PN95_SITE1_OLD = (
 )
 PN95_SITE1_NEW = (
     "        self.num_cached_block[request.request_id] = num_full_blocks\n"
-    "        # [Genesis PN95] tier-aware admit — fail-silent no-op when disabled\n"
-    "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import notify_admit as _g_pn95_admit\n"
-    "            _g_pn95_admit(request, num_cached_blocks, num_full_blocks,\n"
-    "                          self.kv_cache_group_id, self.block_size)\n"
-    "        except Exception:\n"
-    "            pass\n"
+    "        # [Genesis PN95 v2 — hot-path optimized] tier-aware admit.\n"
+    "        _g_pn95_admit = globals().get('_GENESIS_PN95_admit_fn')\n"
+    "        if _g_pn95_admit is None:\n"
+    "            try:\n"
+    "                from vllm.sndr_core.cache._pn95_runtime import notify_admit as _g_pn95_admit\n"
+    "            except Exception:\n"
+    "                _g_pn95_admit = False\n"
+    "            globals()['_GENESIS_PN95_admit_fn'] = _g_pn95_admit\n"
+    "        if _g_pn95_admit:\n"
+    "            try:\n"
+    "                _g_pn95_admit(request, num_cached_blocks, num_full_blocks,\n"
+    "                              self.kv_cache_group_id, self.block_size)\n"
+    "            except Exception:\n"
+    "                pass\n"
 )
 
 # ─── Anchor 2: block_pool.py::get_cached_block ────────────────────────
@@ -81,12 +88,21 @@ PN95_SITE2_OLD = (
 )
 PN95_SITE2_NEW = (
     "            cached_blocks.append(block)\n"
-    "        # [Genesis PN95] tier-aware touch — fail-silent no-op when disabled\n"
-    "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import notify_touch as _g_pn95_touch\n"
-    "            _g_pn95_touch(block_hash, kv_cache_group_ids, cached_blocks)\n"
-    "        except Exception:\n"
-    "            pass\n"
+    "        # [Genesis PN95 v2 — hot-path optimized] tier-aware touch.\n"
+    "        # Cache the notify_touch callable in upstream-file globals;\n"
+    "        # called per block_pool.get_cached_block — high-frequency.\n"
+    "        _g_pn95_touch = globals().get('_GENESIS_PN95_touch_fn')\n"
+    "        if _g_pn95_touch is None:\n"
+    "            try:\n"
+    "                from vllm.sndr_core.cache._pn95_runtime import notify_touch as _g_pn95_touch\n"
+    "            except Exception:\n"
+    "                _g_pn95_touch = False\n"
+    "            globals()['_GENESIS_PN95_touch_fn'] = _g_pn95_touch\n"
+    "        if _g_pn95_touch:\n"
+    "            try:\n"
+    "                _g_pn95_touch(block_hash, kv_cache_group_ids, cached_blocks)\n"
+    "            except Exception:\n"
+    "                pass\n"
     "        return cached_blocks\n"
 )
 
@@ -155,12 +171,20 @@ PN95_SITE5_OLD = (
 )
 PN95_SITE5_NEW = (
     "    def schedule(self) -> SchedulerOutput:\n"
-    "        # [Genesis PN95 v1.0 Phase 2] periodic tier maintenance — fail-silent\n"
-    "        try:\n"
-    "            from vllm.sndr_core.cache._pn95_runtime import scheduler_tick as _g_pn95_tick\n"
-    "            _g_pn95_tick()\n"
-    "        except Exception:\n"
-    "            pass\n"
+    "        # [Genesis PN95 v2 — hot-path optimized] periodic tier maintenance.\n"
+    "        # schedule() fires per scheduler step (~50/sec at sustained TPS).\n"
+    "        _g_pn95_tick = globals().get('_GENESIS_PN95_tick_fn')\n"
+    "        if _g_pn95_tick is None:\n"
+    "            try:\n"
+    "                from vllm.sndr_core.cache._pn95_runtime import scheduler_tick as _g_pn95_tick\n"
+    "            except Exception:\n"
+    "                _g_pn95_tick = False\n"
+    "            globals()['_GENESIS_PN95_tick_fn'] = _g_pn95_tick\n"
+    "        if _g_pn95_tick:\n"
+    "            try:\n"
+    "                _g_pn95_tick()\n"
+    "            except Exception:\n"
+    "                pass\n"
     "        # NOTE(woosuk) on the scheduling algorithm:\n"
 )
 
