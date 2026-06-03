@@ -56,7 +56,7 @@ log = logging.getLogger("genesis.wiring.p99_workspace_manager_memoize")
 
 
 GENESIS_P99_MARKER = (
-    "Genesis P99 WorkspaceManager.get_simultaneous memoization v7.62.15"
+    "Genesis P99 WorkspaceManager.get_simultaneous memoization v7.62.15_v11.3.0_hotpath"
 )
 
 
@@ -102,10 +102,24 @@ P99_NEW = (
     "            self._genesis_p99_cache: dict = {}\n"
     "        # Hashable key: shapes_and_dtypes is already tuple of (tuple, dtype)\n"
     "        _genesis_p99_key = shapes_and_dtypes\n"
-    "        try:\n"
-    "            from vllm.v1.distributed.dbo_communicator import dbo_current_ubatch_id as _genesis_p99_ubid\n"
-    "            _genesis_p99_ubatch = _genesis_p99_ubid()\n"
-    "        except Exception:\n"
+    "        # v11.3.0 hot-path optimization: cache dbo_current_ubatch_id\n"
+    "        # callable in upstream-file globals. Per-attention-layer call\n"
+    "        # × 64 layers × decode-step = significant import-elimination.\n"
+    "        _genesis_p99_ubid = globals().get('_GENESIS_P99_ubid_fn')\n"
+    "        if _genesis_p99_ubid is None:\n"
+    "            try:\n"
+    "                from vllm.v1.distributed.dbo_communicator import (\n"
+    "                    dbo_current_ubatch_id as _genesis_p99_ubid,\n"
+    "                )\n"
+    "            except Exception:\n"
+    "                _genesis_p99_ubid = False\n"
+    "            globals()['_GENESIS_P99_ubid_fn'] = _genesis_p99_ubid\n"
+    "        if _genesis_p99_ubid:\n"
+    "            try:\n"
+    "                _genesis_p99_ubatch = _genesis_p99_ubid()\n"
+    "            except Exception:\n"
+    "                _genesis_p99_ubatch = 0\n"
+    "        else:\n"
     "            _genesis_p99_ubatch = 0\n"
     "        _genesis_p99_ws = self._current_workspaces[_genesis_p99_ubatch]\n"
     "        _genesis_p99_ws_id = (\n"
