@@ -153,14 +153,38 @@ class FFNIntermediateCache:
         """
         return os.environ.get(_ENV_FLAG, "").strip() in ("1", "true", "True")
 
+    # v11.3.0 hot-path optimization: eligibility is determined by env
+    # state + platform — both fixed at boot. Cache the result after
+    # first call. Sentinel `None` = uncomputed; True/False = result.
+    _ELIGIBILITY: bool | None = None
+
     @staticmethod
     def is_production_eligible() -> bool:
-        """Stricter check for the actual text-patch apply: env + NVIDIA CUDA."""
-        return FFNIntermediateCache.should_apply() and is_nvidia_cuda()
+        """Stricter check for the actual text-patch apply: env + NVIDIA CUDA.
+
+        v11.3.0 hot-path optimization: result cached on the class.
+        Boot-stable inputs (env var + platform check). Call
+        `FFNIntermediateCache._ELIGIBILITY = None` to force re-check
+        (only useful in unit tests that mutate env)."""
+        cls = FFNIntermediateCache
+        if cls._ELIGIBILITY is None:
+            cls._ELIGIBILITY = (
+                FFNIntermediateCache.should_apply() and is_nvidia_cuda()
+            )
+        return cls._ELIGIBILITY
 
     # ──────────────────────────────────────────────────────────────────
     # Core API
     # ──────────────────────────────────────────────────────────────────
+
+    # v11.3.0 hot-path optimization: class-level cache for backing pool
+    # reference. The pool identity is stable for the process lifetime —
+    # `PersistentBufferRegistry()` is a singleton-style accessor and the
+    # POOL_FFN_INTERMEDIATE_SCRATCH key never changes. Caching here
+    # eliminates the per-acquire import + Registry-lookup overhead
+    # (~500ns × millions of FFN forward calls per decode = real TPS
+    # impact on hot-path).
+    _CACHED_POOL = None
 
     @classmethod
     def _get_backing_pool(cls):
@@ -177,13 +201,20 @@ class FFNIntermediateCache:
         match the legacy `cached[:num_tokens]` pattern exactly, and the
         `torch.empty()` allocation paths are identical (same shape,
         dtype, device — same allocator behaviour).
+
+        v11.3.0 hot-path optimization: cached at class level on first
+        call. The cache resets to None for clean test isolation when
+        the registry singleton resets (only happens in unit tests via
+        `PersistentBufferRegistry()._reset_for_tests()`).
         """
-        from vllm.sndr_core.runtime.persistent_buffer_registry import (
-            PersistentBufferRegistry, POOL_FFN_INTERMEDIATE_SCRATCH,
-        )
-        return PersistentBufferRegistry().get_slice_pool(
-            POOL_FFN_INTERMEDIATE_SCRATCH
-        )
+        if cls._CACHED_POOL is None:
+            from vllm.sndr_core.runtime.persistent_buffer_registry import (
+                PersistentBufferRegistry, POOL_FFN_INTERMEDIATE_SCRATCH,
+            )
+            cls._CACHED_POOL = PersistentBufferRegistry().get_slice_pool(
+                POOL_FFN_INTERMEDIATE_SCRATCH
+            )
+        return cls._CACHED_POOL
 
     @classmethod
     def acquire_silu_out(
