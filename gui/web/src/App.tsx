@@ -8190,6 +8190,21 @@ function PresetQuickPanel({
   );
 }
 
+// Benchmark-baseline chip for the preset catalog: surfaces the measured
+// reference metric (primary_metric) at the list level, so bench-proven presets
+// are distinguishable from pending ones at a glance. value 0 / missing = pending.
+function PresetBaselineCell({ card }: { card: Record<string, any> }) {
+  const m = asRecord(card?.primary_metric);
+  const value = asNumber(m.value);
+  if (!m.kind && !value) return <span className="muted">—</span>;
+  const tip = [asText(m.source, ""), asText(m.measured_at, "")].filter(Boolean).join(" · ");
+  if (value > 0) {
+    const kind = asText(m.kind, "TPS").replace(/^agg_/, "");
+    return <span className="bench-chip ok" title={tip || undefined}>{value.toLocaleString()} {kind}</span>;
+  }
+  return <span className="bench-chip pending" title={tip || undefined}>pending</span>;
+}
+
 function PresetCatalogTable({
   presets,
   selectedPreset,
@@ -8249,6 +8264,7 @@ function PresetCatalogTable({
               <th>Hardware</th>
               <th>Profile</th>
               <th className="sortable" onClick={() => toggleSort("status")}>Card{caret("status")}</th>
+              <th>Baseline</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
@@ -8269,6 +8285,7 @@ function PresetCatalogTable({
                 <td>{preset.hardware}</td>
                 <td>{preset.profile ?? "-"}</td>
                 <td><StatusBadge status={statusOf(preset)} /></td>
+                <td><PresetBaselineCell card={preset.card} /></td>
                 <td className="preset-row-actions">
                   {onEdit && (
                     <button
@@ -8284,7 +8301,7 @@ function PresetCatalogTable({
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={6}>
+              <tr><td colSpan={7}>
                 <EmptyState
                   icon={<Database size={22} />}
                   title="No presets for this filter"

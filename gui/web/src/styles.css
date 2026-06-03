@@ -4054,6 +4054,11 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .element-field-warn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--danger); }
 .element-field-hinted.invalid input, .element-field-hinted.invalid select { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent); }
 
+/* benchmark-baseline chip in the preset catalog (bench<->preset link) */
+.bench-chip { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bench-chip.ok { background: var(--accent-soft); color: var(--accent-text); }
+.bench-chip.pending { background: var(--warn-soft); color: var(--warn); font-weight: 500; }
+
 /* engine readiness badge in the source card */
 .src-engine { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 9px; border-radius: 999px; }
 .src-engine.ok { background: rgba(21,128,61,0.14); color: var(--ok); }
