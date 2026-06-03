@@ -4229,6 +4229,17 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .hw-ring-label svg { color: var(--text-muted); }
 .hw-ring-sub { font-size: 10px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
 
+/* Util history sparkline */
+.hw-trend { display: flex; flex-direction: column; gap: 3px; padding-top: var(--sp-2); border-top: 1px solid var(--border); }
+.hw-trend-l { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-faint); font-weight: 700; }
+.hw-spark { width: 100%; height: 26px; display: block; }
+.hw-spark-area { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: none; }
+.hw-spark-line { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.hw-spark.warn .hw-spark-area { fill: color-mix(in srgb, var(--warn) 16%, transparent); }
+.hw-spark.warn .hw-spark-line { stroke: var(--warn); }
+.hw-spark.hot .hw-spark-area { fill: color-mix(in srgb, var(--danger) 16%, transparent); }
+.hw-spark.hot .hw-spark-line { stroke: var(--danger); }
+
 /* Bars (VRAM / bandwidth) */
 .hw-block { display: flex; flex-direction: column; gap: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
 .hw-bar { display: flex; flex-direction: column; gap: 4px; }

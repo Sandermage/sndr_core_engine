@@ -19,11 +19,11 @@ from typing import Any, Callable, Optional
 
 # nvidia-smi --query-gpu fields, in order. Output keys are cleaned below.
 _QUERY_FIELDS = (
-    "name,uuid,driver_version,vbios_version,"
+    "name,uuid,serial,driver_version,vbios_version,"
     "memory.used,memory.total,memory.free,"
     "utilization.gpu,utilization.memory,"
     "temperature.gpu,temperature.memory,"
-    "power.draw,power.default_limit,power.max_limit,"
+    "power.draw,power.default_limit,power.max_limit,power.min_limit,"
     "fan.speed,"
     "pcie.link.gen.current,pcie.link.gen.max,"
     "pcie.link.width.current,pcie.link.width.max,"
@@ -39,11 +39,11 @@ _F = "f"   # float
 _I = "i"   # int
 _S = "s"   # str (pass-through, N/A -> None)
 _FIELDS: tuple[tuple[str, str], ...] = (
-    ("name", _S), ("uuid", _S), ("driver_version", _S), ("vbios_version", _S),
+    ("name", _S), ("uuid", _S), ("serial", _S), ("driver_version", _S), ("vbios_version", _S),
     ("mem_used", _F), ("mem_total", _F), ("mem_free", _F),
     ("gpu_util", _I), ("mem_util", _I),
     ("temp_gpu", _I), ("temp_mem", _S),
-    ("power", _F), ("power_default_limit", _F), ("power_max_limit", _F),
+    ("power", _F), ("power_default_limit", _F), ("power_max_limit", _F), ("power_min_limit", _F),
     ("fan_speed", _I),
     ("pcie_gen", _I), ("pcie_gen_max", _I),
     ("pcie_width", _I), ("pcie_width_max", _I),
@@ -204,6 +204,14 @@ def collect(run: Runner) -> HardwareTelemetry:
             hostname=host_out.strip(),
             cpu_count=_i(nproc_out.strip()),
         )
+    except Exception:  # noqa: BLE001
+        pass
+
+    # OS/kernel string (uname -srm: e.g. "Linux 6.8.0 x86_64").
+    try:
+        _, uname_out, _ = run(["uname", "-srm"])
+        if uname_out.strip():
+            system["platform"] = uname_out.strip()
     except Exception:  # noqa: BLE001
         pass
 

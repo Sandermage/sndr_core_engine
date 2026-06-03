@@ -3,9 +3,9 @@
 from vllm.sndr_core.product_api import gpu_telemetry as G
 
 _ROW = (
-    "NVIDIA RTX A5000, GPU-abc, 535.104.05, 94.02.5c, "
+    "NVIDIA RTX A5000, GPU-abc, 1320621012345, 535.104.05, 94.02.5c, "
     "12000, 24564, 12564, 45, 30, 62, [N/A], "
-    "145.5, 230, 230, 41, 4, 4, 16, 16, "
+    "145.5, 230, 230, 100, 41, 4, 4, 16, 16, "
     "1695, 1695, 7000, 8000, 1695, Default, P2, 0, 0"
 )
 
@@ -15,8 +15,10 @@ def test_parse_gpu_csv_maps_and_cleans():
     assert len(gpus) == 2
     g = gpus[0]
     assert g["name"] == "NVIDIA RTX A5000"
+    assert g["serial"] == "1320621012345"
     assert g["gpu_util"] == 45 and g["temp_gpu"] == 62
     assert g["power"] == 145.5 and g["power_max_limit"] == 230.0
+    assert g["power_min_limit"] == 100.0
     assert g["mem_used"] == 12000.0 and g["mem_total"] == 24564.0
     assert g["pcie_gen"] == 4 and g["pcie_width"] == 16
     assert g["clock_gpu"] == 1695 and g["clock_mem_max"] == 8000
@@ -107,6 +109,8 @@ def test_collect_with_runner():
             return 0, "node-1\n", ""
         if cmd == "nproc":
             return 0, "8\n", ""
+        if cmd == "uname":
+            return 0, "Linux 6.8.0 x86_64\n", ""
         if cmd == "df":
             return 0, "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 209715200 104857600 104857600 50% /\n", ""
         return 127, "", "unknown"
@@ -114,8 +118,10 @@ def test_collect_with_runner():
     t = G.collect(run)
     assert t.error is None
     assert len(t.gpus) == 1 and t.gpus[0]["name"] == "NVIDIA RTX A5000"
+    assert t.gpus[0]["serial"] == "1320621012345"
     assert t.system["cpu"] == "Test CPU" and t.system["cpu_count"] == 8
     assert t.system["ram_total_gb"] == 1.0
+    assert t.system["platform"] == "Linux 6.8.0 x86_64"
     assert t.system["primary_ip"] == "10.0.0.5"
     assert t.system["net"][0]["name"] == "eth0"
     assert t.system["disk"]["free_gb"] == 100.0

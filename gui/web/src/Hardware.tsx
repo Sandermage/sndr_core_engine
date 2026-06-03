@@ -78,7 +78,23 @@ function Row({ k, v, unit }: { k: string; v: ReactNode; unit?: string }) {
   );
 }
 
-function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
+// A tiny area sparkline of a 0..100 series (util / temp%), client-side history.
+function Sparkline({ data, t }: { data: number[]; t: "ok" | "warn" | "hot" }) {
+  if (data.length < 2) return null;
+  const W = 100, H = 24;
+  const step = W / (data.length - 1);
+  const line = data.map((v, i) => `${(i * step).toFixed(1)},${(H - (clamp(v) / 100) * H).toFixed(1)}`).join(" ");
+  return (
+    <svg className={`hw-spark ${t}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      <polygon className="hw-spark-area" points={`0,${H} ${line} ${W},${H}`} />
+      <polyline className="hw-spark-line" points={line} />
+    </svg>
+  );
+}
+
+type GpuHistory = { util: number[]; temp: number[] };
+
+function GpuCard({ gpu, index, hist }: { gpu: GpuInfo; index: number; hist?: GpuHistory }) {
   const util = num(gpu.gpu_util);
   const temp = num(gpu.temp_gpu);
   const power = num(gpu.power);
@@ -125,6 +141,13 @@ function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
           sub={powerMax ? `${Math.round(power)} / ${Math.round(powerMax)} W` : `${Math.round(power)} W`} />
       </div>
 
+      {hist && hist.util.length >= 2 && (
+        <div className="hw-trend">
+          <span className="hw-trend-l">Util trend · last {hist.util.length * 4}s</span>
+          <Sparkline data={hist.util} t={tone(util)} />
+        </div>
+      )}
+
       <div className="hw-block">
         <Bar label="VRAM" value={`${gib1(memUsed)} / ${gib1(memTotal)} GB`} pct={memPct} tint
           sub={`${gib1(memFree)} GB free · ${Math.round(memPct)}% used`} />
@@ -142,7 +165,7 @@ function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
           <div className="hw-sect-t"><Fan size={11} /> Thermal &amp; power</div>
           <Row k="Fan" v={fan != null ? `${fan}` : "—"} unit={fan != null ? "%" : ""} />
           {gpu.temp_mem ? <Row k="Mem temp" v={`${gpu.temp_mem}`} unit="°C" /> : <Row k="Headroom" v={`${Math.round(powerHeadroom)}`} unit="W" />}
-          <Row k="Limit" v={powerMax ? `${Math.round(powerMax)}` : "—"} unit={powerMax ? "W" : ""} />
+          <Row k="Limit" v={powerMax ? (gpu.power_min_limit != null ? `${Math.round(num(gpu.power_min_limit))}–${Math.round(powerMax)}` : `${Math.round(powerMax)}`) : "—"} unit={powerMax ? "W" : ""} />
         </div>
         <div className="hw-sect">
           <div className="hw-sect-t"><CircuitBoard size={11} /> Bus &amp; link</div>
@@ -160,6 +183,7 @@ function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
 
       <div className="hw-foot">
         {gpu.vbios_version && <span className="hw-foot-i"><CircuitBoard size={10} /> vBIOS {gpu.vbios_version}</span>}
+        {gpu.serial && <span className="hw-foot-i" title="serial number">S/N {gpu.serial}</span>}
         {gpu.uuid && <span className="hw-foot-i hw-uuid" title="GPU UUID"><Server size={10} /> {gpu.uuid}</span>}
       </div>
     </div>
@@ -184,6 +208,7 @@ function HostPanel({ system, gpuCount, netRate }: { system: HardwareSystem; gpuC
       <div className="hw-host-head">
         <span className="hw-host-name"><HardDrive size={15} /> {system.hostname ?? "host"}</span>
         {system.cpu && <span className="hw-host-cpu"><Cpu size={13} /> {system.cpu}{system.cpu_count ? ` · ${system.cpu_count} cores` : ""}</span>}
+        {system.platform && <span className="hw-host-cpu"><Server size={12} /> {system.platform}</span>}
         {system.primary_ip && <span className="hw-host-ip"><Network size={12} /> {system.primary_ip}</span>}
         <span className="hw-host-gpus"><Activity size={12} /> {gpuCount} GPU{gpuCount === 1 ? "" : "s"}</span>
       </div>
@@ -217,6 +242,7 @@ export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; i
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [netRate, setNetRate] = useState<NetRate | null>(null);
+  const [history, setHistory] = useState<Record<string, GpuHistory>>({});
   const loadingRef = useRef(false);
   loadingRef.current = loading;
   // Previous cumulative RX/TX sample + timestamp, to derive live throughput.
@@ -227,6 +253,19 @@ export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; i
     try {
       const r = source.kind === "host" ? await api.hostGpuRemote(source.hostId) : await api.hostGpu();
       setData(r);
+      // Append util/temp samples per GPU (bounded ring buffer for sparklines).
+      setHistory((prev) => {
+        const next: Record<string, GpuHistory> = {};
+        (r.gpus ?? []).forEach((g, i) => {
+          const key = g.uuid ?? String(i);
+          const old = prev[key] ?? { util: [], temp: [] };
+          next[key] = {
+            util: [...old.util, num(g.gpu_util)].slice(-45),
+            temp: [...old.temp, num(g.temp_gpu)].slice(-45),
+          };
+        });
+        return next;
+      });
       const ifs = r.system?.net ?? [];
       if (ifs.length) {
         const rx = ifs.reduce((s, i) => s + num(i.rx_bytes), 0);
@@ -246,8 +285,8 @@ export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; i
     } finally { setLoading(false); }
   }, [source]);
 
-  // New source → drop stale data + network baseline.
-  useEffect(() => { setData(null); setNetRate(null); prevNet.current = null; void load(); }, [load]);
+  // New source → drop stale data + network baseline + per-GPU history.
+  useEffect(() => { setData(null); setNetRate(null); setHistory({}); prevNet.current = null; void load(); }, [load]);
   // Live refresh every 4s while the tab is visible and no request is in flight.
   useEffect(() => {
     const t = window.setInterval(() => { if (!loadingRef.current && !document.hidden) void load(); }, 4000);
@@ -287,7 +326,7 @@ export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; i
 
       {gpus.length > 0 && (
         <div className="hw-gpus">
-          {gpus.map((g, i) => <GpuCard key={g.uuid ?? i} gpu={g} index={i} />)}
+          {gpus.map((g, i) => <GpuCard key={g.uuid ?? i} gpu={g} index={i} hist={history[g.uuid ?? String(i)]} />)}
         </div>
       )}
 
