@@ -1672,6 +1672,7 @@ export default function App() {
             installIntent={installIntent}
             onSetupNode={(id) => { setInstallIntent({ hostId: id, target: "sndr_daemon" }); setActiveSection("setup"); }}
             onContainers={(id) => { setFocusHostId(id); setActiveSection("containers"); }}
+            onHardware={(id) => { setFocusHostId(id); setActiveSection("hardware"); }}
           />
           </Suspense>
         )}
@@ -2645,7 +2646,8 @@ function SectionWorkspace({
   onFocusHost,
   installIntent,
   onSetupNode,
-  onContainers
+  onContainers,
+  onHardware
 }: {
   sectionId: SectionId;
   overview: ProductOverview | null;
@@ -2695,6 +2697,7 @@ function SectionWorkspace({
   installIntent: { hostId?: string; target?: string } | null;
   onSetupNode: (id: string) => void;
   onContainers: (id: string) => void;
+  onHardware: (id: string) => void;
 }) {
   const spec = sectionSpec(sectionId);
   // Controlled tab for the Presets section so catalog action buttons can jump
@@ -2952,7 +2955,7 @@ function SectionWorkspace({
         <ModuleGrid>
           <ModuleCard title="GPU & Hardware" icon={<Cpu size={18} />} desc="Live per-GPU telemetry over nvidia-smi — utilisation, VRAM, temperature, power vs limits, clocks, fan, PCIe link, pstate and ECC — plus host CPU/RAM. Pick the local daemon host or a registered host (over SSH)." wide>
             <Suspense fallback={<SkeletonCards count={2} />}>
-              <HardwarePanel hosts={hostProfiles.map((h) => ({ id: h.id, label: h.label }))} />
+              <HardwarePanel hosts={hostProfiles.map((h) => ({ id: h.id, label: h.label }))} initialHostId={focusHostId ?? undefined} />
             </Suspense>
           </ModuleCard>
         </ModuleGrid>
@@ -2973,6 +2976,7 @@ function SectionWorkspace({
           onFocusConsumed={onFocusConsumed}
           onSetupNode={onSetupNode}
           onContainers={onContainers}
+          onHardware={onHardware}
         />
       )}
 
@@ -6789,7 +6793,8 @@ function FleetHostCard({
   onTerminal,
   focused,
   onFocusConsumed,
-  onContainers
+  onContainers,
+  onHardware
 }: {
   profile: HostProfile;
   onEdit: (profile: HostProfile) => void;
@@ -6802,6 +6807,7 @@ function FleetHostCard({
   onFocusConsumed?: () => void;
   onSetupNode?: (id: string) => void;
   onContainers?: (id: string) => void;
+  onHardware?: (id: string) => void;
 }) {
   const [probe, setProbe] = useState<HostProbe | null>(null);
   const [busy, setBusy] = useState(false);
@@ -6951,6 +6957,12 @@ function FleetHostCard({
           <button className="ghost-button" onClick={() => onContainers(profile.id)}
             title={`Manage the containers on ${profile.host} in the Containers section`}>
             <Boxes size={14} /> Containers
+          </button>
+        )}
+        {onHardware && (
+          <button className="ghost-button" onClick={() => onHardware(profile.id)}
+            title={`View live GPU & hardware telemetry for ${profile.host}`}>
+            <Cpu size={14} /> GPU
           </button>
         )}
         {isSsh && (
@@ -7448,7 +7460,8 @@ function HostsSection({
   focusHostId,
   onFocusConsumed,
   onSetupNode,
-  onContainers
+  onContainers,
+  onHardware
 }: {
   hostProfiles: HostProfile[];
   environment: EnvironmentReport | null;
@@ -7463,6 +7476,7 @@ function HostsSection({
   onFocusConsumed: () => void;
   onSetupNode: (id: string) => void;
   onContainers: (id: string) => void;
+  onHardware: (id: string) => void;
 }) {
   const [inventory, setInventory] = useState<HostInventory | null>(null);
   const [modal, setModal] = useState<{ profile: HostProfile | null } | null>(null);
@@ -7496,7 +7510,7 @@ function HostsSection({
                   <div className="fleet-grid">
                     <ThisHostCard inventory={inventory} environment={environment} apiBase={apiBase} />
                     {hostProfiles.map((profile) => (
-                      <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={askDelete} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} onContainers={onContainers} />
+                      <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={askDelete} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} onContainers={onContainers} onHardware={onHardware} />
                     ))}
                   </div>
                   {hostProfiles.length === 0 && <p className="muted">No remote hosts yet — add your GPU box to probe its engine from here.</p>}

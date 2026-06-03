@@ -98,8 +98,9 @@ function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
   );
 }
 
-export function HardwarePanel({ hosts }: { hosts: HostOption[] }) {
-  const [source, setSource] = useState<Source>({ kind: "local" });
+export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; initialHostId?: string }) {
+  const [source, setSource] = useState<Source>(
+    initialHostId && hosts.some((h) => h.id === initialHostId) ? { kind: "host", hostId: initialHostId } : { kind: "local" });
   const [data, setData] = useState<HardwareTelemetry | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
