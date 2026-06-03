@@ -109,7 +109,9 @@ patches:
   GENESIS_ENABLE_PN38_DFLASH_QUANT_DRAFTER: '1'      # DFlash separate drafter quantization
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'  # K-aware MTP warmup — closes eagle_prepare_* JIT spikes (vllm#37521)
   GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'  # text-only inputs_embeds skip
-  GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: '1'  # Ampere SM 8.6 FA KV layout revert
+  # PN286_FA_LAYOUT_REVERT_SM86 disabled on DFlash — incompatible with DFlash KV layout
+  # (caused "key_cache, value_cache = kv_cache.unbind(1)" ValueError at boot 2026-06-03).
+  # GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: "0"
   GENESIS_ENABLE_P108: '1'  # MTP draft stream sync
   GENESIS_ENABLE_P109: '1'  # sampling_params vocab-range validators
   GENESIS_ENABLE_PN110: '1'  # BlockPool.free_blocks dedup
