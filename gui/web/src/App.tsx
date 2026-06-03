@@ -2763,7 +2763,7 @@ function SectionWorkspace({
               render: () => (
                 <>
                 <div className="ov-hero">
-                  <OvKpi icon={<Database size={15} />} label="Presets" value={overview?.catalog.presets_count ?? "—"} sub={`${overview?.catalog.preset_cards_count ?? 0} cards`} />
+                  <OvKpi icon={<Database size={15} />} label="Presets" value={overview?.catalog.presets_count ?? "—"} sub={`${(presets?.presets ?? []).filter((p) => asNumber(asRecord(p.card?.primary_metric).value) > 0).length} bench-proven`} onClick={() => onSection("presets")} />
                   <OvKpi icon={<Box size={15} />} label="Models" value={overview?.catalog.models_count ?? "—"} />
                   <OvKpi icon={<Wrench size={15} />} label="Patches" value={patchRows.length || patches?.total || "—"} sub={`${patchRows.filter((p) => p.default_on).length} default-on`} />
                   <OvKpi icon={<Server size={15} />} label="Hosts" value={hostProfiles.length} onClick={() => onSection("hosts")} />
