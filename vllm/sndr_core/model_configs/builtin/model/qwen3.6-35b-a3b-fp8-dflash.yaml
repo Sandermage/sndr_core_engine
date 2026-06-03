@@ -83,6 +83,7 @@ patches:
   # Evidence: sndr_private/planning/bench_results/2026-05-21/
   #   P2_DFLASH_M5_RETRY_Q35_PASS_2026-05-21_RU.md (Q35-DFlash E2E PASS).
   GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN: '1'
+  GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'  # K-aware MTP warmup — closes eagle_prepare_* JIT spikes (vllm#37521)
 
   # ── Spec-decode + structured-output safety net ──
   GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX: '1'      # vllm#40807 — async-scheduler placeholder fix

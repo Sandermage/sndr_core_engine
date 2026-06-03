@@ -148,6 +148,7 @@ patches:
   GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft online quant; saves ~1 GiB/rank on FP8 draft
   # ── Spec decode quality ──
   GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'     # issue #17 — DS conv state + spec-decode accept_len>1 protection
+  GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'  # K-aware MTP warmup — closes eagle_prepare_* JIT spikes (vllm#37521)
   GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # vllm#40269 — propagate draft_probs; min(1, target/draft) accept. Bench 27B INT4+TQ: TPS 124.63 vs 116.01 (+7.4%), accept 0.788 vs 0.697 (+13.1% rel), tool 7/7
   GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 — defensive at think→tool_call boundary
   # ── Compatibility shims ──
