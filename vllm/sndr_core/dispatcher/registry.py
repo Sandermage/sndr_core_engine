@@ -557,7 +557,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # [Genesis pin-gate 2026-05-11] PROD-active patch (35B +32% TPS).
             # Validated dev16 → dev93. Broad range; drift detector handles
             # anchor-line breakage on bumps.
-            "vllm_version_range": (">=0.20.0", "<0.21.0"),
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
         },
         "conflicts_with": ["P65", "G4_67"],
         "apply_module": "vllm.sndr_core.integrations.attention.turboquant.p67_tq_multi_query_kernel",
@@ -2449,7 +2449,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "instead of 500'ing. Strictly defensive."
         ),
         "applies_to": {
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.21.0"),
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.22.0"),
         },
         "requires_patches": [],
         "conflicts_with": [],

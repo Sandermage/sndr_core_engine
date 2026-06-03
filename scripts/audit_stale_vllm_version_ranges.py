@@ -81,10 +81,15 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     #   - apply() returns "skipped" with self-detected drift marker
     #     (PN90 — upstream merged equivalent, intentional self-skip)
     #
-    # Remaining 2 in baseline = anchor drift on 0.21.x; need rework
-    # before version-range bump is safe:
-    "P67",   # _prefill_attention top + fast-path check anchor missing
-    "PN73",  # tool_calls.arguments safe normalize anchor missing
+    # v11.3.0 P0.1+P0.2 anchor rework: both originally-baseline patches
+    # (P67, PN73) had their anchors refreshed to match upstream
+    # 0.21.x refactors. Baseline now empty — any new CRITICAL entry
+    # forces review.
+    # P67 — fixed: anchor updated for `mm_prefix_range_tensor` +
+    #       multi-line `if (` form introduced by upstream multimodal-
+    #       prefix-range refactor.
+    # PN73 — fixed: anchor updated for `function = item.get("function")`
+    #        extracted-variable refactor in _postprocess_messages.
 })
 
 

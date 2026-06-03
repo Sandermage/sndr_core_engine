@@ -43,7 +43,7 @@ from vllm.sndr_core.core import TextPatch, TextPatcher
 
 log = logging.getLogger("genesis.wiring.pn73_tool_args_safe_normalize")
 
-GENESIS_MARKER = "Genesis PN73 tool_calls.arguments safe normalization"
+GENESIS_MARKER = "Genesis PN73 tool_calls.arguments safe normalization v11.3.0_021x"
 
 
 def _enabled() -> bool:
@@ -52,32 +52,34 @@ def _enabled() -> bool:
     ).strip().lower() in ("1", "true", "yes", "on")
 
 
-# Anchor on dev209+g5536fc0c0 inspected 2026-05-13 in
-# vllm/entrypoints/chat_utils.py::_postprocess_messages.
-# The unguarded json.loads sits inside the per-tool-call for-loop.
+# v11.3.0 P0.2 anchor rework (commit pending): on dev371+/0.21.x
+# upstream `_postprocess_messages` was refactored to extract
+# `function = item.get("function")` as a local variable + add type
+# validation before touching arguments. The inner block now uses
+# `function["arguments"]` instead of `item["function"]["arguments"]`.
+# Original anchor on dev209+g5536fc0c0 inspected 2026-05-13.
+# Functional semantics identical — only variable alias changed.
 PN73_OLD = (
-    "            for item in tool_calls:\n"
     "                # if arguments is None or empty string, set to {}\n"
-    "                if content := item[\"function\"].get(\"arguments\"):\n"
+    "                if content := function.get(\"arguments\"):\n"
     "                    if not isinstance(content, (dict, list)):\n"
-    "                        item[\"function\"][\"arguments\"] = json.loads(content)\n"
+    "                        function[\"arguments\"] = json.loads(content)\n"
     "                else:\n"
-    "                    item[\"function\"][\"arguments\"] = {}\n"
+    "                    function[\"arguments\"] = {}\n"
 )
 PN73_NEW = (
-    "            for item in tool_calls:\n"
     "                # if arguments is None or empty string, set to {}\n"
-    "                if content := item[\"function\"].get(\"arguments\"):\n"
+    "                if content := function.get(\"arguments\"):\n"
     "                    if not isinstance(content, (dict, list)):\n"
     "                        # [Genesis PN73] safe normalize: on JSON-decode\n"
     "                        # failure keep the string as-is rather than 500.\n"
     "                        # Non-string scalars are coerced via str().\n"
     "                        try:\n"
     "                            if isinstance(content, str):\n"
-    "                                item[\"function\"][\"arguments\"] = json.loads(content)\n"
+    "                                function[\"arguments\"] = json.loads(content)\n"
     "                            else:\n"
     "                                # int/float/bool/None coerced to JSON-loadable string\n"
-    "                                item[\"function\"][\"arguments\"] = json.loads(str(content))\n"
+    "                                function[\"arguments\"] = json.loads(str(content))\n"
     "                        except (json.JSONDecodeError, TypeError, ValueError):\n"
     "                            import logging as _g_pn73_log\n"
     "                            _g_pn73_log.getLogger(\"genesis.pn73\").warning(\n"
@@ -88,7 +90,7 @@ PN73_NEW = (
     "                            )\n"
     "                            # keep original — template can render verbatim\n"
     "                else:\n"
-    "                    item[\"function\"][\"arguments\"] = {}\n"
+    "                    function[\"arguments\"] = {}\n"
 )
 
 

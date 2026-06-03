@@ -49,7 +49,7 @@ from vllm.sndr_core.core import (
 
 log = logging.getLogger("genesis.wiring.p67_tq_multi_query_kernel")
 
-GENESIS_P67_MARKER = "Genesis P67 TQ multi-query kernel for spec-decode K+1 v7.63.x_nopow2_gqa"
+GENESIS_P67_MARKER = "Genesis P67 TQ multi-query kernel for spec-decode K+1 v7.63.x_nopow2_gqa_v11.3.0_021x"
 
 
 # ─── H2 fix: bake env reads at module-load (eager) ───────────────────────
@@ -81,16 +81,25 @@ log.info(
 P67_OLD = (
     "    ) -> torch.Tensor:\n"
     "        N, Hq, D = query.shape\n"
+    "        mm_prefix_range_tensor = getattr(attn_metadata, \"mm_prefix_range_tensor\", None)\n"
     "\n"
     "        # Fast path: use flash_attn for first-chunk prefills (all K/V in batch).\n"
     "        # max_query_len == max_seq_len means no request has prior cached KV.\n"
     "        # Both are Python ints — no GPU sync.\n"
-    "        if _HAS_FLASH_ATTN and attn_metadata.max_query_len == attn_metadata.max_seq_len:\n"
+    "        if (\n"
 )
+# v11.3.0 P0.1 anchor rework: upstream added `mm_prefix_range_tensor`
+# multimodal-prefix-range marker line + sliding-window check + flash_attn
+# capability gate (instance attr `self._can_use_flash_attn` replacing
+# module-level `_HAS_FLASH_ATTN`). Fast-path `if` block went from
+# single-line to multi-line parenthesized form. Genesis hook insertion
+# point stays "between mm_prefix_range_tensor line and # Fast path
+# comment" — semantics identical, anchor text refreshed.
 
 P67_NEW = (
     "    ) -> torch.Tensor:\n"
     "        N, Hq, D = query.shape\n"
+    "        mm_prefix_range_tensor = getattr(attn_metadata, \"mm_prefix_range_tensor\", None)\n"
     "\n"
     "        # [Genesis P67 vllm-genesis] Multi-query continuation prefill hook.\n"
     "        # If batch is K+1 spec-verify continuation (multi-query AND has prior\n"
@@ -263,7 +272,7 @@ P67_NEW = (
     "        # Fast path: use flash_attn for first-chunk prefills (all K/V in batch).\n"
     "        # max_query_len == max_seq_len means no request has prior cached KV.\n"
     "        # Both are Python ints — no GPU sync.\n"
-    "        if _HAS_FLASH_ATTN and attn_metadata.max_query_len == attn_metadata.max_seq_len:\n"
+    "        if (\n"
 )
 
 
