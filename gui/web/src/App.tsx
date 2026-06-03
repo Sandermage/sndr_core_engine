@@ -143,7 +143,9 @@ import { KvCalcPanel, BaselinePanel } from "./Planner";
 import { InstallWizard } from "./Installer";
 import { CopilotPanel } from "./Copilot";
 import { FleetPanel } from "./Fleet";
-import { ContainersPanel } from "./Containers";
+// Lazy-loaded: the container management UI (~1.2k lines) only renders on the
+// Containers section, so it is code-split out of the initial bundle.
+const ContainersPanel = lazy(() => import("./Containers").then((m) => ({ default: m.ContainersPanel })));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type RuntimeMode = "local" | "remote";
@@ -2955,7 +2957,9 @@ function SectionWorkspace({
       {sectionId === "containers" && (
         <ModuleGrid>
           <ModuleCard title="Containers" icon={<Boxes size={18} />} desc="Manage the vLLM/engine containers on a server — list, live CPU/memory, logs, start/stop/restart, and (when SNDR_ENABLE_EXEC is on) exec inside. Pick the local daemon's host (docker socket) or a registered host (over SSH). Scoped to engine containers only." wide>
-            <ContainersPanel hosts={hostProfiles.map((h) => ({ id: h.id, label: h.label }))} onNavigate={(section) => onSection(section as SectionId)} initialHostId={focusHostId ?? undefined} />
+            <Suspense fallback={<div className="skel-grid cards"><Skeleton variant="card" count={6} /></div>}>
+              <ContainersPanel hosts={hostProfiles.map((h) => ({ id: h.id, label: h.label }))} onNavigate={(section) => onSection(section as SectionId)} initialHostId={focusHostId ?? undefined} />
+            </Suspense>
           </ModuleCard>
         </ModuleGrid>
       )}
