@@ -336,24 +336,29 @@ def clear_aux_hidden_state_hooks(model: Any) -> int:
     return count
 
 
-def apply() -> dict:
+def apply() -> tuple[str, str]:
     """Apply marker — no-op until a drafter actually calls
     `register_aux_hidden_state_hooks()`.
 
-    Returns a dict shape compatible with Genesis's PatchResult /
-    @register_patch convention. Idempotent.
+    Returns a `(status, reason)` 2-tuple — required by both the legacy
+    @register_patch wrapper AND the spec-driven orchestrator path
+    (SNDR_APPLY_VIA_SPECS=1) which unpacks as
+    `status, reason = mod.apply()`.
+
+    v11.3.0 bug fix: pre-fix this returned a dict, which silently broke
+    the spec-driven path with a TypeError on tuple-unpack. Other
+    apply_modules in the repo (PN12, PN79_V2_*, PN116, etc.) all return
+    2-tuples — fixed for consistency. Idempotent.
     """
     # Idempotent marker check
     if globals().get(_GENESIS_MARKER):
-        return {
-            "status": "skipped",
-            "reason": "SNDR_EAGLE3_AUX_HIDDEN_001 already applied (idempotent)",
-        }
+        return (
+            "skipped",
+            "SNDR_EAGLE3_AUX_HIDDEN_001 already applied (idempotent)",
+        )
     globals()[_GENESIS_MARKER] = True
-    return {
-        "status": "applied",
-        "reason": (
-            "SNDR_EAGLE3_AUX_HIDDEN_001 model-side prep ready; "
-            "register_aux_hidden_state_hooks() awaits drafter wire-up"
-        ),
-    }
+    return (
+        "applied",
+        "SNDR_EAGLE3_AUX_HIDDEN_001 model-side prep ready; "
+        "register_aux_hidden_state_hooks() awaits drafter wire-up",
+    )

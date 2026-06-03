@@ -1658,12 +1658,12 @@ def apply_patch_sndr_eagle3_aux_hidden_001() -> PatchResult:
         )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    r = _wiring.apply()
-    if r["status"] == "applied":
-        return _applied(name, r["reason"])
-    if r["status"] == "skipped":
-        return _skipped(name, r["reason"])
-    return _failed(name, r["reason"])
+    status, reason = _wiring.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
 
 
 @register_patch("PN202 per-layer KV tensor split (Tier 2.A)")

@@ -251,16 +251,43 @@ def test_clear_removes_all_handles():
 
 
 def test_apply_returns_idempotent_marker():
+    """apply() returns (status, reason) tuple — compatible with both
+    the legacy @register_patch wrapper AND the spec-driven orchestrator
+    that unpacks as `status, reason = mod.apply()`."""
     from vllm.sndr_core.integrations.spec_decode import (
         sndr_eagle3_aux_hidden_001 as mod,
     )
     # Reset marker for isolation
     mod.__dict__.pop("_genesis_sndr_eagle3_001_applied", None)
     r1 = mod.apply()
-    assert r1["status"] == "applied"
+    # Verify it's a 2-tuple (not a dict — that was the v11.3.0 bug)
+    assert isinstance(r1, tuple), (
+        f"apply() must return tuple, got {type(r1).__name__}. "
+        f"Dict return broke spec-driven orchestrator's "
+        f"`status, reason = mod.apply()` unpack."
+    )
+    assert len(r1) == 2
+    status1, reason1 = r1
+    assert status1 == "applied"
     r2 = mod.apply()
-    assert r2["status"] == "skipped"
-    assert "already applied" in r2["reason"]
+    assert isinstance(r2, tuple) and len(r2) == 2
+    status2, reason2 = r2
+    assert status2 == "skipped"
+    assert "already applied" in reason2
+
+
+def test_apply_unpacks_in_spec_driven_orchestrator_pattern():
+    """Verify the spec-driven orchestrator's `status, reason = mod.apply()`
+    works without TypeError — the unpack pattern that was broken by the
+    pre-v11.3.0 dict return."""
+    from vllm.sndr_core.integrations.spec_decode import (
+        sndr_eagle3_aux_hidden_001 as mod,
+    )
+    mod.__dict__.pop("_genesis_sndr_eagle3_001_applied", None)
+    # This unpack would TypeError with the buggy dict return
+    status, reason = mod.apply()
+    assert status in ("applied", "skipped", "failed")
+    assert isinstance(reason, str)
 
 
 def test_resolve_layers_finds_canonical_path():
