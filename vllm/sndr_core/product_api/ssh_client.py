@@ -109,10 +109,17 @@ def _open_client(target: dict[str, Any], timeout: float):
         raise RuntimeError("paramiko not installed")
     client = paramiko.SSHClient()
     try:
-        client.load_system_host_keys()
+        client.load_system_host_keys()  # ~/.ssh/known_hosts + system known_hosts
     except Exception:
         pass
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # Host-key policy. Default is TOFU (AutoAddPolicy): an unknown host is trusted
+    # on first connect, but paramiko still REJECTS a CHANGED key for a known host
+    # (the real MITM signal). Enterprise deployments that pre-provision
+    # known_hosts can set SNDR_SSH_STRICT_HOST_KEYS=1 to reject unknown hosts too.
+    _strict = (os.environ.get("SNDR_SSH_STRICT_HOST_KEYS") or "").strip().lower() in ("1", "true", "yes", "on")
+    client.set_missing_host_key_policy(
+        paramiko.RejectPolicy() if _strict else paramiko.AutoAddPolicy()
+    )
     client.connect(**_connect_kwargs(target, timeout))
     return client
 
