@@ -389,8 +389,11 @@ function useFetch<T>(
 // it is open and restores focus to the previously-focused element (the trigger)
 // on close. Respects an element that already holds focus inside the dialog
 // (e.g. an autofocused search input), so it never fights an explicit autoFocus.
-function useDialogFocus<T extends HTMLElement>(ref: RefObject<T | null>) {
+// `active` lets callers that render the dialog inline (`{open && <section/>}`)
+// re-arm the trap when it opens; components that mount/unmount can omit it.
+function useDialogFocus<T extends HTMLElement>(ref: RefObject<T | null>, active: boolean = true) {
   useEffect(() => {
+    if (!active) return;
     const node = ref.current;
     if (!node) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -411,7 +414,7 @@ function useDialogFocus<T extends HTMLElement>(ref: RefObject<T | null>) {
       node.removeEventListener("keydown", onKeyDown);
       previouslyFocused?.focus?.();
     };
-  }, [ref]);
+  }, [ref, active]);
 }
 
 export default function App() {
@@ -7389,6 +7392,13 @@ function HostFormModal({
     : blank);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   const set = (patch: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...patch }));
   async function save() {
     setBusy(true);
@@ -7433,7 +7443,7 @@ function HostFormModal({
   }
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section className="host-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="host-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
         <div className="module-card-title">
           <Server size={18} />
           <h2>{initial ? `Edit ${initial.label}` : "Add host profile"}</h2>
@@ -7658,6 +7668,14 @@ function HostProfileTable({
 
 function CodeBlock({ lines, title }: { lines: string[]; title?: string }) {
   const [expanded, setExpanded] = useState(false);
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef, expanded);
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setExpanded(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
   const body = lines.map((line, index) => <span key={index}>{line || " "}</span>);
   const joined = lines.join("\n");
   return (
@@ -7671,7 +7689,7 @@ function CodeBlock({ lines, title }: { lines: string[]; title?: string }) {
       </div>
       {expanded && (
         <div className="dialog-backdrop" role="presentation" onClick={() => setExpanded(false)}>
-          <section className="code-expand" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="code-expand-head">
               <Terminal size={15} />
               <strong>{title ?? "Output"}</strong>
@@ -7689,6 +7707,14 @@ function CodeBlock({ lines, title }: { lines: string[]; title?: string }) {
 // Editable text field (YAML / config) with copy + a fullscreen-edit expand.
 function CodeEditorField({ value, onChange, label }: { value: string; onChange: (next: string) => void; label?: string }) {
   const [expanded, setExpanded] = useState(false);
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef, expanded);
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setExpanded(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
   return (
     <div className="code-wrap code-editor-field">
       <div className="code-actions">
@@ -7698,7 +7724,7 @@ function CodeEditorField({ value, onChange, label }: { value: string; onChange: 
       <textarea className="yaml-area" value={value} spellCheck={false} onChange={(event) => onChange(event.target.value)} />
       {expanded && (
         <div className="dialog-backdrop" role="presentation" onClick={() => setExpanded(false)}>
-          <section className="code-expand" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
             <header className="code-expand-head">
               <Code2 size={15} />
               <strong>{label ?? "Editor"}</strong>
