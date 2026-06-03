@@ -3988,3 +3988,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .sps.ok { background: rgba(21,128,61,0.14); color: var(--ok); }
 .sps.warn { background: var(--warn-soft); color: var(--warn); }
 .sps.bad { background: rgba(190,18,60,0.14); color: var(--danger); }
+
+/* live field validation badge */
+.element-field-warn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--danger); }
+.element-field-hinted.invalid input, .element-field-hinted.invalid select { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent); }

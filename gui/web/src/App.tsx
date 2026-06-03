@@ -4693,7 +4693,27 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
   );
 }
 
+// Live sanity-check for the most error-prone numeric config fields — catches a
+// bad value (e.g. gpu_memory_utilization 1.5) before it's saved/applied.
+function fieldWarning(spec: FieldSpec, value: any): string | null {
+  if (value == null || value === "" || spec.type !== "number") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "not a number";
+  const leaf = spec.path.split(".").pop();
+  switch (leaf) {
+    case "gpu_memory_utilization": return n > 0 && n <= 1 ? null : "expected 0 < util ≤ 1";
+    case "max_num_seqs": return Number.isInteger(n) && n >= 1 && n <= 4096 ? null : "expected 1–4096";
+    case "max_num_batched_tokens": return n >= 256 ? null : "expected ≥ 256";
+    case "max_model_len": return n >= 256 ? null : "expected ≥ 256";
+    case "num_speculative_tokens": return n >= 0 && n <= 16 ? null : "expected 0–16";
+    case "n_gpus":
+    case "min_gpu_count": return Number.isInteger(n) && n >= 1 && n <= 8 ? null : "expected 1–8";
+    default: return n < 0 ? "must be ≥ 0" : null;
+  }
+}
+
 function ElementField({ spec, value, onChange }: { spec: FieldSpec; value: any; onChange: (value: any) => void }) {
+  const warn = fieldWarning(spec, value);
   const field = (() => {
     if (spec.type === "bool") {
       return <BoolField label={spec.label} value={Boolean(value)} onChange={onChange} />;
@@ -4709,11 +4729,13 @@ function ElementField({ spec, value, onChange }: { spec: FieldSpec; value: any; 
     }
     return <TextField label={spec.label} value={value == null ? "" : String(value)} onChange={onChange} />;
   })();
-  if (!spec.hint) return field;
+  if (!spec.hint && !warn) return field;
   return (
-    <div className="element-field-hinted">
+    <div className={`element-field-hinted${warn ? " invalid" : ""}`}>
       {field}
-      <small className="element-field-hint">{spec.hint}</small>
+      {warn
+        ? <small className="element-field-warn"><AlertTriangle size={11} /> {warn}</small>
+        : spec.hint ? <small className="element-field-hint">{spec.hint}</small> : null}
     </div>
   );
 }
