@@ -350,6 +350,15 @@ audit-v2-network-port-consistency: ## §4.2 V2 hardware.runtime.docker network p
 audit-runtime-hook-ratchet: ## §4.2 P2.3: every stable patch declares stable_kind; runtime-hook kind requires production_validated_pins ≥2
 	@$(PYTHON) scripts/audit_runtime_hook_ratchet.py
 
+audit-dispatcher-migration-readiness: ## v11.3.0 P3.4: dispatcher iter_patch_specs() readiness — 218/241 spec-ready, 0 real gaps
+	@$(PYTHON) scripts/audit_dispatcher_migration_readiness.py --strict
+
+audit-legacy-vs-spec-driven-apply-matrix: ## v11.3.0 P3.4: legacy vs spec-driven apply-matrix divergence report (informational — v12.0.0 unifies)
+	@$(PYTHON) scripts/audit_legacy_vs_spec_driven_apply_matrix.py
+
+audit-stale-vllm-version-ranges: ## v11.3.0 CLAUDE.md Class 5: stale vllm_version_range upper bounds (CRITICAL count must be 0)
+	@$(PYTHON) scripts/audit_stale_vllm_version_ranges.py --strict
+
 cold-install-smoke: ## Phase 8a: non-destructive smoke (CLI/imports/audit) — operator runs after `git clone` + `pip install -e .`
 	@bash scripts/cold_install_smoke.sh $(ARGS)
 
