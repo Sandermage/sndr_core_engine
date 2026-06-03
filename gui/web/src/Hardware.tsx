@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Activity, AlertTriangle, Cpu, Gauge, HardDrive, MemoryStick, RefreshCw,
-  Server, Thermometer, Zap,
+  Activity, AlertTriangle, CircuitBoard, Cpu, Fan, Gauge, HardDrive, MemoryStick,
+  RefreshCw, Server, Thermometer, Zap,
 } from "lucide-react";
 import { api, type GpuInfo, type HardwareTelemetry } from "./api";
 
@@ -9,25 +9,50 @@ type HostOption = { id: string; label: string };
 type Source = { kind: "local" } | { kind: "host"; hostId: string };
 
 const num = (v: number | null | undefined, d = 0) => (typeof v === "number" && !Number.isNaN(v) ? v : d);
-const gib = (mib: number | null | undefined) => Math.round(num(mib) / 1024);
+const gib1 = (mib: number | null | undefined) => (num(mib) / 1024).toFixed(1);
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 
-// Tone thresholds shared by the hero bars (util / temp / power).
+// Tone thresholds shared by the ring gauges + bars (util / temp / power).
 function tone(pct: number): "ok" | "warn" | "hot" {
   if (pct >= 90) return "hot";
   if (pct >= 70) return "warn";
   return "ok";
 }
 
-function Bar({ label, icon, value, pct, sub }: {
+// A large circular gauge — the hero metric for a GPU (util / temp / power).
+const RING_R = 34;
+const RING_C = 2 * Math.PI * RING_R;
+function Ring({ label, icon, value, pct, sub }: {
   label: string; icon: ReactNode; value: string; pct: number; sub?: string;
 }) {
   const t = tone(pct);
+  const off = RING_C * (1 - clamp(pct) / 100);
+  return (
+    <div className="hw-ring">
+      <div className="hw-ring-dial">
+        <svg viewBox="0 0 80 80" className={`hw-ring-svg ${t}`}>
+          <circle cx="40" cy="40" r={RING_R} className="hw-ring-bg" />
+          <circle cx="40" cy="40" r={RING_R} className="hw-ring-fg"
+            strokeDasharray={RING_C} strokeDashoffset={off} />
+        </svg>
+        <strong className={`hw-ring-v ${t}`}>{value}</strong>
+      </div>
+      <span className="hw-ring-label">{icon} {label}</span>
+      {sub && <span className="hw-ring-sub">{sub}</span>}
+    </div>
+  );
+}
+
+// A labelled progress bar (memory, bandwidth, fan).
+function Bar({ label, value, pct, sub, tint }: {
+  label: string; value: string; pct: number; sub?: string; tint?: boolean;
+}) {
+  const t = tint ? tone(pct) : "ok";
   return (
     <div className="hw-bar">
       <div className="hw-bar-head">
-        <span className="hw-bar-label">{icon} {label}</span>
-        <strong className={`hw-bar-value ${t}`}>{value}</strong>
+        <span className="hw-bar-label">{label}</span>
+        <strong className={`hw-bar-value ${tint ? t : ""}`}>{value}</strong>
       </div>
       <div className="hw-bar-track"><div className={`hw-bar-fill ${t}`} style={{ width: `${clamp(pct)}%` }} /></div>
       {sub && <span className="hw-bar-sub">{sub}</span>}
@@ -35,8 +60,13 @@ function Bar({ label, icon, value, pct, sub }: {
   );
 }
 
-function Row({ k, v }: { k: string; v: ReactNode }) {
-  return <div className="hw-row"><span className="hw-row-k">{k}</span><span className="hw-row-v">{v}</span></div>;
+function Row({ k, v, unit }: { k: string; v: ReactNode; unit?: string }) {
+  return (
+    <div className="hw-row">
+      <span className="hw-row-k">{k}</span>
+      <span className="hw-row-v">{v}{unit ? <em className="hw-row-u"> {unit}</em> : null}</span>
+    </div>
+  );
 }
 
 function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
@@ -46,54 +76,72 @@ function GpuCard({ gpu, index }: { gpu: GpuInfo; index: number }) {
   const powerMax = num(gpu.power_max_limit) || num(gpu.power_default_limit);
   const memUsed = num(gpu.mem_used);
   const memTotal = num(gpu.mem_total) || 1;
+  const memFree = gpu.mem_free != null ? num(gpu.mem_free) : Math.max(0, memTotal - memUsed);
   const memPct = clamp((memUsed / memTotal) * 100);
+  const memBw = num(gpu.mem_util);
   const tempPct = clamp((temp / 90) * 100); // ~90°C as the visual ceiling
   const powerPct = powerMax ? clamp((power / powerMax) * 100) : 0;
+  const fan = gpu.fan_speed;
+  const eccUnc = num(Number(gpu.ecc_uncorrected));
 
   return (
     <div className="hw-gpu">
       <div className="hw-gpu-head">
         <span className="hw-gpu-idx">{index}</span>
-        <strong className="hw-gpu-name" title={gpu.name ?? ""}>{(gpu.name ?? "GPU").replace(/^NVIDIA\s+/i, "")}</strong>
-        {gpu.pstate && <span className="hw-pstate" title="performance state">{gpu.pstate}</span>}
-        {gpu.driver_version && <span className="hw-gpu-driver">drv {gpu.driver_version}</span>}
-      </div>
-
-      <div className="hw-heroes">
-        <Bar label="Util" icon={<Gauge size={12} />} value={`${util}%`} pct={util} />
-        <Bar label="Temp" icon={<Thermometer size={12} />} value={`${temp}°C`} pct={tempPct} />
-        <Bar label="Power" icon={<Zap size={12} />} value={`${Math.round(power)}W`} pct={powerPct}
-          sub={powerMax ? `of ${Math.round(powerMax)}W limit` : undefined} />
-      </div>
-
-      <div className="hw-mem">
-        <div className="hw-bar-head">
-          <span className="hw-bar-label"><MemoryStick size={12} /> VRAM</span>
-          <strong className="hw-bar-value">{gib(memUsed)} / {gib(memTotal)} GB</strong>
+        <div className="hw-gpu-id">
+          <strong className="hw-gpu-name" title={gpu.name ?? ""}>{(gpu.name ?? "GPU").replace(/^NVIDIA\s+/i, "")}</strong>
+          <span className="hw-gpu-meta">
+            {gpu.driver_version ? `driver ${gpu.driver_version}` : "driver —"}
+            {gpu.vbios_version ? ` · vBIOS ${gpu.vbios_version}` : ""}
+          </span>
         </div>
-        <div className="hw-bar-track"><div className={`hw-bar-fill ${tone(memPct)}`} style={{ width: `${memPct}%` }} /></div>
+        {gpu.pstate && <span className={`hw-pstate ${gpu.pstate === "P0" ? "ok" : ""}`} title="performance state">{gpu.pstate}</span>}
+      </div>
+
+      <div className="hw-rings">
+        <Ring label="GPU util" icon={<Gauge size={11} />} value={`${util}%`} pct={util} sub="utilization" />
+        <Ring label="Temp" icon={<Thermometer size={11} />} value={`${temp}°`} pct={tempPct} sub={`${temp} °C`} />
+        <Ring label="Power" icon={<Zap size={11} />} value={`${Math.round(powerPct)}%`} pct={powerPct}
+          sub={powerMax ? `${Math.round(power)} / ${Math.round(powerMax)} W` : `${Math.round(power)} W`} />
+      </div>
+
+      <div className="hw-block">
+        <div className="hw-sect-t"><MemoryStick size={12} /> Memory</div>
+        <Bar label="VRAM" value={`${gib1(memUsed)} / ${gib1(memTotal)} GB`} pct={memPct} tint
+          sub={`${gib1(memFree)} GB free · ${Math.round(memPct)}% used`} />
+        <Bar label="Bandwidth" value={`${memBw}%`} pct={memBw} sub="memory controller load" />
       </div>
 
       <div className="hw-grid">
         <div className="hw-sect">
-          <div className="hw-sect-t">Clocks</div>
-          <Row k="Graphics" v={`${num(gpu.clock_gpu)} / ${num(gpu.clock_gpu_max)} MHz`} />
-          <Row k="Memory" v={`${num(gpu.clock_mem)} / ${num(gpu.clock_mem_max)} MHz`} />
-          <Row k="SM" v={`${num(gpu.clock_sm)} MHz`} />
+          <div className="hw-sect-t"><Gauge size={12} /> Clocks</div>
+          <Row k="Graphics" v={`${num(gpu.clock_gpu)} / ${num(gpu.clock_gpu_max)}`} unit="MHz" />
+          <Row k="Memory" v={`${num(gpu.clock_mem)} / ${num(gpu.clock_mem_max)}`} unit="MHz" />
+          <Row k="SM" v={`${num(gpu.clock_sm)}`} unit="MHz" />
         </div>
         <div className="hw-sect">
-          <div className="hw-sect-t">Link & state</div>
-          <Row k="PCIe" v={gpu.pcie_gen ? `gen${gpu.pcie_gen}×${num(gpu.pcie_width)} / gen${num(gpu.pcie_gen_max)}×${num(gpu.pcie_width_max)}` : "—"} />
-          <Row k="Fan" v={gpu.fan_speed !== null ? `${gpu.fan_speed}%` : "—"} />
-          <Row k="Compute" v={gpu.compute_mode ?? "—"} />
-        </div>
-        <div className="hw-sect">
-          <div className="hw-sect-t">ECC & firmware</div>
-          <Row k="ECC corrected" v={gpu.ecc_corrected ?? "—"} />
-          <Row k="ECC uncorrect." v={<span className={num(Number(gpu.ecc_uncorrected)) > 0 ? "hw-bad" : ""}>{gpu.ecc_uncorrected ?? "—"}</span>} />
-          <Row k="VBIOS" v={gpu.vbios_version ?? "—"} />
+          <div className="hw-sect-t"><Fan size={12} /> Thermal &amp; power</div>
+          <Row k="Fan" v={fan != null ? `${fan}` : "—"} unit={fan != null ? "%" : ""} />
+          <Row k="Power limit" v={powerMax ? `${Math.round(powerMax)}` : "—"} unit={powerMax ? "W" : ""} />
+          <Row k="Default limit" v={gpu.power_default_limit != null ? `${Math.round(num(gpu.power_default_limit))}` : "—"} unit={gpu.power_default_limit != null ? "W" : ""} />
         </div>
       </div>
+
+      <div className="hw-grid">
+        <div className="hw-sect">
+          <div className="hw-sect-t"><CircuitBoard size={12} /> Bus &amp; state</div>
+          <Row k="PCIe" v={gpu.pcie_gen ? `gen${gpu.pcie_gen}×${num(gpu.pcie_width)} / gen${num(gpu.pcie_gen_max)}×${num(gpu.pcie_width_max)}` : "—"} />
+          <Row k="Compute" v={gpu.compute_mode ?? "—"} />
+          <Row k="P-state" v={gpu.pstate ?? "—"} />
+        </div>
+        <div className="hw-sect">
+          <div className="hw-sect-t"><Activity size={12} /> ECC errors</div>
+          <Row k="Corrected" v={gpu.ecc_corrected ?? "—"} />
+          <Row k="Uncorrected" v={<span className={eccUnc > 0 ? "hw-bad" : ""}>{gpu.ecc_uncorrected ?? "—"}</span>} />
+        </div>
+      </div>
+
+      {gpu.uuid && <div className="hw-uuid" title="GPU UUID"><Server size={10} /> {gpu.uuid}</div>}
     </div>
   );
 }
