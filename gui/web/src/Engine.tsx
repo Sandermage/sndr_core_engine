@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Bot, BookText, ChevronDown, CircleAlert, Copy, Database, Download, Heart, Loader2, Pencil, Plus, RefreshCw, Search, Send, SlidersHorizontal, Sparkles, Square, TimerReset, Trash2, User, X, Zap } from "lucide-react";
+import { ArrowRight, Bot, BookText, ChevronDown, CircleAlert, Copy, Database, Download, Heart, Loader2, Pencil, Plus, RefreshCw, Route, Search, Send, SlidersHorizontal, Sparkles, Square, TimerReset, Trash2, User, X, Zap } from "lucide-react";
 import type { ReactNode } from "react";
-import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, api } from "./api";
+import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, type RoutingActive, type RoutingClassify, type RoutingSignals, api } from "./api";
 import { SkeletonMetrics } from "./Skeleton";
 import { onKeyActivate } from "./dialog";
 
@@ -589,10 +589,10 @@ function MarkdownLite({ text }: { text: string }) {
 type ChatStat = { tokens?: number; tps?: number; ttft_ms?: number; latency_ms?: number };
 type ChatMessage = { role: "user" | "assistant"; content: string; stat?: ChatStat; sources?: RagDoc[] };
 type Conversation = { id: string; title: string; messages: ChatMessage[]; createdAt: number; updatedAt: number };
-type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; presencePenalty: number; frequencyPenalty: number; stop: string; thinking: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[] };
+type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; presencePenalty: number; frequencyPenalty: number; stop: string; thinking: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
 
 const CHAT_KEY = "sndr.chat.v1";
-const DEFAULT_SETTINGS: ChatSettings = { host: "127.0.0.1", port: 8000, model: "", apiKey: "", hostId: "", system: "You are a helpful assistant.", temperature: 0.7, maxTokens: 512, topP: 1, presencePenalty: 0, frequencyPenalty: 0, stop: "", thinking: false, useProject: false, ragProject: true, ragVaults: [] };
+const DEFAULT_SETTINGS: ChatSettings = { host: "127.0.0.1", port: 8000, model: "", apiKey: "", hostId: "", system: "You are a helpful assistant.", temperature: 0.7, maxTokens: 512, topP: 1, presencePenalty: 0, frequencyPenalty: 0, stop: "", thinking: false, useProject: false, ragProject: true, ragVaults: [], workloadClass: "" };
 
 // Build the grounding system message from retrieved project-knowledge docs.
 function buildRagContext(docs: RagDoc[]): string {
@@ -657,6 +657,51 @@ function SourcesRow({ docs }: { docs: RagDoc[] }) {
 export type ChatTarget = { host: string; port: number; apiKey?: string; hostId?: string; model?: string; nonce: number };
 
 // Full-featured streaming chat for any running local vLLM model.
+// Inline routing awareness for the chat: tag a workload class and see, live, how
+// the active spec-decode profile would route it (same brain as the gateway). The
+// whole strip renders nothing when routing is unavailable, so the chat is never
+// affected on deployments without the spec_decode layer.
+function ChatRoutingHint({ value, onChange }: { value: string; onChange: (w: string) => void }) {
+  const [active, setActive] = useState<RoutingActive | null>(null);
+  const [res, setRes] = useState<RoutingClassify | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.routingActive().then((x) => { if (alive) setActive(x); }).catch(() => { if (alive) setActive({ available: false }); });
+    return () => { alive = false; };
+  }, []);
+
+  const profile = active?.profile ?? undefined;
+  const classes = active?.artifact?.workload_classes ?? [];
+
+  useEffect(() => {
+    if (!active?.available || !profile) { setRes(null); return; }
+    const signals: RoutingSignals = value ? { workload_class: value } : {};
+    let alive = true;
+    api.routingClassify(signals, profile).then((r) => { if (alive) setRes(r); }).catch(() => {});
+    return () => { alive = false; };
+  }, [active, profile, value]);
+
+  if (!active?.available || !profile) return null;
+  const accepted = res?.accepted === true;
+  const delta = res?.expected_delta_tps;
+  return (
+    <div className="chat-routing">
+      <span className="chat-routing-l"><Route size={13} /> Workload</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} title="Tag this chat's workload class to preview spec-decode routing">
+        <option value="">untagged</option>
+        {classes.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+      {res && (
+        <span className={`chat-routing-verdict ${accepted ? "ok" : "fallback"}`} title={res.reason}>
+          <ArrowRight size={12} /> {accepted ? res.profile : "fallback (MTP off)"}
+          {typeof delta === "number" && <em className={delta >= 0 ? "ok" : "hot"}>{delta > 0 ? "+" : ""}{(delta * 100).toFixed(0)}% TPS</em>}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ChatConsole({ defaultHost, target }: { defaultHost?: string; target?: ChatTarget | null }) {
   const initial = useRef(loadChatState());
   const [conversations, setConversations] = useState<Conversation[]>(initial.current.conversations);
@@ -924,6 +969,8 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
         </div>
 
         {error && <div className="chat-error"><CircleAlert size={14} /> {error}</div>}
+
+        <ChatRoutingHint value={settings.workloadClass} onChange={(w) => set({ workloadClass: w })} />
 
         <div className="chat-composer">
           <textarea
