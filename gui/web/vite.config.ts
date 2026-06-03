@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -11,5 +12,13 @@ export default defineConfig({
     // xterm (Terminal) is lazy-loaded, so it splits into its own on-demand chunk
     // automatically — keeping the initial bundle smaller and the app fast to open.
     chunkSizeWarningLimit: 900
+  },
+  test: {
+    // Unit tests (vitest) — pure logic + small components in a jsdom DOM.
+    // E2E lives separately under e2e/ (Playwright); exclude it here.
+    environment: "jsdom",
+    globals: true,
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    exclude: ["e2e/**", "node_modules/**"]
   }
 });

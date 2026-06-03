@@ -47,7 +47,7 @@ export function KvCalcPanel() {
   }, []);
 
   // Pick a host → pull real VRAM / GPU count / arch from the discovered profile.
-  function useHost(id: string) {
+  function applyHostRig(id: string) {
     setHostId(id);
     setReal(null);
     const h = hosts.find((x) => x.id === id);
@@ -95,7 +95,7 @@ export function KvCalcPanel() {
     <div className="kvcalc">
       <div className="kvcalc-controls">
         <label className="param-field"><span><Server size={11} /> Rig (from host card)</span>
-          <select value={hostId} onChange={(e) => useHost(e.target.value)}>
+          <select value={hostId} onChange={(e) => applyHostRig(e.target.value)}>
             <option value="">— manual / custom rig —</option>
             {hosts.map((h) => <option key={h.id} value={h.id}>{h.label}{h.gpu_vram_mib ? ` · ${h.gpus}× ${Math.round(h.gpu_vram_mib / 1024)}GB ${h.gpu_arch || ""}` : " · run Discover first"}</option>)}
           </select>

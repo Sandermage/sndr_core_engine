@@ -4864,7 +4864,7 @@ function yamlScalar(value: any): string {
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "number") return String(value);
   const text = String(value);
-  return /[:#{}\[\],&*?|<>=!%@`]/.test(text) || text.trim() !== text ? JSON.stringify(text) : text;
+  return /[:#{}[\],&*?|<>=!%@`]/.test(text) || text.trim() !== text ? JSON.stringify(text) : text;
 }
 
 function objToYaml(obj: any, indent = 0): string[] {
@@ -5482,7 +5482,7 @@ function V2ConfigWorkbench({
     );
   }
 
-  function usePreset(preset: V2ConfigItem) {
+  function applyPresetItem(preset: V2ConfigItem) {
     const nextModel = preset.model ?? modelId;
     const nextHardware = preset.hardware ?? hardwareId;
     const nextProfile = preset.profile ?? "";
@@ -5649,7 +5649,7 @@ function V2ConfigWorkbench({
                       <button
                         className={preset.model === modelId && preset.hardware === hardwareId && preset.profile === profileId ? "active" : ""}
                         key={preset.id}
-                        onClick={() => usePreset(preset)}
+                        onClick={() => applyPresetItem(preset)}
                       >
                         <strong>{preset.id}</strong>
                         <span>{preset.model}</span>
@@ -6858,7 +6858,7 @@ function FleetHostCard({
       toast(err instanceof Error ? err.message : "Discovery failed", "error");
     } finally { setDiscoBusy(false); }
   }
-  async function useEnginePort(port: number) {
+  async function applyEnginePort(port: number) {
     try { await api.hostUpsert({ ...profile, engine_port: port }); toast(`Engine port → ${port}`, "success"); onRefresh(); } catch { toast("Failed to set port", "error"); }
   }
   async function fetchKey() {
@@ -7041,7 +7041,7 @@ function FleetHostCard({
               <span className="fleet-disco-label"><Sparkles size={12} /> Discovered on host</span>
               {disco.engines.map((e) => (
                 <div key={e.container} className="fleet-engine-block">
-                  <button className={`fleet-engine ${e.host_port === profile.engine_port ? "active" : ""}`} onClick={() => e.host_port && void useEnginePort(e.host_port)} title={e.host_port === profile.engine_port ? "Active engine port" : "Use this port"}>
+                  <button className={`fleet-engine ${e.host_port === profile.engine_port ? "active" : ""}`} onClick={() => e.host_port && void applyEnginePort(e.host_port)} title={e.host_port === profile.engine_port ? "Active engine port" : "Use this port"}>
                     <span className={`fleet-engine-dot ${e.reachable ? "ok" : "down"}`} />
                     <code className="fleet-engine-port">:{e.host_port ?? "?"}</code>
                     <span className="fleet-engine-name">{e.container}</span>

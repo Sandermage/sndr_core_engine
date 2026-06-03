@@ -82,6 +82,7 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>]/g, (c) => (c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"));
 }
 function ansiToHtml(text: string): string {
+  // eslint-disable-next-line no-control-regex -- parsing ANSI escape codes requires the ESC control char
   const re = /\x1b\[([0-9;]*)m/g;
   let out = "", idx = 0, spanOpen = false;
   let m: RegExpExecArray | null;

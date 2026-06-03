@@ -1,0 +1,54 @@
+# SNDR Control Center web app — CI gate for the React/TypeScript GUI.
+#
+# Runs the four quality gates on every change under gui/web:
+#   typecheck (tsc) -> lint (eslint) -> unit tests (vitest) -> production build.
+# E2E (Playwright) is intentionally NOT run here — it needs a live daemon and
+# runs on the dev box; this gate keeps PR feedback fast and hermetic.
+#
+# Triggered:
+#   - push to main (only when gui/web changes)
+#   - any PR that touches gui/web
+#   - manual workflow_dispatch
+#
+# Author: Sandermage (Sander) Barzov Aleksandr.
+name: GUI web CI
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ "gui/web/**", ".github/workflows/gui_web.yml" ]
+  pull_request:
+    paths: [ "gui/web/**", ".github/workflows/gui_web.yml" ]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: gui/web
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Typecheck (tsc)
+        run: npm run typecheck
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Unit tests (vitest)
+        run: npm test
+
+      - name: Production build (vite)
+        run: npm run build
