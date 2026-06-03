@@ -156,6 +156,8 @@ import { FleetPanel } from "./Fleet";
 // Lazy-loaded: the container management UI (~1.2k lines) only renders on the
 // Containers section, so it is code-split out of the initial bundle.
 const ContainersPanel = lazy(() => import("./Containers").then((m) => ({ default: m.ContainersPanel })));
+// Lazy-loaded: the GPU/hardware telemetry dashboard only renders on its section.
+const HardwarePanel = lazy(() => import("./Hardware").then((m) => ({ default: m.HardwarePanel })));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type RuntimeMode = "local" | "remote";
@@ -165,6 +167,7 @@ type SectionId =
   | "setup"
   | "fleet"
   | "hosts"
+  | "hardware"
   | "models"
   | "configs"
   | "presets"
@@ -291,6 +294,7 @@ const navGroups: NavGroup[] = [
     { id: "fleet", icon: <LayoutGrid size={17} />, label: "Fleet" },
     { id: "hosts", icon: <Server size={17} />, label: "Hosts" },
     { id: "containers", icon: <Boxes size={17} />, label: "Containers" },
+    { id: "hardware", icon: <Cpu size={17} />, label: "Hardware" },
     { id: "setup", icon: <Settings size={17} />, label: "Setup" },
   ] },
   { label: "Models & Config", items: [
@@ -2944,6 +2948,16 @@ function SectionWorkspace({
         </ModuleGrid>
       )}
 
+      {sectionId === "hardware" && (
+        <ModuleGrid>
+          <ModuleCard title="GPU & Hardware" icon={<Cpu size={18} />} desc="Live per-GPU telemetry over nvidia-smi — utilisation, VRAM, temperature, power vs limits, clocks, fan, PCIe link, pstate and ECC — plus host CPU/RAM. Pick the local daemon host or a registered host (over SSH)." wide>
+            <Suspense fallback={<SkeletonCards count={2} />}>
+              <HardwarePanel hosts={hostProfiles.map((h) => ({ id: h.id, label: h.label }))} />
+            </Suspense>
+          </ModuleCard>
+        </ModuleGrid>
+      )}
+
       {sectionId === "hosts" && (
         <HostsSection
           hostProfiles={hostProfiles}
@@ -3849,6 +3863,11 @@ function sectionSpec(sectionId: SectionId) {
       kicker: "Docker control",
       title: "Containers",
       description: "Manage the vLLM/engine containers on a server — live CPU/memory, logs, start/stop/restart, and gated exec — over the local docker socket or a registered host via SSH.",
+    },
+    hardware: {
+      kicker: "GPU telemetry",
+      title: "GPU & Hardware",
+      description: "Live per-GPU utilisation, VRAM, temperature, power, clocks, fan, PCIe, pstate and ECC over nvidia-smi — for the daemon host or a registered host via SSH.",
     },
     doctor: {
       kicker: "Diagnostics",

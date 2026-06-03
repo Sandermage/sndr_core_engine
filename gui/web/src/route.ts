@@ -10,7 +10,7 @@
 // Every routable section id. Kept here (not derived from the nav) so a
 // hand-typed/bookmarked deep-link can be validated before we trust it.
 export const SECTION_IDS = new Set<string>([
-  "overview", "setup", "fleet", "hosts", "models", "configs", "presets",
+  "overview", "setup", "fleet", "hosts", "hardware", "models", "configs", "presets",
   "planner", "copilot", "launch-plan", "services", "containers", "doctor",
   "patches", "benchmarks", "evidence", "clients", "chat", "reports",
   "operations", "advanced",

@@ -317,6 +317,25 @@ export type HostInventory = {
 
 export type DeployTargetsResult = { targets: DeployTarget[]; host: HostInventory };
 
+// Rich live GPU + hardware telemetry (nvidia-smi), local daemon host or remote.
+export type GpuInfo = {
+  name: string | null; uuid: string | null; driver_version: string | null; vbios_version: string | null;
+  mem_used: number | null; mem_total: number | null; mem_free: number | null;
+  gpu_util: number | null; mem_util: number | null;
+  temp_gpu: number | null; temp_mem: string | null;
+  power: number | null; power_default_limit: number | null; power_max_limit: number | null;
+  fan_speed: number | null;
+  pcie_gen: number | null; pcie_gen_max: number | null; pcie_width: number | null; pcie_width_max: number | null;
+  clock_gpu: number | null; clock_gpu_max: number | null; clock_mem: number | null; clock_mem_max: number | null; clock_sm: number | null;
+  compute_mode: string | null; pstate: string | null;
+  ecc_corrected: string | null; ecc_uncorrected: string | null;
+};
+export type HardwareSystem = {
+  hostname: string | null; cpu: string | null; cpu_count: number | null;
+  ram_total_gb?: number; ram_available_gb?: number; ram_used_gb?: number;
+};
+export type HardwareTelemetry = { gpus: GpuInfo[]; system: HardwareSystem; error: string | null };
+
 export type DeployParameters = {
   image: string;
   container_name: string;
@@ -1262,6 +1281,8 @@ export const api = {
   updatePlan: (target_pin?: string) => postJson<UpdatePlan>("/api/v1/update/plan", { target_pin }),
   updateApply: (confirm: boolean, target_pin?: string) => postJson<UpdateApplyResult>("/api/v1/update/apply", { confirm, target_pin }),
   hostInventory: () => request<HostInventory>("/api/v1/host/inventory"),
+  hostGpu: () => request<HardwareTelemetry>("/api/v1/host/gpu"),
+  hostGpuRemote: (hostId: string) => request<HardwareTelemetry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/gpu`),
 
   // Container management — one shape over both transports (local socket / host SSH).
   containers: (src: ContainerSource) =>
