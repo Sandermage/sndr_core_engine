@@ -685,13 +685,28 @@ def _run_via_specs(stats: PatchStats) -> None:
     exception in the reason; same contract as the legacy loop.
     """
     import importlib
+    import os as _os_for_topo
     from vllm.sndr_core.dispatcher.spec import iter_patch_specs
     from vllm.sndr_core.dispatcher.decision import should_apply
+
+    # v11.3.0 BUG #11: opt-in topological sort by `requires_patches`.
+    # Default OFF — keeps current behavior (registry-insertion order).
+    # When ON, dependencies apply BEFORE dependents, fixing 6 known
+    # order violations at the v11.3.0 baseline. See
+    # vllm.sndr_core.dispatcher.spec.iter_patch_specs docstring.
+    _topo = _os_for_topo.environ.get(
+        "SNDR_TOPO_SORT_SPECS", ""
+    ).strip().lower() in ("1", "true", "yes", "on")
+    if _topo:
+        log.info(
+            "[Genesis spec-driven] SNDR_TOPO_SORT_SPECS=1 — "
+            "applying patches in topological order by requires_patches"
+        )
 
     n_applied = 0
     n_skipped = 0
     n_failed = 0
-    for spec in iter_patch_specs():
+    for spec in iter_patch_specs(topo_sort=_topo):
         # Use the spec.title as the displayed name (matches what
         # the legacy `@register_patch("...")` decorator passed in).
         display = f"{spec.patch_id} {spec.title}".strip()

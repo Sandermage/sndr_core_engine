@@ -429,6 +429,74 @@ def _diff_matrices(
             len(legacy_only_drift) == 0
             and not order_divergent
         ),
+        # v11.3.0 BUG #11: surface requires_patches order violations.
+        # See `vllm.sndr_core.dispatcher.spec._topological_order` —
+        # `iter_patch_specs(topo_sort=True)` corrects these at apply
+        # time; operators flip via SNDR_TOPO_SORT_SPECS=1.
+        "requires_patches_violations": _detect_requires_violations(
+            registry
+        ),
+    }
+
+
+def _detect_requires_violations(
+    registry: dict,
+) -> dict[str, Any]:
+    """For each apply path (legacy, spec-natural, spec-topo), report
+    requires_patches order violations.
+
+    Each violation is a (dependent, required) pair where the dependent
+    appears BEFORE its required dependency in the iteration order.
+    `spec_topo_violations` SHOULD be 0 — that's the safe path.
+    """
+    # Build dep map
+    deps: dict[str, set[str]] = {}
+    for pid, meta in registry.items():
+        if not isinstance(meta, dict):
+            continue
+        req = meta.get("requires_patches") or []
+        if req:
+            deps[pid] = set(req)
+
+    def _scan(order: list[str]) -> list[tuple[str, str]]:
+        pos = {p: i for i, p in enumerate(order)}
+        v: list[tuple[str, str]] = []
+        for pid, rs in deps.items():
+            if pid not in pos:
+                continue
+            for r in rs:
+                if r not in pos:
+                    continue
+                if pos[r] >= pos[pid]:
+                    v.append((pid, r))
+        return v
+
+    # spec-natural: dict-insertion order
+    spec_natural_order = list(registry.keys())
+    # spec-topo: via _topological_order
+    try:
+        from vllm.sndr_core.dispatcher.spec import _topological_order
+        spec_topo_order = _topological_order(registry)
+    except Exception:
+        spec_topo_order = spec_natural_order  # fallback if not present
+    # legacy: from apply._state.PATCH_REGISTRY
+    try:
+        from vllm.sndr_core.apply import _state, _per_patch_dispatch  # noqa: F401
+        spec_id_set = set(registry.keys())
+        legacy_order = [
+            _extract_legacy_patch_id(name, spec_id_set)
+            for name, _ in _state.PATCH_REGISTRY
+        ]
+    except Exception:
+        legacy_order = []
+
+    return {
+        "legacy_violations": len(_scan(legacy_order)),
+        "legacy_violation_pairs": _scan(legacy_order)[:10],
+        "spec_natural_violations": len(_scan(spec_natural_order)),
+        "spec_natural_violation_pairs": _scan(spec_natural_order)[:10],
+        "spec_topo_violations": len(_scan(spec_topo_order)),
+        "spec_topo_violation_pairs": _scan(spec_topo_order)[:10],
     }
 
 
@@ -504,6 +572,30 @@ def _print_human(diff: dict[str, Any]) -> None:
             "order, which may break patch dependency chains."
         )
         print()
+    # BUG #11: requires_patches violations summary
+    rv = diff.get("requires_patches_violations", {})
+    if rv:
+        print()
+        print("requires_patches order violations per path:")
+        print(
+            f"  legacy iteration:        "
+            f"{rv.get('legacy_violations', 0)} violation(s)"
+        )
+        print(
+            f"  spec dict-insertion:     "
+            f"{rv.get('spec_natural_violations', 0)} violation(s)"
+        )
+        print(
+            f"  spec topological sort:   "
+            f"{rv.get('spec_topo_violations', 0)} violation(s)  "
+            f"← SNDR_TOPO_SORT_SPECS=1"
+        )
+        if rv.get("spec_topo_violations", 0) == 0:
+            print(
+                "  ✓ topological-sort path applies dependencies first"
+            )
+        print()
+
     if diff["v12_0_safe"]:
         print(
             "✓ Apply matrices have NO DRIFT — v12.0.0 default flip is "
@@ -512,8 +604,9 @@ def _print_human(diff: dict[str, Any]) -> None:
         )
         if diff["order_divergent"]:
             print(
-                "  Note: order divergence remains. Audit per-patch "
-                "dependency chains before assuming v12_0_safe_with_order."
+                "  Note: ID-coverage order divergence remains "
+                "(legacy vs spec dict). Use SNDR_TOPO_SORT_SPECS=1 "
+                "for requires_patches-correct apply order in spec mode."
             )
         else:
             print(

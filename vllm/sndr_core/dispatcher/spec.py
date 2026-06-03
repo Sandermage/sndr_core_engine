@@ -610,23 +610,115 @@ def patch_spec_for(
     )
 
 
+def _topological_order(
+    registry: dict[str, dict[str, Any]],
+) -> list[str]:
+    """Return registry IDs in a stable topological order respecting
+    `requires_patches` (dependency must apply BEFORE dependent).
+
+    Uses Kahn's algorithm with insertion-order tie-breaking — minimizes
+    diff against the natural registry order. Cycles are reported as
+    `RuntimeError` (the registry's `test_iron_rule_11_enforcement.py`
+    + the dep-graph preflight already gate against cycles at PR time;
+    this is a defensive runtime backstop).
+
+    v11.3.0 BUG #11 fix: `iter_patch_specs(topo_sort=True)` uses this
+    so the spec-driven apply path applies dependencies before
+    dependents — fixes 6 known order violations (PN105/PN104,
+    PN34/PN33, G4_75/G4_74, G4_70/G4_69, PN256/G4_67, G4_69/G4_60K)
+    at v11.3.0 baseline.
+    """
+    # Build in-degree + adjacency
+    insertion_order = list(registry.keys())
+    pos = {pid: i for i, pid in enumerate(insertion_order)}
+    incoming: dict[str, set[str]] = {pid: set() for pid in insertion_order}
+    outgoing: dict[str, set[str]] = {pid: set() for pid in insertion_order}
+    for pid, meta in registry.items():
+        if not isinstance(meta, dict):
+            continue
+        for req in (meta.get("requires_patches") or []):
+            if req not in registry:
+                continue  # unknown ref — silently ignore (other audits surface this)
+            # `pid requires req` ⇒ edge req → pid (req must come first)
+            incoming[pid].add(req)
+            outgoing[req].add(pid)
+    # Kahn — ready queue sorted by original insertion order (stable)
+    ready = sorted(
+        (pid for pid, deps in incoming.items() if not deps),
+        key=lambda p: pos[p],
+    )
+    out: list[str] = []
+    while ready:
+        pid = ready.pop(0)
+        out.append(pid)
+        # Remove this node from its dependents
+        for dep in sorted(outgoing[pid], key=lambda p: pos[p]):
+            incoming[dep].discard(pid)
+            if not incoming[dep]:
+                # Insert keeping insertion-order ordering of ready
+                _insert_sorted(ready, dep, pos)
+    if len(out) != len(insertion_order):
+        # Cycle — find unfinished
+        remaining = [p for p in insertion_order if p not in out]
+        raise RuntimeError(
+            f"requires_patches DAG contains a cycle — cannot topological-sort. "
+            f"Remaining unsorted: {remaining[:10]}"
+        )
+    return out
+
+
+def _insert_sorted(
+    queue: list[str], item: str, pos: dict[str, int],
+) -> None:
+    """Insert `item` into `queue` keeping it sorted by pos[item]."""
+    target = pos[item]
+    lo, hi = 0, len(queue)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if pos[queue[mid]] < target:
+            lo = mid + 1
+        else:
+            hi = mid
+    queue.insert(lo, item)
+
+
 def iter_patch_specs(
     registry: Optional[dict[str, dict[str, Any]]] = None,
+    *,
+    topo_sort: bool = False,
 ) -> Iterator[PatchSpec]:
     """Yield `PatchSpec` for every registry entry.
 
     Args:
         registry: defaults to `vllm.sndr_core.dispatcher.PATCH_REGISTRY`
             (the canonical source of truth).
+        topo_sort: if True, yield specs in a stable topological order
+            respecting `requires_patches` (dependency-first). Default
+            False for backward compatibility — applies in
+            registry-insertion order. The spec-driven apply
+            orchestrator opts in via env `SNDR_TOPO_SORT_SPECS=1`.
+
+            v11.3.0 BUG #11: at the v11.3.0 baseline, registry
+            insertion order has 6 known requires_patches violations
+            where a dependent appears BEFORE its required dependency.
+            With topo_sort=True these are corrected before dispatch.
     """
     if registry is None:
         from vllm.sndr_core.dispatcher import PATCH_REGISTRY
         registry = PATCH_REGISTRY
     apply_map = _build_apply_module_map()
-    for pid, meta in registry.items():
-        if not isinstance(meta, dict):
-            continue
-        yield patch_spec_for(pid, meta, apply_module_map=apply_map)
+    if topo_sort:
+        ordered_ids = _topological_order(registry)
+        for pid in ordered_ids:
+            meta = registry[pid]
+            if not isinstance(meta, dict):
+                continue
+            yield patch_spec_for(pid, meta, apply_module_map=apply_map)
+    else:
+        for pid, meta in registry.items():
+            if not isinstance(meta, dict):
+                continue
+            yield patch_spec_for(pid, meta, apply_module_map=apply_map)
 
 
 # ─── Coverage diagnostic ──────────────────────────────────────────────────
