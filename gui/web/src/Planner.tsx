@@ -71,15 +71,16 @@ export function KvCalcPanel() {
   }
 
   // When real dims are loaded, drive the calc from them (overrides the curated model).
-  const realDims = real && real.ok ? {
-    name: `${real.model_type || "model"} (${real.model_path?.split("/").pop()})`,
-    num_layers: real.num_layers, num_kv_heads: real.num_kv_heads, head_dim: real.head_dim,
-    weights_bytes_total: real.weights_bytes || undefined, sliding_window: real.sliding_window || undefined,
-    global_layers: real.global_layers ?? undefined, max_context: real.max_context, source: "host-config",
-  } : null;
-
   useEffect(() => {
     if (timer.current) window.clearTimeout(timer.current);
+    // realDims is derived from `real` (in deps) — computed inside the effect so
+    // it isn't an unstable closure dependency that would re-run every render.
+    const realDims = real && real.ok ? {
+      name: `${real.model_type || "model"} (${real.model_path?.split("/").pop()})`,
+      num_layers: real.num_layers, num_kv_heads: real.num_kv_heads, head_dim: real.head_dim,
+      weights_bytes_total: real.weights_bytes || undefined, sliding_window: real.sliding_window || undefined,
+      global_layers: real.global_layers ?? undefined, max_context: real.max_context, source: "host-config",
+    } : null;
     timer.current = window.setTimeout(() => {
       const base = { context: ctx, concurrency: conc, tp, gpu_count: tp, gpu_vram_mib: vram, util, kv_dtype: kvDtype, gpu_name: gpuName || undefined, measured_total_mib: measured ? Number(measured) : undefined };
       api.calcKv(realDims ? { ...base, ...realDims } : { ...base, model_id: modelId }).then(setCalc).catch(() => {});
@@ -359,6 +360,7 @@ export function BaselinePanel() {
   const [err, setErr] = useState<string | null>(null);
 
   function reload() { api.baselines().then((b) => { setList(b.baselines); if (!against && b.baselines[0]) setAgainst(b.baselines[0].id); }).catch(() => {}); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot load on mount
   useEffect(() => { reload(); }, []);
 
   function parsed(): unknown { try { setErr(null); return JSON.parse(draft); } catch (e) { setErr(e instanceof Error ? e.message : "invalid JSON"); return null; } }

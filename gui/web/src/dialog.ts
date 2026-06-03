@@ -1,7 +1,28 @@
 // Shared modal-dialog accessibility hooks, used by both App and ContainersPanel
 // so every role=dialog surface gets the same keyboard semantics without App and
 // Containers importing each other (which would be circular).
-import { useEffect, type RefObject } from "react";
+import { useEffect, type RefObject, type MouseEvent as ReactMouseEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+
+// Keyboard activation (Enter / Space) for a non-button element acting as a
+// button. Pair with role="button" and tabIndex={0} so click-only handlers
+// become operable by keyboard too.
+export function onKeyActivate(fn: () => void) {
+  return (event: ReactKeyboardEvent) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      fn();
+    }
+  };
+}
+
+// Backdrop click-to-close that fires only when the backdrop itself (not a child
+// dialog) is clicked. Lets dialogs drop the `onClick={stopPropagation}` handler
+// that a11y linters flag as an interactive handler on a non-interactive element.
+export function closeOnBackdrop(close: () => void) {
+  return (event: ReactMouseEvent) => {
+    if (event.target === event.currentTarget) close();
+  };
+}
 
 // Traps Tab focus inside the dialog while it is open and restores focus to the
 // previously-focused element (the trigger) on close. Respects an element that

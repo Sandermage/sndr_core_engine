@@ -44,7 +44,10 @@ export default tseslint.config(
       "jsx-a11y/no-noninteractive-element-interactions": "warn",
       "jsx-a11y/interactive-supports-focus": "warn",
       "jsx-a11y/label-has-associated-control": "warn",
-      "jsx-a11y/no-autofocus": "warn",
+      // autoFocus is used deliberately and only inside modals / the login form
+      // (focus the first field on open) — a recognised good-UX exception to the
+      // generic rule, and awkward to disable per-attribute on multi-line inputs.
+      "jsx-a11y/no-autofocus": "off",
     },
   },
   {

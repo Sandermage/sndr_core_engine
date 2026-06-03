@@ -72,7 +72,7 @@ import {
 } from "lucide-react";
 import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
-import { useDialogFocus, useEscapeKey } from "./dialog";
+import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
 import { Skeleton, SkeletonMetrics, SkeletonLines, SkeletonCards, SkeletonTable } from "./Skeleton";
 import {
   AlertConfig,
@@ -1758,8 +1758,8 @@ function ShortcutsModal({ onClose }: { onClose: () => void }) {
     ] },
   ];
   return (
-    <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section ref={dialogRef} className="shortcuts-dialog" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onClick={(event) => event.stopPropagation()}>
+    <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
+      <section ref={dialogRef} className="shortcuts-dialog" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
         <div className="shortcuts-head">
           <Command size={16} />
           <strong>Keyboard shortcuts</strong>
@@ -2132,7 +2132,8 @@ function ServerSwitcher({
     }
   }
 
-  useEffect(() => { if (open) targets.forEach((t) => void ping(t)); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- ping the targets only when the dropdown opens
+  useEffect(() => { if (open) targets.forEach((t) => void ping(t)); }, [open]);
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest(".server-switcher")) setOpen(false); };
@@ -2407,9 +2408,9 @@ function NotificationSettings() {
     <div className="notif">
       <div className="notif-grid">
         <div className="notif-fields">
-          <label className="notif-row"><span>Enabled</span>
-            <button className={`toggle ${cfg.enabled ? "on" : ""}`} disabled={busy} onClick={() => void save(!cfg.enabled)}><span className="toggle-knob" /></button>
-          </label>
+          <div className="notif-row"><span>Enabled</span>
+            <button className={`toggle ${cfg.enabled ? "on" : ""}`} disabled={busy} onClick={() => void save(!cfg.enabled)} aria-pressed={cfg.enabled} aria-label="Enable alerts"><span className="toggle-knob" /></button>
+          </div>
           <label className="notif-row"><span>Telegram chat ID</span>
             <input value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="e.g. 123456789" />
           </label>
@@ -5364,7 +5365,6 @@ function V2ConfigWorkbench({
   selectedPreset,
   userPresets,
   onPreview,
-  onDialog,
   onUserPresetsRefresh
 }: {
   catalog: V2ConfigCatalog | null;
@@ -5390,11 +5390,11 @@ function V2ConfigWorkbench({
   const [applyError, setApplyError] = useState<string | null>(null);
   const [profileDef, setProfileDef] = useState<V2LayerDefinition | null>(null);
   const [artifactKind, setArtifactKind] = useState<"compose" | "run" | "systemd" | "env">("compose");
-  const composedForDraft = preview?.composed ?? {};
+  // composed is derived from preview, so depending on `preview` covers it; the
+  // `?? {}` is inlined to avoid an unstable new-object dependency each render.
   const baseDraft = useMemo(
-    () => buildRuntimeDraft(composedForDraft, runtime, "safe"),
+    () => buildRuntimeDraft(preview?.composed ?? {}, runtime, "safe"),
     [preview, runtime]
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   );
   const [draft, setDraft] = useState<RuntimeConfigDraft>(baseDraft);
   const [yamlText, setYamlText] = useState<string | null>(null);
@@ -6132,6 +6132,7 @@ function TabbedSection({
   };
   return (
     <div className="section-tabs-wrap">
+      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- ARIA tablist uses roving tabindex on the tabs; the container itself is not focusable by design */}
       <div className="section-tabs" role="tablist" onKeyDown={onTabKey}>
         {tabs.map((tab) => (
           <button
@@ -6789,7 +6790,6 @@ function FleetHostCard({
   onTerminal,
   focused,
   onFocusConsumed,
-  onSetupNode,
   onContainers
 }: {
   profile: HostProfile;
@@ -7385,8 +7385,8 @@ function HostFormModal({
     }
   }
   return (
-    <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section ref={dialogRef} className="host-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+    <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
+      <section ref={dialogRef} className="host-modal" role="dialog" aria-modal="true">
         <div className="module-card-title">
           <Server size={18} />
           <h2>{initial ? `Edit ${initial.label}` : "Add host profile"}</h2>
@@ -7643,8 +7643,8 @@ function CodeBlock({ lines, title }: { lines: string[]; title?: string }) {
         <pre className="code-block">{body}</pre>
       </div>
       {expanded && (
-        <div className="dialog-backdrop" role="presentation" onClick={() => setExpanded(false)}>
-          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(() => setExpanded(false))}>
+          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true">
             <header className="code-expand-head">
               <Terminal size={15} />
               <strong>{title ?? "Output"}</strong>
@@ -7678,8 +7678,8 @@ function CodeEditorField({ value, onChange, label }: { value: string; onChange: 
       </div>
       <textarea className="yaml-area" value={value} spellCheck={false} onChange={(event) => onChange(event.target.value)} />
       {expanded && (
-        <div className="dialog-backdrop" role="presentation" onClick={() => setExpanded(false)}>
-          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(() => setExpanded(false))}>
+          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true">
             <header className="code-expand-head">
               <Code2 size={15} />
               <strong>{label ?? "Editor"}</strong>
@@ -7687,7 +7687,6 @@ function CodeEditorField({ value, onChange, label }: { value: string; onChange: 
               <CopyButton value={value} label={label ?? "text"} />
               <button className="icon-only" onClick={() => setExpanded(false)} aria-label="Close"><X size={16} /></button>
             </header>
-            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
             <textarea className="yaml-area code-expand-editor" value={value} spellCheck={false} autoFocus onChange={(event) => onChange(event.target.value)} />
           </section>
         </div>
@@ -7749,7 +7748,8 @@ function PresetRecommendPanel({
       setLoading(false);
     }
   }
-  useEffect(() => { void run(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot load on mount
+  useEffect(() => { void run(); }, []);
 
   return (
     <div className="preset-recommend">
@@ -9990,15 +9990,14 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger, onCon
   useDialogFocus(dialogRef);
   useEscapeKey(onCancel);
   return (
-    <div className="dialog-backdrop" role="presentation" onClick={onCancel}>
-      <section ref={dialogRef} className="info-dialog confirm-dialog" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
+    <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onCancel)}>
+      <section ref={dialogRef} className="info-dialog confirm-dialog" role="dialog" aria-modal="true" aria-label={title}>
         <div className="module-card-title">
           <AlertTriangle size={18} />
           <h2>{title}</h2>
         </div>
         <p>{message}</p>
         <div className="confirm-actions">
-          {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
           <button className="ghost-button" onClick={onCancel} autoFocus>Cancel</button>
           <button className={`primary-action${danger ? " danger" : ""}`} onClick={onConfirm}>{confirmLabel}</button>
         </div>
@@ -10012,8 +10011,8 @@ function InfoDialog({ message, onClose }: { message: string; onClose: () => void
   useDialogFocus(dialogRef);
   useEscapeKey(onClose);
   return (
-    <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section ref={dialogRef} className="info-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+    <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
+      <section ref={dialogRef} className="info-dialog" role="dialog" aria-modal="true">
         <div className="module-card-title">
           <Command size={18} />
           <h2>GUI Action Preview</h2>
@@ -10170,11 +10169,10 @@ function CommandPalette({
     }
   };
   return (
-    <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section ref={dialogRef} className="command-dialog" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+    <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
+      <section ref={dialogRef} className="command-dialog" role="dialog" aria-modal="true">
         <div className="command-search">
           <Search size={16} />
-          {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
           <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search commands, sections, presets, models, configs, patches…" spellCheck={false}
             role="combobox" aria-expanded aria-controls="command-list" aria-activedescendant={shown[activeIndex] ? `command-item-${activeIndex}` : undefined}
             onKeyDown={onKeyDown} />
@@ -10720,8 +10718,8 @@ function JobMonitorModal({ jobId, onClose }: { jobId: string; onClose: () => voi
   const progress = typeof job?.progress === "number" ? job.progress : running ? -1 : 100;
 
   return (
-    <div className="dialog-backdrop" role="presentation" onClick={onClose}>
-      <section ref={dialogRef} className="job-monitor" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+    <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
+      <section ref={dialogRef} className="job-monitor" role="dialog" aria-modal="true">
         <header className="job-monitor-head">
           <div className="job-monitor-title">
             <Activity size={18} className={running ? "spin" : ""} />

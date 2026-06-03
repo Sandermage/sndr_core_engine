@@ -12,7 +12,7 @@ import {
   type ManagedContainer, type SourceReport, type SystemDf,
 } from "./api";
 import { hashParam, buildHash, replaceHash } from "./route";
-import { useDialogFocus, useEscapeKey } from "./dialog";
+import { useDialogFocus, useEscapeKey, closeOnBackdrop, onKeyActivate } from "./dialog";
 import { SkeletonLines, SkeletonCards } from "./Skeleton";
 
 type HostOption = { id: string; label: string };
@@ -143,7 +143,7 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
     } else if (initialHostId && hosts.some((h) => h.id === initialHostId)) {
       setSource((cur) => (cur.kind === "host" && cur.hostId === initialHostId ? cur : { kind: "host", hostId: initialHostId }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [initialHostId, hosts]);
   const [items, setItems] = useState<ManagedContainer[] | null>(null);
   const [stats, setStats] = useState<Record<string, ContainerStats>>({});
@@ -364,14 +364,14 @@ function ContainerCard({ c, stats, history, busy, onAct, onOpen }: {
       <span className={`ccard-edge ${st}`} />
       <div className="ccard-top">
         <span className={`container-dot ${st}`} />
-        <strong className="ccard-name" title={c.name} onClick={() => onOpen()}>{c.name}</strong>
+        <span className="ccard-name" title={c.name} role="button" tabIndex={0} onClick={() => onOpen()} onKeyDown={onKeyActivate(() => onOpen())}>{c.name}</span>
         <span className={`container-badge ${st}`}>{c.state || "—"}</span>
         <div className="ccard-menu-wrap">
           <button className="ccard-kebab" onClick={() => setMenu((v) => !v)} title="More"><MoreVertical size={15} /></button>
           {menu && (
             <>
-              <div className="ccard-menu-back" onClick={() => setMenu(false)} />
-              <div className="ccard-menu" onClick={() => setMenu(false)}>
+              <div className="ccard-menu-back" role="presentation" onClick={() => setMenu(false)} />
+              <div className="ccard-menu">
                 <button onClick={() => onOpen("config")}><Settings size={13} /> Config</button>
                 <button onClick={() => onOpen("stats")}><Cpu size={13} /> Stats</button>
                 <button onClick={() => onOpen("processes")}><Activity size={13} /> Processes</button>
@@ -871,7 +871,9 @@ function FilesTab({ source, name }: { source: ContainerSource; name: string }) {
             const g = fileGlyph(e);
             return (
               <div key={e.name} className={`file-row ${g.cls} ${open?.entry.name === e.name ? "active" : ""}`}
-                onClick={() => e.is_dir ? void load(join(path, e.name)) : void openFile(e)}>
+                role="button" tabIndex={0}
+                onClick={() => e.is_dir ? void load(join(path, e.name)) : void openFile(e)}
+                onKeyDown={onKeyActivate(() => e.is_dir ? void load(join(path, e.name)) : void openFile(e))}>
                 <g.Icon size={14} className="file-glyph" />
                 <span className="file-name">{e.name}{e.is_link && e.link_target ? <span className="file-link"> → {e.link_target}</span> : null}</span>
                 <span className="file-size">{e.is_dir ? "" : fmtBytes(e.size)}</span>
@@ -1048,8 +1050,8 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
   }
 
   return (
-    <div className="container-drawer-backdrop" onClick={onClose}>
-      <div className="container-modal upd-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="container-drawer-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
+      <div className="container-modal upd-modal">
         <div className="container-modal-head"><Wrench size={16} /><strong>Update {name}</strong><div className="container-modal-acts"><button className="ghost-button" onClick={onClose}><X size={15} /></button></div></div>
         <div className="container-modal-body">
           {err && <ErrBox msg={err} />}
@@ -1112,8 +1114,8 @@ function ConfirmActionModal({ name, action, busy, onConfirm, onCancel }: {
   useEscapeKey(onCancel);
   const verb = action === "stop" ? "Stop" : "Restart";
   return (
-    <div className="container-drawer-backdrop" onClick={onCancel}>
-      <div ref={dialogRef} className="container-modal confirm-modal" role="dialog" aria-modal="true" aria-label={`${verb} ${name}`} onClick={(e) => e.stopPropagation()}>
+    <div className="container-drawer-backdrop" role="presentation" onClick={closeOnBackdrop(onCancel)}>
+      <div ref={dialogRef} className="container-modal confirm-modal" role="dialog" aria-modal="true" aria-label={`${verb} ${name}`}>
         <div className="container-modal-head">
           <AlertTriangle size={16} /><strong>{verb} {name}?</strong>
           <div className="container-modal-acts"><button className="ghost-button" onClick={onCancel} aria-label="Cancel"><X size={15} /></button></div>
@@ -1125,7 +1127,6 @@ function ConfirmActionModal({ name, action, busy, onConfirm, onCancel }: {
               : "This restarts the container. The engine is briefly unavailable and any in-flight inference is interrupted."}
           </p>
           <div className="confirm-actions">
-            {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
             <button className="ghost-button" onClick={onCancel} disabled={busy} autoFocus>Cancel</button>
             <button className={`primary-button ${action === "stop" ? "danger" : ""}`} onClick={onConfirm} disabled={busy}>
               {busy ? <Loader2 size={13} className="spin" /> : action === "stop" ? <Square size={13} /> : <RotateCw size={13} />} {verb}
@@ -1169,8 +1170,8 @@ function AlertsModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="container-drawer-backdrop" onClick={onClose}>
-      <div className="container-modal upd-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="container-drawer-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
+      <div className="container-modal upd-modal">
         <div className="container-modal-head"><Bell size={16} /><strong>Engine health alerts</strong><span>Telegram</span>
           <div className="container-modal-acts"><button className="ghost-button" onClick={onClose}><X size={15} /></button></div>
         </div>
@@ -1178,9 +1179,9 @@ function AlertsModal({ onClose }: { onClose: () => void }) {
           {!cfg ? <Loading /> : (
             <div className="alerts-cfg">
               <p className="upd-note">Get a push when a managed engine container goes <b>DOWN</b> (crash / OOM / stop) or recovers. The daemon watches over the docker socket.</p>
-              <label className="alerts-row"><span>Enabled</span>
-                <button className={`toggle ${cfg.enabled ? "on" : ""}`} disabled={busy} onClick={() => void save(!cfg.enabled)}><span className="toggle-knob" /></button>
-              </label>
+              <div className="alerts-row"><span>Enabled</span>
+                <button className={`toggle ${cfg.enabled ? "on" : ""}`} disabled={busy} onClick={() => void save(!cfg.enabled)} aria-pressed={cfg.enabled} aria-label="Enable alerts"><span className="toggle-knob" /></button>
+              </div>
               <label className="alerts-row"><span>Chat ID</span>
                 <input value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="e.g. 123456789" />
               </label>

@@ -34,7 +34,7 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
   useEffect(() => {
     const t = window.setInterval(() => { if (!loadingRef.current && !document.hidden) void load(); }, 60000);
     return () => window.clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const online = (hosts || []).filter((h) => statusOf(h) === "online").length;

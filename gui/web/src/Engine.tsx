@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Bot, BookText, ChevronDown, CircleAlert, Copy, Database, Download, Heart, Loader2, Pencil, Plus, RefreshCw, Search, Send, SlidersHorizontal, Sparkles, Square, TimerReset, Trash2, User, X, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, api } from "./api";
 import { SkeletonMetrics } from "./Skeleton";
+import { onKeyActivate } from "./dialog";
 
 function fmtCount(n: number | null): string {
   if (n === null || n === undefined) return "—";
@@ -674,7 +675,9 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   activeIdRef.current = activeId;
 
   const active = conversations.find((c) => c.id === activeId) ?? conversations[0];
-  const messages = active?.messages ?? [];
+  // Stable ref (recomputes only when the active conversation changes) so the
+  // scroll-to-bottom effect's dependency doesn't churn every render.
+  const messages = useMemo(() => active?.messages ?? [], [active]);
   const set = (patch: Partial<ChatSettings>) => setSettings((prev) => ({ ...prev, ...patch }));
 
   useEffect(() => {
@@ -694,7 +697,8 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
       if (result.models.length && !result.models.includes(settings.model)) set({ model: result.models[0] });
     } catch { setStatus(null); }
   }
-  useEffect(() => { void refreshStatus(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [settings.host, settings.port, settings.apiKey, settings.hostId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- re-probe on settings change; refreshStatus reads the latest settings via closure
+  useEffect(() => { void refreshStatus(); }, [settings.host, settings.port, settings.apiKey, settings.hostId]);
 
   // A host card (or any caller) can hand us a target to connect to — apply its
   // host/port/key/model and let the status effect above re-probe.
@@ -828,7 +832,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
         <button className="chat2-new" onClick={startConversation}><Plus size={15} /> New chat</button>
         <div className="chat2-list">
           {conversations.map((c) => (
-            <div className={`chat2-item ${c.id === activeId ? "active" : ""}`} key={c.id} onClick={() => setActiveId(c.id)}>
+            <div className={`chat2-item ${c.id === activeId ? "active" : ""}`} key={c.id} role="button" tabIndex={0} onClick={() => setActiveId(c.id)} onKeyDown={onKeyActivate(() => setActiveId(c.id))}>
               <span className="chat2-item-title">{c.title || "Untitled"}</span>
               <button className="icon-only" title="Delete chat" onClick={(e) => { e.stopPropagation(); deleteConversation(c.id); }}><X size={13} /></button>
             </div>
