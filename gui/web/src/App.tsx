@@ -134,14 +134,25 @@ import {
   hostLabel
 } from "./api";
 import { AccountMenu, LoginScreen, SecurityPanel, UserAdminPanel } from "./Auth";
-import { ChatConsole, EngineBenchPanel, EngineMetricsPanel, EnginePlayground, EngineStatusCard, ModelManagementPanel, type ChatTarget } from "./Engine";
+// Engine/Planner/Copilot/Installer components only render inside SectionWorkspace
+// (non-default sections), so they are code-split out of the initial bundle and
+// fetched on first visit. One Suspense boundary around SectionWorkspace covers
+// them all. `ChatTarget` is a type, so it stays a plain type import.
+import type { ChatTarget } from "./Engine";
+const ChatConsole = lazy(() => import("./Engine").then((m) => ({ default: m.ChatConsole })));
+const EngineBenchPanel = lazy(() => import("./Engine").then((m) => ({ default: m.EngineBenchPanel })));
+const EngineMetricsPanel = lazy(() => import("./Engine").then((m) => ({ default: m.EngineMetricsPanel })));
+const EnginePlayground = lazy(() => import("./Engine").then((m) => ({ default: m.EnginePlayground })));
+const EngineStatusCard = lazy(() => import("./Engine").then((m) => ({ default: m.EngineStatusCard })));
+const ModelManagementPanel = lazy(() => import("./Engine").then((m) => ({ default: m.ModelManagementPanel })));
 // Lazy: the xterm-based terminal is heavy and rarely opened — keep it out of the
 // initial bundle so the app loads fast; the chunk fetches only when a terminal opens.
 const TerminalModal = lazy(() => import("./Terminal").then((m) => ({ default: m.TerminalModal })));
 import { UpdatesPanel } from "./Updates";
-import { KvCalcPanel, BaselinePanel } from "./Planner";
-import { InstallWizard } from "./Installer";
-import { CopilotPanel } from "./Copilot";
+const KvCalcPanel = lazy(() => import("./Planner").then((m) => ({ default: m.KvCalcPanel })));
+const BaselinePanel = lazy(() => import("./Planner").then((m) => ({ default: m.BaselinePanel })));
+const InstallWizard = lazy(() => import("./Installer").then((m) => ({ default: m.InstallWizard })));
+const CopilotPanel = lazy(() => import("./Copilot").then((m) => ({ default: m.CopilotPanel })));
 import { FleetPanel } from "./Fleet";
 // Lazy-loaded: the container management UI (~1.2k lines) only renders on the
 // Containers section, so it is code-split out of the initial bundle.
@@ -1639,6 +1650,7 @@ export default function App() {
         />
           </section>
         ) : (
+          <Suspense fallback={<div className="skel-grid cards"><Skeleton variant="card" count={6} /></div>}>
           <SectionWorkspace
             sectionId={activeSection}
             overview={overview}
@@ -1689,6 +1701,7 @@ export default function App() {
             onSetupNode={(id) => { setInstallIntent({ hostId: id, target: "sndr_daemon" }); setActiveSection("setup"); }}
             onContainers={(id) => { setFocusHostId(id); setActiveSection("containers"); }}
           />
+          </Suspense>
         )}
         </SectionErrorBoundary>
 
