@@ -1620,10 +1620,26 @@ export default function App() {
           settings={settings}
           onSettings={updateSettings}
           searchItems={[
-            ...navItems.map((nav) => ({ icon: nav.icon, title: nav.label, detail: "Open section", run: () => setActiveSection(nav.id) })),
-            ...(presets?.presets ?? []).slice(0, 60).map((preset) => ({
-              icon: <Database size={16} />, title: preset.id, detail: `${preset.model} · ${preset.hardware}`,
+            ...navItems.map((nav) => ({ icon: nav.icon, title: nav.label, detail: "Section", run: () => setActiveSection(nav.id) })),
+            ...(presets?.presets ?? []).slice(0, 80).map((preset) => ({
+              icon: <Database size={16} />, title: preset.id, detail: `Preset · ${preset.model} · ${preset.hardware}`,
               run: () => { void loadExplain(preset.id); setActiveSection("presets"); }
+            })),
+            ...(configCatalog?.models ?? []).map((m) => ({
+              icon: <Boxes size={16} />, title: m.title || m.id, detail: `Model · ${m.summary || m.id}`,
+              run: () => setActiveSection("configs")
+            })),
+            ...(configCatalog?.hardware ?? []).map((h) => ({
+              icon: <Server size={16} />, title: h.title || h.id, detail: `Hardware · ${h.summary || h.id}`,
+              run: () => setActiveSection("configs")
+            })),
+            ...(configCatalog?.profiles ?? []).map((p) => ({
+              icon: <SlidersHorizontal size={16} />, title: p.title || p.id, detail: `Profile · ${p.summary || p.id}`,
+              run: () => setActiveSection("configs")
+            })),
+            ...(patches?.patches ?? []).map((p) => ({
+              icon: <PackageCheck size={16} />, title: p.patch_id, detail: `Patch · ${p.title}`,
+              run: () => setActiveSection("patches")
             }))
           ]}
         />
@@ -9811,7 +9827,7 @@ function CommandPalette({
         <div className="command-search">
           <Search size={16} />
           {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search commands, presets, sections…" spellCheck={false}
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search commands, sections, presets, models, configs, patches…" spellCheck={false}
             onKeyDown={(event) => { if (event.key === "Enter" && shown[0]) { shown[0].run(); if (!shown[0].keep) onClose(); } }} />
           <kbd>esc</kbd>
         </div>
