@@ -243,6 +243,16 @@ class Flags:
     # ↔ registry coverage check now passes for this entry.
     SNDR_MTP_DYNAMIC_K_001 = "SNDR_MTP_DYNAMIC_K_001"
 
+    # SNDR_EAGLE3_AUX_HIDDEN_001 — Genesis-original EAGLE-3 model-side prep
+    # (Sandermage). Provides the aux_hidden_state hook API surface so when
+    # a Qwen3.6 EAGLE-3 drafter checkpoint lands the wire-up is <1 day.
+    # Default OFF; with no caller invoking the helpers, zero runtime cost
+    # on the target model. Layer-id selection via env
+    # GENESIS_SNDR_EAGLE3_AUX_LAYER_IDS (comma-separated).
+    # Phase 7 readiness — vllm#35029 / #35040 EAGLE-3 V2 ModelRunner is
+    # already in our pin; #43132 Qwen3 EAGLE-3 still open.
+    SNDR_EAGLE3_AUX_HIDDEN_001 = "SNDR_EAGLE3_AUX_HIDDEN_001"
+
     # G4_T1 — Gemma4 tool-parser PR #42006 vendor marker. Operator-side
     # bind-mount overlay (the upstream gemma4 tool-call parser file) is
     # active if and only if the operator launcher binds the vendored file

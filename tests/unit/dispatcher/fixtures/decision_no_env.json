@@ -340,6 +340,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "SNDR_EAGLE3_AUX_HIDDEN_001",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_SNDR_EAGLE3_AUX_HIDDEN_001=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN202",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

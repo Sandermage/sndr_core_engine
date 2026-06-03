@@ -816,6 +816,18 @@
     "apply_module": "vllm.sndr_core.integrations.spec_decode.g_dynamic_k_mtp_proposer"
   },
   {
+    "patch_id": "SNDR_EAGLE3_AUX_HIDDEN_001",
+    "family": "spec_decode",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_SNDR_EAGLE3_AUX_HIDDEN_001",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "enables_upstream",
+    "has_apply_module": true,
+    "apply_module": "vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001"
+  },
+  {
     "patch_id": "PN202",
     "family": "streaming",
     "lifecycle": "experimental",

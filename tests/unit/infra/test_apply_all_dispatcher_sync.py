@@ -142,6 +142,10 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # namespace, not the canonical P[N]?\d+ form). Phase 10.5
     # enterprise sweep 2026-06-01 — carve-out documented here.
     "SNDR_MTP_DYNAMIC_K_001",
+    # SNDR_EAGLE3_AUX_HIDDEN_001 — Genesis-original Phase 7 EAGLE-3
+    # model-side preparation. Apply path uses @register_patch in
+    # _per_patch_dispatch.py (compound SNDR_* ID, not P[N]?\d+ form).
+    "SNDR_EAGLE3_AUX_HIDDEN_001",
     # v11.1.0/v11.2.0 md5+full-file PoC siblings (Phase 6 P3.1) — wired
     # via @register_patch in _per_patch_dispatch.py using compound IDs
     # (PN<base>_V2_MD5_<file>). The regex captures only the base

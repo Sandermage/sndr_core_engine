@@ -1633,6 +1633,39 @@ def apply_patch_sndr_mtp_dynamic_k_001() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("SNDR_EAGLE3_AUX_HIDDEN_001 model-side prep for EAGLE-3 (arXiv 2503.01840)")
+def apply_patch_sndr_eagle3_aux_hidden_001() -> PatchResult:
+    """SNDR_EAGLE3_AUX_HIDDEN_001: Genesis-original Phase 7 EAGLE-3
+    model-side preparation. Ships safe API surface
+    (register_aux_hidden_state_hooks / pop_aux_hidden_states) so when a
+    Qwen3.6 EAGLE-3 drafter checkpoint lands, the drafter wire-up is
+    <1 day.
+
+    Default OFF; with no caller invoking the helpers, zero runtime cost
+    on the target model.
+
+    apply() itself is idempotent + no behavior change — sets a marker
+    flag indicating the prep API is loaded. The real activation happens
+    when a future drafter patch (SNDR_EAGLE3_DRAFTER_001 or similar)
+    calls register_aux_hidden_state_hooks() during target-model init.
+    """
+    name = "SNDR_EAGLE3_AUX_HIDDEN_001 model-side prep"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: API surface ready")
+    try:
+        from vllm.sndr_core.integrations.spec_decode import (
+            sndr_eagle3_aux_hidden_001 as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    r = _wiring.apply()
+    if r["status"] == "applied":
+        return _applied(name, r["reason"])
+    if r["status"] == "skipped":
+        return _skipped(name, r["reason"])
+    return _failed(name, r["reason"])
+
+
 @register_patch("PN202 per-layer KV tensor split (Tier 2.A)")
 def apply_patch_pn202_per_layer_kv_split() -> PatchResult:
     """PN202: text-patch on kv_cache_utils.py Branch C → one tensor per layer.

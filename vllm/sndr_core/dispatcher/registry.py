@@ -2066,6 +2066,51 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr_relationship": "backport",
         "implementation_status": "experimental",
     },
+    "SNDR_EAGLE3_AUX_HIDDEN_001": {
+        "title": "SNDR-EAGLE3-AUX-HIDDEN-001 — model-side prep for EAGLE-3 (arXiv 2503.01840)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_SNDR_EAGLE3_AUX_HIDDEN_001",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "perf_hotfix",
+        "apply_module": (
+            "vllm.sndr_core.integrations.spec_decode."
+            "sndr_eagle3_aux_hidden_001"
+        ),
+        "source": "genesis_original",
+        "credit": (
+            "Genesis-original Phase 7 EAGLE-3 model-side preparation. "
+            "EAGLE-3 (arXiv 2503.01840) drafters fuse {input_embeds, "
+            "last_hidden, aux_hidden_states} from intermediate target "
+            "layers. vLLM landed EAGLE-3 in V2 ModelRunner via PR #35029 "
+            "(2026-02-21) + #35040 (CUDA graph). PR #43132 (Qwen3) is "
+            "still open as of 2026-06. A trained Qwen3.6 EAGLE-3 drafter "
+            "checkpoint does NOT exist publicly yet. This patch ships "
+            "the safe API surface — register_aux_hidden_state_hooks() + "
+            "pop_aux_hidden_states() — so when a checkpoint lands the "
+            "drafter wire-up is <1 day. Default OFF; with no caller "
+            "invoking the helpers, zero runtime cost on the target "
+            "model. Layer-id selection via "
+            "GENESIS_SNDR_EAGLE3_AUX_LAYER_IDS env (comma-separated). "
+            "Forward hook lifecycle is idempotent + thread-safe. "
+            "References: vllm#35029, vllm#35040, vllm#43132 (Qwen3 "
+            "EAGLE-3 open), G4_71-G4_76 (Gemma4 drafter routing "
+            "template Genesis can reuse for the future drafter wire-up)."
+        ),
+        "applies_to": {
+            # Self-gating — patch is a NO-OP on the target-model forward
+            # until a future drafter explicitly calls
+            # register_aux_hidden_state_hooks(). No model_class predicate
+            # because the helper auto-detects layer attribute path.
+            "spec_decode_method": ["eagle3"],
+        },
+        "requires_patches": [],
+        "conflicts_with": [],
+        "upstream_pr": 35029,
+        "upstream_pr_relationship": "enables_upstream",
+        "implementation_status": "experimental",
+    },
     "PN202": {
         "title": "PN202 — per-layer KV tensor split (Tier 2.A enabler)",
         "tier": "community",

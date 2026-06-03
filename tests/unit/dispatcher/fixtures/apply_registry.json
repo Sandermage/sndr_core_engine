@@ -212,6 +212,10 @@
     "wrapped_name": "apply_patch_sndr_mtp_dynamic_k_001"
   },
   {
+    "name": "SNDR_EAGLE3_AUX_HIDDEN_001 model-side prep for EAGLE-3 (arXiv 2503.01840)",
+    "wrapped_name": "apply_patch_sndr_eagle3_aux_hidden_001"
+  },
+  {
     "name": "PN202 per-layer KV tensor split (Tier 2.A)",
     "wrapped_name": "apply_patch_pn202_per_layer_kv_split"
   },
