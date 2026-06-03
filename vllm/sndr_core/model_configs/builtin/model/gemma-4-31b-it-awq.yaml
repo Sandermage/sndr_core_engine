@@ -116,6 +116,10 @@ patches:
   GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'          # safe no-op for wrapper path; primes upstream-overlay path
   # ── Qwen-applicable patches (general-purpose, MTP-aware) ──
   GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'           # MTP K-aware warmup sizing (vllm#37521)
+  GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'  # text-only inputs_embeds skip
+  GENESIS_ENABLE_PN116_TQ_PREFILL_MAXSEQ: '1'  # TQ prefill max_seq_len fallback
+  GENESIS_ENABLE_PN118_TQ_WORKSPACE_FALLBACK: '1'  # TQ workspace graceful-fallback
+  GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: '1'  # Ampere SM 8.6 FA KV layout revert
   GENESIS_ENABLE_P108: '1'          # MTP draft-loop stream synchronization (vllm#42603)
   GENESIS_ENABLE_P109: '1'          # sampler safety (vllm#42614) — short form matches registry env_flag
   GENESIS_ENABLE_PN110: '1'         # BlockPool.free_blocks dedup (vllm#42615) — short form matches registry env_flag
