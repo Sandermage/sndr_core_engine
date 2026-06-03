@@ -83,6 +83,8 @@ import {
   DeploymentPlan,
   EngineStatus,
   HostInventory,
+  HostReliability,
+  ReliabilitySnapshot,
   HostProbe,
   HostDiscovery,
   HostSndrState,
@@ -6785,6 +6787,18 @@ function totalVramGiB(vram: number[]): number {
   return vram.length ? Math.round(vram.reduce((acc, value) => acc + (value || 0), 0) / 1024) : 0;
 }
 
+// Bar sparkline of reachability samples (1 = reachable, 0 = down).
+function RelSpark({ samples }: { samples: number[] }) {
+  if (!samples.length) return null;
+  return (
+    <svg className="fleet-rel-svg" viewBox={`0 0 ${samples.length} 1`} preserveAspectRatio="none" aria-hidden="true">
+      {samples.map((s, i) => (
+        <rect key={i} x={i + 0.12} y={s ? 0 : 0.55} width={0.76} height={s ? 1 : 0.45} className={s ? "ok" : "down"} />
+      ))}
+    </svg>
+  );
+}
+
 function FleetHostCard({
   profile,
   onEdit,
@@ -6796,7 +6810,8 @@ function FleetHostCard({
   focused,
   onFocusConsumed,
   onContainers,
-  onHardware
+  onHardware,
+  reliability
 }: {
   profile: HostProfile;
   onEdit: (profile: HostProfile) => void;
@@ -6810,6 +6825,7 @@ function FleetHostCard({
   onSetupNode?: (id: string) => void;
   onContainers?: (id: string) => void;
   onHardware?: (id: string) => void;
+  reliability?: HostReliability | null;
 }) {
   const [probe, setProbe] = useState<HostProbe | null>(null);
   const [busy, setBusy] = useState(false);
@@ -6921,6 +6937,14 @@ function FleetHostCard({
         {profile.notes && <div><dt>Notes</dt><dd>{profile.notes}</dd></div>}
         {probe && !probe.reachable && probe.error && <div><dt>Probe</dt><dd className="fleet-err">{probe.error}</dd></div>}
       </dl>
+      {reliability && reliability.checks > 1 && (
+        <div className={`fleet-rel ${reliability.state}`} title={`${reliability.checks} reachability checks · breaker ${reliability.state}`}>
+          <span className="fleet-rel-up">{reliability.uptime_pct}% up</span>
+          <RelSpark samples={reliability.samples} />
+          {reliability.state === "open" && <span className="fleet-rel-state">cooling down</span>}
+          {reliability.state === "half_open" && <span className="fleet-rel-state">recovering</span>}
+        </div>
+      )}
       {isSsh && ssh && (
         <dl className="fleet-meta fleet-ssh-meta">
           <div><dt>SSH</dt><dd className={ssh.ssh_ok ? "fleet-ok" : "fleet-err"}>{ssh.ssh_ok ? `auth ok${ssh.latency_ms != null ? ` · ${ssh.latency_ms} ms` : ""}` : (ssh.error || "failed")}</dd></div>
@@ -7485,10 +7509,14 @@ function HostsSection({
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string } | null>(null);
   const askDelete = (id: string) => setConfirmDelete({ id, label: hostProfiles.find((h) => h.id === id)?.label ?? id });
   const [terminalHost, setTerminalHost] = useState<HostProfile | null>(null);
+  const [reliability, setReliability] = useState<ReliabilitySnapshot>({});
   useEffect(() => {
     let cancelled = false;
     api.hostInventory().then((data) => { if (!cancelled) setInventory(data); }).catch(() => {});
-    return () => { cancelled = true; };
+    const loadRel = () => api.hostsReliability().then((r) => { if (!cancelled) setReliability(r); }).catch(() => {});
+    void loadRel();
+    const t = window.setInterval(() => { if (!document.hidden) void loadRel(); }, 8000);
+    return () => { cancelled = true; window.clearInterval(t); };
   }, []);
   async function remove(id: string) {
     try { await api.hostDelete(id); onHostsRefresh(); toast(`Host removed: ${id}`, "success"); } catch { toast("Failed to remove host", "error"); }
@@ -7512,7 +7540,7 @@ function HostsSection({
                   <div className="fleet-grid">
                     <ThisHostCard inventory={inventory} environment={environment} apiBase={apiBase} />
                     {hostProfiles.map((profile) => (
-                      <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={askDelete} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} onContainers={onContainers} onHardware={onHardware} />
+                      <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={askDelete} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} onContainers={onContainers} onHardware={onHardware} reliability={reliability[profile.id] ?? null} />
                     ))}
                   </div>
                   {hostProfiles.length === 0 && <p className="muted">No remote hosts yet — add your GPU box to probe its engine from here.</p>}

@@ -2436,6 +2436,16 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .fleet-meta dt { flex: none; width: 84px; color: var(--text-muted); }
 .fleet-meta dd { margin: 0; color: var(--text); min-width: 0; word-break: break-word; }
 .fleet-meta dd.fleet-err { color: var(--danger); font-size: 11px; }
+
+/* Reachability reliability strip (uptime % + breaker state + sparkline) */
+.fleet-rel { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: var(--r-sm); background: var(--surface-inset); border: 1px solid var(--border); }
+.fleet-rel-up { font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ok); flex: none; }
+.fleet-rel.open .fleet-rel-up, .fleet-rel.half_open .fleet-rel-up { color: var(--warn); }
+.fleet-rel-svg { flex: 1; height: 16px; min-width: 40px; display: block; }
+.fleet-rel-svg rect.ok { fill: color-mix(in srgb, var(--ok) 70%, transparent); }
+.fleet-rel-svg rect.down { fill: var(--danger); }
+.fleet-rel-state { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--warn); flex: none; padding: 2px 7px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.fleet-rel.open .fleet-rel-state { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .fleet-tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .fleet-tag { font-size: 10px; font-weight: 600; color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); padding: 1px 7px; border-radius: 999px; }
 .fleet-card-actions { display: flex; align-items: center; gap: 7px; margin-top: auto; padding-top: 4px; }

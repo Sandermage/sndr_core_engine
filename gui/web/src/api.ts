@@ -344,6 +344,11 @@ export type Alert = {
   first_seen: number; last_seen: number; resolved_at?: number;
 };
 export type AlertsSnapshot = { active: Alert[]; recent: Alert[]; counts: { critical: number; warn: number; info: number } };
+export type HostReliability = {
+  uptime_pct: number; checks: number; samples: number[];
+  state: "closed" | "open" | "half_open"; consecutive_fails: number; last_ok: number | null;
+};
+export type ReliabilitySnapshot = Record<string, HostReliability | null>;
 
 export type DeployParameters = {
   image: string;
@@ -1293,6 +1298,7 @@ export const api = {
   hostGpu: () => request<HardwareTelemetry>("/api/v1/host/gpu"),
   hostGpuRemote: (hostId: string) => request<HardwareTelemetry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/gpu`),
   alerts: () => request<AlertsSnapshot>("/api/v1/alerts"),
+  hostsReliability: () => request<ReliabilitySnapshot>("/api/v1/hosts/reliability"),
 
   // Container management — one shape over both transports (local socket / host SSH).
   containers: (src: ContainerSource) =>

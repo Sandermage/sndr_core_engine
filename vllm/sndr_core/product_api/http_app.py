@@ -1636,7 +1636,20 @@ def create_app(
         The engine key is resolved server-side from the host's encrypted secret
         when ``host_id`` is given (an explicit ``X-Engine-Api-Key`` header still
         wins) so the raw key never round-trips through the browser."""
-        return engine_client.probe_host(host, port, api_key=_engine_key_for(host_id, x_engine_api_key))
+        import time as _t
+
+        from . import reliability
+        result = engine_client.probe_host(host, port, api_key=_engine_key_for(host_id, x_engine_api_key))
+        reliability.TRACKER.record(host_id or host, bool(result.get("reachable")), now=_t.time())
+        return result
+
+    @app.get("/api/v1/hosts/reliability")
+    def hosts_reliability() -> dict[str, Any]:
+        """Per-host reachability uptime %, sample history and breaker state."""
+        import time as _t
+
+        from . import reliability
+        return reliability.TRACKER.snapshot_all(now=_t.time())
 
     @app.get("/api/v1/host/inventory")
     async def host_inventory_route() -> dict[str, Any]:
