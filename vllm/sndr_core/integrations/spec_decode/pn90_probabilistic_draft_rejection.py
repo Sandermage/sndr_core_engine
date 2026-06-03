@@ -105,10 +105,10 @@ from vllm.sndr_core.core import (
 log = logging.getLogger("genesis.wiring.pn90_probabilistic_draft_rejection")
 
 PN90_MARKER_PROPOSER = (
-    "Genesis PN90 probabilistic draft rejection (vllm#40269) v1.0 — proposer"
+    "Genesis PN90 probabilistic draft rejection (vllm#40269) v1.0_v11.3.0_hotpath — proposer"
 )
 PN90_MARKER_RUNNER = (
-    "Genesis PN90 probabilistic draft rejection (vllm#40269) v1.0 — runner"
+    "Genesis PN90 probabilistic draft rejection (vllm#40269) v1.0_v11.3.0_hotpath — runner"
 )
 
 # Drift markers — when upstream lands its own probabilistic-draft
@@ -157,19 +157,22 @@ PN90_GREEDY_SAMPLE_OLD = (
 )
 PN90_GREEDY_SAMPLE_NEW = (
     "    def _greedy_sample(self, hidden_states: torch.Tensor) -> torch.Tensor:\n"
-    '        """Greedy-sample draft tokens from hidden states."""\n'
+    '        """Greedy-sample draft tokens from hidden states (Genesis PN90 v2)."""\n'
     "        if self.use_local_argmax_reduction:\n"
-    "            # [Genesis PN90] local-argmax path skips logits — probs cannot\n"
-    "            # be cached; rejection_sampler gets None (back-compat).\n"
     "            return self.model.get_top_tokens(hidden_states)\n"
-    "        # [Genesis PN90 vllm#40269] capture probs for verifier when env on.\n"
-    "        # Cost: one softmax(fp32) per draft step ~ 100µs on A5000.\n"
-    "        # Backward-compat: env unset → skip softmax, buffer untouched.\n"
-    "        import os as _pn90_os\n"
+    "        # [Genesis PN90 v2 — hot-path optimized] env state is boot-fixed;\n"
+    "        # cache the enabled flag in this module's globals so per-draft-step\n"
+    "        # env-var lookup + .strip().lower() + 4-tuple membership check\n"
+    "        # (~250ns) is eliminated. Spec-decode K=3-4 → 3-4 calls per request.\n"
+    "        _pn90_enabled = globals().get('_GENESIS_PN90_enabled')\n"
+    "        if _pn90_enabled is None:\n"
+    "            import os as _pn90_os\n"
+    "            _pn90_enabled = _pn90_os.environ.get(\n"
+    "                'GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT', ''\n"
+    "            ).strip().lower() in ('1', 'true', 'yes', 'on')\n"
+    "            globals()['_GENESIS_PN90_enabled'] = _pn90_enabled\n"
     "        _pn90_logits = self.model.compute_logits(hidden_states)\n"
-    "        if _pn90_os.environ.get(\n"
-    "            'GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT', ''\n"
-    "        ).strip().lower() in ('1', 'true', 'yes', 'on'):\n"
+    "        if _pn90_enabled:\n"
     "            if not hasattr(self, '_pn90_step_probs_buf'):\n"
     "                self._pn90_step_probs_buf = []\n"
     "            self._pn90_step_probs_buf.append(\n"
