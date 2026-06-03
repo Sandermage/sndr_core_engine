@@ -4057,6 +4057,48 @@ function ModelKeyFacts({ fields, def }: { fields: Record<string, any>; def: Reco
   );
 }
 
+// Interactive fit envelope for a model on a representative rig — context ×
+// concurrency, cell colour = headroom. Reuses the KV calculator backend so the
+// catalog answers "what can this model actually run?" in place.
+function KvEnvelopeCard({ modelKey, tp, vram, rigLabel }: { modelKey: string | null; tp: number; vram: number; rigLabel: string }) {
+  const [env, setEnv] = useState<{ contexts: number[]; concurrencies: number[]; grid: Array<Array<{ context: number; headroom_mib: number; fits: boolean }>> } | null>(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    if (!modelKey) return;
+    setEnv(null); setErr(false);
+    let alive = true;
+    api.calcKv({ model_id: modelKey, context: 32768, concurrency: 1, tp, gpu_count: tp, gpu_vram_mib: vram, util: 0.9, kv_dtype: "fp8" })
+      .then((r) => { if (alive) setEnv(r.envelope); }).catch(() => { if (alive) setErr(true); });
+    return () => { alive = false; };
+  }, [modelKey, tp, vram]);
+  if (!modelKey) return <p className="muted">No KV sizing metadata for this model id.</p>;
+  if (err) return <p className="muted">Couldn't compute the fit envelope.</p>;
+  if (!env) return <p className="muted">Computing fit envelope…</p>;
+  const fmtC = (c: number) => (c >= 1000 ? `${Math.round(c / 1000)}K` : String(c));
+  const color = (h: number) => (h < 0 ? "over" : h < 2048 ? "tight" : h < 6144 ? "ok" : "good");
+  return (
+    <>
+      <p className="fit-note">On <code>{rigLabel}</code> · {tp}× {Math.round(vram / 1024)}GB · fp8 KV · 90% util.</p>
+      <div className="heatmap">
+        <div className="heatmap-grid" style={{ gridTemplateColumns: `40px repeat(${env.contexts.length}, 1fr)` }}>
+          <span className="heatmap-corner" />
+          {env.contexts.map((c) => <span key={c} className="heatmap-xlabel">{fmtC(c)}</span>)}
+          {[...env.grid].reverse().map((row, ri) => {
+            const k = [...env.concurrencies].reverse()[ri];
+            return (
+              <Fragment key={k}>
+                <span className="heatmap-ylabel">{k}×</span>
+                {row.map((cell) => <div key={cell.context} className={`heatmap-cell ${color(cell.headroom_mib)}`} title={`${fmtC(cell.context)} ctx · ${k} conc → ${cell.fits ? "fits" : "over budget"}`} />)}
+              </Fragment>
+            );
+          })}
+        </div>
+        <div className="heatmap-legend"><span className="good" /> roomy<span className="ok" /> fits<span className="tight" /> tight<span className="over" /> over</div>
+      </div>
+    </>
+  );
+}
+
 function ModelsWorkbench({
   catalog,
   presets,
@@ -4108,14 +4150,16 @@ function ModelsWorkbench({
   // calcModels keys by family ("qwen3.6-27b-int4"), the catalog by full variant;
   // match on the "<family>-<size>" base (e.g. qwen3.6-27b, gemma-4-31b).
   const { data: archMeta } = useFetch(() => api.calcModels(), []);
-  const arch = (() => {
+  const archEntry = (() => {
     if (!archMeta || !activeId) return null;
-    if (archMeta.models[activeId]) return archMeta.models[activeId];
+    if (archMeta.models[activeId]) return { key: activeId, arch: archMeta.models[activeId] };
     const base = (id: string) => (id.toLowerCase().match(/^(.+?-\d+b)/)?.[1] ?? id.toLowerCase());
     const t = base(activeId);
-    for (const [k, v] of Object.entries(archMeta.models)) if (base(k) === t) return v;
+    for (const [k, v] of Object.entries(archMeta.models)) if (base(k) === t) return { key: k, arch: v };
     return null;
   })();
+  const arch = archEntry?.arch ?? null;
+  const archKey = archEntry?.key ?? null;
   const { data: fullDef, state: defState } = useFetch(
     (signal) => api.v2Layer("model", activeId, signal),
     [activeId],
@@ -4130,6 +4174,13 @@ function ModelsWorkbench({
   const patchMatrix = (def.patches ?? {}) as Record<string, string>;
   const attribution = (def.patches_attribution ?? {}) as Record<string, any>;
   const notes: string[] = Array.isArray(def.notes) ? def.notes : [];
+  // Representative rig for the fit envelope: prefer a hardware a preset actually
+  // uses with this model, else the model's stated minimums, else a 2×24GB A5000.
+  const envHw = (() => {
+    const hw = catalog?.hardware.find((h) => h.id === modelPresets[0]?.hardware);
+    if (hw) return { tp: Number(hw.fields?.n_gpus) || 2, vram: Number(hw.fields?.min_vram_per_gpu_mib) || 24564, label: hw.id };
+    return { tp: Number(reqs.min_gpu_count) || 2, vram: 24564, label: "2×24GB (default)" };
+  })();
   const dval = (value: unknown): string => {
     if (Array.isArray(value)) return value.length ? value.map(String).join(", ") : "-";
     if (value === null || value === undefined || value === "") return "-";
@@ -4237,6 +4288,9 @@ function ModelsWorkbench({
                         </>
                       );
                     })() : <p className="muted">No architecture metadata for this model id ({activeId || "—"}).</p>}
+                  </ModuleCard>
+                  <ModuleCard title="Fit envelope" icon={<Gauge size={18} />} desc="Does it fit? Context × concurrency headroom on a representative rig." wide>
+                    <KvEnvelopeCard modelKey={archKey} tp={envHw.tp} vram={envHw.vram} rigLabel={envHw.label} />
                   </ModuleCard>
                   <ModuleCard
                     title="Local Cache"
