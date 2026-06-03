@@ -3843,7 +3843,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
     },
     "PN289": {
         "title": "Genesis process-info Prometheus gauge (§6.H10 enterprise observability)",
-        "tier": "engine",
+        # v11.3.0 bug fix: was tier="engine" which silently disabled the
+        # patch on every boot via `_check_tier_gate` requiring the
+        # commercial sndr_engine package. But the implementation lives
+        # at vllm/sndr_core/observability/genesis_process_info.py (public
+        # sndr_core, Apache 2.0, Genesis-original 2026-05-30 per credit
+        # field below). It is community-tier code; tier="engine" was a
+        # registry-side mistake that broke §6.H10 enterprise
+        # observability for every operator who enabled
+        # GENESIS_ENABLE_PN289_PROCESS_INFO=1.
+        "tier": "community",
         "family": "observability",
         "env_flag": "GENESIS_ENABLE_PN289_PROCESS_INFO",
         "default_on": False,

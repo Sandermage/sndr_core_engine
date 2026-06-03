@@ -1383,7 +1383,7 @@
     "patch_id": "PN289",
     "family": "observability",
     "lifecycle": "experimental",
-    "tier": "engine",
+    "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN289_PROCESS_INFO",
     "has_upstream_pr": false,
