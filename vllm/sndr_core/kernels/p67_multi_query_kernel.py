@@ -796,12 +796,29 @@ def _detect_fp8_mode() -> int:
         return 1
 
 
+# v11.3.0 hot-path optimization: is_active is queried from text-patched
+# upstream code (P67 + P67b) on EVERY spec-verify attention call. The
+# inputs are boot-stable (env state + kernel availability), so cache
+# the result. Eliminates per-call env-var lookup + .strip().lower() +
+# 4-tuple-membership-check on the hottest spec-decode path.
+_CACHED_IS_ACTIVE: bool | None = None
+
+
 def is_active() -> bool:
-    if not _env_enabled():
-        return False
-    if _get_kernel() is None:
-        return False
-    return True
+    """Return True if P67 multi-query kernel is enabled AND buildable.
+
+    v11.3.0: result cached after first call (boot-stable inputs).
+    Reset to None by setting `_CACHED_IS_ACTIVE = None` if a unit test
+    mutates env and needs a re-check."""
+    global _CACHED_IS_ACTIVE
+    if _CACHED_IS_ACTIVE is None:
+        if not _env_enabled():
+            _CACHED_IS_ACTIVE = False
+        elif _get_kernel() is None:
+            _CACHED_IS_ACTIVE = False
+        else:
+            _CACHED_IS_ACTIVE = True
+    return _CACHED_IS_ACTIVE
 
 
 def alloc_output_buffer(B, K_PLUS_1, Hq, D, device, dtype):
