@@ -40,7 +40,8 @@ sizing_override:
   gpu_memory_utilization: 0.92                   # 0.92 (vs 0.90 in 35B) — 27B leaves more headroom
   max_num_seqs: 4                                # 4 concurrent (vs 35B's 2) — 27B has 2× the spare KV pool
   max_num_batched_tokens: 4096                   # chunked prefill chunk size (must equal GENESIS_PROFILE_RUN_CAP_M)
-  enable_chunked_prefill: true                   # required for spec-decode + long ctx
+  enable_chunked_prefill: true
+  enable_prefix_caching: true                    # ADDED — club-3090 inspired; helps decode cache reuse                   # required for spec-decode + long ctx
   enforce_eager: false                           # false = cudagraph capture enabled
   disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe)
 

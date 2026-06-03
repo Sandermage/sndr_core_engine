@@ -81,11 +81,12 @@ runtime:
 # nightlies — pinning makes the operator config self-documenting).
 system_env:
   # ── PyTorch / CUDA allocator + memory ──
-  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:256'   # PyTorch allocator: expandable_segments reduces fragmentation, max_split_size 256 MiB
+  PYTORCH_CUDA_ALLOC_CONF: 'expandable_segments:True,max_split_size_mb:512'   # PyTorch allocator: expandable_segments + 512 MiB max_split — matches club-3090 reference compose (138/207 TPS gemma 26b validated); larger splits = less allocator fragmentation under MoE expert routing
   CUDA_MODULE_LOADING: 'LAZY'                    # CUDA 12+ default; explicit for portability. Defers kernel module loading from process start to first use → faster startup + lower idle VRAM (saves ~50-200 MiB on multi-package frameworks like vLLM+Triton+FlashInfer).
   PYTORCH_NVML_BASED_CUDA_CHECK: '1'             # Use NVML (not full cuInit) for torch.cuda.is_available() checks. Marginal startup speedup; safe on all driver versions (NVML is part of any NVIDIA driver).
   # ── NCCL (TP=2 PCIe — no NVLink on consumer Ampere) ──
   NCCL_P2P_DISABLE: '1'                          # REQUIRED on consumer Ampere — no NVLink → P2P falls back to PCIe with bugs
+  NCCL_CUMEM_ENABLE: '0'                         # disable cuMem allocator (NCCL 2.19+ default ON broke MoE expert all_reduce on PCIe Ampere; club-3090 reference compose has this off; matches cyankiwi/cyan-eng known-good config)
   NCCL_DEBUG: 'WARN'                             # surface silent NCCL failures (e.g. P2P fallback regressions) without verbose chatter. Tiny overhead; high diagnostic value when TP coordination misbehaves.
   # ── CPU / thread pinning ──
   OMP_NUM_THREADS: '1'                           # OpenMP thread count per worker (1 = avoid CPU oversubscription with TP=2)
