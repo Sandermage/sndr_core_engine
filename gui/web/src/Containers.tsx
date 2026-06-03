@@ -331,7 +331,13 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
         </div>
       )}
 
-      {err && <div className="containers-err"><AlertTriangle size={14} /> {err}</div>}
+      {err && (
+        <div className="containers-empty err">
+          <AlertTriangle size={22} />
+          <strong>Containers unavailable</strong>
+          <span>{err}</span>
+        </div>
+      )}
       {loading && items === null && <SkeletonCards count={6} />}
       {items !== null && view.length === 0 && !err && (
         <div className="containers-empty"><Boxes size={22} /><strong>{items.length === 0 ? "No managed containers" : "Nothing matches the filter"}</strong>
