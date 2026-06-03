@@ -54,16 +54,25 @@ def test_p36_registry_pool_visible_after_module_import():
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch unavailable")
 def test_p36_registry_pool_acquire_byte_equivalent():
-    """Pool acquire() returns a tensor with the requested shape/dtype/device
-    — byte-equivalent to what the original torch.empty() would return."""
+    """PersistentSlicePool.acquire() returns a tensor with the requested
+    shape/dtype/device — byte-equivalent to torch.empty() with the same
+    args. Uses key_dims=4 for the full-fixed-shape case (the simplest
+    P36 sub-pool semantic)."""
     from vllm.sndr_core.runtime.persistent_buffer_registry import (
         PersistentBufferRegistry,
         POOL_TQ_DECODE_SHARED,
+        _reset_registry_for_tests,
     )
-    pool = PersistentBufferRegistry().get_pool(POOL_TQ_DECODE_SHARED)
+    _reset_registry_for_tests()
+    # ensure_pool_registered() must run first (test ordering — pytest
+    # may not have run the previous test in this same fixture scope)
+    import vllm.sndr_core.integrations.kernels.p36_tq_shared_decode_buffers as p36
+    p36.ensure_pool_registered()
+    pool = PersistentBufferRegistry().get_slice_pool(POOL_TQ_DECODE_SHARED)
     shape = (8, 32, 16, 64)
     dtype = torch.float32
-    t = pool.acquire(shape, dtype, "cpu")
+    # Full-fixed-shape (no variable dims) → key_dims=4
+    t = pool.acquire(shape, dtype, "cpu", key_dims=4)
     assert t.shape == shape
     assert t.dtype == dtype
     assert t.device.type == "cpu"
@@ -78,3 +87,48 @@ def test_p36_module_uses_registry_after_migration():
         "p36 must use PersistentBufferRegistry post-migration"
     assert "POOL_TQ_DECODE_SHARED" in source, \
         "p36 must reference POOL_TQ_DECODE_SHARED constant"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# v11.3.0 regression guard — P36 must use PersistentSlicePool
+# (slice+grow semantics) NOT BufferPool (free-list semantics).
+# Pre-fix bug: ensure_pool_registered() called get_pool() which created
+# a BufferPool — wrong type for P36's grow-in-place + slice-on-acquire
+# allocation pattern (TurboQuant decode + prefill buffers).
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_p36_registers_persistent_slice_pool_not_buffer_pool():
+    """ensure_pool_registered() must register POOL_TQ_DECODE_SHARED as
+    a PersistentSlicePool — P36's TurboQuant decode + prefill buffers
+    use grow-in-place + slice-on-acquire (NOT free-list acquire/release)."""
+    from vllm.sndr_core.runtime.persistent_buffer_registry import (
+        PersistentBufferRegistry,
+        PersistentSlicePool,
+        POOL_TQ_DECODE_SHARED,
+        _reset_registry_for_tests,
+    )
+    _reset_registry_for_tests()
+    import vllm.sndr_core.integrations.kernels.p36_tq_shared_decode_buffers as p36
+    p36.ensure_pool_registered()
+    pool = PersistentBufferRegistry().all_pools()[POOL_TQ_DECODE_SHARED]
+    assert isinstance(pool, PersistentSlicePool), (
+        f"P36 registered as {type(pool).__name__}, expected "
+        f"PersistentSlicePool (grow+slice). This is the v11.3.0 bug "
+        f"fix regression guard — do not switch to get_pool()."
+    )
+
+
+def test_p36_source_uses_get_slice_pool_not_get_pool():
+    """Static check: the ensure_pool_registered() body uses
+    `.get_slice_pool(` not `.get_pool(`."""
+    import vllm.sndr_core.integrations.kernels.p36_tq_shared_decode_buffers as p36
+    source = open(p36.__file__).read()
+    assert "get_slice_pool(POOL_TQ_DECODE_SHARED)" in source, (
+        "P36 must call get_slice_pool(POOL_TQ_DECODE_SHARED) — "
+        "the v11.3.0 bug fix"
+    )
+    assert "get_pool(POOL_TQ_DECODE_SHARED)" not in source, (
+        "P36 must NOT use get_pool(POOL_TQ_DECODE_SHARED) "
+        "— that's the pre-v11.3.0 bug (wrong pool type)"
+    )

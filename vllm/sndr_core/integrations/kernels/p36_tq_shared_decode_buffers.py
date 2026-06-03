@@ -105,8 +105,25 @@ def ensure_pool_registered() -> None:
     The real TQ shared decode buffers are owned by
     vllm.sndr_core.kernels.dequant_buffer.TurboQuantBufferManager via
     GenesisPreallocBuffer.get_or_create — that path is untouched.
+
+    TurboQuantBufferManager hosts 11 internal sub-pools. The largest
+    decode pools (`_DECODE_MID_O_BUFFERS`, `_DECODE_OUTPUT_BUFFERS`,
+    `_DECODE_LSE_BUFFERS`, `_PREFILL_OUT_BUFFERS`) all use
+    PERSISTENT slice-on-acquire semantics: fixed-shape per (Hk, Hq, D,
+    device, dtype) key, allocated once at warmup via the
+    profiler-visible `_ensure_on_device()` path, then reused across
+    every TurboQuant attention layer (sequential forward execution
+    means one set is sufficient).
+
+    v11.3.0 bug fix: this was previously calling `get_pool()` which
+    creates a BufferPool (free-list acquire/release semantics, wrong
+    pool type for the persistent-slice pattern P36 actually uses).
+    Switched to `get_slice_pool()` which matches the allocation
+    semantics. Operator-visibility only — does not change any runtime
+    allocation behavior; the actual storage still lives in
+    TurboQuantBufferManager via GPB.
     """
-    PersistentBufferRegistry().get_pool(POOL_TQ_DECODE_SHARED)
+    PersistentBufferRegistry().get_slice_pool(POOL_TQ_DECODE_SHARED)
 
 UPSTREAM_DRIFT_MARKERS = [
     # PR #40655 signatures

@@ -63,9 +63,19 @@ def ensure_pool_registered() -> None:
 
     The real FLA KKT `A` tensor (B, T, H, BT, fp32) is owned by
     vllm.sndr_core.kernels.fla_kkt_buffer.FlaKktBufferManager via the
-    reserve-before-cudagraph pattern (P39b).
+    reserve-before-cudagraph pattern (P39b). Its allocation semantics
+    are GROW-IN-PLACE + SLICE-ON-ACQUIRE keyed by (H, BT, device, dtype)
+    — variable first two dims (B, T) → fixed last two — which matches
+    PersistentSlicePool exactly.
+
+    v11.3.0 bug fix: this was previously calling `get_pool()` which
+    creates a BufferPool (free-list acquire/release semantics, wrong
+    pool type for P39a). Switched to `get_slice_pool()` which matches
+    the actual allocation pattern. Operator-visibility only — does
+    not change any runtime allocation behavior; the actual storage
+    still lives in FlaKktBufferManager via GPB.
     """
-    PersistentBufferRegistry().get_pool(POOL_FLA_KKT_PERSISTENT_A)
+    PersistentBufferRegistry().get_slice_pool(POOL_FLA_KKT_PERSISTENT_A)
 
 # Module paths we target. Primary + candidates for future renames.
 _CANDIDATE_MODULE_PATHS = (
