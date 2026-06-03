@@ -9350,7 +9350,7 @@ function SetupWizard({
 }
 
 function EnvironmentPanel({ env }: { env: EnvironmentReport | null }) {
-  if (!env) return <p className="muted">Loading runtime environment…</p>;
+  if (!env) return <SkeletonMetrics count={4} />;
   return (
     <div className="env-panel">
       <div className="env-versions">
@@ -10050,7 +10050,7 @@ function AuditLogPanel() {
   const rows = events.filter((event) => !filter || `${event.kind} ${event.message}`.toLowerCase().includes(filter.toLowerCase()));
   const stamp = (ts: number) => new Date(ts * 1000).toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const tone = (kind: string) => kind === "auth" ? "warn" : kind.startsWith("op") || kind === "job" ? "info" : "muted";
-  if (state === "loading") return <p className="muted">Loading audit log…</p>;
+  if (state === "loading") return <div className="skel-grid"><Skeleton variant="line" count={8} /></div>;
   return (
     <div className="audit-log">
       <div className="audit-bar">
@@ -10598,7 +10598,7 @@ function JobsTable({ onMonitor }: { onMonitor?: (id: string) => void }) {
     return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
-  if (state === "loading") return <p className="muted">Loading jobs…</p>;
+  if (state === "loading") return <div className="skel-grid"><Skeleton variant="line" count={6} /></div>;
   if (jobs.length === 0) {
     return (
       <p className="muted">
