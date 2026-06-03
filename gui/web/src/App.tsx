@@ -1649,7 +1649,7 @@ export default function App() {
             settings={settings}
             onSection={setActiveSection}
             onPreset={(id) => void loadExplain(id)}
-            onDialog={setDialog}
+            onCommand={() => setCommandOpen(true)}
             onSettings={updateSettings}
             onConfigPreview={setConfigPreview}
             onUserPresetsRefresh={refreshUserPresets}
@@ -2623,7 +2623,7 @@ function SectionWorkspace({
   settings,
   onSection,
   onPreset,
-  onDialog,
+  onCommand,
   onSettings,
   onConfigPreview,
   onUserPresetsRefresh,
@@ -2672,7 +2672,7 @@ function SectionWorkspace({
   settings: GuiSettings;
   onSection: (section: SectionId) => void;
   onPreset: (id: string) => void;
-  onDialog: (message: string) => void;
+  onCommand: () => void;
   onSettings: (patch: Partial<GuiSettings>) => void;
   onConfigPreview: (preview: V2ConfigPreview) => void;
   onUserPresetsRefresh: () => void;
@@ -2738,7 +2738,7 @@ function SectionWorkspace({
             <Rocket size={16} />
             Launch Plan
           </button>
-          <button className="tool-button" onClick={() => onDialog(spec.dialog)}>
+          <button className="tool-button" onClick={onCommand} title="Open the command palette (⌘K)">
             <Command size={16} />
             Quick Action
           </button>
@@ -2982,7 +2982,6 @@ function SectionWorkspace({
           selectedPreset={selectedPreset}
           userPresets={userPresets}
           onPreview={onConfigPreview}
-          onDialog={onDialog}
           onUserPresetsRefresh={onUserPresetsRefresh}
         />
       )}
@@ -3787,133 +3786,112 @@ function SectionWorkspace({
 function sectionSpec(sectionId: SectionId) {
   const specs: Record<
     SectionId,
-    { kicker: string; title: string; description: string; dialog: string }
+    { kicker: string; title: string; description: string }
   > = {
     overview: {
       kicker: "System map",
       title: "Overview",
       description: "One screen summary of Product API health, catalog coverage, runtime targets and workload readiness.",
-      dialog: "Overview quick action: refresh catalog, run health check, or open the launch plan from the current snapshot."
     },
     setup: {
       kicker: "First-run workflow",
       title: "Setup",
       description: "Local server and remote desktop setup path with explicit daemon, tunnel and gate stages.",
-      dialog: "Setup quick action: generate install checklist and validate Python/Node/FastAPI dependencies."
     },
     fleet: {
       kicker: "Multi-server overview",
       title: "Fleet",
       description: "Every registered GPU/engine host at a glance — one concurrent SSH sweep shows status, running model, vLLM version, GPUs and live patch count per server.",
-      dialog: "Fleet quick action: refresh the whole fleet, then click a server to open its card."
     },
     hosts: {
       kicker: "Runtime inventory",
       title: "Hosts",
       description: "Local and remote host inventory, transport state, runtime tools and SSH tunnel commands.",
-      dialog: "Hosts quick action: create a remote host profile and test SSH tunnel reachability."
     },
     models: {
       kicker: "Model catalog",
       title: "Models",
       description: "Model families, hardware envelopes and composed runtime details from the V2 registry.",
-      dialog: "Models quick action: compare selected model family with fallback and context envelope."
     },
     configs: {
       kicker: "V2 config editor",
       title: "Configs",
       description: "Graphical editor for V2 model, hardware, profile and preset composition with safe draft preview.",
-      dialog: "Configs quick action: compose a V2 draft from selected model, hardware and profile without writing YAML."
     },
     presets: {
       kicker: "Preset catalog",
       title: "Presets",
       description: "Full preset table with cards, workload policy, evidence visibility and selected explain payload.",
-      dialog: "Presets quick action: filter production candidates and open the selected preset explain payload."
     },
     planner: {
       kicker: "Capacity & regression",
       title: "Planner",
       description: "KV-cache / VRAM fit calculator (GQA, MoE and tensor-parallel aware, calibratable) and quality-baseline regression diff.",
-      dialog: "Planner quick action: size a model's max context per KV dtype, or diff a result against a saved baseline."
     },
     copilot: {
       kicker: "Read-only assistant",
       title: "Ops Copilot",
       description: "Tool-calling assistant over the read-only Product API — answers from real catalog/doctor/preset/patch/capacity data and proposes changes you review & apply.",
-      dialog: "Copilot quick action: ask about presets, patches, capacity or host health — it cites real numbers and never mutates state."
     },
     "launch-plan": {
       kicker: "Operator workbench",
       title: "Launch Plan",
       description: "Recommendation builder, plan composer, readiness gates, artifacts and CLI mirror.",
-      dialog: "Launch quick action: generate a dry-run plan for the selected preset and runtime target."
     },
     services: {
       kicker: "Lifecycle",
       title: "Services",
       description: "Service lifecycle, rendered launch artifacts, status, logs and safe write API boundary.",
-      dialog: "Services quick action: preview start/stop/restart commands without executing lifecycle writes."
     },
     containers: {
       kicker: "Docker control",
       title: "Containers",
       description: "Manage the vLLM/engine containers on a server — live CPU/memory, logs, start/stop/restart, and gated exec — over the local docker socket or a registered host via SSH.",
-      dialog: "Containers quick action: list the engine containers and refresh their live stats."
     },
     doctor: {
       kicker: "Diagnostics",
       title: "Doctor",
       description: "Readiness gates, blockers, warnings and release-proof preflight diagnostics.",
-      dialog: "Doctor quick action: rerun all local read-only gates and explain remaining blockers."
     },
     patches: {
       kicker: "Patch control",
       title: "Patches",
       description: "Patch simulation, policy matrix, enabled patch count and safe/minimal/compact policy preview.",
-      dialog: "Patches quick action: simulate patch policy for the selected preset and show applied/skipped patches."
     },
     benchmarks: {
       kicker: "Performance",
       title: "Benchmarks",
       description: "Benchmark baselines, expected TPS/TTFT context, run plan and evidence orchestration state.",
-      dialog: "Benchmarks quick action: queue a benchmark run after write-safe job orchestration is available."
     },
     evidence: {
       kicker: "Proof bundle",
       title: "Evidence",
       description: "Evidence references, visibility, benchmark baseline status and future release report bundles.",
-      dialog: "Evidence quick action: open or create the selected preset evidence report bundle."
     },
     clients: {
       kicker: "Integrations",
       title: "Clients",
       description: "OpenAI-compatible endpoints, health/metrics URLs, client snippets and GUI/CLI integration modes.",
-      dialog: "Clients quick action: copy OpenAI-compatible endpoint and client code snippet."
     },
     chat: {
       kicker: "Local model chat",
       title: "Chat",
       description: "Multi-turn streaming chat with any running local vLLM model — pick the engine host/port and model, tune the system prompt and sampling.",
-      dialog: "Chat quick action: point at a running engine and start a conversation."
     },
     reports: {
       kicker: "Operator reports",
       title: "Reports",
       description: "Launch, benchmark, patch and release-proof report types planned for GUI export.",
-      dialog: "Reports quick action: generate a read-only preview report from the current Product API snapshot."
     },
     operations: {
       kicker: "Project workbench",
       title: "Operations",
       description: "Run sndr_core's canonical maintenance, audit and proof workflows as live-monitored jobs — the CLI surface, integrated.",
-      dialog: "Operations quick action: run a registry audit or release check and watch it live."
     },
     advanced: {
       kicker: "Developer surface",
       title: "Advanced",
       description: "API base, OpenAPI/schema, feature contracts, CLI mirror and future desktop settings.",
-      dialog: "Advanced quick action: open schema/debug information for the current GUI daemon."
     }
   };
   return specs[sectionId];
@@ -5280,7 +5258,6 @@ function ConfigsSection(props: {
   selectedPreset: string;
   userPresets: UserPresetList | null;
   onPreview: (preview: V2ConfigPreview) => void;
-  onDialog: (message: string) => void;
   onUserPresetsRefresh: () => void;
 }) {
   const [tab, setTab] = useState<"compose" | "edit">("compose");
@@ -5372,7 +5349,6 @@ function V2ConfigWorkbench({
   selectedPreset: string;
   userPresets: UserPresetList | null;
   onPreview: (preview: V2ConfigPreview) => void;
-  onDialog: (message: string) => void;
   onUserPresetsRefresh: () => void;
 }) {
   const initialPreset = catalog?.presets.find((preset) => preset.id === selectedPreset) ?? catalog?.presets[0];
