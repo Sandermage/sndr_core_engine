@@ -327,6 +327,15 @@ html[data-theme="carbon"] .side-nav button.active { box-shadow: inset 3px 0 0 va
 .sidebar.collapsed .side-nav-header { display: none; }
 .sidebar.collapsed .side-nav button { justify-content: center; padding: 9px; gap: 0; }
 .sidebar.collapsed .side-nav button span { display: none; }
+/* Collapsed daemon card: a compact status dot + a docs icon, text hidden. */
+.sidebar.collapsed .daemon-card { padding: 8px 0; align-items: center; gap: 8px; }
+.sidebar.collapsed .daemon-card > p,
+.sidebar.collapsed .daemon-meta,
+.sidebar.collapsed .daemon-line strong,
+.sidebar.collapsed .daemon-line .status-badge,
+.sidebar.collapsed .daemon-docs-label { display: none; }
+.sidebar.collapsed .daemon-line { justify-content: center; }
+.sidebar.collapsed .daemon-docs { padding: 7px; justify-content: center; }
 
 .daemon-card {
   margin-top: auto;

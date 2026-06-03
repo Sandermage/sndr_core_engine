@@ -1043,7 +1043,7 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="daemon-card">
+        <div className="daemon-card" title={`API Daemon · ${apiBase} · SNDR Core v${environment?.sndr_core_version ?? "—"} · ${runtimeMode === "remote" ? "Remote Desktop" : "Local Server"}`}>
           <div className="daemon-line">
             <span className="live-dot" />
             <strong>API Daemon</strong>
@@ -1055,7 +1055,9 @@ export default function App() {
             <span>Engine: {environment ? (environment.engine_version ? `vLLM ${environment.engine_version}` : "vLLM not installed") : "…"}</span>
             <span>Mode: {runtimeMode === "remote" ? "Remote Desktop" : "Local Server"} · Read-only</span>
           </div>
-          <button className="ghost-button" onClick={() => window.open(`${apiBase.replace(/\/$/, "")}/docs`, "_blank", "noopener,noreferrer")}>View API Docs</button>
+          <button className="ghost-button daemon-docs" title="Open API docs" onClick={() => window.open(`${apiBase.replace(/\/$/, "")}/docs`, "_blank", "noopener,noreferrer")}>
+            <FileText size={14} /> <span className="daemon-docs-label">View API Docs</span>
+          </button>
         </div>
       </aside>
 
