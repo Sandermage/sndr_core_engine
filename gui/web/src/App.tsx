@@ -2747,6 +2747,22 @@ function SectionWorkspace({
           <p>{spec.description}</p>
         </div>
         <div className="section-actions">
+          {sectionId === "presets" && selectedPreset && (
+            <button
+              className="tool-button"
+              title={`Copy a shareable link to ${selectedPreset}`}
+              onClick={() => {
+                const url = window.location.href;
+                void navigator.clipboard?.writeText(url).then(
+                  () => toast(`Link to ${selectedPreset} copied`, "success"),
+                  () => toast("Could not copy link", "error")
+                );
+              }}
+            >
+              <Link2 size={16} />
+              Copy Link
+            </button>
+          )}
           <button className="tool-button" onClick={() => onSection("launch-plan")}>
             <Rocket size={16} />
             Launch Plan
