@@ -308,6 +308,23 @@ const navGroups: NavGroup[] = [
 // Flat list (command palette / lookups) — preserves the grouped order.
 const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
+// Runtime set of every routable section — used to validate the URL hash so a
+// hand-typed/bookmarked `#section` deep-link can't drop us on an unknown view.
+// Includes non-nav sections (launch-plan, chat) reachable only programmatically.
+const SECTION_IDS = new Set<SectionId>([
+  "overview", "setup", "fleet", "hosts", "models", "configs", "presets",
+  "planner", "copilot", "launch-plan", "services", "containers", "doctor",
+  "patches", "benchmarks", "evidence", "clients", "chat", "reports",
+  "operations", "advanced",
+]);
+// Parse the current location hash into a valid SectionId (or null). Tolerates
+// a leading `#`/`#/` and an optional `?query` suffix so deep-links stay robust.
+function sectionFromHash(): SectionId | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.location.hash.replace(/^#\/?/, "").split("?")[0];
+  return SECTION_IDS.has(raw as SectionId) ? (raw as SectionId) : null;
+}
+
 type FetchState = "idle" | "loading" | "ready" | "error";
 
 // Shared fetch-on-mount state machine: loading/ready/error, AbortController-based
@@ -385,7 +402,7 @@ export default function App() {
   const [launchSshTarget, setLaunchSshTarget] = useState("");
   const [launchTab, setLaunchTab] = useState("recommend");
   const [recommendForm, setRecommendForm] = useState<RecommendForm>(defaultRecommend);
-  const [activeSection, setActiveSection] = useState<SectionId>("launch-plan");
+  const [activeSection, setActiveSection] = useState<SectionId>(() => sectionFromHash() ?? "launch-plan");
   // When a host is opened from the connection switcher, focus + auto-discover it.
   const [focusHostId, setFocusHostId] = useState<string | null>(null);
   // "Set up as node" from an engine card → prefill the installer (daemon target).
@@ -754,6 +771,27 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // URL deep-linking: keep the location hash in sync with the active section so
+  // every view is bookmarkable/shareable and survives a page refresh. Writing
+  // the hash also pushes a history entry, which makes browser Back/Forward walk
+  // the section history (the hashchange listener below closes the loop).
+  useEffect(() => {
+    if (sectionFromHash() !== activeSection) {
+      window.location.hash = activeSection;
+    }
+  }, [activeSection]);
+
+  // Browser Back/Forward (and manual hash edits) drive the active section.
+  // Guarded by the equality check above so the two effects never ping-pong.
+  useEffect(() => {
+    const onHashChange = () => {
+      const next = sectionFromHash();
+      if (next) setActiveSection(next);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   useEffect(() => {
