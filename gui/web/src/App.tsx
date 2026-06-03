@@ -4276,7 +4276,14 @@ function ModelsWorkbench({
               ))}
             </div>
           ))}
-          {visible.length === 0 && <p className="muted">No models match.</p>}
+          {visible.length === 0 && (
+            <EmptyState
+              icon={<Boxes size={22} />}
+              title="No models match"
+              message={filter ? <>Nothing in the catalog matches “{filter}”.</> : "The model catalog is empty."}
+              action={filter ? { label: "Clear search", icon: <X size={14} />, onClick: () => setFilter("") } : undefined}
+            />
+          )}
         </div>
         <div className="catalog-foot">
           {visible.length} of {models.length} models · {groupedModels.length} famil{groupedModels.length === 1 ? "y" : "ies"}
@@ -5023,7 +5030,14 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
               onClick={() => setItemId(item.id)}
             />
           ))}
-          {visible.length === 0 && <p className="muted">No {kind} matches.</p>}
+          {visible.length === 0 && (
+            <EmptyState
+              icon={<Layers size={22} />}
+              title={`No ${kind} matches`}
+              message={filter ? <>Nothing in {kind} matches “{filter}”.</> : `No ${kind} elements in the catalog.`}
+              action={filter ? { label: "Clear search", icon: <X size={14} />, onClick: () => setFilter("") } : undefined}
+            />
+          )}
         </div>
       </aside>
 
@@ -7083,6 +7097,28 @@ function SkeletonMetrics({ count = 4 }: { count?: number }) {
   );
 }
 
+// Illustrated empty state — icon badge + title + guidance + optional recovery
+// action. Used on primary content areas in place of bare muted "No X" text.
+function EmptyState({ icon, title, message, action }: {
+  icon?: ReactNode;
+  title: string;
+  message?: ReactNode;
+  action?: { label: string; onClick: () => void; icon?: ReactNode };
+}) {
+  return (
+    <div className="empty-state" role="status">
+      {icon && <span className="empty-state-icon">{icon}</span>}
+      <strong>{title}</strong>
+      {message && <span className="empty-state-msg">{message}</span>}
+      {action && (
+        <button className="ghost-button" onClick={action.onClick}>
+          {action.icon}{action.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Project & catalog snapshot — fills the row beside the dependency stack with
 // the most useful project parameters: catalog counts, annotation coverage,
 // capability readiness and the workload/lifecycle distribution.
@@ -7597,7 +7633,13 @@ function PresetRecommendPanel({
                 </tbody>
               </table>
             </div>
-          ) : <p className="muted">No presets match this workload on the selected hardware. Try a different rig or workload.</p>}
+          ) : (
+            <EmptyState
+              icon={<Database size={22} />}
+              title="No presets match"
+              message="No preset fits this workload on the selected hardware. Try a different rig or workload above, or relax the concurrency target."
+            />
+          )}
         </>
       )}
     </div>
@@ -8042,7 +8084,14 @@ function PresetCatalogTable({
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={6} className="muted">No presets for this filter.</td></tr>
+              <tr><td colSpan={6}>
+                <EmptyState
+                  icon={<Database size={22} />}
+                  title="No presets for this filter"
+                  message={statusFilter === "all" ? "The preset catalog is empty." : <>No presets with status “{statusFilter.replace(/_/g, " ")}”.</>}
+                  action={statusFilter === "all" ? undefined : { label: "Show all presets", icon: <X size={14} />, onClick: () => setStatusFilter("all") }}
+                />
+              </td></tr>
             )}
           </tbody>
         </table>
@@ -8290,7 +8339,17 @@ function PatchInventoryControl({ patches }: { patches: PatchRow[] }) {
                   onSelect={setSelectedPatchId}
                 />
               ))}
-              {familyGroups.length === 0 && <p className="muted">No patches match the filters.</p>}
+              {familyGroups.length === 0 && (() => {
+                const filtered = needle.trim() !== "" || lifecycle !== "all" || productionDefault !== "all";
+                return (
+                  <EmptyState
+                    icon={<PackageCheck size={22} />}
+                    title="No patches match"
+                    message={filtered ? "No patches in the registry match the active filters." : "The patch registry is empty."}
+                    action={filtered ? { label: "Clear filters", icon: <X size={14} />, onClick: () => { setNeedle(""); setLifecycle("all"); setProductionDefault("all"); } } : undefined}
+                  />
+                );
+              })()}
             </div>
           ) : (
             <table className="module-table patch-table patch-table--flat">

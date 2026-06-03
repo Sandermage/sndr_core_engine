@@ -3307,6 +3307,25 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .containers-empty strong { color: var(--text); }
 .containers-empty code { font-family: var(--mono); font-size: 12px; }
 
+/* ── Empty states ──────────────────────────────────────────────────
+   Shared illustrated placeholder for "no results / nothing here yet"
+   surfaces. Replaces bare muted text on primary content areas with an
+   icon badge, a title, a guiding message and an optional recovery CTA
+   (e.g. "Clear filters") — the convention in Coolify/Portainer/Linear. */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  color: var(--text-muted); padding: var(--sp-6) var(--sp-4);
+  border: 1px dashed var(--border); border-radius: var(--r-lg); background: var(--surface);
+}
+.empty-state-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 46px; height: 46px; border-radius: 13px;
+  background: var(--surface-2); color: var(--accent-text); margin-bottom: 2px;
+}
+.empty-state strong { color: var(--text); font-size: 14px; }
+.empty-state-msg { max-width: 400px; font-size: 12.5px; line-height: 1.5; }
+.empty-state button { margin-top: 4px; }
+
 .containers-grid {
   display: grid; gap: 12px;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: start;
