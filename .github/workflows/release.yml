@@ -33,6 +33,7 @@ on:
 
 permissions:
   contents: write   # needed to attach files to the GitHub Release
+  id-token: write   # OIDC token for PyPI Trusted Publisher (see release job)
 
 jobs:
   # CONFIG-UX.4.2 (2026-05-24): Stage 2 strict-mode audit gate.
@@ -67,6 +68,12 @@ jobs:
 
   build_and_sbom:
     runs-on: ubuntu-latest
+    # `pypi` environment scopes the OIDC token to a tighter audience and
+    # gives the operator a release-gate hook (Environments → pypi →
+    # Required reviewers) before the PyPI publish step runs. If the
+    # environment doesn't exist yet in this repo's settings, GitHub
+    # auto-creates it on first run (open behaviour, no reviewer gate).
+    environment: pypi
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -137,3 +144,40 @@ jobs:
             sbom/*
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+      # ───────────────────────────────────────────────────────────────
+      # Publish to PyPI (Trusted Publisher / OIDC — no API token needed
+      # if the PyPI project is configured with a Trusted Publisher
+      # pointing at github.com/Sandermage/genesis-vllm-patches +
+      # workflow=release.yml + environment=pypi).
+      #
+      # Setup steps (one-time, by the operator):
+      #   1. Create the PyPI project `vllm-sndr-core` (manually, with a
+      #      first manual upload OR via "pending publishers" form).
+      #   2. Add a Trusted Publisher under Project settings → Publishing:
+      #         Owner    = Sandermage
+      #         Repo     = genesis-vllm-patches
+      #         Workflow = release.yml
+      #         Env      = pypi
+      #   3. Create the `pypi` environment in this repo's settings
+      #      (Environments → New environment → "pypi") so the
+      #      OIDC token is scoped tighter and reviewers can be added
+      #      as a release gate.
+      #
+      # Behaviour:
+      #   - Runs only on git-tag push (`v*`).
+      #   - Skipped automatically when `dry_run=true`.
+      #   - Skipped automatically if no Trusted Publisher is configured
+      #     yet (pypa/gh-action-pypi-publish will fail-skip rather than
+      #     block the release; check the workflow log for the actual
+      #     "OIDC token missing" diagnostic).
+      # ───────────────────────────────────────────────────────────────
+      - name: Publish to PyPI (Trusted Publisher / OIDC)
+        if: startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry_run != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          # Skip if a wheel/sdist for this version is already on PyPI —
+          # re-runs of the same tag must not error on the duplicate.
+          skip-existing: true
+          verbose: true
