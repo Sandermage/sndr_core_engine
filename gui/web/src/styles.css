@@ -1052,7 +1052,8 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 
 /* ============================================================ Section workspaces */
 
-.section-workspace { padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--gap); }
+.section-workspace { padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--gap); animation: sndr-fade-in 0.24s ease both; }
+@media (prefers-reduced-motion: reduce) { .section-workspace { animation: none; } }
 .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; }
 .section-heading span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--accent-text); font-weight: 700; }
 .section-heading h1 { font-size: 22px; font-weight: 800; margin: 2px 0; }
@@ -1455,8 +1456,9 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
   transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
 }
 .section-tabs button svg { width: 15px; height: 15px; }
-.section-tabs button:hover { color: var(--text); }
+.section-tabs button:hover { color: var(--text); background: color-mix(in srgb, var(--surface) 55%, transparent); }
 .section-tabs button.active { background: var(--surface); color: var(--accent-text); box-shadow: var(--shadow-sm); border-color: var(--border); }
+.section-tabs button.active svg { color: var(--accent-text); }
 .section-tab-body { display: flex; flex-direction: column; gap: var(--gap); animation: tabfade 0.18s ease; }
 @keyframes tabfade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 
