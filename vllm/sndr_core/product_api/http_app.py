@@ -1687,6 +1687,29 @@ def create_app(
         alerts_mod.STORE.update(alerts_mod.evaluate_hardware(host, tele), now=_t.time())
         return alerts_mod.STORE.snapshot()
 
+    # --- Spec-decode workload routing (same brain as the gateway) -----------
+    @app.get("/api/v1/routing/artifacts")
+    def routing_artifacts() -> dict[str, Any]:
+        """Bench-validated spec-decode profiles + their per-workload economics."""
+        from . import routing
+
+        return routing.list_artifacts()
+
+    @app.get("/api/v1/routing/active")
+    def routing_active() -> dict[str, Any]:
+        """The profile the operator considers live (env override or sole artifact)."""
+        from . import routing
+
+        return routing.active_profile()
+
+    @app.post("/api/v1/routing/classify")
+    def routing_classify(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        """Classify request signals → profile + accept/fallback + expected TPS delta."""
+        from . import routing
+
+        signals = payload.get("signals") if isinstance(payload.get("signals"), dict) else payload
+        return routing.classify(signals=signals or {}, profile=payload.get("profile"))
+
     @app.get("/api/v1/jobs")
     async def jobs_list() -> dict[str, Any]:
         return {"jobs": [_dataclass_payload(job) for job in list_jobs()]}
