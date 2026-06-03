@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Box, CheckCircle2, Container, Copy, Cpu, HardDrive, Loader2, Lock, Package, Rocket, Server, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Box, CheckCircle2, Container, Copy, Cpu, HardDrive, Loader2, Lock, Package, Rocket, Server, ShieldAlert, Tag } from "lucide-react";
 import { api, type InstallPlan, type InstallTarget, type InstallTargets, type PresetRecord } from "./api";
 
 const TARGET_ICON: Record<string, JSX.Element> = {
@@ -16,6 +16,7 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
   const [hostId, setHostId] = useState(initial?.hostId || "");
   const [target, setTarget] = useState(initial?.target || "compose");
   const [presetId, setPresetId] = useState("");
+  const [pin, setPin] = useState("");
   const [plan, setPlan] = useState<InstallPlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -32,14 +33,14 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
   async function buildPlan() {
     if (!hostId || !presetId || !target) return;
     setLoading(true); setErr(null); setPlan(null); setApplied(null); setConfirming(false);
-    try { setPlan(await api.installPlan(hostId, presetId, target)); }
+    try { setPlan(await api.installPlan(hostId, presetId, target, pin.trim() || undefined)); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setLoading(false); }
   }
 
   async function runApply() {
     setApplying(true); setErr(null); setConfirming(false);
-    try { setApplied(await api.installApply(hostId, presetId, target)); }
+    try { setApplied(await api.installApply(hostId, presetId, target, pin.trim() || undefined)); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setApplying(false); }
   }
@@ -68,6 +69,11 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
             {presets.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
           </select>
         </label>
+        <label className="param-field"><span><Tag size={11} /> Engine pin / image <em className="install-opt">(optional)</em></span>
+          <input value={pin} onChange={(e) => { setPin(e.target.value); setPlan(null); }}
+            placeholder="preset default — e.g. vllm/vllm-openai:nightly-<sha> or @sha256:…"
+            spellCheck={false} />
+        </label>
       </div>
 
       <div className="install-targets">
@@ -95,6 +101,7 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
           <div className="install-plan-head">
             <strong>{plan.target_label} → {plan.host.label}</strong>
             <span className="install-dry">dry-run · nothing executed</span>
+            {plan.image_override && <span className="install-pin"><Tag size={12} /> pinned: {plan.image_override}</span>}
             {plan.danger_count > 0 && <span className="install-danger-count"><ShieldAlert size={12} /> {plan.danger_count} infra-mutating step{plan.danger_count > 1 ? "s" : ""}</span>}
           </div>
           {plan.provisions_infra && <div className="install-infra-warn"><ShieldAlert size={14} /> This target <b>provisions infrastructure</b> on the Proxmox host (creates a {plan.target === "proxmox_vm" ? "VM" : "container"}). Review every step; run only on the Proxmox node.</div>}

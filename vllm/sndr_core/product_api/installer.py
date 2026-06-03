@@ -36,11 +36,14 @@ def build_install_plan(
     preset_id: str,
     target: str,
     host_paths: Optional[dict[str, str]] = None,
+    image_override: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Render a preset/target and lay it out as an ordered, dry-run install plan."""
+    """Render a preset/target and lay it out as an ordered, dry-run install plan.
+
+    ``image_override`` installs the engine at an explicit vLLM pin/image."""
     from . import deployment
 
-    dep = deployment.build_deployment(preset_id, target, host_paths=host_paths)
+    dep = deployment.build_deployment(preset_id, target, host_paths=host_paths, image_override=image_override)
     artifact = dep["artifact"]
     label = host.get("label") or host.get("host") or "the host"
 
@@ -71,6 +74,7 @@ def build_install_plan(
         "target_label": dep.get("target_label"),
         "artifact": artifact,
         "parameters": dep.get("parameters"),
+        "image_override": dep.get("image_override"),
         "dependencies": dep.get("dependencies"),
         "steps": steps,
         "danger_count": danger_count,
@@ -95,6 +99,7 @@ def apply_install_plan(
     apply_enabled: bool,
     confirm: bool,
     host_paths: Optional[dict[str, str]] = None,
+    image_override: Optional[str] = None,
 ) -> dict[str, Any]:
     """Execute an install plan on a host over SSH — the gated apply phase.
 
@@ -109,7 +114,7 @@ def apply_install_plan(
     if not confirm:
         return {"ok": False, "applied": False, "error": "explicit confirm is required to run on a host"}
 
-    plan = build_install_plan(host=host, preset_id=preset_id, target=target, host_paths=host_paths)
+    plan = build_install_plan(host=host, preset_id=preset_id, target=target, host_paths=host_paths, image_override=image_override)
     artifact = plan["artifact"]
     commands = [s["cmd"] for s in plan["steps"] if s.get("kind") == "remote-exec" and s.get("cmd")]
     exec_result = run_apply(

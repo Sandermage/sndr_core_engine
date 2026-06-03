@@ -669,6 +669,7 @@ def create_app(
                 preset_id=str(payload.get("preset_id", "")).strip(),
                 target=str(payload.get("target", "")).strip(),
                 host_paths=host_paths,
+                image_override=str(payload.get("image_override") or "").strip() or None,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -714,6 +715,7 @@ def create_app(
                 run_apply=ssh_client.run_apply,
                 apply_enabled=True,
                 confirm=True,
+                image_override=str(payload.get("image_override") or "").strip() or None,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))

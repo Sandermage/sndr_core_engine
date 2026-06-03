@@ -638,20 +638,46 @@ _RENDERERS = {
 }
 
 
+def _apply_image_override(cfg, image_override: Optional[str]):
+    """Return a copy of ``cfg`` whose docker image is pinned to ``image_override``.
+
+    Lets the operator install a preset at an explicit vLLM pin without editing
+    the preset. A ``@sha256:`` reference is treated as a digest (most
+    reproducible, wins over the tag); anything else replaces the image tag and
+    clears any preset digest so the chosen tag is what actually runs. The
+    override flows to BOTH the parameters and every artifact renderer because
+    they all read ``cfg.docker``.
+    """
+    import dataclasses
+
+    docker = getattr(cfg, "docker", None)
+    ov = (image_override or "").strip()
+    if not ov or docker is None:
+        return cfg
+    if "@sha256:" in ov:
+        new_docker = dataclasses.replace(docker, image_digest=ov)
+    else:
+        new_docker = dataclasses.replace(docker, image=ov, image_digest=None)
+    return dataclasses.replace(cfg, docker=new_docker)
+
+
 def build_deployment(
     preset_id: str,
     target: str,
     *,
     host_paths: Optional[dict[str, str]] = None,
+    image_override: Optional[str] = None,
 ) -> dict[str, Any]:
     """Build the full read-only deployment plan for ``preset_id`` on ``target``.
 
-    Raises ``KeyError`` for an unknown preset and ``ValueError`` for an unknown
-    target — the HTTP layer maps these to 404 / 400.
+    ``image_override`` pins the engine image/tag at install time (e.g. a specific
+    vLLM nightly), overriding the preset's image. Raises ``KeyError`` for an
+    unknown preset and ``ValueError`` for an unknown target — the HTTP layer maps
+    these to 404 / 400.
     """
     if target not in _TARGET_BY_ID:
         raise ValueError(f"unknown deployment target: {target!r}")
-    cfg = _resolve_cfg(preset_id)
+    cfg = _apply_image_override(_resolve_cfg(preset_id), image_override)
 
     meta = _TARGET_BY_ID[target]
     resolved_paths = _host_paths(cfg, host_paths)
@@ -684,6 +710,7 @@ def build_deployment(
             "content": content,
         },
         "parameters": params,
+        "image_override": (image_override or "").strip() or None,
         "mount_vars": _mount_vars(cfg, resolved_paths),
         "dependencies": _deps_plan(cfg),
         "commands": cmd_fn(cfg),

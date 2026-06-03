@@ -57,6 +57,22 @@ def test_build_compose_artifact_renders_real_yaml():
     assert {"is_ready", "n_blockers", "n_warnings", "items"} <= set(deps)
 
 
+def test_image_override_pins_engine_at_install_time():
+    preset = _a_preset()
+    base = dep.build_deployment(preset, "compose")
+    # A tag override replaces the image everywhere — parameters AND the artifact.
+    tag = dep.build_deployment(preset, "compose", image_override="vllm/vllm-openai:nightly-PINX")
+    assert tag["parameters"]["image"] == "vllm/vllm-openai:nightly-PINX"
+    assert tag["image_override"] == "vllm/vllm-openai:nightly-PINX"
+    assert "nightly-PINX" in tag["artifact"]["content"]
+    assert tag["parameters"]["image"] != base["parameters"]["image"] or "PINX" in base["parameters"]["image"]
+    # A digest override is treated as a digest (wins, reproducible).
+    dig = dep.build_deployment(preset, "compose", image_override="vllm/vllm-openai@sha256:deadbeef")
+    assert dig["parameters"]["image"] == "vllm/vllm-openai@sha256:deadbeef"
+    # Empty/None override is a no-op (preset image unchanged).
+    assert dep.build_deployment(preset, "compose", image_override="  ")["parameters"]["image"] == base["parameters"]["image"]
+
+
 def test_mount_vars_overridable():
     preset = _a_preset()
     base = dep.build_deployment(preset, "compose")

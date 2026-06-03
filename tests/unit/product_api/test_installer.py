@@ -5,10 +5,11 @@ from __future__ import annotations
 from vllm.sndr_core.product_api import deployment, installer
 
 
-def _fake_dep(preset, target, host_paths=None):
+def _fake_dep(preset, target, host_paths=None, image_override=None):
     return {
         "artifact": {"filename": "provision-vm.sh", "kind": "bash", "content": "qm create 9200 ..."},
         "target_label": "Proxmox VM (KVM)", "parameters": {"container_name": "vllm"}, "dependencies": {"docker": "required"},
+        "image_override": image_override,
         "commands": ["chmod +x provision-vm.sh", "VMID=9200 STORAGE=local-lvm PCI=01:00 ./provision-vm.sh", 'qm terminal "$VMID"'],
     }
 
