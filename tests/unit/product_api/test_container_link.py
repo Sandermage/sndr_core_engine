@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Tests for container ↔ preset linkage + config drift detection (pure helpers)."""
+from __future__ import annotations
+
+from vllm.sndr_core.product_api import container_link as cl
+
+
+def test_resolve_preset_prefers_label_then_name():
+    index = {"vllm-pn95-2xa5000": "a5000-2x-27b"}
+    # label wins
+    pid, by = cl.resolve_preset("anything", {"sndr.preset": "prod-35b"}, index)
+    assert pid == "prod-35b" and by == "label"
+    # fall back to name convention
+    pid, by = cl.resolve_preset("vllm-pn95-2xa5000", {}, index)
+    assert pid == "a5000-2x-27b" and by == "name"
+    # no link
+    assert cl.resolve_preset("redis", {}, index) == (None, None)
+
+
+def test_build_preset_index_skips_missing_names():
+    idx = cl.build_preset_index(
+        lambda: ["p1", "p2", "p3"],
+        lambda pid: {"p1": "vllm-a", "p2": None, "p3": "vllm-c"}.get(pid),
+    )
+    assert idx == {"vllm-a": "p1", "vllm-c": "p3"}
+
+
+def test_compute_drift_detects_image_and_env():
+    inspect = {"Config": {
+        "Image": "vllm/vllm-openai:OLD",
+        "Env": ["GENESIS_ENABLE_P82=1", "PATH=/usr/bin", "GENESIS_ENABLE_PN90=0"],
+    }}
+    drift = cl.compute_drift(
+        "vllm/vllm-openai:nightly",
+        {"GENESIS_ENABLE_P82": "1", "GENESIS_ENABLE_PN90": "1", "GENESIS_ENABLE_P94": "1"},
+        inspect,
+    )
+    fields = {d["field"]: d for d in drift}
+    assert fields["image"]["kind"] == "image"
+    assert fields["GENESIS_ENABLE_PN90"]["kind"] == "changed"     # 1 expected, 0 running
+    assert fields["GENESIS_ENABLE_P94"]["kind"] == "missing"      # not set at all
+    assert "GENESIS_ENABLE_P82" not in fields                     # matches → no drift
+
+
+def test_compute_drift_clean_when_matching():
+    inspect = {"Config": {"Image": "img:1", "Env": ["A=1"]}}
+    assert cl.compute_drift("img:1", {"A": "1"}, inspect) == []
+
+
+def test_parse_env():
+    assert cl.parse_env(["A=1", "B=x=y", "NOEQ"]) == {"A": "1", "B": "x=y"}
+
+
+def test_live_patches_extracts_on_genesis_flags():
+    inspect = {"Config": {"Env": [
+        "GENESIS_ENABLE_P82=1", "GENESIS_ENABLE_PN90=0", "PN95_TIER_AWARE=true",
+        "PATH=/usr/bin", "CUDA_VISIBLE_DEVICES=0,1", "GENESIS_ENABLE_P94=on",
+    ]}}
+    live = cl.live_patches(inspect)
+    flags = {p["flag"] for p in live}
+    assert flags == {"GENESIS_ENABLE_P82", "PN95_TIER_AWARE", "GENESIS_ENABLE_P94"}  # on-only, Genesis-only
+    assert "GENESIS_ENABLE_PN90" not in flags  # value 0 → off
+    assert live == sorted(live, key=lambda p: p["flag"])  # stable order
+
+
+def test_source_report_includes_live_patches():
+    rep = cl.source_report("vllm-x", {"Config": {"Env": ["GENESIS_ENABLE_P82=1"], "Labels": {}}})
+    assert rep["live_patch_count"] == 1 and rep["live_patches"][0]["flag"] == "GENESIS_ENABLE_P82"

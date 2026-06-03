@@ -748,7 +748,33 @@ def create_app(
         _profile, target = _ssh_target_for(host_id)
         return _co.SshContainerControl(target=target)
 
-    def _do_action(control, name: str, payload: dict[str, Any]) -> dict[str, Any]:
+    # `docker system df` scans every image layer/volume → it is genuinely slow
+    # (seconds) AND, over the per-host SSH pool, holds the lock while live stats
+    # wait behind it — which made the Containers panel feel sluggish to open.
+    # Disk usage barely changes, so cache it per source with a short TTL.
+    import time as _time
+    _df_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+    _DF_TTL = 120.0
+
+    def _system_df_cached(control, key: str) -> dict[str, Any]:
+        hit = _df_cache.get(key)
+        if hit and (_time.time() - hit[0]) < _DF_TTL:
+            return hit[1]
+        data = _container_op(lambda: control.system_df())
+        _df_cache[key] = (_time.time(), data)
+        return data
+
+    def _audit(action: str, name: str, source: str, detail: dict[str, Any]) -> None:
+        # Reuse the persisted, bounded event feed as the container audit log — the
+        # GUI's Events panel + the /events SSE already render it. Every mutating
+        # container op leaves a who/what/when trace here.
+        try:
+            record_event(f"container.{action}", f"{action} {name} ({source})",
+                         {"container": name, "source": source, **detail})
+        except Exception:
+            pass
+
+    def _do_action(control, name: str, payload: dict[str, Any], source: str = "local") -> dict[str, Any]:
         from . import container_ops as _co
         action = str(payload.get("action", "")).strip().lower()
         if action not in ("start", "stop", "restart"):
@@ -757,9 +783,10 @@ def create_app(
         if not gate.allowed:
             raise HTTPException(status_code=gate.status, detail=gate.reason)
         _container_op(lambda: getattr(control, action)(name))
+        _audit(action, name, source, {})
         return {"ok": True, "action": action, "container": name}
 
-    def _do_exec(control, name: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def _do_exec(control, name: str, payload: dict[str, Any], source: str = "local") -> dict[str, Any]:
         from . import container_ops as _co
         argv = payload.get("argv")
         if not isinstance(argv, list) or not all(isinstance(a, str) for a in argv) or not argv:
@@ -768,7 +795,129 @@ def create_app(
         if not gate.allowed:
             raise HTTPException(status_code=gate.status, detail=gate.reason)
         result = _container_op(lambda: control.exec(name, argv))
+        _audit("exec", name, source, {"argv": argv, "exit_code": result.exit_code})
         return {"ok": True, "container": name, **result.to_dict()}
+
+    def _do_pull(control, name: str, payload: dict[str, Any], source: str = "local") -> dict[str, Any]:
+        from . import container_ops as _co
+        gate = _co.gate_lifecycle(apply_on=apply_on, confirm=bool(payload.get("confirm")))
+        if not gate.allowed:
+            raise HTTPException(status_code=gate.status, detail=gate.reason)
+        result = _container_op(lambda: control.pull(name))
+        # Optionally restart so the new image takes effect (best-effort, gated already).
+        if payload.get("restart"):
+            _container_op(lambda: control.restart(name))
+            result["restarted"] = True
+        _audit("pull", name, source, {"image": result.get("image"), "restarted": bool(payload.get("restart"))})
+        return {"ok": True, "container": name, **result}
+
+    def _require_apply(detail: str) -> None:
+        if not apply_on:
+            raise HTTPException(status_code=403, detail=detail)
+
+    def _do_fs(control, name: str, path: str) -> dict[str, Any]:
+        # Read-only file browsing: FIXED ls/head commands on a validated absolute
+        # path (not operator-arbitrary), so it sits in the read tier — gated by
+        # apply (operator-enabled daemon), NOT the stricter SNDR_ENABLE_EXEC which
+        # guards arbitrary in-container command execution.
+        _require_apply("file browsing needs apply — start the daemon with SNDR_ENABLE_APPLY=1")
+        return _container_op(lambda: control.list_dir(name, path))
+
+    def _do_file(control, name: str, path: str, max_bytes: int = 65536) -> dict[str, Any]:
+        _require_apply("file browsing needs apply — start the daemon with SNDR_ENABLE_APPLY=1")
+        return _container_op(lambda: control.read_file(name, path, max_bytes=max_bytes))
+
+    def _do_settings(control, name: str, payload: dict[str, Any], source: str = "local") -> dict[str, Any]:
+        from . import container_ops as _co
+        gate = _co.gate_lifecycle(apply_on=apply_on, confirm=bool(payload.get("confirm")))
+        if not gate.allowed:
+            raise HTTPException(status_code=gate.status, detail=gate.reason)
+        cpus = payload.get("cpus")
+        memory = payload.get("memory")
+        rp = payload.get("restart_policy")
+        try:
+            cpus_v = float(cpus) if cpus not in (None, "") else None
+            mem_v = int(memory) if memory not in (None, "") else None
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="cpus/memory must be numbers")
+        result = _container_op(lambda: control.update_settings(
+            name, cpus=cpus_v, memory=mem_v, restart_policy=(str(rp) if rp else None)))
+        _audit("settings", name, source, {"cpus": cpus_v, "memory": mem_v, "restart_policy": rp})
+        return {"ok": True, "container": name, **result}
+
+    def _do_network(control, name: str, payload: dict[str, Any], source: str = "local") -> dict[str, Any]:
+        from . import container_ops as _co
+        gate = _co.gate_lifecycle(apply_on=apply_on, confirm=bool(payload.get("confirm")))
+        if not gate.allowed:
+            raise HTTPException(status_code=gate.status, detail=gate.reason)
+        network = str(payload.get("network", ""))
+        action = str(payload.get("action", "connect")).lower()
+        if action not in ("connect", "disconnect"):
+            raise HTTPException(status_code=400, detail=f"unsupported network action: {action!r}")
+        fn = control.connect_network if action == "connect" else control.disconnect_network
+        result = _container_op(lambda: fn(name, network))
+        _audit(f"network.{action}", name, source, {"network": network})
+        return {"ok": True, "container": name, **result}
+
+    def _stream_logs_response(control, name: str, tail: int):
+        """Wrap a backend's blocking log generator as an ND-JSON stream. Each line
+        is {"line": "..."}; {"hb": true} heartbeats keep the connection writable so
+        a client disconnect is noticed and the SSH channel / socket is released."""
+        import asyncio
+        import json as _json
+
+        from starlette.responses import StreamingResponse
+
+        sync_it = _container_op(lambda: iter(control.stream_logs(name, tail=tail)))
+
+        def _next_or_none(it):
+            try:
+                return next(it)
+            except StopIteration:
+                return None
+
+        async def gen():
+            try:
+                while True:
+                    chunk = await asyncio.to_thread(_next_or_none, sync_it)
+                    if chunk is None:
+                        break
+                    yield (_json.dumps({"line": chunk}) if chunk else '{"hb":true}') + "\n"
+            finally:
+                close = getattr(sync_it, "close", None)
+                if close:
+                    try:
+                        close()
+                    except Exception:
+                        pass
+
+        return StreamingResponse(gen(), media_type="application/x-ndjson")
+
+    def _do_update_plan(control, name: str) -> dict[str, Any]:
+        """Read-only: how to update this container. vLLM engines follow the pin
+        policy (deliberate, copyable commands + rollback); other managed
+        containers can be guard-updated (pull image + restart)."""
+        from . import updater
+        inspect = _container_op(lambda: control.inspect(name))
+        image = str((inspect.get("Config") or {}).get("Image") or "")
+        is_engine = "vllm" in (image.lower() + " " + name.lower())
+        pins = updater.supported_pins()
+        canonical = pins[0] if pins else None
+        commands: list[str] = []
+        if is_engine and canonical:
+            commands = [
+                f"docker pull vllm/vllm-openai:{canonical}",
+                "docker tag vllm/vllm-openai:nightly vllm/vllm-openai:nightly-previous   # keep for rollback",
+                f"docker tag vllm/vllm-openai:{canonical} vllm/vllm-openai:nightly",
+                "# then re-run the engine via its start script to pick up the new image",
+            ]
+        return {
+            "container": name, "image": image, "is_engine": is_engine,
+            "supported_pins": pins, "canonical_pin": canonical,
+            "guarded_update": not is_engine,
+            "policy": "vLLM pin moves deliberately — ≤1 active pin plus a 'previous' tag for rollback.",
+            "commands": commands,
+        }
 
     # Local family (this daemon's host, via the docker socket) ------------
     @app.get("/api/v1/containers")
@@ -776,6 +925,12 @@ def create_app(
         control = _local_control()
         items = _container_op(control.list_managed)
         return {"containers": [c.to_dict() for c in items], "source": "socket"}
+
+    # Declared BEFORE /containers/{name} so the literal path isn't shadowed by the
+    # {name} param. One call returns stats for every managed container.
+    @app.get("/api/v1/containers/stats")
+    async def containers_stats_all() -> dict[str, Any]:
+        return {"stats": _container_op(lambda: _local_control().list_stats())}
 
     @app.get("/api/v1/containers/{name}")
     async def container_inspect(name: str) -> dict[str, Any]:
@@ -797,12 +952,74 @@ def create_app(
     async def container_exec(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         return _do_exec(_local_control(), name, payload)
 
+    @app.get("/api/v1/containers/{name}/top")
+    async def container_top(name: str) -> dict[str, Any]:
+        return {"container": name, **_container_op(lambda: _local_control().top(name))}
+
+    @app.get("/api/v1/containers/{name}/changes")
+    async def container_changes(name: str) -> dict[str, Any]:
+        return {"container": name, "changes": _container_op(lambda: _local_control().changes(name))}
+
+    @app.get("/api/v1/containers/{name}/fs")
+    async def container_fs(name: str, path: str = Query(default="/")) -> dict[str, Any]:
+        return _do_fs(_local_control(), name, path)
+
+    @app.get("/api/v1/containers/{name}/file")
+    async def container_file(name: str, path: str = Query(...),
+                             max_bytes: int = Query(default=65536, ge=1, le=5_000_000)) -> dict[str, Any]:
+        return _do_file(_local_control(), name, path, max_bytes)
+
+    @app.get("/api/v1/containers/{name}/update-plan")
+    async def container_update_plan(name: str) -> dict[str, Any]:
+        return _do_update_plan(_local_control(), name)
+
+    @app.post("/api/v1/containers/{name}/pull")
+    async def container_pull(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_pull(_local_control(), name, payload, source="local")
+
+    @app.get("/api/v1/containers/{name}/scan")
+    async def container_scan(name: str) -> dict[str, Any]:
+        return _container_op(lambda: _local_control().scan_image(name))
+
+    def _do_source(control, name: str) -> dict[str, Any]:
+        from . import container_link
+        inspect = _container_op(lambda: control.inspect(name))
+        return container_link.source_report(name, inspect)
+
+    @app.get("/api/v1/containers/{name}/source")
+    async def container_source(name: str) -> dict[str, Any]:
+        return _do_source(_local_control(), name)
+
+    @app.get("/api/v1/containers/{name}/logs/stream")
+    async def container_logs_stream(name: str, tail: int = Query(default=200, ge=1, le=5000)):
+        return _stream_logs_response(_local_control(), name, tail)
+
+    @app.get("/api/v1/system/df")
+    async def system_df() -> dict[str, Any]:
+        return _system_df_cached(_local_control(), "local")
+
+    @app.get("/api/v1/system/networks")
+    async def system_networks() -> dict[str, Any]:
+        return {"networks": _container_op(lambda: _local_control().list_networks())}
+
+    @app.post("/api/v1/containers/{name}/settings")
+    async def container_settings(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_settings(_local_control(), name, payload, source="local")
+
+    @app.post("/api/v1/containers/{name}/network")
+    async def container_network(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_network(_local_control(), name, payload, source="local")
+
     # Host family (a registered host, via SSH) ----------------------------
     @app.get("/api/v1/hosts/{host_id}/containers")
     async def host_containers_list(host_id: str) -> dict[str, Any]:
         control = _host_control(host_id)
         items = _container_op(control.list_managed)
         return {"containers": [c.to_dict() for c in items], "source": "ssh"}
+
+    @app.get("/api/v1/hosts/{host_id}/containers/stats")
+    async def host_containers_stats_all(host_id: str) -> dict[str, Any]:
+        return {"stats": _container_op(lambda: _host_control(host_id).list_stats())}
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}")
     async def host_container_inspect(host_id: str, name: str) -> dict[str, Any]:
@@ -818,11 +1035,89 @@ def create_app(
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/action")
     async def host_container_action(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
-        return _do_action(_host_control(host_id), name, payload)
+        return _do_action(_host_control(host_id), name, payload, source=host_id)
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/exec")
     async def host_container_exec(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
-        return _do_exec(_host_control(host_id), name, payload)
+        return _do_exec(_host_control(host_id), name, payload, source=host_id)
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/top")
+    async def host_container_top(host_id: str, name: str) -> dict[str, Any]:
+        return {"container": name, **_container_op(lambda: _host_control(host_id).top(name))}
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/changes")
+    async def host_container_changes(host_id: str, name: str) -> dict[str, Any]:
+        return {"container": name, "changes": _container_op(lambda: _host_control(host_id).changes(name))}
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/fs")
+    async def host_container_fs(host_id: str, name: str, path: str = Query(default="/")) -> dict[str, Any]:
+        return _do_fs(_host_control(host_id), name, path)
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/file")
+    async def host_container_file(host_id: str, name: str, path: str = Query(...),
+                                  max_bytes: int = Query(default=65536, ge=1, le=5_000_000)) -> dict[str, Any]:
+        return _do_file(_host_control(host_id), name, path, max_bytes)
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/update-plan")
+    async def host_container_update_plan(host_id: str, name: str) -> dict[str, Any]:
+        return _do_update_plan(_host_control(host_id), name)
+
+    @app.post("/api/v1/hosts/{host_id}/containers/{name}/pull")
+    async def host_container_pull(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_pull(_host_control(host_id), name, payload, source=host_id)
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/scan")
+    async def host_container_scan(host_id: str, name: str) -> dict[str, Any]:
+        return _container_op(lambda: _host_control(host_id).scan_image(name))
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/source")
+    async def host_container_source(host_id: str, name: str) -> dict[str, Any]:
+        return _do_source(_host_control(host_id), name)
+
+    @app.get("/api/v1/hosts/{host_id}/containers/{name}/logs/stream")
+    async def host_container_logs_stream(host_id: str, name: str, tail: int = Query(default=200, ge=1, le=5000)):
+        return _stream_logs_response(_host_control(host_id), name, tail)
+
+    @app.get("/api/v1/hosts/{host_id}/system/df")
+    async def host_system_df(host_id: str) -> dict[str, Any]:
+        return _system_df_cached(_host_control(host_id), f"host:{host_id}")
+
+    @app.get("/api/v1/hosts/{host_id}/system/networks")
+    async def host_system_networks(host_id: str) -> dict[str, Any]:
+        return {"networks": _container_op(lambda: _host_control(host_id).list_networks())}
+
+    @app.post("/api/v1/hosts/{host_id}/containers/{name}/settings")
+    async def host_container_settings(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_settings(_host_control(host_id), name, payload, source=host_id)
+
+    @app.post("/api/v1/hosts/{host_id}/containers/{name}/network")
+    async def host_container_network(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_network(_host_control(host_id), name, payload, source=host_id)
+
+    # ─── Alerts (engine health → Telegram) ───────────────────────────────
+    @app.get("/api/v1/alerts/config")
+    async def alerts_config_get() -> dict[str, Any]:
+        from . import notify
+        return notify.get_config()
+
+    @app.post("/api/v1/alerts/config")
+    async def alerts_config_set(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        # Storing a bot token + changing daemon behavior → gate behind apply.
+        if not apply_on:
+            raise HTTPException(status_code=403, detail="apply is disabled — start the daemon with SNDR_ENABLE_APPLY=1")
+        from . import notify
+        return notify.set_config(
+            enabled=payload.get("enabled"),
+            chat_id=payload.get("chat_id"),
+            bot_token=payload.get("bot_token"),
+        )
+
+    @app.post("/api/v1/alerts/test")
+    async def alerts_test(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        if not apply_on:
+            raise HTTPException(status_code=403, detail="apply is disabled — start the daemon with SNDR_ENABLE_APPLY=1")
+        from . import notify
+        return notify.send("✅ SNDR test alert — notifications are working.")
 
     @app.get("/api/v1/operations")
     async def operations_list() -> dict[str, Any]:
@@ -1817,6 +2112,23 @@ def create_app(
             pass
 
     _threading.Thread(target=_warm, daemon=True).start()
+
+    # Background health-watch: alerts when a managed (engine) container goes down.
+    # Idempotent (starts once/process); each tick is a no-op unless alerts are
+    # enabled AND the local docker socket is reachable (the node case).
+    try:
+        from . import container_watch
+        from vllm.sndr_core.deps import checkers as _checkers
+
+        def _watch_control():
+            from . import container_ops as _co
+            if not _checkers._docker_socket_present():
+                raise RuntimeError("no docker socket")
+            return _co.SocketContainerControl()
+
+        container_watch.start_watch(_watch_control)
+    except Exception:  # noqa: BLE001 - never block app creation on the watcher
+        pass
 
     return app
 

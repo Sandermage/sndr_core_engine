@@ -322,6 +322,10 @@ def render_compose_yaml(
         "ports": [f"{host_port}:{container_port}"],
         "environment": env,
         "command": _container_command(cfg),
+        # Provenance labels — let the GUI link a RUNNING container back to the
+        # preset/config that defines it (and detect drift). Pure metadata, no
+        # runtime effect. `sndr.preset` is resolvable via the V2 catalog.
+        "labels": {"sndr.managed": "true", "sndr.preset": str(cfg.key)},
     }
     if volumes_resolved:
         service["volumes"] = volumes_resolved

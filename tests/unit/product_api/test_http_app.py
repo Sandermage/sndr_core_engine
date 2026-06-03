@@ -749,13 +749,58 @@ class _FakeControl:
                                      created="", labels={})]
 
     def inspect(self, name):
-        return {"Name": name, "State": {"Running": True}}
+        return {"Name": name, "State": {"Running": True}, "Config": {"Image": "vllm/vllm-openai:nightly"}}
+
+    def top(self, name):
+        return {"titles": ["PID", "CMD"], "processes": [["1", "python3"]]}
+
+    def changes(self, name):
+        return [{"kind": "added", "path": "/tmp/x"}]
+
+    def pull(self, name):
+        self.calls.append(("pull", name))
+        return {"image": "vllm/vllm-openai:nightly", "output": "Digest: sha256:x"}
+
+    def list_dir(self, name, path):
+        self.calls.append(("ls", name, path))
+        return {"path": path, "entries": [{"name": "etc", "is_dir": True}]}
+
+    def read_file(self, name, path, **kw):
+        return {"path": path, "content": "data", "truncated": False}
+
+    def stream_logs(self, name, *, tail=200):
+        yield "hello\n"
+        yield ""          # heartbeat tick
+        yield "world\n"
+
+    def system_df(self):
+        return {"types": [{"type": "Images", "total_count": 2, "active": 1, "size": 1000, "reclaimable": 400}], "total_size": 1000}
+
+    def scan_image(self, name):
+        return {"available": True, "scanner": "grype", "image": "vllm/vllm-openai:nightly",
+                "counts": {"critical": 1, "high": 2, "medium": 0, "low": 0, "negligible": 0, "unknown": 0}, "total": 3}
+
+    def update_settings(self, name, *, cpus=None, memory=None, restart_policy=None):
+        self.calls.append(("settings", name, cpus, memory, restart_policy))
+        return {"updated": True}
+
+    def connect_network(self, name, network):
+        self.calls.append(("net-connect", name, network)); return {"ok": True, "network": network, "action": "connect"}
+
+    def disconnect_network(self, name, network):
+        self.calls.append(("net-disconnect", name, network)); return {"ok": True, "network": network, "action": "disconnect"}
+
+    def list_networks(self):
+        return [{"name": "bridge", "driver": "bridge", "scope": "local"}]
 
     def logs(self, name, *, tail=200):
         return f"log of {name} (tail={tail})"
 
     def stats(self, name):
         return {"cpu_pct": 12.5, "mem_usage": 100, "mem_limit": 1000, "mem_pct": 10.0}
+
+    def list_stats(self):
+        return {"vllm-35b-prod": {"cpu_pct": 12.5, "mem_usage": 100, "mem_limit": 1000, "mem_pct": 10.0}}
 
     def start(self, name): self.calls.append(("start", name))
     def stop(self, name): self.calls.append(("stop", name))
@@ -788,6 +833,14 @@ def test_containers_list_scoped(monkeypatch):
     assert [c["name"] for c in body["containers"]] == ["vllm-35b-prod"]
 
 
+def test_containers_stats_batch_not_shadowed(monkeypatch):
+    # /containers/stats must resolve to the batch endpoint, NOT /containers/{name="stats"}.
+    _patch_local(monkeypatch, _FakeControl())
+    r = _client().get("/api/v1/containers/stats")
+    assert r.status_code == 200
+    assert "vllm-35b-prod" in r.json()["stats"]
+
+
 def test_container_logs_and_stats(monkeypatch):
     _patch_local(monkeypatch, _FakeControl())
     c = _client()
@@ -815,6 +868,9 @@ def test_container_action_runs_when_apply_on(monkeypatch):
     ok = client.post("/api/v1/containers/vllm-35b-prod/action", json={"action": "restart", "confirm": True})
     assert ok.status_code == 200 and ok.json()["action"] == "restart"
     assert ("restart", "vllm-35b-prod") in fake.calls
+    # Audit: the mutating op is recorded in the persisted event feed.
+    events = client.get("/api/v1/events/recent").json()["events"]
+    assert any(e["kind"] == "container.restart" and e["detail"].get("container") == "vllm-35b-prod" for e in events)
 
 
 def test_container_action_rejects_foreign_container(monkeypatch):
@@ -857,6 +913,110 @@ def test_container_exec_validates_argv(monkeypatch):
 def test_host_containers_unknown_host_404():
     resp = _client().get("/api/v1/hosts/does-not-exist/containers")
     assert resp.status_code == 404
+
+
+def test_alerts_config_get_and_gated_set():
+    c = _client()
+    cfg = c.get("/api/v1/alerts/config")
+    assert cfg.status_code == 200
+    assert {"enabled", "chat_id", "has_token", "configured", "channel"} <= set(cfg.json())
+    # set is gated by apply (stores a token / changes behavior)
+    assert c.post("/api/v1/alerts/config", json={"enabled": True, "chat_id": "1"}).status_code == 403
+    assert c.post("/api/v1/alerts/test", json={}).status_code == 403
+
+
+def test_container_source_report(monkeypatch):
+    _patch_local(monkeypatch, _FakeControl())
+    r = _client().get("/api/v1/containers/vllm-35b-prod/source")
+    assert r.status_code == 200
+    body = r.json()
+    assert {"container", "preset_id", "linked_by", "drift", "drift_count"} <= set(body)
+    assert body["container"] == "vllm-35b-prod"
+
+
+def test_container_top_and_changes(monkeypatch):
+    _patch_local(monkeypatch, _FakeControl())
+    c = _client()
+    top = c.get("/api/v1/containers/vllm-35b-prod/top")
+    assert top.status_code == 200 and top.json()["titles"] == ["PID", "CMD"]
+    ch = c.get("/api/v1/containers/vllm-35b-prod/changes")
+    assert ch.status_code == 200 and ch.json()["changes"][0]["kind"] == "added"
+
+
+def test_container_update_plan_engine_is_manual(monkeypatch):
+    _patch_local(monkeypatch, _FakeControl())
+    body = _client().get("/api/v1/containers/vllm-35b-prod/update-plan").json()
+    assert body["is_engine"] is True
+    assert body["guarded_update"] is False           # engine → manual pin policy
+    assert any("docker pull vllm/vllm-openai" in c for c in body["commands"])
+
+
+def test_container_pull_gated(monkeypatch):
+    fake = _FakeControl()
+    _patch_local(monkeypatch, fake)
+    # apply OFF → blocked
+    assert _client().post("/api/v1/containers/vllm-35b-prod/pull", json={"confirm": True}).status_code == 403
+    assert ("pull", "vllm-35b-prod") not in fake.calls
+    # apply ON + confirm → runs
+    client = TestClient(create_app(allowed_origins=(), enable_apply=True))
+    ok = client.post("/api/v1/containers/vllm-35b-prod/pull", json={"confirm": True})
+    assert ok.status_code == 200 and ok.json()["image"] == "vllm/vllm-openai:nightly"
+    assert ("pull", "vllm-35b-prod") in fake.calls
+
+
+def test_container_logs_stream_ndjson(monkeypatch):
+    import json as _json
+    _patch_local(monkeypatch, _FakeControl())
+    r = _client().get("/api/v1/containers/vllm-35b-prod/logs/stream")
+    assert r.status_code == 200
+    assert "ndjson" in r.headers["content-type"]
+    objs = [_json.loads(ln) for ln in r.text.splitlines() if ln.strip()]
+    assert {"line": "hello\n"} in objs and {"line": "world\n"} in objs
+    assert {"hb": True} in objs  # heartbeat keeps the stream writable
+
+
+def test_container_settings_gated_and_applied(monkeypatch):
+    fake = _FakeControl()
+    _patch_local(monkeypatch, fake)
+    # apply OFF → blocked
+    assert _client().post("/api/v1/containers/vllm-35b-prod/settings",
+                          json={"cpus": 2, "confirm": True}).status_code == 403
+    client = TestClient(create_app(allowed_origins=(), enable_apply=True))
+    ok = client.post("/api/v1/containers/vllm-35b-prod/settings",
+                     json={"cpus": 2, "memory": 1000, "restart_policy": "always", "confirm": True})
+    assert ok.status_code == 200 and ok.json()["updated"] is True
+    assert ("settings", "vllm-35b-prod", 2.0, 1000, "always") in fake.calls
+
+
+def test_container_network_attach_and_list(monkeypatch):
+    fake = _FakeControl()
+    _patch_local(monkeypatch, fake)
+    nets = _client().get("/api/v1/system/networks")
+    assert nets.status_code == 200 and nets.json()["networks"][0]["name"] == "bridge"
+    client = TestClient(create_app(allowed_origins=(), enable_apply=True))
+    r = client.post("/api/v1/containers/vllm-35b-prod/network",
+                    json={"network": "frontends", "action": "connect", "confirm": True})
+    assert r.status_code == 200
+    assert ("net-connect", "vllm-35b-prod", "frontends") in fake.calls
+
+
+def test_system_df_and_scan(monkeypatch):
+    _patch_local(monkeypatch, _FakeControl())
+    c = _client()
+    df = c.get("/api/v1/system/df")
+    assert df.status_code == 200 and df.json()["total_size"] == 1000
+    scan = c.get("/api/v1/containers/vllm-35b-prod/scan")
+    assert scan.status_code == 200 and scan.json()["counts"]["critical"] == 1
+
+
+def test_container_fs_requires_apply_not_exec(monkeypatch):
+    _patch_local(monkeypatch, _FakeControl())
+    # apply OFF → file browsing blocked
+    assert _client().get("/api/v1/containers/vllm-35b-prod/fs", params={"path": "/app"}).status_code == 403
+    # apply ON → works WITHOUT SNDR_ENABLE_EXEC (fixed read commands, read tier)
+    client = TestClient(create_app(allowed_origins=(), enable_apply=True))
+    ok = client.get("/api/v1/containers/vllm-35b-prod/fs", params={"path": "/app"})
+    assert ok.status_code == 200 and ok.json()["entries"][0]["name"] == "etc"
 
 
 def test_container_endpoints_registered():
