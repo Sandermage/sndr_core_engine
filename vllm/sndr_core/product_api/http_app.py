@@ -591,6 +591,21 @@ def create_app(
     async def patches_doctor() -> dict[str, Any]:
         return _dataclass_payload(run_patch_doctor())
 
+    @app.get("/api/v1/flags/matrix")
+    async def flags_matrix(container: Optional[str] = None) -> dict[str, Any]:
+        """The full GENESIS_ENABLE_* catalogue with defaults; when ``container``
+        names a local engine, overlays its live ON/OFF flags + drift verdicts."""
+        from . import flag_matrix
+
+        live: Optional[set[str]] = None
+        if container:
+            try:
+                inspect = _container_op(lambda: _local_control().inspect(container))
+                live = flag_matrix.live_flags_from_inspect(inspect)
+            except Exception:  # noqa: BLE001 — container may be absent; static matrix still useful
+                live = None
+        return flag_matrix.build_matrix(live)
+
     @app.get("/api/v1/patches/overrides")
     async def patches_overrides_get() -> dict[str, Any]:
         from .patch_overrides import load

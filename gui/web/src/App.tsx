@@ -162,6 +162,7 @@ const ContainersPanel = lazy(() => import("./Containers").then((m) => ({ default
 // Lazy-loaded: the GPU/hardware telemetry dashboard only renders on its section.
 const HardwarePanel = lazy(() => import("./Hardware").then((m) => ({ default: m.HardwarePanel })));
 const RoutingPanel = lazy(() => import("./Routing").then((m) => ({ default: m.RoutingPanel })));
+const FlagsPanel = lazy(() => import("./Flags").then((m) => ({ default: m.FlagsPanel })));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 type RuntimeMode = "local" | "remote";
@@ -183,6 +184,7 @@ type SectionId =
   | "routing"
   | "doctor"
   | "patches"
+  | "flags"
   | "benchmarks"
   | "evidence"
   | "clients"
@@ -320,6 +322,7 @@ const navGroups: NavGroup[] = [
   { label: "Validate", items: [
     { id: "doctor", icon: <ShieldCheck size={17} />, label: "Doctor" },
     { id: "patches", icon: <Wrench size={17} />, label: "Patches" },
+    { id: "flags", icon: <SlidersHorizontal size={17} />, label: "Flags" },
     { id: "benchmarks", icon: <BarChart3 size={17} />, label: "Benchmarks" },
     { id: "evidence", icon: <FileText size={17} />, label: "Evidence" },
     { id: "reports", icon: <Table2 size={17} />, label: "Reports" },
@@ -2978,6 +2981,16 @@ function SectionWorkspace({
         </ModuleGrid>
       )}
 
+      {sectionId === "flags" && (
+        <ModuleGrid>
+          <ModuleCard title="Env-flag matrix" icon={<SlidersHorizontal size={18} />} desc="Every GENESIS_ENABLE_* flag in the registry with its effective default — searchable, filterable by family. Name a running engine container to overlay its live ON/OFF state and flag drift (missing = default-on but off on the engine; extra = on beyond the default)." wide>
+            <Suspense fallback={<SkeletonCards count={2} />}>
+              <FlagsPanel />
+            </Suspense>
+          </ModuleCard>
+        </ModuleGrid>
+      )}
+
       {sectionId === "hosts" && (
         <HostsSection
           hostProfiles={hostProfiles}
@@ -3894,6 +3907,11 @@ function sectionSpec(sectionId: SectionId) {
       kicker: "Spec-decode routing",
       title: "Workload routing",
       description: "Per bench-validated profile: which workloads are allowed/denied and their measured TPS delta — plus a classifier that predicts how a request's signals resolve to a profile. One source of truth, shared with the gateway.",
+    },
+    flags: {
+      kicker: "Patch flags",
+      title: "Env-flag matrix",
+      description: "Every GENESIS_ENABLE_* flag with its default, searchable and filterable — overlay a running engine's live ON/OFF state and flag drift.",
     },
     doctor: {
       kicker: "Diagnostics",

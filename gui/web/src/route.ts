@@ -13,7 +13,7 @@ export const SECTION_IDS = new Set<string>([
   "overview", "setup", "fleet", "hosts", "hardware", "models", "configs", "presets",
   "planner", "copilot", "launch-plan", "services", "containers", "routing", "doctor",
   "patches", "benchmarks", "evidence", "clients", "chat", "reports",
-  "operations", "advanced",
+  "operations", "advanced", "flags",
 ]);
 
 // The section segment of the current hash, validated against SECTION_IDS.

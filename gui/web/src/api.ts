@@ -361,6 +361,16 @@ export type RoutingArtifact = {
 export type RoutingArtifacts = { available: boolean; reason?: string; artifacts: RoutingArtifact[] };
 export type RoutingActive = { available: boolean; reason?: string; profile?: string | null; source?: string; artifact?: RoutingArtifact | null; candidates?: string[] };
 export type RoutingSignals = { response_format?: unknown; tool_choice?: unknown; workload_class?: string };
+export type FlagRow = {
+  env_flag: string; patch_id: string | null; title: string | null; family: string | null;
+  tier: string | null; lifecycle: string | null; default_on: boolean;
+  live_on?: boolean; drift?: "in_sync" | "missing" | "extra";
+};
+export type FlagMatrix = {
+  flags: FlagRow[];
+  counts: { total: number; default_on: number; default_off: number; missing: number; extra: number };
+  has_live: boolean;
+};
 export type RoutingClassify = {
   available: boolean; reason?: string;
   profile?: string; signal?: string; workload_class?: string | null;
@@ -1322,6 +1332,7 @@ export const api = {
   hostGpuRemote: (hostId: string) => request<HardwareTelemetry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/gpu`),
   alerts: () => request<AlertsSnapshot>("/api/v1/alerts"),
   hostsReliability: () => request<ReliabilitySnapshot>("/api/v1/hosts/reliability"),
+  flagsMatrix: (container?: string) => request<FlagMatrix>(`/api/v1/flags/matrix${query({ container })}`),
   routingArtifacts: () => request<RoutingArtifacts>("/api/v1/routing/artifacts"),
   routingActive: () => request<RoutingActive>("/api/v1/routing/active"),
   routingClassify: (signals: RoutingSignals, profile?: string) => postJson<RoutingClassify>("/api/v1/routing/classify", { signals, profile }),
