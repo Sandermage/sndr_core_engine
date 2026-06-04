@@ -861,9 +861,10 @@ export type PatchListResult = {
   };
 };
 
+export type PatchIssue = { severity: string; patch_id: string; message: string };
 export type PatchDoctorReport = {
   registry_size: number;
-  issues: any[];
+  issues: PatchIssue[];
   coverage: {
     total: number;
     mapped: number;
