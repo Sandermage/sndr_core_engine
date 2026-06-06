@@ -76,7 +76,7 @@ import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useSta
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
 import { useFetch } from "./hooks/useFetch";
 import { asRecord, asText, asNumber, asStringArray, countRecord } from "./lib/coerce";
-import { formatAppliesTo, fmtParam, shortWorkload, formatTokens, formatVram, totalVramGiB } from "./lib/format";
+import { formatAppliesTo, fmtParam, formatTokens, formatVram, totalVramGiB } from "./lib/format";
 import { StatusBadge, StatusPill, InfoRows, CompactList, DoctorStat, KpiGrid, CapChip, RailCheck, type GateStatus } from "./components/primitives";
 import { SegmentBar, PercentBar, BarList, OvKpi, segmentsFromCounts } from "./components/charts";
 import { CaveatsPanel, ConfigKeysPanel, TracesPanel } from "./sections/diagnostics";
@@ -92,6 +92,7 @@ import { RuntimeEndpoint, BenchmarkCard, EvidenceCard, PatchMatrix } from "./sec
 import { EndpointExplorer, ReportGenerator } from "./sections/api-explorer";
 import { ConfirmDialog, InfoDialog } from "./components/dialogs";
 import { CatalogCard, ModelFitCard, ModelFitMatrix, KvEnvelopeCard, type CatalogBadge } from "./sections/catalog-cards";
+import { RecommendationRow } from "./sections/recommendation-row";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock, CopyButton } from "./components/code-block";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
@@ -136,7 +137,6 @@ import {
   PatchRow,
   PresetListResult,
   PresetRecord,
-  PresetRecommendation,
   PresetRecommendResult,
   ProductCapability,
   ProductOverview,
@@ -9077,52 +9077,7 @@ function isAccent(value: unknown): value is AccentMode {
   return value === "teal" || value === "blue" || value === "emerald" || value === "amber";
 }
 
-function RecommendationRow({
-  row,
-  active,
-  onSelect
-}: {
-  row: PresetRecommendation;
-  active: boolean;
-  onSelect: () => void;
-}) {
-  const card = row.card ?? {};
-  const family = asText(card.routing_family, row.model);
-  const allowed = asStringArray(card.workload_allow);
-  const fallback = asText(card.fallback_preset, "-");
-  const visibility = asText(card.evidence_visibility, "unknown");
-  const risk = visibility === "public" ? "Low" : visibility === "private" ? "Medium" : "Unknown";
-
-  return (
-    <tr className={active ? "active" : ""}>
-      <td>
-        <button className="preset-select" onClick={onSelect}>
-          <span className="radio-dot">{active ? <CheckCircle2 size={15} /> : <Circle size={15} />}</span>
-          <strong>{row.id}</strong>
-        </button>
-      </td>
-      <td>{family}</td>
-      <td>{asText(card.mode, row.profile ?? "-")}</td>
-      <td>
-        <StatusBadge status={asText(card.status, "missing")} />
-      </td>
-      <td>
-        <div className="workload-icons">
-          {allowed.slice(0, 4).map((item) => (
-            <span key={item}>{shortWorkload(item)}</span>
-          ))}
-        </div>
-      </td>
-      <td>
-        <span className={`visibility ${visibility}`}>{visibility}</span>
-      </td>
-      <td>{fallback}</td>
-      <td>
-        <span className={`risk ${risk.toLowerCase()}`}>{risk}</span>
-      </td>
-    </tr>
-  );
-}
+// RecommendationRow extracted to ./sections/recommendation-row.
 
 // CopyButton extracted to ./components/code-block.
 
