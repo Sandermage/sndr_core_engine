@@ -32,7 +32,7 @@ export function JobsView(): JSX.Element {
             id: j.id.slice(0, 8),
             kind: j.kind,
             state: <Tag type={STATE_TAG[j.state]}>{j.state}</Tag>,
-            progress: <ProgressBar value={j.progress_pct} max={100} hideLabel size="small" />,
+            progress: <ProgressBar value={j.progress_pct} max={100} label="Job progress" hideLabel size="small" />,
             started: j.started_at ? new Date(j.started_at).toLocaleString() : '—',
             summary: j.summary ?? '—',
           }));

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 import { useState } from 'react';
 import {
-  Dropdown, Toggle, Tile, TextInput, Button, InlineNotification,
-  StructuredListWrapper, StructuredListHead, StructuredListBody,
+  Dropdown, Tile, TextInput, Button, InlineNotification,
+  StructuredListWrapper, StructuredListBody,
   StructuredListRow, StructuredListCell,
 } from '@carbon/react';
 import { SUPPORTED_LOCALES, type LocaleCode, setLocale } from '@/i18n';
-import { useEngineStore } from '@/stores/engine';
+import { useEngineStore, type EngineName } from '@/stores/engine';
 
 export function SettingsView(): JSX.Element {
   const engine = useEngineStore((s) => s.selected);
-  const setEngine = useEngineStore((s) => s.setSelected);
+  const setEngine = useEngineStore((s) => s.setEngine);
   const [locale, setLocaleState] = useState<LocaleCode>(
     (localStorage.getItem('sndr-locale') as LocaleCode) ?? 'en'
   );
@@ -33,6 +33,7 @@ export function SettingsView(): JSX.Element {
         <Dropdown
           id="settings-locale"
           titleText="Interface language"
+          label="Select language"
           items={Object.entries(SUPPORTED_LOCALES).map(([code, info]) => ({
             id: code, label: `${info.flag} ${info.label}`, value: code,
           }))}
@@ -56,9 +57,10 @@ export function SettingsView(): JSX.Element {
         <Dropdown
           id="settings-engine"
           titleText="Engine"
+          label="Select engine"
           items={['vllm', 'sglang']}
           selectedItem={engine}
-          onChange={({ selectedItem }) => selectedItem && setEngine(selectedItem)}
+          onChange={({ selectedItem }) => selectedItem && setEngine(selectedItem as EngineName)}
         />
       </Tile>
 

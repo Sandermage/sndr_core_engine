@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import {
   Tile, TextInput, Button, InlineNotification,
-  StructuredListWrapper, StructuredListHead, StructuredListBody,
+  StructuredListWrapper, StructuredListBody,
   StructuredListRow, StructuredListCell,
 } from '@carbon/react';
 

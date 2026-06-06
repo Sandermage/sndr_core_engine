@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { Tile, Tag, ProgressBar } from '@carbon/react';
+import { Tile, Tag } from '@carbon/react';
 import { DataView } from '@/components/DataView';
 import { getOverview, type OverviewSnapshot } from './api';
 

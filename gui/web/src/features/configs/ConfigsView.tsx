@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-import { useState } from 'react';
 import {
   DataTable, Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
   Tabs, TabList, Tab, TabPanels, TabPanel, Tile,

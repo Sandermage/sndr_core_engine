@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /** Engine API — typed wrappers over the sndr REST API. */
-import { apiClient, type Envelope } from '@/api/client';
+import { apiClient } from '@/api/client';
 
 export interface EngineSummary {
   name: string;

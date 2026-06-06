@@ -14,20 +14,17 @@
  *   Health / Config    — doctor, evidence, configs
  *   Admin              — licensing, auth, settings
  */
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import {
   BrowserRouter, Routes, Route, NavLink, Navigate, useLocation,
 } from 'react-router-dom';
 import {
   Header, HeaderName, HeaderGlobalAction, HeaderGlobalBar,
-  SideNav, SideNavItems, SideNavLink, SideNavMenu, SideNavMenuItem,
-  Theme, Tag,
+  SideNav, SideNavItems, SideNavMenu, SideNavMenuItem,
+  Theme,
 } from '@carbon/react';
 import {
-  Dashboard, Network_3, Network_4, Container as ContainerIcon,
-  Application, Catalog, ChartBar, Chat, JsonReference,
-  Stethoscope, Certificate, Settings as SettingsIcon, User,
-  WatsonHealthScalpel, Layers, AiStatusComplete,
+  Dashboard, Network_3, ChartBar, Stethoscope, Certificate, User,
 } from '@carbon/icons-react';
 import { OverviewView } from '@/features/overview';
 import { FleetView } from '@/features/fleet';
