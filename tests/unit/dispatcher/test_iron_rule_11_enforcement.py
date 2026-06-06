@@ -113,10 +113,14 @@ _LEGACY_PIN_GATE_WAIVER = {"P4", "P12", "P26", "G4_78"}
 
 def _load_registry_entries() -> dict[str, str]:
     """Read registry.py and return {patch_id: body_text} for every entry."""
-    registry_path = (
-        Path(__file__).resolve().parents[3]
-        / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
-    )
+    # v12.x moved the registry to sndr/dispatcher/registry.py; the old
+    # vllm/sndr_core path is now a re-export shim with no literal to parse.
+    repo_root = Path(__file__).resolve().parents[3]
+    registry_path = repo_root / "sndr" / "dispatcher" / "registry.py"
+    if not registry_path.is_file():
+        registry_path = (
+            repo_root / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
+        )
     text = registry_path.read_text()
     entries: dict[str, str] = {}
     for m in re.finditer(
