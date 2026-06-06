@@ -76,6 +76,7 @@ import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useSta
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
 import { useFetch } from "./hooks/useFetch";
 import { asRecord, asText, asNumber, asStringArray, countRecord } from "./lib/coerce";
+import { formatAppliesTo, fmtParam, shortWorkload, formatTokens, formatVram } from "./lib/format";
 import { StatusBadge, StatusPill, InfoRows, CompactList, DoctorStat } from "./components/primitives";
 import { SegmentBar, PercentBar, BarList, OvKpi, segmentsFromCounts } from "./components/charts";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
@@ -8728,17 +8729,7 @@ function PatchFamilyGroup({
   );
 }
 
-function formatAppliesTo(applies: unknown): Array<[string, string]> {
-  const record = asRecord(applies);
-  const rows: Array<[string, string]> = [];
-  for (const [key, value] of Object.entries(record)) {
-    const text = Array.isArray(value) ? value.join(", ") : String(value);
-    if (key === "is_turboquant") rows.push(["TurboQuant models", text === "true" || text === "True" ? "required" : text]);
-    else if (key === "vllm_version_range") rows.push(["vLLM version", Array.isArray(value) ? value.join("  ") : text]);
-    else rows.push([key.replace(/_/g, " "), text]);
-  }
-  return rows;
-}
+// formatAppliesTo extracted to ./lib/format.
 
 function PatchExplainPanel({
   patch,
@@ -9149,11 +9140,7 @@ function downloadText(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-function fmtParam(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "number") return value.toLocaleString("en-US");
-  return String(value);
-}
+// fmtParam extracted to ./lib/format.
 
 // Enterprise deployment console — pick a target + preset, review the resolved
 // fine launch parameters, host readiness and dependency plan, then render the
@@ -11657,27 +11644,4 @@ function patchDefaultExplanation(value: string) {
 
 // asRecord / asText / asNumber / asStringArray extracted to ./lib/coerce.
 
-function shortWorkload(value: string) {
-  const labels: Record<string, string> = {
-    free_chat: "chat",
-    code_gen: "code",
-    "tool_call.short": "tool",
-    "tool_call.long": "tool+",
-    "structured_json.short": "json",
-    "structured_json.long": "json+",
-    summarization: "sum"
-  };
-  return labels[value] ?? value.replace(/.*[_.]/, "").slice(0, 6);
-}
-
-function formatTokens(value: number) {
-  if (!value) return "-";
-  if (value >= 1000) return `${Math.round(value / 1000)}K`;
-  return String(value);
-}
-
-function formatVram(value: unknown) {
-  const mib = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(mib) || mib <= 0) return "-";
-  return `${(mib / 1024).toFixed(1)} GB · ${mib.toLocaleString()} MiB`;
-}
+// shortWorkload / formatTokens / formatVram extracted to ./lib/format.
