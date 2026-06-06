@@ -6,7 +6,7 @@ import pytest
 
 
 def _wiring():
-    from vllm.sndr_core.integrations.attention.turboquant import pn57_tq_centroids_disk_cache as M
+    from sndr.engines.vllm.patches.attention.turboquant import pn57_tq_centroids_disk_cache as M
     return M
 
 

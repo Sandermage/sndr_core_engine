@@ -10,7 +10,7 @@ import pytest
 
 
 def _wiring():
-    from vllm.sndr_core.integrations._retired import pn52_prompt_logprobs_eviction as M
+    from sndr.engines.vllm.patches._retired import pn52_prompt_logprobs_eviction as M
     return M
 
 

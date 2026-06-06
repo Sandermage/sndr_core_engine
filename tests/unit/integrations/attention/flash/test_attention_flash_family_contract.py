@@ -10,8 +10,8 @@ from tests.unit.integrations._family_contract_helpers import (
 )
 
 PATCHES = [
-    ("vllm.sndr_core.integrations.attention.flash.p100_flashinfer_full_cg_specdec", "P100"),
-    ("vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp", "PN17"),
+    ("sndr.engines.vllm.patches.attention.flash.p100_flashinfer_full_cg_specdec", "P100"),
+    ("sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp", "PN17"),
 ]
 
 

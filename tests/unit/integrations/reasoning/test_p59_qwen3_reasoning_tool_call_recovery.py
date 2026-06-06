@@ -78,7 +78,7 @@ def fake_parser_file(tmp_path):
 
 def _make_p59_patcher(target_file: str, marker_suffix: str):
     from vllm.sndr_core.core.text_patch import TextPatcher, TextPatch
-    from vllm.sndr_core.integrations.reasoning.p59_qwen3_reasoning_tool_call_recovery import (
+    from sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery import (
         IMPORT_OLD, IMPORT_NEW,
         REGEX_OLD, REGEX_NEW,
         METHOD_OLD, METHOD_NEW,
@@ -108,7 +108,7 @@ class TestP59AllAnchorsHit:
         # RETURN_THINK_OLD anchor became MONOLITH/MODULAR variants to
         # cover both pre-/post-#36138 layouts (P62). Verify the variant
         # that the synthetic file is shaped for matches.
-        from vllm.sndr_core.integrations.reasoning.p59_qwen3_reasoning_tool_call_recovery import (
+        from sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery import (
             IMPORT_OLD, REGEX_OLD, METHOD_OLD,
             RETURN_THINK_MONOLITH_OLD, RETURN_THINK_MODULAR_OLD,
             RETURN_TRUNC_OLD,
@@ -196,7 +196,7 @@ class TestP59UpstreamDriftDetection:
 class TestP59OptIn:
     def test_apply_skips_without_env_flag(self, monkeypatch):
         monkeypatch.delenv("GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY", raising=False)
-        from vllm.sndr_core.integrations.reasoning.p59_qwen3_reasoning_tool_call_recovery import (
+        from sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery import (
             apply,
         )
         status, reason = apply()
@@ -205,7 +205,7 @@ class TestP59OptIn:
 
     def test_env_flag_truthy_returns_true(self, monkeypatch):
         monkeypatch.setenv("GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY", "1")
-        from vllm.sndr_core.integrations.reasoning.p59_qwen3_reasoning_tool_call_recovery import (
+        from sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery import (
             _is_enabled,
         )
         assert _is_enabled() is True

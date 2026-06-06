@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 
 
-from vllm.sndr_core.integrations.attention.turboquant.p67_tq_multi_query_kernel import (
+from sndr.engines.vllm.patches.attention.turboquant.p67_tq_multi_query_kernel import (
     P67_NEW,
     _BAKED_MAX_PRIOR,
     _BAKED_DEBUG_COMPARE,

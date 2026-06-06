@@ -45,10 +45,10 @@ from tests.unit.integrations._family_contract_helpers import (
 
 
 PATCHES = [
-    ("vllm.sndr_core.integrations.streaming.pn200_gdn_scratch_reuse", "PN200"),
-    ("vllm.sndr_core.integrations.streaming.pn201_scheduler_empty_cache", "PN201"),
-    ("vllm.sndr_core.integrations.streaming.pn202_per_layer_kv_split", "PN202"),
-    ("vllm.sndr_core.integrations.streaming.pn203_cold_prefix_offload", "PN203"),
+    ("sndr.engines.vllm.patches.streaming.pn200_gdn_scratch_reuse", "PN200"),
+    ("sndr.engines.vllm.patches.streaming.pn201_scheduler_empty_cache", "PN201"),
+    ("sndr.engines.vllm.patches.streaming.pn202_per_layer_kv_split", "PN202"),
+    ("sndr.engines.vllm.patches.streaming.pn203_cold_prefix_offload", "PN203"),
 ]
 
 

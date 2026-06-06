@@ -6,7 +6,7 @@ from tests.unit.integrations._family_contract_helpers import (
 )
 
 PATCHES = [
-    ("vllm.sndr_core.integrations.multimodal.pn62_text_only_vit_skip", "PN62"),
+    ("sndr.engines.vllm.patches.multimodal.pn62_text_only_vit_skip", "PN62"),
 ]
 
 

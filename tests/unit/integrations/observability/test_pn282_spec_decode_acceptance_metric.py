@@ -126,7 +126,7 @@ def _counter_value(name, **labels):
 
 class TestApply:
     def test_apply_skipped_without_env(self, _module_state_reset):
-        from vllm.sndr_core.integrations.observability import (
+        from sndr.engines.vllm.patches.observability import (
             pn282_spec_decode_acceptance_metric as pn282,
         )
         status, reason = pn282.apply()
@@ -140,7 +140,7 @@ class TestApply:
         )
 
     def test_apply_succeeds_with_env(self, metric_on, _module_state_reset):
-        from vllm.sndr_core.integrations.observability import (
+        from sndr.engines.vllm.patches.observability import (
             pn282_spec_decode_acceptance_metric as pn282,
         )
         status, reason = pn282.apply()
@@ -151,7 +151,7 @@ class TestApply:
         assert getattr(wrapped, "_genesis_pn282_wrapped", False) is True
 
     def test_apply_idempotent(self, metric_on, _module_state_reset):
-        from vllm.sndr_core.integrations.observability import (
+        from sndr.engines.vllm.patches.observability import (
             pn282_spec_decode_acceptance_metric as pn282,
         )
         status1, _ = pn282.apply()
@@ -170,7 +170,7 @@ class TestApply:
 
 class TestRevert:
     def test_revert_restores_original(self, metric_on, _module_state_reset):
-        from vllm.sndr_core.integrations.observability import (
+        from sndr.engines.vllm.patches.observability import (
             pn282_spec_decode_acceptance_metric as pn282,
         )
         original = _module_state_reset.rejection_sample
@@ -181,7 +181,7 @@ class TestRevert:
         assert pn282.is_applied() is False
 
     def test_revert_noop_when_not_applied(self, _module_state_reset):
-        from vllm.sndr_core.integrations.observability import (
+        from sndr.engines.vllm.patches.observability import (
             pn282_spec_decode_acceptance_metric as pn282,
         )
         assert pn282.revert() is False
@@ -195,7 +195,7 @@ class TestMetricEmission:
         self, metric_on, monkeypatch, _module_state_reset,
     ):
         monkeypatch.setenv("SNDR_SPEC_DECODE_PROFILE_LABEL", "wrap-test-A")
-        from vllm.sndr_core.integrations.observability import (
+        from sndr.engines.vllm.patches.observability import (
             pn282_spec_decode_acceptance_metric as pn282,
         )
         pn282.apply()
@@ -243,7 +243,7 @@ class TestMetricEmission:
         before = _counter_value(
             "sndr_spec_decode_calls_total", profile=unique_profile,
         )
-        from vllm.sndr_core.integrations.observability import (
+        from sndr.engines.vllm.patches.observability import (
             pn282_spec_decode_acceptance_metric as pn282,
         )
         status, _ = pn282.apply()
@@ -270,7 +270,7 @@ class TestCoexistence:
         original. Metric must still be emitted exactly once per call.
         """
         monkeypatch.setenv("SNDR_SPEC_DECODE_PROFILE_LABEL", "coexist-A")
-        from vllm.sndr_core.integrations.observability import (
+        from sndr.engines.vllm.patches.observability import (
             pn282_spec_decode_acceptance_metric as pn282,
         )
         pn282.apply()
@@ -316,7 +316,7 @@ class TestCoexistence:
         attribute. Since the outer wrap doesn't carry PN282's marker,
         apply() WILL wrap again — verify this stays bounded by the
         module-level _APPLIED flag (idempotent at module level)."""
-        from vllm.sndr_core.integrations.observability import (
+        from sndr.engines.vllm.patches.observability import (
             pn282_spec_decode_acceptance_metric as pn282,
         )
         pn282.apply()

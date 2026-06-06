@@ -87,7 +87,7 @@ def fake_tq_decode(tmp_path, monkeypatch):
     path = tmp_path / "triton_turboquant_decode.py"
     path.write_text(_PN14_VANILLA_SNIPPET)
 
-    from vllm.sndr_core.integrations.attention.turboquant import pn14_tq_decode_oob_clamp as p14
+    from sndr.engines.vllm.patches.attention.turboquant import pn14_tq_decode_oob_clamp as p14
     monkeypatch.setattr(
         p14, "resolve_vllm_file",
         lambda rel: str(path) if "triton_turboquant_decode" in rel else None,
@@ -102,7 +102,7 @@ def fake_tq_decode_already_upstream(tmp_path, monkeypatch):
     path = tmp_path / "triton_turboquant_decode.py"
     path.write_text(_PN14_UPSTREAM_MERGED)
 
-    from vllm.sndr_core.integrations.attention.turboquant import pn14_tq_decode_oob_clamp as p14
+    from sndr.engines.vllm.patches.attention.turboquant import pn14_tq_decode_oob_clamp as p14
     monkeypatch.setattr(
         p14, "resolve_vllm_file",
         lambda rel: str(path) if "triton_turboquant_decode" in rel else None,
@@ -127,7 +127,7 @@ class TestPn14AnchorInvariants:
     """
 
     def test_anchor_matches_synthetic_vanilla(self):
-        from vllm.sndr_core.integrations.attention.turboquant.pn14_tq_decode_oob_clamp import (
+        from sndr.engines.vllm.patches.attention.turboquant.pn14_tq_decode_oob_clamp import (
             PN14_ANCHOR,
         )
         assert PN14_ANCHOR in _PN14_VANILLA_SNIPPET, (
@@ -137,7 +137,7 @@ class TestPn14AnchorInvariants:
         )
 
     def test_replacement_introduces_safe_page_idx(self):
-        from vllm.sndr_core.integrations.attention.turboquant.pn14_tq_decode_oob_clamp import (
+        from sndr.engines.vllm.patches.attention.turboquant.pn14_tq_decode_oob_clamp import (
             PN14_REPLACEMENT,
         )
         assert "safe_page_idx" in PN14_REPLACEMENT
@@ -146,13 +146,13 @@ class TestPn14AnchorInvariants:
     def test_replacement_uses_safe_idx_in_pointer_arith(self):
         """The replacement must use safe_page_idx (not page_idx) in
         Block_table_ptr arithmetic. Otherwise the patch is a no-op."""
-        from vllm.sndr_core.integrations.attention.turboquant.pn14_tq_decode_oob_clamp import (
+        from sndr.engines.vllm.patches.attention.turboquant.pn14_tq_decode_oob_clamp import (
             PN14_REPLACEMENT,
         )
         assert "Block_table_ptr + bt_base + safe_page_idx" in PN14_REPLACEMENT
 
     def test_marker_string_is_unique_and_versioned(self):
-        from vllm.sndr_core.integrations.attention.turboquant.pn14_tq_decode_oob_clamp import (
+        from sndr.engines.vllm.patches.attention.turboquant.pn14_tq_decode_oob_clamp import (
             GENESIS_PN14_MARKER,
         )
         assert "PN14" in GENESIS_PN14_MARKER
@@ -161,12 +161,12 @@ class TestPn14AnchorInvariants:
     def test_drift_markers_include_genesis_and_upstream(self):
         """Drift detection must catch BOTH 'we already patched' AND
         'upstream merged the fix'."""
-        from vllm.sndr_core.integrations.attention.turboquant.pn14_tq_decode_oob_clamp import (
+        from sndr.engines.vllm.patches.attention.turboquant.pn14_tq_decode_oob_clamp import (
             _make_patcher,
         )
         # _make_patcher needs target file resolution; we just inspect
         # the function-level constants.
-        from vllm.sndr_core.integrations.attention.turboquant import pn14_tq_decode_oob_clamp as p14
+        from sndr.engines.vllm.patches.attention.turboquant import pn14_tq_decode_oob_clamp as p14
         # GENESIS_PN14_MARKER itself (covered above)
         # And the upstream-merged signature should also be in the drift list:
         # Check via re-construction: we expect both markers in upstream_drift
@@ -198,7 +198,7 @@ class TestPn14AnchorInvariants:
 class TestPn14ApplyBehavior:
     def test_skip_when_env_unset(self, fake_tq_decode):
         """Default OFF — env unset → skip without touching the file."""
-        from vllm.sndr_core.integrations.attention.turboquant import pn14_tq_decode_oob_clamp as p14
+        from sndr.engines.vllm.patches.attention.turboquant import pn14_tq_decode_oob_clamp as p14
         before = fake_tq_decode.read_text()
         status, reason = p14.apply()
         after = fake_tq_decode.read_text()
@@ -206,20 +206,20 @@ class TestPn14ApplyBehavior:
         assert before == after, "file must not be modified when env is unset"
 
     def test_apply_when_env_set(self, fake_tq_decode, env_pn14_on):
-        from vllm.sndr_core.integrations.attention.turboquant import pn14_tq_decode_oob_clamp as p14
+        from sndr.engines.vllm.patches.attention.turboquant import pn14_tq_decode_oob_clamp as p14
         status, reason = p14.apply()
         assert status == "applied", f"expected applied, got {status} ({reason})"
         text = fake_tq_decode.read_text()
         assert "safe_page_idx = tl.where(kv_mask, page_idx, 0)" in text
         assert "Block_table_ptr + bt_base + safe_page_idx" in text
-        from vllm.sndr_core.integrations.attention.turboquant.pn14_tq_decode_oob_clamp import (
+        from sndr.engines.vllm.patches.attention.turboquant.pn14_tq_decode_oob_clamp import (
             GENESIS_PN14_MARKER,
         )
         assert GENESIS_PN14_MARKER in text
 
     def test_idempotent_reapply(self, fake_tq_decode, env_pn14_on):
         """Re-applying should be a no-op (marker present)."""
-        from vllm.sndr_core.integrations.attention.turboquant import pn14_tq_decode_oob_clamp as p14
+        from sndr.engines.vllm.patches.attention.turboquant import pn14_tq_decode_oob_clamp as p14
         p14.apply()
         first_text = fake_tq_decode.read_text()
         p14.apply()
@@ -233,7 +233,7 @@ class TestPn14ApplyBehavior:
     ):
         """If upstream PR #40074 has merged (vanilla source already has
         `safe_page_idx`), the drift marker fires and we skip."""
-        from vllm.sndr_core.integrations.attention.turboquant import pn14_tq_decode_oob_clamp as p14
+        from sndr.engines.vllm.patches.attention.turboquant import pn14_tq_decode_oob_clamp as p14
         before = fake_tq_decode_already_upstream.read_text()
         status, _reason = p14.apply()
         after = fake_tq_decode_already_upstream.read_text()
@@ -283,7 +283,7 @@ class TestPn14UpstreamCompat:
     def test_pn14_marker_present_in_compat(self):
         """upstream_compat must declare the #40074 marker so other
         tooling knows what symbol to grep for to detect upstream merge."""
-        from vllm.sndr_core.integrations.upstream_compat import all_markers
+        from sndr.engines.vllm.patches.upstream_compat import all_markers
         markers = all_markers()
         # Locate the entry by EXACT key (other entries may mention 40074
         # in their description as cross-references — those don't count).

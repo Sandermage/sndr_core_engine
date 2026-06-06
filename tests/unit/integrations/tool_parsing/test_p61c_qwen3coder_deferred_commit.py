@@ -21,7 +21,7 @@ import pytest
 
 
 def _wiring():
-    from vllm.sndr_core.integrations.tool_parsing import p61c_qwen3coder_deferred_commit as M
+    from sndr.engines.vllm.patches.tool_parsing import p61c_qwen3coder_deferred_commit as M
     return M
 
 

@@ -31,7 +31,7 @@ class FakeLayer:
 
 @pytest.fixture
 def reset_buffer_mgr():
-    from vllm.sndr_core.kernels.dequant_buffer import TurboQuantBufferManager
+    from sndr.engines.vllm.kernels_legacy.dequant_buffer import TurboQuantBufferManager
     TurboQuantBufferManager.clear_for_tests()
     yield
     TurboQuantBufferManager.clear_for_tests()
@@ -53,7 +53,7 @@ def force_should_apply(monkeypatch):
 # ════════════════════════════════════════════════════════════════════════
 
 def test_p51_skips_on_fp8_kv(reset_buffer_mgr, force_should_apply, caplog):
-    from vllm.sndr_core.kernels.dequant_buffer import (
+    from sndr.engines.vllm.kernels_legacy.dequant_buffer import (
         ensure_turboquant_buffers, TurboQuantBufferManager,
     )
     impl = FakeImpl(kv_cache_dtype="fp8")
@@ -78,7 +78,7 @@ def test_p51_skips_on_fp8_kv(reset_buffer_mgr, force_should_apply, caplog):
 
 
 def test_p51_skips_on_auto_kv(reset_buffer_mgr, force_should_apply):
-    from vllm.sndr_core.kernels.dequant_buffer import (
+    from sndr.engines.vllm.kernels_legacy.dequant_buffer import (
         ensure_turboquant_buffers, TurboQuantBufferManager,
     )
     impl = FakeImpl(kv_cache_dtype="auto")
@@ -91,7 +91,7 @@ def test_p51_skips_on_auto_kv(reset_buffer_mgr, force_should_apply):
 
 
 def test_p51_skips_on_fp16_kv(reset_buffer_mgr, force_should_apply):
-    from vllm.sndr_core.kernels.dequant_buffer import (
+    from sndr.engines.vllm.kernels_legacy.dequant_buffer import (
         ensure_turboquant_buffers, TurboQuantBufferManager,
     )
     impl = FakeImpl(kv_cache_dtype="fp16")
@@ -104,7 +104,7 @@ def test_p51_logs_only_once_per_impl(
     reset_buffer_mgr, force_should_apply, caplog
 ):
     """Multiple calls on same impl → single log line (avoid spam)."""
-    from vllm.sndr_core.kernels.dequant_buffer import ensure_turboquant_buffers
+    from sndr.engines.vllm.kernels_legacy.dequant_buffer import ensure_turboquant_buffers
     impl = FakeImpl(kv_cache_dtype="fp8")
     layer1 = FakeLayer("layer_0")
     layer2 = FakeLayer("layer_1")
@@ -129,7 +129,7 @@ def test_p51_logs_per_impl_instance(
     reset_buffer_mgr, force_should_apply, caplog
 ):
     """Different impl instances → one log each (not global-once)."""
-    from vllm.sndr_core.kernels.dequant_buffer import ensure_turboquant_buffers
+    from sndr.engines.vllm.kernels_legacy.dequant_buffer import ensure_turboquant_buffers
     import logging
 
     # Logger renamed to 'genesis.dequant_buffer' in v7.62 — capture both

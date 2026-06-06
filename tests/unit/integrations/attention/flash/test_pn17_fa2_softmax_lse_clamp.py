@@ -28,10 +28,10 @@ from __future__ import annotations
 
 class TestPN17ModuleStructure:
     def test_module_importable(self):
-        from vllm.sndr_core.integrations.attention.flash import pn17_fa2_softmax_lse_clamp as patch_N17_fa2_softmax_lse_clamp  # noqa: F401
+        from sndr.engines.vllm.patches.attention.flash import pn17_fa2_softmax_lse_clamp as patch_N17_fa2_softmax_lse_clamp  # noqa: F401
 
     def test_anchor_old_block_present(self):
-        from vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp import (
+        from sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp import (
             PN17_OLD,
         )
         # Anchor must include the four-line non-cascade preamble that
@@ -47,7 +47,7 @@ class TestPN17ModuleStructure:
         seqused_k, max_seqlen_q) unchanged — only the `max_seqlen_k`
         line is replaced. If we accidentally drop one, the call site
         loses a required local."""
-        from vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp import (
+        from sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp import (
             PN17_NEW,
         )
         for line in (
@@ -67,7 +67,7 @@ class TestPN17CudagraphGuard:
     """
 
     def test_replacement_includes_capture_check(self):
-        from vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp import (
+        from sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp import (
             PN17_NEW,
         )
         assert "is_current_stream_capturing" in PN17_NEW, (
@@ -78,7 +78,7 @@ class TestPN17CudagraphGuard:
     def test_replacement_capture_path_uses_upstream_value(self):
         """During capture, the replacement assigns `max_seqlen_k =
         attn_metadata.max_seq_len` — exactly upstream behavior."""
-        from vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp import (
+        from sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp import (
             PN17_NEW,
         )
         # The capture-path branch must still use max_seq_len so cudagraph
@@ -86,7 +86,7 @@ class TestPN17CudagraphGuard:
         assert "max_seqlen_k = attn_metadata.max_seq_len" in PN17_NEW
 
     def test_replacement_runtime_path_uses_seqused_k_max(self):
-        from vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp import (
+        from sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp import (
             PN17_NEW,
         )
         # Runtime path: clamp to actual chunk max
@@ -97,7 +97,7 @@ class TestPN17CudagraphGuard:
     def test_replacement_has_defensive_upper_bound(self):
         """The clamped value must never exceed max_seq_len — defensive
         guard against metadata corruption."""
-        from vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp import (
+        from sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp import (
             PN17_NEW,
         )
         # Must contain a check that the clamped value doesn't exceed
@@ -108,7 +108,7 @@ class TestPN17CudagraphGuard:
 class TestPN17EnvGate:
     def test_apply_skipped_when_env_unset(self, monkeypatch):
         monkeypatch.delenv("GENESIS_ENABLE_PN17_FA2_LSE_CLAMP", raising=False)
-        from vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp import (
+        from sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp import (
             apply,
         )
         status, reason = apply()
@@ -120,7 +120,7 @@ class TestPN17EnvGate:
         credit so future operators discover the institutional context.
         """
         monkeypatch.delenv("GENESIS_ENABLE_PN17_FA2_LSE_CLAMP", raising=False)
-        from vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp import (
+        from sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp import (
             apply,
         )
         _, reason = apply()
@@ -130,7 +130,7 @@ class TestPN17EnvGate:
     def test_env_flag_truthy_values_recognized(self, monkeypatch):
         """`1`, `true`, `yes`, `on` (case-insensitive) all enable PN17.
         Anything else is treated as OFF."""
-        from vllm.sndr_core.integrations.attention.flash.pn17_fa2_softmax_lse_clamp import (
+        from sndr.engines.vllm.patches.attention.flash.pn17_fa2_softmax_lse_clamp import (
             _is_enabled,
         )
         for val in ("1", "true", "TRUE", "Yes", "on", "ON"):

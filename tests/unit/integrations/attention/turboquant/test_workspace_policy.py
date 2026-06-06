@@ -5,7 +5,7 @@ from __future__ import annotations
 
 def test_workspace_policy_patch_ids_constant():
     """The 4 workspace patches are catalogued in one canonical tuple."""
-    from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
+    from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import (
         WORKSPACE_POLICY_PATCH_IDS,
     )
     assert set(WORKSPACE_POLICY_PATCH_IDS) == {
@@ -15,7 +15,7 @@ def test_workspace_policy_patch_ids_constant():
 
 def test_describe_policy_mentions_all_four_patches():
     """describe_policy() returns text with all 4 patch IDs."""
-    from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
+    from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import (
         describe_policy,
     )
     text = describe_policy()
@@ -25,7 +25,7 @@ def test_describe_policy_mentions_all_four_patches():
 
 def test_verify_patch_composition_all_present():
     """All 4 workspace patches are in the live PATCH_REGISTRY."""
-    from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
+    from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import (
         verify_patch_composition,
     )
     result = verify_patch_composition()
@@ -38,7 +38,7 @@ def test_verify_patch_composition_all_present():
 
 def test_verify_patch_composition_no_internal_conflicts():
     """The 4 workspace patches don't conflict with each other."""
-    from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
+    from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import (
         verify_patch_composition,
     )
     result = verify_patch_composition()
@@ -49,7 +49,7 @@ def test_verify_patch_composition_no_internal_conflicts():
 
 def test_audit_workspace_state_returns_structured_dict():
     """audit_workspace_state() returns the expected nested shape."""
-    from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
+    from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import (
         audit_workspace_state,
     )
     result = audit_workspace_state()
@@ -62,7 +62,7 @@ def test_audit_workspace_state_returns_structured_dict():
 def test_summary_reports_default_on_count():
     """default_on_count tracks the operational invariant — should be 1
     (only PN118 is currently default_on in v11.2.0 production)."""
-    from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
+    from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import (
         verify_patch_composition,
     )
     result = verify_patch_composition()
@@ -75,7 +75,7 @@ def test_summary_reports_default_on_count():
 
 def test_pn118_is_default_on():
     """PN118 is the production-default workspace patch."""
-    from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
+    from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import (
         verify_patch_composition,
     )
     result = verify_patch_composition()
@@ -84,7 +84,7 @@ def test_pn118_is_default_on():
 
 def test_p98_p99_sndr_001_default_off():
     """P98 / P99 / SNDR_WORKSPACE_001 are operator opt-in (default OFF)."""
-    from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
+    from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import (
         verify_patch_composition,
     )
     result = verify_patch_composition()
@@ -96,7 +96,7 @@ def test_p98_p99_sndr_001_default_off():
 
 def test_env_enabled_reflects_environment(monkeypatch):
     """env_enabled flags flip on/off based on actual env state."""
-    from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
+    from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import (
         verify_patch_composition,
     )
     monkeypatch.setenv("GENESIS_ENABLE_P99", "1")
@@ -108,7 +108,7 @@ def test_env_enabled_reflects_environment(monkeypatch):
 
 def test_cli_main_returns_zero(capsys):
     """The CLI entry-point prints a readable report and returns 0."""
-    from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
+    from sndr.engines.vllm.patches.attention.turboquant._workspace_policy import (
         main_cli,
     )
     rc = main_cli()

@@ -96,7 +96,7 @@ def test_p46_integration_and_storage_class_compose_without_raising():
     _reset_registry_for_tests()
     import vllm.sndr_core.integrations.attention.gdn.p46_gdn_gating_buffers as p46_int
     p46_int.ensure_pool_registered()
-    from vllm.sndr_core.kernels.gdn_gating_buffer import (
+    from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
         GdnGatingBufferManager,
     )
     pool = GdnGatingBufferManager._get_backing_pool()

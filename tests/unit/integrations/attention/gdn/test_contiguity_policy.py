@@ -8,7 +8,7 @@ from __future__ import annotations
 
 def test_contiguity_patch_ids_constant():
     """The 3 contiguity patches are catalogued in one canonical place."""
-    from vllm.sndr_core.integrations.attention.gdn._contiguity_policy import (
+    from sndr.engines.vllm.patches.attention.gdn._contiguity_policy import (
         CONTIGUITY_PATCH_IDS,
     )
     assert set(CONTIGUITY_PATCH_IDS) == {"PN11", "PN54", "PN50"}
@@ -16,7 +16,7 @@ def test_contiguity_patch_ids_constant():
 
 def test_describe_policy_returns_human_summary():
     """describe_policy() returns the long-form operator-facing summary."""
-    from vllm.sndr_core.integrations.attention.gdn._contiguity_policy import (
+    from sndr.engines.vllm.patches.attention.gdn._contiguity_policy import (
         describe_policy,
     )
     text = describe_policy()
@@ -28,7 +28,7 @@ def test_describe_policy_returns_human_summary():
 
 def test_verify_patch_composition_all_present_in_registry():
     """All 3 patches are in the live PATCH_REGISTRY."""
-    from vllm.sndr_core.integrations.attention.gdn._contiguity_policy import (
+    from sndr.engines.vllm.patches.attention.gdn._contiguity_policy import (
         verify_patch_composition,
     )
     result = verify_patch_composition()
@@ -42,7 +42,7 @@ def test_verify_patch_composition_all_present_in_registry():
 
 def test_verify_patch_composition_no_internal_conflicts():
     """The 3 patches don't list each other in conflicts_with."""
-    from vllm.sndr_core.integrations.attention.gdn._contiguity_policy import (
+    from sndr.engines.vllm.patches.attention.gdn._contiguity_policy import (
         verify_patch_composition,
     )
     result = verify_patch_composition()
@@ -55,7 +55,7 @@ def test_verify_patch_composition_no_internal_conflicts():
 def test_audit_contiguity_state_runs_without_vllm():
     """audit_contiguity_state() returns a structured dict even when
     vllm isn't installed in the env (reachability gets an error key)."""
-    from vllm.sndr_core.integrations.attention.gdn._contiguity_policy import (
+    from sndr.engines.vllm.patches.attention.gdn._contiguity_policy import (
         audit_contiguity_state,
     )
     result = audit_contiguity_state()
@@ -67,7 +67,7 @@ def test_audit_contiguity_state_runs_without_vllm():
 
 def test_env_enabled_reflects_environment(monkeypatch):
     """env_enabled in the composition report follows real env."""
-    from vllm.sndr_core.integrations.attention.gdn._contiguity_policy import (
+    from sndr.engines.vllm.patches.attention.gdn._contiguity_policy import (
         verify_patch_composition,
     )
     monkeypatch.setenv("GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS", "1")
@@ -81,7 +81,7 @@ def test_env_enabled_reflects_environment(monkeypatch):
 
 def test_cli_main_returns_zero_on_clean_audit(capsys):
     """The CLI entry-point returns 0 and prints a readable report."""
-    from vllm.sndr_core.integrations.attention.gdn._contiguity_policy import (
+    from sndr.engines.vllm.patches.attention.gdn._contiguity_policy import (
         main_cli,
     )
     rc = main_cli()

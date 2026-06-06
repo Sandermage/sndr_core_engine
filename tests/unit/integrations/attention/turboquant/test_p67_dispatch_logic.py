@@ -33,7 +33,7 @@ from __future__ import annotations
 import re
 
 
-from vllm.sndr_core.integrations.attention.turboquant.p67_tq_multi_query_kernel import (
+from sndr.engines.vllm.patches.attention.turboquant.p67_tq_multi_query_kernel import (
     GENESIS_P67_MARKER,
     P67_NEW,
     _BAKED_DEBUG_COMPARE,
@@ -365,7 +365,7 @@ class TestIssue7NonPowerOfTwoSupport:
     """
 
     def test_p67_supports_nonpow2_via_block_qh_padding(self):
-        from vllm.sndr_core.integrations.attention.turboquant.p67_tq_multi_query_kernel import (
+        from sndr.engines.vllm.patches.attention.turboquant.p67_tq_multi_query_kernel import (
             P67_NEW,
         )
         assert "_genesis_p67_hpk" in P67_NEW, (
@@ -386,7 +386,7 @@ class TestIssue7NonPowerOfTwoSupport:
     def test_p67b_mirrors_nonpow2_support(self):
         # P67b runs FIRST inside forward(); shape contract MUST mirror P67
         # so non-pow-2 dispatches consistently across both entry points.
-        from vllm.sndr_core.integrations.attention.turboquant.p67b_spec_verify_routing import (
+        from sndr.engines.vllm.patches.attention.turboquant.p67b_spec_verify_routing import (
             P67B_NEW,
         )
         assert "_genesis_p67b_hpk" in P67B_NEW

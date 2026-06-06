@@ -154,7 +154,7 @@ def fake_scheduler_py(tmp_path):
 class TestP58RequestPyPatch:
     def test_anchors_present_in_synthetic_file(self, fake_request_py):
         content = Path(fake_request_py).read_text()
-        from vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix import (
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
             REQUEST_FIELD_OLD, REQUEST_NUM_TOKENS_OLD,
         )
         assert REQUEST_FIELD_OLD in content
@@ -164,7 +164,7 @@ class TestP58RequestPyPatch:
         from vllm.sndr_core.core.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
-        from vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix import (
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
             REQUEST_FIELD_OLD, REQUEST_FIELD_NEW,
             REQUEST_NUM_TOKENS_OLD, REQUEST_NUM_TOKENS_NEW,
         )
@@ -194,7 +194,7 @@ class TestP58RequestPyPatch:
 class TestP58AsyncSchedulerPyPatch:
     def test_anchor_present(self, fake_async_sched_py):
         content = Path(fake_async_sched_py).read_text()
-        from vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix import (
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
             ASYNC_SCHED_OLD,
         )
         assert ASYNC_SCHED_OLD in content
@@ -205,7 +205,7 @@ class TestP58AsyncSchedulerPyPatch:
         from vllm.sndr_core.core.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
-        from vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix import (
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
             ASYNC_SCHED_OLD, ASYNC_SCHED_NEW,
         )
         patcher = TextPatcher(
@@ -229,7 +229,7 @@ class TestP58AsyncSchedulerPyPatch:
 class TestP58SchedulerPyPatch:
     def test_all_four_anchors_present(self, fake_scheduler_py):
         content = Path(fake_scheduler_py).read_text()
-        from vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix import (
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
             SCHED_SPEC_BLOCK_OLD, SCHED_NEW_METHOD_OLD,
             SCHED_PREEMPT_OLD, SCHED_DRAFT_SITE_A_OLD,
         )
@@ -245,7 +245,7 @@ class TestP58SchedulerPyPatch:
         from vllm.sndr_core.core.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
-        from vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix import (
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
             SCHED_SPEC_BLOCK_OLD, SCHED_SPEC_BLOCK_NEW,
             SCHED_NEW_METHOD_OLD, SCHED_NEW_METHOD_NEW,
             SCHED_PREEMPT_OLD, SCHED_PREEMPT_NEW,
@@ -282,7 +282,7 @@ class TestP58Idempotency:
         from vllm.sndr_core.core.text_patch import (
             TextPatcher, TextPatch, TextPatchResult,
         )
-        from vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix import (
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
             REQUEST_FIELD_OLD, REQUEST_FIELD_NEW,
             REQUEST_NUM_TOKENS_OLD, REQUEST_NUM_TOKENS_NEW,
         )
@@ -340,7 +340,7 @@ class TestP58ApplyIsOptInOnly:
         """Without GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX=1, apply() returns
         skipped status — never modifies anything."""
         monkeypatch.delenv("GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX", raising=False)
-        from vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix import (
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
             apply,
         )
         status, reason = apply()
@@ -349,14 +349,14 @@ class TestP58ApplyIsOptInOnly:
 
     def test_env_flag_recognized_when_set(self, monkeypatch):
         monkeypatch.setenv("GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX", "1")
-        from vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix import (
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
             _is_enabled,
         )
         assert _is_enabled() is True
 
     def test_env_flag_unset_returns_false(self, monkeypatch):
         monkeypatch.delenv("GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX", raising=False)
-        from vllm.sndr_core.integrations.scheduler.p58_async_scheduler_placeholder_fix import (
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
             _is_enabled,
         )
         assert _is_enabled() is False

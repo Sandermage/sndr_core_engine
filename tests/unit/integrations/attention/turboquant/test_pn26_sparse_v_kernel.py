@@ -78,7 +78,7 @@ def test_default_threshold_value(monkeypatch):
     """Default threshold is 0.001 (matches upstream PR #41422)."""
     monkeypatch.delenv("GENESIS_PN26_SPARSE_V_THRESHOLD", raising=False)
     monkeypatch.delenv("GENESIS_PN26_SPARSE_V_SCALE_FACTOR", raising=False)
-    from vllm.sndr_core.kernels.triton_turboquant_decode_sparse_v import (
+    from sndr.engines.vllm.kernels_legacy.triton_turboquant_decode_sparse_v import (
         get_sparse_v_threshold,
     )
     assert get_sparse_v_threshold() == 0.001
@@ -87,7 +87,7 @@ def test_default_threshold_value(monkeypatch):
 def test_threshold_clamping_invalid(monkeypatch):
     """Out-of-range threshold falls back to default."""
     monkeypatch.setenv("GENESIS_PN26_SPARSE_V_THRESHOLD", "999.0")
-    from vllm.sndr_core.kernels.triton_turboquant_decode_sparse_v import (
+    from sndr.engines.vllm.kernels_legacy.triton_turboquant_decode_sparse_v import (
         get_sparse_v_threshold,
     )
     assert get_sparse_v_threshold() == 0.001
@@ -96,7 +96,7 @@ def test_threshold_clamping_invalid(monkeypatch):
 def test_blasst_lambda_scaling(monkeypatch):
     """BLASST λ=a/L: threshold scales inversely with context length."""
     monkeypatch.setenv("GENESIS_PN26_SPARSE_V_SCALE_FACTOR", "10.0")
-    from vllm.sndr_core.kernels.triton_turboquant_decode_sparse_v import (
+    from sndr.engines.vllm.kernels_legacy.triton_turboquant_decode_sparse_v import (
         compute_effective_threshold,
     )
     # threshold should be ~10/ctx_len with min ctx=1
@@ -110,7 +110,7 @@ def test_blasst_lambda_scaling(monkeypatch):
 def test_min_ctx_default(monkeypatch):
     """Default min_ctx is 8192."""
     monkeypatch.delenv("GENESIS_PN26_SPARSE_V_MIN_CTX", raising=False)
-    from vllm.sndr_core.kernels.triton_turboquant_decode_sparse_v import (
+    from sndr.engines.vllm.kernels_legacy.triton_turboquant_decode_sparse_v import (
         get_sparse_v_min_ctx,
     )
     assert get_sparse_v_min_ctx() == 8192
@@ -134,7 +134,7 @@ def test_kernel_builds_lazily(sparse_v_module):
 @requires_cuda
 def test_skip_counter_starts_disabled():
     """`collect_skip_stats()` returns enabled=False when no buffer allocated."""
-    from vllm.sndr_core.kernels.triton_turboquant_decode_sparse_v import (
+    from sndr.engines.vllm.kernels_legacy.triton_turboquant_decode_sparse_v import (
         collect_skip_stats, reset_skip_stats,
     )
     reset_skip_stats()
@@ -183,7 +183,7 @@ def test_sparse_v_off_matches_upstream_smoke(sparse_v_module):
 
 def test_wiring_patch_imports():
     """Wiring patch module imports cleanly (catches missing imports)."""
-    from vllm.sndr_core.integrations.attention.turboquant import pn26_sparse_v_kernel as patch_N26_sparse_v_kernel
+    from sndr.engines.vllm.patches.attention.turboquant import pn26_sparse_v_kernel as patch_N26_sparse_v_kernel
     assert hasattr(patch_N26_sparse_v_kernel, "apply")
     assert hasattr(patch_N26_sparse_v_kernel, "is_applied")
 
@@ -191,7 +191,7 @@ def test_wiring_patch_imports():
 def test_wiring_skips_when_env_disabled(monkeypatch):
     """When GENESIS_ENABLE_PN26_SPARSE_V is not set, wiring skips cleanly."""
     monkeypatch.delenv("GENESIS_ENABLE_PN26_SPARSE_V", raising=False)
-    from vllm.sndr_core.integrations.attention.turboquant.pn26_sparse_v_kernel import apply
+    from sndr.engines.vllm.patches.attention.turboquant.pn26_sparse_v_kernel import apply
     status, reason = apply()
     assert status == "skipped"
     assert "opt-in" in reason.lower()

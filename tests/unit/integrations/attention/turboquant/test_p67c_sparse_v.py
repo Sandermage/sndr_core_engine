@@ -28,7 +28,7 @@ import os
 
 def test_p67c_wiring_imports():
     """P67c wiring module imports cleanly."""
-    from vllm.sndr_core.integrations.attention.turboquant import p67c_sparse_v as patch_67c_sparse_v
+    from sndr.engines.vllm.patches.attention.turboquant import p67c_sparse_v as patch_67c_sparse_v
     assert hasattr(patch_67c_sparse_v, "apply")
 
 
@@ -46,7 +46,7 @@ def test_p67c_dispatcher_registry():
 def test_p67c_skips_when_env_off(monkeypatch):
     """When env is OFF, apply() returns 'skipped'."""
     monkeypatch.delenv("GENESIS_ENABLE_P67_SPARSE_V", raising=False)
-    from vllm.sndr_core.integrations.attention.turboquant.p67c_sparse_v import apply
+    from sndr.engines.vllm.patches.attention.turboquant.p67c_sparse_v import apply
     status, reason = apply()
     assert status == "skipped"
     assert "opt-in" in reason.lower()
@@ -56,7 +56,7 @@ def test_p67c_skips_when_p67_not_enabled(monkeypatch):
     """If P67 base is not enabled, P67c is also skipped."""
     monkeypatch.setenv("GENESIS_ENABLE_P67_SPARSE_V", "1")
     monkeypatch.delenv("GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL", raising=False)
-    from vllm.sndr_core.integrations.attention.turboquant.p67c_sparse_v import apply
+    from sndr.engines.vllm.patches.attention.turboquant.p67c_sparse_v import apply
     status, reason = apply()
     assert status == "skipped"
     assert "P67" in reason
@@ -66,7 +66,7 @@ def test_p67c_applies_when_both_enabled(monkeypatch):
     """When P67 + P67c env vars set, apply() returns 'applied'."""
     monkeypatch.setenv("GENESIS_ENABLE_P67_SPARSE_V", "1")
     monkeypatch.setenv("GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL", "1")
-    from vllm.sndr_core.integrations.attention.turboquant.p67c_sparse_v import apply
+    from sndr.engines.vllm.patches.attention.turboquant.p67c_sparse_v import apply
     status, reason = apply()
     assert status == "applied"
     assert "sparse-V" in reason or "config" in reason.lower()
@@ -86,7 +86,7 @@ def test_p67_kernel_has_new_constexpr_params():
 def test_p67c_launcher_clamps_threshold(monkeypatch):
     """Launcher clamps threshold to safe range [0, 0.5]."""
     monkeypatch.setenv("GENESIS_P67_SPARSE_V_THRESHOLD", "-1.0")
-    from vllm.sndr_core.kernels.p67_multi_query_kernel import (
+    from sndr.engines.vllm.kernels_legacy.p67_multi_query_kernel import (
         _resolve_sparse_v_threshold,
     )
     thr = _resolve_sparse_v_threshold()
@@ -104,7 +104,7 @@ def test_p67c_launcher_clamps_threshold(monkeypatch):
 def test_p67c_default_sink_tokens():
     """Default SINK_TOKENS via env = 4."""
     os.environ.pop("GENESIS_P67_SPARSE_V_SINK_TOKENS", None)
-    from vllm.sndr_core.kernels.p67_multi_query_kernel import (
+    from sndr.engines.vllm.kernels_legacy.p67_multi_query_kernel import (
         _resolve_sparse_v_sink_tokens,
     )
     assert _resolve_sparse_v_sink_tokens() == 4

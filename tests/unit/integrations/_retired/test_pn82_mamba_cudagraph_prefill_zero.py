@@ -17,7 +17,7 @@ import pytest
 
 def _wiring():
     """Resolve PN82 wiring via the canonical SNDR Core path."""
-    from vllm.sndr_core.integrations._retired import (
+    from sndr.engines.vllm.patches._retired import (
         pn82_mamba_cudagraph_prefill_zero as M,
     )
     return M

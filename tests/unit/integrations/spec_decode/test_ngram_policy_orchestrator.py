@@ -5,7 +5,7 @@ from __future__ import annotations
 
 def test_ngram_policy_patch_ids_constant():
     """The 5 ngram patches are catalogued in one canonical tuple."""
-    from vllm.sndr_core.integrations.spec_decode._ngram_policy_orchestrator import (
+    from sndr.engines.vllm.patches.spec_decode._ngram_policy_orchestrator import (
         NGRAM_POLICY_PATCH_IDS,
     )
     assert set(NGRAM_POLICY_PATCH_IDS) == {"P70", "P77", "P86", "PN72", "PN90"}
@@ -13,7 +13,7 @@ def test_ngram_policy_patch_ids_constant():
 
 def test_describe_policy_mentions_all_five_patches():
     """describe_policy() returns text with all 5 patch IDs."""
-    from vllm.sndr_core.integrations.spec_decode._ngram_policy_orchestrator import (
+    from sndr.engines.vllm.patches.spec_decode._ngram_policy_orchestrator import (
         describe_policy,
     )
     text = describe_policy()
@@ -23,7 +23,7 @@ def test_describe_policy_mentions_all_five_patches():
 
 def test_verify_patch_composition_all_present():
     """All 5 NGRAM patches are in the live PATCH_REGISTRY."""
-    from vllm.sndr_core.integrations.spec_decode._ngram_policy_orchestrator import (
+    from sndr.engines.vllm.patches.spec_decode._ngram_policy_orchestrator import (
         verify_patch_composition,
     )
     result = verify_patch_composition()
@@ -36,7 +36,7 @@ def test_verify_patch_composition_all_present():
 
 def test_verify_patch_composition_no_conflicts_internally():
     """The 5 ngram patches don't conflict with each other in registry."""
-    from vllm.sndr_core.integrations.spec_decode._ngram_policy_orchestrator import (
+    from sndr.engines.vllm.patches.spec_decode._ngram_policy_orchestrator import (
         verify_patch_composition,
     )
     result = verify_patch_composition()
@@ -47,7 +47,7 @@ def test_verify_patch_composition_no_conflicts_internally():
 
 def test_audit_ngram_stack_state_returns_structured_dict():
     """audit_ngram_stack_state() returns the expected nested shape."""
-    from vllm.sndr_core.integrations.spec_decode._ngram_policy_orchestrator import (
+    from sndr.engines.vllm.patches.spec_decode._ngram_policy_orchestrator import (
         audit_ngram_stack_state,
     )
     result = audit_ngram_stack_state()
@@ -59,7 +59,7 @@ def test_audit_ngram_stack_state_returns_structured_dict():
 
 def test_audit_handles_missing_vllm_classes_gracefully():
     """Reachability check returns bool keys even when vllm isn't installed."""
-    from vllm.sndr_core.integrations.spec_decode._ngram_policy_orchestrator import (
+    from sndr.engines.vllm.patches.spec_decode._ngram_policy_orchestrator import (
         audit_ngram_stack_state,
     )
     result = audit_ngram_stack_state()
@@ -71,7 +71,7 @@ def test_audit_handles_missing_vllm_classes_gracefully():
 
 def test_env_enabled_reflects_environment(monkeypatch):
     """env_enabled flags flip on/off based on actual env state."""
-    from vllm.sndr_core.integrations.spec_decode._ngram_policy_orchestrator import (
+    from sndr.engines.vllm.patches.spec_decode._ngram_policy_orchestrator import (
         verify_patch_composition,
     )
     monkeypatch.setenv("GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM", "1")
@@ -85,7 +85,7 @@ def test_env_enabled_reflects_environment(monkeypatch):
 
 def test_summary_any_patch_enabled_tracks_env(monkeypatch):
     """summary.any_patch_env_enabled aggregates across the 5 patches."""
-    from vllm.sndr_core.integrations.spec_decode._ngram_policy_orchestrator import (
+    from sndr.engines.vllm.patches.spec_decode._ngram_policy_orchestrator import (
         audit_ngram_stack_state,
     )
     # Force-disable all
@@ -107,7 +107,7 @@ def test_summary_any_patch_enabled_tracks_env(monkeypatch):
 
 def test_cli_main_returns_zero(capsys):
     """The CLI entry-point prints a readable report and returns 0."""
-    from vllm.sndr_core.integrations.spec_decode._ngram_policy_orchestrator import (
+    from sndr.engines.vllm.patches.spec_decode._ngram_policy_orchestrator import (
         main_cli,
     )
     rc = main_cli()

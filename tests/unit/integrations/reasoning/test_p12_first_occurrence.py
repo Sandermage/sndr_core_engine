@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 
 
-from vllm.sndr_core.integrations.reasoning.p12_tool_call_reasoning import _NEW_METHODS_BLOCK
+from sndr.engines.vllm.patches.reasoning.p12_tool_call_reasoning import _NEW_METHODS_BLOCK
 
 
 def test_p12_emits_first_occurrence_not_last():

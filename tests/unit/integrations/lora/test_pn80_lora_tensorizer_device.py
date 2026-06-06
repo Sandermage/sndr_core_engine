@@ -15,7 +15,7 @@ import pytest
 
 
 def _wiring():
-    from vllm.sndr_core.integrations._retired import pn80_lora_tensorizer_device as M
+    from sndr.engines.vllm.patches._retired import pn80_lora_tensorizer_device as M
     return M
 
 

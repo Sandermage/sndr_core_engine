@@ -19,7 +19,7 @@ from __future__ import annotations
 import pytest
 
 # Top-level import is library-only (no torch dep).
-from vllm.sndr_core.integrations.spec_decode.layout_introspect import (
+from sndr.engines.vllm.patches.spec_decode.layout_introspect import (
     Layout,
     block_dim_from_tensor,
     block_dim_of,

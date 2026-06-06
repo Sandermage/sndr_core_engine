@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(not _TORCH_OK, reason="torch not installed")
 
 
 def test_g4_rmsnorm_residual_scalar_reference_matches_naive():
-    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
+    from sndr.engines.vllm.patches.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
         g4_rmsnorm_residual_scalar_reference,
     )
     torch.manual_seed(0)
@@ -47,7 +47,7 @@ def test_g4_rmsnorm_residual_scalar_reference_matches_naive():
 
 
 def test_g4_rmsnorm_residual_scalar_reference_no_residual_no_scalar():
-    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
+    from sndr.engines.vllm.patches.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
         g4_rmsnorm_residual_scalar_reference,
     )
     x = torch.randn(4, 128, dtype=torch.float32)
@@ -59,7 +59,7 @@ def test_g4_rmsnorm_residual_scalar_reference_no_residual_no_scalar():
 
 
 def test_g4_qkv_rmsnorm_reference_per_head():
-    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
+    from sndr.engines.vllm.patches.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
         g4_qkv_rmsnorm_reference,
     )
     torch.manual_seed(0)
@@ -91,7 +91,7 @@ def test_g4_qkv_rmsnorm_reference_per_head():
 
 
 def test_g4_dual_rmsnorm_residual_scalar_reference():
-    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
+    from sndr.engines.vllm.patches.model_compat.gemma4.kernels.g4_fused_rmsnorm_triton import (
         g4_dual_rmsnorm_residual_scalar_reference,
     )
     torch.manual_seed(0)
@@ -113,7 +113,7 @@ def test_g4_dual_rmsnorm_residual_scalar_reference():
 
 
 def test_g4_softcap_reference_matches_naive():
-    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_softcap_triton import (
+    from sndr.engines.vllm.patches.model_compat.gemma4.kernels.g4_softcap_triton import (
         g4_softcap_reference,
     )
     torch.manual_seed(0)
@@ -125,7 +125,7 @@ def test_g4_softcap_reference_matches_naive():
 
 
 def test_g4_softcap_reference_zero_softcap_is_noop():
-    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_softcap_triton import (
+    from sndr.engines.vllm.patches.model_compat.gemma4.kernels.g4_softcap_triton import (
         g4_softcap_reference,
     )
     x = torch.randn(4, 8)
@@ -134,7 +134,7 @@ def test_g4_softcap_reference_zero_softcap_is_noop():
 
 
 def test_g4_softcap_reference_none_softcap_is_noop():
-    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_softcap_triton import (
+    from sndr.engines.vllm.patches.model_compat.gemma4.kernels.g4_softcap_triton import (
         g4_softcap_reference,
     )
     x = torch.randn(4, 8)
@@ -143,7 +143,7 @@ def test_g4_softcap_reference_none_softcap_is_noop():
 
 
 def test_g4_softcap_reference_inplace_out():
-    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_softcap_triton import (
+    from sndr.engines.vllm.patches.model_compat.gemma4.kernels.g4_softcap_triton import (
         g4_softcap_reference,
     )
     x = torch.randn(4, 8)
@@ -160,7 +160,7 @@ def test_g4_softcap_reference_inplace_out():
 
 
 def test_is_gemma4_arch_recognizes_known_names():
-    from vllm.sndr_core.integrations.model_compat.gemma4._gemma4_detect import is_gemma4_arch
+    from sndr.engines.vllm.patches.model_compat.gemma4._gemma4_detect import is_gemma4_arch
     assert is_gemma4_arch("Gemma4ForConditionalGeneration")
     assert is_gemma4_arch("Gemma4ForCausalLM")
     assert is_gemma4_arch(["Gemma4ForCausalLM"])
@@ -172,7 +172,7 @@ def test_is_gemma4_arch_recognizes_known_names():
 
 
 def test_marlin_kdim_supported_python_vs_cpp_check():
-    from vllm.sndr_core.integrations.model_compat.gemma4._gemma4_detect import marlin_kdim_supported
+    from sndr.engines.vllm.patches.model_compat.gemma4._gemma4_detect import marlin_kdim_supported
     # K=352 — fails BOTH because 352%128 != 0 AND 352%64 != 0
     assert not marlin_kdim_supported(352, strict_python_check=True)
     assert not marlin_kdim_supported(352, strict_python_check=False)
@@ -185,7 +185,7 @@ def test_marlin_kdim_supported_python_vs_cpp_check():
 
 
 def test_detect_fp8_block_format():
-    from vllm.sndr_core.integrations.model_compat.gemma4._gemma4_detect import detect_fp8_block_format
+    from sndr.engines.vllm.patches.model_compat.gemma4._gemma4_detect import detect_fp8_block_format
 
     # Mock checkpoint config matching FP8_BLOCK signature
     class _Cfg:
@@ -206,7 +206,7 @@ def test_detect_fp8_block_format():
 
 
 def test_detect_non_causal_drafter():
-    from vllm.sndr_core.integrations.model_compat.gemma4._gemma4_detect import detect_non_causal_drafter
+    from sndr.engines.vllm.patches.model_compat.gemma4._gemma4_detect import detect_non_causal_drafter
 
     class _Cfg:
         method = "eagle3"
@@ -229,7 +229,7 @@ def test_detect_non_causal_drafter():
 
 
 def test_pad_moe_weight_to_aligned_k_pads_correctly():
-    from vllm.sndr_core.integrations.model_compat.gemma4.kernels.g4_kpad_moe_gemm_triton import (
+    from sndr.engines.vllm.patches.model_compat.gemma4.kernels.g4_kpad_moe_gemm_triton import (
         pad_moe_weight_to_aligned_k,
     )
     # Mock MoE weight: [num_experts=4, hidden_size=512, K_real=352]

@@ -42,7 +42,7 @@ class TestShouldAcceptDraft:
 
     def test_dominant_token_accepted(self):
         """Token appearing 5 times in last 1024 → accepted."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             should_accept_draft,
         )
         # context has token 42 appearing 5 times in last 100
@@ -53,7 +53,7 @@ class TestShouldAcceptDraft:
 
     def test_rare_token_rejected(self):
         """Token appearing 2 times in window → rejected (< min_obs=4)."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             should_accept_draft,
         )
         ctx = np.array([1, 2, 3] * 100 + [42, 5, 99, 6, 42, 7, 8, 9],
@@ -63,7 +63,7 @@ class TestShouldAcceptDraft:
 
     def test_token_outside_window_rejected(self):
         """Token at position 0 (way outside last-1024 window) → rejected."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             should_accept_draft,
         )
         # 42 only at pos 0, then 2000 of zeros
@@ -74,7 +74,7 @@ class TestShouldAcceptDraft:
 
     def test_empty_context_rejected(self):
         """Empty context → reject (no observations possible)."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             should_accept_draft,
         )
         ctx = np.array([], dtype=np.int32)
@@ -83,7 +83,7 @@ class TestShouldAcceptDraft:
 
     def test_window_larger_than_context_uses_full(self):
         """If window > len(context), use full context — don't crash."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             should_accept_draft,
         )
         ctx = np.array([42, 1, 42, 2, 42, 3, 42, 4, 42], dtype=np.int32)
@@ -93,7 +93,7 @@ class TestShouldAcceptDraft:
 
     def test_min_obs_zero_always_accepts(self):
         """min_obs=0 → always accept (filter disabled)."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             should_accept_draft,
         )
         ctx = np.array([1, 2, 3], dtype=np.int32)
@@ -109,7 +109,7 @@ class TestFilterDraftsByFrequency:
 
     def test_empty_drafts_passthrough(self):
         """No drafts → no filtering, return as-is."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             filter_drafts_by_frequency,
         )
         drafts = [[], [], []]
@@ -121,7 +121,7 @@ class TestFilterDraftsByFrequency:
 
     def test_strong_draft_kept(self):
         """Draft whose first token is dominant → kept."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             filter_drafts_by_frequency,
         )
         token_ids = np.zeros((1, 100), dtype=np.int32)
@@ -135,7 +135,7 @@ class TestFilterDraftsByFrequency:
 
     def test_weak_draft_rejected(self):
         """Draft whose first token is rare → replaced with empty."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             filter_drafts_by_frequency,
         )
         token_ids = np.zeros((1, 100), dtype=np.int32)
@@ -149,7 +149,7 @@ class TestFilterDraftsByFrequency:
 
     def test_mixed_batch_filtered_independently(self):
         """One strong + one weak in same batch → independent decisions."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             filter_drafts_by_frequency,
         )
         token_ids = np.zeros((2, 100), dtype=np.int32)
@@ -165,7 +165,7 @@ class TestFilterDraftsByFrequency:
 
     def test_helper_does_not_mutate_inputs(self):
         """Defensive: input drafts list and arrays unchanged after call."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             filter_drafts_by_frequency,
         )
         token_ids = np.zeros((1, 50), dtype=np.int32)
@@ -192,7 +192,7 @@ class TestFilterDraftsByFrequency:
 class TestWindowSizing:
     def test_window_exactly_at_boundary(self):
         """Token at position (len - window) is included."""
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             should_accept_draft,
         )
         # 10 occurrences of 42 in first 100 tokens, then 1024 zeros
@@ -215,55 +215,55 @@ class TestEnvConfiguration:
     """Helper exposes env-reading config getters that wiring will call."""
 
     def test_get_min_observations_default(self, monkeypatch):
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             get_min_observations,
         )
         monkeypatch.delenv("GENESIS_PN72_MIN_OBSERVATIONS", raising=False)
         assert get_min_observations() == 4
 
     def test_get_min_observations_env_override(self, monkeypatch):
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             get_min_observations,
         )
         monkeypatch.setenv("GENESIS_PN72_MIN_OBSERVATIONS", "8")
         assert get_min_observations() == 8
 
     def test_get_min_observations_invalid_falls_to_default(self, monkeypatch):
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             get_min_observations,
         )
         monkeypatch.setenv("GENESIS_PN72_MIN_OBSERVATIONS", "abc")
         assert get_min_observations() == 4
 
     def test_get_min_observations_negative_falls_to_default(self, monkeypatch):
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             get_min_observations,
         )
         monkeypatch.setenv("GENESIS_PN72_MIN_OBSERVATIONS", "-3")
         assert get_min_observations() == 4
 
     def test_get_window_default(self, monkeypatch):
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             get_frequency_window,
         )
         monkeypatch.delenv("GENESIS_PN72_FREQUENCY_WINDOW", raising=False)
         assert get_frequency_window() == 1024
 
     def test_get_window_env_override(self, monkeypatch):
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             get_frequency_window,
         )
         monkeypatch.setenv("GENESIS_PN72_FREQUENCY_WINDOW", "2048")
         assert get_frequency_window() == 2048
 
     def test_is_enabled_default_off(self, monkeypatch):
-        from vllm.sndr_core.kernels.ngram_frequency_filter import is_enabled
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import is_enabled
         monkeypatch.delenv("GENESIS_ENABLE_PN72_FREQUENCY_NGRAM_DRAFTER",
                            raising=False)
         assert is_enabled() is False
 
     def test_is_enabled_via_env(self, monkeypatch):
-        from vllm.sndr_core.kernels.ngram_frequency_filter import is_enabled
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import is_enabled
         monkeypatch.setenv(
             "GENESIS_ENABLE_PN72_FREQUENCY_NGRAM_DRAFTER", "1",
         )
@@ -277,7 +277,7 @@ class TestDefensiveBehavior:
     """Wrapper must never raise — graceful degradation matters more than perf."""
 
     def test_negative_num_tokens_safe(self):
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             filter_drafts_by_frequency,
         )
         token_ids = np.zeros((1, 50), dtype=np.int32)
@@ -289,7 +289,7 @@ class TestDefensiveBehavior:
         assert out == [[]]
 
     def test_num_tokens_exceeds_array_safe(self):
-        from vllm.sndr_core.kernels.ngram_frequency_filter import (
+        from sndr.engines.vllm.kernels_legacy.ngram_frequency_filter import (
             filter_drafts_by_frequency,
         )
         token_ids = np.zeros((1, 10), dtype=np.int32)

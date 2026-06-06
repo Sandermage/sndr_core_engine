@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 
 
-from vllm.sndr_core.integrations._retired.p94_spec_decode_zero_alloc import (
+from sndr.engines.vllm._archive.p94_spec_decode_zero_alloc import (
     P94_OLD,
     P94_NEW,
     GENESIS_P94_MARKER,

@@ -23,7 +23,7 @@ torch = pytest.importorskip("torch")
 
 
 def _wiring():
-    from vllm.sndr_core.integrations.attention.gdn import pn59_streaming_gdn as M
+    from sndr.engines.vllm.patches.attention.gdn import pn59_streaming_gdn as M
     return M
 
 
@@ -131,7 +131,7 @@ def test_apply_all_registers_pn59():
 def test_driver_bypasses_when_env_disabled(monkeypatch):
     """Without env flag → vanilla path."""
     monkeypatch.delenv("GENESIS_ENABLE_PN59_STREAMING_GDN", raising=False)
-    from vllm.sndr_core.kernels.streaming_gdn_driver import (
+    from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
         streaming_chunk_gated_delta_rule_fwd,
     )
 
@@ -198,7 +198,7 @@ def test_driver_bypasses_when_env_disabled(monkeypatch):
 def test_driver_bypasses_when_short_T(monkeypatch):
     """Short T < threshold → vanilla path even with env flag."""
     monkeypatch.setenv("GENESIS_ENABLE_PN59_STREAMING_GDN", "1")
-    from vllm.sndr_core.kernels.streaming_gdn_driver import (
+    from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
         streaming_chunk_gated_delta_rule_fwd,
     )
 
@@ -251,7 +251,7 @@ def test_driver_bypasses_when_short_T(monkeypatch):
 def test_driver_bypasses_when_multi_seq(monkeypatch):
     """Multi-seq cu_seqlens → vanilla path even with long T."""
     monkeypatch.setenv("GENESIS_ENABLE_PN59_STREAMING_GDN", "1")
-    from vllm.sndr_core.kernels.streaming_gdn_driver import (
+    from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
         streaming_chunk_gated_delta_rule_fwd,
     )
 
@@ -305,28 +305,28 @@ class TestBypassMultiplierEnv:
     """GENESIS_PN59_BYPASS_T_MULTIPLIER env var controls threshold for sweep."""
 
     def test_default_when_unset(self, monkeypatch):
-        from vllm.sndr_core.kernels.streaming_gdn_driver import (
+        from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
             _get_bypass_t_multiplier, _BYPASS_T_MULTIPLIER_DEFAULT,
         )
         monkeypatch.delenv("GENESIS_PN59_BYPASS_T_MULTIPLIER", raising=False)
         assert _get_bypass_t_multiplier() == _BYPASS_T_MULTIPLIER_DEFAULT
 
     def test_override_to_2(self, monkeypatch):
-        from vllm.sndr_core.kernels.streaming_gdn_driver import (
+        from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
             _get_bypass_t_multiplier,
         )
         monkeypatch.setenv("GENESIS_PN59_BYPASS_T_MULTIPLIER", "2")
         assert _get_bypass_t_multiplier() == 2
 
     def test_invalid_falls_back_to_default(self, monkeypatch):
-        from vllm.sndr_core.kernels.streaming_gdn_driver import (
+        from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
             _get_bypass_t_multiplier, _BYPASS_T_MULTIPLIER_DEFAULT,
         )
         monkeypatch.setenv("GENESIS_PN59_BYPASS_T_MULTIPLIER", "not-a-number")
         assert _get_bypass_t_multiplier() == _BYPASS_T_MULTIPLIER_DEFAULT
 
     def test_out_of_range_falls_back(self, monkeypatch):
-        from vllm.sndr_core.kernels.streaming_gdn_driver import (
+        from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
             _get_bypass_t_multiplier, _BYPASS_T_MULTIPLIER_DEFAULT,
         )
         monkeypatch.setenv("GENESIS_PN59_BYPASS_T_MULTIPLIER", "999")
@@ -343,7 +343,7 @@ class TestMemTraceInstrumentation:
     optimization decisions vs hand-wavy ROI analysis."""
 
     def test_mem_trace_default_disabled(self, monkeypatch):
-        from vllm.sndr_core.kernels.streaming_gdn_driver import (
+        from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
             _mem_trace_enabled, _mem_trace_agg_enabled,
         )
         monkeypatch.delenv("GENESIS_PN59_MEM_TRACE", raising=False)
@@ -352,14 +352,14 @@ class TestMemTraceInstrumentation:
         assert _mem_trace_agg_enabled() is False
 
     def test_mem_trace_env_enables(self, monkeypatch):
-        from vllm.sndr_core.kernels.streaming_gdn_driver import (
+        from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
             _mem_trace_enabled,
         )
         monkeypatch.setenv("GENESIS_PN59_MEM_TRACE", "1")
         assert _mem_trace_enabled() is True
 
     def test_mem_trace_summary_reset_round_trip(self):
-        from vllm.sndr_core.kernels.streaming_gdn_driver import (
+        from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
             get_mem_trace_summary, reset_mem_trace_summary,
             _mem_trace_agg_record,
         )

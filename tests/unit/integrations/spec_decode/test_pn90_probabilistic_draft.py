@@ -30,7 +30,7 @@ import pytest
 class TestImport:
     def test_imports_cleanly_on_cpu(self):
         """Module must import without GPU / live vllm."""
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         assert hasattr(m, "apply")
@@ -45,7 +45,7 @@ class TestImport:
 class TestPatcherFactories:
     def test_proposer_patcher_when_target_resolvable(self, monkeypatch):
         """When `resolve_vllm_file` finds the target, patcher is built."""
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         monkeypatch.setattr(
@@ -64,7 +64,7 @@ class TestPatcherFactories:
         assert len(patcher.upstream_drift_markers) > 0
 
     def test_proposer_patcher_when_target_missing(self, monkeypatch):
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         monkeypatch.setattr(
@@ -76,7 +76,7 @@ class TestPatcherFactories:
         assert patcher is None
 
     def test_runner_patcher_when_target_resolvable(self, monkeypatch):
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         monkeypatch.setattr(
@@ -95,7 +95,7 @@ class TestPatcherFactories:
 
 class TestAnchorStrings:
     def test_greedy_sample_anchor_contains_expected_idiom(self):
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         # Old anchor must contain the upstream argmax-discard pattern
@@ -107,7 +107,7 @@ class TestAnchorStrings:
         assert "_pn90_step_probs_buf" in m.PN90_GREEDY_SAMPLE_NEW
 
     def test_propose_entry_anchor_aligned(self):
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         assert "batch_size = common_attn_metadata.batch_size()" in m.PN90_PROPOSE_ENTRY_OLD
@@ -116,7 +116,7 @@ class TestAnchorStrings:
         assert "_pn90_draft_probs = None" in m.PN90_PROPOSE_ENTRY_NEW
 
     def test_propose_exit_anchor_aligned(self):
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         assert "torch.stack(draft_token_ids_list, dim=1)" in m.PN90_PROPOSE_EXIT_OLD
@@ -126,7 +126,7 @@ class TestAnchorStrings:
         assert "self._pn90_draft_probs" in m.PN90_PROPOSE_EXIT_NEW
 
     def test_runner_anchor_targets_literal_none(self):
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         # Must target the EXACT `None,  # draft_probs` line so we don't
@@ -144,7 +144,7 @@ class TestAnchorStrings:
 class TestApplyGate:
     def test_apply_skips_when_should_apply_false(self, monkeypatch):
         """When dispatcher gate returns False, apply() bails early."""
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         monkeypatch.setattr(
@@ -157,7 +157,7 @@ class TestApplyGate:
         assert "opt-in" in reason
 
     def test_apply_skips_when_vllm_root_missing(self, monkeypatch):
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         monkeypatch.setattr(
@@ -181,7 +181,7 @@ class TestUpstreamMergedDetect:
     def test_apply_self_retires_when_none_literal_absent(self, tmp_path, monkeypatch):
         """If gpu_model_runner.py no longer contains `None,  # draft_probs`,
         upstream restructured the call site → PN90 retires gracefully."""
-        from vllm.sndr_core.integrations.spec_decode import (
+        from sndr.engines.vllm.patches.spec_decode import (
             pn90_probabilistic_draft_rejection as m,
         )
         # Build a fake runner file WITHOUT the literal

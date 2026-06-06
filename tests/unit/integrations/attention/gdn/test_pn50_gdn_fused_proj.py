@@ -55,7 +55,7 @@ def _ref_pytorch(mixed_qkvz, mixed_ba, num_qk, num_v, head_qk, head_v):
 
 def test_fallback_pytorch_matches_reference_27b_lorbus_shape():
     """27B Lorbus tp=2 shape: num_qk=1, num_v=8, head_dim=128."""
-    from vllm.sndr_core.kernels.pn50_gdn_fused_proj import _fallback_pytorch
+    from sndr.engines.vllm.kernels_legacy.pn50_gdn_fused_proj import _fallback_pytorch
     mqkvz, mba = _make_inputs(batch=4, num_qk=1, num_v=8, head_qk=128, head_v=128)
     fused = _fallback_pytorch(mqkvz, mba, 1, 8, 128, 128)
     ref = _ref_pytorch(mqkvz, mba, 1, 8, 128, 128)
@@ -65,7 +65,7 @@ def test_fallback_pytorch_matches_reference_27b_lorbus_shape():
 
 def test_fallback_handles_various_shapes():
     """Verify fallback works across multiple plausible Genesis shapes."""
-    from vllm.sndr_core.kernels.pn50_gdn_fused_proj import _fallback_pytorch
+    from sndr.engines.vllm.kernels_legacy.pn50_gdn_fused_proj import _fallback_pytorch
     cases = [
         # (batch, num_qk, num_v, head_qk, head_v) — Genesis shapes
         (1, 1, 8, 128, 128),     # 27B Lorbus tp=2 single-token decode
@@ -84,7 +84,7 @@ def test_fallback_handles_various_shapes():
 
 def test_wrapper_falls_through_on_cpu_input():
     """Non-CUDA input must use _fallback_pytorch — kernel needs CUDA."""
-    from vllm.sndr_core.kernels.pn50_gdn_fused_proj import (
+    from sndr.engines.vllm.kernels_legacy.pn50_gdn_fused_proj import (
         fused_qkvzba_split_reshape_cat_contiguous,
     )
     mqkvz, mba = _make_inputs(4, 1, 8, 128, 128, device="cpu")
@@ -96,7 +96,7 @@ def test_wrapper_falls_through_on_cpu_input():
 
 def test_wrapper_falls_through_on_non_pow2_head_dim():
     """Head_dim not power-of-2 → wrapper falls through (Triton tl.arange limit)."""
-    from vllm.sndr_core.kernels.pn50_gdn_fused_proj import (
+    from sndr.engines.vllm.kernels_legacy.pn50_gdn_fused_proj import (
         fused_qkvzba_split_reshape_cat_contiguous,
     )
     # head_qk=96 is NOT power of 2
@@ -109,7 +109,7 @@ def test_wrapper_falls_through_on_non_pow2_head_dim():
 
 def test_wrapper_falls_through_on_non_integer_v_per_group():
     """num_heads_v % num_heads_qk != 0 → wrapper falls through."""
-    from vllm.sndr_core.kernels.pn50_gdn_fused_proj import (
+    from sndr.engines.vllm.kernels_legacy.pn50_gdn_fused_proj import (
         fused_qkvzba_split_reshape_cat_contiguous,
     )
     # num_qk=3, num_v=8 → V_PER_GROUP not integer
@@ -124,7 +124,7 @@ def test_wrapper_falls_through_on_non_integer_v_per_group():
 
 
 def _load_anchors():
-    from vllm.sndr_core.integrations.attention.gdn import pn50_gdn_fused_proj as M
+    from sndr.engines.vllm.patches.attention.gdn import pn50_gdn_fused_proj as M
     return M.ANCHOR_OLD, M.ANCHOR_NEW, M.GENESIS_PN50_MARKER
 
 

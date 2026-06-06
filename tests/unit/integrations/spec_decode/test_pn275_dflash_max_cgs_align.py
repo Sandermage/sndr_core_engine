@@ -38,7 +38,7 @@ def _import_patch():
     """Import the patch module fresh. Test isolation: each call returns
     the module's current state (env-gated behavior changes with the
     surrounding monkeypatch)."""
-    from vllm.sndr_core.integrations.spec_decode import (
+    from sndr.engines.vllm.patches.spec_decode import (
         pn275_dflash_max_cgs_align as p,
     )
     return p

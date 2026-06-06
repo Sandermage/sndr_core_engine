@@ -37,7 +37,7 @@ def test_pn118_v2_md5_turboquant_attn_constant_matches_fixture():
     """The module's PN118_V2_MD5_TQ_ATTN_PRE_PATCH_MD5 constant must
     equal the md5 of the bundled pre-patch fixture (rig-extracted
     upstream turboquant_attn.py at our PROD pin)."""
-    from vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_turboquant_attn import (  # noqa: E501
+    from sndr.engines.vllm.patches.attention.turboquant.pn118_v2_md5_turboquant_attn import (  # noqa: E501
         PN118_V2_MD5_TQ_ATTN_PRE_PATCH_MD5,
     )
     assert PN118_V2_MD5_TQ_ATTN_PRE_PATCH_MD5 == _expected_pre_md5()
@@ -45,7 +45,7 @@ def test_pn118_v2_md5_turboquant_attn_constant_matches_fixture():
 
 def test_pn118_v2_md5_turboquant_attn_helper_computes_correct_hash():
     """_file_md5() returns the same hash as stdlib hashlib.md5."""
-    from vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_turboquant_attn import (  # noqa: E501
+    from sndr.engines.vllm.patches.attention.turboquant.pn118_v2_md5_turboquant_attn import (  # noqa: E501
         _file_md5,
     )
     assert _file_md5(FIXTURE_PRE) == _expected_pre_md5()
@@ -54,7 +54,7 @@ def test_pn118_v2_md5_turboquant_attn_helper_computes_correct_hash():
 def test_pn118_v2_md5_turboquant_attn_apply_skips_when_md5_mismatches(tmp_path):
     """When target md5 does not match PRE_PATCH_MD5, _do_apply() returns
     skipped (no write, target unchanged)."""
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         pn118_v2_md5_turboquant_attn,
     )
 
@@ -71,7 +71,7 @@ def test_pn118_v2_md5_turboquant_attn_apply_skips_when_md5_mismatches(tmp_path):
 def test_pn118_v2_md5_turboquant_attn_apply_writes_post_patch_when_md5_matches(tmp_path):
     """When target md5 matches PRE_PATCH_MD5, _do_apply() writes
     POST_PATCH_CONTENT + marker, returns applied."""
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         pn118_v2_md5_turboquant_attn,
     )
 
@@ -87,7 +87,7 @@ def test_pn118_v2_md5_turboquant_attn_apply_writes_post_patch_when_md5_matches(t
 def test_pn118_v2_md5_turboquant_attn_apply_idempotent_via_marker(tmp_path):
     """Second _do_apply() against an already-patched file returns
     skipped(already_applied) via marker detection — does not re-write."""
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         pn118_v2_md5_turboquant_attn,
     )
 

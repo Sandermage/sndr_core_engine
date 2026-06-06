@@ -15,7 +15,7 @@ import pytest
 
 
 def _wiring():
-    from vllm.sndr_core.integrations.worker import (
+    from sndr.engines.vllm.patches.worker import (
         pn55_wake_up_hybrid_kv as M,
     )
     return M

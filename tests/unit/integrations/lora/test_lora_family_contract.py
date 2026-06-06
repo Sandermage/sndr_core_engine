@@ -6,7 +6,7 @@ from tests.unit.integrations._family_contract_helpers import (
 )
 
 PATCHES = [
-    ("vllm.sndr_core.integrations._retired.pn80_lora_tensorizer_device", "PN80"),
+    ("sndr.engines.vllm._archive.pn80_lora_tensorizer_device", "PN80"),
 ]
 
 

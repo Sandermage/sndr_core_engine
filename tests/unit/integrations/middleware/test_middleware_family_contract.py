@@ -10,9 +10,9 @@ from tests.unit.integrations._family_contract_helpers import (
 )
 
 PATCHES = [
-    ("vllm.sndr_core.integrations.middleware.pn16_lazy_reasoner", "PN16"),
-    ("vllm.sndr_core.integrations.middleware.pn16_v6_streaming_truncator", "PN16_V6"),
-    ("vllm.sndr_core.integrations.middleware.pn65_access_log", "PN65"),
+    ("sndr.engines.vllm.patches.middleware.pn16_lazy_reasoner", "PN16"),
+    ("sndr.engines.vllm.patches.middleware.pn16_v6_streaming_truncator", "PN16_V6"),
+    ("sndr.engines.vllm.patches.middleware.pn65_access_log", "PN65"),
 ]
 
 

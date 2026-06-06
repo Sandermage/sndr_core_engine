@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.integrations.multimodal.pn62_text_only_vit_skip import (
+from sndr.engines.vllm.patches.multimodal.pn62_text_only_vit_skip import (
     _is_text_only_mode,
     _flip_skip_flag,
     _wrap_profile_run,
@@ -196,13 +196,13 @@ class TestProfileRunWrapper:
 
 class TestApplyFunction:
     def test_apply_skipped_when_env_disabled(self, monkeypatch):
-        from vllm.sndr_core.integrations.multimodal import pn62_text_only_vit_skip as p
+        from sndr.engines.vllm.patches.multimodal import pn62_text_only_vit_skip as p
         monkeypatch.delenv("GENESIS_ENABLE_PN62", raising=False)
         status, reason = p.apply()
         assert status == "skipped"
 
     def test_apply_skipped_when_runner_module_absent(self, monkeypatch):
-        from vllm.sndr_core.integrations.multimodal import pn62_text_only_vit_skip as p
+        from sndr.engines.vllm.patches.multimodal import pn62_text_only_vit_skip as p
         monkeypatch.setenv("GENESIS_ENABLE_PN62", "1")
         import sys
         monkeypatch.setitem(

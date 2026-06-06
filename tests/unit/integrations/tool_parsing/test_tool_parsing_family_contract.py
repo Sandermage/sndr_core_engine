@@ -12,10 +12,10 @@ from tests.unit.integrations._family_contract_helpers import (
 )
 
 PATCHES = [
-    ("vllm.sndr_core.integrations.tool_parsing.p15_qwen3_none_null", "P15"),
-    ("vllm.sndr_core.integrations.tool_parsing.p61c_qwen3coder_deferred_commit", "P61c"),
-    ("vllm.sndr_core.integrations.tool_parsing.p64_qwen3coder_mtp_streaming", "P64"),
-    ("vllm.sndr_core.integrations.tool_parsing.pn56_qwen3coder_xml_fallback", "PN56"),
+    ("sndr.engines.vllm.patches.tool_parsing.p15_qwen3_none_null", "P15"),
+    ("sndr.engines.vllm.patches.tool_parsing.p61c_qwen3coder_deferred_commit", "P61c"),
+    ("sndr.engines.vllm.patches.tool_parsing.p64_qwen3coder_mtp_streaming", "P64"),
+    ("sndr.engines.vllm.patches.tool_parsing.pn56_qwen3coder_xml_fallback", "PN56"),
 ]
 
 

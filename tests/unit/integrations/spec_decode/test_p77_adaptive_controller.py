@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.kernels.adaptive_ngram_controller import (
+from sndr.engines.vllm.kernels_legacy.adaptive_ngram_controller import (
     AdaptiveNgramController,
     _env_steps,
     _env_int,

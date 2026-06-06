@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 # Import via the genesis package (does not require vllm install).
-from vllm.sndr_core.kernels.block_verify_sampler import (
+from sndr.engines.vllm.kernels_legacy.block_verify_sampler import (
     PLACEHOLDER_TOKEN_ID,
     _BLOCK_VERIFY_VOCAB_BLOCK,
     _TRITON_OK,
@@ -32,7 +32,7 @@ from vllm.sndr_core.kernels.block_verify_sampler import (
 )
 
 if _TRITON_OK:
-    from vllm.sndr_core.kernels.block_verify_sampler import (
+    from sndr.engines.vllm.kernels_legacy.block_verify_sampler import (
         rejection_random_sample_block_verify_kernel,
     )
 

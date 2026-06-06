@@ -22,11 +22,11 @@ import pytest
 # Registered probes (have PATCH_REGISTRY entry with family=spec_decode).
 REGISTERED_PROBES = [
     (
-        "vllm.sndr_core.integrations.spec_decode.probes.pn262_flash_attn_drafter_trace",
+        "sndr.engines.vllm.patches.spec_decode.probes.pn262_flash_attn_drafter_trace",
         "PN262",
     ),
     (
-        "vllm.sndr_core.integrations.spec_decode.probes.pn262b_kv_alloc_trace",
+        "sndr.engines.vllm.patches.spec_decode.probes.pn262b_kv_alloc_trace",
         "PN262B",
     ),
 ]
@@ -34,15 +34,15 @@ REGISTERED_PROBES = [
 # Unregistered probes — direct-load via __init__.py env gates, no
 # registry entry. Listed for import + marker discipline only.
 UNREGISTERED_PROBES = [
-    "vllm.sndr_core.integrations.spec_decode.probes.pn241_mtp_trace",
-    "vllm.sndr_core.integrations.spec_decode.probes.pn248_acceptance_trace",
-    "vllm.sndr_core.integrations.spec_decode.probes.pn258_oracle_acceptance",
-    "vllm.sndr_core.integrations.spec_decode.probes.pn266_propose_trace",
-    "vllm.sndr_core.integrations.spec_decode.probes.pn267_kv_bridge_trace",
-    "vllm.sndr_core.integrations.spec_decode.probes.pn268_drafter_blocks_origin",
-    "vllm.sndr_core.integrations.spec_decode.probes.pn269_a0_block_table_trace",
-    "vllm.sndr_core.integrations.spec_decode.probes.pn270_drafter_kv_proj_audit",
-    "vllm.sndr_core.integrations.spec_decode.probes.pn272_gemma4_drafter_input_probe",
+    "sndr.engines.vllm.patches.spec_decode.probes.pn241_mtp_trace",
+    "sndr.engines.vllm.patches.spec_decode.probes.pn248_acceptance_trace",
+    "sndr.engines.vllm.patches.spec_decode.probes.pn258_oracle_acceptance",
+    "sndr.engines.vllm.patches.spec_decode.probes.pn266_propose_trace",
+    "sndr.engines.vllm.patches.spec_decode.probes.pn267_kv_bridge_trace",
+    "sndr.engines.vllm.patches.spec_decode.probes.pn268_drafter_blocks_origin",
+    "sndr.engines.vllm.patches.spec_decode.probes.pn269_a0_block_table_trace",
+    "sndr.engines.vllm.patches.spec_decode.probes.pn270_drafter_kv_proj_audit",
+    "sndr.engines.vllm.patches.spec_decode.probes.pn272_gemma4_drafter_input_probe",
 ]
 
 

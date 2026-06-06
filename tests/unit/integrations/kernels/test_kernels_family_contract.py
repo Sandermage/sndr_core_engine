@@ -6,11 +6,11 @@ from tests.unit.integrations._family_contract_helpers import (
 )
 
 PATCHES = [
-    ("vllm.sndr_core.integrations.kernels.p36_tq_shared_decode_buffers", "P36"),
-    ("vllm.sndr_core.integrations.kernels.p87_marlin_pad_sub_tile", "P87"),
-    ("vllm.sndr_core.integrations.kernels.pn12_ffn_intermediate_pool", "PN12"),
-    ("vllm.sndr_core.integrations.kernels.pn25_silu_inductor_safe_pool", "PN25"),
-    ("vllm.sndr_core.integrations.kernels.pn28_merge_attn_states_nan_guard", "PN28"),
+    ("sndr.engines.vllm.patches.kernels.p36_tq_shared_decode_buffers", "P36"),
+    ("sndr.engines.vllm.patches.kernels.p87_marlin_pad_sub_tile", "P87"),
+    ("sndr.engines.vllm.patches.kernels.pn12_ffn_intermediate_pool", "PN12"),
+    ("sndr.engines.vllm.patches.kernels.pn25_silu_inductor_safe_pool", "PN25"),
+    ("sndr.engines.vllm.patches.kernels.pn28_merge_attn_states_nan_guard", "PN28"),
 ]
 
 

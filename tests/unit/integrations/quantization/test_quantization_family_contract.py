@@ -36,9 +36,9 @@ import pytest
 
 # (module path, patch ID) — env_flag derived from registry (source of truth)
 QUANT_PATCHES = [
-    ("vllm.sndr_core.integrations.quantization.p81_fp8_block_scaled_m_le_8", "P81"),
-    ("vllm.sndr_core.integrations.quantization.p91_autoround_row_group_cdiv", "P91"),
-    ("vllm.sndr_core.integrations.quantization.pn77_fp8_lm_head", "PN77"),
+    ("sndr.engines.vllm.patches.quantization.p81_fp8_block_scaled_m_le_8", "P81"),
+    ("sndr.engines.vllm.patches.quantization.p91_autoround_row_group_cdiv", "P91"),
+    ("sndr.engines.vllm.patches.quantization.pn77_fp8_lm_head", "PN77"),
 ]
 
 

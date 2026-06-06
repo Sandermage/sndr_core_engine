@@ -82,11 +82,11 @@ class _FakeModel:
 
 def test_module_imports_without_torch():
     """Module-level import never explodes."""
-    from vllm.sndr_core.integrations.spec_decode import sndr_eagle3_aux_hidden_001  # noqa: F401
+    from sndr.engines.vllm.patches.spec_decode import sndr_eagle3_aux_hidden_001  # noqa: F401
 
 
 def test_is_enabled_env_gate(monkeypatch):
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         is_enabled,
     )
     monkeypatch.delenv("GENESIS_ENABLE_SNDR_EAGLE3_AUX_HIDDEN_001", raising=False)
@@ -98,7 +98,7 @@ def test_is_enabled_env_gate(monkeypatch):
 
 
 def test_parse_layer_ids_from_env_empty(monkeypatch):
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         parse_layer_ids_from_env,
     )
     monkeypatch.delenv("GENESIS_SNDR_EAGLE3_AUX_LAYER_IDS", raising=False)
@@ -106,7 +106,7 @@ def test_parse_layer_ids_from_env_empty(monkeypatch):
 
 
 def test_parse_layer_ids_from_env_canonical(monkeypatch):
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         parse_layer_ids_from_env,
     )
     monkeypatch.setenv("GENESIS_SNDR_EAGLE3_AUX_LAYER_IDS", "0,4,8,12,31")
@@ -114,7 +114,7 @@ def test_parse_layer_ids_from_env_canonical(monkeypatch):
 
 
 def test_parse_layer_ids_skips_invalid(monkeypatch):
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         parse_layer_ids_from_env,
     )
     # Mix of valid + non-int + negative + empty tokens
@@ -125,7 +125,7 @@ def test_parse_layer_ids_skips_invalid(monkeypatch):
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_register_hooks_returns_zero_with_empty_layer_ids():
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         register_aux_hidden_state_hooks,
     )
     model = _FakeModel(n_layers=16, hidden_dim=64)
@@ -135,7 +135,7 @@ def test_register_hooks_returns_zero_with_empty_layer_ids():
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_register_hooks_attaches_to_requested_layers():
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         register_aux_hidden_state_hooks,
     )
     model = _FakeModel(n_layers=16, hidden_dim=64)
@@ -152,7 +152,7 @@ def test_register_hooks_attaches_to_requested_layers():
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_register_hooks_idempotent_on_double_call():
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         register_aux_hidden_state_hooks,
     )
     model = _FakeModel(n_layers=16, hidden_dim=64)
@@ -166,7 +166,7 @@ def test_register_hooks_idempotent_on_double_call():
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_register_hooks_skips_out_of_range_indices(caplog):
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         register_aux_hidden_state_hooks,
     )
     model = _FakeModel(n_layers=8, hidden_dim=32)
@@ -177,7 +177,7 @@ def test_register_hooks_skips_out_of_range_indices(caplog):
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_register_hooks_uses_env_layer_ids_when_none_passed(monkeypatch):
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         register_aux_hidden_state_hooks,
     )
     monkeypatch.setenv("GENESIS_SNDR_EAGLE3_AUX_LAYER_IDS", "1,5,9")
@@ -188,7 +188,7 @@ def test_register_hooks_uses_env_layer_ids_when_none_passed(monkeypatch):
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_capture_appends_to_aux_buffer_on_forward():
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         register_aux_hidden_state_hooks,
     )
     model = _FakeModel(n_layers=8, hidden_dim=32)
@@ -207,7 +207,7 @@ def test_capture_appends_to_aux_buffer_on_forward():
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_pop_aux_hidden_states_returns_stacked_and_clears():
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         register_aux_hidden_state_hooks,
         pop_aux_hidden_states,
     )
@@ -226,7 +226,7 @@ def test_pop_aux_hidden_states_returns_stacked_and_clears():
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_pop_returns_none_on_empty_buffer():
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         pop_aux_hidden_states,
     )
     model = _FakeModel(n_layers=4, hidden_dim=16)
@@ -235,7 +235,7 @@ def test_pop_returns_none_on_empty_buffer():
 
 @pytest.mark.skipif(not HAS_TORCH, reason="torch required")
 def test_clear_removes_all_handles():
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         register_aux_hidden_state_hooks,
         clear_aux_hidden_state_hooks,
     )
@@ -254,7 +254,7 @@ def test_apply_returns_idempotent_marker():
     """apply() returns (status, reason) tuple — compatible with both
     the legacy @register_patch wrapper AND the spec-driven orchestrator
     that unpacks as `status, reason = mod.apply()`."""
-    from vllm.sndr_core.integrations.spec_decode import (
+    from sndr.engines.vllm.patches.spec_decode import (
         sndr_eagle3_aux_hidden_001 as mod,
     )
     # Reset marker for isolation
@@ -280,7 +280,7 @@ def test_apply_unpacks_in_spec_driven_orchestrator_pattern():
     """Verify the spec-driven orchestrator's `status, reason = mod.apply()`
     works without TypeError — the unpack pattern that was broken by the
     pre-v11.3.0 dict return."""
-    from vllm.sndr_core.integrations.spec_decode import (
+    from sndr.engines.vllm.patches.spec_decode import (
         sndr_eagle3_aux_hidden_001 as mod,
     )
     mod.__dict__.pop("_genesis_sndr_eagle3_001_applied", None)
@@ -292,7 +292,7 @@ def test_apply_unpacks_in_spec_driven_orchestrator_pattern():
 
 def test_resolve_layers_finds_canonical_path():
     """The _resolve_layers helper finds .model.layers."""
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         _resolve_layers,
     )
     model = _FakeModel(n_layers=4, hidden_dim=16)
@@ -302,7 +302,7 @@ def test_resolve_layers_finds_canonical_path():
 
 
 def test_resolve_layers_returns_none_on_unknown_shape():
-    from vllm.sndr_core.integrations.spec_decode.sndr_eagle3_aux_hidden_001 import (
+    from sndr.engines.vllm.patches.spec_decode.sndr_eagle3_aux_hidden_001 import (
         _resolve_layers,
     )
 

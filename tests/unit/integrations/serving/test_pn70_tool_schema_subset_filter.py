@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vllm.sndr_core.integrations.serving import pn70_tool_schema_subset_filter as pn70
+from sndr.engines.vllm.patches.serving import pn70_tool_schema_subset_filter as pn70
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────

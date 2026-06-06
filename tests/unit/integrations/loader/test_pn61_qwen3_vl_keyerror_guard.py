@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.integrations.loader.pn61_qwen3_vl_keyerror_guard import (
+from sndr.engines.vllm.patches.loader.pn61_qwen3_vl_keyerror_guard import (
     _is_vit_keyerror,
     _wrap_load_weights,
 )
@@ -95,14 +95,14 @@ class TestWrapperBehavior:
 
 class TestApplyFunction:
     def test_apply_skipped_when_env_disabled(self, monkeypatch):
-        from vllm.sndr_core.integrations.loader import pn61_qwen3_vl_keyerror_guard as p
+        from sndr.engines.vllm.patches.loader import pn61_qwen3_vl_keyerror_guard as p
         monkeypatch.delenv("GENESIS_ENABLE_PN61", raising=False)
         status, reason = p.apply()
         # No env flag → opt-in default-OFF → skipped
         assert status == "skipped"
 
     def test_apply_skipped_when_qwen3_vl_module_absent(self, monkeypatch):
-        from vllm.sndr_core.integrations.loader import pn61_qwen3_vl_keyerror_guard as p
+        from sndr.engines.vllm.patches.loader import pn61_qwen3_vl_keyerror_guard as p
         monkeypatch.setenv("GENESIS_ENABLE_PN61", "1")
         # Force ImportError by monkeypatching sys.modules
         import sys

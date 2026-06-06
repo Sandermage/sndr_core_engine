@@ -6,8 +6,8 @@ from tests.unit.integrations._family_contract_helpers import (
 )
 
 PATCHES = [
-    ("vllm.sndr_core.integrations.loader.pn8_mtp_draft_online_quant_propagation", "PN8"),
-    ("vllm.sndr_core.integrations.loader.pn61_qwen3_vl_keyerror_guard", "PN61"),
+    ("sndr.engines.vllm.patches.loader.pn8_mtp_draft_online_quant_propagation", "PN8"),
+    ("sndr.engines.vllm.patches.loader.pn61_qwen3_vl_keyerror_guard", "PN61"),
 ]
 
 

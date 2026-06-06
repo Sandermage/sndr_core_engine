@@ -13,7 +13,7 @@ import logging
 
 import pytest
 
-from vllm.sndr_core.integrations.attention.turboquant import (
+from sndr.engines.vllm.patches.attention.turboquant import (
     pn26_sparse_v_kernel as M,
 )
 

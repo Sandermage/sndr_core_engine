@@ -41,15 +41,15 @@ import pytest
 
 # (module path, patch ID) — env_flag from registry source-of-truth
 WORKER_PATCHES = [
-    ("vllm.sndr_core.integrations.worker.p72_profile_run_cap", "P72"),
-    ("vllm.sndr_core.integrations.worker.p79b_async_proposer_sync", "P79b"),
-    ("vllm.sndr_core.integrations.worker.pn24_dflash_aux_layer_indexing", "PN24"),
-    ("vllm.sndr_core.integrations.worker.pn33_spec_decode_warmup_k", "PN33"),
-    ("vllm.sndr_core.integrations.worker.pn35_inputs_embeds_optional", "PN35"),
-    ("vllm.sndr_core.integrations._retired.pn52_prompt_logprobs_eviction", "PN52"),
-    ("vllm.sndr_core.integrations.worker.pn55_wake_up_hybrid_kv", "PN55"),
-    ("vllm.sndr_core.integrations._retired.pn67_thinking_budget_inverted_bool", "PN67"),
-    ("vllm.sndr_core.integrations._retired.pn82_mamba_cudagraph_prefill_zero", "PN82"),
+    ("sndr.engines.vllm.patches.worker.p72_profile_run_cap", "P72"),
+    ("sndr.engines.vllm.patches.worker.p79b_async_proposer_sync", "P79b"),
+    ("sndr.engines.vllm.patches.worker.pn24_dflash_aux_layer_indexing", "PN24"),
+    ("sndr.engines.vllm.patches.worker.pn33_spec_decode_warmup_k", "PN33"),
+    ("sndr.engines.vllm.patches.worker.pn35_inputs_embeds_optional", "PN35"),
+    ("sndr.engines.vllm._archive.pn52_prompt_logprobs_eviction", "PN52"),
+    ("sndr.engines.vllm.patches.worker.pn55_wake_up_hybrid_kv", "PN55"),
+    ("sndr.engines.vllm._archive.pn67_thinking_budget_inverted_bool", "PN67"),
+    ("sndr.engines.vllm._archive.pn82_mamba_cudagraph_prefill_zero", "PN82"),
 ]
 
 

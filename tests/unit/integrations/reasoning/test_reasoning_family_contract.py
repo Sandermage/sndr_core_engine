@@ -33,14 +33,14 @@ from pathlib import Path
 import pytest
 
 REASONING_PATCHES = [
-    ("vllm.sndr_core.integrations.reasoning.p12_tool_call_reasoning", "P12"),
-    ("vllm.sndr_core.integrations.reasoning.p27_reasoning_before_think", "P27"),
-    ("vllm.sndr_core.integrations.reasoning.p59_qwen3_reasoning_tool_call_recovery", "P59"),
-    ("vllm.sndr_core.integrations._retired.p61_qwen3_multi_tool_first_occurrence", "P61"),
-    ("vllm.sndr_core.integrations.reasoning.p61b_qwen3_streaming_overlap_guard", "P61b"),
-    ("vllm.sndr_core.integrations.reasoning.pn51_qwen3_streaming_thinking_disabled", "PN51"),
-    ("vllm.sndr_core.integrations.reasoning.pn58_spec_reasoning_boundary", "PN58"),
-    ("vllm.sndr_core.integrations.reasoning.pn66_multiturn_think_leak", "PN66"),
+    ("sndr.engines.vllm.patches.reasoning.p12_tool_call_reasoning", "P12"),
+    ("sndr.engines.vllm.patches.reasoning.p27_reasoning_before_think", "P27"),
+    ("sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery", "P59"),
+    ("sndr.engines.vllm._archive.p61_qwen3_multi_tool_first_occurrence", "P61"),
+    ("sndr.engines.vllm.patches.reasoning.p61b_qwen3_streaming_overlap_guard", "P61b"),
+    ("sndr.engines.vllm.patches.reasoning.pn51_qwen3_streaming_thinking_disabled", "PN51"),
+    ("sndr.engines.vllm.patches.reasoning.pn58_spec_reasoning_boundary", "PN58"),
+    ("sndr.engines.vllm.patches.reasoning.pn66_multiturn_think_leak", "PN66"),
 ]
 
 

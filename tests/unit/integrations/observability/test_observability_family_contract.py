@@ -12,7 +12,7 @@ from tests.unit.integrations._family_contract_helpers import (
 
 PATCHES = [
     (
-        "vllm.sndr_core.integrations.observability.pn122_sprint26_cudagraph_dispatch_trace",
+        "sndr.engines.vllm.patches.observability.pn122_sprint26_cudagraph_dispatch_trace",
         "PN122",
     ),
 ]

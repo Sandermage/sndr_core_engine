@@ -33,7 +33,7 @@ def test_pn79_v2_md5_chunk_delta_h_constant_matches_fixture():
     """The module's PN79_V2_MD5_CHUNK_DELTA_H_PRE_PATCH_MD5 constant must
     equal the md5 of the bundled pre-patch fixture (rig-extracted
     upstream chunk_delta_h.py at our PROD pin)."""
-    from vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk_delta_h import (  # noqa: E501
+    from sndr.engines.vllm.patches.attention.gdn.pn79_v2_md5_chunk_delta_h import (  # noqa: E501
         PN79_V2_MD5_CHUNK_DELTA_H_PRE_PATCH_MD5,
     )
     assert PN79_V2_MD5_CHUNK_DELTA_H_PRE_PATCH_MD5 == _expected_pre_md5()
@@ -41,7 +41,7 @@ def test_pn79_v2_md5_chunk_delta_h_constant_matches_fixture():
 
 def test_pn79_v2_md5_chunk_delta_h_helper_computes_correct_hash():
     """_file_md5() returns the same hash as stdlib hashlib.md5."""
-    from vllm.sndr_core.integrations.attention.gdn.pn79_v2_md5_chunk_delta_h import (  # noqa: E501
+    from sndr.engines.vllm.patches.attention.gdn.pn79_v2_md5_chunk_delta_h import (  # noqa: E501
         _file_md5,
     )
     assert _file_md5(FIXTURE_PRE) == _expected_pre_md5()
@@ -50,7 +50,7 @@ def test_pn79_v2_md5_chunk_delta_h_helper_computes_correct_hash():
 def test_pn79_v2_md5_chunk_delta_h_apply_skips_when_md5_mismatches(tmp_path):
     """When target md5 does not match PRE_PATCH_MD5, _do_apply() returns
     skipped (no write, target unchanged)."""
-    from vllm.sndr_core.integrations.attention.gdn import (
+    from sndr.engines.vllm.patches.attention.gdn import (
         pn79_v2_md5_chunk_delta_h,
     )
 
@@ -67,7 +67,7 @@ def test_pn79_v2_md5_chunk_delta_h_apply_skips_when_md5_mismatches(tmp_path):
 def test_pn79_v2_md5_chunk_delta_h_apply_writes_post_patch_when_md5_matches(tmp_path):
     """When target md5 matches PRE_PATCH_MD5, _do_apply() writes
     POST_PATCH_CONTENT + marker, returns applied."""
-    from vllm.sndr_core.integrations.attention.gdn import (
+    from sndr.engines.vllm.patches.attention.gdn import (
         pn79_v2_md5_chunk_delta_h,
     )
 
@@ -83,7 +83,7 @@ def test_pn79_v2_md5_chunk_delta_h_apply_writes_post_patch_when_md5_matches(tmp_
 def test_pn79_v2_md5_chunk_delta_h_apply_idempotent_via_marker(tmp_path):
     """Second _do_apply() against an already-patched file returns
     skipped(already_applied) via marker detection — does not re-write."""
-    from vllm.sndr_core.integrations.attention.gdn import (
+    from sndr.engines.vllm.patches.attention.gdn import (
         pn79_v2_md5_chunk_delta_h,
     )
 

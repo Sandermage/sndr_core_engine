@@ -111,7 +111,7 @@ def test_pn12_integration_and_storage_class_compose_without_raising():
     import vllm.sndr_core.integrations.kernels.pn12_ffn_intermediate_pool as pn12_int
     pn12_int.ensure_pool_registered()
     # Step 2: storage class looks it up — must not raise
-    from vllm.sndr_core.kernels.ffn_intermediate_cache import (
+    from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (
         FFNIntermediateCache,
     )
     pool = FFNIntermediateCache._get_backing_pool()

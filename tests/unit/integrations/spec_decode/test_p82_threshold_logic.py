@@ -19,7 +19,7 @@ import re
 
 import pytest
 
-from vllm.sndr_core.integrations.spec_decode.p82_sglang_acceptance_threshold import (
+from sndr.engines.vllm.patches.spec_decode.p82_sglang_acceptance_threshold import (
     GENESIS_P82_MARKER_PREFIX,
     P82_OLD,
     _build_replacement,
@@ -279,7 +279,7 @@ class TestP82V2NumericalGuard:
         )
 
     def test_eps_constant_is_fp32_safe(self):
-        from vllm.sndr_core.integrations.spec_decode.p82_sglang_acceptance_threshold import (
+        from sndr.engines.vllm.patches.spec_decode.p82_sglang_acceptance_threshold import (
             GENESIS_P82_DRAFT_PROB_EPS,
         )
         # Must be well within fp32 normal range (~1e-38 minimum)
@@ -310,28 +310,28 @@ class TestP82V2MinDraftPosGuard:
 
     def test_default_is_zero(self, monkeypatch):
         monkeypatch.delenv("GENESIS_P82_MIN_DRAFT_POS", raising=False)
-        from vllm.sndr_core.integrations.spec_decode.p82_sglang_acceptance_threshold import (
+        from sndr.engines.vllm.patches.spec_decode.p82_sglang_acceptance_threshold import (
             _read_min_draft_pos,
         )
         assert _read_min_draft_pos() == 0
 
     def test_invalid_falls_back_to_zero(self, monkeypatch):
         monkeypatch.setenv("GENESIS_P82_MIN_DRAFT_POS", "not-an-int")
-        from vllm.sndr_core.integrations.spec_decode.p82_sglang_acceptance_threshold import (
+        from sndr.engines.vllm.patches.spec_decode.p82_sglang_acceptance_threshold import (
             _read_min_draft_pos,
         )
         assert _read_min_draft_pos() == 0
 
     def test_negative_clamped_to_zero(self, monkeypatch):
         monkeypatch.setenv("GENESIS_P82_MIN_DRAFT_POS", "-5")
-        from vllm.sndr_core.integrations.spec_decode.p82_sglang_acceptance_threshold import (
+        from sndr.engines.vllm.patches.spec_decode.p82_sglang_acceptance_threshold import (
             _read_min_draft_pos,
         )
         assert _read_min_draft_pos() == 0
 
     def test_clamped_at_max_spec_len(self, monkeypatch):
         monkeypatch.setenv("GENESIS_P82_MIN_DRAFT_POS", "200")
-        from vllm.sndr_core.integrations.spec_decode.p82_sglang_acceptance_threshold import (
+        from sndr.engines.vllm.patches.spec_decode.p82_sglang_acceptance_threshold import (
             _read_min_draft_pos,
         )
         # MAX_SPEC_LEN = 128 in upstream; we clamp at 127 (last valid pos)
@@ -357,7 +357,7 @@ class TestP82V2MinDraftPosGuard:
     def test_marker_encodes_min_draft_pos(self):
         """Two different min_draft_pos values must produce different
         markers so a config change forces re-apply."""
-        from vllm.sndr_core.integrations.spec_decode.p82_sglang_acceptance_threshold import (
+        from sndr.engines.vllm.patches.spec_decode.p82_sglang_acceptance_threshold import (
             _marker_for,
         )
         m_default = _marker_for(0.3, min_draft_pos=0)

@@ -36,11 +36,11 @@ MEMORY_PATCHES = [
     # uses lowercase (p15b/p38b). Dispatcher's apply_module map handles
     # both via case-variant registration in spec.py. Contract test uses
     # registry-canonical casing.
-    ("vllm.sndr_core.integrations.memory.p5b_page_size_pad_smaller", "P5b"),
-    ("vllm.sndr_core.integrations.memory.p15b_fa_varlen_clamp", "P15B"),
-    ("vllm.sndr_core.integrations.memory.p38b_compile_safe_hook", "P38B"),
-    ("vllm.sndr_core.integrations._retired.pn19_scoped_max_split", "PN19"),
-    ("vllm.sndr_core.integrations._retired.pn78_post_warmup_cache_release", "PN78"),
+    ("sndr.engines.vllm.patches.memory.p5b_page_size_pad_smaller", "P5b"),
+    ("sndr.engines.vllm.patches.memory.p15b_fa_varlen_clamp", "P15B"),
+    ("sndr.engines.vllm.patches.memory.p38b_compile_safe_hook", "P38B"),
+    ("sndr.engines.vllm._archive.pn19_scoped_max_split", "PN19"),
+    ("sndr.engines.vllm._archive.pn78_post_warmup_cache_release", "PN78"),
 ]
 
 

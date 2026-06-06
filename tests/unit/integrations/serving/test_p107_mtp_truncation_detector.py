@@ -6,7 +6,7 @@ import pytest
 
 
 def _wiring():
-    from vllm.sndr_core.integrations.serving import p107_mtp_truncation_detector as M
+    from sndr.engines.vllm.patches.serving import p107_mtp_truncation_detector as M
     return M
 
 

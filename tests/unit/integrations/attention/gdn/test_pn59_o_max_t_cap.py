@@ -19,7 +19,7 @@ import pytest
 import torch
 
 from vllm.sndr_core.kernels import gdn_scratch_pool as m
-from vllm.sndr_core.kernels.gdn_scratch_pool import GdnScratchPool
+from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
 
 
 @pytest.fixture(autouse=True)

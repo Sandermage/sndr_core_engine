@@ -38,7 +38,7 @@ def test_pn118_v2_md5_workspace_constant_matches_fixture():
     upstream workspace.py at our PROD pin). If the fixture is
     regenerated against a new pin, the constant must be regenerated
     alongside it."""
-    from vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_workspace import (  # noqa: E501
+    from sndr.engines.vllm.patches.attention.turboquant.pn118_v2_md5_workspace import (  # noqa: E501
         PN118_V2_MD5_WORKSPACE_PRE_PATCH_MD5,
     )
     assert PN118_V2_MD5_WORKSPACE_PRE_PATCH_MD5 == _expected_pre_md5()
@@ -47,7 +47,7 @@ def test_pn118_v2_md5_workspace_constant_matches_fixture():
 def test_pn118_v2_md5_workspace_helper_computes_correct_hash():
     """_file_md5() returns the same hash as stdlib hashlib.md5 on
     the same bytes."""
-    from vllm.sndr_core.integrations.attention.turboquant.pn118_v2_md5_workspace import (  # noqa: E501
+    from sndr.engines.vllm.patches.attention.turboquant.pn118_v2_md5_workspace import (  # noqa: E501
         _file_md5,
     )
     assert _file_md5(FIXTURE_PRE) == _expected_pre_md5()
@@ -57,7 +57,7 @@ def test_pn118_v2_md5_workspace_apply_skips_when_md5_mismatches(tmp_path):
     """When the target file md5 does not match
     PN118_V2_MD5_WORKSPACE_PRE_PATCH_MD5, _do_apply() returns
     skipped (no write, no error). Target file is unchanged."""
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         pn118_v2_md5_workspace,
     )
 
@@ -76,7 +76,7 @@ def test_pn118_v2_md5_workspace_apply_writes_post_patch_when_md5_matches(tmp_pat
     """When the target file md5 matches the pre-patch md5, _do_apply()
     overwrites with PN118_V2_MD5_WORKSPACE_POST_PATCH_CONTENT and the
     Genesis marker, then returns applied."""
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         pn118_v2_md5_workspace,
     )
 
@@ -92,7 +92,7 @@ def test_pn118_v2_md5_workspace_apply_writes_post_patch_when_md5_matches(tmp_pat
 def test_pn118_v2_md5_workspace_apply_idempotent_via_marker(tmp_path):
     """Second _do_apply() against an already-patched file returns
     skipped(already_applied) via marker detection — does not re-write."""
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         pn118_v2_md5_workspace,
     )
 

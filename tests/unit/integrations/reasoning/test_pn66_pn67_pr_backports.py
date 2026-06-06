@@ -27,13 +27,13 @@ class TestPN66Registration:
         assert meta["upstream_pr"] == 41696
 
     def test_apply_skipped_when_env_disabled(self, monkeypatch):
-        from vllm.sndr_core.integrations.reasoning import pn66_multiturn_think_leak as p
+        from sndr.engines.vllm.patches.reasoning import pn66_multiturn_think_leak as p
         monkeypatch.delenv("GENESIS_ENABLE_PN66", raising=False)
         status, reason = p.apply()
         assert status == "skipped"
 
     def test_anchor_constants_present(self):
-        from vllm.sndr_core.integrations.reasoning import pn66_multiturn_think_leak as p
+        from sndr.engines.vllm.patches.reasoning import pn66_multiturn_think_leak as p
         assert p.PN66_FIELD_OLD
         assert p.PN66_FIELD_NEW
         assert p.PN66_BLOCK_OLD

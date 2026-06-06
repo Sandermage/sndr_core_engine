@@ -6,7 +6,7 @@ import pytest
 
 
 def _wiring():
-    from vllm.sndr_core.integrations.attention.gdn import pn54_gdn_contiguous_dedup as M
+    from sndr.engines.vllm.patches.attention.gdn import pn54_gdn_contiguous_dedup as M
     return M
 
 

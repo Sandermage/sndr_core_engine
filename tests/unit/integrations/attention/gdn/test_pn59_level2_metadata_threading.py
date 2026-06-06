@@ -28,7 +28,7 @@ import os
 import pytest
 import torch
 
-from vllm.sndr_core.kernels.streaming_gdn_driver import (
+from sndr.engines.vllm.kernels_legacy.streaming_gdn_driver import (
     _slice_chunk_metadata_for_window,
 )
 

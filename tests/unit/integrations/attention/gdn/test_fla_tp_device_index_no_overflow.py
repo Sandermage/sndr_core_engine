@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.kernels.fla_tp_device_index_guard import (
+from sndr.engines.vllm.kernels_legacy.fla_tp_device_index_guard import (
     IndexOverflowReport,
     check_index_overflow,
     index_space_bytes,

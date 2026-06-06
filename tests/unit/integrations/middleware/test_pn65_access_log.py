@@ -13,7 +13,7 @@ import logging
 
 import pytest
 
-from vllm.sndr_core.integrations.middleware.pn65_access_log import (
+from sndr.engines.vllm.patches.middleware.pn65_access_log import (
     GenesisAccessLogReformatter,
     _client_host_from_addr,
     _format_log_line,
@@ -227,7 +227,7 @@ class TestInstallIntoApp:
     def test_first_install_returns_true_and_marks_app(self, monkeypatch):
         monkeypatch.setenv("GENESIS_PN65_KEEP_UVICORN_ACCESS", "1")
         # Reset module-level install flag so this test sees a fresh state
-        from vllm.sndr_core.integrations.middleware import pn65_access_log as p
+        from sndr.engines.vllm.patches.middleware import pn65_access_log as p
         p._PN65_REFORMATTER_INSTALLED = False
         # Detach any reformatter left over from prior tests
         uv = logging.getLogger("uvicorn.access")
@@ -242,7 +242,7 @@ class TestInstallIntoApp:
 
     def test_idempotent_second_install_returns_false(self, monkeypatch):
         monkeypatch.setenv("GENESIS_PN65_KEEP_UVICORN_ACCESS", "1")
-        from vllm.sndr_core.integrations.middleware import pn65_access_log as p
+        from sndr.engines.vllm.patches.middleware import pn65_access_log as p
         p._PN65_REFORMATTER_INSTALLED = False
         uv = logging.getLogger("uvicorn.access")
         for f in list(uv.filters):
@@ -260,13 +260,13 @@ class TestInstallIntoApp:
 
 class TestApplyFunction:
     def test_apply_skipped_when_env_disabled(self, monkeypatch):
-        from vllm.sndr_core.integrations.middleware import pn65_access_log as p
+        from sndr.engines.vllm.patches.middleware import pn65_access_log as p
         monkeypatch.delenv("GENESIS_ENABLE_PN65", raising=False)
         status, reason = p.apply()
         assert status == "skipped"
 
     def test_apply_returns_applied_when_enabled(self, monkeypatch):
-        from vllm.sndr_core.integrations.middleware import pn65_access_log as p
+        from sndr.engines.vllm.patches.middleware import pn65_access_log as p
         monkeypatch.setenv("GENESIS_ENABLE_PN65", "1")
         # Reset module-level install state so apply() actually installs
         p._PN65_REFORMATTER_INSTALLED = False
@@ -296,7 +296,7 @@ def _make_record(name: str, level: int, msg: str = "x") -> logging.LogRecord:
 
 class TestDropUvicornAccessFilter:
     def test_drops_uvicorn_access_info(self):
-        from vllm.sndr_core.integrations.middleware.pn65_access_log import (
+        from sndr.engines.vllm.patches.middleware.pn65_access_log import (
             _DropUvicornAccessInfo,
         )
         f = _DropUvicornAccessInfo()
@@ -305,7 +305,7 @@ class TestDropUvicornAccessFilter:
         assert f.filter(rec) is False
 
     def test_keeps_uvicorn_access_warning(self):
-        from vllm.sndr_core.integrations.middleware.pn65_access_log import (
+        from sndr.engines.vllm.patches.middleware.pn65_access_log import (
             _DropUvicornAccessInfo,
         )
         f = _DropUvicornAccessInfo()
@@ -313,7 +313,7 @@ class TestDropUvicornAccessFilter:
         assert f.filter(rec) is True
 
     def test_keeps_uvicorn_access_error(self):
-        from vllm.sndr_core.integrations.middleware.pn65_access_log import (
+        from sndr.engines.vllm.patches.middleware.pn65_access_log import (
             _DropUvicornAccessInfo,
         )
         f = _DropUvicornAccessInfo()
@@ -321,7 +321,7 @@ class TestDropUvicornAccessFilter:
         assert f.filter(rec) is True
 
     def test_keeps_other_logger_info(self):
-        from vllm.sndr_core.integrations.middleware.pn65_access_log import (
+        from sndr.engines.vllm.patches.middleware.pn65_access_log import (
             _DropUvicornAccessInfo,
         )
         f = _DropUvicornAccessInfo()
@@ -329,7 +329,7 @@ class TestDropUvicornAccessFilter:
         assert f.filter(rec) is True
 
     def test_keeps_uvicorn_error_logger_info(self):
-        from vllm.sndr_core.integrations.middleware.pn65_access_log import (
+        from sndr.engines.vllm.patches.middleware.pn65_access_log import (
             _DropUvicornAccessInfo,
         )
         f = _DropUvicornAccessInfo()
@@ -339,7 +339,7 @@ class TestDropUvicornAccessFilter:
 
 @pytest.fixture
 def _reset_pn65_filter_install():
-    from vllm.sndr_core.integrations.middleware import pn65_access_log as p
+    from sndr.engines.vllm.patches.middleware import pn65_access_log as p
 
     def _strip():
         for logger in (logging.getLogger(), logging.getLogger("uvicorn.access")):

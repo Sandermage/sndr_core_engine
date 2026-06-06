@@ -40,7 +40,7 @@ from __future__ import annotations
 
 def test_p38b_wiring_imports():
     """P38B wiring module imports cleanly."""
-    from vllm.sndr_core.integrations.memory import p38b_compile_safe_hook as patch_38b_compile_safe_hook
+    from sndr.engines.vllm.patches.memory import p38b_compile_safe_hook as patch_38b_compile_safe_hook
     assert hasattr(patch_38b_compile_safe_hook, "apply")
     assert hasattr(patch_38b_compile_safe_hook, "is_applied")
     assert hasattr(patch_38b_compile_safe_hook, "_install_dispatcher")
@@ -58,7 +58,7 @@ def test_p38b_dispatcher_registry():
 def test_p38b_skips_when_env_off(monkeypatch):
     """When env is OFF, apply() returns 'skipped' with opt-in reason."""
     monkeypatch.delenv("GENESIS_ENABLE_P38B_COMPILE_SAFE", raising=False)
-    from vllm.sndr_core.integrations.memory.p38b_compile_safe_hook import apply
+    from sndr.engines.vllm.patches.memory.p38b_compile_safe_hook import apply
     status, reason = apply()
     assert status == "skipped"
     assert "opt-in" in reason.lower()
@@ -66,7 +66,7 @@ def test_p38b_skips_when_env_off(monkeypatch):
 
 def test_p38b_anchor_text_present():
     """P38B uses concrete text anchor + replacement structure."""
-    from vllm.sndr_core.integrations.memory.p38b_compile_safe_hook import (
+    from sndr.engines.vllm.patches.memory.p38b_compile_safe_hook import (
         P38B_ANCHOR, P38B_REPLACEMENT, GENESIS_P38B_MARKER,
     )
     # Anchor includes docstring close + first body line of _continuation_prefill
@@ -86,7 +86,7 @@ def test_p38b_hook_falls_through_on_none():
     Verifies the replacement code structure: `if _r is not None: return _r`
     means None falls through to original body. This is the contract.
     """
-    from vllm.sndr_core.integrations.memory.p38b_compile_safe_hook import (
+    from sndr.engines.vllm.patches.memory.p38b_compile_safe_hook import (
         P38B_REPLACEMENT,
     )
     # Critical check: dispatcher result is gated on `is not None`
@@ -103,7 +103,7 @@ def test_p38b_hook_falls_through_on_none():
 
 def test_p15b_wiring_imports():
     """P15B wiring module imports cleanly."""
-    from vllm.sndr_core.integrations.memory import p15b_fa_varlen_clamp as patch_15B_fa_varlen_clamp
+    from sndr.engines.vllm.patches.memory import p15b_fa_varlen_clamp as patch_15B_fa_varlen_clamp
     assert hasattr(patch_15B_fa_varlen_clamp, "apply")
     assert hasattr(patch_15B_fa_varlen_clamp, "is_applied")
 
@@ -120,7 +120,7 @@ def test_p15b_dispatcher_registry():
 def test_p15b_skips_when_env_off(monkeypatch):
     """When env is OFF, apply() returns 'skipped'."""
     monkeypatch.delenv("GENESIS_ENABLE_P15B_FA_VARLEN_CLAMP", raising=False)
-    from vllm.sndr_core.integrations.memory.p15b_fa_varlen_clamp import apply
+    from sndr.engines.vllm.patches.memory.p15b_fa_varlen_clamp import apply
     status, reason = apply()
     assert status == "skipped"
     assert "opt-in" in reason.lower()
@@ -128,7 +128,7 @@ def test_p15b_skips_when_env_off(monkeypatch):
 
 def test_p15b_anchor_targets_flash_attn_varlen():
     """P15B anchor targets the right function signature."""
-    from vllm.sndr_core.integrations.memory.p15b_fa_varlen_clamp import (
+    from sndr.engines.vllm.patches.memory.p15b_fa_varlen_clamp import (
         P15B_ANCHOR, P15B_REPLACEMENT, GENESIS_P15B_MARKER,
     )
     # Anchor must match _flash_attn_varlen function signature
@@ -152,7 +152,7 @@ def test_p15b_clamp_uses_min_not_replace():
     max_seqlen_k, never increase. If the heuristic actual > original
     max, the original wins.
     """
-    from vllm.sndr_core.integrations.memory.p15b_fa_varlen_clamp import (
+    from sndr.engines.vllm.patches.memory.p15b_fa_varlen_clamp import (
         P15B_REPLACEMENT,
     )
     assert "max_seqlen_k = min(max_seqlen_k, _genesis_p15b_actual)" in P15B_REPLACEMENT
@@ -163,7 +163,7 @@ def test_p15b_clamp_uses_min_not_replace():
 
 def test_p15b_handles_batch_1_fast_path():
     """P15B handles batch=1 (continuation prefill) without diff().max() overhead."""
-    from vllm.sndr_core.integrations.memory.p15b_fa_varlen_clamp import (
+    from sndr.engines.vllm.patches.memory.p15b_fa_varlen_clamp import (
         P15B_REPLACEMENT,
     )
     # batch=1: cu_seqlens_k has shape [2] (start, end). Direct indexing.
@@ -183,10 +183,10 @@ def test_p38b_and_p15b_both_applicable_to_turboquant_attn():
     P15B targets _flash_attn_varlen signature (around line 300).
     They edit different functions, so anchors must be disjoint.
     """
-    from vllm.sndr_core.integrations.memory.p38b_compile_safe_hook import (
+    from sndr.engines.vllm.patches.memory.p38b_compile_safe_hook import (
         P38B_ANCHOR,
     )
-    from vllm.sndr_core.integrations.memory.p15b_fa_varlen_clamp import (
+    from sndr.engines.vllm.patches.memory.p15b_fa_varlen_clamp import (
         P15B_ANCHOR,
     )
     # P38B anchor mentions _continuation_prefill behavior

@@ -33,10 +33,10 @@ import pytest
 
 # (module path, patch ID) — env_flag derived from registry (source of truth)
 MOE_PATCHES = [
-    ("vllm.sndr_core.integrations.moe.p24_moe_tune", "P24"),
-    ("vllm.sndr_core.integrations.moe.p31_router_softmax", "P31"),
-    ("vllm.sndr_core.integrations.moe.p37_moe_intermediate_cache", "P37"),
-    ("vllm.sndr_core.integrations.moe.pn27_revert_pluggable_moe", "PN27"),
+    ("sndr.engines.vllm.patches.moe.p24_moe_tune", "P24"),
+    ("sndr.engines.vllm.patches.moe.p31_router_softmax", "P31"),
+    ("sndr.engines.vllm.patches.moe.p37_moe_intermediate_cache", "P37"),
+    ("sndr.engines.vllm.patches.moe.pn27_revert_pluggable_moe", "PN27"),
 ]
 
 

@@ -10,11 +10,11 @@ from tests.unit.integrations._family_contract_helpers import (
 )
 
 PATCHES = [
-    ("vllm.sndr_core.integrations.serving.p62_structured_output_spec_decode_timing", "P62"),
-    ("vllm.sndr_core.integrations.serving.p68_69_long_ctx_tool_adherence", "P68"),
-    ("vllm.sndr_core.integrations.serving.p68_69_long_ctx_tool_adherence", "P69"),
-    ("vllm.sndr_core.integrations.serving.p107_mtp_truncation_detector", "P107"),
-    ("vllm.sndr_core.integrations.serving.pn70_tool_schema_subset_filter", "PN70"),
+    ("sndr.engines.vllm.patches.serving.p62_structured_output_spec_decode_timing", "P62"),
+    ("sndr.engines.vllm.patches.serving.p68_69_long_ctx_tool_adherence", "P68"),
+    ("sndr.engines.vllm.patches.serving.p68_69_long_ctx_tool_adherence", "P69"),
+    ("sndr.engines.vllm.patches.serving.p107_mtp_truncation_detector", "P107"),
+    ("sndr.engines.vllm.patches.serving.pn70_tool_schema_subset_filter", "PN70"),
 ]
 
 

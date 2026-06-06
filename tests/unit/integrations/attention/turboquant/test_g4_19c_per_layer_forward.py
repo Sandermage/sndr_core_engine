@@ -38,7 +38,7 @@ def test_companion_module_imports():
     """Phase 7.G4.G4_19C-FULLGRAPH-AUDIT (iter-3): the companion
     module exists and exports the contracted symbols."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_per_layer_forward as pl,
     )
     for sym in (
@@ -54,7 +54,7 @@ def test_setup_sets_module_constants():
     """setup() wires _WRITE_FN, _READ_FN, _BLOCK_SIZE so the active
     forward can reach them as install-time constants."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_per_layer_forward as pl,
     )
 
@@ -78,7 +78,7 @@ def test_make_per_layer_forward_inactive_returns_original_unchanged():
     original forward (eager-pass; indistinguishable from
     'G4_19c never touched this layer')."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_per_layer_forward as pl,
     )
 
@@ -96,7 +96,7 @@ def test_make_per_layer_forward_active_returns_active_forward():
     """When ``do_roundtrip=True`` the factory returns the shared
     ``_active_forward`` from the companion module."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_per_layer_forward as pl,
     )
 
@@ -132,7 +132,7 @@ def test_active_forward_source_is_dynamo_clean():
     pytest.importorskip("torch")
     import ast
     import textwrap
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_per_layer_forward as pl,
     )
 
@@ -196,7 +196,7 @@ def test_active_forward_calls_roundtrip_kernel_entry():
     """Sanity check: the active forward must reach the round-trip
     kernel entry point exactly twice (one K, one V)."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_per_layer_forward as pl,
     )
     src = inspect.getsource(pl._active_forward)
@@ -213,7 +213,7 @@ def test_active_forward_attends_to_buffer_attribute():
     attribute (Dynamo-traceable tensor read), not via any lookup
     helper."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_per_layer_forward as pl,
     )
     src = inspect.getsource(pl._active_forward)
@@ -238,7 +238,7 @@ def test_roundtrip_kernel_entry_is_allow_in_graph_decorated():
     """
     pytest.importorskip("torch")
     import torch
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_per_layer_forward as pl,
     )
     fn = pl._g4_19c_roundtrip_tensor
@@ -283,11 +283,11 @@ def test_decide_layer_active_kv_shared_returns_false():
     """_decide_layer_active must return False for KV-shared layers
     even when the registry is active."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_attention_wrapper as mod,
         g4_19_config_registry as reg,
     )
-    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
+    from sndr.engines.vllm.patches.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
 
@@ -307,11 +307,11 @@ def test_decide_layer_active_sliding_returns_false_when_not_forced():
     """Sliding-attention layers default to False (round-trip overhead
     not justified at sliding_window=1024)."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_attention_wrapper as mod,
         g4_19_config_registry as reg,
     )
-    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
+    from sndr.engines.vllm.patches.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
 
@@ -334,11 +334,11 @@ def test_decide_layer_active_sliding_returns_true_when_forced():
     """Operator override (GENESIS_G4_19C_FORCE_ALL_LAYERS=1) overrides
     the sliding skip — frozen at apply() time."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_attention_wrapper as mod,
         g4_19_config_registry as reg,
     )
-    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
+    from sndr.engines.vllm.patches.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
 
@@ -360,11 +360,11 @@ def test_decide_layer_active_sliding_returns_true_when_forced():
 def test_decide_layer_active_full_attention_returns_true():
     """Full-attention non-shared layers (the production target) round-trip."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_attention_wrapper as mod,
         g4_19_config_registry as reg,
     )
-    from vllm.sndr_core.integrations.attention.turboquant.kernels.g4_tq_cache import (
+    from sndr.engines.vllm.patches.attention.turboquant.kernels.g4_tq_cache import (
         G4TurboQuantConfig,
     )
 
@@ -386,7 +386,7 @@ def test_decide_layer_active_full_attention_returns_true():
 def test_decide_layer_active_empty_registry_returns_false():
     """No active config → no round-trip, regardless of layer type."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_attention_wrapper as mod,
         g4_19_config_registry as reg,
     )
@@ -415,7 +415,7 @@ def test_apply_no_longer_class_level_forward_monkeypatches():
     pattern is gone.
     """
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_attention_wrapper as mod,
     )
     src = Path(mod.__file__).read_text()
@@ -433,7 +433,7 @@ def test_apply_wires_companion_module_via_setup():
     the active forward reaches its kernel constants. Static check on
     the wrapper's source."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_attention_wrapper as mod,
     )
     src = Path(mod.__file__).read_text()
@@ -448,7 +448,7 @@ def test_wrapped_init_installs_per_instance_forward_via_methodtype():
     """``_wrapped_init`` must use ``types.MethodType`` to install the
     per-instance forward. Static check on the wrapper's source."""
     pytest.importorskip("torch")
-    from vllm.sndr_core.integrations.attention.turboquant import (
+    from sndr.engines.vllm.patches.attention.turboquant import (
         g4_19c_attention_wrapper as mod,
     )
     src = Path(mod.__file__).read_text()

@@ -6,7 +6,7 @@ import pytest
 
 
 def _wiring():
-    from vllm.sndr_core.integrations.reasoning import pn58_spec_reasoning_boundary as M
+    from sndr.engines.vllm.patches.reasoning import pn58_spec_reasoning_boundary as M
     return M
 
 
@@ -105,7 +105,7 @@ def test_mutex_with_p62_skips_when_p62_active(monkeypatch):
     """Apply check must SKIP cleanly when P62 active."""
     monkeypatch.setenv("GENESIS_ENABLE_PN58_SPEC_REASONING_BOUNDARY", "1")
     monkeypatch.setenv("GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING", "1")
-    from vllm.sndr_core.integrations.reasoning import pn58_spec_reasoning_boundary as M
+    from sndr.engines.vllm.patches.reasoning import pn58_spec_reasoning_boundary as M
     status, reason = M.apply()
     assert status == "skipped"
     assert "P62" in reason

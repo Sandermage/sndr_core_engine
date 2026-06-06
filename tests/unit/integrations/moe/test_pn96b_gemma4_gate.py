@@ -18,7 +18,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _reset_pn96b_state():
     """Reset module-level state so each test starts clean."""
-    from vllm.sndr_core.integrations.moe import (
+    from sndr.engines.vllm.patches.moe import (
         pn96b_marlin_persistent_workspace as mod,
     )
     mod._APPLY_INSTALLED = False
@@ -80,7 +80,7 @@ def _make_qwen_vllm_config():
 
 def test_pn96b_skips_on_gemma4_arch(monkeypatch):
     """When vllm_config carries a Gemma 4 architecture, apply() must skip."""
-    from vllm.sndr_core.integrations.moe import (
+    from sndr.engines.vllm.patches.moe import (
         pn96b_marlin_persistent_workspace as mod,
     )
     monkeypatch.delenv("GENESIS_PN96B_FORCE_GEMMA4", raising=False)
@@ -103,7 +103,7 @@ def test_pn96b_force_gemma4_bypasses_gate(monkeypatch):
     """GENESIS_PN96B_FORCE_GEMMA4=1 must allow apply() to proceed past
     the gemma4 gate (subsequent gates may still skip — but NOT the
     gemma4 one)."""
-    from vllm.sndr_core.integrations.moe import (
+    from sndr.engines.vllm.patches.moe import (
         pn96b_marlin_persistent_workspace as mod,
     )
     monkeypatch.setenv("GENESIS_PN96B_FORCE_GEMMA4", "1")
@@ -127,7 +127,7 @@ def test_pn96b_force_gemma4_bypasses_gate(monkeypatch):
 
 def test_pn96b_non_gemma4_arch_proceeds(monkeypatch):
     """Non-Gemma4 model (e.g. Qwen3) must NOT be gated by the gemma4 check."""
-    from vllm.sndr_core.integrations.moe import (
+    from sndr.engines.vllm.patches.moe import (
         pn96b_marlin_persistent_workspace as mod,
     )
     monkeypatch.delenv("GENESIS_PN96B_FORCE_GEMMA4", raising=False)
@@ -149,7 +149,7 @@ def test_pn96b_non_gemma4_arch_proceeds(monkeypatch):
 def test_pn96b_missing_vllm_config_proceeds(monkeypatch):
     """get_current_vllm_config() returning None must not trip the gate
     (fail-open: skip the gemma4 check, let platform gate decide)."""
-    from vllm.sndr_core.integrations.moe import (
+    from sndr.engines.vllm.patches.moe import (
         pn96b_marlin_persistent_workspace as mod,
     )
     monkeypatch.delenv("GENESIS_PN96B_FORCE_GEMMA4", raising=False)
@@ -169,7 +169,7 @@ def test_pn96b_missing_vllm_config_proceeds(monkeypatch):
 def test_pn96b_disable_wins_over_gemma4_gate(monkeypatch):
     """GENESIS_DISABLE_PN96B=1 short-circuits BEFORE the gemma4 probe;
     skip reason mentions explicit disable, not gemma4."""
-    from vllm.sndr_core.integrations.moe import (
+    from sndr.engines.vllm.patches.moe import (
         pn96b_marlin_persistent_workspace as mod,
     )
     monkeypatch.setenv("GENESIS_DISABLE_PN96B", "1")

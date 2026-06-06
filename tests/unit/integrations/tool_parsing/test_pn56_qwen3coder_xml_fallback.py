@@ -6,7 +6,7 @@ import pytest
 
 
 def _wiring():
-    from vllm.sndr_core.integrations.tool_parsing import pn56_qwen3coder_xml_fallback as M
+    from sndr.engines.vllm.patches.tool_parsing import pn56_qwen3coder_xml_fallback as M
     return M
 
 

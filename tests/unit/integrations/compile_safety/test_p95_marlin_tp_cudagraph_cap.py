@@ -22,7 +22,7 @@ import re
 
 import pytest
 
-from vllm.sndr_core.integrations.compile_safety.p95_marlin_tp_cudagraph_cap import (
+from sndr.engines.vllm.patches.compile_safety.p95_marlin_tp_cudagraph_cap import (
     GENESIS_P95_MARKER,
     P95_CAP_NEW,
     P95_CAP_OLD,

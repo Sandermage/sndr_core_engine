@@ -22,13 +22,13 @@ from __future__ import annotations
 
 class TestPN19ModuleStructure:
     def test_module_importable(self):
-        from vllm.sndr_core.integrations._retired import pn19_scoped_max_split as patch_N19_scoped_max_split  # noqa: F401
+        from sndr.engines.vllm.patches._retired import pn19_scoped_max_split as patch_N19_scoped_max_split  # noqa: F401
 
     def test_helper_anchor_targets_init_device(self):
         """The helper-injection sub-patch anchors on the @instrument
         decorator + def init_device line — that's the unique 2-line
         block immediately after _maybe_get_memory_pool_context."""
-        from vllm.sndr_core.integrations._retired.pn19_scoped_max_split import (
+        from sndr.engines.vllm._archive.pn19_scoped_max_split import (
             PN19_HELPER_OLD,
             PN19_HELPER_NEW,
         )
@@ -42,7 +42,7 @@ class TestPN19ModuleStructure:
     def test_load_model_anchor_preserves_existing_context(self):
         """Wrapping load_model must KEEP the two existing context
         managers; if we accidentally drop one, model loading breaks."""
-        from vllm.sndr_core.integrations._retired.pn19_scoped_max_split import (
+        from sndr.engines.vllm._archive.pn19_scoped_max_split import (
             LOAD_MODEL_NEW,
         )
         # Must keep both upstream contexts
@@ -59,7 +59,7 @@ class TestPN19MaxSplitValue:
         """PyTorch's allowed minimum for max_split_size_mb is 20 MiB.
         PR #41268 chose this value deliberately. Don't bikeshed it
         upward without measurement."""
-        from vllm.sndr_core.integrations._retired.pn19_scoped_max_split import (
+        from sndr.engines.vllm._archive.pn19_scoped_max_split import (
             LOAD_MODEL_NEW,
         )
         assert "max_split_size_mb=20" in LOAD_MODEL_NEW, (
@@ -75,7 +75,7 @@ class TestPN19TorchVersionFallback:
     older torch."""
 
     def test_helper_includes_torch_fallback(self):
-        from vllm.sndr_core.integrations._retired.pn19_scoped_max_split import (
+        from sndr.engines.vllm._archive.pn19_scoped_max_split import (
             PN19_HELPER_NEW,
         )
         assert "torch._C._accelerator_setAllocatorSettings" in PN19_HELPER_NEW
@@ -87,7 +87,7 @@ class TestPN19TorchVersionFallback:
     def test_helper_includes_cuda_check(self):
         """Non-CUDA platforms (CPU, ROCm with different API) must yield
         early."""
-        from vllm.sndr_core.integrations._retired.pn19_scoped_max_split import (
+        from sndr.engines.vllm._archive.pn19_scoped_max_split import (
             PN19_HELPER_NEW,
         )
         assert "current_platform.is_cuda()" in PN19_HELPER_NEW
@@ -96,7 +96,7 @@ class TestPN19TorchVersionFallback:
         """On exit, prior PYTORCH_CUDA_ALLOC_CONF max_split_size_mb
         value MUST be restored. Otherwise we leak the 20 MiB setting
         into post-load runtime."""
-        from vllm.sndr_core.integrations._retired.pn19_scoped_max_split import (
+        from sndr.engines.vllm._archive.pn19_scoped_max_split import (
             PN19_HELPER_NEW,
         )
         assert "original_value" in PN19_HELPER_NEW
@@ -107,7 +107,7 @@ class TestPN19TorchVersionFallback:
 class TestPN19EnvGate:
     def test_apply_skipped_when_env_unset(self, monkeypatch):
         monkeypatch.delenv("GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT", raising=False)
-        from vllm.sndr_core.integrations._retired.pn19_scoped_max_split import (
+        from sndr.engines.vllm._archive.pn19_scoped_max_split import (
             apply,
         )
         status, reason = apply()
@@ -119,7 +119,7 @@ class TestPN19EnvGate:
         unverified-on-Ampere status so operators see the institutional
         rationale."""
         monkeypatch.delenv("GENESIS_ENABLE_PN19_SCOPED_MAX_SPLIT", raising=False)
-        from vllm.sndr_core.integrations._retired.pn19_scoped_max_split import (
+        from sndr.engines.vllm._archive.pn19_scoped_max_split import (
             apply,
         )
         _, reason = apply()
@@ -127,7 +127,7 @@ class TestPN19EnvGate:
         assert "200-500" in reason or "fragmentation" in reason
 
     def test_env_flag_truthy_values_recognized(self, monkeypatch):
-        from vllm.sndr_core.integrations._retired.pn19_scoped_max_split import (
+        from sndr.engines.vllm._archive.pn19_scoped_max_split import (
             _is_enabled,
         )
         for val in ("1", "true", "TRUE", "Yes", "on", "ON"):
@@ -166,7 +166,7 @@ class TestPN19DispatcherIntegration:
 
 class TestPN19DriftMarkers:
     def test_drift_markers_watch_upstream_landing(self):
-        from vllm.sndr_core.integrations._retired.pn19_scoped_max_split import (
+        from sndr.engines.vllm._archive.pn19_scoped_max_split import (
             UPSTREAM_DRIFT_MARKERS,
         )
         markers = "\n".join(UPSTREAM_DRIFT_MARKERS)

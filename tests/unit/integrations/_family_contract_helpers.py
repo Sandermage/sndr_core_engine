@@ -17,7 +17,7 @@ Usage (minimal new family contract file):
     )
 
     PATCHES = [
-        ("vllm.sndr_core.integrations.<fam>.<file>", "PATCH_ID"),
+        ("sndr.engines.vllm.patches.<fam>.<file>", "PATCH_ID"),
         ...
     ]
 
@@ -62,10 +62,13 @@ import pytest
 def _registry_path() -> Path:
     """Resolve repo's PATCH_REGISTRY source path from this helpers module."""
     # parents: [tests/unit/integrations, tests/unit, tests, repo_root]
-    return (
-        Path(__file__).resolve().parents[3]
-        / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
-    )
+    # v12.x moved the registry to sndr/dispatcher/registry.py; the old
+    # vllm/sndr_core path is now a re-export shim with no literal to parse.
+    repo_root = Path(__file__).resolve().parents[3]
+    canonical = repo_root / "sndr" / "dispatcher" / "registry.py"
+    if canonical.is_file():
+        return canonical
+    return repo_root / "vllm" / "sndr_core" / "dispatcher" / "registry.py"
 
 
 def get_registry_field(patch_id: str, field: str) -> str | None:

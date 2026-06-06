@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.integrations.kernels.p87_marlin_pad_sub_tile import (
+from sndr.engines.vllm.patches.kernels.p87_marlin_pad_sub_tile import (
     GENESIS_P87_MARKER,
     P87_APPLY_NEW,
     P87_APPLY_OLD,
