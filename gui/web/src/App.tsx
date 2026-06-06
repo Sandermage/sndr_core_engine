@@ -8684,6 +8684,9 @@ function PatchInventoryControl({ patches }: { patches: PatchRow[] }) {
     );
   });
   const selectedPatch = visibleRows.find((patch) => patch.patch_id === selectedPatchId) ?? visibleRows[0] ?? null;
+  // Set of every registered patch id — lets the explain panel turn
+  // requires/conflicts into clickable links to navigable patches.
+  const patchIdSet = useMemo(() => new Set(patches.map((p) => p.patch_id)), [patches]);
   const familyGroups = useMemo(() => {
     const map = new Map<string, PatchRow[]>();
     visibleRows.forEach((patch) => {
@@ -8819,6 +8822,8 @@ function PatchInventoryControl({ patches }: { patches: PatchRow[] }) {
           detail={patchExplain}
           state={patchExplainState}
           error={patchExplainError}
+          allPatchIds={patchIdSet}
+          onSelectPatch={(id) => setSelectedPatchId(id)}
           override={overrides[selectedPatch?.patch_id ?? ""]?.state ?? "default"}
           overrideCount={Object.keys(overrides).length}
           onSetOverride={async (state) => {
@@ -8901,7 +8906,9 @@ function PatchExplainPanel({
   error,
   override,
   overrideCount,
-  onSetOverride
+  onSetOverride,
+  allPatchIds,
+  onSelectPatch
 }: {
   patch: PatchRow | null;
   detail: PatchExplainResult | null;
@@ -8910,6 +8917,8 @@ function PatchExplainPanel({
   override: string;
   overrideCount: number;
   onSetOverride: (state: string) => void;
+  allPatchIds: Set<string>;
+  onSelectPatch: (id: string) => void;
 }) {
   if (!patch) {
     return (
@@ -8990,10 +8999,24 @@ function PatchExplainPanel({
       {(requires.length > 0 || conflicts.length > 0) && (
         <div className="patch-deps">
           {requires.length > 0 && (
-            <div><span className="patch-dep-label">Requires</span><div className="chip-row">{requires.map((r) => <span className="chip" key={r}>{r}</span>)}</div></div>
+            <div>
+              <span className="patch-dep-label">Requires</span>
+              <div className="chip-row">
+                {requires.map((r) => allPatchIds.has(r)
+                  ? <button type="button" className="chip chip-link" key={r} onClick={() => onSelectPatch(r)} title={`Open ${r} in the registry`}>{r} →</button>
+                  : <span className="chip chip-unknown" key={r} title="Not present in the current registry view">{r}</span>)}
+              </div>
+            </div>
           )}
           {conflicts.length > 0 && (
-            <div><span className="patch-dep-label danger">Conflicts with</span><div className="chip-row">{conflicts.map((c) => <span className="chip danger" key={c}>{c}</span>)}</div></div>
+            <div>
+              <span className="patch-dep-label danger">Conflicts with</span>
+              <div className="chip-row">
+                {conflicts.map((c) => allPatchIds.has(c)
+                  ? <button type="button" className="chip danger chip-link" key={c} onClick={() => onSelectPatch(c)} title={`Open ${c} in the registry`}>{c} →</button>
+                  : <span className="chip danger chip-unknown" key={c} title="Not present in the current registry view">{c}</span>)}
+              </div>
+            </div>
           )}
         </div>
       )}

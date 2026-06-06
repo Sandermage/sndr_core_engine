@@ -2053,6 +2053,12 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .preset-quick-workloads { display: flex; flex-direction: column; gap: 6px; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 5px; }
 .chip { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-text); border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); }
+button.chip { font-family: inherit; line-height: 1.2; }
+.chip-link { cursor: pointer; transition: background .12s ease, transform .06s ease; }
+.chip-link:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.chip-link:active { transform: translateY(1px); }
+.chip-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chip-unknown { opacity: .55; font-style: italic; }
 .preset-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
 .primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 600; background: var(--accent); color: var(--accent-contrast); box-shadow: var(--shadow-sm); transition: background .12s, transform .06s; }
 .primary-button:hover { background: var(--accent-strong); }
