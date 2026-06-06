@@ -5,7 +5,6 @@ import { render, screen, cleanup, waitFor } from "@testing-library/react";
 vi.mock("../api", () => ({
   api: { caveats: vi.fn(), configKeys: vi.fn(), traces: vi.fn() },
 }));
-// eslint-disable-next-line import/first
 import { api } from "../api";
 import { CaveatsPanel, ConfigKeysPanel, TracesPanel } from "./diagnostics";
 
