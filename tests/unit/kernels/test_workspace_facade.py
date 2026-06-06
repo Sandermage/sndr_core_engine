@@ -43,7 +43,7 @@ class _FakeLayer:
 
 def test_p98_disabled_returns_use_manager(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.delenv("GENESIS_ENABLE_P98_TQ_WORKSPACE_REVERT", raising=False)
+    monkeypatch.delenv("GENESIS_ENABLE_P98", raising=False)
     d = WorkspaceFacade.decide_decode_path(layer=_FakeLayer("a", "b", "c"))
     assert d.verdict == "use_manager"
     assert "P98 disabled" in d.reason
@@ -51,7 +51,7 @@ def test_p98_disabled_returns_use_manager(monkeypatch):
 
 def test_p98_enabled_non_decode_returns_use_manager(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P98_TQ_WORKSPACE_REVERT", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P98", "1")
     d = WorkspaceFacade.decide_decode_path(
         layer=_FakeLayer("a", "b", "c"), is_decode=False,
     )
@@ -61,7 +61,7 @@ def test_p98_enabled_non_decode_returns_use_manager(monkeypatch):
 
 def test_p98_enabled_decode_legacy_attrs_returns_fast_path(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P98_TQ_WORKSPACE_REVERT", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P98", "1")
     layer = _FakeLayer(mid_o="MID", output="OUT", lse="LSE")
     d = WorkspaceFacade.decide_decode_path(layer=layer)
     assert d.verdict == "use_fast_path"
@@ -70,7 +70,7 @@ def test_p98_enabled_decode_legacy_attrs_returns_fast_path(monkeypatch):
 
 def test_p98_enabled_decode_no_legacy_attrs_falls_back_to_manager(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P98_TQ_WORKSPACE_REVERT", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P98", "1")
     layer = _FakeLayer(mid_o=None, output=None, lse=None)
     d = WorkspaceFacade.decide_decode_path(layer=layer)
     assert d.verdict == "use_manager"
@@ -79,14 +79,14 @@ def test_p98_enabled_decode_no_legacy_attrs_falls_back_to_manager(monkeypatch):
 
 def test_p98_enabled_decode_none_layer_falls_back(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P98_TQ_WORKSPACE_REVERT", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P98", "1")
     d = WorkspaceFacade.decide_decode_path(layer=None)
     assert d.verdict == "use_manager"
 
 
 def test_p98_counters_track_decisions(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P98_TQ_WORKSPACE_REVERT", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P98", "1")
     layer = _FakeLayer("a", "b", "c")
     for _ in range(3):
         WorkspaceFacade.decide_decode_path(layer=layer)
@@ -101,7 +101,7 @@ def test_p98_counters_track_decisions(monkeypatch):
 
 def test_p99_disabled_always_returns_miss(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.delenv("GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE", raising=False)
+    monkeypatch.delenv("GENESIS_ENABLE_P99", raising=False)
     d = WorkspaceFacade.lookup_memo(
         shapes_and_dtypes_key=("shape", "dtype"),
         ubatch_id=0, ws_ptr=12345,
@@ -112,7 +112,7 @@ def test_p99_disabled_always_returns_miss(monkeypatch):
 
 def test_p99_store_disabled_is_noop(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.delenv("GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE", raising=False)
+    monkeypatch.delenv("GENESIS_ENABLE_P99", raising=False)
     d = WorkspaceFacade.store_memo(("k",), 0, 1, ["t1", "t2"])
     assert d.verdict == "noop"
     assert WorkspaceFacade.memo_size() == 0
@@ -120,7 +120,7 @@ def test_p99_store_disabled_is_noop(monkeypatch):
 
 def test_p99_store_then_lookup_hits(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P99", "1")
     WorkspaceFacade.store_memo(("k",), 0, 1, ["t1", "t2"])
     d = WorkspaceFacade.lookup_memo(("k",), 0, 1)
     assert d.verdict == "cache_hit"
@@ -131,7 +131,7 @@ def test_p99_different_ws_ptr_misses_cache(monkeypatch):
     """ws_ptr discrimination: a new workspace allocation invalidates
     cached views from the old allocation."""
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P99", "1")
     WorkspaceFacade.store_memo(("k",), 0, 1, ["t1"])
     d = WorkspaceFacade.lookup_memo(("k",), 0, 2)  # different ws_ptr
     assert d.verdict == "cache_miss"
@@ -139,7 +139,7 @@ def test_p99_different_ws_ptr_misses_cache(monkeypatch):
 
 def test_p99_different_ubatch_misses_cache(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P99", "1")
     WorkspaceFacade.store_memo(("k",), 0, 1, ["t1"])
     d = WorkspaceFacade.lookup_memo(("k",), 1, 1)  # different ubatch
     assert d.verdict == "cache_miss"
@@ -147,7 +147,7 @@ def test_p99_different_ubatch_misses_cache(monkeypatch):
 
 def test_p99_fifo_eviction_when_over_capacity(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P99", "1")
     # Shrink cache for the test
     original_max = WorkspaceFacade._MEMO_MAX_ENTRIES
     WorkspaceFacade._MEMO_MAX_ENTRIES = 3
@@ -171,7 +171,7 @@ def test_p99_store_refresh_on_existing_key(monkeypatch):
     """Re-storing an existing key updates the stored views, doesn't
     create a duplicate entry."""
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P99", "1")
     WorkspaceFacade.store_memo(("k",), 0, 1, ["v1"])
     WorkspaceFacade.store_memo(("k",), 0, 1, ["v2"])
     assert WorkspaceFacade.memo_size() == 1
@@ -186,7 +186,7 @@ def test_p99_store_refresh_on_existing_key(monkeypatch):
 
 def test_pn118_disabled_returns_pass(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.delenv("GENESIS_ENABLE_PN118_TQ_WORKSPACE_FALLBACK", raising=False)
+    monkeypatch.delenv("GENESIS_ENABLE_PN118", raising=False)
     d = WorkspaceFacade.decide_try_acquire(
         is_locked=True, current_size_bytes=100, required_total_bytes=200,
     )
@@ -196,7 +196,7 @@ def test_pn118_disabled_returns_pass(monkeypatch):
 
 def test_pn118_enabled_unlocked_passes(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_PN118_TQ_WORKSPACE_FALLBACK", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_PN118", "1")
     d = WorkspaceFacade.decide_try_acquire(
         is_locked=False, current_size_bytes=100, required_total_bytes=200,
     )
@@ -206,7 +206,7 @@ def test_pn118_enabled_unlocked_passes(monkeypatch):
 
 def test_pn118_enabled_locked_fitting_request_passes(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_PN118_TQ_WORKSPACE_FALLBACK", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_PN118", "1")
     d = WorkspaceFacade.decide_try_acquire(
         is_locked=True, current_size_bytes=200, required_total_bytes=150,
     )
@@ -216,7 +216,7 @@ def test_pn118_enabled_locked_fitting_request_passes(monkeypatch):
 
 def test_pn118_enabled_locked_undersized_graceful_fallback(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_PN118_TQ_WORKSPACE_FALLBACK", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_PN118", "1")
     d = WorkspaceFacade.decide_try_acquire(
         is_locked=True, current_size_bytes=100, required_total_bytes=200,
     )
@@ -257,7 +257,7 @@ def test_sndr001_enabled_locked_warn_and_grow(monkeypatch):
 
 def test_composition_p98_fast_path_short_circuits_everything(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P98_TQ_WORKSPACE_REVERT", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P98", "1")
     layer = _FakeLayer("a", "b", "c")
     result = WorkspaceFacade.decide_get_simultaneous(
         is_decode=True, layer=layer,
@@ -272,8 +272,8 @@ def test_composition_p98_fast_path_short_circuits_everything(monkeypatch):
 
 def test_composition_p99_cache_hit_short_circuits_pn118_sndr(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.delenv("GENESIS_ENABLE_P98_TQ_WORKSPACE_REVERT", raising=False)
-    monkeypatch.setenv("GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE", "1")
+    monkeypatch.delenv("GENESIS_ENABLE_P98", raising=False)
+    monkeypatch.setenv("GENESIS_ENABLE_P99", "1")
     WorkspaceFacade.store_memo(("k",), 0, 1, ["t1"])
     result = WorkspaceFacade.decide_get_simultaneous(
         is_decode=True, layer=None,
@@ -287,7 +287,7 @@ def test_composition_p99_cache_hit_short_circuits_pn118_sndr(monkeypatch):
 
 def test_composition_pn118_graceful_fallback_chain(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_PN118_TQ_WORKSPACE_FALLBACK", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_PN118", "1")
     result = WorkspaceFacade.decide_get_simultaneous(
         is_decode=True, layer=None,
         shapes_and_dtypes_key=("k",), ubatch_id=0, ws_ptr=1,
@@ -311,9 +311,9 @@ def test_composition_sndr001_warn_grow_when_all_others_pass(monkeypatch):
 def test_composition_all_disabled_returns_normal_acquire(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
     for flag in (
-        "GENESIS_ENABLE_P98_TQ_WORKSPACE_REVERT",
-        "GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE",
-        "GENESIS_ENABLE_PN118_TQ_WORKSPACE_FALLBACK",
+        "GENESIS_ENABLE_P98",
+        "GENESIS_ENABLE_P99",
+        "GENESIS_ENABLE_PN118",
         "GENESIS_ENABLE_SNDR_WORKSPACE_001",
     ):
         monkeypatch.delenv(flag, raising=False)
@@ -332,8 +332,8 @@ def test_composition_all_disabled_returns_normal_acquire(monkeypatch):
 
 def test_summary_reports_env_flags_and_stats(monkeypatch):
     from vllm.sndr_core.kernels.workspace_facade import WorkspaceFacade
-    monkeypatch.setenv("GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE", "1")
-    monkeypatch.setenv("GENESIS_ENABLE_PN118_TQ_WORKSPACE_FALLBACK", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P99", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_PN118", "1")
     WorkspaceFacade.store_memo(("k",), 0, 1, ["t1"])
     WorkspaceFacade.lookup_memo(("k",), 0, 1)
     s = WorkspaceFacade.summary()

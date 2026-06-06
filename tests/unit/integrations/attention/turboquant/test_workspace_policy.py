@@ -99,7 +99,7 @@ def test_env_enabled_reflects_environment(monkeypatch):
     from vllm.sndr_core.integrations.attention.turboquant._workspace_policy import (
         verify_patch_composition,
     )
-    monkeypatch.setenv("GENESIS_ENABLE_P99_WORKSPACE_MANAGER_MEMOIZE", "1")
+    monkeypatch.setenv("GENESIS_ENABLE_P99", "1")
     result = verify_patch_composition()
     # env_flag may differ from the canonical pattern; check the
     # field is bool either way
