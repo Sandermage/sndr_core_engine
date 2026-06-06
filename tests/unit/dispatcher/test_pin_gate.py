@@ -55,6 +55,12 @@ EXPECTED_PINS = (
     "0.21.1rc0+g626fa9bba566",                          # setuptools_scm 12-char SHA form
     "nightly-626fa9bba5663a5cf6a870debf031ee344ddb822", # docker tag form
     "0.20.2rc1.dev733+g626fa9bba5",                     # internal-version derived (confirmed at K.1.R.R.4 first boot)
+    # K.2 pin bump 2026-06-05 — jump through v0.22.0 + v0.22.1 majors.
+    # Upstream da1daf40bf18e5eaae04f26a80a537c8168a8bc2 (#44571). 27B boot
+    # smoke PASS; PROMOTION PENDING full bench validation.
+    "0.22.1rc1.dev195+gda1daf40b",                       # setuptools_scm-derived (closest tag base)
+    "0.22.1rc1.dev195+gda1daf40bf18e5eaae04f26a80a537c8168a8bc2",  # full-SHA form
+    "nightly-da1daf40bf18e5eaae04f26a80a537c8168a8bc2",  # docker tag form
 )
 
 
