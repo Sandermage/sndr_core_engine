@@ -76,6 +76,7 @@ import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useSta
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
 import { useFetch } from "./hooks/useFetch";
 import { asRecord, asText, asNumber, asStringArray, countRecord } from "./lib/coerce";
+import { StatusBadge, StatusPill, InfoRows, CompactList, DoctorStat } from "./components/primitives";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
 import { Skeleton, SkeletonMetrics, SkeletonLines, SkeletonCards, SkeletonTable } from "./Skeleton";
 import {
@@ -2041,19 +2042,7 @@ function PanelHeader({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  return <span className={`status-badge ${status}`}>{status.replace(/_/g, " ")}</span>;
-}
-
-function StatusPill({
-  children,
-  tone = "neutral"
-}: {
-  children: ReactNode;
-  tone?: "success" | "warning" | "danger" | "neutral";
-}) {
-  return <span className={`status-pill ${tone}`}>{children}</span>;
-}
+// StatusBadge / StatusPill extracted to ./components/primitives.
 
 // Switch the standalone GUI between multiple daemon servers. The active server's
 // baseUrl IS the api base — selecting one re-points every API call. Each server
@@ -6262,18 +6251,7 @@ function ModuleCard({
   );
 }
 
-function InfoRows({ rows }: { rows: Array<[string, string | number]> }) {
-  return (
-    <div className="info-rows">
-      {rows.map(([label, value]) => (
-        <div key={label}>
-          <span>{label}</span>
-          <strong>{value}</strong>
-        </div>
-      ))}
-    </div>
-  );
-}
+// InfoRows extracted to ./components/primitives.
 
 function KpiGrid({ rows }: { rows: Array<[string, string | number]> }) {
   return (
@@ -6639,18 +6617,7 @@ function CapabilityTable({ rows }: { rows: ProductCapability[] }) {
   );
 }
 
-function CompactList({ rows }: { rows: Array<[string, string]> }) {
-  return (
-    <div className="compact-list">
-      {rows.length ? rows.map(([label, value], index) => (
-        <div key={`${label}-${value}-${index}`}>
-          <span>{label}</span>
-          <strong>{value}</strong>
-        </div>
-      )) : <p className="muted">No rows for this view.</p>}
-    </div>
-  );
-}
+// CompactList extracted to ./components/primitives.
 
 function WorkflowSteps({ rows }: { rows: Array<[string, string, string]> }) {
   return (
@@ -9196,14 +9163,7 @@ function DoctorSummary({ report }: { report: DoctorReport | null }) {
   );
 }
 
-function DoctorStat({ tone, value, label }: { tone: string; value: number; label: string }) {
-  return (
-    <div className={`doctor-stat tone-${tone}`}>
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  );
-}
+// DoctorStat extracted to ./components/primitives.
 
 function DoctorFindings({ report }: { report: DoctorReport | null }) {
   if (!report) return <p className="muted">Running diagnostics…</p>;
