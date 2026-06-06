@@ -140,6 +140,94 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
           );
         })}
       </div>
+
+      {(hosts || []).length > 0 && <FleetDeployPlanner hosts={hosts!} />}
+    </div>
+  );
+}
+
+// Fleet deploy orchestrator — render the install plan for one preset/target
+// across N selected hosts at once, with a fleet-wide rollup. Read-only
+// (dry-run): the actual apply stays per-host in the Hosts/Setup flow, which
+// is apply+confirm gated. Closes the multihost-deploy gap.
+function FleetDeployPlanner({ hosts }: { hosts: FleetHost[] }) {
+  const [presets, setPresets] = useState<{ id: string; title?: string }[]>([]);
+  const [targets, setTargets] = useState<{ id: string; label?: string }[]>([]);
+  const [preset, setPreset] = useState("");
+  const [target, setTarget] = useState("");
+  const [picked, setPicked] = useState<Record<string, boolean>>({});
+  const [plan, setPlan] = useState<import("./api").FleetDeployPlan | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.presets({}).then((r) => {
+      const list = (r.presets || []).map((p: Record<string, unknown>) => ({ id: String(p.id), title: p.title ? String(p.title) : undefined }));
+      setPresets(list);
+      if (list[0]) setPreset(list[0].id);
+    }).catch(() => {});
+    api.deployTargets().then((r) => {
+      const list = (r.targets || []).map((t: Record<string, unknown>) => ({ id: String(t.id), label: t.label ? String(t.label) : undefined }));
+      setTargets(list);
+      if (list[0]) setTarget(list[0].id);
+    }).catch(() => {});
+  }, []);
+
+  const chosen = hosts.filter((h) => picked[h.id]).map((h) => h.id);
+  async function runPlan() {
+    if (!preset || !target || chosen.length === 0) return;
+    setBusy(true); setErr(null); setPlan(null);
+    try { setPlan(await api.fleetDeployPlan({ preset_id: preset, target, host_ids: chosen })); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="fleet-deploy">
+      <div className="fleet-deploy-head"><Server size={15} /> <strong>Deploy to fleet</strong> <span className="muted">— dry-run plan across N hosts</span></div>
+      <div className="fleet-deploy-controls">
+        <label>Preset
+          <select value={preset} onChange={(e) => setPreset(e.target.value)}>
+            {presets.map((p) => <option key={p.id} value={p.id}>{p.title || p.id}</option>)}
+          </select>
+        </label>
+        <label>Target
+          <select value={target} onChange={(e) => setTarget(e.target.value)}>
+            {targets.map((t) => <option key={t.id} value={t.id}>{t.label || t.id}</option>)}
+          </select>
+        </label>
+        <button className="primary-button" disabled={busy || !preset || !target || chosen.length === 0} onClick={() => void runPlan()}>
+          {busy ? <Loader2 size={14} className="spin" /> : <Server size={14} />} Plan deploy ({chosen.length})
+        </button>
+      </div>
+      <div className="fleet-deploy-hosts">
+        {hosts.map((h) => (
+          <label key={h.id} className={`fleet-deploy-host ${picked[h.id] ? "on" : ""}`}>
+            <input type="checkbox" checked={!!picked[h.id]} onChange={(e) => setPicked((m) => ({ ...m, [h.id]: e.target.checked }))} />
+            {h.label} <span className="muted">{h.host}</span>
+          </label>
+        ))}
+      </div>
+      {err && <div className="fleet-err"><AlertTriangle size={14} /> {err}</div>}
+      {plan && (
+        <div className="fleet-deploy-result">
+          <div className="fleet-deploy-rollup">
+            <span className="chip ok">{plan.rollup.ready} ready</span>
+            {plan.rollup.errors > 0 && <span className="chip danger">{plan.rollup.errors} errors</span>}
+            <span className="chip">{plan.rollup.mutating_steps_total} mutating steps</span>
+            <span className="muted">{plan.rollup.apply_enabled ? "apply enabled — run per-host in Hosts to execute" : "read-only daemon — plan only"}</span>
+          </div>
+          {plan.results.map((r) => (
+            <div className={`fleet-deploy-row ${r.ok ? "ok" : "bad"}`} key={r.host_id}>
+              <span className={`container-dot ${r.ok ? "online" : "offline"}`} />
+              <strong>{r.label || r.host_id}</strong>
+              {r.ok
+                ? <span className="muted">{r.mutating_steps ?? 0} mutating steps</span>
+                : <span className="fleet-deploy-err">{r.error}</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -700,6 +700,61 @@ def create_app(
         except KeyError:
             raise HTTPException(status_code=404, detail=f"Unknown preset: {payload.get('preset_id')}")
 
+    @app.post("/api/v1/fleet/deploy-plan")
+    async def fleet_deploy_plan(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        """Read-only multi-host deploy plan: render the install plan for one
+        preset/target across N selected hosts at once and roll the results up
+        (per-host ready/error + mutating-step counts). Executes NOTHING — the
+        actual apply stays per-host via /install/apply (apply+confirm gated)."""
+        from . import installer
+
+        preset_id = str(payload.get("preset_id", "")).strip()
+        target = str(payload.get("target", "")).strip()
+        host_ids = payload.get("host_ids") or []
+        if not isinstance(host_ids, list) or not host_ids:
+            raise HTTPException(status_code=400, detail="host_ids must be a non-empty list")
+        with_daemon = bool(payload.get("with_daemon"))
+        image_override = str(payload.get("image_override") or "").strip() or None
+
+        profiles = {p.id: p for p in list_host_profiles()}
+        results: list[dict[str, Any]] = []
+        for raw in host_ids:
+            hid = str(raw)
+            profile = profiles.get(hid)
+            if profile is None:
+                results.append({"host_id": hid, "ok": False, "error": "unknown host", "plan": None})
+                continue
+            try:
+                plan = installer.build_install_plan(
+                    host={"label": profile.label, "host": profile.host},
+                    preset_id=preset_id, target=target, host_paths=None,
+                    image_override=image_override, with_daemon=with_daemon,
+                )
+                steps = plan.get("steps", []) if isinstance(plan, dict) else []
+                mutating = sum(1 for s in steps if isinstance(s, dict) and s.get("mutating"))
+                results.append({
+                    "host_id": hid, "label": profile.label, "host": profile.host,
+                    "ok": True, "error": None, "mutating_steps": mutating, "plan": plan,
+                })
+            except ValueError as exc:
+                results.append({"host_id": hid, "label": profile.label, "ok": False, "error": str(exc), "plan": None})
+            except KeyError:
+                results.append({"host_id": hid, "label": profile.label, "ok": False, "error": f"unknown preset: {preset_id}", "plan": None})
+
+        ready = [r for r in results if r["ok"]]
+        return {
+            "preset_id": preset_id,
+            "target": target,
+            "results": results,
+            "rollup": {
+                "hosts": len(results),
+                "ready": len(ready),
+                "errors": len(results) - len(ready),
+                "mutating_steps_total": sum(r.get("mutating_steps", 0) for r in ready),
+                "apply_enabled": apply_on,
+            },
+        }
+
     def _ssh_target_for(host_id: str):
         """Resolve a stored host profile + build its SSH target dict (creds stay
         server-side, keyed by host_id). Raises 404 for an unknown host."""

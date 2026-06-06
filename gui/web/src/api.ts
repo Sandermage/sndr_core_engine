@@ -601,6 +601,14 @@ export type TraceCatalog = {
   traces: TraceSpec[]; categories: string[];
   by_category: Record<string, number>; total: number;
 };
+export type FleetDeployHostResult = {
+  host_id: string; label?: string; host?: string; ok: boolean;
+  error: string | null; mutating_steps?: number; plan: unknown;
+};
+export type FleetDeployPlan = {
+  preset_id: string; target: string; results: FleetDeployHostResult[];
+  rollup: { hosts: number; ready: number; errors: number; mutating_steps_total: number; apply_enabled: boolean };
+};
 
 export type ServiceStep = { order: number; title: string; command: string };
 
@@ -1346,6 +1354,8 @@ export const api = {
   installApply: (host_id: string, preset_id: string, target: string, image_override?: string, with_daemon?: boolean) => postJson<InstallApplyResult>("/api/v1/install/apply", { host_id, preset_id, target, confirm: true, image_override: image_override || undefined, with_daemon: with_daemon || undefined }),
   installNode: (host_id: string, admin_password: string, engine_port?: number) =>
     postJson<NodeSetupResult>("/api/v1/install/node", { host_id, admin_password, engine_port, confirm: true }),
+  fleetDeployPlan: (payload: { preset_id: string; target: string; host_ids: string[]; with_daemon?: boolean; image_override?: string }) =>
+    postJson<FleetDeployPlan>("/api/v1/fleet/deploy-plan", payload),
   calcModels: () => request<CalcModels>("/api/v1/calc/models"),
   calcKv: (payload: Record<string, unknown>) => postJson<KvCalcResult>("/api/v1/calc/kv", payload),
   fleetOverview: () => request<{ hosts: FleetHost[] }>("/api/v1/fleet/overview"),

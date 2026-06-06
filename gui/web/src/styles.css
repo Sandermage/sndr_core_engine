@@ -2088,6 +2088,19 @@ button.chip { font-family: inherit; line-height: 1.2; }
 .trace-head { display: flex; align-items: center; gap: 8px; }
 .trace-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; font-size: 11px; }
 .trace-env { background: var(--accent-soft); color: var(--accent-text); }
+.fleet-deploy { margin-top: 16px; border: 1px solid var(--border); border-radius: var(--r-lg, 10px); padding: 14px; }
+.fleet-deploy-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.fleet-deploy-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 10px; }
+.fleet-deploy-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.fleet-deploy-controls select { padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--r-sm, 6px); background: var(--surface, transparent); color: inherit; font: inherit; }
+.fleet-deploy-hosts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.fleet-deploy-host { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--r-pill, 999px); font-size: 12px; cursor: pointer; }
+.fleet-deploy-host.on { border-color: var(--accent); background: var(--accent-soft); }
+.fleet-deploy-result { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.fleet-deploy-rollup { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.fleet-deploy-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: var(--r-sm, 6px); font-size: 12.5px; }
+.fleet-deploy-row.bad { background: color-mix(in srgb, var(--danger) 7%, transparent); }
+.fleet-deploy-err { color: var(--danger); font-size: 12px; }
 .preset-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
 .primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: var(--r-sm); font-size: 12.5px; font-weight: 600; background: var(--accent); color: var(--accent-contrast); box-shadow: var(--shadow-sm); transition: background .12s, transform .06s; }
 .primary-button:hover { background: var(--accent-strong); }
