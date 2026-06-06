@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { StatusBadge, StatusPill, InfoRows, CompactList, DoctorStat } from "./primitives";
+import { StatusBadge, StatusPill, InfoRows, CompactList, DoctorStat, CapChip } from "./primitives";
 
 afterEach(cleanup);
 
@@ -55,5 +55,17 @@ describe("DoctorStat", () => {
     expect(el!.className).toContain("tone-ok");
     expect(screen.getByText("7")).toBeTruthy();
     expect(screen.getByText("Healthy")).toBeTruthy();
+  });
+});
+
+describe("CapChip", () => {
+  it("renders an on-state chip", () => {
+    const { container } = render(<CapChip on={true} label="GPU" />);
+    expect(container.querySelector(".cap-chip.on")).not.toBeNull();
+    expect(screen.getByText("GPU")).toBeTruthy();
+  });
+  it("renders an off-state chip", () => {
+    const { container } = render(<CapChip on={false} label="Docker" />);
+    expect(container.querySelector(".cap-chip.off")).not.toBeNull();
   });
 });

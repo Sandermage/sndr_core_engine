@@ -3,6 +3,7 @@
 // closure or data dependencies. Extracted from App.tsx (modularization) with
 // no behavior change.
 import { type ReactNode } from "react";
+import { CheckCircle2, CircleAlert } from "lucide-react";
 
 export function StatusBadge({ status }: { status: string }) {
   return <span className={`status-badge ${status}`}>{status.replace(/_/g, " ")}</span>;
@@ -63,5 +64,13 @@ export function KpiGrid({ rows }: { rows: Array<[string, string | number]> }) {
         </div>
       ))}
     </div>
+  );
+}
+
+export function CapChip({ on, label }: { on: boolean; label: string }) {
+  return (
+    <span className={`cap-chip ${on ? "on" : "off"}`}>
+      {on ? <CheckCircle2 size={11} /> : <CircleAlert size={11} />}{label}
+    </span>
   );
 }

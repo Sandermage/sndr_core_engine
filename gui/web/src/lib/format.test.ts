@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, it, expect } from "vitest";
-import { formatAppliesTo, fmtParam, shortWorkload, formatTokens, formatVram } from "./format";
+import { formatAppliesTo, fmtParam, shortWorkload, formatTokens, formatVram, totalVramGiB } from "./format";
 
 describe("formatAppliesTo", () => {
   it("humanizes keys and joins array values", () => {
@@ -53,5 +53,14 @@ describe("formatVram", () => {
     expect(formatVram(0)).toBe("-");
     expect(formatVram("x")).toBe("-");
     expect(formatVram(-5)).toBe("-");
+  });
+});
+
+describe("totalVramGiB", () => {
+  it("sums per-GPU MiB into whole GiB", () => {
+    expect(totalVramGiB([24564, 24564])).toBe(48);
+  });
+  it("returns 0 for an empty list", () => {
+    expect(totalVramGiB([])).toBe(0);
   });
 });

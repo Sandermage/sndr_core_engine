@@ -50,3 +50,8 @@ export function formatVram(value: unknown): string {
   if (!Number.isFinite(mib) || mib <= 0) return "-";
   return `${(mib / 1024).toFixed(1)} GB · ${mib.toLocaleString()} MiB`;
 }
+
+/** Sum a per-GPU VRAM array (MiB) into whole GiB; 0 for an empty list. */
+export function totalVramGiB(vram: number[]): number {
+  return vram.length ? Math.round(vram.reduce((acc, value) => acc + (value || 0), 0) / 1024) : 0;
+}
