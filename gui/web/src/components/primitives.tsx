@@ -5,6 +5,9 @@
 import { type ReactNode } from "react";
 import { CheckCircle2, CircleAlert } from "lucide-react";
 
+/** Readiness-gate status shared by RailCheck and the launch-plan gate logic. */
+export type GateStatus = "pass" | "warning" | "blocked" | "planned";
+
 export function StatusBadge({ status }: { status: string }) {
   return <span className={`status-badge ${status}`}>{status.replace(/_/g, " ")}</span>;
 }
@@ -72,5 +75,32 @@ export function CapChip({ on, label }: { on: boolean; label: string }) {
     <span className={`cap-chip ${on ? "on" : "off"}`}>
       {on ? <CheckCircle2 size={11} /> : <CircleAlert size={11} />}{label}
     </span>
+  );
+}
+
+export function RailStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rail-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+export function RailCheck({
+  label,
+  value,
+  status
+}: {
+  label: string;
+  value: string;
+  status: GateStatus;
+}) {
+  return (
+    <div className={`rail-check ${status}`}>
+      <CheckCircle2 size={14} />
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
