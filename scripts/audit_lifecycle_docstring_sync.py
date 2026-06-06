@@ -46,7 +46,13 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-INTEGRATIONS_DIR = REPO_ROOT / "vllm" / "sndr_core" / "integrations"
+# v12.x moved the patch modules to sndr/engines/vllm/patches/; the old
+# vllm/sndr_core/integrations tree is now re-export shims whose docstrings
+# all read "Backward-compatibility shim" — never the RETIRED/lifecycle
+# stamp the real module carries. Audit the canonical source.
+INTEGRATIONS_DIR = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
+if not INTEGRATIONS_DIR.is_dir():
+    INTEGRATIONS_DIR = REPO_ROOT / "vllm" / "sndr_core" / "integrations"
 
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
