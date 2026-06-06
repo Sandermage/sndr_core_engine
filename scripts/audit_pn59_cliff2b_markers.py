@@ -59,7 +59,10 @@ _LEVEL_2_MARKERS: tuple[tuple[str, str, str], ...] = (
      "GdnScratchPool.acquire_o_output(", "2C+D"),
 )
 
-_TARGET_REL = Path("vllm/sndr_core/kernels/streaming_gdn_driver.py")
+# v12.x relocated the PN59 streaming-GDN driver. The markers live in the
+# canonical source; the old path is now a marker-less re-export shim.
+_TARGET_REL = Path("sndr/engines/vllm/kernels_legacy/streaming_gdn_driver.py")
+_TARGET_REL_LEGACY = Path("vllm/sndr_core/kernels/streaming_gdn_driver.py")
 
 
 @dataclass(slots=True)
@@ -113,6 +116,8 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     target = args.root / _TARGET_REL
+    if not target.is_file():
+        target = args.root / _TARGET_REL_LEGACY
     if not target.is_file():
         sys.stderr.write(
             f"ERROR: target {target} does not exist. PN59 driver missing "
