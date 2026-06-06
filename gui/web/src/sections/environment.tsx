@@ -123,3 +123,53 @@ export function DependencyStackPanel({ env }: { env: EnvironmentReport | null })
     </div>
   );
 }
+
+// Compact environment summary — version badges + dependency/tool columns. A
+// lighter sibling of HostInventoryPanel used where space is tight.
+export function EnvironmentPanel({ env }: { env: EnvironmentReport | null }) {
+  if (!env) return <SkeletonMetrics count={4} />;
+  return (
+    <div className="env-panel">
+      <div className="env-versions">
+        <div className="env-badge">
+          <span>SNDR Core</span>
+          <strong>v{env.sndr_core_version}</strong>
+        </div>
+        <div className={`env-badge ${env.engine_version ? "on" : "off"}`}>
+          <span>{env.engine_name} engine</span>
+          <strong>{env.engine_version ? `v${env.engine_version}` : "not installed"}</strong>
+        </div>
+        <div className="env-badge">
+          <span>Python</span>
+          <strong>{env.python_version}</strong>
+        </div>
+        <div className="env-badge">
+          <span>Platform</span>
+          <strong>{env.os_name} / {env.machine}</strong>
+        </div>
+      </div>
+      <div className="env-grid">
+        <div className="env-col">
+          <strong>Dependency stack</strong>
+          {env.dependencies.map((dep) => (
+            <div className="env-dep" key={dep.name}>
+              <span className={`sev-dot ${dep.present ? "sev-ok" : "sev-warn"}`} />
+              <em>{dep.name}</em>
+              <code>{dep.version ?? "—"}</code>
+            </div>
+          ))}
+        </div>
+        <div className="env-col">
+          <strong>Runtime tools</strong>
+          {env.tools.map((tool) => (
+            <div className="env-dep" key={tool.name}>
+              <span className={`sev-dot ${tool.present ? "sev-ok" : "sev-danger"}`} />
+              <em>{tool.name}</em>
+              <code>{tool.present ? "available" : "missing"}</code>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

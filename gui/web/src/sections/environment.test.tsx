@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { HostInventoryPanel, DependencyStackPanel } from "./environment";
+import { HostInventoryPanel, DependencyStackPanel, EnvironmentPanel } from "./environment";
 
 afterEach(cleanup);
 
@@ -48,5 +48,19 @@ describe("DependencyStackPanel", () => {
     render(<DependencyStackPanel env={env as never} />);
     // transformers missing → verdict lists it.
     expect(screen.getByText(/Missing transformers/)).toBeTruthy();
+  });
+});
+
+describe("EnvironmentPanel", () => {
+  it("renders a skeleton when env is null", () => {
+    const { container } = render(<EnvironmentPanel env={null} />);
+    expect(container.querySelector("[class*=skeleton]")).not.toBeNull();
+  });
+
+  it("renders version badges + dependency rows", () => {
+    render(<EnvironmentPanel env={{ ...env, python_version: "3.11.6", os_name: "Linux", machine: "x86_64" } as never} />);
+    expect(screen.getByText("v12.1")).toBeTruthy();
+    expect(screen.getByText("Linux / x86_64")).toBeTruthy();
+    expect(screen.getByText("torch")).toBeTruthy();
   });
 });
