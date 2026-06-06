@@ -3746,6 +3746,18 @@ function SectionWorkspace({
               )
             },
             {
+              id: "traces",
+              label: "Traces",
+              icon: <Activity size={15} />,
+              render: () => (
+                <ModuleGrid>
+                  <ModuleCard title="Diagnostic trace catalog" icon={<Activity size={18} />} desc="Per-patch debug traces — the container path each lands at and the env var that enables it. Operator reference (mirrors `sndr trace list`)." wide>
+                    <TracesPanel />
+                  </ModuleCard>
+                </ModuleGrid>
+              )
+            },
+            {
               id: "appearance",
               label: "Appearance",
               icon: <Palette size={15} />,
@@ -9155,6 +9167,45 @@ function ConfigKeysPanel() {
         ))}
         {entries.length > 200 && <p className="muted">+{entries.length - 200} more — refine the filter</p>}
         {entries.length === 0 && <p className="muted">No keys match.</p>}
+      </div>
+    </div>
+  );
+}
+
+// Diagnostic trace catalog — per-patch debug traces, where they land on the
+// container FS, and the env var that enables each. Surfaces `sndr trace list`.
+function TracesPanel() {
+  const { data, state, error } = useFetch(() => api.traces(), []);
+  const [cat, setCat] = useState("all");
+  if (state === "loading") return <SkeletonLines count={5} />;
+  if (state === "error") return <p className="muted">Traces unavailable: {error}</p>;
+  if (!data) return null;
+  const shown = data.traces.filter((t) => cat === "all" || t.category === cat);
+  return (
+    <div className="traces-panel">
+      <div className="chip-row" style={{ marginBottom: 10 }}>
+        <button type="button" className={`chip chip-link ${cat === "all" ? "active" : ""}`} onClick={() => setCat("all")}>all ({data.total})</button>
+        {data.categories.map((c) => (
+          <button type="button" key={c} className={`chip chip-link ${cat === c ? "active" : ""}`} onClick={() => setCat(c)}>{c} ({data.by_category[c] ?? 0})</button>
+        ))}
+      </div>
+      <div className="traces-list">
+        {shown.map((t) => (
+          <div className="trace-row" key={t.id}>
+            <div className="trace-head">
+              <strong>{t.id}</strong>
+              <span className="chip">{t.patch_id}</span>
+              <span className="chip">{t.category}</span>
+            </div>
+            <p className="muted">{t.description}</p>
+            <div className="trace-meta">
+              <code title="container path">{t.container_path}</code>
+              {t.enable_env
+                ? <code className="trace-env" title="enable env">{t.enable_env}=1</code>
+                : <span className="muted">always on</span>}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

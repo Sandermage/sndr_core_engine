@@ -1265,6 +1265,30 @@ def create_app(
             by_source[src] = by_source.get(src, 0) + 1
         return {"keys": canon, "total": len(canon), "by_source": by_source}
 
+    @app.get("/api/v1/traces")
+    async def trace_catalog_list() -> dict[str, Any]:
+        """Diagnostic trace catalog — every per-patch debug trace, the
+        container path where it lands, the emitting patch, and the env var
+        that enables it. Read-only operator reference (mirrors `sndr trace
+        list`). Top-level path so it never collides with /patches/{id}."""
+        from dataclasses import asdict
+
+        from sndr.observability.trace_catalog import (
+            TRACE_CATALOG,
+            TRACE_CATEGORIES,
+        )
+
+        traces = [asdict(t) for t in TRACE_CATALOG]
+        by_category: dict[str, int] = {}
+        for t in traces:
+            by_category[t["category"]] = by_category.get(t["category"], 0) + 1
+        return {
+            "traces": traces,
+            "categories": list(TRACE_CATEGORIES),
+            "by_category": by_category,
+            "total": len(traces),
+        }
+
     @app.get("/api/v1/doctor")
     async def doctor() -> dict[str, Any]:
         return _dataclass_payload(collect_doctor_report())

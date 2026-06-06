@@ -593,6 +593,14 @@ export type ConfigKeysResult = {
   keys: Record<string, ConfigKeyMeta>; total: number;
   by_source: Record<string, number>;
 };
+export type TraceSpec = {
+  id: string; container_path: string; patch_id: string;
+  enable_env: string | null; category: string; description: string;
+};
+export type TraceCatalog = {
+  traces: TraceSpec[]; categories: string[];
+  by_category: Record<string, number>; total: number;
+};
 
 export type ServiceStep = { order: number; title: string; command: string };
 
@@ -1196,6 +1204,7 @@ export const api = {
   operationRun: (operation: string) => postJson<Job>("/api/v1/operations/run", { operation }),
   caveats: () => request<CaveatsResult>("/api/v1/caveats"),
   configKeys: () => request<ConfigKeysResult>("/api/v1/config-keys"),
+  traces: () => request<TraceCatalog>("/api/v1/traces"),
   deployTargets: () => request<DeployTargetsResult>("/api/v1/deploy/targets"),
   deployPlan: (payload: { preset_id: string; target: string; host_paths?: Record<string, string> }) =>
     postJson<DeploymentPlan>("/api/v1/deploy/plan", payload),
