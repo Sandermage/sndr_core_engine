@@ -202,9 +202,11 @@ exclude = [
     "engines/*/configs/*.yaml",
     # JSON schemas for license tokens and config validation.
     "schemas/*.json",
-    # GUI static bundle (served by product_api when `sndr serve gui` runs).
-    "product_api/web_static/*",
-    "product_api/web_static/assets/*",
+    # GUI static bundle (built by `make gui-build`, served by the legacy
+    # product_api the daemon resolves from `legacy/web_static`). v12.x moved
+    # it here from vllm/sndr_core/product_api/web_static.
+    "product_api/legacy/web_static/*",
+    "product_api/legacy/web_static/assets/*",
 ]
 "vllm.sndr_core" = [
     # V1 monolithic top-level (12 files; legacy compat, sunset planned).
@@ -227,10 +229,9 @@ exclude = [
     # Was at repo-root `schemas/`; relocated into the package so wheel
     # installs work without the source tree present.
     "schemas/*.json",
-    # GUI integration: the built web UI bundled into the package so
-    # `sndr gui-api` serves UI + API from one process (built by `make gui-build`).
-    "product_api/web_static/*",
-    "product_api/web_static/assets/*",
+    # NOTE: the GUI bundle moved to the `sndr` package in v12.x
+    # (sndr/product_api/legacy/web_static); it is packaged under the
+    # "sndr" key above, not here.
 ]
 
 

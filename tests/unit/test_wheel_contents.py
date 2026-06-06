@@ -123,6 +123,34 @@ class TestWheelZipContract:
                     f"package-data spec regressed (M.1 invariant)"
                 )
 
+    def test_gui_bundle_present_in_wheel(self, built_wheel: Path):
+        """The built web UI must ship in the wheel so a pip-installed
+        daemon can serve the GUI without the source tree.
+
+        Regression guard: v12.x moved the bundle from
+        `vllm/sndr_core/product_api/web_static` to
+        `sndr/product_api/legacy/web_static`, but the package-data spec
+        still pointed at the old (and an empty) path — the wheel shipped
+        zero GUI files. This asserts the contract: index.html + ≥1 hashed
+        JS asset under the path the daemon resolves from.
+        """
+        with zipfile.ZipFile(built_wheel) as z:
+            names = z.namelist()
+            base = "sndr/product_api/legacy/web_static/"
+            assert f"{base}index.html" in names, (
+                f"GUI index.html absent from wheel; package-data spec for "
+                f"the web_static bundle regressed. web_static entries: "
+                f"{[n for n in names if 'web_static' in n][:5]}"
+            )
+            assets = [
+                n for n in names
+                if n.startswith(f"{base}assets/") and n.endswith(".js")
+            ]
+            assert assets, (
+                f"GUI JS assets absent from wheel under {base}assets/; "
+                f"the daemon would serve a blank page"
+            )
+
     def test_no_sndr_private_anywhere_in_wheel(self, built_wheel: Path):
         """Hard rule #27: no `sndr_private` namespace under `vllm/`.
 
