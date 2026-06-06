@@ -23,7 +23,7 @@ import pytest
 
 PATCH_ID = "PN122"
 MODULE_NAME = (
-    "vllm.sndr_core.integrations.observability."
+    "sndr.engines.vllm.patches.observability."
     "pn122_sprint26_cudagraph_dispatch_trace"
 )
 ENV_FLAG = "GENESIS_ENABLE_PN122_CG_DISPATCH_TRACE"

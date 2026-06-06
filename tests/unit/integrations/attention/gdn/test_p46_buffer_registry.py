@@ -29,7 +29,7 @@ def test_p46_registry_pool_visible_after_module_import():
         PersistentBufferRegistry,
         POOL_GDN_GATING,
     )
-    import vllm.sndr_core.integrations.attention.gdn.p46_gdn_gating_buffers as p46
+    import sndr.engines.vllm.patches.attention.gdn.p46_gdn_gating_buffers as p46
 
     p46.ensure_pool_registered()
 
@@ -41,7 +41,7 @@ def test_p46_registry_pool_visible_after_module_import():
 
 def test_p46_module_uses_registry_after_migration():
     """Source imports PersistentBufferRegistry + POOL_GDN_GATING constant."""
-    import vllm.sndr_core.integrations.attention.gdn.p46_gdn_gating_buffers as p46
+    import sndr.engines.vllm.patches.attention.gdn.p46_gdn_gating_buffers as p46
     source = open(p46.__file__).read()
     assert "PersistentBufferRegistry" in source
     assert "POOL_GDN_GATING" in source
@@ -64,7 +64,7 @@ def test_p46_registers_persistent_slice_pool_not_buffer_pool():
         _reset_registry_for_tests,
     )
     _reset_registry_for_tests()
-    import vllm.sndr_core.integrations.attention.gdn.p46_gdn_gating_buffers as p46_int
+    import sndr.engines.vllm.patches.attention.gdn.p46_gdn_gating_buffers as p46_int
     p46_int.ensure_pool_registered()
     pool = PersistentBufferRegistry().all_pools()[POOL_GDN_GATING]
     assert isinstance(pool, PersistentSlicePool), (
@@ -75,7 +75,7 @@ def test_p46_registers_persistent_slice_pool_not_buffer_pool():
 
 def test_p46_source_uses_get_slice_pool_not_get_pool():
     """Static check: ensure_pool_registered() uses get_slice_pool()."""
-    import vllm.sndr_core.integrations.attention.gdn.p46_gdn_gating_buffers as p46_int
+    import sndr.engines.vllm.patches.attention.gdn.p46_gdn_gating_buffers as p46_int
     source = open(p46_int.__file__).read()
     assert "get_slice_pool(POOL_GDN_GATING)" in source, (
         "P46 must call get_slice_pool(POOL_GDN_GATING) — "
@@ -94,7 +94,7 @@ def test_p46_integration_and_storage_class_compose_without_raising():
         _reset_registry_for_tests, PersistentSlicePool,
     )
     _reset_registry_for_tests()
-    import vllm.sndr_core.integrations.attention.gdn.p46_gdn_gating_buffers as p46_int
+    import sndr.engines.vllm.patches.attention.gdn.p46_gdn_gating_buffers as p46_int
     p46_int.ensure_pool_registered()
     from sndr.engines.vllm.kernels_legacy.gdn_gating_buffer import (
         GdnGatingBufferManager,

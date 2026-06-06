@@ -41,7 +41,7 @@ def reset_buffer_mgr():
 def force_should_apply(monkeypatch):
     """Make should_apply() return True regardless of actual platform,
     so we can test P51 logic without requiring CUDA."""
-    from vllm.sndr_core.kernels import dequant_buffer as db
+    from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
     monkeypatch.setattr(
         db.TurboQuantBufferManager, "should_apply",
         classmethod(lambda cls: True),
@@ -152,7 +152,7 @@ def test_p51_does_not_skip_on_turboquant_k8v4(
     """TQ kv_cache_dtype → proceed past P51 guard. We can't do a full
     allocation (needs a real CUDA device + vllm config), so we verify
     the guard returned False by patching a downstream probe point."""
-    from vllm.sndr_core.kernels import dequant_buffer as db
+    from sndr.engines.vllm.kernels_legacy import dequant_buffer as db
     calls = {"reached_downstream": False}
 
 

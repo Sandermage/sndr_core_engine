@@ -30,7 +30,7 @@ def _import_patch():
     sys.path.insert(0, str(REPO_ROOT))
     try:
         mod = importlib.import_module(
-            "vllm.sndr_core.integrations.tool_parsing."
+            "sndr.engines.vllm.patches.tool_parsing."
             "pn287_qwen3coder_args_validity_observer"
         )
     finally:

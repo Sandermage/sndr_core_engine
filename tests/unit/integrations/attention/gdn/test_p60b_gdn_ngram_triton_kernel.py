@@ -16,7 +16,7 @@ import pytest
 
 PATCH_ID = "P60b"
 MODULE_NAME = (
-    "vllm.sndr_core.integrations.attention.gdn.p60b_gdn_ngram_triton_kernel"
+    "sndr.engines.vllm.patches.attention.gdn.p60b_gdn_ngram_triton_kernel"
 )
 ENV_FLAG = "GENESIS_ENABLE_P60B_TRITON_KERNEL"
 

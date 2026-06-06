@@ -22,7 +22,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from vllm.sndr_core.middleware import lazy_reasoner as lr
+from sndr.engines.vllm.middleware import lazy_reasoner as lr
 
 
 # ─── Helpers to build fake-request objects ──────────────────────────────

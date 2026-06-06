@@ -18,7 +18,7 @@ import pytest
 
 PATCH_ID = "P67b"
 MODULE_NAME = (
-    "vllm.sndr_core.integrations.attention.turboquant.p67b_spec_verify_routing"
+    "sndr.engines.vllm.patches.attention.turboquant.p67b_spec_verify_routing"
 )
 SHARED_ENV_FLAG = "GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL"
 

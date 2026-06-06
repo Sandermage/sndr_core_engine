@@ -29,7 +29,7 @@ import pytest
 
 PATCH_ID = "P60"
 MODULE_NAME = (
-    "vllm.sndr_core.integrations.attention.gdn.p60_gdn_ngram_state_recovery"
+    "sndr.engines.vllm.patches.attention.gdn.p60_gdn_ngram_state_recovery"
 )
 ENV_FLAG = "GENESIS_ENABLE_P60_GDN_NGRAM_FIX"
 

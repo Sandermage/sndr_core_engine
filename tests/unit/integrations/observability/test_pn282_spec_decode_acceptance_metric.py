@@ -80,12 +80,12 @@ def _module_state_reset(monkeypatch):
     each test so the wrap target is stable and isolated.
     """
     # Reset metric module
-    from vllm.sndr_core.observability import spec_decode_metrics as sdm
+    from sndr.observability import spec_decode_metrics as sdm
     sdm._reset_module_state()
 
     # Reset wrap module by re-importing it cleanly each test
     pn282_modname = (
-        "vllm.sndr_core.integrations.observability."
+        "sndr.engines.vllm.patches.observability."
         "pn282_spec_decode_acceptance_metric"
     )
     if pn282_modname in sys.modules:

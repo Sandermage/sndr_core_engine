@@ -390,7 +390,7 @@ class TestRegistryEntry:
         assert meta["lifecycle"] == "experimental"
         assert meta["implementation_status"] == "experimental"
         assert meta["apply_module"] == (
-            "vllm.sndr_core.integrations.spec_decode."
+            "sndr.engines.vllm.patches.spec_decode."
             "pn275_dflash_max_cgs_align"
         )
         # dev371-only — pin gate documents the dev338-incompatible

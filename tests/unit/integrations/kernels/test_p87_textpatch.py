@@ -56,7 +56,7 @@ def test_p87_module_has_no_class_rebind_globals():
     the original methods (e.g. _ORIGINAL_APPLY_WEIGHTS). Those must be
     gone — they are the dynamo crash trigger.
     """
-    import vllm.sndr_core.integrations.kernels.p87_marlin_pad_sub_tile as mod
+    import sndr.engines.vllm.patches.kernels.p87_marlin_pad_sub_tile as mod
 
     forbidden_names = [
         "_ORIGINAL_APPLY_WEIGHTS",

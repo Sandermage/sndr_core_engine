@@ -49,7 +49,7 @@ class TestPatcherFactories:
             pn90_probabilistic_draft_rejection as m,
         )
         monkeypatch.setattr(
-            "vllm.sndr_core.integrations.spec_decode."
+            "sndr.engines.vllm.patches.spec_decode."
             "pn90_probabilistic_draft_rejection.resolve_vllm_file",
             lambda relpath: "/fake/" + relpath,
         )
@@ -68,7 +68,7 @@ class TestPatcherFactories:
             pn90_probabilistic_draft_rejection as m,
         )
         monkeypatch.setattr(
-            "vllm.sndr_core.integrations.spec_decode."
+            "sndr.engines.vllm.patches.spec_decode."
             "pn90_probabilistic_draft_rejection.resolve_vllm_file",
             lambda relpath: None,
         )
@@ -80,7 +80,7 @@ class TestPatcherFactories:
             pn90_probabilistic_draft_rejection as m,
         )
         monkeypatch.setattr(
-            "vllm.sndr_core.integrations.spec_decode."
+            "sndr.engines.vllm.patches.spec_decode."
             "pn90_probabilistic_draft_rejection.resolve_vllm_file",
             lambda relpath: "/fake/" + relpath,
         )
@@ -165,7 +165,7 @@ class TestApplyGate:
             lambda pid: (True, "env enabled"),
         )
         monkeypatch.setattr(
-            "vllm.sndr_core.integrations.spec_decode."
+            "sndr.engines.vllm.patches.spec_decode."
             "pn90_probabilistic_draft_rejection.vllm_install_root",
             lambda: None,
         )
@@ -196,12 +196,12 @@ class TestUpstreamMergedDetect:
             lambda pid: (True, "env enabled"),
         )
         monkeypatch.setattr(
-            "vllm.sndr_core.integrations.spec_decode."
+            "sndr.engines.vllm.patches.spec_decode."
             "pn90_probabilistic_draft_rejection.vllm_install_root",
             lambda: tmp_path,
         )
         monkeypatch.setattr(
-            "vllm.sndr_core.integrations.spec_decode."
+            "sndr.engines.vllm.patches.spec_decode."
             "pn90_probabilistic_draft_rejection.resolve_vllm_file",
             lambda relpath: (
                 str(fake_runner) if "gpu_model_runner" in relpath else None

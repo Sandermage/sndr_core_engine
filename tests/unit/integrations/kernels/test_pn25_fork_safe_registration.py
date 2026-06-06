@@ -30,7 +30,7 @@ from unittest.mock import MagicMock, patch
 
 def test_register_op_once_idempotent_in_same_process():
     """Two consecutive calls in same process: second is fast-path."""
-    from vllm.sndr_core.kernels import silu_and_mul_customop as mod
+    from sndr.engines.vllm.kernels_legacy import silu_and_mul_customop as mod
     # Reset state for clean test
     mod._op_registered = False
     # First call may register (or fail if torch < 2.4 / no CUDA)
@@ -48,7 +48,7 @@ def test_post_spawn_state_check_does_not_redecorate():
     This is the EXACT bug from issue #16 — the fix is to short-circuit
     on global registry presence BEFORE attempting decoration.
     """
-    from vllm.sndr_core.kernels import silu_and_mul_customop as mod
+    from sndr.engines.vllm.kernels_legacy import silu_and_mul_customop as mod
     import torch
 
     # Pre-condition: simulate "op was registered by parent process".
@@ -82,7 +82,7 @@ def test_handles_missing_genesis_namespace_gracefully():
     """When torch.ops.genesis doesn't exist (cold import), fall through
     to registration path normally — no crash from AttributeError.
     """
-    from vllm.sndr_core.kernels import silu_and_mul_customop as mod
+    from sndr.engines.vllm.kernels_legacy import silu_and_mul_customop as mod
     import torch
 
     # Reset
@@ -118,7 +118,7 @@ def test_except_clause_handles_attribute_error():
     is present.
     """
     import inspect
-    from vllm.sndr_core.kernels import silu_and_mul_customop as mod
+    from sndr.engines.vllm.kernels_legacy import silu_and_mul_customop as mod
     src = inspect.getsource(mod._register_op_once)
     # try/except around the genesis registry probe
     assert "try:" in src
@@ -128,7 +128,7 @@ def test_except_clause_handles_attribute_error():
 def test_fix_documented_in_source():
     """Fix is documented in source with #16 issue reference."""
     import inspect
-    from vllm.sndr_core.kernels import silu_and_mul_customop as mod
+    from sndr.engines.vllm.kernels_legacy import silu_and_mul_customop as mod
     src = inspect.getsource(mod._register_op_once)
     assert "#16" in src, "Issue #16 reference missing from fix"
     assert "infer_schema" in src, (
@@ -144,7 +144,7 @@ def test_global_check_runs_before_custom_op_call():
     the fix doesn't help.
     """
     import inspect
-    from vllm.sndr_core.kernels import silu_and_mul_customop as mod
+    from sndr.engines.vllm.kernels_legacy import silu_and_mul_customop as mod
     src = inspect.getsource(mod._register_op_once)
     # Find positions of the genesis check and the custom_op call
     genesis_check_pos = src.find("torch.ops.genesis")
@@ -169,7 +169,7 @@ def test_global_check_runs_before_custom_op_call():
 def test_p7b_dual_stream_has_global_registry_check():
     """P7b's _register_op_once also has the spawn-safety guard."""
     import inspect
-    from vllm.sndr_core.kernels import gdn_dual_stream_customop as mod
+    from sndr.engines.vllm.kernels_legacy import gdn_dual_stream_customop as mod
     src = inspect.getsource(mod._register_op_once)
     assert "torch.ops.genesis" in src
     assert "dual_linear_parallel" in src
@@ -178,7 +178,7 @@ def test_p7b_dual_stream_has_global_registry_check():
 
 def test_p7b_post_spawn_state_check_does_not_redecorate():
     """P7b: same spawn-safety test as PN25."""
-    from vllm.sndr_core.kernels import gdn_dual_stream_customop as mod
+    from sndr.engines.vllm.kernels_legacy import gdn_dual_stream_customop as mod
     import torch
 
     fake_genesis = MagicMock()
@@ -199,7 +199,7 @@ def test_p7b_post_spawn_state_check_does_not_redecorate():
 def test_p7b_global_check_runs_before_custom_op_call():
     """P7b: source order — global check before @custom_op."""
     import inspect
-    from vllm.sndr_core.kernels import gdn_dual_stream_customop as mod
+    from sndr.engines.vllm.kernels_legacy import gdn_dual_stream_customop as mod
     src = inspect.getsource(mod._register_op_once)
     genesis_check_pos = src.find("torch.ops.genesis")
     custom_op_call_pos = src.find("custom_op(_OP_QUALNAME")

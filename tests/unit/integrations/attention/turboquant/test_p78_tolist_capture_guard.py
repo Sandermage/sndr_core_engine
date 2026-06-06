@@ -21,7 +21,7 @@ import pytest
 
 PATCH_ID = "P78"
 MODULE_NAME = (
-    "vllm.sndr_core.integrations.attention.turboquant.p78_tolist_capture_guard"
+    "sndr.engines.vllm.patches.attention.turboquant.p78_tolist_capture_guard"
 )
 ENV_FLAG = "GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD"
 

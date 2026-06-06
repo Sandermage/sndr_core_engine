@@ -31,7 +31,7 @@ def test_p39a_registry_pool_visible_after_module_import():
         PersistentBufferRegistry,
         POOL_FLA_KKT_PERSISTENT_A,
     )
-    import vllm.sndr_core.integrations.attention.gdn.p39a_fla_kkt_buffer as p39a
+    import sndr.engines.vllm.patches.attention.gdn.p39a_fla_kkt_buffer as p39a
 
     p39a.ensure_pool_registered()
 
@@ -44,7 +44,7 @@ def test_p39a_registry_pool_visible_after_module_import():
 def test_p39a_module_uses_registry_after_migration():
     """Source imports PersistentBufferRegistry + POOL_FLA_KKT_PERSISTENT_A
     constant."""
-    import vllm.sndr_core.integrations.attention.gdn.p39a_fla_kkt_buffer as p39a
+    import sndr.engines.vllm.patches.attention.gdn.p39a_fla_kkt_buffer as p39a
     source = open(p39a.__file__).read()
     assert "PersistentBufferRegistry" in source
     assert "POOL_FLA_KKT_PERSISTENT_A" in source
@@ -70,7 +70,7 @@ def test_p39a_registers_persistent_slice_pool_not_buffer_pool():
         _reset_registry_for_tests,
     )
     _reset_registry_for_tests()
-    import vllm.sndr_core.integrations.attention.gdn.p39a_fla_kkt_buffer as p39a
+    import sndr.engines.vllm.patches.attention.gdn.p39a_fla_kkt_buffer as p39a
     p39a.ensure_pool_registered()
     pool = PersistentBufferRegistry().all_pools()[POOL_FLA_KKT_PERSISTENT_A]
     assert isinstance(pool, PersistentSlicePool), (
@@ -83,7 +83,7 @@ def test_p39a_registers_persistent_slice_pool_not_buffer_pool():
 def test_p39a_source_uses_get_slice_pool_not_get_pool():
     """Static check: the ensure_pool_registered() body uses
     `.get_slice_pool(` not `.get_pool(`."""
-    import vllm.sndr_core.integrations.attention.gdn.p39a_fla_kkt_buffer as p39a
+    import sndr.engines.vllm.patches.attention.gdn.p39a_fla_kkt_buffer as p39a
     source = open(p39a.__file__).read()
     # Extract the ensure_pool_registered function body
     assert "get_slice_pool(POOL_FLA_KKT_PERSISTENT_A)" in source, (

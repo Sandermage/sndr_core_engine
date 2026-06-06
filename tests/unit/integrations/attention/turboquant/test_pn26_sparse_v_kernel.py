@@ -65,7 +65,7 @@ requires_cuda = pytest.mark.skipif(
 def sparse_v_module(monkeypatch):
     """Import the kernel module with sparse-V enabled."""
     monkeypatch.setenv("GENESIS_ENABLE_PN26_SPARSE_V", "1")
-    from vllm.sndr_core.kernels import triton_turboquant_decode_sparse_v
+    from sndr.engines.vllm.kernels_legacy import triton_turboquant_decode_sparse_v
     yield triton_turboquant_decode_sparse_v
 
 

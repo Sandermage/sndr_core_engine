@@ -109,7 +109,7 @@ class TestToolCompatCheck:
         def _explode(*a, **kw):
             raise RuntimeError("synthetic scanner crash")
         monkeypatch.setattr(
-            "vllm.sndr_core.integrations.serving."
+            "sndr.engines.vllm.patches.serving."
             "pn70_tool_schema_subset_filter."
             "_scan_schema_for_unsupported_key",
             _explode,
@@ -241,7 +241,7 @@ class TestWrappedGetJsonSchemaFromTools:
         def _explode(*a, **kw):
             raise RuntimeError("synthetic filter crash")
         monkeypatch.setattr(
-            "vllm.sndr_core.integrations.serving."
+            "sndr.engines.vllm.patches.serving."
             "pn70_tool_schema_subset_filter."
             "_tool_is_xgrammar_compat",
             _explode,
@@ -347,7 +347,7 @@ class TestComposabilityWithP68:
         """PN70 must NOT break the existing P68 option-1 skip path. When
         only P68 is enabled and PN70 is off, P68 keeps refusing to
         upgrade on dirty catalogs (existing v7.72.1 contract)."""
-        from vllm.sndr_core.middleware import long_ctx_tool_adherence as p68
+        from sndr.engines.vllm.middleware import long_ctx_tool_adherence as p68
 
         monkeypatch.setenv("GENESIS_ENABLE_P68_AUTO_FORCE_TOOL", "1")
         monkeypatch.setenv("GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS", "1000")
@@ -367,7 +367,7 @@ class TestComposabilityWithP68:
 
     def test_pn70_does_not_disturb_p68_clean_tools(self, monkeypatch):
         """P68 + clean tools = P68 fires regardless of PN70 state."""
-        from vllm.sndr_core.middleware import long_ctx_tool_adherence as p68
+        from sndr.engines.vllm.middleware import long_ctx_tool_adherence as p68
         monkeypatch.setenv("GENESIS_ENABLE_P68_AUTO_FORCE_TOOL", "1")
         monkeypatch.setenv("GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS", "1000")
         monkeypatch.setenv("GENESIS_ENABLE_PN70_TOOL_SCHEMA_FILTER", "1")

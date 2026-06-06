@@ -30,7 +30,7 @@ def test_pn12_registry_pool_visible_after_module_import():
         PersistentBufferRegistry,
         POOL_FFN_INTERMEDIATE_SCRATCH,
     )
-    import vllm.sndr_core.integrations.kernels.pn12_ffn_intermediate_pool as pn12
+    import sndr.engines.vllm.patches.kernels.pn12_ffn_intermediate_pool as pn12
 
     pn12.ensure_pool_registered()
 
@@ -43,7 +43,7 @@ def test_pn12_registry_pool_visible_after_module_import():
 def test_pn12_module_uses_registry_after_migration():
     """Source imports PersistentBufferRegistry + POOL_FFN_INTERMEDIATE_
     SCRATCH constant."""
-    import vllm.sndr_core.integrations.kernels.pn12_ffn_intermediate_pool as pn12
+    import sndr.engines.vllm.patches.kernels.pn12_ffn_intermediate_pool as pn12
     source = open(pn12.__file__).read()
     assert "PersistentBufferRegistry" in source
     assert "POOL_FFN_INTERMEDIATE_SCRATCH" in source
@@ -74,7 +74,7 @@ def test_pn12_registers_persistent_slice_pool_not_buffer_pool():
         _reset_registry_for_tests,
     )
     _reset_registry_for_tests()
-    import vllm.sndr_core.integrations.kernels.pn12_ffn_intermediate_pool as pn12_int
+    import sndr.engines.vllm.patches.kernels.pn12_ffn_intermediate_pool as pn12_int
     pn12_int.ensure_pool_registered()
     pool = PersistentBufferRegistry().all_pools()[POOL_FFN_INTERMEDIATE_SCRATCH]
     assert isinstance(pool, PersistentSlicePool), (
@@ -85,7 +85,7 @@ def test_pn12_registers_persistent_slice_pool_not_buffer_pool():
 
 def test_pn12_source_uses_get_slice_pool_not_get_pool():
     """Static check: ensure_pool_registered() uses get_slice_pool()."""
-    import vllm.sndr_core.integrations.kernels.pn12_ffn_intermediate_pool as pn12_int
+    import sndr.engines.vllm.patches.kernels.pn12_ffn_intermediate_pool as pn12_int
     source = open(pn12_int.__file__).read()
     assert "get_slice_pool(POOL_FFN_INTERMEDIATE_SCRATCH)" in source, (
         "PN12 must call get_slice_pool(POOL_FFN_INTERMEDIATE_SCRATCH) — "
@@ -108,7 +108,7 @@ def test_pn12_integration_and_storage_class_compose_without_raising():
     )
     _reset_registry_for_tests()
     # Step 1: integration registers pool
-    import vllm.sndr_core.integrations.kernels.pn12_ffn_intermediate_pool as pn12_int
+    import sndr.engines.vllm.patches.kernels.pn12_ffn_intermediate_pool as pn12_int
     pn12_int.ensure_pool_registered()
     # Step 2: storage class looks it up — must not raise
     from sndr.engines.vllm.kernels_legacy.ffn_intermediate_cache import (

@@ -165,7 +165,7 @@ class TestWarnIfInt32OverflowImminent:
 
 class TestModuleExports:
     def test_public_api(self):
-        from vllm.sndr_core.kernels import fla_tp_device_index_guard as g
+        from sndr.engines.vllm.kernels_legacy import fla_tp_device_index_guard as g
         for name in ("IndexOverflowReport", "index_space_bytes",
                      "check_index_overflow", "raise_if_int64_overflow",
                      "warn_if_int32_overflow_imminent"):

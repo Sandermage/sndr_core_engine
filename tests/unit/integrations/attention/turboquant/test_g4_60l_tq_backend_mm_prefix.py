@@ -23,7 +23,7 @@ import pytest
 
 
 _MOD_PATH = (
-    "vllm.sndr_core.integrations.attention.turboquant."
+    "sndr.engines.vllm.patches.attention.turboquant."
     "g4_60l_tq_backend_mm_prefix"
 )
 

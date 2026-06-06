@@ -22,7 +22,7 @@ from __future__ import annotations
 
 class TestPN19ModuleStructure:
     def test_module_importable(self):
-        from sndr.engines.vllm.patches._retired import pn19_scoped_max_split as patch_N19_scoped_max_split  # noqa: F401
+        from sndr.engines.vllm._archive import pn19_scoped_max_split as patch_N19_scoped_max_split  # noqa: F401
 
     def test_helper_anchor_targets_init_device(self):
         """The helper-injection sub-patch anchors on the @instrument

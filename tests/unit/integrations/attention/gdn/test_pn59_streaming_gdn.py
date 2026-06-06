@@ -28,7 +28,7 @@ def _wiring():
 
 
 def _driver():
-    from vllm.sndr_core.kernels import streaming_gdn_driver as D
+    from sndr.engines.vllm.kernels_legacy import streaming_gdn_driver as D
     return D
 
 
@@ -383,7 +383,7 @@ class TestMemTraceInstrumentation:
         real absence of CUDA (running on a Mac) and failed on the GPU
         server. We now mock `torch.cuda.is_available()` explicitly so
         the test is deterministic in any environment."""
-        from vllm.sndr_core.kernels import streaming_gdn_driver as _drv
+        from sndr.engines.vllm.kernels_legacy import streaming_gdn_driver as _drv
         try:
             import torch
         except ImportError:

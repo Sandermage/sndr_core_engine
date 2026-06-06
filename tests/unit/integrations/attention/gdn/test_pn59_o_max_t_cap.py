@@ -18,7 +18,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from vllm.sndr_core.kernels import gdn_scratch_pool as m
+from sndr.engines.vllm.kernels_legacy import gdn_scratch_pool as m
 from sndr.engines.vllm.kernels_legacy.gdn_scratch_pool import GdnScratchPool
 
 

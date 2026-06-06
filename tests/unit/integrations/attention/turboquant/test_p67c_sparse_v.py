@@ -75,7 +75,7 @@ def test_p67c_applies_when_both_enabled(monkeypatch):
 def test_p67_kernel_has_new_constexpr_params():
     """P67 kernel signature includes SPARSE_V/THRESHOLD/SINK_TOKENS constexpr."""
     import inspect
-    from vllm.sndr_core.kernels import p67_multi_query_kernel
+    from sndr.engines.vllm.kernels_legacy import p67_multi_query_kernel
     src = inspect.getsource(p67_multi_query_kernel)
     # New constexpr params
     assert "SPARSE_V: tl.constexpr" in src
@@ -118,7 +118,7 @@ def test_p67c_constexpr_dce_invariant():
     contract — without DCE, even SPARSE_V=0 might compile to different SASS.
     """
     import inspect
-    from vllm.sndr_core.kernels import p67_multi_query_kernel
+    from sndr.engines.vllm.kernels_legacy import p67_multi_query_kernel
     src = inspect.getsource(p67_multi_query_kernel)
     # The skip-decision block must be nested inside `if SPARSE_V:`
     assert "if SPARSE_V:" in src

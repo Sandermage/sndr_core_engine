@@ -17,7 +17,7 @@ import pytest
 
 PATCH_ID = "PN202"
 MODULE_NAME = (
-    "vllm.sndr_core.integrations.streaming.pn202_per_layer_kv_split"
+    "sndr.engines.vllm.patches.streaming.pn202_per_layer_kv_split"
 )
 ENV_FLAG = "GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT"
 
