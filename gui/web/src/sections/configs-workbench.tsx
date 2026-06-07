@@ -136,7 +136,7 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
         </div>
         <label className="search-box">
           <Search size={15} />
-          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={`Search ${kind}`} />
+          <input aria-label={`Search ${kind}`} value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={`Search ${kind}`} />
         </label>
         <div className="catalog-list">
           {visible.map((item) => (
@@ -602,7 +602,7 @@ function V2ConfigWorkbench({
                 <ModuleCard title="Preset Templates" icon={<Database size={18} />} desc="Load a builtin preset's layer stack into the composer.">
                   <label className="search-box">
                     <Search size={15} />
-                    <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search preset/model/profile" />
+                    <input aria-label="Search presets, models and profiles" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search preset/model/profile" />
                   </label>
                   <div className="preset-template-list">
                     {visiblePresets.map((preset) => (

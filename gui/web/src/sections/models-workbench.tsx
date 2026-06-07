@@ -216,7 +216,7 @@ export function ModelsWorkbench({
         </div>
         <label className="search-box">
           <Search size={15} />
-          <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search model" />
+          <input aria-label="Search models" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search model" />
         </label>
         <div className="catalog-list">
           {groupedModels.map(([family, items]) => (

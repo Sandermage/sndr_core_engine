@@ -44,7 +44,7 @@ export function FlagsPanel() {
           <option value="off">default OFF</option>
         </select>
         <label className="fm-live"><Box size={13} />
-          <input value={container} onChange={(e) => setContainer(e.target.value)} placeholder="container for live state…" spellCheck={false}
+          <input aria-label="Live engine container" value={container} onChange={(e) => setContainer(e.target.value)} placeholder="container for live state…" spellCheck={false}
             onKeyDown={(e) => { if (e.key === "Enter") load(container); }} />
         </label>
         <button className="ghost-button" onClick={() => load(container)} disabled={loading}>

@@ -1236,6 +1236,7 @@ export default function App() {
                   <label className="search-box">
                     <Search size={15} />
                     <input
+                      aria-label="Search presets"
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                       placeholder="Search preset, model, family"

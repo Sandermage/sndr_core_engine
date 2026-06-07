@@ -128,7 +128,7 @@ export function RoutingPanel() {
       <div className="rt-bar-top">
         <label className="rt-source">
           <Route size={14} />
-          <select value={profile} onChange={(e) => setProfile(e.target.value)}>
+          <select aria-label="Routing profile" value={profile} onChange={(e) => setProfile(e.target.value)}>
             {candidates.length === 0 && <option value="">— no profiles —</option>}
             {candidates.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>

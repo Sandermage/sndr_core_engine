@@ -54,7 +54,7 @@ export function ApiTokenManager({ enabled }: { enabled: boolean }) {
         </div>
       )}
       <div className="token-create-row">
-        <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Token label (e.g. ci-readonly)" maxLength={64} />
+        <input aria-label="New token label" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Token label (e.g. ci-readonly)" maxLength={64} />
         <button className="primary-action" onClick={() => void create()} disabled={busy}><KeyRound size={15} /> {busy ? "Creating…" : "Create token"}</button>
       </div>
       {tokens && tokens.length > 0 ? (

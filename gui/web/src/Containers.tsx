@@ -719,7 +719,7 @@ function EditableSettings({ source, name, inspect, onChanged }: { source: Contai
         )) : <span className="cfg-nets-empty">none</span>}
         {attachable.length > 0 && (
           <span className="cfg-nets-attach">
-            <select value={attach} onChange={(e) => setAttach(e.target.value)}>
+            <select aria-label="Attach network" value={attach} onChange={(e) => setAttach(e.target.value)}>
               <option value="">attach…</option>
               {attachable.map((n) => <option key={n.name} value={n.name}>{n.name}</option>)}
             </select>
@@ -780,7 +780,7 @@ function ProcessesTab({ source, name, online }: { source: ContainerSource; name:
   if (!data) return <Loading />;
   return (
     <div className="proc">
-      <div className="proc-bar"><span>{data.processes.length} processes</span><button className="ghost-button" onClick={load}><RefreshCw size={13} /></button></div>
+      <div className="proc-bar"><span>{data.processes.length} processes</span><button className="ghost-button" onClick={load} aria-label="Refresh processes"><RefreshCw size={13} /></button></div>
       <table className="ptable"><thead><tr>{data.titles.map((t) => <th key={t}>{t}</th>)}</tr></thead>
         <tbody>{data.processes.map((row, i) => <tr key={i}>{row.map((cell, j) => <td key={j} className={j === data.titles.length - 1 ? "ptable-cmd" : ""}>{cell}</td>)}</tr>)}</tbody>
       </table>
@@ -798,7 +798,7 @@ function ChangesTab({ source, name }: { source: ContainerSource; name: string })
   const mark = { added: "A", modified: "C", deleted: "D" } as Record<string, string>;
   return (
     <div className="diff">
-      <div className="proc-bar"><span>{data.length} changed paths vs image</span><button className="ghost-button" onClick={load}><RefreshCw size={13} /></button></div>
+      <div className="proc-bar"><span>{data.length} changed paths vs image</span><button className="ghost-button" onClick={load} aria-label="Refresh changed paths"><RefreshCw size={13} /></button></div>
       {data.length === 0 ? <div className="containers-empty"><GitCompare size={20} /><strong>No changes</strong><span>Container filesystem matches its image.</span></div> : (
         <div className="inspect-mono diff-list">{data.map((c, i) => <div key={i} className={`diff-${c.kind}`}><span className="diff-mark">{mark[c.kind]}</span> {c.path}</div>)}</div>
       )}
@@ -982,11 +982,11 @@ function LogsTab({ source, name }: { source: ContainerSource; name: string }) {
         <button className={`ghost-button ${live ? "live-on" : ""}`} onClick={() => setLive(!live)} title="Follow logs live">
           <span className={`live-dot ${live ? "on" : ""}`} /> {live ? "Live" : "Follow"}
         </button>
-        <div className="containers-search"><Search size={12} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="grep logs…" /></div>
-        <select value={tail} onChange={(e) => setTail(Number(e.target.value))}>{[200, 500, 1000, 2000].map((n) => <option key={n} value={n}>{n} lines</option>)}</select>
+        <div className="containers-search"><Search size={12} /><input aria-label="Filter log lines" value={q} onChange={(e) => setQ(e.target.value)} placeholder="grep logs…" /></div>
+        <select aria-label="Log tail length" value={tail} onChange={(e) => setTail(Number(e.target.value))}>{[200, 500, 1000, 2000].map((n) => <option key={n} value={n}>{n} lines</option>)}</select>
         <button className={`ghost-button ${wrap ? "on" : ""}`} onClick={() => setWrap(!wrap)}>wrap</button>
         {!live && <button className="ghost-button" onClick={() => void load()} disabled={loading}>{loading ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}</button>}
-        <button className="ghost-button" onClick={download}><DownloadCloud size={13} /></button>
+        <button className="ghost-button" onClick={download} aria-label="Download logs"><DownloadCloud size={13} /></button>
       </div>
       {err && <ErrBox msg={err} />}
       <pre ref={preRef} className={`container-logs ansi ${wrap ? "wrap" : ""}`}
@@ -1025,7 +1025,7 @@ function ExecTab({ source, name }: { source: ContainerSource; name: string }) {
       {err && <ErrBox msg={err} />}
       <div className="container-exec-input">
         <code>$</code>
-        <input value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !running) void run(); }} placeholder="python3 -c 'print(1)'" autoFocus />
+        <input aria-label="Exec command" value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !running) void run(); }} placeholder="python3 -c 'print(1)'" autoFocus />
         <button className="primary-button" disabled={running || !cmd.trim()} onClick={() => void run()}>{running ? <Loader2 size={13} className="spin" /> : <Play size={13} />} Run</button>
       </div>
     </div>

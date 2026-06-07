@@ -257,6 +257,7 @@ export function ModelManagementPanel() {
         <h4><Search size={14} /> Hugging Face Hub</h4>
         <form className="hub-search-bar" onSubmit={searchHub}>
           <input
+            aria-label="Search Hugging Face Hub"
             value={hubQuery}
             onChange={(event) => setHubQuery(event.target.value)}
             placeholder="Search models on huggingface.co (e.g. qwen3, llama)…"
@@ -925,7 +926,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                 </div>
               ))}
               <div className="chat-vault-add">
-                <input value={vaultInput} onChange={(e) => setVaultInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addVault(); } }} placeholder="Path to an Obsidian vault or notes folder…" spellCheck={false} />
+                <input aria-label="Vault or notes folder path" value={vaultInput} onChange={(e) => setVaultInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addVault(); } }} placeholder="Path to an Obsidian vault or notes folder…" spellCheck={false} />
                 <button className="ghost-button" onClick={() => void addVault()} disabled={vaultBusy || !vaultInput.trim()}>{vaultBusy ? <Loader2 size={13} className="spin" /> : <Plus size={13} />} Connect</button>
               </div>
               <span className="chat-knowledge-hint">Notes (.md / .txt) in the folder are indexed locally and read-only. Turn on RAG with the <strong>Project RAG</strong> button above.</span>

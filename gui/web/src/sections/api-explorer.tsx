@@ -44,7 +44,7 @@ export function EndpointExplorer() {
     <div className="endpoint-explorer">
       <div className="endpoint-explorer-bar">
         <span className="method-pill">GET</span>
-        <select value={path} onChange={(event) => { setPath(event.target.value); setResult(null); setMeta(null); }}>
+        <select aria-label="API endpoint" value={path} onChange={(event) => { setPath(event.target.value); setResult(null); setMeta(null); }}>
           {EXPLORER_ENDPOINTS.map((endpoint) => (
             <option key={endpoint} value={endpoint}>{endpoint.replace(/\?.*$/, "")}</option>
           ))}

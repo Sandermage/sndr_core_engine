@@ -28,7 +28,7 @@ export function AuditLogPanel() {
     <div className="audit-log">
       <div className="audit-bar">
         <span className="muted">{events.length} recorded event{events.length === 1 ? "" : "s"} · live</span>
-        <input className="audit-filter" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter by kind or message…" spellCheck={false} />
+        <input aria-label="Filter audit log" className="audit-filter" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter by kind or message…" spellCheck={false} />
       </div>
       {rows.length === 0 ? <p className="muted">No events match.</p> : (
         <div className="patch-table-scroll">

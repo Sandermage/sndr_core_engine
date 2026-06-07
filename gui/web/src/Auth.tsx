@@ -392,9 +392,9 @@ export function UserAdminPanel({ currentUser }: { currentUser: AuthUser }) {
       <form className="user-create" onSubmit={create}>
         <h4><UserPlus size={15} /> Create user</h4>
         <div className="user-create-row">
-          <input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="username" />
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="password (min 8)" />
-          <select value={role} onChange={(event) => setRole(event.target.value)}>
+          <input aria-label="New user name" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="username" />
+          <input aria-label="New user password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="password (min 8)" />
+          <select aria-label="New user role" value={role} onChange={(event) => setRole(event.target.value)}>
             <option value="operator">operator</option>
             <option value="admin">admin</option>
             <option value="viewer">viewer</option>
