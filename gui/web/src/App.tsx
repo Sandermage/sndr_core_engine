@@ -30,7 +30,6 @@ import {
   Boxes,
   AlertTriangle,
   ListChecks,
-  Moon,
   MemoryStick,
   Monitor,
   MessageSquare,
@@ -54,14 +53,12 @@ import {
   Sparkles,
   SquareTerminal,
   Stethoscope,
-  Sun,
   Table2,
   TimerReset,
   Trash2,
   Terminal,
   Layers,
   Pencil,
-  Leaf,
   Maximize2,
   Plus,
   Check,
@@ -73,6 +70,10 @@ import {
 import { Component, Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { sectionFromHash, recordIdFromHash, buildHash, replaceHash } from "./route";
 import { type SectionId, type RuntimeMode, type Gate } from "./nav";
+import {
+  type ConsoleTab, type ThemeMode, type DensityMode, type AccentMode, type DetailMode, type GuiSettings,
+  nextTheme, themeLabel, themeIcon, VALID_THEMES
+} from "./settings";
 import { useFetch } from "./hooks/useFetch";
 import { asRecord, asText, asNumber, asStringArray, countRecord } from "./lib/coerce";
 import { formatAppliesTo, formatTokens, formatVram, totalVramGiB } from "./lib/format";
@@ -190,11 +191,9 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 // RuntimeMode moved to ./nav.
 // SectionId / RuntimeMode / Gate / GATE_TARGET now live in ./nav (imported above).
 type ArtifactTab = "compose" | "systemd" | "commands" | "env";
-type ConsoleTab = "jobs" | "events" | "logs" | "cli";
-type ThemeMode = "light" | "dark" | "carbon" | "lime";
-type DensityMode = "comfortable" | "compact";
-type AccentMode = "teal" | "blue" | "emerald" | "amber";
-type DetailMode = "operator" | "engineer";
+// ConsoleTab / ThemeMode / DensityMode / AccentMode / DetailMode / GuiSettings +
+// theme helpers (nextTheme/themeLabel/themeIcon/THEME_CYCLE/VALID_THEMES) now
+// live in ./settings (imported above).
 
 type RecommendForm = {
   workload: string;
@@ -211,16 +210,6 @@ type NavItem = {
 };
 
 // Gate type moved to ./nav.
-
-type GuiSettings = {
-  theme: ThemeMode;
-  density: DensityMode;
-  accent: AccentMode;
-  detailMode: DetailMode;
-  showConnectionMap: boolean;
-  autoRefresh: boolean;
-  sidebarCollapsed: boolean;
-};
 
 type RuntimeConfigDraft = {
   max_model_len: number;
@@ -258,18 +247,6 @@ const defaultGuiSettings: GuiSettings = {
   sidebarCollapsed: false
 };
 
-const THEME_CYCLE: ThemeMode[] = ["light", "dark", "carbon", "lime"];
-function nextTheme(current: ThemeMode): ThemeMode {
-  const index = THEME_CYCLE.indexOf(current);
-  return THEME_CYCLE[(index + 1) % THEME_CYCLE.length] ?? "dark";
-}
-function themeLabel(theme: ThemeMode): string {
-  return theme === "light" ? "Light" : theme === "dark" ? "Dark" : theme === "carbon" ? "Carbon" : "Lime";
-}
-function themeIcon(theme: ThemeMode): ReactNode {
-  return theme === "light" ? <Sun size={16} /> : theme === "carbon" ? <Sparkles size={16} /> : theme === "lime" ? <Leaf size={16} /> : <Moon size={16} />;
-}
-const _VALID_THEMES = new Set<ThemeMode>(["light", "dark", "carbon", "lime"]);
 
 const workloadChoices = [
   { id: "free_chat", label: "Free chat" },
@@ -8214,7 +8191,7 @@ function loadGuiSettings(): GuiSettings {
     return {
       ...defaultGuiSettings,
       ...parsed,
-      theme: parsed.theme && _VALID_THEMES.has(parsed.theme) ? parsed.theme : "light",
+      theme: parsed.theme && VALID_THEMES.has(parsed.theme) ? parsed.theme : "light",
       density: parsed.density === "compact" ? "compact" : "comfortable",
       accent: isAccent(parsed.accent) ? parsed.accent : defaultGuiSettings.accent,
       detailMode: parsed.detailMode === "operator" ? "operator" : "engineer",
