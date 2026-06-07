@@ -47,8 +47,8 @@ jobs:
       - name: Lint (eslint)
         run: npm run lint
 
-      - name: Unit tests (vitest)
-        run: npm test
+      - name: Unit tests + coverage gate (vitest)
+        run: npm run coverage
 
       - name: Production build (vite)
         run: npm run build

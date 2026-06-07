@@ -31,6 +31,24 @@ export default defineConfig(({ mode }) => {
       globals: true,
       include: ["src/**/*.{test,spec}.{ts,tsx}"],
       exclude: ["e2e/**", "node_modules/**"],
+      coverage: {
+        provider: "v8",
+        reporter: ["text-summary", "html", "lcov"],
+        reportsDirectory: "coverage",
+        // Measure the modular library; exclude entry points, type-only and
+        // generated files, and the lazy-loaded heavy panels covered by E2E.
+        include: ["src/**/*.{ts,tsx}"],
+        exclude: [
+          "src/**/*.{test,spec}.{ts,tsx}",
+          "src/main.tsx",
+          "src/main.carbon.tsx",
+          "src/api.ts",
+          "src/**/*.d.ts",
+        ],
+        // Regression floor locked at the current level (the untested App shell
+        // dominates the denominator); raised as shell coverage lands.
+        thresholds: { lines: 30, functions: 26, statements: 27, branches: 24 },
+      },
     },
   };
 });
