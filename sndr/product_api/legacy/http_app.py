@@ -114,8 +114,19 @@ try:
 except Exception:
     pass
 try:
-    from sndr.dispatcher.spec import iter_patch_specs
-    o["patches"] = sum(1 for _ in iter_patch_specs())
+    # Count registry entries by reading the source (import-free): importing
+    # sndr.dispatcher.registry triggers ~9s of heavy transitive imports inside
+    # the container, and we only need the COUNT for a version chip. Top-level
+    # PATCH_REGISTRY entries are exactly 4-space-indented quoted keys (nested
+    # keys are 8+ spaces, so they never start with '    "').
+    import os as _os, sndr as _sndr
+    _rp = _os.path.join(_os.path.dirname(_sndr.__file__), "dispatcher", "registry.py")
+    _n = 0
+    with open(_rp, encoding="utf-8") as _fh:
+        for _ln in _fh:
+            if _ln.startswith('    "') and '": ' in _ln[:48]:
+                _n += 1
+    o["patches"] = _n or None
 except Exception:
     pass
 print(json.dumps(o))
@@ -954,6 +965,21 @@ def create_app(
         _df_cache[key] = (_time.time(), data)
         return data
 
+    # Per-container version probe runs a `docker exec` (sub-second now, but with
+    # exec overhead) — cache successful results so switching tabs/containers is
+    # instant. Versions change only on an image swap, so a short TTL is plenty.
+    _sndr_state_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+    _SNDR_STATE_TTL = 90.0
+
+    def _sndr_state_cached(control, name: str, key: str) -> dict[str, Any]:
+        hit = _sndr_state_cache.get(key)
+        if hit and (_time.time() - hit[0]) < _SNDR_STATE_TTL:
+            return hit[1]
+        data = _do_sndr_state(control, name)
+        if data.get("ok"):  # never cache a failed probe
+            _sndr_state_cache[key] = (_time.time(), data)
+        return data
+
     def _audit(action: str, name: str, source: str, detail: dict[str, Any]) -> None:
         # Reuse the persisted, bounded event feed as the container audit log — the
         # GUI's Events panel + the /events SSE already render it. Every mutating
@@ -1299,7 +1325,7 @@ def create_app(
 
     @app.get("/api/v1/containers/{name}/sndr-state")
     async def container_sndr_state(name: str) -> dict[str, Any]:
-        return _do_sndr_state(_local_control(), name)
+        return _sndr_state_cached(_local_control(), name, f"local/{name}")
 
     @app.post("/api/v1/containers/{name}/pull")
     async def container_pull(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
@@ -1404,7 +1430,7 @@ def create_app(
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/sndr-state")
     async def host_container_sndr_state(host_id: str, name: str) -> dict[str, Any]:
-        return _do_sndr_state(_host_control(host_id), name)
+        return _sndr_state_cached(_host_control(host_id), name, f"host:{host_id}/{name}")
 
     @app.post("/api/v1/hosts/{host_id}/containers/{name}/pull")
     async def host_container_pull(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
