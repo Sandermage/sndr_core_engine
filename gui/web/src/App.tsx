@@ -71,6 +71,7 @@ import { ConfigDraftEditor } from "./sections/config-draft-editor";
 import { ModelsWorkbench } from "./sections/models-workbench";
 import { ApiTokenManager, NotificationSettings, AppearanceSettings, ApiTokenField } from "./sections/settings-panels";
 import { ConfigsSection } from "./sections/configs-workbench";
+import { CapabilityTable } from "./components/capability-table";
 import { StatusBadge, StatusPill, InfoRows, CompactList, KpiGrid, type GateStatus } from "./components/primitives";
 import { PercentBar, BarList, OvKpi } from "./components/charts";
 import { CaveatsPanel, ConfigKeysPanel, TracesPanel } from "./sections/diagnostics";
@@ -3398,33 +3399,7 @@ function TabIntro({ icon, title, text }: { icon: ReactNode; title: string; text:
 // CHART_PALETTE / DonutSegment / SegmentBar / PercentBar / segmentsFromCounts
 // / BarList extracted to ./components/charts.
 
-function CapabilityTable({ rows }: { rows: ProductCapability[] }) {
-  return (
-    <table className="module-table">
-      <thead>
-        <tr>
-          <th>Capability</th>
-          <th>Status</th>
-          <th>Required</th>
-          <th>Detail</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.id}>
-            <td>
-              <strong>{row.title}</strong>
-              <small>{row.id}</small>
-            </td>
-            <td><StatusBadge status={row.status} /></td>
-            <td>{row.required_tools.length ? row.required_tools.join(", ") : "built-in"}</td>
-            <td>{row.detail}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+// CapabilityTable extracted to ./components/capability-table.
 
 // CompactList extracted to ./components/primitives.
 
