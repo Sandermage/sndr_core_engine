@@ -297,18 +297,18 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
       <div className="containers-bar">
         <label className="containers-source">
           <Server size={14} />
-          <select value={source.kind === "local" ? "__local__" : source.hostId}
+          <select aria-label="Container source host" value={source.kind === "local" ? "__local__" : source.hostId}
             onChange={(e) => { const v = e.target.value; setSource(v === "__local__" ? { kind: "local" } : { kind: "host", hostId: v }); }}>
             <option value="__local__">This daemon · docker socket</option>
             {hosts.map((h) => <option key={h.id} value={h.id}>{h.label} · SSH</option>)}
           </select>
         </label>
-        <div className="containers-search"><Search size={13} /><input value={queryText} onChange={(e) => setQueryText(e.target.value)} placeholder="filter name / image…" /></div>
+        <div className="containers-search"><Search size={13} /><input aria-label="Filter containers by name or image" value={queryText} onChange={(e) => setQueryText(e.target.value)} placeholder="filter name / image…" /></div>
         <div className="containers-chips">
           {(["all", "running", "stopped"] as StateFilter[]).map((f) => <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>{f}</button>)}
         </div>
         <label className="containers-sort"><ArrowDownUp size={13} />
-          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+          <select aria-label="Sort containers" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
             <option value="state">state</option><option value="name">name</option><option value="cpu">cpu</option><option value="mem">memory</option>
           </select>
         </label>

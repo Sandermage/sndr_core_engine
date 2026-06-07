@@ -32,13 +32,13 @@ export function FlagsPanel() {
     <div className="fm">
       <div className="fm-bar">
         <label className="fm-search"><Search size={14} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="filter by flag or patch id…" spellCheck={false} />
+          <input aria-label="Filter flags by flag or patch id" value={q} onChange={(e) => setQ(e.target.value)} placeholder="filter by flag or patch id…" spellCheck={false} />
         </label>
-        <select value={family} onChange={(e) => setFamily(e.target.value)}>
+        <select aria-label="Filter by family" value={family} onChange={(e) => setFamily(e.target.value)}>
           <option value="">all families</option>
           {families.map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
-        <select value={def} onChange={(e) => setDef(e.target.value as "" | "on" | "off")}>
+        <select aria-label="Filter by default state" value={def} onChange={(e) => setDef(e.target.value as "" | "on" | "off")}>
           <option value="">any default</option>
           <option value="on">default ON</option>
           <option value="off">default OFF</option>

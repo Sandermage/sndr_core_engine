@@ -15,12 +15,6 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockApi } from "./fixtures";
 
-const SECTIONS = [
-  "Overview", "Setup", "Fleet", "Hosts", "Models", "Configs", "Presets",
-  "Planner", "Copilot", "Launch Plan", "Services", "Doctor", "Patches",
-  "Benchmarks", "Evidence", "Clients", "Chat", "Reports", "Operations", "Advanced",
-];
-
 async function scan(page: import("@playwright/test").Page) {
   const results = await new AxeBuilder({ page })
     .disableRules(["color-contrast"])
@@ -56,17 +50,28 @@ test("Overview is accessible (axe, real DOM)", async ({ page }) => {
   await scan(page);
 });
 
-test("every section navigates and stays accessible", async ({ page }) => {
+test("every nav entry routes to real content and stays accessible", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   await expect(page.locator(".side-nav")).toBeVisible();
 
-  for (const section of SECTIONS) {
-    const button = page.locator(`.side-nav button:has-text("${section}")`).first();
-    if ((await button.count()) === 0) continue;
+  // Drive the ACTUAL nav (no hardcoded list to drift): every button the sidebar
+  // renders must route to a non-empty workspace — a button that goes nowhere
+  // (unrouted section) would leave the content area blank. Also scans a11y.
+  const labels = await page.locator(".side-nav button").allInnerTexts();
+  expect(labels.length).toBeGreaterThan(10);
+
+  for (const label of labels) {
+    const button = page.locator(".side-nav button", { hasText: label.trim() }).first();
     await button.click();
-    await expect(page.locator(".main-shell")).toBeVisible();
-    await page.waitForTimeout(150);
+    // Routing invariant: the clicked entry becomes active and routes to a real
+    // panel — a workspace that shows either its section heading or (when a panel
+    // chokes on the empty hermetic data) a graceful error boundary. A nav button
+    // wired to an unrouted section would render neither — a blank workspace.
+    await expect(button).toHaveClass(/active/);
+    const workspace = page.locator(".main-shell .section-workspace").first();
+    await expect(workspace).toBeVisible();
+    await expect(workspace.locator(".section-heading, .error-boundary").first()).toBeVisible();
     await scan(page);
   }
 });

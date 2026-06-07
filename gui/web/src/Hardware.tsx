@@ -301,7 +301,7 @@ export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; i
       <div className="hw-bar-top">
         <label className="hw-source">
           <Server size={14} />
-          <select value={source.kind === "local" ? "__local__" : source.hostId}
+          <select aria-label="Telemetry source host" value={source.kind === "local" ? "__local__" : source.hostId}
             onChange={(e) => { const v = e.target.value; setSource(v === "__local__" ? { kind: "local" } : { kind: "host", hostId: v }); }}>
             <option value="__local__">This daemon host</option>
             {hosts.map((h) => <option key={h.id} value={h.id}>{h.label} · SSH</option>)}
