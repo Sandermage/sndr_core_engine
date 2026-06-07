@@ -99,9 +99,10 @@ import { OperationsConsole } from "./sections/operations";
 import { DeploymentConsole } from "./sections/deployment";
 import { GateRow } from "./sections/gate-row";
 import { SetupWizard } from "./sections/setup-wizard";
-import { JobsTable, JobMonitorModal, JobResultBlock } from "./sections/jobs";
+import { JobMonitorModal, JobResultBlock } from "./sections/jobs";
 import { ServiceLifecyclePlanner } from "./sections/services";
 import { CommandPalette } from "./sections/command-palette";
+import { EventLog, OperationalConsole } from "./sections/operational-console";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock, CopyButton } from "./components/code-block";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
@@ -8196,78 +8197,7 @@ function KeyValue({ label, value }: { label: string; value: string | number }) {
 
 // JobsTable + Progress + JobMonitorModal extracted to ./sections/jobs.
 
-function EventLog({ events }: { events: Array<[string, string, string]> }) {
-  return (
-    <section className="event-log">
-      <div className="event-list">
-        {events.map(([time, tone, text], index) => (
-          <div className="event-row" key={`${index}-${time}`}>
-            <span>{time}</span>
-            <em className={tone}>{tone}</em>
-            <p>{text}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function CliMirror({ lines }: { lines: string[] }) {
-  return (
-    <section className="cli-mirror">
-      <CodeBlock lines={lines} title="CLI mirror" />
-    </section>
-  );
-}
-
-function OperationalConsole({
-  activeTab,
-  setActiveTab,
-  selectedPreset,
-  presetCount,
-  gates,
-  events,
-  lines,
-  onMonitor
-}: {
-  activeTab: ConsoleTab;
-  setActiveTab: (tab: ConsoleTab) => void;
-  selectedPreset: string;
-  presetCount: number;
-  gates: Gate[];
-  events: Array<[string, string, string]>;
-  lines: string[];
-  onMonitor?: (id: string) => void;
-}) {
-  const blockedGates = gates.filter((gate) => gate.status === "blocked");
-  const warnGates = gates.filter((gate) => gate.status === "warning");
-  const logLines = [
-    `[catalog] registry loaded ${presetCount} presets`,
-    `[planner] dry-run launch plan ready for ${selectedPreset}`,
-    `[doctor] ${gates.filter((gate) => gate.status === "pass").length}/${gates.length} readiness gates passing`,
-    ...warnGates.map((gate) => `[gate] warning: ${gate.label} — ${gate.detail}`),
-    ...blockedGates.map((gate) => `[gate] blocked: ${gate.label} — ${gate.detail}`)
-  ];
-
-  return (
-    <section className="operational-console">
-      <div className="console-tabs unified">
-        <button className={activeTab === "jobs" ? "active" : ""} onClick={() => setActiveTab("jobs")}>Jobs</button>
-        <button className={activeTab === "events" ? "active" : ""} onClick={() => setActiveTab("events")}>Events</button>
-        <button className={activeTab === "logs" ? "active" : ""} onClick={() => setActiveTab("logs")}>Logs</button>
-        <button className={activeTab === "cli" ? "active" : ""} onClick={() => setActiveTab("cli")}>CLI Mirror</button>
-      </div>
-      {activeTab === "jobs" && <JobsTable onMonitor={onMonitor} />}
-      {activeTab === "events" && <EventLog events={events} />}
-      {activeTab === "logs" && (
-        <section className="cli-mirror">
-          <CodeBlock lines={logLines} title="Logs" />
-        </section>
-      )}
-      {activeTab === "cli" && <CliMirror lines={lines} />}
-    </section>
-  );
-}
+// EventLog + CliMirror + OperationalConsole extracted to ./sections/operational-console.
 
 // RailStat + RailCheck extracted to ./components/primitives.
 
