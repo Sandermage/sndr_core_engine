@@ -3880,6 +3880,20 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .upd { display: flex; flex-direction: column; gap: 12px; }
 .upd-note { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); margin: 0; }
 .upd-cmds { display: flex; flex-direction: column; gap: 4px; }
+.upd-modes { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-2); }
+.upd-modes-head { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.upd-seg { display: inline-flex; gap: 0; border: 1px solid var(--border); border-radius: var(--r-pill); overflow: hidden; width: fit-content; background: var(--surface); }
+.upd-seg .seg-btn {
+  font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-muted);
+  padding: 6px 16px; border: none; background: transparent; cursor: pointer;
+  border-right: 1px solid var(--border); transition: background 120ms ease, color 120ms ease;
+}
+.upd-seg .seg-btn:last-child { border-right: none; }
+.upd-seg .seg-btn:hover:not(:disabled):not(.active) { background: var(--surface-2); color: var(--text); }
+.upd-seg .seg-btn.active { background: var(--accent); color: #fff; }
+.upd-seg .seg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.upd-seg .seg-btn.blocked { color: var(--text-muted); }
+.upd-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .upd-cmd { display: flex; align-items: center; gap: 8px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; }
 .upd-cmd code { font-family: var(--mono); font-size: 12px; flex: 1; word-break: break-all; }
 .upd-cmd .ghost-button { padding: 2px 6px; }

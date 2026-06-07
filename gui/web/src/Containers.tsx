@@ -9,7 +9,7 @@ import {
 import {
   api, type AlertConfig, type ContainerAction, type ContainerSource, type ContainerStats,
   type ContainerUpdatePlan, type DockerNetwork, type FsEntry, type HostSndrState, type ImageScan,
-  type ManagedContainer, type SourceReport, type SystemDf,
+  type ManagedContainer, type SourceReport, type SystemDf, type UpdateMode,
 } from "./api";
 import { hashParam, buildHash, replaceHash } from "./route";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop, onKeyActivate } from "./dialog";
@@ -1074,14 +1074,57 @@ function ContainerVersions({ source, name, online }: { source: ContainerSource; 
   );
 }
 
+const MODE_LABEL: Record<UpdateMode, string> = { manual: "Manual", semi: "Semi-auto", auto: "Automatic" };
+const MODE_DESC: Record<UpdateMode, string> = {
+  manual: "Never auto-pulls. Updates are applied by hand. Safe default — required for vLLM engines (pin policy).",
+  semi: "Auto-downloads the new image and notifies you; you click Apply (restart) when traffic allows — so a warm KV cache is never dropped mid-request.",
+  auto: "Pulls + recreates on the daemon's schedule, health-gated with rollback. Non-critical containers only.",
+};
+
+function UpdateModeSelector({ plan, mode, onChange, busy }: { plan: ContainerUpdatePlan; mode: UpdateMode; onChange: (m: UpdateMode) => void; busy: boolean }) {
+  return (
+    <div className="upd-modes">
+      <div className="upd-modes-head"><Settings size={13} /> <strong>Update mode</strong></div>
+      <div className="seg upd-seg" role="tablist" aria-label="Update mode">
+        {(plan.modes ?? ["manual", "semi", "auto"]).map((m) => {
+          const blocked = m === "auto" && plan.is_critical;
+          return (
+            <button key={m} role="tab" aria-selected={mode === m} disabled={blocked || busy}
+              className={`seg-btn ${mode === m ? "active" : ""}${blocked ? " blocked" : ""}`}
+              title={blocked ? "Critical container (vLLM engine) — automatic updates are blocked by the pin policy" : MODE_DESC[m]}
+              onClick={() => onChange(m)}>
+              {MODE_LABEL[m]}{blocked && " 🔒"}
+            </button>
+          );
+        })}
+      </div>
+      <p className="upd-hint">{MODE_DESC[mode]}</p>
+    </div>
+  );
+}
+
 function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name: string; onClose: () => void }) {
   const [plan, setPlan] = useState<ContainerUpdatePlan | null>(null);
+  const [mode, setMode] = useState<UpdateMode>("manual");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [scan, setScan] = useState<ImageScan | null>(null);
   const [scanning, setScanning] = useState(false);
-  useEffect(() => { api.containerUpdatePlan(source, name).then(setPlan).catch((e) => setErr(e instanceof Error ? e.message : String(e))); }, [source, name]);
+  useEffect(() => {
+    api.containerUpdatePlan(source, name)
+      .then((p) => { setPlan(p); setMode(p.mode); })
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+  }, [source, name]);
+
+  async function changeMode(m: UpdateMode) {
+    const prev = mode; setMode(m); setErr(null);
+    try {
+      const r = await api.containerSetUpdateMode(source, name, m);
+      if (!r.ok) { setMode(prev); toast(r.error || "mode not allowed", "error"); }
+      else { setMode(r.mode); toast(`Update mode → ${MODE_LABEL[r.mode]}`, "success"); }
+    } catch (e) { setMode(prev); setErr(e instanceof Error ? e.message : String(e)); }
+  }
 
   async function runScan() {
     setScanning(true); setScan(null); setErr(null);
@@ -1097,13 +1140,30 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
     finally { setBusy(false); }
   }
 
+  async function downloadOnly() {
+    setBusy(true); setErr(null); setDone(null);
+    try { const r = await api.containerPull(source, name, false); setDone(`Downloaded ${r.image} — click Apply (restart) when ready.`); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  }
+
+  async function applyRestart() {
+    setBusy(true); setErr(null); setDone(null);
+    try { await api.containerAction(source, name, "restart"); setDone("Restarted onto the downloaded image."); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  }
+
   return (
     <div className="container-drawer-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
       <div className="container-modal upd-modal">
         <div className="container-modal-head"><Wrench size={16} /><strong>Update {name}</strong><div className="container-modal-acts"><button className="ghost-button" onClick={onClose}><X size={15} /></button></div></div>
         <div className="container-modal-body">
           {err && <ErrBox msg={err} />}
-          {!plan ? <Loading /> : plan.is_engine ? (
+          {!plan ? <Loading /> : (
+          <>
+          <UpdateModeSelector plan={plan} mode={mode} onChange={(m) => void changeMode(m)} busy={busy} />
+          {plan.is_engine ? (
             <div className="upd">
               <p className="upd-note"><AlertTriangle size={13} /> This is a vLLM engine. {plan.policy} Run these on the GPU host:</p>
               <div className="upd-cmds">
@@ -1116,11 +1176,25 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
             </div>
           ) : (
             <div className="upd">
-              <p className="upd-note">Pull the latest <code>{plan.image}</code> and restart the container.</p>
+              {mode === "semi" ? (
+                <>
+                  <p className="upd-note">Semi-auto: download <code>{plan.image}</code> now, then apply (restart) when ready.</p>
+                  <div className="upd-actions">
+                    <button className="ghost-button" disabled={busy} onClick={downloadOnly}>{busy ? <Loader2 size={13} className="spin" /> : <DownloadCloud size={13} />} Download now</button>
+                    <button className="primary-button" disabled={busy} onClick={applyRestart}><RotateCw size={13} /> Apply (restart)</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="upd-note">{mode === "auto" ? <>Automatic — the daemon applies on schedule. You can also apply <code>{plan.image}</code> now:</> : <>Pull the latest <code>{plan.image}</code> and restart the container.</>}</p>
+                  <button className="primary-button" disabled={busy} onClick={guardedUpdate}>{busy ? <Loader2 size={13} className="spin" /> : <DownloadCloud size={13} />} Pull image + restart</button>
+                </>
+              )}
               {done && <div className="upd-done">{done}</div>}
-              <button className="primary-button" disabled={busy} onClick={guardedUpdate}>{busy ? <Loader2 size={13} className="spin" /> : <DownloadCloud size={13} />} Pull image + restart</button>
               <p className="upd-hint">Requires the daemon to run with apply enabled (SNDR_ENABLE_APPLY=1).</p>
             </div>
+          )}
+          </>
           )}
 
           <div className="upd-scan">

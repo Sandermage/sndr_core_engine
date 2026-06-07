@@ -1071,10 +1071,12 @@ export interface FsEntry {
   name: string; is_dir: boolean; is_link: boolean; link_target?: string | null;
   perms: string; owner: string; group: string; size: number; mtime: string;
 }
+export type UpdateMode = "manual" | "semi" | "auto";
 export interface ContainerUpdatePlan {
   container: string; image: string; is_engine: boolean;
   supported_pins: string[]; canonical_pin: string | null;
   guarded_update: boolean; policy: string; commands: string[];
+  mode: UpdateMode; is_critical: boolean; modes: UpdateMode[];
 }
 export interface ImageScan {
   available: boolean; image: string; reason?: string; scanner?: string;
@@ -1423,6 +1425,11 @@ export const api = {
   containerPull: (src: ContainerSource, name: string, restart = false) =>
     postJson<{ ok: boolean; container: string; image: string; output: string; restarted?: boolean }>(
       `${containerBase(src)}/${encodeURIComponent(name)}/pull`, { confirm: true, restart }),
+  // Choose the update mode (manual / semi / auto). Rejected (ok:false) for
+  // critical containers asking for auto.
+  containerSetUpdateMode: (src: ContainerSource, name: string, mode: UpdateMode) =>
+    postJson<{ ok: boolean; mode: UpdateMode; error: string | null }>(
+      `${containerBase(src)}/${encodeURIComponent(name)}/update-mode`, { mode }),
   containerScan: (src: ContainerSource, name: string) =>
     request<ImageScan>(`${containerBase(src)}/${encodeURIComponent(name)}/scan`),
   containerSource: (src: ContainerSource, name: string) =>

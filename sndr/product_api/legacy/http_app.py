@@ -1059,14 +1059,25 @@ def create_app(
 
         return StreamingResponse(gen(), media_type="application/x-ndjson")
 
-    def _do_update_plan(control, name: str) -> dict[str, Any]:
+    def _is_engine_container(name: str, image: str) -> bool:
+        """True for a vLLM *inference engine* container. The management daemon
+        runs FROM the vLLM image but is NOT an engine — exclude it so it isn't
+        pin-gated or marked critical (semi/auto updates of the sidecar are fine)."""
+        nm = (name or "").lower()
+        if "sndr-daemon" in nm or "sndr_daemon" in nm or nm.endswith("-daemon"):
+            return False
+        return "vllm" in ((image or "").lower() + " " + nm)
+
+    def _do_update_plan(control, name: str, source: str = "local") -> dict[str, Any]:
         """Read-only: how to update this container. vLLM engines follow the pin
         policy (deliberate, copyable commands + rollback); other managed
-        containers can be guard-updated (pull image + restart)."""
-        from . import updater
+        containers can be guard-updated (pull image + restart). Carries the
+        operator's chosen update mode (manual/semi/auto) and whether the
+        container is critical (engines — automatic is then forbidden)."""
+        from . import updater, update_prefs
         inspect = _container_op(lambda: control.inspect(name))
         image = str((inspect.get("Config") or {}).get("Image") or "")
-        is_engine = "vllm" in (image.lower() + " " + name.lower())
+        is_engine = _is_engine_container(name, image)
         pins = updater.supported_pins()
         canonical = pins[0] if pins else None
         commands: list[str] = []
@@ -1083,7 +1094,20 @@ def create_app(
             "guarded_update": not is_engine,
             "policy": "vLLM pin moves deliberately — ≤1 active pin plus a 'previous' tag for rollback.",
             "commands": commands,
+            # Update-mode selection (manual/semi/auto). Engines are critical:
+            # automatic is blocked (pin policy), so the GUI greys it out.
+            "mode": update_prefs.get_mode(source, name),
+            "is_critical": is_engine,
+            "modes": list(update_prefs.VALID_MODES),
         }
+
+    def _do_set_update_mode(control, name: str, source: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Persist the operator's chosen update mode for a container."""
+        from . import update_prefs
+        inspect = _container_op(lambda: control.inspect(name))
+        image = str((inspect.get("Config") or {}).get("Image") or "")
+        is_critical = _is_engine_container(name, image)
+        return update_prefs.set_mode(source, name, str(payload.get("mode", "")), is_critical=is_critical)
 
     def _do_sndr_state(control, name: str) -> dict[str, Any]:
         """Read-only: the project versions running INSIDE this container — SNDR
@@ -1184,7 +1208,11 @@ def create_app(
 
     @app.get("/api/v1/containers/{name}/update-plan")
     async def container_update_plan(name: str) -> dict[str, Any]:
-        return _do_update_plan(_local_control(), name)
+        return _do_update_plan(_local_control(), name, "local")
+
+    @app.post("/api/v1/containers/{name}/update-mode")
+    async def container_set_update_mode(name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_set_update_mode(_local_control(), name, "local", payload)
 
     @app.get("/api/v1/containers/{name}/sndr-state")
     async def container_sndr_state(name: str) -> dict[str, Any]:
@@ -1281,7 +1309,11 @@ def create_app(
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/update-plan")
     async def host_container_update_plan(host_id: str, name: str) -> dict[str, Any]:
-        return _do_update_plan(_host_control(host_id), name)
+        return _do_update_plan(_host_control(host_id), name, host_id)
+
+    @app.post("/api/v1/hosts/{host_id}/containers/{name}/update-mode")
+    async def host_container_set_update_mode(host_id: str, name: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        return _do_set_update_mode(_host_control(host_id), name, host_id, payload)
 
     @app.get("/api/v1/hosts/{host_id}/containers/{name}/sndr-state")
     async def host_container_sndr_state(host_id: str, name: str) -> dict[str, Any]:
