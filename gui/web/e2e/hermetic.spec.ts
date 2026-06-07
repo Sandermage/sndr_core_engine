@@ -8,9 +8,11 @@
 //      violations across every navigable section.
 //
 // Scan policy: fail on critical/serious axe violations for structural rules
-// (roles, names, landmarks, ARIA validity). color-contrast is excluded — theme
-// colour tuning is tracked separately and would make the gate brittle across
-// headless-render differences.
+// (roles, names, landmarks, ARIA validity). color-contrast is NOT gated here:
+// the secondary-text, active-state and status-badge contrast were brought to
+// WCAG AA on the default (light) theme plus dark/carbon (see styles.css), but
+// full AA across the stylised `lime` palette and every stat-label remains a
+// tracked design-token initiative, so gating all four themes would be brittle.
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockApi } from "./fixtures";

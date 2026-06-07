@@ -13,7 +13,7 @@
 
   /* Accent (overridden per data-accent below). */
   --accent: #0d9488;
-  --accent-strong: #0f766e;
+  --accent-strong: #0a544c;
   /* Accent color used specifically for *text* (kickers, tabs, code, chips).
      Defaults to --accent-strong so light/dark are unchanged; themes with a dark
      accent (carbon) override it with a lighter, AA-readable tint. */
@@ -35,8 +35,8 @@
   /* Text. */
   --text: #0e1726;
   --text-2: #3a4861;
-  --text-muted: #697587;
-  --text-faint: #9aa6b6;
+  --text-muted: #555f70;
+  --text-faint: #626c7d;
 
   /* Lines + elevation — softer borders, layered shadows for elegance. */
   --border: #d0d7e2;
@@ -125,8 +125,8 @@ html[data-theme="dark"] {
   --surface-inset: #0e1726;
   --text: #eaf1fa;
   --text-2: #bccadb;
-  --text-muted: #8ea2bb;
-  --text-faint: #647691;
+  --text-muted: #9fb1c8;
+  --text-faint: #8497af;
   --border: #243349;
   --border-strong: #34486a;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
@@ -310,7 +310,7 @@ a { color: var(--accent-text); }
 .side-nav button:hover { background: var(--surface-2); color: var(--text); }
 .side-nav button.active {
   background: var(--accent-soft);
-  color: var(--accent-text);
+  color: var(--text);
   font-weight: 600;
   box-shadow: inset 3px 0 0 var(--accent);
 }
@@ -602,12 +602,15 @@ html[data-theme="carbon"] .side-nav button.active { box-shadow: inset 3px 0 0 va
   background: var(--neutral-soft); color: var(--text-2);
   border: 1px solid transparent;
 }
+/* Badge text mixes ~28% of the theme text colour into the semantic hue: keeps
+   the colour identity while pulling contrast to WCAG AA against the soft tint —
+   theme-adaptive (toward black on light themes, toward white on dark). */
 .status-badge.available, .status-badge.ready, .status-badge.stable,
-.status-badge.production_candidate, .status-badge.applied { background: var(--ok-soft); color: var(--ok); }
+.status-badge.production_candidate, .status-badge.applied { background: var(--ok-soft); color: color-mix(in srgb, var(--ok) 72%, var(--text)); }
 .status-badge.partial, .status-badge.render_only, .status-badge.experimental,
-.status-badge.qa, .status-badge.marker { background: var(--warn-soft); color: var(--warn); }
-.status-badge.deferred, .status-badge.planned, .status-badge.research { background: var(--info-soft); color: var(--info); }
-.status-badge.missing, .status-badge.blocked, .status-badge.retired { background: var(--danger-soft); color: var(--danger); }
+.status-badge.qa, .status-badge.marker { background: var(--warn-soft); color: color-mix(in srgb, var(--warn) 72%, var(--text)); }
+.status-badge.deferred, .status-badge.planned, .status-badge.research { background: var(--info-soft); color: color-mix(in srgb, var(--info) 72%, var(--text)); }
+.status-badge.missing, .status-badge.blocked, .status-badge.retired { background: var(--danger-soft); color: color-mix(in srgb, var(--danger) 72%, var(--text)); }
 
 .status-pill {
   display: inline-flex; align-items: center; gap: 6px;
@@ -4129,7 +4132,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .side-nav-group + .side-nav-group { margin-top: 14px; }
 .side-nav-header {
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
-  color: var(--text-muted); padding: 2px 11px 4px; opacity: 0.85; user-select: none;
+  color: var(--text-muted); padding: 2px 11px 4px; user-select: none;
 }
 /* Collapsed sidebar (icon-only): drop the text headers, separate groups with a rule. */
 @media (max-width: 1080px) {
