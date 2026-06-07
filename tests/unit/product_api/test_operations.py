@@ -10,7 +10,10 @@ from __future__ import annotations
 
 import pytest
 
-from vllm.sndr_core.product_api import operations as ops
+# Canonical module (not the vllm.sndr_core.* shim): run_operation looks up
+# _run_background as its own module global, so monkeypatching must target the
+# module the code actually executes in.
+from sndr.product_api.legacy import operations as ops
 
 
 def test_catalog_is_nonempty_and_well_formed():
