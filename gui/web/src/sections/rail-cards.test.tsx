@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { RuntimeEndpoint, BenchmarkCard, EvidenceCard, PatchMatrix } from "./rail-cards";
+import { RuntimeEndpoint, BenchmarkCard, EvidenceCard, PatchMatrix, EndpointRows } from "./rail-cards";
 
 afterEach(cleanup);
+
+describe("EndpointRows", () => {
+  it("renders copyable endpoint rows derived from the host", () => {
+    const { container } = render(<EndpointRows host="10.0.0.9" />);
+    const inputs = Array.from(container.querySelectorAll("input")) as HTMLInputElement[];
+    expect(inputs.some((i) => i.value === "http://10.0.0.9:8000/v1")).toBe(true);
+    expect(screen.getByText("Health")).toBeTruthy();
+  });
+});
 
 describe("RuntimeEndpoint", () => {
   it("renders default endpoint rows derived from the host", () => {

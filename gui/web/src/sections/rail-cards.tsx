@@ -188,3 +188,27 @@ export function PatchMatrix({
     </section>
   );
 }
+
+// Flat list of the standard runtime endpoints for a host, each copyable. A
+// lighter sibling of RuntimeEndpoint used in the clients view.
+export function EndpointRows({ host }: { host: string }) {
+  const rows: Array<[string, string]> = [
+    ["OpenAI API", `http://${host}:8000/v1`],
+    ["Health", `http://${host}:8000/health`],
+    ["Metrics", `http://${host}:8001/metrics`],
+    ["Docs", `http://${host}:8000/docs`]
+  ];
+  return (
+    <div className="endpoint-rows">
+      {rows.map(([label, value]) => (
+        <label className="endpoint-field" key={label}>
+          <span>{label}</span>
+          <div>
+            <input value={value} readOnly />
+            <CopyButton value={value} label={label} />
+          </div>
+        </label>
+      ))}
+    </div>
+  );
+}

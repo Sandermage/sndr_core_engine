@@ -88,7 +88,7 @@ import { HostInventoryPanel, DependencyStackPanel, EnvironmentPanel } from "./se
 import { DoctorCoveragePanel, AdminSurfaceMatrix } from "./sections/patch-doctor";
 import { BenchmarkBaselinePanel, EvidenceRows } from "./sections/bench";
 import { AuditLogPanel } from "./sections/audit-log";
-import { RuntimeEndpoint, BenchmarkCard, EvidenceCard, PatchMatrix } from "./sections/rail-cards";
+import { RuntimeEndpoint, BenchmarkCard, EvidenceCard, PatchMatrix, EndpointRows } from "./sections/rail-cards";
 import { EndpointExplorer, ReportGenerator } from "./sections/api-explorer";
 import { ConfirmDialog, InfoDialog } from "./components/dialogs";
 import { CatalogCard, ModelFitCard, ModelFitMatrix, KvEnvelopeCard, type CatalogBadge } from "./sections/catalog-cards";
@@ -8054,27 +8054,7 @@ function PatchExplainPanel({
 
 // BenchmarkBaselinePanel + EvidenceRows extracted to ./sections/bench.
 
-function EndpointRows({ host }: { host: string }) {
-  const rows: Array<[string, string]> = [
-    ["OpenAI API", `http://${host}:8000/v1`],
-    ["Health", `http://${host}:8000/health`],
-    ["Metrics", `http://${host}:8001/metrics`],
-    ["Docs", `http://${host}:8000/docs`]
-  ];
-  return (
-    <div className="endpoint-rows">
-      {rows.map(([label, value]) => (
-        <label className="endpoint-field" key={label}>
-          <span>{label}</span>
-          <div>
-            <input value={value} readOnly />
-            <CopyButton value={value} label={label} />
-          </div>
-        </label>
-      ))}
-    </div>
-  );
-}
+// EndpointRows extracted to ./sections/rail-cards.
 
 // Reusable confirmation dialog for destructive/irreversible actions. Focus is
 // trapped, Cancel is the autofocused default, Esc/backdrop cancel, and the
