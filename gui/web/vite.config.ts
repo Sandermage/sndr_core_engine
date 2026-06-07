@@ -45,11 +45,11 @@ export default defineConfig(({ mode }) => {
           "src/api.ts",
           "src/**/*.d.ts",
         ],
-        // Regression floor locked just under the measured level. Raised after
-        // the App shell test (App.shell.test.tsx) began exercising the boot
-        // orchestration + SectionWorkspace routing — lines 30->36, branches
-        // 24->29. Bump again as more shell paths land.
-        thresholds: { lines: 35, functions: 28, statements: 32, branches: 28 },
+        // Regression floor locked just under the measured level. Raised as the
+        // App shell test (App.shell.test.tsx) grew to drive the boot path plus
+        // navigation through every section — lines 30->39, branches 24->32.
+        // Bump again as more paths land.
+        thresholds: { lines: 38, functions: 30, statements: 34, branches: 31 },
       },
     },
   };

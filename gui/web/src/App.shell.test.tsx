@@ -6,7 +6,7 @@
 // it. Only the network `api` object is replaced — getApiBase/normalizeBaseUrl/
 // hostLabel stay real so the shell wiring is genuinely exercised.
 import { describe, it, expect, beforeAll, afterEach, vi, type Mock } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 
 vi.mock("./api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./api")>();
@@ -43,6 +43,19 @@ beforeAll(() => {
     (globalThis as Record<string, unknown>).EventSource = FakeEventSource;
   }
   if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = vi.fn();
+  // Canvas + observers: chart/terminal panels touch these on mount; jsdom has
+  // no 2d/webgl context. Returning null lets such panels degrade (or fall to
+  // their SectionErrorBoundary) instead of aborting the whole render.
+  if (!HTMLCanvasElement.prototype.getContext) {
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+  }
+  for (const name of ["ResizeObserver", "IntersectionObserver"]) {
+    if (!(name in globalThis)) {
+      (globalThis as Record<string, unknown>)[name] = class {
+        observe() {} unobserve() {} disconnect() {} takeRecords() { return []; }
+      };
+    }
+  }
   if (!window.matchMedia) {
     window.matchMedia = vi.fn().mockReturnValue({
       matches: false, media: "", addEventListener: vi.fn(), removeEventListener: vi.fn(),
@@ -73,5 +86,24 @@ describe("App shell", () => {
     // SectionWorkspace swaps content; the patches fetch fires on that route.
     await waitFor(() => expect(apiMock.patches).toHaveBeenCalled());
     expect(patchesBtn.className).toContain("active");
+  });
+
+  it("navigates every sidebar section without unmounting the shell", async () => {
+    render(<App />);
+    const nav = await screen.findByRole("navigation", { name: "SNDR sections" });
+    const labels = within(nav).getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? "");
+    expect(labels.length).toBeGreaterThan(15);
+
+    for (const label of labels) {
+      // Re-query each iteration: a section render may swap subtrees.
+      const liveNav = screen.getByRole("navigation", { name: "SNDR sections" });
+      const button = within(liveNav).getByRole("button", { name: label });
+      fireEvent.click(button);
+      // Each route activates and runs its section code path. The shell must
+      // stay mounted — a panel may fall back to its SectionErrorBoundary under
+      // jsdom's missing canvas/webgl, but the nav landmark must never disappear.
+      await waitFor(() => expect(button.className).toContain("active"));
+      expect(screen.getByRole("navigation", { name: "SNDR sections" })).toBeTruthy();
+    }
   });
 });
