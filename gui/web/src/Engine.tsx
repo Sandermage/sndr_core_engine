@@ -3,7 +3,6 @@ import { ArrowRight, Bot, BookText, ChevronDown, CircleAlert, Copy, Database, Do
 import type { ReactNode } from "react";
 import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, type RoutingActive, type RoutingClassify, type RoutingSignals, api } from "./api";
 import { SkeletonMetrics } from "./Skeleton";
-import { onKeyActivate } from "./dialog";
 
 function fmtCount(n: number | null): string {
   if (n === null || n === undefined) return "—";
@@ -879,9 +878,9 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
         <button className="chat2-new" onClick={startConversation}><Plus size={15} /> New chat</button>
         <div className="chat2-list">
           {conversations.map((c) => (
-            <div className={`chat2-item ${c.id === activeId ? "active" : ""}`} key={c.id} role="button" tabIndex={0} onClick={() => setActiveId(c.id)} onKeyDown={onKeyActivate(() => setActiveId(c.id))}>
-              <span className="chat2-item-title">{c.title || "Untitled"}</span>
-              <button className="icon-only" title="Delete chat" onClick={(e) => { e.stopPropagation(); deleteConversation(c.id); }}><X size={13} /></button>
+            <div className={`chat2-item ${c.id === activeId ? "active" : ""}`} key={c.id}>
+              <button type="button" className="chat2-item-title" aria-current={c.id === activeId ? "true" : undefined} onClick={() => setActiveId(c.id)}>{c.title || "Untitled"}</button>
+              <button className="icon-only" title="Delete chat" aria-label={`Delete chat: ${c.title || "Untitled"}`} onClick={() => deleteConversation(c.id)}><X size={13} /></button>
             </div>
           ))}
         </div>

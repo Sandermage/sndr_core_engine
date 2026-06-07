@@ -51,8 +51,11 @@ export function AlertsBell({ onOpenHardware }: { onOpenHardware?: () => void }) 
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  const crit = snap?.counts.critical ?? 0;
-  const warn = snap?.counts.warn ?? 0;
+  // Guard `counts` too: a malformed/empty daemon payload ({} or a partial
+  // snapshot) must degrade to zero, not throw — AlertsBell sits in the always-
+  // rendered topbar, so an unguarded access here white-screens the whole app.
+  const crit = snap?.counts?.critical ?? 0;
+  const warn = snap?.counts?.warn ?? 0;
   const total = crit + warn;
   const tone = crit > 0 ? "critical" : warn > 0 ? "warn" : "ok";
   const active = snap?.active ?? [];

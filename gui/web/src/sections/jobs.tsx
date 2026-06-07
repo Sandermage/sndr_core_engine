@@ -118,10 +118,10 @@ export function JobsTable({ onMonitor }: { onMonitor?: (id: string) => void }) {
   );
 }
 
-export function Progress({ value }: { value: number }) {
+export function Progress({ value, label = "Progress" }: { value: number; label?: string }) {
   const clamped = Math.max(0, Math.min(100, value));
   return (
-    <span className="progress-track" role="progressbar" aria-valuenow={Math.round(clamped)} aria-valuemin={0} aria-valuemax={100}>
+    <span className="progress-track" role="progressbar" aria-label={label} aria-valuenow={Math.round(clamped)} aria-valuemin={0} aria-valuemax={100}>
       <span style={{ width: `${clamped}%` }} />
     </span>
   );
@@ -163,7 +163,7 @@ export function JobMonitorModal({ jobId, onClose }: { jobId: string; onClose: ()
 
   return (
     <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
-      <section ref={dialogRef} className="job-monitor" role="dialog" aria-modal="true">
+      <section ref={dialogRef} className="job-monitor" role="dialog" aria-modal="true" aria-label={`${job?.title ?? "Job"} monitor`}>
         <header className="job-monitor-head">
           <div className="job-monitor-title">
             <Activity size={18} className={running ? "spin" : ""} />
@@ -176,7 +176,7 @@ export function JobMonitorModal({ jobId, onClose }: { jobId: string; onClose: ()
           <button className="icon-only" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </header>
 
-        {progress >= 0 ? <Progress value={progress} /> : <div className="job-monitor-indeterminate"><span /></div>}
+        {progress >= 0 ? <Progress value={progress} label={`${job?.title ?? "Job"} progress`} /> : <div className="job-monitor-indeterminate"><span /></div>}
         {error && <div className="inline-error"><AlertCircle size={15} /> {error}</div>}
 
         {job && job.steps.length > 0 && (

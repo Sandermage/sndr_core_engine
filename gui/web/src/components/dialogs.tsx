@@ -40,7 +40,7 @@ export function InfoDialog({ message, onClose }: { message: string; onClose: () 
   useEscapeKey(onClose);
   return (
     <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
-      <section ref={dialogRef} className="info-dialog" role="dialog" aria-modal="true">
+      <section ref={dialogRef} className="info-dialog" role="dialog" aria-modal="true" aria-label="GUI Action Preview">
         <div className="module-card-title">
           <Command size={18} />
           <h2>GUI Action Preview</h2>

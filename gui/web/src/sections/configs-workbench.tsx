@@ -866,7 +866,7 @@ function CodeEditorField({ value, onChange, label }: { value: string; onChange: 
       <textarea className="yaml-area" value={value} spellCheck={false} onChange={(event) => onChange(event.target.value)} />
       {expanded && (
         <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(() => setExpanded(false))}>
-          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true">
+          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" aria-label={`${label ?? "Editor"} — fullscreen editor`}>
             <header className="code-expand-head">
               <Code2 size={15} />
               <strong>{label ?? "Editor"}</strong>

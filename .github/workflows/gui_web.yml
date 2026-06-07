@@ -1,9 +1,13 @@
 # SNDR Control Center web app — CI gate for the React/TypeScript GUI.
 #
-# Runs the four quality gates on every change under gui/web:
-#   typecheck (tsc) -> lint (eslint) -> unit tests (vitest) -> production build.
-# E2E (Playwright) is intentionally NOT run here — it needs a live daemon and
-# runs on the dev box; this gate keeps PR feedback fast and hermetic.
+# Runs the quality gates on every change under gui/web:
+#   build job: typecheck (tsc) -> lint (eslint) -> unit tests + coverage gate
+#              (vitest) -> production build.
+#   e2e job:   hermetic Playwright run against `vite preview` of the production
+#              bundle, with every /api/** call mocked (e2e/fixtures.ts) and an
+#              axe-core accessibility scan of every navigable section.
+# The dev-box specs (smoke/host_wiring/server_switch/chat_rag) still need a live
+# daemon and are NOT run here — only the hermetic spec, which needs no backend.
 #
 # Triggered:
 #   - push to main (only when gui/web changes)
@@ -52,3 +56,27 @@ jobs:
 
       - name: Production build (vite)
         run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Production build (vite)
+        run: npm run build
+
+      - name: Hermetic E2E + axe a11y (Playwright)
+        run: npm run test:e2e:ci

@@ -51,7 +51,7 @@ export function CodeBlock({ lines, title }: { lines: string[]; title?: string })
       </div>
       {expanded && (
         <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(() => setExpanded(false))}>
-          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true">
+          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" aria-label={`${title ?? "Output"} — expanded`}>
             <header className="code-expand-head">
               <Terminal size={15} />
               <strong>{title ?? "Output"}</strong>

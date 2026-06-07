@@ -71,6 +71,7 @@ export function SetupWizard({
         <div
           className="setup-progress-track"
           role="progressbar"
+          aria-label="Setup readiness"
           aria-valuenow={done}
           aria-valuemin={0}
           aria-valuemax={steps.length}

@@ -16,6 +16,7 @@
     "i18n:extract": "lingui extract",
     "i18n:compile": "lingui compile",
     "test:e2e": "playwright test",
+    "test:e2e:ci": "playwright test --config playwright.hermetic.config.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -41,6 +42,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
     "@eslint/js": "^9.39.4",
     "@lingui/cli": "^4.11.4",
     "@playwright/test": "^1.60.0",
@@ -50,6 +52,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.8",
+    "axe-core": "^4.12.0",
     "eslint": "^9.39.4",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
