@@ -105,9 +105,11 @@ import { RuntimeEnvelopePanel, PresetPolicyGraph } from "./sections/preset-insig
 import { PatchMatrixViewer } from "./sections/patch-matrix";
 import { PatchSummaryPanel, PatchLifecycleGraph, PatchRegistryInsight, PatchModelSupport } from "./sections/patch-overview";
 import { PatchInventoryControl } from "./sections/patch-inventory";
+import { PresetRecommendPanel } from "./sections/preset-recommend";
+import { type RecommendForm, defaultRecommend, workloadChoices } from "./recommend";
 import { ProjectCatalogPanel } from "./sections/project-catalog";
 import { PresetQuickPanel } from "./sections/preset-quick";
-import { PresetCatalogTable, PresetBaselineCell } from "./sections/preset-catalog";
+import { PresetCatalogTable } from "./sections/preset-catalog";
 import { EmptyState } from "./components/empty-state";
 import { HostFormModal } from "./sections/host-form-modal";
 import { ThisHostCard } from "./sections/this-host-card";
@@ -197,13 +199,7 @@ type ArtifactTab = "compose" | "systemd" | "commands" | "env";
 // theme helpers (nextTheme/themeLabel/themeIcon/THEME_CYCLE/VALID_THEMES) now
 // live in ./settings (imported above).
 
-type RecommendForm = {
-  workload: string;
-  hardware: string;
-  concurrency: number;
-  top: number;
-  preferPublic: boolean;
-};
+// RecommendForm / defaultRecommend / workloadChoices moved to ./recommend (imported above).
 
 type NavItem = {
   id: SectionId;
@@ -228,13 +224,6 @@ type RuntimeConfigDraft = {
   patch_policy: string;
 };
 
-const defaultRecommend: RecommendForm = {
-  workload: "free_chat",
-  hardware: "a5000-2x-24gbvram-16cpu-128gbram",
-  concurrency: 8,
-  top: 5,
-  preferPublic: true
-};
 
 const GUI_SETTINGS_STORAGE_KEY = "sndr.gui.settings";
 const AUTO_REFRESH_INTERVAL_MS = 20_000;
@@ -249,15 +238,6 @@ const defaultGuiSettings: GuiSettings = {
   sidebarCollapsed: false
 };
 
-
-const workloadChoices = [
-  { id: "free_chat", label: "Free chat" },
-  { id: "code_gen", label: "Code gen" },
-  { id: "tool_call.short", label: "Tool calls" },
-  { id: "structured_json.short", label: "Structured JSON" },
-  { id: "summarization", label: "Summarization" },
-  { id: "long_context_qa", label: "Long context" }
-];
 
 // Sidebar grouped into a logical workflow: see → your servers → define what to
 // run → deploy it → use it → prove it → tools. Each group renders under a small
@@ -6023,105 +6003,7 @@ function CodeTabs({ tabs }: { tabs: Array<{ id: string; label: string; lines: st
 // Enterprise recommend tab: surface the catalog's recommendation engine inside
 // Presets. Pick a workload + rig + concurrency and get a ranked, scored list of
 // presets — click to select and inspect. Connects browse → recommend → select.
-function PresetRecommendPanel({
-  hardwareOptions,
-  workloadCounts,
-  onSelect
-}: {
-  hardwareOptions: string[];
-  workloadCounts: Record<string, number>;
-  onSelect: (id: string) => void;
-}) {
-  const [workload, setWorkload] = useState("free_chat");
-  const [hardware, setHardware] = useState(hardwareOptions[0] ?? defaultRecommend.hardware);
-  const [concurrency, setConcurrency] = useState(8);
-  const [top, setTop] = useState(5);
-  const [result, setResult] = useState<PresetRecommendResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function run() {
-    setLoading(true);
-    setError(null);
-    try {
-      setResult(await api.recommendPresets({ workload, hardware, concurrency, top }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot load on mount
-  useEffect(() => { void run(); }, []);
-
-  return (
-    <div className="preset-recommend">
-      <div className="rec-workloads">
-        {workloadChoices.map((choice) => (
-          <button
-            key={choice.id}
-            className={workload === choice.id ? "active" : ""}
-            onClick={() => setWorkload(choice.id)}
-          >
-            {choice.label}<small>{workloadCounts[choice.id] ?? 0}</small>
-          </button>
-        ))}
-      </div>
-      <div className="rec-controls">
-        <label className="param-field"><span>Target hardware</span>
-          <select value={hardware} onChange={(event) => setHardware(event.target.value)}>
-            {hardwareOptions.map((id) => <option key={id} value={id}>{id}</option>)}
-          </select>
-        </label>
-        <label className="param-field"><span>Concurrency</span>
-          <input type="number" min={1} value={concurrency} onChange={(event) => setConcurrency(Number(event.target.value))} />
-        </label>
-        <label className="param-field"><span>Top N</span>
-          <input type="number" min={1} max={20} value={top} onChange={(event) => setTop(Number(event.target.value))} />
-        </label>
-        <button className="primary-action" onClick={() => void run()} disabled={loading}>
-          <Rocket size={15} /> {loading ? "Ranking…" : "Recommend"}
-        </button>
-      </div>
-      {error && <div className="config-plan-error"><AlertCircle size={15} /><span>{error}</span></div>}
-      {result && (
-        <>
-          <div className="rec-summary">
-            <span className={result.total_matches > 0 ? "fleet-status ok" : "fleet-status danger"}>
-              <span className="fleet-dot" />{result.total_matches} of {result.total_candidates} candidates match
-            </span>
-          </div>
-          {result.results.length > 0 ? (
-            <div className="patch-table-scroll">
-              <table className="module-table rec-table">
-                <thead><tr><th>#</th><th>Preset</th><th>Model</th><th>Hardware</th><th>Profile</th><th>Baseline</th><th></th></tr></thead>
-                <tbody>
-                  {result.results.map((rec) => (
-                    <tr key={rec.id}>
-                      <td><span className="rec-rank">{rec.rank}</span></td>
-                      <td><strong>{rec.id}</strong>{asText(rec.card?.status, "") && <small className="rec-status">{asText(rec.card?.status, "")}</small>}</td>
-                      <td>{rec.model}</td>
-                      <td>{rec.hardware}</td>
-                      <td>{rec.profile ?? "—"}</td>
-                      <td><PresetBaselineCell card={rec.card} /></td>
-                      <td><button className="ghost-button" onClick={() => onSelect(rec.id)}><FileText size={13} /> Inspect</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <EmptyState
-              icon={<Database size={22} />}
-              title="No presets match"
-              message="No preset fits this workload on the selected hardware. Try a different rig or workload above, or relax the concurrency target."
-            />
-          )}
-        </>
-      )}
-    </div>
-  );
-}
+// PresetRecommendPanel extracted to ./sections/preset-recommend.
 
 // What this preset overrides relative to its declared fallback target.
 function PresetFallbackDiff({ explain }: { explain: PresetExplainResult | null }) {
