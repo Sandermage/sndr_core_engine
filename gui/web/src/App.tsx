@@ -71,6 +71,7 @@ import { ApiTokenManager, NotificationSettings, AppearanceSettings, ApiTokenFiel
 import { ConfigsSection } from "./sections/configs-workbench";
 import { CapabilityTable } from "./components/capability-table";
 import { PlanChip, KeyValue, ArtifactPreview, type ArtifactTab } from "./components/display-bits";
+import { Step, Metric, PanelHeader, TabIntro, CodeTabs } from "./components/shell-bits";
 import { HostsSection } from "./sections/hosts-section";
 import { PresetSelectedView, PresetSummaryStrip } from "./sections/preset-views";
 import { StatusBadge, StatusPill, InfoRows, CompactList, KpiGrid, type GateStatus } from "./components/primitives";
@@ -1676,82 +1677,7 @@ function ShortcutsModal({ onClose }: { onClose: () => void }) {
 
 // LaunchParam + LaunchPanel extracted to ./sections/launch-panel.
 
-function Step({
-  number,
-  title,
-  detail,
-  state,
-  active = false,
-  onClick
-}: {
-  number: string;
-  title: string;
-  detail: string;
-  state: "done" | "active" | "warning" | "idle";
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  const content = (
-    <>
-      <span>{number}</span>
-      <div>
-        <strong>{title}</strong>
-        <small>{detail}</small>
-      </div>
-    </>
-  );
-  if (!onClick) {
-    return <div className={`step ${state}`}>{content}</div>;
-  }
-  return (
-    <button type="button" className={`step step-button ${state} ${active ? "current" : ""}`} onClick={onClick} aria-current={active}>
-      {content}
-    </button>
-  );
-}
-
-function Metric({
-  icon,
-  label,
-  value
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="metric">
-      {icon}
-      <div>
-        <span>{label}</span>
-        <strong>{value}</strong>
-      </div>
-    </div>
-  );
-}
-
-function PanelHeader({
-  label,
-  title,
-  action,
-  icon
-}: {
-  label: string;
-  title: string;
-  action?: string;
-  icon: ReactNode;
-}) {
-  return (
-    <div className="panel-header">
-      <div>
-        {icon}
-        <span>{label}</span>
-        <h2>{title}</h2>
-      </div>
-      {action && <small>{action}</small>}
-    </div>
-  );
-}
+// Step + Metric + PanelHeader extracted to ./components/shell-bits.
 
 // StatusBadge / StatusPill extracted to ./components/primitives.
 
@@ -3362,17 +3288,7 @@ function sectionSpec(sectionId: SectionId) {
 // modelFamily/itemBadges/ModelSummaryStrip/ModelKeyFacts + ModelsWorkbench extracted to ./sections/models-workbench.
 
 // Configs workbench (ConfigElementEditor/V2ConfigWorkbench/ConfigsSection/ConfigSelect/ConfigItemInspector/CompositionChain/ResolvedConfig + CodeEditorField + config-artifact builders) extracted to ./sections/configs-workbench.
-function TabIntro({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
-  return (
-    <div className="tab-intro">
-      <span className="tab-intro-icon">{icon}</span>
-      <div className="tab-intro-body">
-        <strong>{title}</strong>
-        <span>{text}</span>
-      </div>
-    </div>
-  );
-}
+// TabIntro extracted to ./components/shell-bits.
 
 // Overview hero KPI tile — bold headline numbers, optionally click-through to a section.
 // OvKpi extracted to ./components/charts.
@@ -3476,27 +3392,7 @@ function QueueJobButton({ label, run, onMonitor }: { label: string; run: () => P
 // Enterprise Hosts section: fleet overview with live probes, full daemon-host
 // inventory, profile CRUD with a modal, runtime-target matrix and access.
 // HostsSection + HostProfileTable extracted to ./sections/hosts-section.
-function CodeTabs({ tabs }: { tabs: Array<{ id: string; label: string; lines: string[] }> }) {
-  const [active, setActive] = useState(tabs[0]?.id ?? "");
-  const current = tabs.find((tab) => tab.id === active) ?? tabs[0];
-  return (
-    <div className="code-tabs">
-      <div className="code-tabs-bar">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={tab.id === current?.id ? "active" : ""}
-            onClick={() => setActive(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      {current && <CodeBlock lines={current.lines} />}
-    </div>
-  );
-}
+// CodeTabs extracted to ./components/shell-bits.
 
 // Enterprise recommend tab: surface the catalog's recommendation engine inside
 // Presets. Pick a workload + rig + concurrency and get a ranked, scored list of
