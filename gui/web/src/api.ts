@@ -296,6 +296,12 @@ export type EnvironmentReport = {
   machine: string;
   dependencies: DependencyInfo[];
   tools: DependencyInfo[];
+  // Self-locating launch context — a restart command that works on the node the
+  // daemon actually runs on (vs a static guess that fails from the wrong dir).
+  python_executable?: string;
+  install_root?: string | null;
+  sndr_importable_globally?: boolean;
+  restart_command?: string;
 };
 
 export type DeployTarget = {

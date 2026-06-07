@@ -32,19 +32,20 @@ export function tunnelCommand(profile: HostProfile): string {
 
 // Actionable guidance when the daemon is read-only (apply gated off). Shows the
 // exact restart command with a copy button, instead of a bare "apply is disabled".
-function ApplyDisabledNote({ what }: { what: string }) {
-  // Canonical entrypoint: `sndr.cli` is the top-level package — importable
-  // without the `vllm` namespace, unlike the `vllm.sndr_core.cli` shim (which
-  // raises ModuleNotFoundError on nodes where vllm isn't installed). Run it
-  // from the SNDR install directory, or after `pip install vllm-sndr-core[gui-api]`.
-  const cmd = "python3 -m sndr.cli gui-api --enable-apply";
+function ApplyDisabledNote({ what, command }: { what: string; command?: string }) {
+  // Prefer the daemon's self-located restart command (from /api/v1/environment):
+  // it embeds the real install directory of THIS node, so it works as-is. The
+  // static fallback is the canonical `sndr.cli` (top-level package, importable
+  // without the `vllm` namespace) — must be run from the SNDR install dir.
+  const cmd = command?.trim() || "python3 -m sndr.cli gui-api --enable-apply";
+  const located = Boolean(command?.trim());
   const [copied, setCopied] = useState(false);
   return (
     <div className="apply-gate">
       <Lock size={14} />
       <div className="apply-gate-body">
         <strong>{what} needs apply — the daemon is read-only.</strong>
-        <span>Restart it with apply enabled (or set <code>SNDR_ENABLE_APPLY=1</code>) — run from the SNDR install dir, or after <code>pip install vllm-sndr-core[gui-api]</code>:</span>
+        <span>Restart it with apply enabled (or set <code>SNDR_ENABLE_APPLY=1</code>){located ? " — this command targets this node's install:" : " — run from the SNDR install dir, or after pip install vllm-sndr-core[gui-api]:"}</span>
         <div className="apply-gate-cmdrow">
           <code className="apply-gate-cmd">{cmd}</code>
           <button className="apply-gate-copy" onClick={() => { navigator.clipboard?.writeText(cmd); setCopied(true); window.setTimeout(() => setCopied(false), 1500); }}>
@@ -82,7 +83,8 @@ export function FleetHostCard({
   onHardware,
   reliability,
   fleet,
-  applyEnabled
+  applyEnabled,
+  restartCommand
 }: {
   profile: HostProfile;
   onEdit: (profile: HostProfile) => void;
@@ -99,6 +101,7 @@ export function FleetHostCard({
   reliability?: HostReliability | null;
   fleet?: FleetHost | null;
   applyEnabled?: boolean;
+  restartCommand?: string;
 }) {
   const [probe, setProbe] = useState<HostProbe | null>(null);
   const [busy, setBusy] = useState(false);
@@ -328,7 +331,7 @@ export function FleetHostCard({
               <input type="number" value={profile.engine_port || 8102} readOnly title="The node's vLLM engine port (from the card)" />
             </label>
           </div>
-          {applyEnabled === false && <ApplyDisabledNote what="Installing a node over SSH" />}
+          {applyEnabled === false && <ApplyDisabledNote what="Installing a node over SSH" command={restartCommand} />}
           <div className="node-setup-actions">
             <button className="primary-action danger" onClick={() => void installNode()} disabled={nodePw.length < 4 || nodeBusy || applyEnabled === false}>
               {nodeBusy ? <Loader2 size={14} className="spin" /> : <Rocket size={14} />} Install node over SSH
@@ -342,7 +345,7 @@ export function FleetHostCard({
                 <strong>{nodeResult.ok ? `Node ready on :${nodeResult.port} — switch to it from the top menu (login: root)` : "Setup failed"}</strong>
                 {nodeResult.error && !/apply is disabled/i.test(nodeResult.error) && <span className="node-setup-err">{nodeResult.error}</span>}
               </div>
-              {nodeResult.error && /apply is disabled/i.test(nodeResult.error) && <ApplyDisabledNote what="Installing a node over SSH" />}
+              {nodeResult.error && /apply is disabled/i.test(nodeResult.error) && <ApplyDisabledNote what="Installing a node over SSH" command={restartCommand} />}
               <ol className="node-setup-steps">
                 {nodeResult.steps.map((s, i) => (
                   <li key={i} className={s.rc === 0 ? "ok" : "fail"}>

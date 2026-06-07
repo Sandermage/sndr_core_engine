@@ -40,3 +40,34 @@ def test_environment_report_lists_dependencies_and_tools():
 
     payload = asdict(report)
     assert isinstance(payload["dependencies"], (list, tuple))
+
+
+def test_restart_command_prefers_console_script_when_on_path(monkeypatch):
+    # A real pip install puts an `sndr` console script on PATH -> the restart
+    # command resolves from any working directory, so use it bare.
+    from sndr.product_api.legacy import environment as env
+    monkeypatch.setattr(env.shutil, "which", lambda name: "/usr/local/bin/sndr" if name == "sndr" else None)
+    _, _, _, cmd = env._daemon_launch_context()
+    assert cmd == "sndr gui-api --enable-apply"
+
+
+def test_restart_command_cds_into_install_root_for_source_checkout(monkeypatch):
+    # No console script (no pip install): the daemon runs from a source tree, so
+    # the command MUST cd into the directory that contains the importable sndr/
+    # package — otherwise `python -m sndr.cli` fails with No module named 'sndr'
+    # (the exact error an operator hits running it from their home directory).
+    from sndr.product_api.legacy import environment as env
+    monkeypatch.setattr(env.shutil, "which", lambda name: None)
+    py, root, _, cmd = env._daemon_launch_context()
+    assert root is not None and (env._Path(root) / "sndr").is_dir()
+    assert cmd == f"cd '{root}' && {py} -m sndr.cli gui-api --enable-apply"
+    assert "vllm.sndr_core.cli" not in cmd   # never the vllm-namespace shim path
+
+
+def test_environment_report_exposes_restart_command(monkeypatch):
+    from sndr.product_api.legacy import environment as env
+    monkeypatch.setattr(env.shutil, "which", lambda name: None)
+    report = collect_environment_report()
+    assert "sndr.cli gui-api --enable-apply" in report.restart_command
+    assert report.python_executable
+    assert report.install_root and report.install_root in report.restart_command
