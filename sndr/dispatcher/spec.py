@@ -96,6 +96,7 @@ VALID_CATEGORIES = (
     "request_middleware", # request-path hooks (PN16, PN65)
     "stability",          # boot/runtime stability guards (P34, PN61)
     "hybrid",             # GDN/Mamba hybrid path (PN32, PN59)
+    "config_auto_tune",   # auto-tune config/profile from detected hw (PN296, PN302)
 )
 
 # `implementation_status` describes how the patch is wired into vllm.
