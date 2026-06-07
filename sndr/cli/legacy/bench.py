@@ -35,15 +35,16 @@ __all__ = [
 ]
 
 
-# Wave 10 (2026-05-15) refactor: canonical location moved INSIDE sndr_core
-# package to make it self-contained. parents[0]=cli, [1]=sndr_core,
-# [2]=vllm, [3]=repo. Internal path: parents[1] / tools / yaml.
-# Legacy repo-root path kept as fallback for older checkouts.
+# Canonical methodology YAML. After the sndr-platform relocation this module
+# lives at sndr/cli/legacy/bench.py (parents[0]=legacy, [1]=cli, [2]=sndr,
+# [3]=repo). The committed file is at sndr/extras/tools/bench_methodology.yaml;
+# the pre-migration vllm/sndr_core/tools/ copy is kept as a fallback for older
+# engine-side checkouts.
 _DEFAULT_METHODOLOGY_PATH = (
-    Path(__file__).resolve().parents[1] / "tools" / "bench_methodology.yaml"
+    Path(__file__).resolve().parents[2] / "extras" / "tools" / "bench_methodology.yaml"
 )
 _LEGACY_METHODOLOGY_PATH = (
-    Path(__file__).resolve().parents[3] / "tools" / "bench_methodology.yaml"
+    Path(__file__).resolve().parents[3] / "vllm" / "sndr_core" / "tools" / "bench_methodology.yaml"
 )
 
 
