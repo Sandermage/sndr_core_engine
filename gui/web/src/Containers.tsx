@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import {
   api, type AlertConfig, type ContainerAction, type ContainerSource, type ContainerStats,
-  type ContainerUpdatePlan, type DockerNetwork, type FsEntry, type HostSndrState, type ImageScan,
+  type ContainerUpdatePlan, type DockerNetwork, type FsEntry, type GpuInfo, type HostSndrState, type ImageScan,
   type ManagedContainer, type SourceReport, type SystemDf, type UpdateMode,
 } from "./api";
 import { hashParam, buildHash, replaceHash } from "./route";
@@ -924,6 +924,62 @@ function FilesTab({ source, name }: { source: ContainerSource; name: string }) {
   );
 }
 
+// Live GPU/VRAM for the host this container runs on (nvidia-smi telemetry). The
+// differentiator: no off-the-shelf container manager surfaces GPU in the
+// container view. Hidden quietly when the host has no GPU / isn't reachable.
+function ContainerGpu({ source }: { source: ContainerSource }) {
+  const [gpus, setGpus] = useState<GpuInfo[] | null>(null);
+  const [missing, setMissing] = useState(false);
+  const histRef = useRef<Record<number, { util: number[]; vram: number[] }>>({});
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      try {
+        const r = source.kind === "host" ? await api.hostGpuRemote(source.hostId) : await api.hostGpu();
+        if (!alive) return;
+        if (!r.gpus || !r.gpus.length) { setMissing(true); return; }
+        setMissing(false); setGpus(r.gpus);
+        r.gpus.forEach((g, i) => {
+          const h = histRef.current[i] ?? { util: [], vram: [] };
+          h.util = [...h.util, g.gpu_util ?? 0].slice(-40);
+          h.vram = [...h.vram, g.mem_total ? Math.round((100 * (g.mem_used ?? 0)) / g.mem_total) : 0].slice(-40);
+          histRef.current[i] = h;
+        });
+      } catch { if (alive) setMissing(true); }
+    };
+    void tick();
+    const t = window.setInterval(tick, 3000);
+    return () => { alive = false; window.clearInterval(t); };
+  }, [source]);
+
+  if (missing || !gpus || !gpus.length) return null;
+  return (
+    <div className="stats-gpu">
+      <div className="stats-gpu-head"><HardDrive size={13} /> <strong>GPU</strong> <span className="muted">host telemetry · nvidia-smi</span></div>
+      <div className="stats-gpu-grid">
+        {gpus.map((g, i) => {
+          const util = g.gpu_util ?? 0;
+          const vramPct = g.mem_total ? Math.round((100 * (g.mem_used ?? 0)) / g.mem_total) : 0;
+          const h = histRef.current[i] ?? { util: [], vram: [] };
+          return (
+            <div key={i} className="stats-gpu-card">
+              <div className="stats-gpu-name">GPU {i} · {g.name ?? "—"}</div>
+              <div className="stats-metric">
+                <div className="stats-metric-head">Util <b>{util}%</b>{g.temp_gpu != null && <span className="muted"> · {g.temp_gpu}°C</span>}{g.power != null && <span className="muted"> · {Math.round(g.power)}W</span>}</div>
+                <Sparkline data={h.util} kind={pctClass(util)} tall />
+              </div>
+              <div className="stats-metric">
+                <div className="stats-metric-head">VRAM <b>{fmtBytes((g.mem_used ?? 0) * 1048576)} / {fmtBytes((g.mem_total ?? 0) * 1048576)}</b> ({vramPct}%)</div>
+                <Sparkline data={h.vram} kind={pctClass(vramPct)} tall />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function StatsTab({ source, name, online }: { source: ContainerSource; name: string; online: boolean }) {
   const { s, hist } = useLiveStats(source, name, online, 2000);
   if (!online) return <NotRunning />;
@@ -935,6 +991,7 @@ function StatsTab({ source, name, online }: { source: ContainerSource; name: str
         <div className="stats-metric"><div className="stats-metric-head"><Cpu size={13} /> CPU <b>{cpu.toFixed(1)}%</b></div><Sparkline data={hist.cpu} kind={pctClass(cpu)} tall /></div>
         <div className="stats-metric"><div className="stats-metric-head"><MemoryStick size={13} /> Memory <b>{fmtBytes(s.mem_usage)}{s.mem_limit ? ` / ${fmtBytes(s.mem_limit)}` : ""}</b> ({memPct.toFixed(1)}%)</div><Sparkline data={hist.mem} kind={pctClass(memPct)} tall /></div>
       </div>
+      <ContainerGpu source={source} />
       <div className="kv">
         <Row label="Network RX / TX">{fmtBytes(s.net_rx)} / {fmtBytes(s.net_tx)}</Row>
         <Row label="Block read / write">{fmtBytes(s.blk_read)} / {fmtBytes(s.blk_write)}</Row>
