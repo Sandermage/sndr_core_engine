@@ -3,11 +3,7 @@ import { defineConfig } from "vite";
 import path from "node:path";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig(({ mode }) => {
-  // ``--mode=carbon`` builds the new Carbon-based Control Center from
-  // index.carbon.html → main.carbon.tsx → CarbonApp. Anything else
-  // continues to build the legacy App.tsx for v11-line operators.
-  const carbonMode = mode === "carbon";
+export default defineConfig(() => {
   return {
     plugins: [react()],
     resolve: {
@@ -20,11 +16,8 @@ export default defineConfig(({ mode }) => {
       port: 5173,
     },
     build: {
-      // xterm (Terminal) is lazy-loaded; Carbon-mode also splits heavy chunks.
+      // xterm (Terminal) is lazy-loaded into its own chunk.
       chunkSizeWarningLimit: 900,
-      rollupOptions: carbonMode
-        ? { input: path.resolve(__dirname, "index.carbon.html") }
-        : undefined,
     },
     test: {
       environment: "jsdom",
@@ -41,7 +34,6 @@ export default defineConfig(({ mode }) => {
         exclude: [
           "src/**/*.{test,spec}.{ts,tsx}",
           "src/main.tsx",
-          "src/main.carbon.tsx",
           "src/api.ts",
           "src/**/*.d.ts",
         ],
