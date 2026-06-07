@@ -56,7 +56,8 @@ def _resolve_schema_path() -> Path:
             return p
     except (ModuleNotFoundError, ImportError, FileNotFoundError):
         pass
-    return Path(__file__).resolve().parents[3] / "schemas" / "patch_entry.schema.json"
+    # parents[0]=compat, [1]=sndr, [2]=repo-root after the relocation.
+    return Path(__file__).resolve().parents[2] / "schemas" / "patch_entry.schema.json"
 
 
 _SCHEMA_PATH = _resolve_schema_path()

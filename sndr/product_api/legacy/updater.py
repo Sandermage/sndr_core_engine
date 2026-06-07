@@ -41,7 +41,8 @@ def _repo_root() -> Optional[Path]:
 
 
 def _builtin_dir() -> Path:
-    return Path(__file__).resolve().parents[1] / "model_configs" / "builtin"
+    # parents[0]=legacy, [1]=product_api, [2]=sndr after the relocation.
+    return Path(__file__).resolve().parents[2] / "model_configs" / "builtin"
 
 
 def _git(root: Path, *args: str, timeout: float = 10.0) -> tuple[int, str]:

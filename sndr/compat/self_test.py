@@ -259,9 +259,10 @@ def _check_schema_file() -> tuple[str, str]:
     env_root = os.environ.get("GENESIS_REPO_ROOT")
     if env_root:
         candidates.append(Path(env_root) / "schemas" / "patch_entry.schema.json")
-    # 3. Repo-root relative to this file (works in a git checkout)
+    # 3. Repo-root relative to this file (works in a git checkout).
+    #    parents[0]=compat, [1]=sndr, [2]=repo-root after the relocation.
     candidates.append(
-        Path(__file__).resolve().parents[3] / "schemas" / "patch_entry.schema.json"
+        Path(__file__).resolve().parents[2] / "schemas" / "patch_entry.schema.json"
     )
     # 4. Cwd-relative (works when invoked from the repo root)
     candidates.append(Path.cwd() / "schemas" / "patch_entry.schema.json")

@@ -48,10 +48,11 @@ def _locate_bench_module() -> Path | None:
     import os
 
     candidates: list[Path] = []
-    # 1. Wave 10 canonical: inside sndr_core package
-    #    compat/bench.py → parents[0]=compat, [1]=sndr_core, [2]=vllm, [3]=repo
+    # 1. Canonical sndr location: compat/bench.py → parents[0]=compat, [1]=sndr,
+    #    [2]=repo-root after the relocation. The committed suite is at
+    #    sndr/extras/tools/genesis_bench_suite.py.
     candidates.append(
-        Path(__file__).resolve().parents[1] / "tools" / "genesis_bench_suite.py"
+        Path(__file__).resolve().parents[1] / "extras" / "tools" / "genesis_bench_suite.py"
     )
     # 2. Operator-side override (env var)
     env_root = os.environ.get("GENESIS_REPO_ROOT")
@@ -59,7 +60,7 @@ def _locate_bench_module() -> Path | None:
         candidates.append(Path(env_root) / "tools" / "genesis_bench_suite.py")
     # 3. Operator-side back-compat shim path at repo root
     candidates.append(
-        Path(__file__).resolve().parents[3] / "tools" / "genesis_bench_suite.py"
+        Path(__file__).resolve().parents[2] / "tools" / "genesis_bench_suite.py"
     )
     # 4. CWD fallback
     candidates.append(Path.cwd() / "tools" / "genesis_bench_suite.py")

@@ -65,7 +65,12 @@ def _has_integration_tree_module(patch_id: str) -> bool:
     `pn82_mamba_cudagraph_prefill_zero.py`, `p67_tq_multi_query_kernel.py`).
     """
     from pathlib import Path
-    integrations_dir = Path(__file__).resolve().parent.parent / "integrations"
+    # parents[0]=dispatcher, [1]=sndr, [2]=repo-root; the wiring tree is the
+    # repo-root vllm/sndr_core/integrations/ shim tree (same anchor as
+    # dispatcher.spec._resolve_patches_dir / compat.categories._WIRING_DIR).
+    integrations_dir = (
+        Path(__file__).resolve().parents[2] / "vllm" / "sndr_core" / "integrations"
+    )
     if not integrations_dir.is_dir():
         return False
     prefix = patch_id.lower() + "_"
