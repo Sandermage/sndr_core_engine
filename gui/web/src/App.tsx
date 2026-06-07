@@ -2708,7 +2708,7 @@ function SectionWorkspace({
               render: () => (
                 <ModuleGrid>
                   <ModuleCard title="Local model chat" icon={<MessageSquare size={18} />} desc="Multi-turn streaming conversation with a running vLLM model. Set the engine host/port, pick the model, tune the system prompt and sampling — a direct line to the inference server." wide>
-                    <ChatConsole defaultHost={runtimeMode === "remote" ? "192.168.1.10" : "127.0.0.1"} target={chatTarget} />
+                    <ChatConsole defaultHost={runtimeHost(runtimeMode, settings.remoteHost)} target={chatTarget} />
                   </ModuleCard>
                 </ModuleGrid>
               )
