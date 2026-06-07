@@ -109,6 +109,8 @@ import { PatchSummaryPanel, PatchLifecycleGraph, PatchRegistryInsight, PatchMode
 import { PatchExplainPanel } from "./sections/patch-explain";
 import { ProjectCatalogPanel } from "./sections/project-catalog";
 import { PresetQuickPanel } from "./sections/preset-quick";
+import { PresetCatalogTable, PresetBaselineCell } from "./sections/preset-catalog";
+import { EmptyState } from "./components/empty-state";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock, CopyButton } from "./components/code-block";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "./dialog";
@@ -6194,25 +6196,7 @@ function ThisHostCard({ inventory, environment, apiBase }: { inventory: HostInve
 
 // Illustrated empty state — icon badge + title + guidance + optional recovery
 // action. Used on primary content areas in place of bare muted "No X" text.
-function EmptyState({ icon, title, message, action }: {
-  icon?: ReactNode;
-  title: string;
-  message?: ReactNode;
-  action?: { label: string; onClick: () => void; icon?: ReactNode };
-}) {
-  return (
-    <div className="empty-state" role="status">
-      {icon && <span className="empty-state-icon">{icon}</span>}
-      <strong>{title}</strong>
-      {message && <span className="empty-state-msg">{message}</span>}
-      {action && (
-        <button className="ghost-button" onClick={action.onClick}>
-          {action.icon}{action.label}
-        </button>
-      )}
-    </div>
-  );
-}
+// EmptyState extracted to ./components/empty-state.
 
 // Project & catalog snapshot — fills the row beside the dependency stack with
 // the most useful project parameters: catalog counts, annotation coverage,
@@ -6895,144 +6879,7 @@ function PresetSummaryStrip({ presets, selectedPreset }: { presets: PresetRecord
 // Benchmark-baseline chip for the preset catalog: surfaces the measured
 // reference metric (primary_metric) at the list level, so bench-proven presets
 // are distinguishable from pending ones at a glance. value 0 / missing = pending.
-function PresetBaselineCell({ card }: { card: Record<string, any> }) {
-  const m = asRecord(card?.primary_metric);
-  const value = asNumber(m.value);
-  if (!m.kind && !value) return <span className="muted">—</span>;
-  const tip = [asText(m.source, ""), asText(m.measured_at, "")].filter(Boolean).join(" · ");
-  if (value > 0) {
-    const kind = asText(m.kind, "TPS").replace(/^agg_/, "");
-    return <span className="bench-chip ok" title={tip || undefined}>{value.toLocaleString()} {kind}</span>;
-  }
-  return <span className="bench-chip pending" title={tip || undefined}>pending</span>;
-}
-
-function PresetCatalogTable({
-  presets,
-  selectedPreset,
-  onPreset,
-  onEdit
-}: {
-  presets: PresetRecord[];
-  selectedPreset: string;
-  onPreset: (id: string) => void;
-  onEdit?: (id: string) => void;
-}) {
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [benchFilter, setBenchFilter] = useState<"all" | "proven" | "pending">("all");
-  const [sortKey, setSortKey] = useState<"id" | "model" | "status" | "baseline">("id");
-  const [sortDir, setSortDir] = useState<1 | -1>(1);
-
-  const statusOf = (preset: PresetRecord) =>
-    preset.has_card ? asText(preset.card?.status, "available") : "missing";
-  // Measured reference throughput (0 = pending) — used for the Baseline sort.
-  const baselineOf = (preset: PresetRecord) => asNumber(asRecord(preset.card?.primary_metric).value);
-  const statuses = Array.from(new Set(presets.map(statusOf))).sort();
-  const counts = presets.reduce<Record<string, number>>((acc, preset) => {
-    const key = statusOf(preset);
-    acc[key] = (acc[key] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const provenCount = presets.filter((preset) => baselineOf(preset) > 0).length;
-  const rows = presets
-    .filter((preset) => statusFilter === "all" || statusOf(preset) === statusFilter)
-    .filter((preset) => benchFilter === "all" || (benchFilter === "proven") === (baselineOf(preset) > 0))
-    .sort((a, b) => {
-      if (sortKey === "baseline") return (baselineOf(a) - baselineOf(b)) * sortDir;
-      const va = sortKey === "status" ? statusOf(a) : String(a[sortKey] ?? "");
-      const vb = sortKey === "status" ? statusOf(b) : String(b[sortKey] ?? "");
-      return va.localeCompare(vb) * sortDir;
-    });
-
-  const toggleSort = (key: "id" | "model" | "status" | "baseline") => {
-    if (sortKey === key) setSortDir((dir) => (dir === 1 ? -1 : 1));
-    // Baseline defaults to descending — operators want the fastest presets first.
-    else { setSortKey(key); setSortDir(key === "baseline" ? -1 : 1); }
-  };
-  const caret = (key: string) => (sortKey === key ? (sortDir === 1 ? " ↑" : " ↓") : "");
-
-  return (
-    <div className="preset-catalog">
-      <div className="filter-chips">
-        <button className={statusFilter === "all" ? "active" : ""} onClick={() => setStatusFilter("all")}>
-          All <em>{presets.length}</em>
-        </button>
-        {statuses.map((status) => (
-          <button key={status} className={statusFilter === status ? "active" : ""} onClick={() => setStatusFilter(status)}>
-            {status.replace(/_/g, " ")} <em>{counts[status]}</em>
-          </button>
-        ))}
-        <span className="filter-chips-sep" aria-hidden="true" />
-        <span className="filter-chips-label">Baseline</span>
-        <button className={benchFilter === "all" ? "active" : ""} onClick={() => setBenchFilter("all")}>any <em>{presets.length}</em></button>
-        <button className={benchFilter === "proven" ? "active" : ""} onClick={() => setBenchFilter("proven")}>bench-proven <em>{provenCount}</em></button>
-        <button className={benchFilter === "pending" ? "active" : ""} onClick={() => setBenchFilter("pending")}>pending <em>{presets.length - provenCount}</em></button>
-      </div>
-      <div className="catalog-scroll">
-        <table className="module-table">
-          <thead>
-            <tr>
-              <th className="sortable" onClick={() => toggleSort("id")}>Preset{caret("id")}</th>
-              <th className="sortable" onClick={() => toggleSort("model")}>Model{caret("model")}</th>
-              <th>Hardware</th>
-              <th>Profile</th>
-              <th className="sortable" onClick={() => toggleSort("status")}>Card{caret("status")}</th>
-              <th className="sortable" onClick={() => toggleSort("baseline")}>Baseline{caret("baseline")}</th>
-              <th aria-label="Actions" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((preset) => (
-              <tr
-                className={`preset-catalog-row ${preset.id === selectedPreset ? "selected-row" : ""}`}
-                key={preset.id}
-                onClick={() => onPreset(preset.id)}
-              >
-                <td>
-                  <button className="link-button" onClick={(event) => { event.stopPropagation(); onPreset(preset.id); }}>
-                    {preset.id === selectedPreset && <ChevronRight size={13} className="row-active-caret" />}
-                    {preset.id}
-                  </button>
-                </td>
-                <td>{preset.model}</td>
-                <td>{preset.hardware}</td>
-                <td>{preset.profile ?? "-"}</td>
-                <td><StatusBadge status={statusOf(preset)} /></td>
-                <td><PresetBaselineCell card={preset.card} /></td>
-                <td className="preset-row-actions">
-                  {onEdit && (
-                    <button
-                      className="icon-button"
-                      title={`Edit ${preset.id}`}
-                      aria-label={`Edit ${preset.id}`}
-                      onClick={(event) => { event.stopPropagation(); onEdit(preset.id); }}
-                    >
-                      <Wrench size={14} />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (() => {
-              const filtered = statusFilter !== "all" || benchFilter !== "all";
-              return (
-              <tr><td colSpan={7}>
-                <EmptyState
-                  icon={<Database size={22} />}
-                  title="No presets for this filter"
-                  message={filtered ? "No presets match the active filters." : "The preset catalog is empty."}
-                  action={filtered ? { label: "Clear filters", icon: <X size={14} />, onClick: () => { setStatusFilter("all"); setBenchFilter("all"); } } : undefined}
-                />
-              </td></tr>
-              );
-            })()}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
+// PresetBaselineCell + PresetCatalogTable extracted to ./sections/preset-catalog.
 
 // PatchSummaryPanel + PatchLifecycleGraph + PatchRegistryInsight + PatchModelSupport extracted to ./sections/patch-overview.
 
