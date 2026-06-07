@@ -33,12 +33,31 @@ def test_setup_node_script_is_self_contained():
     assert "SNDR_ADMIN_PASSWORD='secret'" in s               # password embedded + quoted
     assert "ENGINE_PORT=8102" in s                           # engine port wired
     assert "SNDR_OPENAI_BASE_URL=http://127.0.0.1:$ENGINE_PORT/v1" in s
-    # v12: mounts the canonical sndr/ package next to vllm/ and imports it
-    # directly (no vllm namespace), with apply wired from SNDR_ENABLE_APPLY.
+    # v12: mounts the canonical sndr/ package next to vllm/.
     assert '-v "$SNDR_SRC":"$SNDR_DST":ro' in s
-    assert "from sndr.product_api.legacy.http_app import run_server" in s
-    assert "enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY'))" in s
+    # The launcher is shipped base64 over stdin (entrypoint sh) so we can
+    # conditionally pip-install the k8s client when a kubeconfig is mounted.
+    assert "--entrypoint sh" in s
+    assert "base64 -d | python3 -" in s
     assert "vllm.sndr_core.product_api.http_app import" not in s  # not the shim path
+    # The encoded launcher must decode to the canonical, apply-wired run_server.
+    import base64 as _b64
+    import re as _re
+    m = _re.search(r"echo ([A-Za-z0-9+/=]+) \| base64 -d", s)
+    assert m, "base64 launcher not found"
+    decoded = _b64.b64decode(m.group(1)).decode()
+    assert "from sndr.product_api.legacy.http_app import run_server" in decoded
+    assert "enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY'))" in decoded
+
+
+def test_setup_node_script_enables_k8s_when_kubeconfig_present():
+    s = node_setup.setup_node_script(admin_password="secret")
+    # k8s mode: mount the host kubeconfig + install the client on start, but only
+    # when a kubeconfig exists (non-k8s hosts pay nothing).
+    assert "/root/.kube/config" in s
+    assert "pip install -q kubernetes" in s
+    assert "/etc/rancher/k3s/k3s.yaml" in s  # k3s default location detected
+    assert "[ -f /root/.kube/config ]" in s  # install gated on the mount
 
 
 def test_setup_node_mounts_docker_sock_without_auto_exec():

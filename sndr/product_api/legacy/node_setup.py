@@ -68,12 +68,26 @@ def _sh_squote(value: str) -> str:
     return "'" + str(value).replace("'", "'\\''") + "'"
 
 
+# The daemon launcher, shipped base64 (avoids shell-quoting hell now that the
+# entrypoint is `sh -c` — which lets us conditionally install the k8s client when
+# a kubeconfig is mounted). Reads bind/port/apply from env.
+_DAEMON_LAUNCHER = (
+    b"import os\n"
+    b"from sndr.product_api.legacy.http_app import run_server\n"
+    b"run_server(host=os.environ.get('SNDR_BIND', '0.0.0.0'), "
+    b"port=int(os.environ.get('SNDR_GUI_PORT') or 8765), "
+    b"enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY')))\n"
+)
+
+
 def setup_node_script(*, port: int = 8765, engine_port: int = 8102,
                       admin_password: str = "", allow_all_origins: bool = True) -> str:
     """Self-contained node bootstrap: deploy the daemon code into the node's
     sndr_core, refresh bytecode, run the management daemon sidecar, health-check."""
+    import base64
     allow = "1" if allow_all_origins else "0"
     pw = _sh_squote(admin_password)
+    launcher_b64 = base64.b64encode(_DAEMON_LAUNCHER).decode("ascii")
     return f"""#!/usr/bin/env bash
 # One-button SNDR node setup — deploy the management daemon onto this engine host.
 set -euo pipefail
@@ -109,20 +123,26 @@ echo "[setup] canonical sndr/ deployed: $SNDR_SRC -> $SNDR_DST"
 #    manage the engine containers (scoped to a whitelist). SNDR_ENABLE_EXEC is
 #    deliberately NOT set — in-container exec stays off until the operator opts in.
 docker rm -f "$NAME" >/dev/null 2>&1 || true
+# Kubernetes mode: if the host has a kubeconfig, mount it so the daemon can serve
+# the GUI's read-only k8s view (nodes/pods/events) + deploy tab. The launcher
+# then pip-installs the k8s client on start (only when the kubeconfig is present,
+# so non-k8s hosts pay nothing). This makes k8s a persistent part of the panel —
+# it survives container recreate, not just restart.
+KUBE_OPT=""
+KUBECFG=$(ls /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config" 2>/dev/null | head -1 || true)
+[ -n "$KUBECFG" ] && {{ KUBE_OPT="-v $KUBECFG:/root/.kube/config:ro"; echo "[setup] kubeconfig found ($KUBECFG) — k8s mode will be enabled"; }}
 # --gpus gives the daemon READ access to nvidia-smi (real card data in the
 # inventory, fast) — it only queries, never allocates CUDA, so it does NOT
 # reserve GPU memory. We TRY --gpus all and fall back to a CPU-only run if the
-# nvidia container runtime isn't wired the way we guessed: detecting GPU support
-# by parsing `docker info` is unreliable (the toolkit often works via a prestart
-# hook on the default runtime without registering a named "nvidia" runtime), so
-# the only robust signal is whether `docker run --gpus all` actually succeeds.
+# nvidia container runtime isn't wired the way we guessed.
 run_daemon() {{  # $1 = extra run args (e.g. "--gpus all" or "")
-  docker run -d --name "$NAME" --restart unless-stopped --network host $1 \\
-    --entrypoint python3 \\
+  docker run -d --name "$NAME" --restart unless-stopped --network host $1 $KUBE_OPT \\
+    --entrypoint sh \\
     -e SNDR_ADMIN_PASSWORD={pw} \\
     -e SNDR_ENABLE_APPLY=1 \\
     -e SNDR_ALLOW_ALL_ORIGINS={allow} \\
     -e SNDR_RUNTIME_HOST=127.0.0.1 \\
+    -e SNDR_GUI_PORT=$PORT \\
     -e SNDR_OPENAI_BASE_URL=http://127.0.0.1:$ENGINE_PORT/v1 \\
     -e SNDR_METRICS_URL=http://127.0.0.1:$ENGINE_PORT/metrics \\
     -e PYTHONDONTWRITEBYTECODE=1 \\
@@ -130,7 +150,7 @@ run_daemon() {{  # $1 = extra run args (e.g. "--gpus all" or "")
     -v "$SNDR_SRC":"$SNDR_DST":ro \\
     -v /var/run/docker.sock:/var/run/docker.sock \\
     "$IMAGE" \\
-    -c "import os; from sndr.product_api.legacy.http_app import run_server; run_server(host='0.0.0.0', port=$PORT, enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY')))"
+    -c "[ -f /root/.kube/config ] && pip install -q kubernetes 2>/dev/null || true; echo {launcher_b64} | base64 -d | python3 -"
 }}
 if run_daemon "--gpus all" 2>/tmp/sndr_run_err; then
   echo "[setup] daemon started with GPU access (--gpus all) — inventory will show real cards"
