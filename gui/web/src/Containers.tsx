@@ -249,6 +249,24 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
     setConfirmAction({ name, action });
   }
 
+  // Bulk selection + rolling (one-at-a-time) actions across the fleet — so a pin
+  // roll-out hits hosts sequentially, not all at once (Watchtower --rolling).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  function toggleSelect(name: string) {
+    setSelected((prev) => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n; });
+  }
+  async function bulkAct(action: ContainerAction) {
+    const names = [...selected];
+    if (!names.length) return;
+    if ((action === "stop" || action === "restart") &&
+        !window.confirm(`${action} ${names.length} selected container(s)? They are processed one at a time.`)) return;
+    for (const name of names) {
+      setBusy(`${name}:${action}`);
+      try { await api.containerAction(source, name, action); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    }
+    setBusy(null); setSelected(new Set()); await load();
+  }
+
   const view = useMemo(() => {
     let v = items || [];
     const q = queryText.trim().toLowerCase();
@@ -344,19 +362,32 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
           <span>Only vLLM/engine containers (<code>vllm*</code> / <code>sndr-daemon</code> or label <code>sndr.managed=true</code>).</span></div>
       )}
 
+      {selected.size > 0 && (
+        <div className="bulk-bar">
+          <span className="bulk-count">{selected.size} selected</span>
+          <button className="ghost-button" disabled={!!busy} onClick={() => void bulkAct("start")}><Play size={13} /> Start</button>
+          <button className="ghost-button" disabled={!!busy} onClick={() => void bulkAct("restart")}><RotateCw size={13} /> Restart</button>
+          <button className="ghost-button danger" disabled={!!busy} onClick={() => void bulkAct("stop")}><Square size={13} /> Stop</button>
+          <span className="bulk-hint">rolling · one at a time</span>
+          <button className="ghost-button" onClick={() => setSelected(new Set())}><X size={13} /> Clear</button>
+        </div>
+      )}
+
       <div className="containers-grid">
         {view.map((c) => (
           <ContainerCard key={c.id || c.name} c={c} source={source} stats={stats[c.name]} history={histRef.current[c.name]}
-            busy={busy} onAct={act} onOpen={(tab) => setOpen({ name: c.name, tab })} />
+            busy={busy} selected={selected.has(c.name)} onToggleSelect={() => toggleSelect(c.name)}
+            onAct={act} onOpen={(tab) => setOpen({ name: c.name, tab })} />
         ))}
       </div>
     </div>
   );
 }
 
-function ContainerCard({ c, source, stats, history, busy, onAct, onOpen }: {
+function ContainerCard({ c, source, stats, history, busy, selected, onToggleSelect, onAct, onOpen }: {
   c: ManagedContainer; source: ContainerSource; stats?: ContainerStats; history?: { cpu: number[]; mem: number[] };
-  busy: string | null; onAct: (n: string, a: ContainerAction) => void; onOpen: (tab?: Tab) => void;
+  busy: string | null; selected?: boolean; onToggleSelect?: () => void;
+  onAct: (n: string, a: ContainerAction) => void; onOpen: (tab?: Tab) => void;
 }) {
   const st = stateClass(c.state);
   const online = st === "online";
@@ -374,9 +405,13 @@ function ContainerCard({ c, source, stats, history, busy, onAct, onOpen }: {
   }, [source, c.name]);
 
   return (
-    <div className={`ccard ${st}`}>
+    <div className={`ccard ${st}${selected ? " selected" : ""}`}>
       <span className={`ccard-edge ${st}`} />
       <div className="ccard-top">
+        {onToggleSelect && (
+          <input type="checkbox" className="ccard-select" checked={!!selected} onChange={onToggleSelect}
+            aria-label={`Select ${c.name}`} onClick={(e) => e.stopPropagation()} />
+        )}
         <span className={`container-dot ${st}`} />
         <span className="ccard-name" title={c.name} role="button" tabIndex={0} onClick={() => onOpen()} onKeyDown={onKeyActivate(() => onOpen())}>{c.name}</span>
         <span className={`container-badge ${st}`}>{c.state || "—"}</span>

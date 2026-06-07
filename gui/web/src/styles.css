@@ -3919,6 +3919,17 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
   background: var(--surface-2); border: 1px solid var(--border);
 }
 .ccard-mode-badge.auto { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.ccard-select { margin-right: 2px; cursor: pointer; accent-color: var(--accent); }
+.ccard.selected { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+.bulk-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+  padding: 8px 12px; border-radius: var(--r-md, 10px);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+.bulk-count { font-weight: 700; font-size: 12.5px; }
+.bulk-hint { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+.ghost-button.danger { color: var(--danger, #dc2626); }
 .upd-avail-banner {
   display: flex; align-items: center; gap: 6px; font-size: 12.5px;
   padding: 8px 12px; margin-bottom: 12px; border-radius: var(--r-md, 10px);
