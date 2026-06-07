@@ -64,14 +64,16 @@ test("every nav entry routes to real content and stays accessible", async ({ pag
   for (const label of labels) {
     const button = page.locator(".side-nav button", { hasText: label.trim() }).first();
     await button.click();
-    // Routing invariant: the clicked entry becomes active and routes to a real
-    // panel — a workspace that shows either its section heading or (when a panel
-    // chokes on the empty hermetic data) a graceful error boundary. A nav button
-    // wired to an unrouted section would render neither — a blank workspace.
+    // Routing + robustness invariant: the clicked entry becomes active and its
+    // workspace renders its real heading (NOT the error boundary). Every section
+    // must survive the empty hermetic data and show its empty state — a panel
+    // that crashes on empty/partial data would fall back to .error-boundary and
+    // fail here. (Fixtures in e2e/fixtures.ts supply type-complete empty shapes.)
     await expect(button).toHaveClass(/active/);
     const workspace = page.locator(".main-shell .section-workspace").first();
     await expect(workspace).toBeVisible();
-    await expect(workspace.locator(".section-heading, .error-boundary").first()).toBeVisible();
+    await expect(workspace.locator(".section-heading").first()).toBeVisible();
+    await expect(workspace.locator(".error-boundary")).toHaveCount(0);
     await scan(page);
   }
 });

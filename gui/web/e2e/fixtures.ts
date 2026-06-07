@@ -36,6 +36,23 @@ const EMPTY_PATCH_SUMMARY = {
   production_default_counts: {}, implementation_status_counts: {},
 };
 
+// Type-complete-but-empty shapes (mirror the api.ts types) so panels that read
+// required nested fields render their empty state instead of crashing.
+const HOST_INVENTORY = {
+  os: { system: "Linux", release: "6.0", distro: "ubuntu", arch: "x86_64" },
+  python: { binary_path: "/usr/bin/python3", version: "3.12.0", implementation: "CPython", venv_active: false, pip_present: true, pip_version: "24.0" },
+  docker: { installed: false, binary_path: null, version: null, daemon_running: false, server_version: null, nvidia_runtime_present: false, notes: "" },
+  nvidia: { installed: false, driver_version: null, cuda_version: null, n_gpus: 0, gpu_names: [], gpu_total_vram_mib: [], notes: "" },
+  vllm: { installed: false, version: null, location: null },
+};
+
+const ENVIRONMENT = {
+  brand: "SNDR", package_name: "sndr", sndr_core_version: "0.0.0-ci",
+  engine_name: "vLLM", engine_version: null, engine_installed: false,
+  python_version: "3.12.0", os_name: "linux", machine: "x86_64",
+  dependencies: [], tools: [],
+};
+
 // Path-suffix → JSON body. Matched against the request URL pathname; the first
 // entry whose key the pathname includes wins, so order longest-first.
 const FIXTURES: Array<[string, unknown]> = [
@@ -54,15 +71,35 @@ const FIXTURES: Array<[string, unknown]> = [
   ["/api/v1/configs/v2/user-presets", { presets: [] }],
   ["/api/v1/launch/plan", { plan_id: "", preset_id: "", runtime_target: "docker", patch_policy: "", mode: "single", host: "", actionable: false, action_reason: "", summary: {}, gates: [], endpoints: [], artifacts: [], cli_mirror: [], events: [] }],
   ["/api/v1/proof/status", { generated_at: 0, sources: [], summary: {} }],
-  ["/api/v1/doctor", { generated_at: 0, checks: [], summary: {} }],
-  ["/api/v1/environment", { generated_at: 0, sections: [], summary: {} }],
+  ["/api/v1/host/inventory", HOST_INVENTORY],
+  ["/api/v1/doctor", { findings: [], summary: {}, categories: [], generated_for: "ci", warnings: [] }],
+  ["/api/v1/environment", ENVIRONMENT],
   ["/api/v1/hosts", { hosts: [] }],
   ["/api/v1/events/recent", { events: [], latest_seq: 0 }],
-  ["/api/v1/operations", { operations: [] }],
-  ["/api/v1/caveats", { caveats: [] }],
-  ["/api/v1/config-keys", { keys: [] }],
-  ["/api/v1/traces", { traces: [] }],
-  ["/api/v1/deploy/targets", { targets: [] }],
+  ["/api/v1/models/cache", { host: "local", total: 0, present_count: 0, models: [] }],
+  ["/api/v1/memory/fit", { model_id: "", hardware_id: "", model_title: "", hardware_title: "", compatible: true, checks: [], vram: { model_min_mib: 0, rig_floor_mib: 0, headroom_mib: 0, n_gpus: 0 } }],
+  ["/api/v1/calc/models", { models: {}, kv_dtypes: {} }],
+  ["/api/v1/calc/kv", {
+    arch: { name: "", num_layers: 0, num_kv_heads: 0, head_dim: 0, params_b: 0, weight_bits: 16, is_moe: false, active_params_b: null },
+    kv_dtype: "fp16", overhead_mib: 0,
+    rig: { tp: 1, gpu_count: 1, gpu_vram_mib: 0, util: 0.9 },
+    result: { model: "", weights_per_gpu_mib: 0, kv_per_gpu_mib: 0, kv_total_mib: 0, overhead_mib: 0, total_per_gpu_mib: 0, budget_per_gpu_mib: 0, headroom_mib: 0, fits: true, max_context: 0, kv_bytes_per_token: 0, tp: 1, concurrency: 1, context: 0 },
+    by_dtype: {}, by_tp: {}, curve: [],
+    envelope: { contexts: [], concurrencies: [], grid: [] },
+    recommendation: [], arch_advice: null,
+  }],
+  ["/api/v1/baselines/trend", { points: [], metric: "", scenario: "" }],
+  ["/api/v1/baselines", { baselines: [] }],
+  ["/api/v1/copilot/tools", { tools: [] }],
+  ["/api/v1/services/plan", { plan_id: "", preset_id: "", action: "status", runtime_target: "docker", host: "", container_name: "", mutating: false, actionable: false, action_reason: "", steps: [], side_effects: [], gates: [], cli_mirror: [], rollback: "" }],
+  ["/api/v1/containers/stats", { stats: {} }],
+  ["/api/v1/system/df", { images: [], containers: [], volumes: [], build_cache: [], layers_size: 0 }],
+  ["/api/v1/containers", { containers: [], source: "local" }],
+  ["/api/v1/operations", { operations: [], apply_enabled: false }],
+  ["/api/v1/caveats", { caveats: [], total: 0, triggered_count: 0, host_facts_available: false, facts_error: null }],
+  ["/api/v1/config-keys", { keys: {}, total: 0, by_source: {} }],
+  ["/api/v1/traces", { traces: [], categories: [], by_category: {}, total: 0 }],
+  ["/api/v1/deploy/targets", { targets: [], host: HOST_INVENTORY }],
   ["/api/v1/jobs", { jobs: [] }],
   ["/api/v1/auth/status", { auth_required: false, apply_enabled: false, backends: [], oauth_providers: [], context: { in_container: false, system_user: "ci", pam_enabled: false }, user: null }],
   ["/api/v1/alerts", { active: [], recent: [], counts: { critical: 0, warn: 0, info: 0 } }],
