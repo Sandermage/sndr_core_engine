@@ -75,6 +75,7 @@ import { useFetch } from "./hooks/useFetch";
 import { asRecord, asText, asNumber, asStringArray, countRecord } from "./lib/coerce";
 import { formatTokens, formatVram } from "./lib/format";
 import { getIn, setIn, objToYaml } from "./lib/config-utils";
+import { TextField, NumberField, BoolField, SelectField } from "./components/form-fields";
 import { StatusBadge, StatusPill, InfoRows, CompactList, KpiGrid, RailCheck, type GateStatus } from "./components/primitives";
 import { PercentBar, BarList, OvKpi } from "./components/charts";
 import { CaveatsPanel, ConfigKeysPanel, TracesPanel } from "./sections/diagnostics";
@@ -4326,24 +4327,7 @@ function groupFields(fields: FieldSpec[]): Array<[string, FieldSpec[]]> {
 }
 
 // getIn / setIn / yamlScalar / objToYaml extracted to ./lib/config-utils.
-function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <label className="param-field">
-      <span>{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} />
-    </label>
-  );
-}
-
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <label className="param-field">
-      <span>{label}</span>
-      <input type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
-    </label>
-  );
-}
-
+// TextField + NumberField extracted to ./components/form-fields.
 // Live sanity-check for the most error-prone numeric config fields — catches a
 // bad value (e.g. gpu_memory_utilization 1.5) before it's saved/applied.
 function fieldWarning(spec: FieldSpec, value: any): string | null {
@@ -5415,38 +5399,7 @@ function Collapsible({
   );
 }
 
-function BoolField({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <button className="bool-field" onClick={() => onChange(!value)} aria-pressed={value}>
-      <span>{label}</span>
-      <i className={value ? "active" : ""} />
-    </button>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  options,
-  onChange
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="param-field">
-      <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option} value={option}>{option}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
+// BoolField + SelectField extracted to ./components/form-fields.
 function DraftControl({
   label,
   value,
