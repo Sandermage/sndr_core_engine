@@ -74,6 +74,7 @@ import {
 import { useFetch } from "./hooks/useFetch";
 import { asRecord, asText, asNumber, asStringArray, countRecord } from "./lib/coerce";
 import { formatTokens, formatVram } from "./lib/format";
+import { getIn, setIn, objToYaml } from "./lib/config-utils";
 import { StatusBadge, StatusPill, InfoRows, CompactList, KpiGrid, RailCheck, type GateStatus } from "./components/primitives";
 import { PercentBar, BarList, OvKpi } from "./components/charts";
 import { CaveatsPanel, ConfigKeysPanel, TracesPanel } from "./sections/diagnostics";
@@ -4324,65 +4325,7 @@ function groupFields(fields: FieldSpec[]): Array<[string, FieldSpec[]]> {
   return order.map((group) => [group, byGroup.get(group)!]);
 }
 
-function getIn(obj: any, path: string): any {
-  return path.split(".").reduce((current, key) => (current == null ? undefined : current[key]), obj);
-}
-
-function setIn(obj: any, path: string, value: any): any {
-  const keys = path.split(".");
-  const clone = Array.isArray(obj) ? [...obj] : { ...obj };
-  let cursor = clone;
-  for (let i = 0; i < keys.length - 1; i += 1) {
-    const key = keys[i];
-    const next = cursor[key];
-    cursor[key] = next && typeof next === "object" ? (Array.isArray(next) ? [...next] : { ...next }) : {};
-    cursor = cursor[key];
-  }
-  cursor[keys[keys.length - 1]] = value;
-  return clone;
-}
-
-function yamlScalar(value: any): string {
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "number") return String(value);
-  const text = String(value);
-  return /[:#{}[\],&*?|<>=!%@`]/.test(text) || text.trim() !== text ? JSON.stringify(text) : text;
-}
-
-function objToYaml(obj: any, indent = 0): string[] {
-  const pad = "  ".repeat(indent);
-  const lines: string[] = [];
-  const entries: Array<[string, any]> = Array.isArray(obj)
-    ? obj.map((value, index) => [String(index), value])
-    : Object.entries(obj ?? {});
-  for (const [key, value] of entries) {
-    const label = `${pad}${key}:`;
-    if (value === null || value === undefined) {
-      lines.push(`${label} null`);
-    } else if (Array.isArray(value)) {
-      if (value.length === 0) { lines.push(`${label} []`); continue; }
-      lines.push(label);
-      value.forEach((item) => {
-        if (item && typeof item === "object") {
-          const sub = objToYaml(item, indent + 2);
-          lines.push(`${pad}  -`);
-          lines.push(...sub);
-        } else {
-          lines.push(`${pad}  - ${yamlScalar(item)}`);
-        }
-      });
-    } else if (typeof value === "object") {
-      if (Object.keys(value).length === 0) { lines.push(`${label} {}`); continue; }
-      lines.push(label);
-      lines.push(...objToYaml(value, indent + 1));
-    } else {
-      lines.push(`${label} ${yamlScalar(value)}`);
-    }
-  }
-  return lines;
-}
-
+// getIn / setIn / yamlScalar / objToYaml extracted to ./lib/config-utils.
 function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="param-field">
