@@ -19,6 +19,7 @@ export type SectionId =
   | "launch-plan"
   | "services"
   | "containers"
+  | "kubernetes"
   | "routing"
   | "doctor"
   | "patches"

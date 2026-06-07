@@ -23,6 +23,7 @@ import {
   Link2,
   LayoutGrid,
   Boxes,
+  Layers,
   AlertTriangle,
   ListChecks,
   Monitor,
@@ -174,6 +175,7 @@ import { FleetPanel } from "./Fleet";
 // Lazy-loaded: the container management UI (~1.2k lines) only renders on the
 // Containers section, so it is code-split out of the initial bundle.
 const ContainersPanel = lazy(() => import("./Containers").then((m) => ({ default: m.ContainersPanel })));
+const KubernetesPanel = lazy(() => import("./sections/kubernetes").then((m) => ({ default: m.KubernetesPanel })));
 // Lazy-loaded: the GPU/hardware telemetry dashboard only renders on its section.
 const HardwarePanel = lazy(() => import("./Hardware").then((m) => ({ default: m.HardwarePanel })));
 const RoutingPanel = lazy(() => import("./Routing").then((m) => ({ default: m.RoutingPanel })));
@@ -229,6 +231,7 @@ const navGroups: NavGroup[] = [
   { label: "Infrastructure", items: [
     { id: "hosts", icon: <LayoutGrid size={17} />, label: "Fleet" },
     { id: "containers", icon: <Boxes size={17} />, label: "Containers" },
+    { id: "kubernetes", icon: <Layers size={17} />, label: "Kubernetes" },
     { id: "hardware", icon: <Cpu size={17} />, label: "Hardware" },
     { id: "setup", icon: <Settings size={17} />, label: "Setup" },
   ] },
@@ -2038,6 +2041,16 @@ function SectionWorkspace({
         </ModuleGrid>
       )}
 
+      {sectionId === "kubernetes" && (
+        <ModuleGrid>
+          <ModuleCard title="Kubernetes" icon={<Layers size={18} />} desc="Read-only Kubernetes view (P1) — cluster status and nodes with GPU capacity/allocatable/requested, conditions, taints and GFD labels. Honours your kubeconfig + RBAC. Shows 'connect a cluster' until a kubeconfig is configured." wide>
+            <Suspense fallback={<SkeletonCards count={4} />}>
+              <KubernetesPanel />
+            </Suspense>
+          </ModuleCard>
+        </ModuleGrid>
+      )}
+
       {sectionId === "hardware" && (
         <ModuleGrid>
           <ModuleCard title="GPU & Hardware" icon={<Cpu size={18} />} desc="Live per-GPU telemetry over nvidia-smi — utilisation, VRAM, temperature, power vs limits, clocks, fan, PCIe link, pstate and ECC — plus host CPU/RAM. Pick the local daemon host or a registered host (over SSH)." wide>
@@ -3028,6 +3041,11 @@ function sectionSpec(sectionId: SectionId) {
       kicker: "Docker control",
       title: "Containers",
       description: "Manage the vLLM/engine containers on a server — live CPU/memory, logs, start/stop/restart, and gated exec — over the local docker socket or a registered host via SSH.",
+    },
+    kubernetes: {
+      kicker: "Cluster",
+      title: "Kubernetes",
+      description: "Read-only Kubernetes view — cluster status and nodes with GPU capacity/allocatable/requested, conditions, taints and labels. Honours your kubeconfig + RBAC.",
     },
     hardware: {
       kicker: "GPU telemetry",

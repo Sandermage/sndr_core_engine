@@ -344,6 +344,21 @@ export type HardwareSystem = {
   primary_ip?: string | null; net?: NetInterface[]; disk?: DiskInfo | null; platform?: string | null;
 };
 export type HardwareTelemetry = { gpus: GpuInfo[]; system: HardwareSystem; error: string | null };
+
+export type K8sStatus = {
+  available: boolean; error: string | null;
+  version?: string | null; platform?: string | null;
+  node_count?: number; nodes_ready?: number; gpu_node_count?: number; namespace_count?: number;
+};
+export type K8sTaint = { key: string | null; value: string | null; effect: string | null };
+export type K8sNode = {
+  name: string | null; ready: boolean; schedulable: boolean; roles: string[];
+  kubelet_version: string | null; os_image: string | null;
+  cpu_capacity: string | null; mem_capacity: string | null;
+  gpu_capacity: number | null; gpu_allocatable: number | null; gpu_requested?: number; gpu_free?: number | null;
+  pressures: string[]; taints: K8sTaint[]; gpu_labels: Record<string, string>; label_count: number;
+};
+export type K8sNodesResult = { available: boolean; error: string | null; nodes: K8sNode[] };
 export type AlertLevel = "critical" | "warn" | "info" | "ok";
 export type Alert = {
   key: string; level: AlertLevel; category: string; title: string; detail: string; host: string;
@@ -1384,6 +1399,8 @@ export const api = {
   hostInventory: () => request<HostInventory>("/api/v1/host/inventory"),
   hostGpu: () => request<HardwareTelemetry>("/api/v1/host/gpu"),
   hostGpuRemote: (hostId: string) => request<HardwareTelemetry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/gpu`),
+  k8sStatus: () => request<K8sStatus>("/api/v1/k8s/status"),
+  k8sNodes: () => request<K8sNodesResult>("/api/v1/k8s/nodes"),
   alerts: () => request<AlertsSnapshot>("/api/v1/alerts"),
   hostsReliability: () => request<ReliabilitySnapshot>("/api/v1/hosts/reliability"),
   flagsMatrix: (container?: string) => request<FlagMatrix>(`/api/v1/flags/matrix${query({ container })}`),

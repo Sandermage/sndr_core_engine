@@ -3948,6 +3948,19 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .icon-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
 .icon-btn.danger:hover:not(:disabled) { color: var(--danger, #dc2626); }
 .icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.k8s-disconnected { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 40px 20px; color: var(--text-muted); }
+.k8s-disconnected strong { font-size: 15px; color: var(--text); }
+.k8s-disconnected .apply-gate-cmd { margin-top: 6px; }
+.k8s-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.k8s-kpi { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-2); }
+.k8s-kpi.accent { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.k8s-kpi-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.k8s-kpi b { font-size: 17px; }
+.k8s-gpu { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 12px; }
+.k8s-gpu.free { color: var(--ok, #16a34a); }
+.k8s-gpu.full { color: var(--warn, #d97706); }
+.k8s-pressure { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; font-weight: 700; color: var(--warn, #d97706); margin-left: 6px; }
+.k8s-gpulabels { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .upd-avail-banner {
   display: flex; align-items: center; gap: 6px; font-size: 12.5px;
   padding: 8px 12px; margin-bottom: 12px; border-radius: var(--r-md, 10px);
