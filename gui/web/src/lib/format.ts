@@ -55,3 +55,8 @@ export function formatVram(value: unknown): string {
 export function totalVramGiB(vram: number[]): number {
   return vram.length ? Math.round(vram.reduce((acc, value) => acc + (value || 0), 0) / 1024) : 0;
 }
+
+/** Resolve a runtime-target id to its display title, falling back to the id. */
+export function targetTitle(targets: Array<{ id: string; title: string }>, id: string): string {
+  return targets.find((target) => target.id === id)?.title ?? id;
+}
