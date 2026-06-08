@@ -581,7 +581,7 @@ function V2ConfigWorkbench({
         id={`config-${modelId}-${hardwareId}-${profileId}`}
         tabs={[
           {
-            id: "layers", label: "Layers", icon: <SlidersHorizontal size={15} />,
+            id: "composition", label: "Composition", icon: <SlidersHorizontal size={15} />,
             render: () => (
               <ModuleGrid>
                 <ModuleCard title="Layer Inspector" icon={<SlidersHorizontal size={18} />} desc="A preset is composed from three layers — model + hardware + profile — resolved to one runtime config." wide>
@@ -598,6 +598,18 @@ function V2ConfigWorkbench({
                     <ConfigItemInspector title="Profile" item={selectedProfile} />
                   </div>
                   {profileDef && <ProfileDeltaPanel def={profileDef.definition} />}
+                </ModuleCard>
+                <ModuleCard title="Compatibility & Fit" icon={<Gauge size={18} />} desc={`Does ${modelId} fit on ${hardwareId}?`} wide>
+                  <ModelFitCard
+                    modelId={modelId}
+                    hardwareOptions={(catalog?.hardware ?? []).map((item) => item.id)}
+                    defaultHardware={hardwareId}
+                  />
+                </ModuleCard>
+                <ModuleCard title="Compose Messages" icon={<FileText size={18} />} desc="Notes emitted while composing this configuration.">
+                  {(preview?.messages ?? []).length
+                    ? <CompactList rows={(preview?.messages ?? []).map((message, index) => [`Message ${index + 1}`, message])} />
+                    : <p className="muted">Composition produced no messages.</p>}
                 </ModuleCard>
                 <ModuleCard title="Preset Templates" icon={<Database size={18} />} desc="Load a builtin preset's layer stack into the composer.">
                   <label className="search-box">
@@ -625,26 +637,7 @@ function V2ConfigWorkbench({
             )
           },
           {
-            id: "fit", label: "Fit", icon: <Gauge size={15} />,
-            render: () => (
-              <ModuleGrid>
-                <ModuleCard title="Compatibility & Fit" icon={<Gauge size={18} />} desc={`${modelId} × ${hardwareId}`} wide>
-                  <ModelFitCard
-                    modelId={modelId}
-                    hardwareOptions={(catalog?.hardware ?? []).map((item) => item.id)}
-                    defaultHardware={hardwareId}
-                  />
-                </ModuleCard>
-                <ModuleCard title="Compose Messages" icon={<FileText size={18} />} desc="Notes emitted while composing this configuration.">
-                  {(preview?.messages ?? []).length
-                    ? <CompactList rows={(preview?.messages ?? []).map((message, index) => [`Message ${index + 1}`, message])} />
-                    : <p className="muted">Composition produced no messages.</p>}
-                </ModuleCard>
-              </ModuleGrid>
-            )
-          },
-          {
-            id: "tune", label: "Tune", icon: <SlidersHorizontal size={15} />,
+            id: "draft", label: "Draft", icon: <Code2 size={15} />,
             render: () => (
               <ModuleGrid>
                 <ModuleCard title="Runtime Parameters" icon={<SlidersHorizontal size={18} />} desc={`Local draft — diff vs composed baseline (${configDiffs.length} changes).`} wide>
@@ -652,13 +645,6 @@ function V2ConfigWorkbench({
                     <ParamFields baseDraft={baseDraft} draft={draft} set={setParam} />
                   </div>
                 </ModuleCard>
-              </ModuleGrid>
-            )
-          },
-          {
-            id: "yaml", label: "YAML", icon: <Code2 size={15} />,
-            render: () => (
-              <ModuleGrid>
                 <ModuleCard title="Draft YAML" icon={<Code2 size={18} />} desc="Editable preview — persist via Apply Plan." wide>
                   <div className="yaml-editor">
                     <CodeEditorField value={configYaml} onChange={setYamlText} label="config YAML" />
@@ -668,23 +654,6 @@ function V2ConfigWorkbench({
                     </div>
                   </div>
                 </ModuleCard>
-              </ModuleGrid>
-            )
-          },
-          {
-            id: "cli", label: "CLI", icon: <SquareTerminal size={15} />,
-            render: () => (
-              <ModuleGrid>
-                <ModuleCard title="CLI Mirror" icon={<SquareTerminal size={18} />} desc="Equivalent sndr CLI to reproduce this composition." wide>
-                  <CodeBlock lines={configCli} />
-                </ModuleCard>
-              </ModuleGrid>
-            )
-          },
-          {
-            id: "diff", label: "Diff", icon: <GitBranch size={15} />,
-            render: () => (
-              <ModuleGrid>
                 <ModuleCard title="Draft Diff" icon={<GitBranch size={18} />} desc="Draft vs composed baseline + planned file diff." wide>
                   <div className="diff-panel tall">
                     <strong>Draft vs composed baseline ({configDiffs.length})</strong>
@@ -703,7 +672,7 @@ function V2ConfigWorkbench({
             )
           },
           {
-            id: "artifacts", label: "Artifacts", icon: <Layers3 size={15} />,
+            id: "outputs", label: "Outputs", icon: <SquareTerminal size={15} />,
             render: () => (
               <ModuleGrid>
                 <ModuleCard title="Generated Artifacts" icon={<Layers3 size={18} />} desc="Compose / docker run / systemd / env rendered from this draft." wide>
@@ -717,6 +686,9 @@ function V2ConfigWorkbench({
                     </div>
                     <CodeBlock lines={configArtifacts[artifactKind]} />
                   </div>
+                </ModuleCard>
+                <ModuleCard title="CLI Mirror" icon={<SquareTerminal size={18} />} desc="Equivalent sndr CLI to reproduce this composition." wide>
+                  <CodeBlock lines={configCli} />
                 </ModuleCard>
               </ModuleGrid>
             )
