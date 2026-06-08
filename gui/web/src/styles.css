@@ -4643,6 +4643,11 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
    whitespace at 3440. Scoped to `.section-overview` so no other section moves. */
 .section-overview .module-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 [data-viewport="compact"] .section-overview .module-grid { grid-template-columns: minmax(0, 1fr); }
+/* Summary status cards (Platform / Catalog Health / Launch Readiness / Engine):
+   their own grid with no full-width sibling, so auto-fit collapses correctly and
+   they fill the row evenly — 4-up on an ultrawide, wrapping as it narrows.
+   Equal-height for a balanced row. */
+.section-overview .ov-status-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); align-items: stretch; }
 
 /* ═══ Tab intro banner ═══ */
 .tab-intro { display: flex; align-items: flex-start; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--r-lg); background: var(--surface-2); box-shadow: var(--shadow-sm); margin-bottom: var(--gap); }

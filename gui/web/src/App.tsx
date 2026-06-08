@@ -1894,8 +1894,8 @@ function SectionWorkspace({
                     </>
                   )}
                 </div>
-                <ModuleGrid>
-                  {settings.showConnectionMap && (
+                {settings.showConnectionMap && (
+                  <ModuleGrid>
                     <ModuleCard title="Control Plane Connections" icon={<Route size={18} />} wide>
                       <ConnectionMap
                         runtimeMode={runtimeMode}
@@ -1905,7 +1905,11 @@ function SectionWorkspace({
                         apiBase={apiBase}
                       />
                     </ModuleCard>
-                  )}
+                  </ModuleGrid>
+                )}
+                {/* Status cards live in their own grid (no full-width sibling, which
+                    would defeat auto-fit's track collapsing and strand whitespace). */}
+                <ModuleGrid className="ov-status-grid">
                   <ModuleCard title="Platform Snapshot" icon={<Monitor size={18} />}>
                     <InfoRows
                       rows={[
@@ -1918,10 +1922,17 @@ function SectionWorkspace({
                     />
                   </ModuleCard>
                   <ModuleCard title="Catalog Health" icon={<Database size={18} />} desc="Annotation coverage and load integrity — not raw counts (those are above).">
+                    <PercentBar
+                      value={overview?.catalog.preset_cards_count ?? 0}
+                      max={overview?.catalog.presets_count || 1}
+                      label="card coverage"
+                      caption={`${overview?.catalog.preset_cards_count ?? 0}/${overview?.catalog.presets_count ?? 0} presets annotated`}
+                      tone={(overview?.catalog.preset_load_error_count ?? 0) > 0 ? "warn" : "ok"}
+                    />
                     <KpiGrid
                       rows={[
-                        ["Card coverage", `${overview?.catalog.preset_cards_count ?? 0}/${overview?.catalog.presets_count ?? 0}`],
                         ["Bench-proven", benchProven],
+                        ["Families", Object.keys(familyCounts).length],
                         ["Unannotated", overview?.catalog.unannotated_presets_count ?? 0],
                         ["Load errors", overview?.catalog.preset_load_error_count ?? 0]
                       ]}
