@@ -164,13 +164,21 @@ PN95_SITE4_NEW = (
 )
 
 
-# ─── Anchor 5: scheduler.py::Scheduler.schedule (Path C v1.0 Phase 2)
+# ─── Anchor 5: scheduler.py::Scheduler.schedule (Path C v1.0 Phase 2) ──
+# v2 (2026-06-08, archive-drift forensics): upstream inserted
+# ``self.current_step += 1`` between the method signature and the NOTE
+# comment for per-step accounting. PN95's tick hook still injects at the
+# top of schedule(), it just moves AFTER the new step-counter assignment
+# instead of before the comment. Functionally identical — the step
+# counter fires per call regardless of when we tick.
 PN95_SITE5_OLD = (
     "    def schedule(self) -> SchedulerOutput:\n"
+    "        self.current_step += 1\n"
     "        # NOTE(woosuk) on the scheduling algorithm:\n"
 )
 PN95_SITE5_NEW = (
     "    def schedule(self) -> SchedulerOutput:\n"
+    "        self.current_step += 1\n"
     "        # [Genesis PN95 v2 — hot-path optimized] periodic tier maintenance.\n"
     "        # schedule() fires per scheduler step (~50/sec at sustained TPS).\n"
     "        _g_pn95_tick = globals().get('_GENESIS_PN95_tick_fn')\n"
@@ -684,8 +692,30 @@ def _make_patcher_worker_proactive_demote() -> TextPatcher | None:
     the operator wants the proactive demote loop they set the env;
     the default `1` deploy stays bit-identical to the pre-anchor
     state so existing compile caches keep hitting.
+
+    v2 (2026-06-08, archive-drift forensics) — **RETIRED on dev259+**:
+    PN96 Phase 6 emergency-demote (lines 385-411 of
+    ``vllm/v1/core/block_pool.py`` in dev259) has fully superseded
+    PN95's Phase 4.2 pressure-driven preservation loop with a more
+    robust per-block walk that runs inside ``get_new_blocks`` itself.
+    The PN95 anchor #13 position is now occupied by the PN96 emergency
+    demote code, so this patch's anchor cannot match and forcing it
+    would conflict with PN96. The function preserves an early-return
+    so the env flag remains a no-op without raising; operators flipping
+    the flag get a clean skip with the retired reason logged.
     """
-    if os.environ.get("GENESIS_PN95_ANCHOR13_ENABLE", "0").strip().lower() not in (
+    # Retired: PN96 Phase 6 superseded the Phase 4.2 logic. Always None.
+    log.info(
+        "[PN95] anchor #13 worker_proactive_demote RETIRED on dev259+ — "
+        "PN96 Phase 6 emergency-demote at block_pool.py:385-411 superseded "
+        "the Phase 4.2 pressure-driven preservation loop. Setting "
+        "GENESIS_PN95_ANCHOR13_ENABLE=1 is now a no-op; remove the env "
+        "flag from launcher to silence this log."
+    )
+    return None
+    # Original implementation preserved below for archaeology — kept dead
+    # so re-enabling is a one-block edit if PN96 ever regresses upstream.
+    if os.environ.get("GENESIS_PN95_ANCHOR13_ENABLE", "0").strip().lower() not in (  # noqa: F841
         "1", "true", "yes", "on",
     ):
         return None

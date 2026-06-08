@@ -60,20 +60,23 @@ class Counts:
 
 
 def collect_counts() -> Counts:
-    from vllm.sndr_core.dispatcher.registry import PATCH_REGISTRY
+    # v12.1 (2026-06-08): legacy ``vllm.sndr_core`` tree was archived to
+    # ``sndr_private/archive/`` (commit 6bf9c04c). Canonical imports are
+    # under ``sndr.*`` — same data, new module path.
+    from sndr.dispatcher.registry import PATCH_REGISTRY
     families = Counter(
         v.get("family", "?") for v in PATCH_REGISTRY.values()
     )
 
     presets_dir = (
-        REPO_ROOT / "vllm" / "sndr_core" / "model_configs" / "builtin" / "presets"
+        REPO_ROOT / "sndr" / "model_configs" / "builtin" / "presets"
     )
     aliases = (
         sum(1 for _ in presets_dir.glob("*.yaml")) if presets_dir.is_dir() else 0
     )
 
     try:
-        from vllm.sndr_core.model_configs.registry_v2 import (
+        from sndr.model_configs.registry_v2 import (
             list_hardware, list_models, list_profiles,
         )
         n_models = len(list_models())

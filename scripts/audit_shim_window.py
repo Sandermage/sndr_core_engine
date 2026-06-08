@@ -104,32 +104,29 @@ class ShimSpec:
     readme_retirement_anchors: tuple[str, ...] = ()
 
 
-SHIM_MANIFEST: tuple[ShimSpec, ...] = (
-    ShimSpec(
-        shim_dir="vllm/sndr_core/integrations/gemma4",
-        readme_path="vllm/sndr_core/integrations/gemma4/README.md",
-        required_files=("README.md",),
-        required_symlinks={
-            "upstream_overlay_pr42637": (
-                "../attention/turboquant/overlays/pr42637"
-            ),
-        },
-        forbid_extra_entries=True,
-        overlay_sentinels={
-            "upstream_overlay_pr42637": (
-                "turboquant_attn.py",
-                "triton_turboquant_store.py",
-                "turboquant_config.py",
-                "__init__.py",
-            ),
-        },
-        readme_retirement_anchors=(
-            "historical",
-            "retirement",
-            "launcher",
-        ),
-    ),
-)
+# v12.1 (2026-06-08): SHIM_MANIFEST is now EMPTY.
+#
+# History:
+#   The single tracked shim — ``vllm/sndr_core/integrations/gemma4``
+#   (gemma4 PR42637 historical staging) — lived inside the broader
+#   ``vllm/sndr_core/`` legacy compat tree. Commit ``6bf9c04c`` moved
+#   the entire ``vllm/sndr_core/`` tree (683 files including the
+#   gemma4 shim) under ``sndr_private/archive/
+#   v11_vllm_sndr_core_shims/`` as part of the v12-pure cleanup. With
+#   the move, no shim sits on the production import path any more.
+#
+# What this means for the audit:
+#   The manifest is the inventory of LIVE compat shims that need a
+#   declared retirement contract (README anchors + overlay sentinels).
+#   No live shims → empty inventory → audit trivially passes with
+#   "no shims to validate". This is the correct v12.x steady state.
+#
+# What to do if you reintroduce a shim:
+#   Add a ``ShimSpec`` entry below. The audit will then enforce the
+#   contract on it (existence + required files + retirement-narrative
+#   anchors in the README). See the docstring at the top of this file
+#   for the full procedure.
+SHIM_MANIFEST: tuple[ShimSpec, ...] = ()
 
 
 def _check_shim(

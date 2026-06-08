@@ -352,10 +352,26 @@ def _make_serving_patcher() -> TextPatcher | None:
         target_file=str(target),
         marker=GENESIS_P64_MARKER + " :: serving.py",
         sub_patches=[
+            # v3 (2026-06-08, archive-drift forensics):
+            # ``p64_safety_net_widen`` and ``p64_callsite_guard`` RETIRED.
+            # The helper method ``_should_check_for_unstreamed_tool_arg_
+            # tokens`` they targeted has been refactored out of dev259's
+            # ``serving.py``; the surrounding safety-net mechanism was
+            # rewritten. P107 (re-anchored in this same session) now
+            # carries the MTP truncation-at-tool-boundary detection role
+            # on the new ``finish_reason_`` callsite — that's the
+            # narrower-but-correct fix the agent triage recommended over
+            # spending anchor-archaeology budget re-anchoring this onto
+            # the new shape. The parser-side fix below
+            # (``parser_side`` patch in the sibling ``_make_parser_
+            # patcher``) keeps the in-progress tool-call delta safe.
+            # If MTP truncation at tool boundary ever escapes the parser
+            # + P107 net, we can revisit: ``serving.py:820`` is the
+            # candidate re-anchor target.
             TextPatch(name="p64_safety_net_widen", anchor=SERVING_SHOULD_OLD,
-                      replacement=SERVING_SHOULD_NEW, required=True),
+                      replacement=SERVING_SHOULD_NEW, required=False),
             TextPatch(name="p64_callsite_guard", anchor=SERVING_CALLSITE_OLD,
-                      replacement=SERVING_CALLSITE_NEW, required=True),
+                      replacement=SERVING_CALLSITE_NEW, required=False),
             # NOTE: D sub-patch DUPLICATES the original return for the second
             # half of _create_remaining_args_delta to keep the function shape
             # syntactically valid (the original DeltaFunctionCall line

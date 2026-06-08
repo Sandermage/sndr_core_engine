@@ -4,28 +4,28 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-06T13:19:51Z
-Total entries: **252**
+Generated: 2026-06-08T20:06:29Z
+Total entries: **254**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **252**
+- `tier=community`: **254**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **178**
+- `lifecycle=experimental`: **180**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **19**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **52** / 252
+### Default-on at boot: **53** / 254
 
 ### By family
 - `attention.flash`: 3
-- `attention.gdn`: 25
-- `attention.turboquant`: 52
+- `attention.gdn`: 26
+- `attention.turboquant`: 53
 - `compile_safety`: 13
 - `detection`: 3
 - `gemma4`: 18
@@ -58,7 +58,7 @@ Total entries: **252**
 | **PN17** | `community` | `experimental` | · | `GENESIS_ENABLE_PN17_FA2_LSE_CLAMP` | — | "FA2 softmax_lse runtime clamp (Cliff 1 mechanism A, Issue |
 | **PN286** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86` | — | "FA KV cache layout revert for Ampere SM 8.6 (closes |
 
-### `attention.gdn` (25)
+### `attention.gdn` (26)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -82,13 +82,14 @@ Total entries: **252**
 | **PN293** | `community` | `experimental` | · | `GENESIS_ENABLE_PN293_MAMBA_ATTN_PREFILL_FASTPATH` | [#42430](https://github.com/vllm-project/vllm/pull/42430) | mamba_attn _compute_common_metadata prefill fast-path (vllm#42430 cold-path s... |
 | **PN298** | `community` | `experimental` | · | `GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS` | — | FLA chunk_o NUM_WARPS arch-aware prune (SM 8.6 spilling fix) |
 | **PN299** | `community` | `experimental` | · | `GENESIS_ENABLE_PN299_FLA_MULTI_ARCH_WARPS` | — | FLA multi-file (kkt+wy_fast+l2norm) arch-aware NUM_WARPS prune |
+| **PN299B** | `community` | `experimental` | · | `GENESIS_ENABLE_PN299B` | — | FLA extended (kda+cumsum+solve_tril) arch-aware NUM_WARPS prune |
 | **P39a** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P39A` | — | FLA chunk_scaled_dot_kkt persistent A pool |
 | **P60b** | `community` | `experimental` | · | `GENESIS_ENABLE_P60B_TRITON_KERNEL` | [#40738](https://github.com/vllm-project/vllm/pull/40738) | GDN+ngram Triton kernel offset (Phase 2) |
 | **P7b** | `community` | `legacy` | · | `GENESIS_ENABLE_P7B` | — | GDN dual-stream via torch.library.custom_op (opt-in) |
 | **PN79_V2_MD5_CHUNK** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk.py scope) |
 | **PN79_V2_MD5_CHUNK_DELTA_H** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk_delta_h.py scope) |
 
-### `attention.turboquant` (52)
+### `attention.turboquant` (53)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -138,6 +139,7 @@ Total entries: **252**
 | **G4_70** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259B_MIXED_ALLOC` | — | PN259-B mixed-allocator path for TQ skip-list layers (PR42637 overlay control) |
 | **G4_70B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259B_FAIL_FAST` | — | PN259-B fail-fast guard on mixed-allocator KV layout mismatch |
 | **G4_70C** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259C_ROUTE_B` | — | PN259-C Route B split allocator for mixed TQ/native KV layout |
+| **P18B_TEXT** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_P18B_TEXT` | — | TurboQuant decode stage1 kernel-literal tune (TEXT-PATCH) |
 | **P18b** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P18B` | — | TurboQuant decode stage1 tune |
 | **P67b** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL` | — | TurboQuant spec-verify forward() routing (FULL CG enable) |
 | **P67c** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_SPARSE_V` | — | Per-row vote sparse-V integration into P67 split-M kernel |
