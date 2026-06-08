@@ -4038,6 +4038,17 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .diff-chip.added { color: var(--ok, #16a34a); background: color-mix(in srgb, var(--ok, #16a34a) 12%, transparent); border-color: color-mix(in srgb, var(--ok, #16a34a) 35%, transparent); }
 .diff-chip.modified { color: var(--warn, #d97706); background: color-mix(in srgb, var(--warn, #f59e0b) 12%, transparent); border-color: color-mix(in srgb, var(--warn, #f59e0b) 35%, transparent); }
 .diff-chip.deleted { color: var(--danger, #dc2626); background: color-mix(in srgb, var(--danger, #dc2626) 12%, transparent); border-color: color-mix(in srgb, var(--danger, #dc2626) 35%, transparent); }
+/* Processes — sortable headers + engine-row highlight */
+.ptable th.psort { cursor: pointer; user-select: none; white-space: nowrap; }
+.ptable th.psort:hover { color: var(--accent); }
+.ptable th.psort.sorted { color: var(--accent); }
+.ptable td.ptable-num { font-variant-numeric: tabular-nums; text-align: right; }
+.ptable tr.proc-engine td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.ptable tr.proc-engine td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+/* GPU detail telemetry row */
+.gpu-detail { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; font-size: 10.5px; font-family: var(--mono); }
+.gpu-detail span { padding: 1px 7px; border-radius: var(--r-pill); background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); white-space: nowrap; }
+.gpu-meta { font-size: 10px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .k8s-deploy { display: flex; flex-direction: column; gap: 12px; }
 .k8s-deploy-bar { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
 .k8s-deploy-bar label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); font-weight: 600; }

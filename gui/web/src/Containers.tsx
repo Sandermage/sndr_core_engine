@@ -992,18 +992,44 @@ function ConfigTab({ source, name, inspect, onChanged }: { source: ContainerSour
 function ProcessesTab({ source, name, online }: { source: ContainerSource; name: string; online: boolean }) {
   const [data, setData] = useState<{ titles: string[]; processes: string[][] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [live, setLive] = useState(false);
+  const [sortCol, setSortCol] = useState<number | null>(null);
+  const [desc, setDesc] = useState(true);
   const load = useCallback(() => {
     api.containerTop(source, name).then((d) => setData({ titles: d.titles, processes: d.processes })).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, [source, name]);
   useEffect(() => { if (online) load(); }, [load, online]);
+  useEffect(() => { if (!live || !online) return; const t = window.setInterval(load, 2500); return () => window.clearInterval(t); }, [live, online, load]);
   if (!online) return <NotRunning />;
   if (err) return <ErrBox msg={err} />;
   if (!data) return <Loading />;
+  const cmdCol = Math.max(0, data.titles.length - 1);
+  const cpuCol = data.titles.findIndex((t) => /cpu/i.test(t));
+  const memCol = data.titles.findIndex((t) => /mem|rss/i.test(t));
+  const rows = sortCol == null ? data.processes : [...data.processes].sort((a, b) => {
+    const av = a[sortCol] ?? "", bv = b[sortCol] ?? "";
+    const an = parseFloat(av), bn = parseFloat(bv);
+    const cmp = !isNaN(an) && !isNaN(bn) ? an - bn : String(av).localeCompare(String(bv));
+    return desc ? -cmp : cmp;
+  });
+  const sortBy = (i: number) => { if (sortCol === i) setDesc((d) => !d); else { setSortCol(i); setDesc(true); } };
+  const isEngine = (row: string[]) => /vllm|sndr|python3?\s+-m|run_server/i.test(row[cmdCol] ?? "");
   return (
     <div className="proc">
-      <div className="proc-bar"><span>{data.processes.length} processes</span><button className="ghost-button" onClick={load} aria-label="Refresh processes"><RefreshCw size={13} /></button></div>
-      <table className="ptable"><thead><tr>{data.titles.map((t) => <th key={t}>{t}</th>)}</tr></thead>
-        <tbody>{data.processes.map((row, i) => <tr key={i}>{row.map((cell, j) => <td key={j} className={j === data.titles.length - 1 ? "ptable-cmd" : ""}>{cell}</td>)}</tr>)}</tbody>
+      <div className="proc-bar">
+        <span>{data.processes.length} processes{cpuCol >= 0 ? " · sort by any column" : ""}</span>
+        <button className={`ghost-button ${live ? "live-on" : ""}`} onClick={() => setLive(!live)} title="Auto-refresh every 2.5s"><span className={`live-dot ${live ? "on" : ""}`} /> {live ? "Live" : "Follow"}</button>
+        <button className="ghost-button" onClick={load} aria-label="Refresh processes"><RefreshCw size={13} /></button>
+      </div>
+      <table className="ptable">
+        <thead><tr>{data.titles.map((t, i) => (
+          <th key={t} className={`psort ${sortCol === i ? "sorted" : ""}`} onClick={() => sortBy(i)} title="Sort">{t}{sortCol === i ? (desc ? " ↓" : " ↑") : ""}</th>
+        ))}</tr></thead>
+        <tbody>{rows.map((row, i) => (
+          <tr key={i} className={isEngine(row) ? "proc-engine" : ""}>
+            {row.map((cell, j) => <td key={j} className={j === cmdCol ? "ptable-cmd" : j === cpuCol || j === memCol ? "ptable-num" : ""}>{cell}</td>)}
+          </tr>
+        ))}</tbody>
       </table>
     </div>
   );
@@ -1211,6 +1237,18 @@ function ContainerGpu({ source }: { source: ContainerSource }) {
                 <div className="stats-metric-head">VRAM <b>{fmtBytes((g.mem_used ?? 0) * 1048576)} / {fmtBytes((g.mem_total ?? 0) * 1048576)}</b> ({vramPct}%)</div>
                 <Sparkline data={h.vram} kind={pctClass(vramPct)} tall />
               </div>
+              <div className="gpu-detail">
+                {g.temp_gpu != null && <span title="GPU temperature">🌡 {g.temp_gpu}°C</span>}
+                {g.power != null && <span title="Power draw / limit">⚡ {Math.round(g.power)}{g.power_default_limit != null ? `/${Math.round(g.power_default_limit)}` : ""}W</span>}
+                {g.mem_util != null && <span title="Memory-bandwidth utilization">mem {g.mem_util}%</span>}
+                {g.clock_gpu != null && <span title="GPU clock (current / max)">clk {g.clock_gpu}{g.clock_gpu_max != null ? `/${g.clock_gpu_max}` : ""}MHz</span>}
+                {g.pcie_gen != null && <span title="PCIe generation × width">PCIe {g.pcie_gen}{g.pcie_width != null ? `×${g.pcie_width}` : ""}</span>}
+                {g.fan_speed != null && <span title="Fan speed">fan {g.fan_speed}%</span>}
+                {g.pstate && <span title="Performance state">{g.pstate}</span>}
+              </div>
+              {(g.driver_version || g.uuid) && (
+                <div className="gpu-meta muted" title={g.uuid ?? ""}>{g.driver_version ? `driver ${g.driver_version}` : ""}{g.compute_mode ? ` · ${g.compute_mode}` : ""}</div>
+              )}
             </div>
           );
         })}
