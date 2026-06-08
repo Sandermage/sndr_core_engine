@@ -187,10 +187,18 @@ def _warmup_eagle_helpers(drafter, model_runner) -> int:
         log.warning("[PN128] kernel 2 invoke failed: %s", e)
 
     # ===== kernel 3: copy_and_expand_eagle_inputs_kernel (conditional) =====
+    # v12 (2026-06-08): MTP K=3 path on 35B/27B has
+    # ``method='mtp'`` (passes the dflash check) but
+    # ``is_rejected_token_mask`` / ``is_masked_token_mask`` start
+    # as ``None`` until the first scheduler step. The previous
+    # gate therefore skipped this warmup on every MTP boot and
+    # the JIT spike landed on the first user request. We now
+    # materialise dummy masks if the drafter hasn't yet —
+    # the kernel writes into them, we zero them back out after.
     method = getattr(drafter, "method", "")
     is_rejected = getattr(drafter, "is_rejected_token_mask", None)
     is_masked = getattr(drafter, "is_masked_token_mask", None)
-    if method != "dflash" and is_rejected is not None and is_masked is not None:
+    if method != "dflash":
         try:
             from vllm.v1.spec_decode.utils import copy_and_expand_eagle_inputs_kernel
             num_padding_slots = int(getattr(drafter, "extra_slots_per_request", 0) or 0)
@@ -199,6 +207,22 @@ def _warmup_eagle_helpers(drafter, model_runner) -> int:
             total_input_tokens = num_reqs * num_query_per_req
             total_output_tokens = num_reqs * (num_query_per_req + num_padding_slots)
             block_size_tokens_3 = min(256, _next_power_of_2(num_query_per_req))
+
+            # v12 MTP warmup: materialise the rejected/masked buffers if
+            # the drafter hasn't yet (MTP defers them to the first
+            # scheduler step, which is after warmup). The buffers are
+            # shape-determined by ``total_input_tokens``.
+            _materialised_masks = False
+            if is_rejected is None:
+                is_rejected = torch.zeros(
+                    total_input_tokens, dtype=torch.bool, device=device,
+                )
+                _materialised_masks = True
+            if is_masked is None:
+                is_masked = torch.zeros(
+                    total_input_tokens, dtype=torch.bool, device=device,
+                )
+                _materialised_masks = True
 
             target_token_ids = torch.zeros(
                 total_input_tokens, dtype=torch.int32, device=device
@@ -240,24 +264,36 @@ def _warmup_eagle_helpers(drafter, model_runner) -> int:
                 shift_input_ids=getattr(drafter, "pass_hidden_states_to_model", True),
                 BLOCK_SIZE_TOKENS=block_size_tokens_3,
             )
-            # reset masks to avoid leaking warmup state
-            is_rejected.zero_()
-            is_masked.zero_()
+            # reset masks to avoid leaking warmup state. Skip the
+            # zero if we materialised them ourselves — they're
+            # discarded with this function's stack frame.
+            if not _materialised_masks:
+                is_rejected.zero_()
+                is_masked.zero_()
             success += 1
-            log.info("[PN128] kernel 3/4 copy_and_expand_eagle_inputs_kernel ✓")
+            log.info(
+                "[PN128] kernel 3/4 copy_and_expand_eagle_inputs_kernel ✓"
+                "%s",
+                " (materialised dummy masks for MTP)" if _materialised_masks else "",
+            )
         except ImportError as e:
             log.warning("[PN128] kernel 3 not available: %s", e)
         except Exception as e:
             log.warning("[PN128] kernel 3 invoke failed: %s", e)
     else:
-        log.info("[PN128] kernel 3 skipped (dflash path OR no rejected/masked masks)")
+        log.info("[PN128] kernel 3 skipped (dflash path)")
 
     # ===== kernel 4: eagle_step_update_slot_mapping_and_metadata =====
-    # Only for K > 1 + non parallel_drafting (our MTP K=3 hits this)
-    parallel_drafting = bool(getattr(drafter, "parallel_drafting", False))
+    # v12 (2026-06-08): the MTP K=3 path on 35B/27B has
+    # ``parallel_drafting=True`` (all K draft tokens come from one
+    # forward pass), but the runtime still calls this kernel during
+    # slot-mapping setup. The previous gate excluded MTP and the
+    # JIT spike landed on the first user request. The kernel is
+    # generic — it doesn't read ``parallel_drafting`` — so warming
+    # it for MTP is safe and closes the spike.
     block_size = int(getattr(drafter, "block_size", 0) or 0)
     max_model_len = int(getattr(drafter, "max_model_len", 0) or 0)
-    if num_spec_tokens > 1 and not parallel_drafting and block_size > 0:
+    if num_spec_tokens > 1 and block_size > 0 and max_model_len > 0:
         try:
             from vllm.v1.spec_decode.utils import (
                 eagle_step_update_slot_mapping_and_metadata,
@@ -287,9 +323,9 @@ def _warmup_eagle_helpers(drafter, model_runner) -> int:
             log.warning("[PN128] kernel 4 invoke failed: %s", e)
     else:
         log.info(
-            "[PN128] kernel 4 skipped (K=%d, parallel=%s, block_size=%d) "
-            "— only fires for sequential Eagle K>1",
-            num_spec_tokens, parallel_drafting, block_size,
+            "[PN128] kernel 4 skipped (K=%d, block_size=%d, max_model_len=%d) "
+            "— need K>1, block_size>0, max_model_len>0",
+            num_spec_tokens, block_size, max_model_len,
         )
 
     return success
@@ -346,10 +382,17 @@ def _run_pn128_warmup(worker) -> None:
 
 
 def _warmup_eagle_helpers_with_reqs(drafter, model_runner, num_reqs: int) -> int:
-    """Run warmup with a specific num_reqs (force a shape variant)."""
-    # Parametrize the global _warmup_eagle_helpers via a local override.
-    # Simplest path would be a temporary attribute, but that is hacky.
-    # An explicit duplicate that accepts num_reqs is the cleaner option.
+    """Run warmup with a specific num_reqs (force a shape variant).
+
+    v3 (2026-06-08): previously only warmed kernels 1+2, leaving kernels
+    3+4 to JIT on the first user request (bench log: "2/4 kernels warmed").
+    Now warms all 4 kernels with the same relaxed gates as the canonical
+    ``_warmup_eagle_helpers``:
+      * kernel 3: drop the ``is_rejected/is_masked is None`` gate and
+        materialise dummy masks if MTP hasn't allocated them yet.
+      * kernel 4: drop the ``not parallel_drafting`` gate — the kernel
+        is generic and the MTP path also hits it on every step.
+    """
     import torch
 
     device = drafter.device
@@ -361,7 +404,7 @@ def _warmup_eagle_helpers_with_reqs(drafter, model_runner, num_reqs: int) -> int
     num_sampled_per_req = num_spec_tokens + 1
     block_size_tokens = _next_power_of_2(num_sampled_per_req)
 
-    # kernel 1
+    # ===== kernel 1: eagle_prepare_next_token_padded_kernel =====
     try:
         from vllm.v1.spec_decode.utils import (
             eagle_prepare_next_token_padded_kernel,
@@ -382,7 +425,7 @@ def _warmup_eagle_helpers_with_reqs(drafter, model_runner, num_reqs: int) -> int
     except Exception as e:
         log.debug("[PN128] num_reqs=%d k1 failed: %s", num_reqs, e)
 
-    # kernel 2
+    # ===== kernel 2: eagle_prepare_inputs_padded_kernel =====
     try:
         from vllm.v1.spec_decode.utils import eagle_prepare_inputs_padded_kernel
         cu = torch.zeros(num_reqs, dtype=torch.int32, device=device)
@@ -394,6 +437,141 @@ def _warmup_eagle_helpers_with_reqs(drafter, model_runner, num_reqs: int) -> int
         success += 1
     except Exception as e:
         log.debug("[PN128] num_reqs=%d k2 failed: %s", num_reqs, e)
+
+    # ===== kernel 3: copy_and_expand_eagle_inputs_kernel =====
+    method = getattr(drafter, "method", "")
+    is_rejected = getattr(drafter, "is_rejected_token_mask", None)
+    is_masked = getattr(drafter, "is_masked_token_mask", None)
+    if method != "dflash":
+        try:
+            from vllm.v1.spec_decode.utils import copy_and_expand_eagle_inputs_kernel
+            num_padding_slots = int(getattr(drafter, "extra_slots_per_request", 0) or 0)
+            net_new_slots = int(getattr(drafter, "net_num_new_slots_per_request", 0) or 0)
+            num_query_per_req = 1 + net_new_slots
+            total_input_tokens = num_reqs * num_query_per_req
+            total_output_tokens = num_reqs * (num_query_per_req + num_padding_slots)
+            block_size_tokens_3 = min(256, _next_power_of_2(num_query_per_req))
+
+            _materialised_masks = False
+            if is_rejected is None:
+                is_rejected = torch.zeros(
+                    total_input_tokens, dtype=torch.bool, device=device,
+                )
+                _materialised_masks = True
+            if is_masked is None:
+                is_masked = torch.zeros(
+                    total_input_tokens, dtype=torch.bool, device=device,
+                )
+                _materialised_masks = True
+
+            # v3.3 (2026-06-08): EagleProposer (MTP) does not eagerly
+            # allocate ``input_ids`` / ``positions`` — they are bound on
+            # the first scheduler step. Use dummy buffers for warmup;
+            # the kernel writes into them and we discard them after.
+            drafter_input_ids = getattr(drafter, "input_ids", None)
+            drafter_positions = getattr(drafter, "positions", None)
+            if drafter_input_ids is None:
+                drafter_input_ids = torch.zeros(
+                    total_input_tokens, dtype=torch.int32, device=device,
+                )
+            if drafter_positions is None:
+                drafter_positions = torch.zeros(
+                    total_input_tokens, dtype=torch.int64, device=device,
+                )
+
+            target_token_ids = torch.zeros(
+                total_input_tokens, dtype=torch.int32, device=device
+            )
+            target_positions = torch.zeros(
+                total_input_tokens, dtype=torch.int64, device=device
+            )
+            next_token_ids_buf = torch.zeros(num_reqs, dtype=torch.int32, device=device)
+            qsl3 = (
+                torch.arange(num_reqs + 1, dtype=torch.int32, device=device)
+                * num_query_per_req
+            )
+            qel3 = qsl3[1:] - 1
+            tts_buf = torch.empty(
+                max(num_reqs * num_padding_slots, 1),
+                dtype=torch.int32, device=device,
+            )
+            ohsm_buf = torch.empty(total_input_tokens, dtype=torch.int32, device=device)
+
+            num_blocks = max(
+                1, (total_output_tokens + block_size_tokens_3 - 1) // block_size_tokens_3
+            )
+            copy_and_expand_eagle_inputs_kernel[(num_reqs, num_blocks)](
+                target_token_ids_ptr=target_token_ids,
+                target_positions_ptr=target_positions,
+                next_token_ids_ptr=next_token_ids_buf,
+                out_input_ids_ptr=drafter_input_ids,
+                out_positions_ptr=drafter_positions,
+                out_is_rejected_token_mask_ptr=is_rejected,
+                out_is_masked_token_mask_ptr=is_masked,
+                out_new_token_indices_ptr=tts_buf,
+                out_hidden_state_mapping_ptr=ohsm_buf,
+                query_start_loc_ptr=qsl3,
+                query_end_loc_ptr=qel3,
+                padding_token_id=0,
+                parallel_drafting_token_id=getattr(drafter, "parallel_drafting_token_id", 0),
+                total_input_tokens=total_input_tokens,
+                num_padding_slots_per_request=num_padding_slots,
+                shift_input_ids=getattr(drafter, "pass_hidden_states_to_model", True),
+                BLOCK_SIZE_TOKENS=block_size_tokens_3,
+            )
+            if not _materialised_masks:
+                is_rejected.zero_()
+                is_masked.zero_()
+            success += 1
+        except Exception as e:
+            log.debug("[PN128] num_reqs=%d k3 failed: %s", num_reqs, e)
+    else:
+        log.debug("[PN128] num_reqs=%d k3 skipped (method=%r)", num_reqs, method)
+
+    # ===== kernel 4: eagle_step_update_slot_mapping_and_metadata =====
+    # v3.1 (2026-06-08): MTP drafter may not expose ``block_size`` /
+    # ``max_model_len`` directly — fall back to the model_runner's
+    # cache_config / model_config the same way the V1 runtime does.
+    block_size = int(getattr(drafter, "block_size", 0) or 0)
+    max_model_len = int(getattr(drafter, "max_model_len", 0) or 0)
+    if block_size <= 0 and model_runner is not None:
+        cc = getattr(model_runner, "cache_config", None)
+        if cc is not None:
+            block_size = int(getattr(cc, "block_size", 0) or 0)
+    if max_model_len <= 0 and model_runner is not None:
+        mc = getattr(model_runner, "model_config", None)
+        if mc is not None:
+            max_model_len = int(getattr(mc, "max_model_len", 0) or 0)
+    if num_spec_tokens > 1 and block_size > 0 and max_model_len > 0:
+        try:
+            from vllm.v1.spec_decode.utils import (
+                eagle_step_update_slot_mapping_and_metadata,
+            )
+            n_blocks_per_req = (max_model_len + block_size - 1) // block_size
+            positions_1d = torch.zeros(num_reqs, dtype=torch.int64, device=device)
+            block_table = torch.zeros(
+                (num_reqs, n_blocks_per_req), dtype=torch.int32, device=device
+            )
+            seq_lens = torch.ones(num_reqs, dtype=torch.int32, device=device)
+            out_clamped = torch.empty(num_reqs, dtype=torch.int64, device=device)
+            out_slot = torch.empty(num_reqs, dtype=torch.int64, device=device)
+            eagle_step_update_slot_mapping_and_metadata(
+                positions_1d=positions_1d,
+                block_table_tensor=block_table,
+                seq_lens=seq_lens,
+                block_size=block_size,
+                max_model_len=max_model_len,
+                out_clamped_positions=out_clamped,
+                out_slot_mapping=out_slot,
+            )
+            success += 1
+        except Exception as e:
+            log.debug("[PN128] num_reqs=%d k4 failed: %s", num_reqs, e)
+    else:
+        log.debug(
+            "[PN128] num_reqs=%d k4 skipped (K=%d, block_size=%d, max_model_len=%d)",
+            num_reqs, num_spec_tokens, block_size, max_model_len,
+        )
 
     return success
 

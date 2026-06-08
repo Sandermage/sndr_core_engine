@@ -104,6 +104,17 @@ system_env:
   VLLM_USE_AOT_COMPILE: '1'                      # explicit (default 1 on torch 2.10+). AOT compile shifts work to warmup phase + caches Python bytecode hooks for subsequent calls. Pairs with VLLM_USE_STANDALONE_COMPILE and TRITON_CACHE_DIR.
   VLLM_USE_STANDALONE_COMPILE: '1'               # explicit (default 1). Loads compiled artifacts directly without re-splitting graph modules → reduces model-load overhead.
   VLLM_ENABLE_PREGRAD_PASSES: '1'                # explicit (default 1). vLLM custom passes before grad to work around pytorch/pytorch#174502. Required for compile correctness on hybrid attention/Mamba models.
+  # ── TurboQuant decode stage1 tune (Genesis P18b, SM 8.6 A5000) ──
+  # Upstream defaults BLOCK_KV=4 num_warps=1 num_stages=1 are H100-tuned and
+  # under-utilize Ampere SMs (each program has too few warps, no pipelining).
+  # Empirically validated SM 8.6 A5000 tune: 32/8/3. Source: prior session
+  # 35B baseline at 244 TPS; section 15.1 of master plan explicitly records
+  # num_stages=2 regressed -2% to -9% on A5000 — keep stages=3.
+  # Re-derived 2026-06-08 after audit found launcher template lost these
+  # envs in some pin transition; without them P18b runs upstream defaults.
+  VLLM_TQ_DECODE_BLOCK_KV: '32'                  # decode stage1 KV tile size (whitelist {1,2,4,8,16,32,64}); A5000 wants 32 (8× upstream)
+  VLLM_TQ_DECODE_NUM_WARPS: '8'                  # warps per program (whitelist {1,2,4,8}); A5000 wants 8 (8× upstream)
+  VLLM_TQ_DECODE_NUM_STAGES: '3'                 # software pipeline depth (1..8); A5000 wants 3 — stages=2 measured -2%..-9% regression
   # ── Marlin / FP8 / MoE (Ampere SM 8.6 specific) ──
   VLLM_MARLIN_USE_ATOMIC_ADD: '1'                # Marlin reduction via atomicAdd (faster on Ampere SM 8.6 with shared L2)
   VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'  # vllm#30515 — include CUDA graphs in memory profiler estimate (prevents post-warmup OOM)
