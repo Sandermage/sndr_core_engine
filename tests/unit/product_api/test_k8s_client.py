@@ -100,11 +100,11 @@ def test_cluster_status_and_list_nodes_degrade_gracefully(monkeypatch):
 
 
 def _pod(name, *, ns="default", node="gpu-a", phase="Running", ready=1, total=1,
-         restarts=0, gpu=0, reason=None):
+         restarts=0, gpu=0, reason=None, labels=None, annotations=None):
     cstat = [NS(ready=(i < ready), restart_count=restarts) for i in range(total)]
     ctrs = [NS(image="vllm/vllm-openai:nightly",
                resources=NS(requests={k8s.GPU_RESOURCE: str(gpu)} if gpu else {})) for _ in range(total)]
-    return NS(metadata=NS(name=name, namespace=ns),
+    return NS(metadata=NS(name=name, namespace=ns, labels=labels or {}, annotations=annotations or {}),
               spec=NS(node_name=node, containers=ctrs),
               status=NS(phase=phase, container_statuses=cstat, reason=reason))
 
@@ -124,6 +124,29 @@ def test_shape_pod_not_fully_ready():
 def test_shape_pod_pending_reason_surfaced():
     s = k8s.shape_pod(_pod("vllm-0", phase="Pending", node=None, ready=0, total=1, reason="Unschedulable"))
     assert s["phase"] == "Pending" and s["reason"] == "Unschedulable" and s["node"] is None
+
+
+def test_shape_pod_surfaces_sndr_identity():
+    # A pod rendered by `sndr k8s` carries its preset/pin/patches identity —
+    # shape_pod must surface it so the panel maps the pod back to its preset.
+    s = k8s.shape_pod(_pod(
+        "sndr-a5000-2x-35b-0",
+        labels={"app.kubernetes.io/managed-by": "sndr", "sndr.io/preset": "a5000-2x-35b", "sndr.io/patch-count": "14"},
+        annotations={"sndr.io/pin": "nightly-abc123", "sndr.io/patches": "P82,PN90,PN95"},
+    ))
+    assert s["sndr_managed"] is True
+    assert s["sndr_preset"] == "a5000-2x-35b"
+    assert s["sndr_patch_count"] == 14
+    assert s["sndr_pin"] == "nightly-abc123"
+    assert s["sndr_patches"] == ["P82", "PN90", "PN95"]
+
+
+def test_shape_pod_without_sndr_identity_is_neutral():
+    # A foreign pod (not rendered by sndr) reports managed=False, no identity.
+    s = k8s.shape_pod(_pod("some-other-app-0"))
+    assert s["sndr_managed"] is False
+    assert s["sndr_preset"] is None and s["sndr_pin"] is None
+    assert s["sndr_patches"] == [] and s["sndr_patch_count"] is None
 
 
 def test_shape_event_warning_with_object():

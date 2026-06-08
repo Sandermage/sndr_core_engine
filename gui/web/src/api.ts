@@ -362,6 +362,9 @@ export type K8sNodesResult = { available: boolean; error: string | null; nodes: 
 export type K8sPod = {
   name: string | null; namespace: string | null; node: string | null; phase: string | null;
   ready: string; ready_ok: boolean; restarts: number; gpu_request: number; reason: string | null; images: (string | null)[];
+  // SNDR identity (present when the pod was rendered by `sndr k8s`).
+  sndr_managed: boolean; sndr_preset: string | null; sndr_patch_count: number | null;
+  sndr_pin: string | null; sndr_patches: string[];
 };
 export type K8sPodsResult = { available: boolean; error: string | null; pods: K8sPod[] };
 export type K8sEvent = {

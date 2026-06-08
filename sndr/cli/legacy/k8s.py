@@ -293,6 +293,35 @@ def _build_volumes_and_mounts(
     return volumes, mounts
 
 
+def _sndr_identity(cfg) -> tuple[dict, dict]:
+    """SNDR identity for a rendered Deployment: labels + annotations that tie a
+    live pod back to the preset/pin/patches that produced it. The keystone of
+    the k8s↔SNDR integration — every downstream feature (pod→preset mapping,
+    drift badge, rolling pin upgrade, autoscale bounds) keys off these.
+
+    Labels carry the short, label-safe identity (managed-by, preset, count).
+    Annotations carry the longer/free-form values (pin tag, patch-name list)
+    that would violate the 63-char label-value rule.
+    """
+    enabled = [key[len("GENESIS_ENABLE_"):]
+               for key, val in sorted(cfg.genesis_env.items())
+               if key.startswith("GENESIS_ENABLE_")
+               and str(val).strip().lower() not in ("", "0", "false", "no")]
+    pin = _image_ref(cfg).rsplit(":", 1)[-1] if ":" in _image_ref(cfg) else ""
+    labels = {
+        "app.kubernetes.io/managed-by": "sndr",
+        "app.kubernetes.io/name": cfg.key,
+        "sndr.io/preset": cfg.key,
+        "sndr.io/patch-count": str(len(enabled)),
+    }
+    annotations: dict = {}
+    if pin:
+        annotations["sndr.io/pin"] = pin
+    if enabled:
+        annotations["sndr.io/patches"] = ",".join(enabled)
+    return labels, annotations
+
+
 def _deployment_manifest(cfg) -> dict:
     k = cfg.kubernetes
     name = _name(cfg)
@@ -326,15 +355,24 @@ def _deployment_manifest(cfg) -> dict:
     }
     if k.node_selector:
         pod_spec["nodeSelector"] = dict(k.node_selector)
+    id_labels, id_annotations = _sndr_identity(cfg)
+    # `app` stays the selector key (immutable); SNDR identity rides alongside.
+    # Distinct dict copies per metadata block so safe_dump emits plain maps
+    # (not YAML anchors/aliases) — the Deploy tab shows this YAML verbatim.
+    deploy_meta: dict = {"name": name, "namespace": k.namespace, "labels": {"app": name, **id_labels}}
+    tmpl_meta: dict = {"labels": {"app": name, **id_labels}}
+    if id_annotations:
+        deploy_meta["annotations"] = dict(id_annotations)
+        tmpl_meta["annotations"] = dict(id_annotations)
     return {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
-        "metadata": {"name": name, "namespace": k.namespace},
+        "metadata": deploy_meta,
         "spec": {
             "replicas": 1,
             "selector": {"matchLabels": {"app": name}},
             "template": {
-                "metadata": {"labels": {"app": name}},
+                "metadata": tmpl_meta,
                 "spec": pod_spec,
             },
         },

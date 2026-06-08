@@ -214,6 +214,60 @@ class TestRenderValidation:
                           "Deployment"}
 
 
+# ─── v12 — SNDR identity stamped on every Deployment ────────────────────
+
+
+class TestSndrIdentity:
+    """v12 (research-driven 2026-06-08): the k8s tab felt like a generic
+    dashboard because rendered Deployments were anonymous (`app: <name>`
+    only). Stamping the SNDR identity — preset key, pin, enabled-patch
+    count + names — as labels/annotations is the keystone: the panel can
+    then map a live pod back to the preset/pin/patches that defined it,
+    and every later feature (drift badge, rolling pin upgrade, autoscale
+    bounds) keys off this identity. Selector stays on `app=` (immutable)."""
+
+    def test_deployment_carries_sndr_identity_labels(self):
+        cfg = _make_k8s_cfg()
+        cfg.genesis_env.update({
+            "GENESIS_ENABLE_P82": "1",
+            "GENESIS_ENABLE_PN90": "1",
+            "GENESIS_ENABLE_P71": "0",  # disabled -> not counted
+        })
+        docs = list(yaml.safe_load_all(_all_yaml(cfg)))
+        deploy = next(d for d in docs if d and d.get("kind") == "Deployment")
+        labels = deploy["metadata"]["labels"]
+        assert labels["app.kubernetes.io/managed-by"] == "sndr"
+        assert labels["sndr.io/preset"] == "test-k8s"
+        assert labels["sndr.io/patch-count"] == "2"
+        # The pod template carries the same identity so pod queries resolve it.
+        tmpl_labels = deploy["spec"]["template"]["metadata"]["labels"]
+        assert tmpl_labels["sndr.io/preset"] == "test-k8s"
+        assert tmpl_labels["sndr.io/patch-count"] == "2"
+        # Selector stays on app= only (immutable, must remain a subset).
+        assert deploy["spec"]["selector"]["matchLabels"] == {"app": "sndr-test-k8s"}
+
+    def test_deployment_annotations_carry_pin_and_patch_names(self):
+        cfg = _make_k8s_cfg(image="vllm/vllm-openai:nightly-abc123")
+        cfg.genesis_env.update({"GENESIS_ENABLE_P82": "1", "GENESIS_ENABLE_PN90": "1"})
+        docs = list(yaml.safe_load_all(_all_yaml(cfg)))
+        deploy = next(d for d in docs if d and d.get("kind") == "Deployment")
+        ann = deploy["metadata"]["annotations"]
+        assert ann["sndr.io/pin"] == "nightly-abc123"
+        assert "P82" in ann["sndr.io/patches"]
+        assert "PN90" in ann["sndr.io/patches"]
+
+    def test_identity_labels_are_k8s_valid(self):
+        # patch-count is a string scalar; managed-by/preset are label-safe.
+        cfg = _make_k8s_cfg()
+        docs = list(yaml.safe_load_all(_all_yaml(cfg)))
+        deploy = next(d for d in docs if d and d.get("kind") == "Deployment")
+        labels = deploy["metadata"]["labels"]
+        assert labels["sndr.io/patch-count"] == "0"  # no patches enabled
+        # No annotations crash when there are zero enabled patches.
+        ann = deploy["metadata"].get("annotations", {})
+        assert ann.get("sndr.io/patches", "") == ""
+
+
 # ─── Etap 2.6 — delete --delete-pvc opt-in ──────────────────────────────
 
 

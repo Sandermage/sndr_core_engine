@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowDownUp, ArrowLeft, ArrowUp, Bell, Box, Boxes, ChevronRight,
   Clock, Copy, Cpu, Database, Download, DownloadCloud, File as FileIcon, FileArchive, FileCode,
-  FileText, Folder, GitCompare, HardDrive, Heart, Home, Layers, LayoutGrid, Link2, List, Loader2, Lock, MemoryStick, MoreVertical,
+  FileText, Folder, Gauge, GitCompare, HardDrive, Heart, Home, Layers, LayoutGrid, Link2, List, Loader2, Lock, MemoryStick, MoreVertical,
   Network, Play, RefreshCw, RotateCw, Search, Send, Server, Settings, ShieldAlert, ShieldCheck,
-  Square, TerminalSquare, Wrench, X,
+  Square, TerminalSquare, Timer, Wrench, X, Zap,
 } from "lucide-react";
 import {
   api, type AlertConfig, type ContainerAction, type ContainerSource, type ContainerStats,
-  type ContainerUpdatePlan, type DockerNetwork, type FsEntry, type GpuInfo, type HostSndrState, type ImageScan,
+  type ContainerUpdatePlan, type DockerNetwork, type EngineMetrics, type FsEntry, type GpuInfo, type HostSndrState, type ImageScan,
   type ManagedContainer, type SourceReport, type SystemDf, type UpdateMode,
 } from "./api";
 import { hashParam, buildHash, replaceHash } from "./route";
@@ -576,9 +576,10 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
 
 // ─── full-page container view ─────────────────────────────────────────
 
-type Tab = "overview" | "config" | "processes" | "files" | "changes" | "logs" | "stats" | "exec";
+type Tab = "overview" | "inference" | "config" | "processes" | "files" | "changes" | "logs" | "stats" | "exec";
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "overview", label: "Overview", icon: <Box size={15} /> },
+  // Inference is engine-only and injected right after Overview (see ContainerPage).
   { id: "config", label: "Config", icon: <Settings size={15} /> },
   { id: "processes", label: "Processes", icon: <Activity size={15} /> },
   { id: "files", label: "Files", icon: <Folder size={15} /> },
@@ -613,6 +614,16 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
   const online = !!state.Running;
   const health = state.Health?.Status as string | undefined;
   const image = inspect?.Config?.Image ?? "";
+
+  // A vLLM serving engine (not the management daemon) gets a live Inference tab
+  // scraping its /metrics — the round-trip that makes this a vLLM panel, not a
+  // generic docker dashboard. Injected right after Overview.
+  const isEngine = /vllm/i.test(`${name} ${image}`) && !/daemon/i.test(name);
+  const tabs = useMemo<typeof TABS>(() => {
+    if (!isEngine) return TABS;
+    const inf = { id: "inference" as Tab, label: "Inference", icon: <Gauge size={15} /> };
+    return [TABS[0], inf, ...TABS.slice(1)];
+  }, [isEngine]);
 
   return (
     <div className="cpage">
@@ -653,12 +664,13 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
 
       <div className="cpage-body">
         <nav className="cpage-rail">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button key={t.id} className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>{t.icon} {t.label}</button>
           ))}
         </nav>
         <div className="cpage-content">
           {tab === "overview" && <OverviewTab source={source} name={name} inspect={inspect} online={online} ver={ver} onNavigate={onNavigate} onOpen={(t) => setTab(t ?? "overview")} />}
+          {tab === "inference" && <InferenceTab online={online} ver={ver} />}
           {tab === "config" && <ConfigTab source={source} name={name} inspect={inspect} onChanged={reloadInspect} />}
           {tab === "processes" && <ProcessesTab source={source} name={name} online={online} />}
           {tab === "files" && <FilesTab source={source} name={name} />}
@@ -796,6 +808,126 @@ function KpiTile({ icon, label, value, sub, spark, tone }: { icon: React.ReactNo
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="ov-fact"><span className="ov-fact-l">{label}</span><span className="ov-fact-v">{children}</span></div>;
+}
+
+// Live vLLM inference panel — scrapes the node's serving engine /metrics. This is
+// the round-trip that makes the panel engine-aware (running/waiting requests,
+// KV-cache saturation, throughput, latency, MTP spec-decode acceptance) rather
+// than a generic container view. Reuses the same proven engine_client path the
+// Engine page uses (daemon's configured SNDR_METRICS_URL = this node's engine).
+function InferenceTab({ online, ver }: { online: boolean; ver: HostSndrState | null }) {
+  const [m, setM] = useState<EngineMetrics | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [live, setLive] = useState(true);
+  useEffect(() => {
+    if (!online) return;
+    let alive = true;
+    async function pull() {
+      if (document.hidden) return;
+      try { const r = await api.engineMetrics(); if (alive) { setM(r); setLoaded(true); } }
+      catch { if (alive) setLoaded(true); }
+    }
+    void pull();
+    if (!live) return () => { alive = false; };
+    const t = window.setInterval(pull, 3000);
+    return () => { alive = false; window.clearInterval(t); };
+  }, [online, live]);
+
+  if (!online) return <div className="empty-state"><div className="empty-state-icon"><Gauge size={22} /></div><strong>Engine not running</strong><p className="empty-state-msg">No inference metrics while the engine is stopped.</p></div>;
+  if (!loaded) return <SkeletonLines count={6} />;
+  if (!m || !m.reachable) {
+    return (
+      <div className="empty-state">
+        <div className="empty-state-icon"><Gauge size={22} /></div>
+        <strong>Engine /metrics not reachable</strong>
+        <p className="empty-state-msg">{m?.metrics_url ? <>Tried <code>{m.metrics_url}</code>. </> : null}{m?.error ?? "The serving engine may still be loading weights, or its metrics port is not exposed to the daemon."}</p>
+      </div>
+    );
+  }
+
+  const k = m.kpis;
+  // Reachable, but the vLLM stat-logger emitted nothing — the engine was almost
+  // certainly launched with --disable-log-stats (the Prometheus stat logger is
+  // off, so num_requests/kv_cache/throughput are never registered). Say so and
+  // how to fix it instead of rendering a wall of em-dashes.
+  if (Object.keys(k).length === 0) {
+    return (
+      <div className="empty-state">
+        <div className="empty-state-icon"><Gauge size={22} /></div>
+        <strong>vLLM stat metrics are disabled</strong>
+        <p className="empty-state-msg">
+          The engine exposes <code>/metrics</code> ({m.metric_families ?? 0} families at <code>{m.metrics_url}</code>) but none of vLLM's request/KV-cache/throughput metrics. This engine was started with <code>--disable-log-stats</code>. Remove that flag from its launch command and restart to light up this panel.
+        </p>
+      </div>
+    );
+  }
+  const hist = m.history ?? [];
+  const sparks = {
+    tput: hist.map((h) => h.throughput ?? 0),
+    kv: hist.map((h) => (h.kv_cache ?? 0) * 100),
+    running: hist.map((h) => h.running ?? 0),
+    waiting: hist.map((h) => h.waiting ?? 0),
+  };
+  const kvPct = k.kv_cache_usage != null ? k.kv_cache_usage * 100 : null;
+  const kvTone: "ok" | "warn" | "hot" = kvPct == null ? "ok" : kvPct >= 90 ? "hot" : kvPct >= 70 ? "warn" : "ok";
+  const waiting = k.requests_waiting ?? 0;
+  const waitTone: "ok" | "warn" | "hot" = waiting >= 10 ? "hot" : waiting > 0 ? "warn" : "ok";
+  const sec = (v?: number) => (v == null ? "—" : v >= 1 ? `${v.toFixed(2)} s` : `${Math.round(v * 1000)} ms`);
+  const intf = (v?: number) => (v == null ? "—" : Math.round(v).toLocaleString());
+  const accept = k.spec_decode_acceptance_rate;
+
+  return (
+    <div className="ov-panel inf-panel">
+      <div className="inf-head">
+        <span className="inf-live">
+          <span className={`container-dot online`} /> Serving engine · live
+          <button className={`mini-toggle${live ? " on" : ""}`} onClick={() => setLive((v) => !v)}>{live ? "Pause" : "Resume"}</button>
+        </span>
+        <code className="muted inf-url">{m.metrics_url}</code>
+      </div>
+
+      {ver && (ver.vllm_version || ver.patches != null) ? (
+        <div className="inf-vchips">
+          {ver.vllm_version ? <span className="vchip"><Box size={12} /> vLLM {shortVer(ver.vllm_version)}</span> : null}
+          {ver.sndr_version ? <span className="vchip"><ShieldCheck size={12} /> SNDR {shortVer(ver.sndr_version)}</span> : null}
+          {ver.patches != null ? <span className="vchip"><Layers size={12} /> {ver.patches} patches</span> : null}
+          {m.metric_families != null ? <span className="vchip"><Activity size={12} /> {m.metric_families} metric families</span> : null}
+        </div>
+      ) : null}
+
+      <div className="ov-kpis inf-kpis">
+        <KpiTile icon={<Play size={13} />} label="Running" value={intf(k.requests_running)} sub="in-flight" spark={sparks.running} tone="ok" />
+        <KpiTile icon={<Clock size={13} />} label="Waiting" value={intf(k.requests_waiting)} sub="queued" spark={sparks.waiting} tone={waitTone} />
+        <KpiTile icon={<Database size={13} />} label="KV-cache" value={kvPct == null ? "—" : `${kvPct.toFixed(0)}%`} sub="utilization" spark={sparks.kv} tone={kvTone} />
+        <KpiTile icon={<Zap size={13} />} label="Throughput" value={k.generation_toks_per_s != null ? `${k.generation_toks_per_s.toFixed(0)}` : "—"} sub="gen tok/s" spark={sparks.tput} tone="ok" />
+      </div>
+
+      <div className="ov-facts inf-facts">
+        <Fact label="TTFT (avg)"><Timer size={12} /> {sec(k.ttft_avg_s)}</Fact>
+        <Fact label="TPOT (avg)">{sec(k.tpot_avg_s)}</Fact>
+        <Fact label="E2E latency (avg)">{sec(k.e2e_latency_avg_s)}</Fact>
+        <Fact label="Requests succeeded">{intf(k.requests_success_total)}</Fact>
+        <Fact label="Preemptions">{k.preemptions_total ? <span className="tone-warn">{intf(k.preemptions_total)}</span> : "0"}</Fact>
+        <Fact label="Prompt tokens">{intf(k.prompt_tokens_total)}</Fact>
+        <Fact label="Generation tokens">{intf(k.generation_tokens_total)}</Fact>
+      </div>
+
+      {accept != null || k.spec_decode_accepted_total != null ? (
+        <div className="inf-section">
+          <div className="inf-section-h"><Layers size={13} /> MTP speculative decoding</div>
+          <div className="ov-facts inf-facts">
+            <Fact label="Acceptance rate">{accept != null ? <b className={`tone-${accept >= 0.6 ? "ok" : accept >= 0.4 ? "warn" : "hot"}`}>{(accept * 100).toFixed(0)}%</b> : "—"}</Fact>
+            <Fact label="Accepted tokens">{intf(k.spec_decode_accepted_total)}</Fact>
+            <Fact label="Draft tokens">{intf(k.spec_decode_draft_total)}</Fact>
+          </div>
+        </div>
+      ) : null}
+
+      <p className="inf-note muted">
+        Live from the engine's Prometheus <code>/metrics</code>. <b>KV-cache</b> near 100% or a rising <b>Waiting</b> queue means the engine is saturated — fewer concurrent slots or a bigger <code>--max-num-seqs</code> / KV budget is the lever. <b>Acceptance rate</b> is your MTP draft quality.
+      </p>
+    </div>
+  );
 }
 
 function OverviewTab({ source, name, inspect, online, ver, onNavigate }: { source: ContainerSource; name: string; inspect: Inspect | null; online: boolean; ver: HostSndrState | null; onNavigate?: NavFn; onOpen?: (tab?: Tab) => void }) {

@@ -3973,6 +3973,12 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .k8s-tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .k8s-restarts { color: var(--warn, #d97706); font-weight: 700; }
 .k8s-evmsg { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
+/* SNDR identity stamped on a pod — preset/pin/patches inline under the name */
+.crow-name:has(.k8s-sndr-id) { flex-direction: column; align-items: flex-start; gap: 3px; }
+.k8s-pod-name { display: inline-flex; align-items: center; gap: 7px; }
+.k8s-sndr-id { display: inline-flex; flex-wrap: wrap; gap: 4px; padding-left: 15px; }
+.k8s-sndr-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 9.5px; font-weight: 700; padding: 0 6px; border-radius: var(--r-pill); background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); font-family: var(--mono); }
+.k8s-sndr-chip.preset { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .k8s-intro { border: 1px solid var(--border); border-radius: var(--r-md, 10px); background: var(--surface-2); margin-bottom: 14px; overflow: hidden; }
 .k8s-intro-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; font-size: 12.5px; }
 .k8s-intro-head svg:first-child { color: var(--accent); flex: none; }
@@ -4000,6 +4006,28 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .ov-kpi-v b.tone-hot { color: var(--danger, #dc2626); }
 .ov-kpi-v .muted { font-size: 10.5px; }
 .ov-kpi .spark { height: 20px; width: 100%; display: block; }
+
+/* Inference tab — live vLLM /metrics panel */
+.inf-panel { max-height: none; overflow: visible; display: flex; flex-direction: column; gap: 12px; }
+.inf-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.inf-live { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--text); }
+.inf-live .container-dot { width: 8px; height: 8px; }
+.inf-url { font-family: var(--mono); font-size: 10.5px; }
+.mini-toggle { font-size: 10.5px; font-weight: 700; padding: 1px 8px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; }
+.mini-toggle.on { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.inf-vchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.vchip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+.inf-kpis { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 760px) { .inf-kpis { grid-template-columns: repeat(2, 1fr); } }
+.inf-facts { background: var(--surface-2); }
+.inf-facts b.tone-ok { color: var(--ok, #16a34a); }
+.inf-facts b.tone-warn { color: var(--warn, #d97706); }
+.inf-facts b.tone-hot { color: var(--danger, #dc2626); }
+.inf-section { display: flex; flex-direction: column; gap: 6px; }
+.inf-section-h { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.inf-note { font-size: 11.5px; line-height: 1.55; margin: 0; }
+.inf-note code { font-family: var(--mono); font-size: 10.5px; }
+
 .ov-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; border: 1px solid var(--border); border-radius: var(--r-md, 10px); padding: 10px 14px; background: var(--surface); }
 @media (max-width: 760px) { .ov-facts { grid-template-columns: 1fr; } }
 .ov-fact { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 3px 0; font-size: 12px; }

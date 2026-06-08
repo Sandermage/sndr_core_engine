@@ -3,7 +3,7 @@
 // a clear "connect a cluster" card when no kubeconfig/client is configured (the
 // operator's setup is Docker by default, so this is the common state).
 import { useEffect, useState, type ReactNode } from "react";
-import { Boxes, Cpu, RefreshCw, Loader2, AlertTriangle, ShieldCheck, ShieldAlert, Server, Info, ChevronDown, Rocket, Copy } from "lucide-react";
+import { Boxes, Cpu, RefreshCw, Loader2, AlertTriangle, ShieldCheck, ShieldAlert, Server, Info, ChevronDown, Rocket, Copy, Layers, Package } from "lucide-react";
 import { api, type K8sStatus, type K8sNode, type K8sPod, type K8sEvent, type DeploymentPlan } from "../api";
 import { onKeyActivate } from "../dialog";
 
@@ -124,19 +124,21 @@ function K8sIntro({ available }: { available?: boolean }) {
       </div>
       {open && (
         <div className="k8s-intro-body">
-          <p className="k8s-intro-lead">Kubernetes is a cluster orchestrator. Today you run vLLM as Docker containers you start/stop per host (the Containers tab). Kubernetes lets you treat <b>several GPU servers as one pool</b> and have it keep your engines running for you.</p>
-          <p><b>What it gives you over plain Docker:</b></p>
+          <p className="k8s-intro-lead">Today you run each vLLM engine as a Docker container you start/stop per host over SSH (the Containers tab). That is the right tool for <b>1–2 GPU boxes you operate by hand</b>. Kubernetes earns its keep once you have <b>3+ GPU hosts</b> — it treats them as one pool and runs your engines <i>for</i> you instead of you SSH-ing to each.</p>
+          <p><b>Concretely, what it does that Docker can't</b> — by scenario:</p>
           <ul className="k8s-intro-list">
-            <li><b>Self-healing</b> — if an engine crashes or a node reboots, k8s restarts/reschedules it automatically. No manual SSH-and-restart.</li>
-            <li><b>GPU-aware scheduling</b> — you declare "this engine needs 2 GPUs" and k8s places it on a node that has them free, across the whole fleet.</li>
-            <li><b>Scale</b> — run N replicas of an engine behind one Service/endpoint; bump the count to add capacity.</li>
-            <li><b>Rolling updates &amp; rollback</b> — swap the image with zero-downtime, roll back if a build is bad.</li>
-            <li><b>Declarative</b> — the whole deployment is one YAML you version, review, and re-apply identically anywhere.</li>
+            <li><b>An engine dies at 3am</b> → k8s restarts it, and with &gt;1 replica the endpoint never drops. Docker's <code>restart:</code> revives a process but can't drain a dead replica out of a load-balanced endpoint.</li>
+            <li><b>You need to place a 2-GPU engine</b> → k8s finds a node with 2 <i>free</i> <code>nvidia.com/gpu</code> and schedules it there, or tells you exactly why it can't (<code>Insufficient nvidia.com/gpu</code> in Events). Docker has no view of other hosts' free GPUs.</li>
+            <li><b>Traffic spikes</b> → with KEDA, k8s adds replicas when the vLLM queue (<code>num_requests_waiting</code>) grows and removes them when it drains. CPU-based autoscaling is useless here — inference is GPU-bound.</li>
+            <li><b>You bump the pin</b> dev338 → dev371 → k8s rolls pods one at a time, waits for <code>/health</code>, and <b>halts + keeps the old pin serving</b> if the new one never goes Ready (your exact patch-on-new-pin drift risk). That's your current/previous pin policy, enforced by the platform.</li>
+            <li><b>A node reboots</b> → k8s reconciles back to "3 replicas of preset X at pin Y". Docker is imperative: if the box came back and the unit didn't, it's just down.</li>
+            <li><b>A model won't fit on one box</b> → multi-node tensor/pipeline parallel needs gang-scheduled, co-placed pods (KubeRay). Docker-compose is single-host by definition.</li>
           </ul>
-          <p className="muted"><b>When NOT to bother:</b> for a single GPU box, plain Docker (the Containers tab) is simpler and enough. Kubernetes pays off once you have a <b>fleet</b> of GPU hosts to schedule across.</p>
+          <p className="muted"><b>When NOT to bother:</b> 1–2 boxes, 1–2 engines you babysit — stay on Docker; the k8s tax (control plane, gpu-operator, RBAC) buys nothing. Use this tab purely as the <b>manifest generator</b> until you actually have a fleet.</p>
           <hr className="k8s-intro-sep" />
-          <p><b>This panel:</b> <b>Deploy</b> renders a ready manifest from any preset (no cluster needed to generate it) — <code>kubectl apply</code> and you're running. <b>Nodes/Pods/Events</b> read a connected cluster via your kubeconfig (your RBAC) to show GPU capacity/free per node and why a pod is pending (e.g. <code>Insufficient nvidia.com/gpu</code>).</p>
-          <p className="muted"><b>GPU prerequisite:</b> the cluster needs the NVIDIA device plugin / gpu-operator so nodes advertise <code>nvidia.com/gpu</code> — otherwise GPU pods stay Pending (the Events tab shows exactly that).</p>
+          <p><b>Why this is an SNDR panel, not a generic dashboard:</b> every manifest we render <b>stamps its SNDR identity</b> — preset, pin, and enabled-patch list — onto the Deployment (<code>sndr.io/preset</code>, <code>sndr.io/pin</code>, <code>sndr.io/patches</code>). So the <b>Pods</b> tab shows each pod's preset + pin + patch count inline (k9s/Lens show you anonymous pods; we show you <i>which engine, which pin, which patches</i>). That identity round-trip is the keystone the roadmap builds on — pod→preset drift badge, GPU-fleet capacity planner ("which node fits which preset"), autoscale bounds from the preset's measured concurrency envelope, and rolling pin upgrades driven by your pin policy.</p>
+          <p><b>This panel today:</b> <b>Deploy</b> renders a ready, identity-stamped manifest from any preset (no cluster needed to generate it) — <code>kubectl apply</code> and you're running. <b>Nodes/Pods/Events</b> read a connected cluster via your kubeconfig (your RBAC): GPU free/alloc per node, each SNDR pod's identity, and why a pod is Pending.</p>
+          <p className="muted"><b>GPU prerequisite:</b> the cluster needs the NVIDIA device plugin / gpu-operator so nodes advertise <code>nvidia.com/gpu</code> (it also bundles dcgm-exporter for fleet GPU telemetry) — otherwise GPU pods stay Pending and the Events tab shows exactly that.</p>
         </div>
       )}
     </div>
@@ -230,7 +232,16 @@ function PodRow({ p }: { p: K8sPod }) {
   const st = p.phase === "Running" && p.ready_ok ? "online" : p.phase === "Pending" || p.phase === "Unknown" ? "partial" : p.ready_ok ? "online" : "offline";
   return (
     <tr className={`crow ${st}`}>
-      <td className="crow-name"><span className={`container-dot ${st}`} />{p.name}</td>
+      <td className="crow-name">
+        <span className="k8s-pod-name"><span className={`container-dot ${st}`} />{p.name}</span>
+        {p.sndr_managed && (
+          <span className="k8s-sndr-id" title={p.sndr_patches.length ? `Enabled patches: ${p.sndr_patches.join(", ")}` : undefined}>
+            <span className="k8s-sndr-chip preset"><Package size={9} /> {p.sndr_preset}</span>
+            {p.sndr_pin && <span className="k8s-sndr-chip"><Boxes size={9} /> {p.sndr_pin}</span>}
+            {p.sndr_patch_count != null && <span className="k8s-sndr-chip"><Layers size={9} /> {p.sndr_patch_count}p</span>}
+          </span>
+        )}
+      </td>
       <td className="muted">{p.namespace}</td>
       <td>
         <span className={`container-badge ${st}`}>{p.phase}</span>

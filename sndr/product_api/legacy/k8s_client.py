@@ -142,6 +142,17 @@ def shape_pod(pod: Any) -> dict[str, Any]:
         gpu += _quantity_to_int(req.get(GPU_RESOURCE)) or 0
     # A pending pod's reason (e.g. "Unschedulable") is the actionable signal.
     reason = getattr(status, "reason", None)
+    # SNDR identity (stamped by `sndr k8s render`): maps a live pod back to the
+    # preset/pin/patches that produced it — the round-trip that makes this a
+    # SNDR surface rather than a generic pod list.
+    labels = dict(getattr(meta, "labels", None) or {})
+    annotations = dict(getattr(meta, "annotations", None) or {})
+    patch_count_raw = labels.get("sndr.io/patch-count")
+    try:
+        patch_count = int(patch_count_raw) if patch_count_raw is not None else None
+    except (TypeError, ValueError):
+        patch_count = None
+    patches_raw = annotations.get("sndr.io/patches") or ""
     return {
         "name": getattr(meta, "name", None),
         "namespace": getattr(meta, "namespace", None),
@@ -153,6 +164,11 @@ def shape_pod(pod: Any) -> dict[str, Any]:
         "gpu_request": gpu,
         "reason": reason,
         "images": [getattr(c, "image", None) for c in containers],
+        "sndr_managed": labels.get("app.kubernetes.io/managed-by") == "sndr",
+        "sndr_preset": labels.get("sndr.io/preset"),
+        "sndr_patch_count": patch_count,
+        "sndr_pin": annotations.get("sndr.io/pin"),
+        "sndr_patches": [p for p in patches_raw.split(",") if p],
     }
 
 
