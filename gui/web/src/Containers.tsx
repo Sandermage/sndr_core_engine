@@ -953,7 +953,7 @@ function InferenceTab({ online, ver }: { online: boolean; ver: HostSndrState | n
   );
 }
 
-function OverviewTab({ source, name, inspect, online, ver, onNavigate }: { source: ContainerSource; name: string; inspect: Inspect | null; online: boolean; ver: HostSndrState | null; onNavigate?: NavFn; onOpen?: (tab?: Tab) => void }) {
+function OverviewTab({ source, name, inspect, online, ver, onNavigate, onOpen }: { source: ContainerSource; name: string; inspect: Inspect | null; online: boolean; ver: HostSndrState | null; onNavigate?: NavFn; onOpen?: (tab?: Tab) => void }) {
   const { s, hist } = useLiveStats(source, name, online, 3000);
   const [more, setMore] = useState<"env" | "mounts" | "labels" | "">("");
   if (!inspect) return <Loading />;
@@ -972,47 +972,83 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate }: { sourc
   const sndrEnv = env.filter(([k]) => /^(GENESIS|SNDR)_/.test(k));
   const labels = Object.entries(cfg.Labels ?? {}) as [string, string][];
   const gpus = (hostCfg.DeviceRequests as Record<string, unknown>[] | undefined)?.some?.((d) => String(d.Driver ?? "").includes("nvidia") || (d.Capabilities as string[][])?.some?.((c) => c.includes("gpu"))) || /--gpus/.test(cmd) || isEngine;
+  const image = cfg.Image || inspect.Image || "";
+  const pin = image.includes(":") ? image.split(":").pop()! : image;
+  const exitCode = (state as Record<string, unknown>).ExitCode as number | undefined;
+  const oom = !!(state as Record<string, unknown>).OOMKilled;
+  const pid = (state as Record<string, unknown>).Pid as number | undefined;
+  const healthStreak = (state.Health as Record<string, unknown> | undefined)?.FailingStreak as number | undefined;
+  const fmtDt = (v?: string) => { if (!v || v.startsWith("0001")) return "—"; const d = new Date(v); return isNaN(+d) ? "—" : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); };
 
   return (
     <div className="ov">
       <SourceCard source={source} name={name} onNavigate={onNavigate} />
 
-      {ver?.ok && (ver.vllm_version || ver.sndr_version) ? (
-        <div className="ov-vrow">
-          {ver.vllm_version ? <span className="ov-vrow-chip vllm"><Box size={10} /> vLLM {shortVer(ver.vllm_version)}</span> : null}
-          {ver.sndr_version ? <span className="ov-vrow-chip sndr"><ShieldCheck size={10} /> SNDR {ver.sndr_version}</span> : null}
-          {ver.patches != null ? <span className="ov-vrow-chip"><Layers size={10} /> {ver.patches} patches</span> : null}
-          {ver.configs != null ? <span className="ov-vrow-chip"><Database size={10} /> {ver.configs} configs</span> : null}
+      <div className="ov-dash">
+        <div className="ov-dash-main">
+          <div className="ov-kpis">
+            <KpiTile icon={<Cpu size={12} />} label="CPU" value={online ? `${cpu.toFixed(0)}%` : "—"} spark={online ? hist.cpu : []} tone={cpu > 85 ? "hot" : cpu > 60 ? "warn" : "ok"} />
+            <KpiTile icon={<MemoryStick size={12} />} label="Memory" value={online ? `${memPct.toFixed(0)}%` : "—"} sub={online ? fmtBytes(s?.mem_usage) : undefined} spark={online ? hist.mem : []} tone={memPct > 85 ? "hot" : memPct > 60 ? "warn" : "ok"} />
+            <KpiTile icon={<Clock size={12} />} label="Uptime" value={online ? uptimeFrom(state.StartedAt) : "stopped"} />
+            <KpiTile icon={<RotateCw size={12} />} label="Restarts" value={String(restarts)} tone={restarts > 0 ? "warn" : undefined} />
+            <KpiTile icon={<Heart size={12} />} label="Health" value={health ?? "none"} tone={health === "healthy" ? "ok" : health === "unhealthy" ? "hot" : undefined} />
+          </div>
+
+          {isEngine && online ? <ContainerGpu source={source} /> : null}
+
+          <div className="ov-card">
+            <div className="ov-card-h"><Box size={12} /> Container</div>
+            <div className="ov-facts ov-facts-col">
+              <Fact label="Image"><code title={image}>{image}</code></Fact>
+              <Fact label="Command"><code className="kv-cmd" title={cmd}>{cmd}</code></Fact>
+              <Fact label="Network">{ip}{networks.length ? ` · ${networks.join(", ")}` : ""}</Fact>
+              <Fact label="Ports">{ports.length ? (
+                <span className="ov-ports">{ports.map((p, i) => (
+                  <a key={i} className="ov-port" href={`http://${p.ip && p.ip !== "0.0.0.0" ? p.ip : "127.0.0.1"}:${p.host}`} target="_blank" rel="noreferrer" title={`${p.host} → ${p.container}`}><Link2 size={9} /> {p.host}</a>
+                ))}</span>
+              ) : <span className="muted">none published</span>}</Fact>
+              {s ? <Fact label="I/O">net ↓{fmtBytes(s.net_rx)} ↑{fmtBytes(s.net_tx)} · blk ↓{fmtBytes(s.blk_read)} ↑{fmtBytes(s.blk_write)}{s.pids ? ` · ${s.pids} procs` : ""}</Fact> : null}
+            </div>
+          </div>
         </div>
-      ) : null}
 
-      <div className="ov-kpis">
-        <KpiTile icon={<Cpu size={12} />} label="CPU" value={online ? `${cpu.toFixed(0)}%` : "—"} spark={online ? hist.cpu : []} tone={cpu > 85 ? "hot" : cpu > 60 ? "warn" : "ok"} />
-        <KpiTile icon={<MemoryStick size={12} />} label="Memory" value={online ? `${memPct.toFixed(0)}%` : "—"} sub={online ? fmtBytes(s?.mem_usage) : undefined} spark={online ? hist.mem : []} tone={memPct > 85 ? "hot" : memPct > 60 ? "warn" : "ok"} />
-        <KpiTile icon={<Clock size={12} />} label="Uptime" value={online ? uptimeFrom(state.StartedAt) : "stopped"} />
-        <KpiTile icon={<RotateCw size={12} />} label="Restarts" value={String(restarts)} tone={restarts > 0 ? "warn" : undefined} />
-        <KpiTile icon={<Heart size={12} />} label="Health" value={health ?? "none"} tone={health === "healthy" ? "ok" : health === "unhealthy" ? "hot" : undefined} />
-      </div>
+        <aside className="ov-dash-side">
+          <div className="ov-card">
+            <div className="ov-card-h"><Clock size={12} /> Runtime</div>
+            <div className="ov-facts ov-facts-col">
+              <Fact label="Status"><span className={online ? "tone-ok" : (exitCode ? "tone-hot" : "")}>{state.Status || (online ? "running" : "stopped")}</span></Fact>
+              <Fact label="Uptime">{online ? uptimeFrom(state.StartedAt) : "stopped"}</Fact>
+              <Fact label="Started">{fmtDt(state.StartedAt)}</Fact>
+              <Fact label="Created">{fmtDt(inspect.Created as string | undefined)}</Fact>
+              {!online && exitCode != null ? <Fact label="Exit code"><span className={exitCode ? "tone-hot" : ""}>{exitCode}{oom ? " · OOMKilled" : ""}</span></Fact> : null}
+              {online && pid ? <Fact label="PID">{pid}</Fact> : null}
+              <Fact label="Health">{health ?? "none"}{healthStreak ? <span className="tone-warn"> · streak {healthStreak}</span> : ""}</Fact>
+              <Fact label="Restart">{restartPolicy} · {restarts} done</Fact>
+              <Fact label="GPU">{gpus ? "yes" : "no"}</Fact>
+              <Fact label="ID"><code>{inspect.Id ? String(inspect.Id).slice(0, 12) : "—"}</code></Fact>
+            </div>
+          </div>
 
-      {isEngine && online ? <ContainerGpu source={source} /> : null}
+          {ver?.ok && (ver.vllm_version || ver.sndr_version) ? (
+            <div className="ov-card">
+              <div className="ov-card-h"><ShieldCheck size={12} /> Engine &amp; SNDR</div>
+              <div className="ov-facts ov-facts-col">
+                <Fact label="Image pin"><code title={image}>{pin}</code></Fact>
+                {ver.vllm_version ? <Fact label="vLLM"><code>{shortVer(ver.vllm_version)}</code></Fact> : null}
+                {ver.sndr_version ? <Fact label="SNDR"><code>{ver.sndr_version}</code></Fact> : null}
+                {ver.patches != null ? <Fact label="Patches live"><b>{ver.patches}</b></Fact> : null}
+                {ver.configs != null ? <Fact label="Configs"><b>{ver.configs}</b></Fact> : null}
+                {isEngine ? <Fact label="Inference"><button className="link-btn" onClick={() => onOpen?.("inference")}>open panel <ChevronRight size={11} /></button></Fact> : null}
+              </div>
+            </div>
+          ) : null}
 
-      <div className="ov-facts">
-        <Fact label="Image"><code title={cfg.Image || inspect.Image}>{cfg.Image || inspect.Image}</code></Fact>
-        <Fact label="Command"><code className="kv-cmd" title={cmd}>{cmd}</code></Fact>
-        <Fact label="Network">{ip}{networks.length ? ` · ${networks.join(", ")}` : ""}</Fact>
-        <Fact label="Ports">{ports.length ? (
-          <span className="ov-ports">{ports.map((p, i) => (
-            <a key={i} className="ov-port" href={`http://${p.ip && p.ip !== "0.0.0.0" ? p.ip : "127.0.0.1"}:${p.host}`} target="_blank" rel="noreferrer" title={`${p.host} → ${p.container}`}><Link2 size={9} /> {p.host}</a>
-          ))}</span>
-        ) : <span className="muted">none published</span>}</Fact>
-        <Fact label="Restart / GPU">{restartPolicy} · {gpus ? "GPU" : "no GPU"}</Fact>
-        {s ? <Fact label="I/O">net ↓{fmtBytes(s.net_rx)} ↑{fmtBytes(s.net_tx)} · blk ↓{fmtBytes(s.blk_read)} ↑{fmtBytes(s.blk_write)}{s.pids ? ` · ${s.pids} procs` : ""}</Fact> : null}
-      </div>
-
-      <div className="ov-more-tabs">
-        <button className={more === "mounts" ? "active" : ""} onClick={() => setMore((m) => (m === "mounts" ? "" : "mounts"))}><HardDrive size={11} /> Mounts <span className="ov-count">{mounts.length}</span></button>
-        <button className={more === "env" ? "active" : ""} onClick={() => setMore((m) => (m === "env" ? "" : "env"))}><Settings size={11} /> Env <span className="ov-count">{env.length}</span>{sndrEnv.length ? <span className="ov-env-sndr">{sndrEnv.length}</span> : null}</button>
-        <button className={more === "labels" ? "active" : ""} onClick={() => setMore((m) => (m === "labels" ? "" : "labels"))}><Database size={11} /> Labels <span className="ov-count">{labels.length}</span></button>
+          <div className="ov-more-tabs">
+            <button className={more === "mounts" ? "active" : ""} onClick={() => setMore((m) => (m === "mounts" ? "" : "mounts"))}><HardDrive size={11} /> Mounts <span className="ov-count">{mounts.length}</span></button>
+            <button className={more === "env" ? "active" : ""} onClick={() => setMore((m) => (m === "env" ? "" : "env"))}><Settings size={11} /> Env <span className="ov-count">{env.length}</span>{sndrEnv.length ? <span className="ov-env-sndr">{sndrEnv.length}</span> : null}</button>
+            <button className={more === "labels" ? "active" : ""} onClick={() => setMore((m) => (m === "labels" ? "" : "labels"))}><Database size={11} /> Labels <span className="ov-count">{labels.length}</span></button>
+          </div>
+        </aside>
       </div>
 
       {more === "mounts" ? (
