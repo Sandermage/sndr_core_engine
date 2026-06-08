@@ -857,14 +857,27 @@ function InferenceCard({ online, ver }: { online: boolean; ver: HostSndrState | 
           </div>
         ) : (
           <div className="inf-card-body">
-            <table className="inf-tbl">
-              <tbody>
-                <tr><th>Running</th><td>{intf(k.requests_running)}</td><th>TTFT</th><td>{sec(k.ttft_avg_s)}</td><th>Acceptance</th><td className={acceptTone}>{accept != null ? `${(accept * 100).toFixed(0)}%` : "—"}</td></tr>
-                <tr><th>Waiting</th><td className={waitTone}>{intf(k.requests_waiting)}</td><th>TPOT</th><td>{sec(k.tpot_avg_s)}</td><th>Accepted</th><td>{intf(k.spec_decode_accepted_total)}</td></tr>
-                <tr><th>KV-cache</th><td className={kvTone}>{kvPct == null ? "—" : `${kvPct.toFixed(0)}%`}</td><th>E2E</th><td>{sec(k.e2e_latency_avg_s)}</td><th>Draft</th><td>{intf(k.spec_decode_draft_total)}</td></tr>
-                <tr><th>Throughput</th><td>{k.generation_toks_per_s != null ? `${k.generation_toks_per_s.toFixed(0)} /s` : "—"}</td><th>Preempt</th><td className={k.preemptions_total ? "tone-warn" : ""}>{intf(k.preemptions_total)}</td><th>Gen tok</th><td>{intf(k.generation_tokens_total)}</td></tr>
-              </tbody>
-            </table>
+            <div className="inf-metrics">
+              {([
+                { l: "Running", v: intf(k.requests_running) },
+                { l: "Waiting", v: intf(k.requests_waiting), tone: waitTone },
+                { l: "KV-cache", v: kvPct == null ? "—" : `${kvPct.toFixed(0)}%`, tone: kvTone },
+                { l: "Throughput", v: k.generation_toks_per_s != null ? `${k.generation_toks_per_s.toFixed(0)} /s` : "—" },
+                { l: "TTFT", v: sec(k.ttft_avg_s) },
+                { l: "TPOT", v: sec(k.tpot_avg_s) },
+                { l: "E2E", v: sec(k.e2e_latency_avg_s) },
+                { l: "Preempt", v: intf(k.preemptions_total), tone: k.preemptions_total ? "tone-warn" : "" },
+                { l: "Acceptance", v: accept != null ? `${(accept * 100).toFixed(0)}%` : "—", tone: acceptTone },
+                { l: "Accepted", v: intf(k.spec_decode_accepted_total) },
+                { l: "Draft", v: intf(k.spec_decode_draft_total) },
+                { l: "Gen tok", v: intf(k.generation_tokens_total) },
+              ] as { l: string; v: string; tone?: string }[]).map((mt) => (
+                <div className="inf-metric" key={mt.l}>
+                  <span className="inf-metric-l">{mt.l}</span>
+                  <b className={`inf-metric-v ${mt.tone ?? ""}`}>{mt.v}</b>
+                </div>
+              ))}
+            </div>
             <div className="inf-tbl-foot muted">KV-cache ~100% or rising Waiting = saturated (lower concurrency / raise KV budget). Acceptance = MTP draft quality. {ver?.vllm_version ? `vLLM ${shortVer(ver.vllm_version)}` : ""}</div>
           </div>
         )
