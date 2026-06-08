@@ -4,6 +4,7 @@
 // KubeVirt VMs + deploy), each guest/pod linked to the SNDR preset it runs.
 // Read-only + graceful per source. Bilingual (EN/RU).
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { cachePeek, cacheSet } from "../lib/swr-cache";
 import {
   Server, Cpu, Boxes, Monitor, Layers, RefreshCw, Loader2, Package, ChevronDown,
   Plug, Info, ShieldCheck, ShieldAlert, Activity, AlertTriangle,
@@ -42,6 +43,24 @@ function Meter({ label, pct, text }: { label: string; pct: number | null; text: 
 type Provider = "proxmox" | "kubernetes";
 type K8sTab = "nodes" | "pods" | "events" | "kubevirt" | "deploy";
 
+// One snapshot of every virtualization surface, cached so re-opening the section
+// paints instantly (stale-while-revalidate).
+type VirtSnapshot = {
+  pxStatus: ProxmoxStatus | null;
+  pxNodes: ProxmoxNode[];
+  pxGuests: ProxmoxGuest[];
+  k8sStatus: K8sStatus | null;
+  k8sNodes: K8sNode[] | null;
+  k8sPods: K8sPod[] | null;
+  k8sEvents: K8sEvent[] | null;
+  kv: KubeVirtResult | null;
+};
+const VIRT_CACHE_KEY = "virt:snapshot";
+const EMPTY_VIRT: VirtSnapshot = {
+  pxStatus: null, pxNodes: [], pxGuests: [], k8sStatus: null,
+  k8sNodes: null, k8sPods: null, k8sEvents: null, kv: null,
+};
+
 export function VirtualizationPanel() {
   const [lang] = useLang();
   const [provider, setProvider] = useState<Provider>("kubernetes");
@@ -59,25 +78,43 @@ export function VirtualizationPanel() {
   const [kv, setKv] = useState<KubeVirtResult | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const apply = useCallback((s: VirtSnapshot) => {
+    setPxStatus(s.pxStatus); setPxNodes(s.pxNodes); setPxGuests(s.pxGuests);
+    setK8sStatus(s.k8sStatus); setK8sNodes(s.k8sNodes); setK8sPods(s.k8sPods);
+    setK8sEvents(s.k8sEvents); setKv(s.kv);
+  }, []);
+
   const reload = useCallback(async () => {
     setLoading(true);
+    // Seed from the last snapshot so a transient failure of one sub-request keeps
+    // its previous value instead of blanking it.
+    const snap: VirtSnapshot = { ...(cachePeek<VirtSnapshot>(VIRT_CACHE_KEY) ?? EMPTY_VIRT) };
     const [ps, pn, pg, ks, kev] = await Promise.allSettled([
       api.proxmoxStatus(), api.proxmoxNodes(), api.proxmoxGuests(), api.k8sStatus(), api.k8sKubevirt(),
     ]);
-    if (ps.status === "fulfilled") setPxStatus(ps.value);
-    if (pn.status === "fulfilled") setPxNodes(pn.value.nodes ?? []);
-    if (pg.status === "fulfilled") setPxGuests(pg.value.guests ?? []);
-    if (kev.status === "fulfilled") setKv(kev.value);
+    if (ps.status === "fulfilled") snap.pxStatus = ps.value;
+    if (pn.status === "fulfilled") snap.pxNodes = pn.value.nodes ?? [];
+    if (pg.status === "fulfilled") snap.pxGuests = pg.value.guests ?? [];
+    if (kev.status === "fulfilled") snap.kv = kev.value;
     if (ks.status === "fulfilled") {
-      setK8sStatus(ks.value);
+      snap.k8sStatus = ks.value;
       if (ks.value.available) {
         const [n, p, e] = await Promise.all([api.k8sNodes(), api.k8sPods(), api.k8sEvents()]);
-        setK8sNodes(n.nodes); setK8sPods(p.pods); setK8sEvents(e.events);
-      } else { setK8sNodes(null); setK8sPods(null); setK8sEvents(null); }
+        snap.k8sNodes = n.nodes; snap.k8sPods = p.pods; snap.k8sEvents = e.events;
+      } else { snap.k8sNodes = null; snap.k8sPods = null; snap.k8sEvents = null; }
     }
+    cacheSet(VIRT_CACHE_KEY, snap);
+    apply(snap);
     setLoading(false);
-  }, []);
-  useEffect(() => { void reload(); }, [reload]);
+  }, [apply]);
+
+  // Stale-while-revalidate: hydrate the last snapshot instantly so re-opening the
+  // section isn't a skeleton over slow Proxmox/k8s calls; always refresh under it.
+  useEffect(() => {
+    const stale = cachePeek<VirtSnapshot>(VIRT_CACHE_KEY);
+    if (stale) apply(stale);
+    void reload();
+  }, [reload, apply]);
 
   const sndrManaged = (pxStatus?.sndr_managed ?? 0)
     + (kv?.vms ?? []).filter((v) => v.sndr_preset).length

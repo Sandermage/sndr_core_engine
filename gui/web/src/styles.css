@@ -3803,6 +3803,10 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .stats-metric .spark { width: 100%; height: 56px; }
 
 .logs-tab { display: flex; flex-direction: column; gap: 8px; height: 100%; }
+/* Bound the log viewer so it scrolls internally instead of stretching the page
+   to fit every line (the ancestor grid cell has no fixed height, so the
+   `flex: 1` + `overflow: auto` on `.container-logs` had nothing to clamp it). */
+.logs-tab .container-logs { max-height: 65vh; min-height: 300px; }
 .logs-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .logs-bar .ghost-button.on { background: var(--accent-soft); color: var(--accent-text); }
 .container-logs.wrap { white-space: pre-wrap; word-break: break-word; }

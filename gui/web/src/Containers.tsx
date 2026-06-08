@@ -14,10 +14,16 @@ import {
 import { hashParam, buildHash, replaceHash } from "./route";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop, onKeyActivate } from "./dialog";
 import { SkeletonLines, SkeletonCards } from "./Skeleton";
+import { cacheGet, cachePeek, cacheSet } from "./lib/swr-cache";
 
 type HostOption = { id: string; label: string };
 type NavFn = (section: string) => void;
 type StateFilter = "all" | "running" | "stopped";
+
+// Stable cache key for a container source (the daemon socket, or a host id).
+function srcKey(source: ContainerSource): string {
+  return source.kind === "host" ? `host:${source.hostId}` : "local";
+}
 
 // ── Container source ⇄ hash-param helpers (deep-linking) ──────────────
 // The hash encodes the source as `local` (daemon socket) or a host id.
@@ -173,7 +179,11 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
-    try { setItems((await api.containers(source)).containers); }
+    try {
+      const list = (await api.containers(source)).containers;
+      cacheSet(`clist:${srcKey(source)}`, list);
+      setItems(list);
+    }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); setItems(null); }
     finally { setLoading(false); }
   }, [source]);
@@ -182,7 +192,11 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
   // clear `open`, or it would discard a container restored from the deep-link.
   const firstLoadRef = useRef(true);
   useEffect(() => {
-    setItems(null); setStats({}); setDf(null); histRef.current = {};
+    // Stale-while-revalidate: paint the last known list instantly (so re-opening
+    // the section isn't a blank spinner over slow SSH) and refresh underneath.
+    // Only the genuinely-first view of a source shows the empty/loading state.
+    setItems(cachePeek<ManagedContainer[]>(`clist:${srcKey(source)}`) ?? null);
+    setStats({}); setDf(null); histRef.current = {};
     if (firstLoadRef.current) firstLoadRef.current = false;
     else if (keepOpenRef.current) keepOpenRef.current = false; // deep-link source restore — keep open
     else setOpen(null);
@@ -424,7 +438,16 @@ function ContainerRow({ c, source, stats, busy, selected, onToggleSelect, onAct,
   const cpu = stats?.cpu_pct ?? 0, memPct = stats?.mem_pct ?? 0;
   const acting = busy?.startsWith(`${c.name}:`) ?? false;
   const [upd, setUpd] = useState<ContainerUpdatePlan | null>(null);
-  useEffect(() => { let alive = true; api.containerUpdatePlan(source, c.name).then((p) => alive && setUpd(p)).catch(() => {}); return () => { alive = false; }; }, [source, c.name]);
+  useEffect(() => {
+    let alive = true;
+    const key = `cplan:${srcKey(source)}:${c.name}`;
+    const stale = cachePeek<ContainerUpdatePlan>(key);
+    if (stale) setUpd(stale);  // instant paint on re-render / re-open
+    if (!cacheGet(key, 120_000)) {  // revalidate only when stale
+      api.containerUpdatePlan(source, c.name).then((p) => { cacheSet(key, p); if (alive) setUpd(p); }).catch(() => {});
+    }
+    return () => { alive = false; };
+  }, [source, c.name]);
   return (
     <tr className={`crow ${st}${selected ? " selected" : ""}`}>
       <td className="crow-sel">{onToggleSelect && <input type="checkbox" checked={!!selected} onChange={onToggleSelect} aria-label={`Select ${c.name}`} />}</td>
@@ -475,10 +498,25 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
   const [ver, setVer] = useState<HostSndrState | null>(null);
   useEffect(() => {
     let alive = true;
-    api.containerUpdatePlan(source, c.name).then((p) => alive && setUpd(p)).catch(() => {});
+    const k = srcKey(source);
+    // Update plan: stale-while-revalidate so the list re-renders/re-opens are
+    // instant instead of firing one request per card every time.
+    const planKey = `cplan:${k}:${c.name}`;
+    const planStale = cachePeek<ContainerUpdatePlan>(planKey);
+    if (planStale) setUpd(planStale);
+    if (!cacheGet(planKey, 120_000)) {
+      api.containerUpdatePlan(source, c.name).then((p) => { cacheSet(planKey, p); if (alive) setUpd(p); }).catch(() => {});
+    }
     // Live project versions running inside the container (cached server-side,
     // ~0.16s) — the unique at-a-glance value vs a generic container manager.
-    if (online) api.containerSndrState(source, c.name).then((s) => alive && setVer(s.ok ? s : null)).catch(() => {});
+    if (online) {
+      const verKey = `cver:${k}:${c.name}`;
+      const verStale = cachePeek<HostSndrState>(verKey);
+      if (verStale) setVer(verStale.ok ? verStale : null);
+      if (!cacheGet(verKey, 60_000)) {
+        api.containerSndrState(source, c.name).then((s) => { cacheSet(verKey, s); if (alive) setVer(s.ok ? s : null); }).catch(() => {});
+      }
+    }
     return () => { alive = false; };
   }, [source, c.name, online]);
 

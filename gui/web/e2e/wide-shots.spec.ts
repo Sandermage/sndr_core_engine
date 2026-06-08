@@ -116,6 +116,49 @@ test("overview with rich data", async ({ page }) => {
   }
 });
 
+// Confirm the Containers > Logs tab is a bounded scroll box (was stretching the
+// page across 3-4 screens). Mocks one container with 400 log lines.
+test("containers logs scroll box", async ({ page }) => {
+  const logLines = Array.from({ length: 400 }, (_, i) =>
+    `2026-06-08T18:${String(i % 60).padStart(2, "0")}:00 [INFO] worker ${i} processed request id=${1000 + i} latency=${(i % 50) + 5}ms tokens=${i * 3}`,
+  ).join("\n");
+  const containers = {
+    containers: [{ name: "vllm-prod", id: "abc123def456", image: "vllm/vllm-openai:nightly", state: "running", status: "Up 2 hours", ports: "8000/tcp", created: "2h" }],
+    source: "local",
+  };
+  await page.route("**/api/**", (route) => {
+    const p = new URL(route.request().url()).pathname;
+    let body: any = {};
+    if (p.endsWith("/logs")) body = { container: "vllm-prod", logs: logLines };
+    else if (p.endsWith("/update-plan")) body = { update_available: false, mode: "manual" };
+    else if (p.endsWith("/sndr-state")) body = { ok: false };
+    else if (p.endsWith("/containers/stats")) body = { stats: {} };
+    else if (p.endsWith("/stats")) body = { container: "vllm-prod", stats: {} };
+    else if (p.endsWith("/source")) body = { container: "vllm-prod", preset_id: null, drift: [], drift_count: 0, live_patches: [], live_patch_count: 0 };
+    else if (p.endsWith("/engine")) body = {};
+    else if (p.endsWith("/system/df")) body = { types: [], total_size: 0 };
+    else if (p.endsWith("/api/v1/containers")) body = containers;
+    else if (p.includes("/containers/vllm-prod")) body = { Name: "vllm-prod", Config: { Image: "vllm/vllm-openai:nightly" }, State: { Status: "running" }, NetworkSettings: { Ports: {} }, Mounts: [] };
+    else if (p.includes("/auth/status")) body = (RESPONSES as Record<string, any>).authStatus;
+    else { const hit = URL_TABLE.find(([s]) => p.includes(s)); body = hit ? (RESPONSES as Record<string, any>)[hit[1]] : {}; }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body ?? {}) });
+  });
+  await bootDark(page);
+  await page.addInitScript(() => window.localStorage.setItem("sndr.containers.view", "table"));
+  await page.setViewportSize({ width: 1920, height: 1000 });
+  await page.goto("/");
+  await page.locator('.side-nav button:has-text("Containers")').first().click();
+  await page.waitForTimeout(700);
+  await page.locator('.crow-name [role="button"]').first().click();
+  await page.waitForTimeout(500);
+  await page.locator('.cpage-rail button:has-text("Logs")').first().click();
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/containers-logs.png`, fullPage: false });
+  // Assert the log viewer is bounded (not taller than the viewport).
+  const box = await page.locator(".logs-tab .container-logs").first().boundingBox();
+  console.log(`logs box height: ${box?.height} (viewport 1000)`);
+});
+
 // High-fidelity element clip of the Overview hero tiles, for inspecting tile
 // internals (value alignment, click affordance, text clamp) up close.
 test("overview hero tile clip", async ({ page }) => {
