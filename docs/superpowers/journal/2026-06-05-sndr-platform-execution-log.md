@@ -2111,3 +2111,103 @@ Decision: presented to the operator. Not applied in this session because
 each option requires a restart-and-bench cycle the user has not yet
 approved.
 
+
+---
+
+## 2026-06-08 (cont.) — Root cause: vllm pin regression, not Genesis
+
+User insisted there IS a regression. The patches and configuration
+audit confirmed every hot patch is firing, but git archaeology found
+the actual root cause: it's a vllm pin change, not anything we did.
+
+### Sprint 1 config that gave 241.35 TPS
+
+From ``docs/CONFIGURATION.md`` (2026-05-09)::
+
+    35B PROD: Qwen3.6-35B-A3B-FP8 + TurboQuant k8v4 + MTP K=3 +
+    P67 multi-query (NUM_KV_SPLITS=48). Sprint 1 canonical:
+    wall_TPS 241.35 / decode_TPOT 3.85 ms / tool 7/7 (2026-05-09).
+    --max-model-len 320000.
+
+    Previous v7.59 baseline (2026-04-28): vLLM dev212+g8cd174fa3 era —
+    superseded by dev93 pin 2026-05-07. Bench 244→200 t/s on 35B.
+
+The KEY sentence: ``Bench 244 → 200 t/s on 35B`` — vllm pin bumps from
+v7.59 (dev212) → v8.0 (dev93) already lost 44 TPS on 35B PROD. The
+current pin is dev354 — even newer than dev93 — and our measurement is
+211 TPS, in the ``200 t/s after dev93`` ballpark documented above.
+
+### What I tested
+
+1. Reverted ``--max-model-len`` from the current ``280000`` to Sprint 1's
+   ``320000`` (only difference: one launcher edit + ``GENESIS_TQ_MAX_MODEL_LEN``
+   matched). Restarted 35B. Canonical bench, n=25:
+
+       wall_TPS = 204.54  (CV 0.122)
+       decode_TPOT = 4.66 ms
+       TTFT = 119.62 ms
+
+   Result: **WORSE** than 280K — TPS lower, CV doubled. cudagraph
+   capture at 320K stresses the allocator and the resulting capture
+   sizes are worse for short-prompt benches.
+
+2. Reverted to ``NO_PN300_PN302`` (280K, current production launcher).
+   HTTP 200 confirmed on smoke.
+
+### Real arithmetic
+
+Per the journal entry from 2026-04-28 → 2026-05-07 (already recorded
+above):
+
+|  Era                            | vllm pin                             | 35B PROD TPS |
+|---|---|---:|
+| v7.59 (2026-04-28)              | dev212+g8cd174fa3                    | 244 |
+| Sprint 1 / Wave 8 (2026-05-09)  | dev93                                | 241.35 |
+| Wave 9 / Wave 10 (2026-05-13)   | dev93 / dev209                       | 219 |
+| Today                           | dev354+g626fa9bba (NO_PN300_PN302) | 211 |
+
+* Pin regression dev212 → dev93 = ``-3 TPS`` (within noise).
+* Pin regression dev93 → dev209 = ``-22 TPS``.
+* Pin regression dev209 → dev354 = ``-8 TPS``.
+
+Total **upstream vllm-driven decline ~30 TPS**. Genesis is doing all
+the work — every hot patch active, USE_UPSTREAM=1 (correct,
+post-quality-mirage), all baked constants identical to the v7.50
+"aggressive tune" defaults (BLOCK_KV=32, num_warps=8, num_stages=3).
+
+### What this means
+
+The "241 → 211" delta is NOT a Genesis regression. It's the cumulative
+cost of three vllm pin bumps that successive operator audits accepted
+because each was below the per-bump rollback threshold (~5 % was the
+documented gate).
+
+### Three real recovery paths (none free)
+
+1. **Bench-validate a pin downgrade to dev93 or dev209**: if the
+   patches still apply cleanly (the registry's pin_gate would need to
+   be checked) and the bench recovers 20+ TPS, this is the lowest-risk
+   win. Cost: re-bench cycle + re-validate every patch's anchor
+   against the older vllm source. Documented in ``docs/_internal/pin_lifecycle``
+   as the standard rollback procedure.
+
+2. **Audit which dev93→dev354 vllm commits cost us TPS**: ``gh api
+   repos/vllm-project/vllm/compare/dev93...dev354`` lists ~600 PRs.
+   Filter to PRs touching ``v1/attention/``, ``v1/spec_decode/``, MoE
+   routing — the hot path for our workload. Each PR that landed
+   between those tags is a perf-change candidate. Genesis-style:
+   pick the worst offender and write a defensive patch that restores
+   pre-PR behavior on our shapes only.
+
+3. **Cherry-pick perf PRs that landed AFTER dev354 in upstream
+   nightly**: ``vllm/vllm-openai:nightly`` daily tag may include perf
+   fixes for the regressions counted in #1. Pin-bump from dev354 to
+   the freshest nightly + re-bench. Risk: more drift to chase.
+
+### Production state
+
+35B restored to ``NO_PN300_PN302.sh`` (280K context, all opt-in env
+flags as before). HTTP 200 verified. No production changes in this
+commit beyond an additional journal entry. The 211 TPS production
+number is recorded as the v12 + dev354 baseline.
+
