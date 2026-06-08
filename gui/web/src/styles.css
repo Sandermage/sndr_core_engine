@@ -1107,7 +1107,16 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 
 /* ============================================================ Section workspaces */
 
-.section-workspace { padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--gap); animation: sndr-fade-in 0.24s ease both; }
+/* Cap + centre the content so card-heavy sections stay dense and structured
+   instead of sprawling edge-to-edge on a wide / ultrawide monitor (the
+   enterprise-dashboard convention). Fills the screen up to the cap, centres
+   beyond it. `.section-workspace.full` opts a section out (tables/detail that
+   genuinely want every pixel). */
+.section-workspace { padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--gap); animation: sndr-fade-in 0.24s ease both; width: 100%; max-width: 1760px; margin-inline: auto; }
+.section-workspace.full,
+.section-workspace.section-virtualization,
+.section-workspace.section-kubernetes,
+.section-workspace.section-containers { max-width: none; }
 @media (prefers-reduced-motion: reduce) { .section-workspace { animation: none; } }
 .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; }
 .section-heading span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--accent-text); font-weight: 700; }
@@ -1274,8 +1283,11 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .patch-control-toolbar { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .patch-control-toolbar select { height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
 .patch-control-toolbar > span { font-size: 11.5px; color: var(--text-muted); margin-left: auto; }
-.patch-control-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: var(--gap); align-items: start; }
-.patch-table-scroll { max-height: 460px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); }
+.patch-control-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr); gap: var(--gap); align-items: start; }
+/* Adaptive height — the inventory list grows to fill its block on a tall screen
+   (was a fixed 460px that left dead space below it). */
+.patch-table-scroll { max-height: min(720px, 66vh); overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); }
+.patch-control-grid .patch-explain { position: sticky; top: 8px; max-height: min(720px, 66vh); overflow: auto; }
 .patch-table td strong { font-size: 12px; }
 
 .patch-explain { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--pad-card); border-radius: var(--r); border: 1px solid var(--border); background: var(--surface-2); position: sticky; top: 0; }
