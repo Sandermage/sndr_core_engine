@@ -110,6 +110,10 @@ class ModelConfig:
     dtype: str = "float16"
     enforce_eager: bool = False
     disable_custom_all_reduce: bool = True
+    # vLLM Prometheus stat logger. Default True (--disable-log-stats) preserves
+    # the historical launcher output; set False to expose live request/KV-cache/
+    # throughput metrics (what the GUI Inference panel reads).
+    disable_log_stats: bool = True
     language_model_only: bool = True
     trust_remote_code: bool = True
 

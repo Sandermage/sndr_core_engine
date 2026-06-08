@@ -460,6 +460,9 @@ class HardwareSizing:
     enable_chunked_prefill: bool = True
     enforce_eager: bool = False
     disable_custom_all_reduce: bool = True
+    # vLLM stat logger. Default True keeps --disable-log-stats in the launcher;
+    # set False on a rig/profile to expose live inference metrics.
+    disable_log_stats: bool = True
 
     def validate(self) -> None:
         if self.max_model_len < 1:

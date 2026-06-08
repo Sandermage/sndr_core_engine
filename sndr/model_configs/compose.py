@@ -561,6 +561,7 @@ def compose(
         dtype=model.dtype,
         enforce_eager=sizing.enforce_eager,
         disable_custom_all_reduce=sizing.disable_custom_all_reduce,
+        disable_log_stats=sizing.disable_log_stats,
         language_model_only=True,
         trust_remote_code=model.trust_remote_code,
 

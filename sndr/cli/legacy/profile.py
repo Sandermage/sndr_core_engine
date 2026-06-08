@@ -965,8 +965,14 @@ def render_profile_launcher(
         inner_run.append(spec_decode_arg.rstrip(' \\\n') + ' \\')
     inner_run.append(f'  --gpu-memory-utilization {cfg.gpu_memory_utilization} \\')
     inner_run.append(f'  --api-key {cfg.api_key} \\')
-    inner_run.append(f'  --host {cfg.host} --port {port} \\')
-    inner_run.append('  --disable-log-stats')
+    # Stat logger: emit --disable-log-stats unless the rig/profile opted into
+    # metrics (sizing.disable_log_stats=False). With it off, vLLM exposes live
+    # request/KV-cache/throughput metrics — what the GUI Inference panel reads.
+    if getattr(cfg, "disable_log_stats", True):
+        inner_run.append(f'  --host {cfg.host} --port {port} \\')
+        inner_run.append('  --disable-log-stats')
+    else:
+        inner_run.append(f'  --host {cfg.host} --port {port}')
 
     inner = "\n".join(inner_run)
 

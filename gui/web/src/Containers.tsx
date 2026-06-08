@@ -852,12 +852,23 @@ function InferenceTab({ online, ver }: { online: boolean; ver: HostSndrState | n
   // how to fix it instead of rendering a wall of em-dashes.
   if (Object.keys(k).length === 0) {
     return (
-      <div className="empty-state">
-        <div className="empty-state-icon"><Gauge size={22} /></div>
-        <strong>vLLM stat metrics are disabled</strong>
-        <p className="empty-state-msg">
-          The engine exposes <code>/metrics</code> ({m.metric_families ?? 0} families at <code>{m.metrics_url}</code>) but none of vLLM's request/KV-cache/throughput metrics. This engine was started with <code>--disable-log-stats</code>. Remove that flag from its launch command and restart to light up this panel.
-        </p>
+      <div className="inf-disabled">
+        <div className="inf-disabled-head">
+          <div className="empty-state-icon"><Gauge size={20} /></div>
+          <div>
+            <strong>vLLM stat logging is off for this engine</strong>
+            <p className="muted">The engine answers <code>/metrics</code> ({m.metric_families ?? 0} families at <code>{m.metrics_url}</code>) but emits none of vLLM's request / KV-cache / throughput counters — it was launched with <code>--disable-log-stats</code>.</p>
+          </div>
+        </div>
+        <div className="inf-howto">
+          <div className="inf-howto-h"><Wrench size={13} /> Turn it on (durable)</div>
+          <ol className="inf-howto-steps">
+            <li>Set <code>disable_log_stats: false</code> on the rig's <code>sizing</code> (or profile <code>sizing_override</code>).</li>
+            <li>Re-render: <code>sndr profile render-launchers {ver?.container ? "" : "&lt;profile&gt;"}</code> → re-run the engine's start script.</li>
+            <li>This panel lights up with live Running / Waiting / KV-cache / tokens-per-second / TTFT / MTP acceptance.</li>
+          </ol>
+          <p className="muted inf-howto-note">The stat logger has a small overhead — that's why it ships off by default. Enable it on engines you want to observe.</p>
+        </div>
       </div>
     );
   }
@@ -895,36 +906,48 @@ function InferenceTab({ online, ver }: { online: boolean; ver: HostSndrState | n
         </div>
       ) : null}
 
-      <div className="ov-kpis inf-kpis">
-        <KpiTile icon={<Play size={13} />} label="Running" value={intf(k.requests_running)} sub="in-flight" spark={sparks.running} tone="ok" />
-        <KpiTile icon={<Clock size={13} />} label="Waiting" value={intf(k.requests_waiting)} sub="queued" spark={sparks.waiting} tone={waitTone} />
-        <KpiTile icon={<Database size={13} />} label="KV-cache" value={kvPct == null ? "—" : `${kvPct.toFixed(0)}%`} sub="utilization" spark={sparks.kv} tone={kvTone} />
-        <KpiTile icon={<Zap size={13} />} label="Throughput" value={k.generation_toks_per_s != null ? `${k.generation_toks_per_s.toFixed(0)}` : "—"} sub="gen tok/s" spark={sparks.tput} tone="ok" />
+      <div className="inf-section">
+        <div className="inf-section-h"><Activity size={13} /> Load &amp; throughput</div>
+        <div className="ov-kpis inf-kpis">
+          <KpiTile icon={<Play size={13} />} label="Running" value={intf(k.requests_running)} sub="in-flight" spark={sparks.running} tone="ok" />
+          <KpiTile icon={<Clock size={13} />} label="Waiting" value={intf(k.requests_waiting)} sub="queued" spark={sparks.waiting} tone={waitTone} />
+          <KpiTile icon={<Database size={13} />} label="KV-cache" value={kvPct == null ? "—" : `${kvPct.toFixed(0)}%`} sub="utilization" spark={sparks.kv} tone={kvTone} />
+          <KpiTile icon={<Zap size={13} />} label="Throughput" value={k.generation_toks_per_s != null ? `${k.generation_toks_per_s.toFixed(0)}` : "—"} sub="gen tok/s" spark={sparks.tput} tone="ok" />
+        </div>
       </div>
 
-      <div className="ov-facts inf-facts">
-        <Fact label="TTFT (avg)"><Timer size={12} /> {sec(k.ttft_avg_s)}</Fact>
-        <Fact label="TPOT (avg)">{sec(k.tpot_avg_s)}</Fact>
-        <Fact label="E2E latency (avg)">{sec(k.e2e_latency_avg_s)}</Fact>
-        <Fact label="Requests succeeded">{intf(k.requests_success_total)}</Fact>
-        <Fact label="Preemptions">{k.preemptions_total ? <span className="tone-warn">{intf(k.preemptions_total)}</span> : "0"}</Fact>
-        <Fact label="Prompt tokens">{intf(k.prompt_tokens_total)}</Fact>
-        <Fact label="Generation tokens">{intf(k.generation_tokens_total)}</Fact>
+      <div className="inf-section">
+        <div className="inf-section-h"><Timer size={13} /> Latency</div>
+        <div className="ov-facts inf-facts">
+          <Fact label="TTFT (avg)">{sec(k.ttft_avg_s)}</Fact>
+          <Fact label="TPOT (avg)">{sec(k.tpot_avg_s)}</Fact>
+          <Fact label="E2E (avg)">{sec(k.e2e_latency_avg_s)}</Fact>
+          <Fact label="Preemptions">{k.preemptions_total ? <span className="tone-warn">{intf(k.preemptions_total)}</span> : "0"}</Fact>
+        </div>
       </div>
 
       {accept != null || k.spec_decode_accepted_total != null ? (
         <div className="inf-section">
           <div className="inf-section-h"><Layers size={13} /> MTP speculative decoding</div>
           <div className="ov-facts inf-facts">
-            <Fact label="Acceptance rate">{accept != null ? <b className={`tone-${accept >= 0.6 ? "ok" : accept >= 0.4 ? "warn" : "hot"}`}>{(accept * 100).toFixed(0)}%</b> : "—"}</Fact>
-            <Fact label="Accepted tokens">{intf(k.spec_decode_accepted_total)}</Fact>
-            <Fact label="Draft tokens">{intf(k.spec_decode_draft_total)}</Fact>
+            <Fact label="Acceptance">{accept != null ? <b className={`tone-${accept >= 0.6 ? "ok" : accept >= 0.4 ? "warn" : "hot"}`}>{(accept * 100).toFixed(0)}%</b> : "—"}</Fact>
+            <Fact label="Accepted">{intf(k.spec_decode_accepted_total)} tok</Fact>
+            <Fact label="Draft">{intf(k.spec_decode_draft_total)} tok</Fact>
           </div>
         </div>
       ) : null}
 
+      <div className="inf-section">
+        <div className="inf-section-h"><Box size={13} /> Totals (since start)</div>
+        <div className="ov-facts inf-facts">
+          <Fact label="Requests OK">{intf(k.requests_success_total)}</Fact>
+          <Fact label="Prompt tokens">{intf(k.prompt_tokens_total)}</Fact>
+          <Fact label="Gen tokens">{intf(k.generation_tokens_total)}</Fact>
+        </div>
+      </div>
+
       <p className="inf-note muted">
-        Live from the engine's Prometheus <code>/metrics</code>. <b>KV-cache</b> near 100% or a rising <b>Waiting</b> queue means the engine is saturated — fewer concurrent slots or a bigger <code>--max-num-seqs</code> / KV budget is the lever. <b>Acceptance rate</b> is your MTP draft quality.
+        Live from the engine's Prometheus <code>/metrics</code>. <b>KV-cache</b> near 100% or a rising <b>Waiting</b> queue means the engine is saturated — fewer concurrent slots or a bigger <code>--max-num-seqs</code> / KV budget is the lever. <b>Acceptance</b> is your MTP draft quality (higher = more tokens accepted per step).
       </p>
     </div>
   );
@@ -1351,40 +1374,47 @@ function ContainerGpu({ source }: { source: ContainerSource }) {
 
   if (missing || !gpus || !gpus.length) return null;
   return (
-    <div className="stats-gpu">
-      <div className="stats-gpu-head"><HardDrive size={13} /> <strong>GPU</strong> <span className="muted">host telemetry · nvidia-smi</span></div>
-      <div className="stats-gpu-grid">
+    <div className="stats-gpu compact">
+      <div className="stats-gpu-head"><HardDrive size={13} /> <strong>GPU</strong> <span className="muted">{gpus.length}× · host telemetry · nvidia-smi</span></div>
+      <div className="gpu-rows">
         {gpus.map((g, i) => {
           const util = g.gpu_util ?? 0;
           const vramPct = g.mem_total ? Math.round((100 * (g.mem_used ?? 0)) / g.mem_total) : 0;
-          const h = histRef.current[i] ?? { util: [], vram: [] };
           return (
-            <div key={i} className="stats-gpu-card">
-              <div className="stats-gpu-name">GPU {i} · {g.name ?? "—"}</div>
-              <div className="stats-metric">
-                <div className="stats-metric-head">Util <b>{util}%</b>{g.temp_gpu != null && <span className="muted"> · {g.temp_gpu}°C</span>}{g.power != null && <span className="muted"> · {Math.round(g.power)}W</span>}</div>
-                <Sparkline data={h.util} kind={pctClass(util)} tall />
+            <div key={i} className="gpu-row">
+              <div className="gpu-row-id" title={g.uuid ?? ""}>
+                <span className="gpu-row-idx">GPU {i}</span>
+                <span className="gpu-row-name">{(g.name ?? "—").replace(/^NVIDIA\s+/, "")}</span>
               </div>
-              <div className="stats-metric">
-                <div className="stats-metric-head">VRAM <b>{fmtBytes((g.mem_used ?? 0) * 1048576)} / {fmtBytes((g.mem_total ?? 0) * 1048576)}</b> ({vramPct}%)</div>
-                <Sparkline data={h.vram} kind={pctClass(vramPct)} tall />
+              <div className="gpu-row-bars">
+                <GpuBar label="Util" pct={util} text={`${util}%`} />
+                <GpuBar label="VRAM" pct={vramPct} text={`${fmtBytes((g.mem_used ?? 0) * 1048576)} / ${fmtBytes((g.mem_total ?? 0) * 1048576)}`} />
               </div>
-              <div className="gpu-detail">
-                {g.temp_gpu != null && <span title="GPU temperature">🌡 {g.temp_gpu}°C</span>}
-                {g.power != null && <span title="Power draw / limit">⚡ {Math.round(g.power)}{g.power_default_limit != null ? `/${Math.round(g.power_default_limit)}` : ""}W</span>}
-                {g.mem_util != null && <span title="Memory-bandwidth utilization">mem {g.mem_util}%</span>}
-                {g.clock_gpu != null && <span title="GPU clock (current / max)">clk {g.clock_gpu}{g.clock_gpu_max != null ? `/${g.clock_gpu_max}` : ""}MHz</span>}
-                {g.pcie_gen != null && <span title="PCIe generation × width">PCIe {g.pcie_gen}{g.pcie_width != null ? `×${g.pcie_width}` : ""}</span>}
-                {g.fan_speed != null && <span title="Fan speed">fan {g.fan_speed}%</span>}
-                {g.pstate && <span title="Performance state">{g.pstate}</span>}
+              <div className="gpu-row-stats">
+                {g.temp_gpu != null && <span title="GPU temperature" className="gpu-stat"><b>{g.temp_gpu}°</b>C</span>}
+                {g.power != null && <span title="Power draw / limit" className="gpu-stat"><b>{Math.round(g.power)}</b>{g.power_default_limit != null ? `/${Math.round(g.power_default_limit)}` : ""}W</span>}
+                {g.clock_gpu != null && <span title="GPU clock (current / max)" className="gpu-stat">clk <b>{g.clock_gpu}</b>{g.clock_gpu_max != null ? `/${g.clock_gpu_max}` : ""}</span>}
+                {g.mem_util != null && <span title="Memory-bandwidth utilization" className="gpu-stat">mem <b>{g.mem_util}%</b></span>}
+                {g.pcie_gen != null && <span title="PCIe generation × width" className="gpu-stat">PCIe {g.pcie_gen}{g.pcie_width != null ? `×${g.pcie_width}` : ""}</span>}
+                {g.fan_speed != null && <span title="Fan speed" className="gpu-stat">fan {g.fan_speed}%</span>}
+                {g.pstate && <span title="Performance state" className="gpu-stat">{g.pstate}</span>}
               </div>
-              {(g.driver_version || g.uuid) && (
-                <div className="gpu-meta muted" title={g.uuid ?? ""}>{g.driver_version ? `driver ${g.driver_version}` : ""}{g.compute_mode ? ` · ${g.compute_mode}` : ""}</div>
-              )}
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// Compact horizontal meter (replaces the tall sparkline in the GPU block so the
+// card is wide-and-short instead of tall). Tone follows the percentage.
+function GpuBar({ label, pct, text }: { label: string; pct: number; text: string }) {
+  const tone = pct >= 90 ? "hot" : pct >= 70 ? "warn" : "ok";
+  return (
+    <div className="gpu-bar">
+      <div className="gpu-bar-top"><span className="gpu-bar-l">{label}</span><span className="gpu-bar-v">{text}</span></div>
+      <div className="gpu-bar-track"><span className={`gpu-bar-fill ${tone}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} /></div>
     </div>
   );
 }

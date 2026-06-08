@@ -101,6 +101,29 @@ class TestDefaultProfileRender:
         assert "SNDR_G4_TQ_FORCE_SKIP_LAYERS" not in script
         assert "GENESIS_G4_TQ_FORCE_SKIP_LAYERS" not in script
 
+    def test_disable_log_stats_emitted_by_default(self):
+        # Default (sizing.disable_log_stats=True) preserves the historical
+        # launcher: the vLLM stat logger stays off.
+        script = render_profile_launcher("gemma4-31b-tq-default")
+        assert "--disable-log-stats" in script
+
+    def test_disable_log_stats_omitted_when_sizing_opts_in(self, monkeypatch):
+        # sizing.disable_log_stats=False -> launcher omits the flag so vLLM
+        # exposes live request/KV-cache/throughput metrics (Inference panel).
+        import vllm.sndr_core.model_configs.compose as comp
+        real_compose = comp.compose
+
+        def patched(model, hw, profile):
+            cfg = real_compose(model, hw, profile)
+            cfg.disable_log_stats = False
+            return cfg
+
+        monkeypatch.setattr(comp, "compose", patched)
+        script = render_profile_launcher("gemma4-31b-tq-default")
+        assert "--disable-log-stats" not in script
+        # The port line keeps its place and is not left with a dangling backslash.
+        assert "--host" in script and "--port" in script
+
     def test_g02_default_no_structured_backend_routing(self):
         script = render_profile_launcher("gemma4-31b-tq-default")
         assert "GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON" not in script
