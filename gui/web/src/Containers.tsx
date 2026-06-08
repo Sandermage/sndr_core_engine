@@ -1012,16 +1012,44 @@ function ProcessesTab({ source, name, online }: { source: ContainerSource; name:
 function ChangesTab({ source, name }: { source: ContainerSource; name: string }) {
   const [data, setData] = useState<{ kind: string; path: string }[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const load = useCallback(() => { api.containerChanges(source, name).then((d) => setData(d.changes)).catch((e) => setErr(e instanceof Error ? e.message : String(e))); }, [source, name]);
-  useEffect(() => { load(); }, [load]);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState("");
+  // NOT auto-loaded: `docker diff` scans the whole container filesystem (seconds
+  // + thousands of paths on an engine container with a model cache), so opening
+  // the tab stays instant — the operator scans on demand.
+  const load = useCallback(() => {
+    setLoading(true); setErr(null);
+    api.containerChanges(source, name).then((d) => setData(d.changes)).catch((e) => setErr(e instanceof Error ? e.message : String(e))).finally(() => setLoading(false));
+  }, [source, name]);
+
   if (err) return <ErrBox msg={err} />;
-  if (!data) return <Loading />;
+  if (!data) return (
+    <div className="containers-empty diff-intro">
+      <GitCompare size={22} />
+      <strong>Filesystem changes vs image</strong>
+      <span>Files added / changed / deleted since the image was built. This scans the whole container filesystem — for an engine container (large model cache) it can take a few seconds and return thousands of paths.</span>
+      <button className="primary-button" disabled={loading} onClick={load}>{loading ? <Loader2 size={14} className="spin" /> : <GitCompare size={14} />} Scan filesystem</button>
+    </div>
+  );
   const mark = { added: "A", modified: "C", deleted: "D" } as Record<string, string>;
+  const counts = { added: 0, modified: 0, deleted: 0 } as Record<string, number>;
+  data.forEach((c) => { counts[c.kind] = (counts[c.kind] ?? 0) + 1; });
+  const shown = filter ? data.filter((c) => c.path.toLowerCase().includes(filter.toLowerCase())) : data;
+  const CAP = 800;
   return (
     <div className="diff">
-      <div className="proc-bar"><span>{data.length} changed paths vs image</span><button className="ghost-button" onClick={load} aria-label="Refresh changed paths"><RefreshCw size={13} /></button></div>
+      <div className="diff-summary">
+        <span className="diff-chip added">{counts.added} added</span>
+        <span className="diff-chip modified">{counts.modified} changed</span>
+        <span className="diff-chip deleted">{counts.deleted} deleted</span>
+        <div className="containers-search"><Search size={12} /><input aria-label="Filter changed paths" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="filter path…" /></div>
+        <button className="ghost-button" disabled={loading} onClick={load} aria-label="Rescan">{loading ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}</button>
+      </div>
       {data.length === 0 ? <div className="containers-empty"><GitCompare size={20} /><strong>No changes</strong><span>Container filesystem matches its image.</span></div> : (
-        <div className="inspect-mono diff-list">{data.map((c, i) => <div key={i} className={`diff-${c.kind}`}><span className="diff-mark">{mark[c.kind]}</span> {c.path}</div>)}</div>
+        <>
+          <div className="inspect-mono diff-list">{shown.slice(0, CAP).map((c, i) => <div key={i} className={`diff-${c.kind}`}><span className="diff-mark">{mark[c.kind]}</span> {c.path}</div>)}</div>
+          {shown.length > CAP && <p className="upd-hint">Showing first {CAP} of {shown.length} — filter to narrow down.</p>}
+        </>
       )}
     </div>
   );
@@ -1222,6 +1250,8 @@ function LogsTab({ source, name }: { source: ContainerSource; name: string }) {
   const [err, setErr] = useState<string | null>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const bufRef = useRef("");
+  const flushRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
@@ -1233,22 +1263,31 @@ function LogsTab({ source, name }: { source: ContainerSource; name: string }) {
   // Snapshot mode (when not live).
   useEffect(() => { if (!live) void load(); }, [load, live]);
 
-  // Live mode: stream over fetch, append (cap buffer), auto-scroll.
+  // Live mode: stream over fetch, append to a ref buffer and flush to state on a
+  // throttle (≤5×/s). Re-rendering + re-ANSI-ing the full 400KB on EVERY chunk
+  // was O(n²) and janky; batching keeps live logs smooth.
   useEffect(() => {
     if (!live) { abortRef.current?.abort(); abortRef.current = null; return; }
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    setLogs(""); setErr(null);
+    bufRef.current = ""; setLogs(""); setErr(null);
+    const flush = () => { flushRef.current = null; setLogs(bufRef.current); };
     void api.containerLogStream(source, name, tail,
-      { onLine: (t) => setLogs((prev) => (prev + t).slice(-400000)),
+      { onLine: (t) => {
+          bufRef.current = (bufRef.current + t).slice(-400000);
+          if (flushRef.current == null) flushRef.current = window.setTimeout(flush, 200);
+        },
         onError: (m) => setErr(m) },
       ctrl.signal);
-    return () => ctrl.abort();
+    return () => { ctrl.abort(); if (flushRef.current != null) { window.clearTimeout(flushRef.current); flushRef.current = null; } };
   }, [live, source, name, tail]);
 
   useEffect(() => { if (preRef.current) preRef.current.scrollTop = preRef.current.scrollHeight; }, [logs]);
 
-  const shown = q ? logs.split("\n").filter((l) => l.toLowerCase().includes(q.toLowerCase())).join("\n") : logs;
+  // Memoize the (expensive) filter + ANSI→HTML so it only recomputes when the
+  // text or query actually change — not on every unrelated re-render.
+  const shown = useMemo(() => q ? logs.split("\n").filter((l) => l.toLowerCase().includes(q.toLowerCase())).join("\n") : logs, [q, logs]);
+  const html = useMemo(() => ansiToHtml(shown) || (loading ? "" : "(no output)"), [shown, loading]);
   function download() {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([logs], { type: "text/plain" }));
@@ -1268,7 +1307,7 @@ function LogsTab({ source, name }: { source: ContainerSource; name: string }) {
       </div>
       {err && <ErrBox msg={err} />}
       <pre ref={preRef} className={`container-logs ansi ${wrap ? "wrap" : ""}`}
-        dangerouslySetInnerHTML={{ __html: ansiToHtml(shown) || (loading ? "" : "(no output)") }} />
+        dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
 }
