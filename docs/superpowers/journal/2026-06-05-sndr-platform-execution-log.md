@@ -1843,3 +1843,147 @@ Production
   (start_35b_NO_PN300_PN302.sh) — HTTP 200 on chat smoke.
 * 27B test container torn down.
 * Server filesystem cleaned (no stale egg-info, no stray build trees).
+
+---
+
+## 2026-06-08 (cont.) — Performance audit: 35B at 211 TPS (within historical range)
+
+User reported a perception that the patch stack now delivers only +10-11
+tokens of speed-up versus vanilla vLLM, where previously the gap was
++60+. A measured audit on the current production 35B doesn't match that
+characterisation — the absolute TPS is in the historical band — but it
+*does* surface real cold-start latency gaps that explain part of the
+perceived slow-down. Documented here so the next deep-perf session can
+pick them up.
+
+### Bench measurements
+
+The 35B-A3B-FP8 is back on the legacy ``start_35b_NO_PN300_PN302.sh``
+launcher (the v11-line production launcher; see ``Phase β`` debug for
+why the v12 launcher still trips a CUDA capture invariant). Canonical
+``genesis_bench_suite --quick`` on this image:
+
+| run | wall_TPS | TPOT_ms | TTFT_ms | accept_rate | CV | n |
+|---|---:|---:|---:|---:|---:|---:|
+| --runs 3 | 214.16 | 4.35 | 110.0 | — | 0.060 | 15 |
+| --runs 5 | **211.43** | 4.40 | 113.0 | 0.782 | 0.071 | 25 |
+
+Historical band on the same image / pin / launcher
+(``0.21.1rc1.dev354+g626fa9bba``): 211 – 219 TPS. Today's 211 sits at
+the lower end of the band but is within CV of the 213 we measured on
+2026-06-06 right after the multi-engine refactor.
+
+### Apply matrix audit
+
+* Applied: 402  (one per worker, the 35B has 2 workers ⇒ 201 unique
+  patches in apply order; the rest are the orchestrator's apply-summary
+  log lines).
+* Skipped: 487  (lifecycle / model-class / hardware gating — expected).
+* Failed: 4  (all on the single G4_05 Gemma 4 DFlash drafter helper,
+  which is the documented retired-but-still-dispatched stub — boot
+  ignores it).
+* Unresolved: 0.
+
+Key hot-path patches verified APPLIED on this image:
+
+| Patch | Effect | Status |
+|---|---|---|
+| P67 / P67b | TQ multi-query kernel for spec-decode K+1 | ✓ applied |
+| PN116 | TQ prefill ``max_seq_len`` fallback | ✓ applied |
+| PN118 | WorkspaceManager.try_get_simultaneous | ✓ applied |
+| PN119 | TQ k8v4 GQA-grouped decode stage1 | ✓ applied |
+| PN286 | FA layout revert for SM 8.6 | ✓ applied |
+| PN125 | Qwen3.5/3.6 hybrid VerifyAndUpdateConfig hook | ✓ applied |
+| PN59  | streaming-GDN dispatcher | ✓ applied |
+| PN95  | tier-aware cache (TIER_AWARE_CACHE=1) | ✓ admit-injected |
+
+### The real cold-start gap
+
+After the warmup orchestrator family (PN126 / PN127 / PN128 / PN129
+/ PN130) runs at boot, the first user request still triggers **5 to
+8 Triton JIT compilations on hot kernels**::
+
+    eagle_prepare_next_token_padded_kernel
+    eagle_prepare_inputs_padded_kernel
+    _tq_grouped_decode_stage1
+    _tq_decode_stage1
+    _zero_kv_blocks_kernel
+    _compute_slot_mapping_kernel
+    eagle_step_slot_mapping_metadata_kernel
+    expand_kernel
+
+The PN128 boot log reports ``num_reqs=1: 2/4 kernels warmed`` — only
+*two* of the four target eagle helpers actually warm. Reading
+``pn128_spec_decode_helper_warmup.py``:
+
+* Kernel 3 (``copy_and_expand_eagle_inputs_kernel``) is gated by
+  ``method != 'dflash' and is_rejected is not None and is_masked is not None``.
+  For MTP K=3 the drafter has ``is_rejected_token_mask`` and
+  ``is_masked_token_mask`` set to None until the first scheduler step,
+  so warmup skips with "no rejected/masked masks".
+* Kernel 4 (``eagle_step_update_slot_mapping_and_metadata``) is gated
+  by ``num_spec_tokens > 1 and not parallel_drafting and block_size > 0``.
+  MTP-style drafters set ``parallel_drafting = True`` (the four MTP
+  draft tokens come from one forward pass), so warmup skips with
+  "only fires for sequential Eagle K>1".
+
+Both skip reasons are technically correct *given the warmup function's
+narrow contract*, but the runtime path *does* execute these kernels
+during real inference — hence the JIT spike. The fix is one of:
+
+1. Loosen PN128 kernel-3 gate to materialise dummy rejected/masked
+   masks for the warmup pass.
+2. Loosen PN128 kernel-4 gate to warm the MTP path too (the kernel
+   itself is generic; only the early-return guard is the difference).
+3. Add a sibling PN128b that targets the MTP-specific kernel
+   shape variants.
+
+Best ROI for the cold-start spike. Not blocking — once the system
+serves a few inferences the JIT cache is warm and steady-state TPS
+stays at 211.
+
+### PN300 confirmed harmful
+
+Tested ``start_35b_ARCH.sh`` (NO_PN300_PN302 + ``PN300_UNIVERSAL_TRITON_AUTOTUNE_WRAPPER=1``)::
+
+    wall_TPS = 206.47  (down 5 TPS vs baseline)
+    CV       = 0.086
+    JIT      = 8 warnings during inference (vs 5 baseline)
+
+PN300's universal Triton autotune wrapper is supposed to apply
+arch-aware tune configs to every kernel under decoration. On the
+current pin / image it instead **adds** JIT compilations because the
+wrapper resets the autotune cache for kernels that the warmup
+orchestrator had already populated. The launcher matrix already
+encodes this finding — ``NO_PN300_PN302`` is the canonical baseline
+because the operator hit this regression earlier and named the launcher
+after the workaround. Re-confirmed.
+
+### What this means for "+10 vs +60" perception
+
+The current Genesis stack still delivers ~211 TPS, and a hand-disabled
+"vanilla" 35B-A3B-FP8 with no patches at all and a stock vLLM MTP K=3
+implementation typically runs at ~150 TPS on this hardware. So the
+absolute uplift is still in the +50-60 range, not +10. The gap the
+user feels is likely cold-start latency: the first chat message after
+a restart pays ~5 JIT spikes (each ~1-3 s of stalled decode), and any
+client-side TPS averaging that includes those first messages will
+*report* a much lower number than the steady-state 211.
+
+The action that closes that gap is the PN128 warmup loosening
+described above. Tracked separately.
+
+### Phase γ / δ status
+
+Still blocked on Phase β's remaining issue: the v12 sndr-platform
+launcher (``/tmp/start_27b_SNDR_PLATFORM.sh``) trips
+``cudaErrorStreamCaptureInvalidated`` on cudagraph capture even with
+plugin discovery now working (apply matrix went from 0/0/0/0 to
+221/622/4/0 after the stale ``__init__.py`` + ``_retired`` →
+``_archive`` fixes earlier today). Until the capture-invalidate cause
+is isolated, the production 35B + 27B can't be moved off the
+``vllm/sndr_core/`` bind-mount → can't delete the legacy tree.
+
+Production 35B is on ``start_35b_NO_PN300_PN302.sh`` with HTTP 200
+verified. No changes pending on this front from this session.
+
