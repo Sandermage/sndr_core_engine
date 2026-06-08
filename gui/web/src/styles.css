@@ -3243,7 +3243,10 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .deploy-artifact .code-block { max-height: clamp(320px, 52vh, 720px); }
 
 /* ── Chat console (multi-turn streaming chat for local models) ──────────── */
-.chat-console { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 210px); min-height: 480px; }
+/* Fit the chat within the viewport: reserve room for the topbar, section heading,
+   console tabs and the input bar, and keep a modest min so short screens don't
+   overflow. Height tracks the viewport (adaptive). */
+.chat-console { display: flex; flex-direction: column; gap: 10px; height: clamp(360px, calc(100vh - 270px), 1100px); min-height: 0; }
 .chat-bar { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
 .chat-field { display: flex; flex-direction: column; gap: 3px; }
 .chat-field > span { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); }
@@ -5109,7 +5112,18 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .rt-wl-delta { font-family: var(--mono); font-weight: 700; font-size: 12.5px; text-align: right; min-width: 46px; }
 .rt-wl-delta.ok { color: var(--ok); }
 .rt-wl-delta.hot { color: var(--danger); }
-.rt-wl-tps { font-family: var(--mono); font-size: 11px; color: var(--text-muted); text-align: right; min-width: 64px; }
+.rt-wl-tps { font-family: var(--mono); font-size: 12px; color: var(--text-muted); text-align: right; min-width: 72px; }
+.rt-wl-tps b { color: var(--text); font-size: 13px; }
+/* Measured-throughput bar (the always-present signal; delta is often absent). */
+.rt-tps-track { position: relative; height: 9px; border-radius: 999px; background: var(--surface-inset); overflow: hidden; }
+.rt-tps-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--accent); }
+.rt-tps-fill.deny { background: color-mix(in srgb, var(--danger) 50%, var(--surface-3)); }
+.rt-wl-base { font-family: var(--mono); font-size: 11px; color: var(--text-muted); text-align: right; min-width: 84px; }
+.rt-wl-base.ok { color: var(--ok); }
+.rt-wl-base.hot { color: var(--danger); }
+.rt-set-active { font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: var(--r-sm); border: 1px solid var(--accent-ring); background: var(--accent-soft); color: var(--accent-text); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+.rt-set-active:disabled { opacity: 0.5; cursor: default; }
+.rt-env-hint { font-family: var(--mono); font-size: 10.5px; padding: 2px 8px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); }
 
 .rt-section { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
 .rt-section-t { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); font-weight: 700; }

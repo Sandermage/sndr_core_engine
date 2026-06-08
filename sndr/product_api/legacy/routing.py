@@ -110,16 +110,40 @@ def _load_artifact(fa: Any, profile: str) -> Optional[Any]:
     return None
 
 
+# Operator-chosen active profile for THIS daemon (set from the GUI). It scopes
+# what active_profile() reports and what classify() defaults to; it does not
+# touch the data-plane gateway (that reads SNDR_ACTIVE_PROFILE in its own
+# process). Resets on daemon restart — persist via the env var instead.
+_OVERRIDE: Optional[str] = None
+
+
+def set_active(profile: Optional[str]) -> dict[str, Any]:
+    """Pin (or clear, with a falsy profile) the daemon's active profile."""
+    global _OVERRIDE
+    rr, fa = _modules()
+    if fa is None:
+        return {"available": False, "reason": "spec_decode integration not importable"}
+    names = [a["profile"] for a in list_artifacts()["artifacts"]]
+    if profile and profile not in names:
+        return {"available": True, "ok": False, "error": f"unknown profile {profile!r}", "candidates": names}
+    _OVERRIDE = profile or None
+    return {"available": True, "ok": True, **active_profile()}
+
+
 def active_profile() -> dict[str, Any]:
     """The profile the operator considers live.
 
-    Source priority: explicit ``SNDR_ACTIVE_PROFILE`` env (the operator knows
-    what is actually running) → the sole validated profile → none.
+    Source priority: a GUI override pinned this session → explicit
+    ``SNDR_ACTIVE_PROFILE`` env → the sole validated profile → none.
     """
     rr, fa = _modules()
     if fa is None:
         return {"available": False, "reason": "spec_decode integration not importable"}
     arts = list_artifacts()["artifacts"]
+    if _OVERRIDE:
+        match = next((a for a in arts if a["profile"] == _OVERRIDE), None)
+        return {"available": True, "profile": _OVERRIDE, "source": "daemon-override",
+                "artifact": match, "candidates": [a["profile"] for a in arts]}
     env = (os.environ.get("SNDR_ACTIVE_PROFILE") or "").strip()
     if env:
         match = next((a for a in arts if a["profile"] == env), None)

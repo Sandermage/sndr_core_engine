@@ -2199,6 +2199,16 @@ def create_app(
 
         return routing.active_profile()
 
+    @app.post("/api/v1/routing/active")
+    def routing_set_active(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        """Pin the daemon's active routing profile (or clear with a null profile).
+        Scopes this daemon's reporting + classify default; persist via the
+        SNDR_ACTIVE_PROFILE env for the data-plane gateway."""
+        from . import routing
+
+        _audit("routing.set_active", str(payload.get("profile") or ""), "local", {"profile": payload.get("profile")})
+        return routing.set_active(payload.get("profile"))
+
     @app.post("/api/v1/routing/classify")
     def routing_classify(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         """Classify request signals → profile + accept/fallback + expected TPS delta."""

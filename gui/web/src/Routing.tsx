@@ -58,32 +58,27 @@ const pctTone = (v: number) => (v > 0.01 ? "ok" : v < -0.01 ? "hot" : "");
 const fmtPct = (v: number | null | undefined) => (typeof v === "number" ? `${v > 0 ? "+" : ""}${(v * 100).toFixed(0)}%` : "—");
 const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 
-// Diverging bar: positive deltas grow right (green), negative left (red).
-function DeltaBar({ delta }: { delta: number }) {
-  const mag = clamp((Math.abs(delta) / 0.6) * 50); // 60% delta → full half-width
-  const tone = pctTone(delta);
-  return (
-    <div className="rt-delta-track">
-      <span className="rt-delta-mid" />
-      <span className={`rt-delta-fill ${tone}`} style={delta >= 0 ? { left: "50%", width: `${mag}%` } : { right: "50%", width: `${mag}%` }} />
-    </div>
-  );
-}
-
-function WorkloadRow({ wclass, art }: { wclass: string; art: RoutingArtifact }) {
-  const delta = art.delta_tps_per_class[wclass];
+function WorkloadRow({ wclass, art, maxTps }: { wclass: string; art: RoutingArtifact; maxTps: number }) {
   const tps = art.profile_tps_per_class[wclass];
+  const base = art.baseline_tps_per_class[wclass];
+  const delta = art.delta_tps_per_class[wclass];
   const allowed = art.allowed_workloads.includes(wclass);
   const denied = art.denied_workloads.includes(wclass);
+  // Lead with measured throughput (the always-present signal); the delta vs a
+  // baseline is shown only when a baseline run exists for this profile.
+  const pct = typeof tps === "number" && maxTps > 0 ? clamp((tps / maxTps) * 100) : 0;
+  const hasDelta = typeof delta === "number";
   return (
     <div className="rt-wl">
       <span className="rt-wl-name">{wclass}</span>
       <span className={`rt-wl-gate ${allowed ? "ok" : denied ? "deny" : "muted"}`}>
         {allowed ? <><Check size={11} /> allowed</> : denied ? <><Ban size={11} /> denied</> : "—"}
       </span>
-      <DeltaBar delta={typeof delta === "number" ? delta : 0} />
-      <span className={`rt-wl-delta ${pctTone(typeof delta === "number" ? delta : 0)}`}>{fmtPct(delta)}</span>
-      <span className="rt-wl-tps">{typeof tps === "number" ? `${tps.toFixed(1)} tok/s` : "—"}</span>
+      <div className="rt-tps-track"><span className={`rt-tps-fill ${denied ? "deny" : "ok"}`} style={{ width: `${pct}%` }} /></div>
+      <span className="rt-wl-tps"><b>{typeof tps === "number" ? tps.toFixed(0) : "—"}</b> tok/s</span>
+      <span className={`rt-wl-base ${hasDelta ? pctTone(delta as number) : ""}`}>
+        {hasDelta ? `${fmtPct(delta)} vs base` : typeof base === "number" ? `base ${base.toFixed(0)}` : ""}
+      </span>
     </div>
   );
 }
@@ -156,6 +151,7 @@ export function RoutingPanel() {
   const [arts, setArts] = useState<RoutingArtifacts | null>(null);
   const [active, setActive] = useState<RoutingActive | null>(null);
   const [profile, setProfile] = useState<string>("");
+  const [setting, setSetting] = useState(false);
 
   useEffect(() => {
     api.routingArtifacts().then(setArts).catch(() => setArts({ available: false, reason: "daemon offline", artifacts: [] }));
@@ -188,7 +184,13 @@ export function RoutingPanel() {
             {candidates.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
-        {active?.source && <span className="rt-source-tag">active: {active.source}</span>}
+        <button className="rt-set-active" disabled={!profile || profile === active?.profile || setting}
+          title="Pin this profile as the daemon's active route (clears on restart; set SNDR_ACTIVE_PROFILE to persist for the gateway)"
+          onClick={async () => { setSetting(true); const r = await api.routingSetActive(profile).catch(() => null); if (r) setActive(r); setSetting(false); }}>
+          {profile && profile === active?.profile ? <><Check size={13} /> active</> : "Set active"}
+        </button>
+        {active?.source && <span className="rt-source-tag">source: {active.source}</span>}
+        {profile && <code className="rt-env-hint" title="Set on the gateway process to persist across restarts">SNDR_ACTIVE_PROFILE={profile}</code>}
       </div>
 
       <RoutingLive lang={lang} />
@@ -209,9 +211,13 @@ export function RoutingPanel() {
             <div className="rt-kpi"><span className="rt-kpi-l">Allowed</span><strong className="rt-kpi-v">{art.allowed_workloads.length}/{art.workload_classes.length}</strong></div>
           </div>
           {art.notes && <div className="rt-notes">{art.notes}</div>}
-          <div className="rt-wl-head"><span>Workload</span><span>Gate</span><span>TPS delta vs baseline</span><span /><span /></div>
+          <div className="rt-wl-head"><span>Workload</span><span>Gate</span><span>Measured throughput</span><span>tok/s</span><span>vs baseline</span></div>
           <div className="rt-wl-list">
-            {art.workload_classes.map((w) => <WorkloadRow key={w} wclass={w} art={art} />)}
+            {(() => {
+              const tpsVals = art.workload_classes.map((w) => art.profile_tps_per_class[w]).filter((v): v is number => typeof v === "number");
+              const maxTps = tpsVals.length ? Math.max(...tpsVals) : 0;
+              return art.workload_classes.map((w) => <WorkloadRow key={w} wclass={w} art={art} maxTps={maxTps} />);
+            })()}
           </div>
         </div>
       )}
