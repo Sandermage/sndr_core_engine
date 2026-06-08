@@ -147,11 +147,105 @@ def shape_guest(raw: dict[str, Any]) -> dict[str, Any]:
         "mem_used": raw.get("mem"), "mem_total": raw.get("maxmem"),
         "mem_pct": _pct(raw.get("mem"), raw.get("maxmem")),
         "disk_total": raw.get("maxdisk"),
+        "disk_used": raw.get("disk"),
+        "net_in": raw.get("netin"), "net_out": raw.get("netout"),
+        "disk_read": raw.get("diskread"), "disk_write": raw.get("diskwrite"),
         "uptime": raw.get("uptime"),
         "tags": _tag_list(raw.get("tags")),
         "sndr_preset": _preset_from_tags(raw.get("tags")),
         "template": bool(raw.get("template")),
     }
+
+
+def _parse_pve_opts(value: Any) -> dict[str, str]:
+    """Parse a Proxmox config value like ``virtio=AA:BB,bridge=vmbr0,size=8G``
+    into a dict. A leading positional token (no ``=``) is stored as ``_first``."""
+    out: dict[str, str] = {}
+    for i, part in enumerate(str(value).split(",")):
+        part = part.strip()
+        if not part:
+            continue
+        if "=" in part:
+            k, v = part.split("=", 1)
+            out[k.strip()] = v.strip()
+        elif i == 0:
+            out["_first"] = part
+    return out
+
+
+def guest_detail(node: str, kind: str, vmid: int) -> dict[str, Any]:
+    """Rich per-guest detail: CPU topology, memory, OS, BIOS, boot, GPU
+    passthrough, disks, networks and (via the guest agent) IPs. Read-only."""
+    a = availability()
+    if not a["available"]:
+        return {"available": False, "error": a["error"]}
+    typ = "qemu" if kind == "vm" else "lxc"
+    try:
+        cfg = _api_get(f"nodes/{node}/{typ}/{vmid}/config") or {}
+        try:
+            st = _api_get(f"nodes/{node}/{typ}/{vmid}/status/current") or {}
+        except Exception:
+            st = {}
+        # GPU passthrough: VM hostpciN entries, or LXC dev entries naming nvidia.
+        gpus = [str(v).split(",")[0] for k, v in sorted(cfg.items())
+                if k.startswith("hostpci")]
+        if kind == "lxc":
+            gpus += [str(v) for k, v in sorted(cfg.items())
+                     if k.startswith("dev") and "nvidia" in str(v).lower()]
+        # Disks: scsiN/virtioN/sataN/ideN/rootfs/mpN (skip cdrom 'none').
+        disks = []
+        for k in sorted(cfg):
+            is_disk = (k == "rootfs") or any(
+                k.startswith(p) and k[len(p):].isdigit() for p in ("scsi", "virtio", "sata", "ide", "mp"))
+            if not is_disk:
+                continue
+            opts = _parse_pve_opts(cfg[k])
+            vol = opts.get("_first", "")
+            if vol == "none" or "media=cdrom" in str(cfg[k]):
+                continue
+            disks.append({"id": k, "volume": vol, "size": opts.get("size"),
+                          "storage": vol.split(":")[0] if ":" in vol else None})
+        # Networks: netN → model/mac/bridge/ip.
+        nets = []
+        for k in sorted(cfg):
+            if not (k.startswith("net") and k[3:].isdigit()):
+                continue
+            opts = _parse_pve_opts(cfg[k])
+            model = next((m for m in ("virtio", "e1000", "vmxnet3", "rtl8139") if m in opts), None)
+            nets.append({"id": k, "model": model or ("veth" if kind == "lxc" else None),
+                         "mac": opts.get(model) if model else opts.get("hwaddr"),
+                         "bridge": opts.get("bridge"), "ip": opts.get("ip"),
+                         "name": opts.get("name")})
+        # IPs reported by the guest agent (qemu) — non-loopback IPv4.
+        agent_ips: list[str] = []
+        nics = st.get("nics")
+        for nic in (nics.values() if isinstance(nics, dict) else (nics or [])):
+            for addr in (nic.get("ip-addresses") or []):
+                ip = addr.get("ip-address", "")
+                if addr.get("ip-address-type") == "ipv4" and ip and not ip.startswith("127."):
+                    agent_ips.append(ip)
+        mem = cfg.get("memory")
+        ha = st.get("ha")
+        return {
+            "available": True, "error": None, "vmid": vmid, "kind": kind, "node": node,
+            "cores": cfg.get("cores"), "sockets": cfg.get("sockets"), "cpu_type": cfg.get("cpu"),
+            "memory_mb": int(mem) if str(mem).isdigit() else None,
+            "swap_mb": int(cfg["swap"]) if str(cfg.get("swap", "")).isdigit() else None,
+            "balloon": cfg.get("balloon"), "bios": cfg.get("bios"), "machine": cfg.get("machine"),
+            "ostype": cfg.get("ostype"),
+            "onboot": str(cfg.get("onboot")) in ("1", "True"),
+            "boot_order": cfg.get("boot"),
+            "agent_enabled": str(cfg.get("agent", "")).startswith("1"),
+            "qmpstatus": st.get("qmpstatus") or st.get("status"),
+            "ha_managed": (ha.get("managed") == 1) if isinstance(ha, dict) else None,
+            "unprivileged": (str(cfg.get("unprivileged")) == "1") if kind == "lxc" else None,
+            "features": cfg.get("features"),
+            "description": (str(cfg.get("description")).strip() or None) if cfg.get("description") else None,
+            "tags": _tag_list(cfg.get("tags")),
+            "gpus": gpus, "disks": disks, "networks": nets, "agent_ips": agent_ips,
+        }
+    except Exception as exc:
+        return {"available": False, "error": _describe(exc)}
 
 
 # ── live calls (graceful) ────────────────────────────────────────────────────

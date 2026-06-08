@@ -8,9 +8,10 @@ import { cachePeek, cacheSet } from "../lib/swr-cache";
 import {
   Server, Cpu, Boxes, Monitor, Layers, RefreshCw, Loader2, Package, ChevronDown,
   Plug, Info, ShieldCheck, ShieldAlert, Activity, AlertTriangle, Rocket, Copy,
+  HardDrive, Network,
 } from "lucide-react";
 import {
-  api, type ProxmoxStatus, type ProxmoxNode, type ProxmoxGuest,
+  api, type ProxmoxStatus, type ProxmoxNode, type ProxmoxGuest, type ProxmoxGuestDetail,
   type KubeVirtResult, type K8sStatus, type K8sNode, type K8sPod, type K8sEvent,
   type DeploymentPlan,
 } from "../api";
@@ -271,21 +272,93 @@ function ProxmoxGuests({ lang, guests }: { lang: Lang; guests: ProxmoxGuest[] })
   if (guests.length === 0) {
     return <div className="empty-state"><div className="empty-state-icon"><Monitor size={20} /></div><p className="empty-state-msg">{t(lang, "virt.noGuests")}</p></div>;
   }
+  return <div className="px-guests">{guests.map((g) => <GuestCard key={`${g.kind}-${g.vmid}`} g={g} lang={lang} />)}</div>;
+}
+
+function osLabel(t?: string | null): string {
+  if (!t) return "—";
+  if (t.startsWith("l")) return "Linux";
+  if (t.startsWith("w")) return "Windows";
+  if (t === "solaris") return "Solaris";
+  return t;
+}
+const fmtGiB = (mb?: number | null) => (mb == null ? "—" : `${(mb / 1024).toFixed(mb >= 10240 ? 0 : 1)} GiB`);
+function GFact({ l, v }: { l: string; v: ReactNode }) {
+  return <div className="px-fact"><span>{l}</span><strong>{v}</strong></div>;
+}
+
+// One Proxmox guest as an expandable card: live metrics + I/O always visible,
+// rich config (GPU passthrough, OS, disks, networks, boot…) fetched on expand.
+function GuestCard({ g, lang }: { g: ProxmoxGuest; lang: Lang }) {
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<ProxmoxGuestDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && !detail && g.node && g.vmid != null) {
+      setLoading(true);
+      api.proxmoxGuestDetail(g.node, g.kind, g.vmid).then(setDetail).catch(() => {}).finally(() => setLoading(false));
+    }
+  };
   return (
-    <table className="containers-table virt-guests">
-      <thead><tr><th>{t(lang, "virt.guests")}</th><th></th><th>{t(lang, "common.cpu")}</th><th>{t(lang, "common.memory")}</th><th>{t(lang, "virt.node")}</th><th>{t(lang, "common.uptime")}</th><th>SNDR</th></tr></thead>
-      <tbody>{guests.map((g) => (
-        <tr key={`${g.kind}-${g.vmid}`} className={`crow ${g.running ? "online" : "offline"}${g.sndr_preset ? " virt-managed" : ""}`}>
-          <td className="crow-name"><span className={`container-dot ${g.running ? "online" : "offline"}`} /><span className={`virt-kind ${g.kind}`}>{g.kind === "vm" ? "VM" : "LXC"}</span>{g.name} <span className="muted">#{g.vmid}</span></td>
-          <td><span className={`container-badge ${g.running ? "online" : "offline"}`}>{g.status}</span></td>
-          <td className="muted">{g.cpu_pct == null ? "—" : `${g.cpu_pct.toFixed(0)}%`}<span className="virt-dim"> /{g.cpu_cores ?? "?"}c</span></td>
-          <td className="muted">{g.mem_pct == null ? "—" : `${g.mem_pct.toFixed(0)}%`}<span className="virt-dim"> {fmtBytes(g.mem_total)}</span></td>
-          <td className="muted">{g.node ?? "—"}</td>
-          <td className="muted">{fmtUptime(g.uptime)}</td>
-          <td>{g.sndr_preset ? <span className="k8s-sndr-chip preset"><Package size={9} /> {g.sndr_preset}</span> : <span className="muted">—</span>}</td>
-        </tr>
-      ))}</tbody>
-    </table>
+    <div className={`px-guest ${g.running ? "online" : "offline"}${g.sndr_preset ? " managed" : ""}`}>
+      <div className="px-guest-head" role="button" tabIndex={0} aria-expanded={open} onClick={toggle} onKeyDown={onKeyActivate(toggle)}>
+        <span className={`container-dot ${g.running ? "online" : "offline"}`} />
+        <span className={`virt-kind ${g.kind}`}>{g.kind === "vm" ? "VM" : "LXC"}</span>
+        <strong className="px-guest-name">{g.name}</strong><span className="muted">#{g.vmid}</span>
+        <span className={`container-badge ${g.running ? "online" : "offline"}`}>{g.status}</span>
+        {g.node ? <span className="px-guest-node muted">{g.node}</span> : null}
+        {g.sndr_preset ? <span className="k8s-sndr-chip preset"><Package size={9} /> {g.sndr_preset}</span> : null}
+        <ChevronDown size={15} className={`px-guest-caret ${open ? "rot" : ""}`} />
+      </div>
+      <div className="px-guest-metrics">
+        <Meter label={`${t(lang, "common.cpu")} · ${g.cpu_cores ?? "?"}c`} pct={g.cpu_pct} text={g.cpu_pct == null ? "—" : `${g.cpu_pct.toFixed(0)}%`} />
+        <Meter label={t(lang, "common.memory")} pct={g.mem_pct} text={`${fmtBytes(g.mem_used)} / ${fmtBytes(g.mem_total)}`} />
+        <div className="px-guest-io">
+          <span title="network in / out"><Network size={10} /> ↓{fmtBytes(g.net_in)} ↑{fmtBytes(g.net_out)}</span>
+          <span title="disk read / write"><HardDrive size={10} /> r{fmtBytes(g.disk_read)} w{fmtBytes(g.disk_write)}</span>
+          <span title="uptime">{fmtUptime(g.uptime)}</span>
+        </div>
+      </div>
+      {open && (
+        <div className="px-guest-detail">
+          {loading && !detail ? <SkeletonBlock />
+            : detail && detail.available ? <GuestDetailBody d={detail} />
+            : <span className="muted">detail unavailable{detail?.error ? `: ${detail.error}` : ""}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GuestDetailBody({ d }: { d: ProxmoxGuestDetail }) {
+  return (
+    <>
+      {d.gpus.length > 0 && (
+        <div className="px-gpu-row"><Cpu size={13} /> <strong>GPU passthrough</strong>{d.gpus.map((g) => <code key={g} className="px-gpu-chip">{g}</code>)}</div>
+      )}
+      <div className="px-facts">
+        <GFact l="CPU" v={`${d.cores ?? "?"} cores${d.sockets && d.sockets > 1 ? ` × ${d.sockets}` : ""}${d.cpu_type ? ` · ${d.cpu_type}` : ""}`} />
+        <GFact l="Memory" v={`${fmtGiB(d.memory_mb)}${d.swap_mb ? ` + ${fmtGiB(d.swap_mb)} swap` : ""}${d.balloon ? "" : d.kind === "vm" ? " · no balloon" : ""}`} />
+        <GFact l="OS" v={osLabel(d.ostype)} />
+        {d.kind === "vm" ? <GFact l="Firmware" v={`${d.bios ?? "—"}${d.machine ? ` · ${d.machine}` : ""}`} /> : null}
+        {d.kind === "lxc" && d.unprivileged != null ? <GFact l="Privilege" v={d.unprivileged ? "unprivileged" : "privileged"} /> : null}
+        <GFact l="Boot" v={`${d.onboot ? "on boot" : "manual"}${d.boot_order ? ` · ${d.boot_order.replace("order=", "")}` : ""}`} />
+        {d.kind === "vm" ? <GFact l="Guest agent" v={d.agent_enabled ? (d.agent_ips.length ? d.agent_ips.join(", ") : "enabled") : "off"} /> : null}
+        {d.ha_managed != null ? <GFact l="HA" v={d.ha_managed ? "managed" : "no"} /> : null}
+        {d.features ? <GFact l="Features" v={d.features} /> : null}
+        {d.qmpstatus ? <GFact l="State" v={d.qmpstatus} /> : null}
+      </div>
+      {d.disks.length > 0 && (
+        <div className="px-detail-list"><span className="px-detail-l"><HardDrive size={11} /> Disks</span>{d.disks.map((dk) => <code key={dk.id}>{dk.id}: {dk.storage ?? dk.volume}{dk.size ? ` · ${dk.size}` : ""}</code>)}</div>
+      )}
+      {d.networks.length > 0 && (
+        <div className="px-detail-list"><span className="px-detail-l"><Network size={11} /> Net</span>{d.networks.map((n) => <code key={n.id}>{n.id}: {n.bridge ?? "?"}{n.model ? ` ${n.model}` : ""}{n.ip ? ` ${n.ip}` : ""}{n.mac ? ` ${n.mac}` : ""}</code>)}</div>
+      )}
+      {d.description ? <div className="px-detail-desc muted">{d.description}</div> : null}
+      {d.tags.length > 0 ? <div className="px-detail-tags">{d.tags.map((tg) => <span key={tg} className="px-tag">{tg}</span>)}</div> : null}
+    </>
   );
 }
 

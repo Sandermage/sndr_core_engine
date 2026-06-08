@@ -2156,6 +2156,13 @@ def create_app(
         from . import proxmox_client
         return proxmox_client.list_guests()
 
+    @app.get("/api/v1/proxmox/guests/{node}/{kind}/{vmid}")
+    async def proxmox_guest_detail_route(node: str, kind: str, vmid: int) -> dict[str, Any]:
+        """Rich detail for one guest: CPU topology, memory, OS, BIOS, boot order,
+        GPU passthrough, disks, networks and guest-agent IPs. Read-only."""
+        from . import proxmox_client
+        return proxmox_client.guest_detail(node, kind, vmid)
+
     @app.get("/api/v1/alerts")
     async def alerts_route() -> dict[str, Any]:
         """Evaluate hardware-threshold rules over the daemon host's live telemetry
