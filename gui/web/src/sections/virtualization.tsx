@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
-// Virtualization — one pane over compute: Proxmox VE hosts & guests, KubeVirt
-// VMs, and Kubernetes nodes, each linked back to the SNDR preset it runs.
-// Read-only + graceful (every source degrades to a "connect / not installed"
-// card). Bilingual via i18n. Mirrors the Kubernetes panel's posture.
+// Virtualization — the unified compute control plane. Two providers under one
+// roof: Proxmox VE (hosts + VMs/LXC) and Kubernetes (nodes + pods + events +
+// KubeVirt VMs + deploy), each guest/pod linked to the SNDR preset it runs.
+// Read-only + graceful per source. Bilingual (EN/RU).
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
-  Server, Cpu, Boxes, Monitor, Layers, RefreshCw,
-  Loader2, Package, ChevronDown, Plug, Info,
+  Server, Cpu, Boxes, Monitor, Layers, RefreshCw, Loader2, Package, ChevronDown,
+  Plug, Info, ShieldCheck, ShieldAlert, Activity, AlertTriangle,
 } from "lucide-react";
 import {
   api, type ProxmoxStatus, type ProxmoxNode, type ProxmoxGuest,
-  type KubeVirtVM, type KubeVirtResult, type K8sNode,
+  type KubeVirtResult, type K8sStatus, type K8sNode, type K8sPod, type K8sEvent,
 } from "../api";
 import { useLang, t, type Lang } from "../i18n";
 import { onKeyActivate } from "../dialog";
+import { K8sDeploy, PodRow, EventRow } from "./kubernetes";
 
 const GiB = 1024 ** 3;
 function fmtBytes(n?: number | null): string {
@@ -27,77 +28,114 @@ function fmtUptime(s?: number | null): string {
   const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
   return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
-const tone = (p?: number | null) => (p == null ? "ok" : p >= 90 ? "hot" : p >= 70 ? "warn" : "ok");
+const meterTone = (p?: number | null) => (p == null ? "ok" : p >= 90 ? "hot" : p >= 70 ? "warn" : "ok");
 
 function Meter({ label, pct, text }: { label: string; pct: number | null; text: string }) {
   return (
     <div className="virt-meter">
       <div className="virt-meter-top"><span className="virt-meter-l">{label}</span><span className="virt-meter-v">{text}</span></div>
-      <div className="virt-meter-track"><span className={`virt-meter-fill ${tone(pct)}`} style={{ width: `${Math.min(100, Math.max(0, pct ?? 0))}%` }} /></div>
+      <div className="virt-meter-track"><span className={`virt-meter-fill ${meterTone(pct)}`} style={{ width: `${Math.min(100, Math.max(0, pct ?? 0))}%` }} /></div>
     </div>
   );
 }
 
+type Provider = "proxmox" | "kubernetes";
+type K8sTab = "nodes" | "pods" | "events" | "kubevirt" | "deploy";
+
 export function VirtualizationPanel() {
   const [lang] = useLang();
-  const [tab, setTab] = useState<"proxmox" | "kubevirt" | "k8s">("proxmox");
-  const [status, setStatus] = useState<ProxmoxStatus | null>(null);
-  const [nodes, setNodes] = useState<ProxmoxNode[]>([]);
-  const [guests, setGuests] = useState<ProxmoxGuest[]>([]);
-  const [kv, setKv] = useState<KubeVirtResult | null>(null);
+  const [provider, setProvider] = useState<Provider>("kubernetes");
+  const [k8sTab, setK8sTab] = useState<K8sTab>("nodes");
+
+  // Proxmox
+  const [pxStatus, setPxStatus] = useState<ProxmoxStatus | null>(null);
+  const [pxNodes, setPxNodes] = useState<ProxmoxNode[]>([]);
+  const [pxGuests, setPxGuests] = useState<ProxmoxGuest[]>([]);
+  // Kubernetes
+  const [k8sStatus, setK8sStatus] = useState<K8sStatus | null>(null);
   const [k8sNodes, setK8sNodes] = useState<K8sNode[] | null>(null);
+  const [k8sPods, setK8sPods] = useState<K8sPod[] | null>(null);
+  const [k8sEvents, setK8sEvents] = useState<K8sEvent[] | null>(null);
+  const [kv, setKv] = useState<KubeVirtResult | null>(null);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const [s, n, g, v, kn] = await Promise.allSettled([
-      api.proxmoxStatus(), api.proxmoxNodes(), api.proxmoxGuests(), api.k8sKubevirt(), api.k8sNodes(),
+    const [ps, pn, pg, ks, kev] = await Promise.allSettled([
+      api.proxmoxStatus(), api.proxmoxNodes(), api.proxmoxGuests(), api.k8sStatus(), api.k8sKubevirt(),
     ]);
-    if (s.status === "fulfilled") setStatus(s.value);
-    if (n.status === "fulfilled") setNodes(n.value.nodes ?? []);
-    if (g.status === "fulfilled") setGuests(g.value.guests ?? []);
-    if (v.status === "fulfilled") setKv(v.value);
-    if (kn.status === "fulfilled") setK8sNodes(kn.value.available ? kn.value.nodes : null);
+    if (ps.status === "fulfilled") setPxStatus(ps.value);
+    if (pn.status === "fulfilled") setPxNodes(pn.value.nodes ?? []);
+    if (pg.status === "fulfilled") setPxGuests(pg.value.guests ?? []);
+    if (kev.status === "fulfilled") setKv(kev.value);
+    if (ks.status === "fulfilled") {
+      setK8sStatus(ks.value);
+      if (ks.value.available) {
+        const [n, p, e] = await Promise.all([api.k8sNodes(), api.k8sPods(), api.k8sEvents()]);
+        setK8sNodes(n.nodes); setK8sPods(p.pods); setK8sEvents(e.events);
+      } else { setK8sNodes(null); setK8sPods(null); setK8sEvents(null); }
+    }
     setLoading(false);
   }, []);
   useEffect(() => { void reload(); }, [reload]);
 
-  const sndrManaged = (status?.sndr_managed ?? 0) + (kv?.vms ?? []).filter((v) => v.sndr_preset).length;
+  const sndrManaged = (pxStatus?.sndr_managed ?? 0)
+    + (kv?.vms ?? []).filter((v) => v.sndr_preset).length
+    + (k8sPods ?? []).filter((p) => p.sndr_managed).length;
+  const warnEvents = (k8sEvents ?? []).filter((e) => e.type === "Warning").length;
 
   return (
     <div className="virt">
       <VirtIntro lang={lang} />
 
       <div className="virt-summary">
-        <SummaryCard icon={<Server size={15} />} value={status?.available ? `${status.nodes_online ?? 0}/${status.node_count ?? 0}` : "—"} label={t(lang, "virt.hosts")} sub="Proxmox" tone={status?.available ? "ok" : "muted"} />
-        <SummaryCard icon={<Monitor size={15} />} value={status?.available ? `${status.vm_running ?? 0}/${status.vm_count ?? 0}` : "—"} label={t(lang, "virt.vms")} sub="Proxmox" />
-        <SummaryCard icon={<Boxes size={15} />} value={status?.available ? `${status.lxc_running ?? 0}/${status.lxc_count ?? 0}` : "—"} label={t(lang, "virt.lxc")} sub="Proxmox" />
+        <SummaryCard icon={<Server size={15} />} value={pxStatus?.available ? `${pxStatus.nodes_online ?? 0}/${pxStatus.node_count ?? 0}` : "—"} label={t(lang, "virt.hosts")} sub="Proxmox" tone={pxStatus?.available ? "ok" : "muted"} />
+        <SummaryCard icon={<Monitor size={15} />} value={pxStatus?.available ? `${pxStatus.vm_running ?? 0}/${pxStatus.vm_count ?? 0}` : "—"} label={t(lang, "virt.vms")} sub="Proxmox" />
+        <SummaryCard icon={<Boxes size={15} />} value={pxStatus?.available ? `${pxStatus.lxc_running ?? 0}/${pxStatus.lxc_count ?? 0}` : "—"} label={t(lang, "virt.lxc")} sub="Proxmox" />
+        <SummaryCard icon={<Cpu size={15} />} value={k8sStatus?.available ? `${k8sStatus.nodes_ready ?? 0}/${k8sStatus.node_count ?? 0}` : "—"} label={t(lang, "virt.k8sNodes")} sub="k8s" tone={k8sStatus?.available ? "ok" : "muted"} />
+        <SummaryCard icon={<Activity size={15} />} value={k8sPods ? String(k8sPods.length) : "—"} label={t(lang, "virt.pods")} sub="k8s" />
         <SummaryCard icon={<Layers size={15} />} value={kv?.installed ? String(kv.vms.length) : "—"} label={t(lang, "virt.kubevirt")} sub="k8s" />
-        <SummaryCard icon={<Cpu size={15} />} value={k8sNodes ? String(k8sNodes.length) : "—"} label={t(lang, "virt.k8sNodes")} sub="k8s" />
         <SummaryCard icon={<Package size={15} />} value={String(sndrManaged)} label={t(lang, "virt.sndrManaged")} sub="" tone={sndrManaged > 0 ? "accent" : "muted"} />
       </div>
 
       <div className="virt-bar">
-        <div className="k8s-tabs">
-          <button className={tab === "proxmox" ? "active" : ""} onClick={() => setTab("proxmox")}><Server size={14} /> {t(lang, "virt.proxmox")}</button>
-          <button className={tab === "kubevirt" ? "active" : ""} onClick={() => setTab("kubevirt")}><Layers size={14} /> {t(lang, "virt.kubevirt")}</button>
-          <button className={tab === "k8s" ? "active" : ""} onClick={() => setTab("k8s")}><Cpu size={14} /> {t(lang, "virt.k8sNodes")}</button>
+        <div className="virt-providers">
+          <button className={provider === "kubernetes" ? "active" : ""} onClick={() => setProvider("kubernetes")}><Layers size={15} /> Kubernetes</button>
+          <button className={provider === "proxmox" ? "active" : ""} onClick={() => setProvider("proxmox")}><Server size={15} /> {t(lang, "virt.proxmox")}</button>
         </div>
         <button className="ghost-button" onClick={() => void reload()} disabled={loading}>
           {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} {t(lang, "common.refresh")}
         </button>
       </div>
 
-      {tab === "proxmox" && <ProxmoxView lang={lang} status={status} nodes={nodes} guests={guests} loading={loading} />}
-      {tab === "kubevirt" && <KubeVirtView lang={lang} kv={kv} />}
-      {tab === "k8s" && <K8sNodesView lang={lang} nodes={k8sNodes} />}
+      {provider === "proxmox" && <ProxmoxView lang={lang} status={pxStatus} nodes={pxNodes} guests={pxGuests} loading={loading} />}
+
+      {provider === "kubernetes" && (
+        <div className="virt-pane">
+          <div className="k8s-tabs virt-subtabs">
+            <button className={k8sTab === "nodes" ? "active" : ""} onClick={() => setK8sTab("nodes")}>{t(lang, "virt.nodes")}{k8sNodes ? ` (${k8sNodes.length})` : ""}</button>
+            <button className={k8sTab === "pods" ? "active" : ""} onClick={() => setK8sTab("pods")}>{t(lang, "virt.pods")}{k8sPods ? ` (${k8sPods.length})` : ""}</button>
+            <button className={k8sTab === "events" ? "active" : ""} onClick={() => setK8sTab("events")}>{t(lang, "virt.events")}{warnEvents ? ` (${warnEvents}⚠)` : ""}</button>
+            <button className={k8sTab === "kubevirt" ? "active" : ""} onClick={() => setK8sTab("kubevirt")}>{t(lang, "virt.kubevirt")}</button>
+            <button className={k8sTab === "deploy" ? "active" : ""} onClick={() => setK8sTab("deploy")}>{t(lang, "virt.deploy")}</button>
+          </div>
+
+          {k8sTab === "deploy" ? <K8sDeploy />
+            : !k8sStatus ? <SkeletonBlock />
+            : !k8sStatus.available && k8sTab !== "kubevirt" ? <ConnectCard icon={<Plug size={22} />} title={t(lang, "virt.k8sNotConnected")} body={k8sStatus.error || ""} cmds={["pip install 'vllm-sndr-core[k8s]'", "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml"]} />
+            : k8sTab === "nodes" ? <K8sNodesView lang={lang} status={k8sStatus} nodes={k8sNodes} />
+            : k8sTab === "pods" ? <PodsTable lang={lang} pods={k8sPods} />
+            : k8sTab === "events" ? <EventsTable lang={lang} events={k8sEvents} />
+            : <KubeVirtView lang={lang} kv={kv} />}
+        </div>
+      )}
     </div>
   );
 }
 
-function SummaryCard({ icon, value, label, sub, tone: cardTone = "n" }: { icon: ReactNode; value: string; label: string; sub: string; tone?: string }) {
+function SummaryCard({ icon, value, label, sub, tone = "n" }: { icon: ReactNode; value: string; label: string; sub: string; tone?: string }) {
   return (
-    <div className={`virt-sum ${cardTone}`}>
+    <div className={`virt-sum ${tone}`}>
       <div className="virt-sum-h">{icon}<span>{label}</span></div>
       <div className="virt-sum-v">{value}{sub ? <em>{sub}</em> : null}</div>
     </div>
@@ -113,11 +151,7 @@ function VirtIntro({ lang }: { lang: Lang }) {
         <span><strong>{t(lang, "virt.title")}</strong> — {t(lang, "virt.subtitle")}</span>
         <ChevronDown size={15} className={open ? "rot" : ""} />
       </div>
-      {open && (
-        <div className="k8s-intro-body">
-          <p><b>{t(lang, "virt.value")}.</b> {t(lang, "virt.valueBody")}</p>
-        </div>
-      )}
+      {open && <div className="k8s-intro-body"><p><b>{t(lang, "virt.value")}.</b> {t(lang, "virt.valueBody")}</p></div>}
     </div>
   );
 }
@@ -133,13 +167,12 @@ function ConnectCard({ icon, title, body, cmds }: { icon: ReactNode; title: stri
   );
 }
 
+// ── Proxmox ──────────────────────────────────────────────────────────────────
 function ProxmoxView({ lang, status, nodes, guests, loading }: { lang: Lang; status: ProxmoxStatus | null; nodes: ProxmoxNode[]; guests: ProxmoxGuest[]; loading: boolean }) {
   if (loading && !status) return <SkeletonBlock />;
   if (!status?.available) {
-    return (
-      <ConnectCard icon={<Plug size={22} />} title={t(lang, "virt.proxmoxNotConfigured")} body={status?.error || t(lang, "virt.proxmoxConnectHelp")}
-        cmds={["export SNDR_PROXMOX_HOST=https://pve.local:8006", "export SNDR_PROXMOX_TOKEN_ID='root@pam!sndr'", "export SNDR_PROXMOX_TOKEN_SECRET=<secret>"]} />
-    );
+    return <ConnectCard icon={<Plug size={22} />} title={t(lang, "virt.proxmoxNotConfigured")} body={status?.error || t(lang, "virt.proxmoxConnectHelp")}
+      cmds={["export SNDR_PROXMOX_HOST=https://pve.local:8006", "export SNDR_PROXMOX_TOKEN_ID='root@pam!sndr'", "export SNDR_PROXMOX_TOKEN_SECRET=<secret>"]} />;
   }
   return (
     <div className="virt-pane">
@@ -147,8 +180,7 @@ function ProxmoxView({ lang, status, nodes, guests, loading }: { lang: Lang; sta
         {nodes.map((n) => (
           <div key={n.name} className={`virt-node ${n.online ? "online" : "offline"}`}>
             <div className="virt-node-h">
-              <span className={`container-dot ${n.online ? "online" : "offline"}`} />
-              <strong>{n.name}</strong>
+              <span className={`container-dot ${n.online ? "online" : "offline"}`} /><strong>{n.name}</strong>
               <span className={`container-badge ${n.online ? "online" : "offline"}`}>{n.status}</span>
               {n.uptime ? <span className="virt-node-up">{fmtUptime(n.uptime)}</span> : null}
             </div>
@@ -160,35 +192,89 @@ function ProxmoxView({ lang, status, nodes, guests, loading }: { lang: Lang; sta
           </div>
         ))}
       </div>
-
       {guests.length === 0 ? (
         <div className="empty-state"><div className="empty-state-icon"><Monitor size={20} /></div><p className="empty-state-msg">{t(lang, "virt.noGuests")}</p></div>
       ) : (
         <table className="containers-table virt-guests">
-          <thead><tr>
-            <th>{t(lang, "virt.guests")}</th><th></th><th>{t(lang, "common.cpu")}</th><th>{t(lang, "common.memory")}</th>
-            <th>{t(lang, "virt.node")}</th><th>{t(lang, "common.uptime")}</th><th>SNDR</th>
-          </tr></thead>
-          <tbody>
-            {guests.map((g) => (
-              <tr key={`${g.kind}-${g.vmid}`} className={`crow ${g.running ? "online" : "offline"}${g.sndr_preset ? " virt-managed" : ""}`}>
-                <td className="crow-name">
-                  <span className={`container-dot ${g.running ? "online" : "offline"}`} />
-                  <span className={`virt-kind ${g.kind}`}>{g.kind === "vm" ? "VM" : "LXC"}</span>
-                  {g.name} <span className="muted">#{g.vmid}</span>
-                </td>
-                <td><span className={`container-badge ${g.running ? "online" : "offline"}`}>{g.status}</span></td>
-                <td className="muted">{g.cpu_pct == null ? "—" : `${g.cpu_pct.toFixed(0)}%`}<span className="virt-dim"> /{g.cpu_cores ?? "?"}c</span></td>
-                <td className="muted">{g.mem_pct == null ? "—" : `${g.mem_pct.toFixed(0)}%`}<span className="virt-dim"> {fmtBytes(g.mem_total)}</span></td>
-                <td className="muted">{g.node ?? "—"}</td>
-                <td className="muted">{fmtUptime(g.uptime)}</td>
-                <td>{g.sndr_preset ? <span className="k8s-sndr-chip preset"><Package size={9} /> {g.sndr_preset}</span> : <span className="muted">—</span>}</td>
-              </tr>
-            ))}
-          </tbody>
+          <thead><tr><th>{t(lang, "virt.guests")}</th><th></th><th>{t(lang, "common.cpu")}</th><th>{t(lang, "common.memory")}</th><th>{t(lang, "virt.node")}</th><th>{t(lang, "common.uptime")}</th><th>SNDR</th></tr></thead>
+          <tbody>{guests.map((g) => (
+            <tr key={`${g.kind}-${g.vmid}`} className={`crow ${g.running ? "online" : "offline"}${g.sndr_preset ? " virt-managed" : ""}`}>
+              <td className="crow-name"><span className={`container-dot ${g.running ? "online" : "offline"}`} /><span className={`virt-kind ${g.kind}`}>{g.kind === "vm" ? "VM" : "LXC"}</span>{g.name} <span className="muted">#{g.vmid}</span></td>
+              <td><span className={`container-badge ${g.running ? "online" : "offline"}`}>{g.status}</span></td>
+              <td className="muted">{g.cpu_pct == null ? "—" : `${g.cpu_pct.toFixed(0)}%`}<span className="virt-dim"> /{g.cpu_cores ?? "?"}c</span></td>
+              <td className="muted">{g.mem_pct == null ? "—" : `${g.mem_pct.toFixed(0)}%`}<span className="virt-dim"> {fmtBytes(g.mem_total)}</span></td>
+              <td className="muted">{g.node ?? "—"}</td>
+              <td className="muted">{fmtUptime(g.uptime)}</td>
+              <td>{g.sndr_preset ? <span className="k8s-sndr-chip preset"><Package size={9} /> {g.sndr_preset}</span> : <span className="muted">—</span>}</td>
+            </tr>
+          ))}</tbody>
         </table>
       )}
     </div>
+  );
+}
+
+// ── Kubernetes ───────────────────────────────────────────────────────────────
+function K8sNodesView({ lang, status, nodes }: { lang: Lang; status: K8sStatus; nodes: K8sNode[] | null }) {
+  if (nodes == null) return <SkeletonBlock />;
+  if (nodes.length === 0) return <div className="empty-state"><div className="empty-state-icon"><Cpu size={20} /></div><p className="empty-state-msg">Cluster has no nodes</p></div>;
+  return (
+    <>
+      <div className="virt-clusterline muted">
+        <ShieldCheck size={12} /> {status.version ?? ""} · {status.namespace_count ?? 0} namespaces · {status.gpu_node_count ?? 0} GPU {t(lang, "common.nodes")}
+      </div>
+      <div className="virt-nodes">
+        {nodes.map((n) => {
+          const gpuAlloc = n.gpu_allocatable ?? 0, gpuFree = n.gpu_free ?? gpuAlloc;
+          const gpuUsedPct = gpuAlloc > 0 ? (100 * (gpuAlloc - (gpuFree ?? gpuAlloc))) / gpuAlloc : null;
+          const st = n.ready ? (n.schedulable ? "online" : "partial") : "offline";
+          const product = n.gpu_labels["nvidia.com/gpu.product"];
+          return (
+            <div key={n.name} className={`virt-node ${st}`}>
+              <div className="virt-node-h">
+                <span className={`container-dot ${st}`} /><strong>{n.name}</strong>
+                <span className={`container-badge ${st}`}>{n.ready ? (n.schedulable ? "Ready" : "Cordoned") : "NotReady"}</span>
+                {n.pressures.map((p) => <span key={p} className="k8s-pressure" title={`${p}=True`}><ShieldAlert size={10} /> {p.replace("Pressure", "")}</span>)}
+                {n.roles.length ? <span className="virt-node-up">{n.roles.join(", ")}</span> : null}
+              </div>
+              {gpuAlloc > 0 ? (
+                <div className="virt-node-meters one">
+                  <Meter label={`GPU${product ? ` · ${product.replace(/^NVIDIA-?/, "")}` : ""}`} pct={gpuUsedPct} text={`${gpuFree} / ${gpuAlloc} free${n.gpu_requested ? ` · ${n.gpu_requested} used` : ""}`} />
+                </div>
+              ) : <div className="virt-node-facts muted"><span>{t(lang, "common.none")} GPU</span></div>}
+              <div className="virt-node-facts muted">
+                <span>{n.kubelet_version ?? ""}</span>
+                {n.cpu_capacity ? <span>{n.cpu_capacity} CPU</span> : null}
+                {n.mem_capacity ? <span>{n.mem_capacity}</span> : null}
+                {n.taints.length ? <span title={n.taints.map((tt) => tt.key).join(", ")}>{n.taints.length} taints</span> : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function PodsTable({ lang, pods }: { lang: Lang; pods: K8sPod[] | null }) {
+  if (pods == null) return <SkeletonBlock />;
+  if (pods.length === 0) return <div className="empty-state"><div className="empty-state-icon"><Activity size={20} /></div><p className="empty-state-msg">No pods</p></div>;
+  return (
+    <table className="containers-table virt-guests">
+      <thead><tr><th>{t(lang, "virt.pods")}</th><th>NS</th><th>Phase</th><th>Ready</th><th>↻</th><th>GPU</th><th>{t(lang, "virt.node")}</th></tr></thead>
+      <tbody>{pods.map((p) => <PodRow key={`${p.namespace}/${p.name}`} p={p} />)}</tbody>
+    </table>
+  );
+}
+
+function EventsTable({ lang, events }: { lang: Lang; events: K8sEvent[] | null }) {
+  if (events == null) return <SkeletonBlock />;
+  if (events.length === 0) return <div className="empty-state"><div className="empty-state-icon"><AlertTriangle size={20} /></div><p className="empty-state-msg">No recent events</p></div>;
+  return (
+    <table className="containers-table virt-guests">
+      <thead><tr><th>Type</th><th>Reason</th><th>Object</th><th>Message</th><th>×</th></tr></thead>
+      <tbody>{events.map((e, i) => <EventRow key={i} e={e} />)}</tbody>
+    </table>
   );
 }
 
@@ -200,47 +286,19 @@ function KubeVirtView({ lang, kv }: { lang: Lang; kv: KubeVirtResult | null }) {
   return (
     <table className="containers-table virt-guests">
       <thead><tr><th>VM</th><th></th><th>{t(lang, "virt.node")}</th><th>{t(lang, "common.cpu")}</th><th>{t(lang, "common.memory")}</th><th>GPU</th><th>IP</th><th>SNDR</th></tr></thead>
-      <tbody>
-        {kv.vms.map((v: KubeVirtVM) => (
-          <tr key={`${v.namespace}/${v.name}`} className={`crow ${v.running ? "online" : "offline"}${v.sndr_preset ? " virt-managed" : ""}`}>
-            <td className="crow-name"><span className={`container-dot ${v.running ? "online" : "offline"}`} /><span className="virt-kind vm">VM</span>{v.name}<span className="muted"> · {v.namespace}</span></td>
-            <td><span className={`container-badge ${v.running ? "online" : "offline"}`}>{v.phase}</span></td>
-            <td className="muted">{v.node ?? "—"}</td>
-            <td className="muted">{v.cpu_cores ?? "—"}c</td>
-            <td className="muted">{v.memory ?? "—"}</td>
-            <td>{v.gpu_count > 0 ? <span className="k8s-gpu free"><Cpu size={11} /> {v.gpu_count}</span> : <span className="muted">—</span>}</td>
-            <td className="muted">{v.ip ?? "—"}</td>
-            <td>{v.sndr_preset ? <span className="k8s-sndr-chip preset"><Package size={9} /> {v.sndr_preset}</span> : <span className="muted">—</span>}</td>
-          </tr>
-        ))}
-      </tbody>
+      <tbody>{kv.vms.map((v) => (
+        <tr key={`${v.namespace}/${v.name}`} className={`crow ${v.running ? "online" : "offline"}${v.sndr_preset ? " virt-managed" : ""}`}>
+          <td className="crow-name"><span className={`container-dot ${v.running ? "online" : "offline"}`} /><span className="virt-kind vm">VM</span>{v.name}<span className="muted"> · {v.namespace}</span></td>
+          <td><span className={`container-badge ${v.running ? "online" : "offline"}`}>{v.phase}</span></td>
+          <td className="muted">{v.node ?? "—"}</td>
+          <td className="muted">{v.cpu_cores ?? "—"}c</td>
+          <td className="muted">{v.memory ?? "—"}</td>
+          <td>{v.gpu_count > 0 ? <span className="k8s-gpu free"><Cpu size={11} /> {v.gpu_count}</span> : <span className="muted">—</span>}</td>
+          <td className="muted">{v.ip ?? "—"}</td>
+          <td>{v.sndr_preset ? <span className="k8s-sndr-chip preset"><Package size={9} /> {v.sndr_preset}</span> : <span className="muted">—</span>}</td>
+        </tr>
+      ))}</tbody>
     </table>
-  );
-}
-
-function K8sNodesView({ lang, nodes }: { lang: Lang; nodes: K8sNode[] | null }) {
-  if (nodes == null) return <ConnectCard icon={<Plug size={22} />} title={t(lang, "virt.k8sNotConnected")} body={t(lang, "virt.k8sNotConnected")} />;
-  return (
-    <div className="virt-nodes">
-      {nodes.map((n) => {
-        const gpuFree = n.gpu_free, gpuAlloc = n.gpu_allocatable ?? 0;
-        return (
-          <div key={n.name} className={`virt-node ${n.ready ? "online" : "offline"}`}>
-            <div className="virt-node-h">
-              <span className={`container-dot ${n.ready ? "online" : "offline"}`} />
-              <strong>{n.name}</strong>
-              <span className={`container-badge ${n.ready ? "online" : "offline"}`}>{n.ready ? "Ready" : "NotReady"}</span>
-              {gpuAlloc > 0 ? <span className={`k8s-gpu ${gpuFree === 0 ? "full" : "free"}`}><Cpu size={11} /> {gpuFree ?? "?"} / {gpuAlloc} GPU</span> : null}
-            </div>
-            <div className="virt-node-facts muted">
-              <span>{n.kubelet_version ?? ""}</span>
-              <span>{n.os_image ?? ""}</span>
-              {n.roles.length ? <span>{n.roles.join(", ")}</span> : null}
-            </div>
-          </div>
-        );
-      })}
-    </div>
   );
 }
 

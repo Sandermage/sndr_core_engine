@@ -51,7 +51,8 @@ const EN: Dict = {
   // virtualization
   "virt.title": "Virtualization",
   "virt.subtitle": "One pane over your compute — Proxmox VE hosts & guests, KubeVirt VMs, and Kubernetes nodes — linked back to the SNDR presets they run.",
-  "virt.proxmox": "Proxmox VE", "virt.kubevirt": "KubeVirt VMs", "virt.k8sNodes": "Kubernetes nodes",
+  "virt.proxmox": "Proxmox VE", "virt.kubevirt": "KubeVirt", "virt.k8sNodes": "K8s nodes",
+  "virt.nodes": "Nodes", "virt.pods": "Pods", "virt.events": "Events", "virt.deploy": "Deploy",
   "virt.hosts": "Hosts", "virt.guests": "Guests", "virt.vms": "VMs", "virt.lxc": "LXC",
   "virt.vm": "VM", "virt.container": "Container",
   "virt.proxmoxNotConfigured": "Proxmox not connected",
@@ -81,7 +82,8 @@ const RU: Dict = {
   // virtualization
   "virt.title": "Виртуализация",
   "virt.subtitle": "Единая панель по вычислениям — хосты и гости Proxmox VE, VM KubeVirt и ноды Kubernetes — связанные с пресетами SNDR, которые на них работают.",
-  "virt.proxmox": "Proxmox VE", "virt.kubevirt": "VM KubeVirt", "virt.k8sNodes": "Ноды Kubernetes",
+  "virt.proxmox": "Proxmox VE", "virt.kubevirt": "KubeVirt", "virt.k8sNodes": "Ноды k8s",
+  "virt.nodes": "Ноды", "virt.pods": "Поды", "virt.events": "События", "virt.deploy": "Деплой",
   "virt.hosts": "Хосты", "virt.guests": "Гости", "virt.vms": "VM", "virt.lxc": "LXC",
   "virt.vm": "VM", "virt.container": "Контейнер",
   "virt.proxmoxNotConfigured": "Proxmox не подключён",

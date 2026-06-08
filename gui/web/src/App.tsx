@@ -24,7 +24,6 @@ import {
   LayoutGrid,
   Languages,
   Boxes,
-  Layers,
   AlertTriangle,
   ListChecks,
   Monitor,
@@ -177,7 +176,6 @@ import { FleetPanel } from "./Fleet";
 // Lazy-loaded: the container management UI (~1.2k lines) only renders on the
 // Containers section, so it is code-split out of the initial bundle.
 const ContainersPanel = lazy(() => import("./Containers").then((m) => ({ default: m.ContainersPanel })));
-const KubernetesPanel = lazy(() => import("./sections/kubernetes").then((m) => ({ default: m.KubernetesPanel })));
 const VirtualizationPanel = lazy(() => import("./sections/virtualization").then((m) => ({ default: m.VirtualizationPanel })));
 
 // EN/RU language switch — flips the new bilingual surfaces (Virtualization, nav)
@@ -246,7 +244,6 @@ const navGroups: NavGroup[] = [
   { label: "Infrastructure", items: [
     { id: "hosts", icon: <LayoutGrid size={17} />, label: "Fleet" },
     { id: "containers", icon: <Boxes size={17} />, label: "Containers" },
-    { id: "kubernetes", icon: <Layers size={17} />, label: "Kubernetes" },
     { id: "virtualization", icon: <Server size={17} />, label: "Virtualization" },
     { id: "hardware", icon: <Cpu size={17} />, label: "Hardware" },
     { id: "setup", icon: <Settings size={17} />, label: "Setup" },
@@ -2059,19 +2056,9 @@ function SectionWorkspace({
         </ModuleGrid>
       )}
 
-      {sectionId === "kubernetes" && (
+      {(sectionId === "virtualization" || sectionId === "kubernetes") && (
         <ModuleGrid>
-          <ModuleCard title="Kubernetes" icon={<Layers size={18} />} desc="Read-only Kubernetes view (P1) — cluster status and nodes with GPU capacity/allocatable/requested, conditions, taints and GFD labels. Honours your kubeconfig + RBAC. Shows 'connect a cluster' until a kubeconfig is configured." wide>
-            <Suspense fallback={<SkeletonCards count={4} />}>
-              <KubernetesPanel />
-            </Suspense>
-          </ModuleCard>
-        </ModuleGrid>
-      )}
-
-      {sectionId === "virtualization" && (
-        <ModuleGrid>
-          <ModuleCard title="Virtualization" icon={<Server size={18} />} desc="One pane over compute — Proxmox VE hosts & guests, KubeVirt VMs, and Kubernetes nodes — each linked back to the SNDR preset it runs. Read-only; degrades to a connect/not-installed card per source." wide>
+          <ModuleCard title="Virtualization" icon={<Server size={18} />} desc="One control plane over compute — Proxmox VE hosts & guests (VMs/LXC) and Kubernetes (nodes, pods, events, KubeVirt VMs, deploy) — each linked back to the SNDR preset it runs. Read-only; degrades to a connect/not-installed card per source." wide>
             <Suspense fallback={<SkeletonCards count={4} />}>
               <VirtualizationPanel />
             </Suspense>

@@ -145,7 +145,7 @@ function K8sIntro({ available }: { available?: boolean }) {
   );
 }
 
-function K8sDeploy() {
+export function K8sDeploy() {
   const [presets, setPresets] = useState<{ id: string; label: string }[]>([]);
   const [preset, setPreset] = useState("");
   const [plan, setPlan] = useState<DeploymentPlan | null>(null);
@@ -201,7 +201,7 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
   return <div className={`k8s-kpi${accent ? " accent" : ""}`}><span className="k8s-kpi-label">{label}</span><b>{value}</b></div>;
 }
 
-function NodeRow({ n }: { n: K8sNode }) {
+export function NodeRow({ n }: { n: K8sNode }) {
   const gpuAlloc = n.gpu_allocatable ?? 0;
   const gpuFree = n.gpu_free ?? gpuAlloc;
   const hasGpu = gpuAlloc > 0;
@@ -228,7 +228,7 @@ function NodeRow({ n }: { n: K8sNode }) {
   );
 }
 
-function PodRow({ p }: { p: K8sPod }) {
+export function PodRow({ p }: { p: K8sPod }) {
   const st = p.phase === "Running" && p.ready_ok ? "online" : p.phase === "Pending" || p.phase === "Unknown" ? "partial" : p.ready_ok ? "online" : "offline";
   return (
     <tr className={`crow ${st}`}>
@@ -255,7 +255,7 @@ function PodRow({ p }: { p: K8sPod }) {
   );
 }
 
-function EventRow({ e }: { e: K8sEvent }) {
+export function EventRow({ e }: { e: K8sEvent }) {
   const warn = e.type === "Warning";
   return (
     <tr className={`crow ${warn ? "offline" : ""}`}>
