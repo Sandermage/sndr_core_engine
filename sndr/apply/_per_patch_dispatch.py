@@ -5111,6 +5111,26 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     return _skipped("PN299 FLA multi arch warps", detail)
 
 
+@register_patch("PN299E KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap")
+def apply_patch_N299E_kv_cache_writer() -> PatchResult:
+    """PN299E: caps num_warps + num_stages in 3 launchers of
+    v1/attention/ops/triton_reshape_and_cache_flash.py — the KV cache
+    writer that fires per token per layer. Upstream hardcodes num_warps=16
+    num_stages=10 for CUDA non-Hopper, which spills on SM 8.6 (100KB
+    shared). PN299E reads GENESIS_TRITON_AUTOTUNE_MAX_WARPS / MAX_STAGES
+    (PN296 auto-sets =4/=2 on Ampere). Opt-in via GENESIS_ENABLE_PN299E=1.
+    Composes with PN296+PN298+PN299+PN299B+PN299C+PN299D."""
+    from sndr.engines.vllm.patches.attention.turboquant import (
+        pn299e_kv_cache_writer_arch_warps as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN299E KV cache writer arch warps+stages", detail)
+    if status == "failed":
+        return _failed("PN299E KV cache writer arch warps+stages", detail)
+    return _skipped("PN299E KV cache writer arch warps+stages", detail)
+
+
 @register_patch("PN299D Mamba2 SSU fallback heuristic arch-aware NUM_WARPS cap")
 def apply_patch_N299D_mamba_ssm() -> PatchResult:
     """PN299D: defensive cap on the selective_state_update fallback heuristic

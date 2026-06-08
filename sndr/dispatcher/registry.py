@@ -3977,6 +3977,36 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN296"],
     },
+    "PN299E": {
+        "title": "KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap (SM 8.6)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_PN299E",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn299e_kv_cache_writer_arch_warps",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis-original 2026-06-08 — CRITICAL hot-path finding. "
+            "vllm/v1/attention/ops/triton_reshape_and_cache_flash.py is "
+            "the KV cache writer — fires PER TOKEN PER LAYER on every "
+            "prefill and decode step. Three launchers in the file set "
+            "num_warps + num_stages for the CUDA branch: launcher 1 "
+            "uses a heuristic that picks 8 on head_size=256, launchers "
+            "2 and 3 hardcode num_warps=16 num_stages=10. The launcher "
+            "2 branch even has ``if device_capability < 9: TILE_SIZE = "
+            "512`` but does NOT adjust num_warps / num_stages — upstream "
+            "bug. On SM 8.6 these configs spill 100 KB shared/SM hard. "
+            "PN299E caps both via GENESIS_TRITON_AUTOTUNE_MAX_WARPS / "
+            "MAX_STAGES (PN296 auto-sets =4/=2 on Ampere). Hopper+ stays "
+            "at upstream defaults via env fallback. Composes with "
+            "PN296+PN298+PN299+PN299B+PN299C+PN299D."
+        ),
+        "upstream_pr": None,
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN296", "PN298", "PN299", "PN299B", "PN299C", "PN299D"],
+    },
     "PN299D": {
         "title": "Mamba2 SSU fallback heuristic arch-aware NUM_WARPS cap (SM 8.6)",
         "tier": "community",
