@@ -597,11 +597,15 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
   const [err, setErr] = useState<string | null>(null);
   const [showUpdate, setShowUpdate] = useState(false);
   const [updPlan, setUpdPlan] = useState<ContainerUpdatePlan | null>(null);
+  const [ver, setVer] = useState<HostSndrState | null>(null);
 
   const reloadInspect = useCallback(() => {
+    // Fire all three in parallel — inspect drives the body, the others (cheap,
+    // cached server-side) drive the version chips + update pill. Fetched ONCE
+    // here and passed down, so the header strip and Overview never double-fetch.
     api.containerInspect(source, name).then(setInspect).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
-    // Cheap (local inspect + image-id) — drives the "Update available" pill + mode badge.
     api.containerUpdatePlan(source, name).then(setUpdPlan).catch(() => setUpdPlan(null));
+    api.containerSndrState(source, name).then((s) => setVer(s.ok ? s : null)).catch(() => setVer(null));
   }, [source, name]);
   useEffect(() => { reloadInspect(); }, [reloadInspect]);
 
@@ -643,7 +647,7 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
       </div>
       <code className="cpage-sub">{image}{inspect?.Id ? ` · ${String(inspect.Id).slice(0, 12)}` : ""}</code>
 
-      <ContainerVersions source={source} name={name} online={online} />
+      <ContainerVersions state={ver} />
 
       {err && <div className="containers-err"><AlertTriangle size={13} /> {err}</div>}
 
@@ -654,7 +658,7 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
           ))}
         </nav>
         <div className="cpage-content">
-          {tab === "overview" && <OverviewTab source={source} name={name} inspect={inspect} online={online} onNavigate={onNavigate} onOpen={(t) => setTab(t ?? "overview")} />}
+          {tab === "overview" && <OverviewTab source={source} name={name} inspect={inspect} online={online} ver={ver} onNavigate={onNavigate} onOpen={(t) => setTab(t ?? "overview")} />}
           {tab === "config" && <ConfigTab source={source} name={name} inspect={inspect} onChanged={reloadInspect} />}
           {tab === "processes" && <ProcessesTab source={source} name={name} online={online} />}
           {tab === "files" && <FilesTab source={source} name={name} />}
@@ -780,15 +784,23 @@ function uptimeFrom(startedAt?: string): string {
   return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function OverviewTab({ source, name, inspect, online, onNavigate, onOpen }: { source: ContainerSource; name: string; inspect: Inspect | null; online: boolean; onNavigate?: NavFn; onOpen?: (tab?: Tab) => void }) {
+function KpiTile({ icon, label, value, sub, spark, tone }: { icon: React.ReactNode; label: string; value: string; sub?: string; spark?: number[]; tone?: "ok" | "warn" | "hot" }) {
+  return (
+    <div className="ov-kpi">
+      <div className="ov-kpi-h">{icon}<span>{label}</span></div>
+      <div className="ov-kpi-v"><b className={`tone-${tone ?? "n"}`}>{value}</b>{sub ? <span className="muted">{sub}</span> : null}</div>
+      {spark && spark.length > 0 ? <Sparkline data={spark} kind={tone === "warn" ? "warn" : tone === "hot" ? "hot" : "ok"} /> : null}
+    </div>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="ov-fact"><span className="ov-fact-l">{label}</span><span className="ov-fact-v">{children}</span></div>;
+}
+
+function OverviewTab({ source, name, inspect, online, ver, onNavigate }: { source: ContainerSource; name: string; inspect: Inspect | null; online: boolean; ver: HostSndrState | null; onNavigate?: NavFn; onOpen?: (tab?: Tab) => void }) {
   const { s, hist } = useLiveStats(source, name, online, 3000);
-  const [ver, setVer] = useState<HostSndrState | null>(null);
-  const [envOpen, setEnvOpen] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    if (online) api.containerSndrState(source, name).then((x) => alive && setVer(x.ok ? x : null)).catch(() => {});
-    return () => { alive = false; };
-  }, [source, name, online]);
+  const [more, setMore] = useState<"env" | "mounts" | "labels" | "">("");
   if (!inspect) return <Loading />;
   const cfg = inspect.Config ?? {}, state = inspect.State ?? {}, net = inspect.NetworkSettings ?? {}, hostCfg = inspect.HostConfig ?? {};
   const cmd = [...(cfg.Entrypoint ?? []), ...(cfg.Cmd ?? [])].join(" ") || "—";
@@ -798,127 +810,69 @@ function OverviewTab({ source, name, inspect, online, onNavigate, onOpen }: { so
   const isEngine = /vllm/i.test(`${name} ${cfg.Image ?? ""}`) && !/daemon/i.test(name);
   const health = state.Health?.Status as string | undefined;
   const restartPolicy = hostCfg.RestartPolicy?.Name || "no";
-  const mounts: { src: string; dst: string; rw: boolean; type?: string }[] =
-    (inspect.Mounts ?? []).map((m: Record<string, unknown>) => ({ src: String(m.Source ?? m.Name ?? ""), dst: String(m.Destination ?? ""), rw: m.RW !== false, type: m.Type as string }));
-  const ports: { container: string; host: string; ip: string }[] =
-    Object.entries(net.Ports ?? {}).flatMap(([cport, binds]) => ((binds as Record<string, string>[]) ?? []).map((b) => ({ container: cport, host: String(b.HostPort ?? ""), ip: String(b.HostIp ?? "") })));
+  const restarts = inspect.RestartCount ?? 0;
+  const mounts: { dst: string; src: string; rw: boolean }[] = (inspect.Mounts ?? []).map((m: Record<string, unknown>) => ({ dst: String(m.Destination ?? ""), src: String(m.Source ?? m.Name ?? ""), rw: m.RW !== false }));
+  const ports: { container: string; host: string; ip: string }[] = Object.entries(net.Ports ?? {}).flatMap(([cport, binds]) => ((binds as Record<string, string>[]) ?? []).map((b) => ({ container: cport, host: String(b.HostPort ?? ""), ip: String(b.HostIp ?? "") })));
   const env: [string, string][] = (cfg.Env ?? []).map((e: string) => { const i = e.indexOf("="); return [e.slice(0, i), e.slice(i + 1)] as [string, string]; });
   const sndrEnv = env.filter(([k]) => /^(GENESIS|SNDR)_/.test(k));
   const labels = Object.entries(cfg.Labels ?? {}) as [string, string][];
-  const gpus = hostCfg.DeviceRequests?.some?.((d: Record<string, unknown>) => String(d.Driver ?? "").includes("nvidia") || (d.Capabilities as string[][])?.some?.((c) => c.includes("gpu"))) || /--gpus/.test(cmd);
+  const gpus = (hostCfg.DeviceRequests as Record<string, unknown>[] | undefined)?.some?.((d) => String(d.Driver ?? "").includes("nvidia") || (d.Capabilities as string[][])?.some?.((c) => c.includes("gpu"))) || /--gpus/.test(cmd) || isEngine;
 
   return (
     <div className="ov">
       <SourceCard source={source} name={name} onNavigate={onNavigate} />
 
-      {/* Versions running inside — the differentiator, front and centre. */}
-      {ver?.ok && (ver.vllm_version || ver.sndr_version) && (
-        <div className="ov-versions">
-          <div className="ov-versions-head"><ShieldCheck size={13} /> <strong>Running inside</strong></div>
-          <div className="ov-versions-grid">
-            {ver.vllm_version && <div className="ov-vchip"><span>vLLM</span><b>{ver.vllm_version}</b></div>}
-            {ver.sndr_version && <div className="ov-vchip"><span>SNDR Core</span><b>{ver.sndr_version}</b></div>}
-            {ver.configs != null && <div className="ov-vchip"><span>Configs</span><b>{ver.configs}</b></div>}
-            {ver.patches != null && <div className="ov-vchip"><span>Patches</span><b>{ver.patches}</b></div>}
-          </div>
+      {ver?.ok && (ver.vllm_version || ver.sndr_version) ? (
+        <div className="ov-vrow">
+          {ver.vllm_version ? <span className="ov-vrow-chip vllm"><Box size={10} /> vLLM {shortVer(ver.vllm_version)}</span> : null}
+          {ver.sndr_version ? <span className="ov-vrow-chip sndr"><ShieldCheck size={10} /> SNDR {ver.sndr_version}</span> : null}
+          {ver.patches != null ? <span className="ov-vrow-chip"><Layers size={10} /> {ver.patches} patches</span> : null}
+          {ver.configs != null ? <span className="ov-vrow-chip"><Database size={10} /> {ver.configs} configs</span> : null}
         </div>
-      )}
+      ) : null}
 
-      {/* Quick actions row */}
-      <div className="ov-quick">
-        <button className="ghost-button" onClick={() => onOpen?.("logs")}><FileText size={13} /> Logs</button>
-        <button className="ghost-button" onClick={() => onOpen?.("exec")}><TerminalSquare size={13} /> Exec</button>
-        <button className="ghost-button" onClick={() => onOpen?.("stats")}><Cpu size={13} /> Stats</button>
-        <button className="ghost-button" onClick={() => onOpen?.("config")}><Settings size={13} /> Config &amp; edit</button>
-        <button className="ghost-button" onClick={() => onOpen?.("files")}><Folder size={13} /> Files</button>
+      <div className="ov-kpis">
+        <KpiTile icon={<Cpu size={12} />} label="CPU" value={online ? `${cpu.toFixed(0)}%` : "—"} spark={online ? hist.cpu : []} tone={cpu > 85 ? "hot" : cpu > 60 ? "warn" : "ok"} />
+        <KpiTile icon={<MemoryStick size={12} />} label="Memory" value={online ? `${memPct.toFixed(0)}%` : "—"} sub={online ? fmtBytes(s?.mem_usage) : undefined} spark={online ? hist.mem : []} tone={memPct > 85 ? "hot" : memPct > 60 ? "warn" : "ok"} />
+        <KpiTile icon={<Clock size={12} />} label="Uptime" value={online ? uptimeFrom(state.StartedAt) : "stopped"} />
+        <KpiTile icon={<RotateCw size={12} />} label="Restarts" value={String(restarts)} tone={restarts > 0 ? "warn" : undefined} />
+        <KpiTile icon={<Heart size={12} />} label="Health" value={health ?? "none"} tone={health === "healthy" ? "ok" : health === "unhealthy" ? "hot" : undefined} />
       </div>
 
-      {online && (
-        <div className="ov-live">
-          <div className="ov-metric"><div className="ov-metric-h"><Cpu size={13} /> CPU <b>{cpu.toFixed(1)}%</b></div><Sparkline data={hist.cpu} kind={pctClass(cpu)} tall /></div>
-          <div className="ov-metric"><div className="ov-metric-h"><MemoryStick size={13} /> Memory <b>{fmtBytes(s?.mem_usage)}{s?.mem_limit ? ` / ${fmtBytes(s?.mem_limit)}` : ""}</b></div><Sparkline data={hist.mem} kind={pctClass(memPct)} tall /></div>
-        </div>
-      )}
+      {isEngine && online ? <ContainerGpu source={source} /> : null}
 
-      {/* GPU telemetry for engine containers — our differentiator */}
-      {isEngine && online && <ContainerGpu source={source} />}
-
-      <div className="ov-cols">
-        <section className="ov-sec">
-          <h4><Box size={13} /> Identity &amp; runtime</h4>
-          <div className="kv">
-            <Row label="Image">{cfg.Image || inspect.Image}</Row>
-            <Row label="Container id">{inspect.Id ? String(inspect.Id).slice(0, 16) : "—"}</Row>
-            <Row label="Command"><code className="kv-cmd">{cmd}</code></Row>
-            <Row label="Created">{inspect.Created ? new Date(inspect.Created).toLocaleString() : "—"}</Row>
-            <Row label="Uptime">{online ? uptimeFrom(state.StartedAt) : "stopped"}</Row>
-            <Row label="Restart count">{inspect.RestartCount ?? 0}</Row>
-            <Row label="Restart policy">{restartPolicy}</Row>
-            <Row label="Health">{health ? <span className={`health-badge ${health}`}><Heart size={11} /> {health}</span> : "no healthcheck"}</Row>
-            <Row label="GPU access">{gpus ? <span className="ov-yes"><Cpu size={11} /> yes</span> : "no"}</Row>
-          </div>
-        </section>
-
-        <section className="ov-sec">
-          <h4><Network size={13} /> Network</h4>
-          <div className="kv">
-            <Row label="IP">{ip}</Row>
-            <Row label="Networks">{networks.join(", ") || "—"}</Row>
-            {s && <Row label="Network I/O">↓ {fmtBytes(s.net_rx)} / ↑ {fmtBytes(s.net_tx)}</Row>}
-            {s && <Row label="Block I/O">↓ {fmtBytes(s.blk_read)} / ↑ {fmtBytes(s.blk_write)}</Row>}
-            {s?.pids ? <Row label="Processes">{s.pids}</Row> : null}
-          </div>
-          <div className="ov-ports">
-            {ports.length ? ports.map((p, i) => (
-              <a key={i} className="ov-port" href={`http://${p.ip && p.ip !== "0.0.0.0" ? p.ip : "127.0.0.1"}:${p.host}`} target="_blank" rel="noreferrer" title={`${p.host} → ${p.container}`}>
-                <Link2 size={10} /> {p.host}<span className="muted"> → {p.container}</span>
-              </a>
-            )) : <span className="muted ov-noports">no published ports</span>}
-          </div>
-        </section>
+      <div className="ov-facts">
+        <Fact label="Image"><code title={cfg.Image || inspect.Image}>{cfg.Image || inspect.Image}</code></Fact>
+        <Fact label="Command"><code className="kv-cmd" title={cmd}>{cmd}</code></Fact>
+        <Fact label="Network">{ip}{networks.length ? ` · ${networks.join(", ")}` : ""}</Fact>
+        <Fact label="Ports">{ports.length ? (
+          <span className="ov-ports">{ports.map((p, i) => (
+            <a key={i} className="ov-port" href={`http://${p.ip && p.ip !== "0.0.0.0" ? p.ip : "127.0.0.1"}:${p.host}`} target="_blank" rel="noreferrer" title={`${p.host} → ${p.container}`}><Link2 size={9} /> {p.host}</a>
+          ))}</span>
+        ) : <span className="muted">none published</span>}</Fact>
+        <Fact label="Restart / GPU">{restartPolicy} · {gpus ? "GPU" : "no GPU"}</Fact>
+        {s ? <Fact label="I/O">net ↓{fmtBytes(s.net_rx)} ↑{fmtBytes(s.net_tx)} · blk ↓{fmtBytes(s.blk_read)} ↑{fmtBytes(s.blk_write)}{s.pids ? ` · ${s.pids} procs` : ""}</Fact> : null}
       </div>
 
-      <div className="ov-cols">
-        <section className="ov-sec">
-          <h4><HardDrive size={13} /> Mounts <span className="ov-count">{mounts.length}</span></h4>
-          {mounts.length ? (
-            <div className="ov-mounts">
-              {mounts.map((m, i) => (
-                <div key={i} className="ov-mount">
-                  <code className="ov-mount-dst">{m.dst}</code>
-                  <span className={`ov-mount-mode ${m.rw ? "rw" : "ro"}`}>{m.rw ? "rw" : "ro"}</span>
-                  <code className="ov-mount-src muted" title={m.src}>{m.src}</code>
-                </div>
-              ))}
-            </div>
-          ) : <span className="muted">none</span>}
-        </section>
-
-        <section className="ov-sec">
-          <h4><Database size={13} /> Labels <span className="ov-count">{labels.length}</span></h4>
-          {labels.length ? (
-            <div className="ov-labels">
-              {labels.slice(0, 8).map(([k, v]) => <span key={k} className="ov-label" title={`${k}=${v}`}><b>{k.split(".").pop()}</b> {v.slice(0, 28)}</span>)}
-              {labels.length > 8 && <span className="muted">+{labels.length - 8} more</span>}
-            </div>
-          ) : <span className="muted">none</span>}
-        </section>
+      <div className="ov-more-tabs">
+        <button className={more === "mounts" ? "active" : ""} onClick={() => setMore((m) => (m === "mounts" ? "" : "mounts"))}><HardDrive size={11} /> Mounts <span className="ov-count">{mounts.length}</span></button>
+        <button className={more === "env" ? "active" : ""} onClick={() => setMore((m) => (m === "env" ? "" : "env"))}><Settings size={11} /> Env <span className="ov-count">{env.length}</span>{sndrEnv.length ? <span className="ov-env-sndr">{sndrEnv.length}</span> : null}</button>
+        <button className={more === "labels" ? "active" : ""} onClick={() => setMore((m) => (m === "labels" ? "" : "labels"))}><Database size={11} /> Labels <span className="ov-count">{labels.length}</span></button>
       </div>
 
-      <section className="ov-sec">
-        <h4 role="button" tabIndex={0} className="ov-env-head" onClick={() => setEnvOpen((v) => !v)} onKeyDown={onKeyActivate(() => setEnvOpen((v) => !v))}>
-          <Settings size={13} /> Environment <span className="ov-count">{env.length}</span>
-          {sndrEnv.length > 0 && <span className="ov-env-sndr">{sndrEnv.length} SNDR flags</span>}
-          <ChevronRight size={14} className={`ov-env-caret ${envOpen ? "open" : ""}`} />
-        </h4>
-        {envOpen && (
-          <div className="ov-env">
-            {(env.length ? env : [["—", ""] as [string, string]]).map(([k, v]) => (
-              <div key={k} className={`ov-env-row ${/^(GENESIS|SNDR)_/.test(k) ? "sndr" : ""}`}><code className="ov-env-k">{k}</code><code className="ov-env-v">{v}</code></div>
-            ))}
-          </div>
-        )}
-      </section>
+      {more === "mounts" ? (
+        <div className="ov-panel ov-mounts">{mounts.length ? mounts.map((m, i) => (
+          <div key={i} className="ov-mount"><code className="ov-mount-dst">{m.dst}</code><span className={`ov-mount-mode ${m.rw ? "rw" : "ro"}`}>{m.rw ? "rw" : "ro"}</span><code className="ov-mount-src muted" title={m.src}>{m.src}</code></div>
+        )) : <span className="muted">none</span>}</div>
+      ) : null}
+      {more === "env" ? (
+        <div className="ov-panel ov-env">{(env.length ? env : [["—", ""] as [string, string]]).map(([k, v]) => (
+          <div key={k} className={`ov-env-row ${/^(GENESIS|SNDR)_/.test(k) ? "sndr" : ""}`}><code className="ov-env-k">{k}</code><code className="ov-env-v" title={v}>{v}</code></div>
+        ))}</div>
+      ) : null}
+      {more === "labels" ? (
+        <div className="ov-panel ov-labels">{labels.length ? labels.map(([k, v]) => <span key={k} className="ov-label" title={`${k}=${v}`}><b>{k.split(".").pop()}</b> {v.slice(0, 32)}</span>) : <span className="muted">none</span>}</div>
+      ) : null}
     </div>
   );
 }
@@ -1356,42 +1310,18 @@ function ExecTab({ source, name }: { source: ContainerSource; name: string }) {
   );
 }
 
-// Project versions running INSIDE the container — SNDR Core + vLLM build +
-// builtin-config / patch-registry counts — introspected on demand. The probe
-// imports vLLM in-container, so it's heavy: auto-run once for online containers,
-// refreshable by hand.
-function ContainerVersions({ source, name, online }: { source: ContainerSource; name: string; online: boolean }) {
-  const [state, setState] = useState<HostSndrState | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const load = useCallback(() => {
-    setLoading(true); setErr(null);
-    api.containerSndrState(source, name)
-      .then((s) => { setState(s); if (!s.ok && s.error) setErr(s.error); })
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
-  }, [source, name]);
-  useEffect(() => { if (online) load(); else setState(null); }, [online, load]);
-
-  if (!online && !state) return null;
+// Project versions running INSIDE the container — fed from the page's single
+// (cached) sndr-state fetch, so it renders the moment that resolves and never
+// re-probes.
+function ContainerVersions({ state }: { state: HostSndrState | null }) {
+  if (!state?.ok) return null;
   return (
     <div className="cpage-versions">
-      <span className="cpage-versions-label">Versions</span>
-      {loading && !state ? (
-        <span className="muted"><Loader2 size={12} className="spin" /> probing…</span>
-      ) : state?.ok ? (
-        <>
-          <span className="ver-chip">SNDR {state.sndr_version ?? "—"}</span>
-          <span className="ver-chip">vLLM {state.vllm_version ?? "—"}</span>
-          {state.configs != null && <span className="ver-chip">{state.configs} configs</span>}
-          {state.patches != null && <span className="ver-chip">{state.patches} patches</span>}
-        </>
-      ) : (
-        <span className="muted">{err ?? "no SNDR runtime in this container"}</span>
-      )}
-      <button className="ghost-button cpage-versions-refresh" onClick={load} disabled={loading} title="Re-probe versions">
-        <RefreshCw size={12} /> {loading ? "…" : "Refresh"}
-      </button>
+      <span className="cpage-versions-label">Running</span>
+      <span className="ver-chip">vLLM {state.vllm_version ?? "—"}</span>
+      <span className="ver-chip">SNDR {state.sndr_version ?? "—"}</span>
+      {state.configs != null && <span className="ver-chip">{state.configs} configs</span>}
+      {state.patches != null && <span className="ver-chip">{state.patches} patches</span>}
     </div>
   );
 }
