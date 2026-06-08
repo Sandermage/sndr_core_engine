@@ -1195,6 +1195,12 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .preset-analytics-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: var(--gap); }
 [data-viewport="ultra"] .preset-analytics-kpis { grid-template-columns: repeat(auto-fit, minmax(120px, 160px)); justify-content: start; }
 .section-presets .preset-analytics-grid { grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); align-items: start; }
+.preset-analytics-heading { display: flex; align-items: baseline; gap: 8px; font-size: 14px; font-weight: 700; margin: var(--sp-3) 0 calc(var(--sp-2) * -1); }
+.preset-analytics-heading svg { color: var(--accent-text); align-self: center; }
+.preset-analytics-heading span { font-size: 11.5px; font-weight: 400; color: var(--text-muted); }
+/* Harmonize card heights — cap the chart/list area so a 20-row Fallback card
+   isn't triple the height of a 4-status one; the tall ones scroll. */
+.preset-analytics-grid .bar-list, .preset-analytics-grid .compact-list { max-height: 280px; overflow: auto; }
 
 .patch-summary-grid { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .patch-graph-grid { display: grid; gap: var(--sp-4); grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -2215,7 +2215,7 @@ function SectionWorkspace({
                       composed={composed}
                       onOpenCard={() => setPresetTab("selected")}
                       onEdit={() => setPresetTab("edit")}
-                      onPolicy={() => setPresetTab("policy")}
+                      onPolicy={() => setPresetTab("recommend")}
                       onLaunch={() => onSection("launch-plan")}
                     />
                   </div>
@@ -2224,19 +2224,67 @@ function SectionWorkspace({
             },
             {
               id: "recommend",
-              label: "Recommend",
+              label: "Recommend & analytics",
               icon: <Rocket size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title="Recommend a preset" icon={<Rocket size={18} />} desc="Rank presets for a workload + rig + concurrency target, then inspect the winner." wide>
-                    <PresetRecommendPanel
-                      hardwareOptions={Array.from(new Set((presets?.presets ?? []).map((preset) => preset.hardware))).filter(Boolean)}
-                      workloadCounts={overview?.catalog.workload_counts ?? {}}
-                      onSelect={(id) => { onPreset(id); setPresetTab("selected"); }}
-                    />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
+              render: () => {
+                const allPresets = presets?.presets ?? [];
+                const annotated = allPresets.filter((p) => p.has_card).length;
+                const benchProven = allPresets.filter((p) => asNumber(asRecord(p.card?.primary_metric).value) > 0).length;
+                const statusDist = countRecord(allPresets.map((p) => asText(p.card?.status, p.has_card ? "annotated" : "unannotated")));
+                const visibilityDist = countRecord(allPresets.filter((p) => p.has_card).map((p) => asText(p.card?.evidence_visibility, "unknown")));
+                const fallbacks = allPresets.filter((p) => p.card?.fallback_preset);
+                const bar = (counts: Record<string, number>): Array<[string, number, string]> => {
+                  const max = Math.max(1, ...Object.values(counts));
+                  return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round((v / max) * 100), String(v)]);
+                };
+                const kpis: Array<[string, number]> = [
+                  ["Presets", allPresets.length], ["Annotated", annotated], ["Bench-proven", benchProven],
+                  ["Fallbacks", fallbacks.length], ["Families", Object.keys(familyCounts).length], ["Workloads", Object.keys(workloadCounts).length]
+                ];
+                return (
+                <>
+                  <ModuleGrid>
+                    <ModuleCard title="Recommend a preset" icon={<Rocket size={18} />} desc="Rank presets for a workload + rig + concurrency target, then inspect the winner." wide>
+                      <PresetRecommendPanel
+                        hardwareOptions={Array.from(new Set((presets?.presets ?? []).map((preset) => preset.hardware))).filter(Boolean)}
+                        workloadCounts={overview?.catalog.workload_counts ?? {}}
+                        onSelect={(id) => { onPreset(id); setPresetTab("selected"); }}
+                      />
+                    </ModuleCard>
+                  </ModuleGrid>
+                  <div className="preset-analytics-heading"><BarChart3 size={15} /> Catalog analytics <span>policy, coverage and annotation across {allPresets.length} presets</span></div>
+                  <div className="preset-analytics-kpis">
+                    {kpis.map(([label, value]) => (
+                      <div className="preset-stat" key={label}><span className="preset-stat-value">{value}</span><span className="preset-stat-label">{label}</span></div>
+                    ))}
+                  </div>
+                  <ModuleGrid className="preset-analytics-grid">
+                    <ModuleCard title="Workload Policy" icon={<SlidersHorizontal size={18} />} desc={`Allow/deny for ${selectedPreset}.`}>
+                      <PresetPolicyGraph card={card} />
+                    </ModuleCard>
+                    <ModuleCard title="Status Distribution" icon={<ShieldCheck size={18} />} desc={`${annotated} annotated · ${Object.keys(statusDist).length} statuses`}>
+                      <BarList rows={bar(statusDist)} />
+                    </ModuleCard>
+                    <ModuleCard title="Evidence Visibility" icon={<FileText size={18} />} desc={`${Object.keys(visibilityDist).length} visibility level${Object.keys(visibilityDist).length === 1 ? "" : "s"}`}>
+                      {Object.keys(visibilityDist).length ? <BarList rows={bar(visibilityDist)} /> : <p className="muted">No annotated presets.</p>}
+                    </ModuleCard>
+                    <ModuleCard title="Workload Coverage" icon={<Layers3 size={18} />} desc={`${Object.keys(workloadCounts).length} workload classes`}>
+                      <BarList rows={bar(workloadCounts)} />
+                    </ModuleCard>
+                    <ModuleCard title="Family Coverage" icon={<Box size={18} />} desc={`${Object.keys(familyCounts).length} routing families`}>
+                      <BarList rows={bar(familyCounts)} />
+                    </ModuleCard>
+                    <ModuleCard title="Fallback Chains" icon={<GitBranch size={18} />} desc={`${fallbacks.length} of ${allPresets.length} presets`}>
+                      {fallbacks.length ? (
+                        <CompactList rows={fallbacks.map((p) => [p.id, `→ ${asText(p.card?.fallback_preset, "-")}`] as [string, string])} />
+                      ) : (
+                        <p className="muted">No fallback chains declared.</p>
+                      )}
+                    </ModuleCard>
+                  </ModuleGrid>
+                </>
+                );
+              }
             },
             {
               id: "selected",
@@ -2274,60 +2322,6 @@ function SectionWorkspace({
                   </ModuleCard>
                 </ModuleGrid>
               )
-            },
-            {
-              id: "policy",
-              label: "Policy & analytics",
-              icon: <BarChart3 size={15} />,
-              render: () => {
-                const allPresets = presets?.presets ?? [];
-                const annotated = allPresets.filter((p) => p.has_card).length;
-                const benchProven = allPresets.filter((p) => asNumber(asRecord(p.card?.primary_metric).value) > 0).length;
-                const statusDist = countRecord(allPresets.map((p) => asText(p.card?.status, p.has_card ? "annotated" : "unannotated")));
-                const visibilityDist = countRecord(allPresets.filter((p) => p.has_card).map((p) => asText(p.card?.evidence_visibility, "unknown")));
-                const fallbacks = allPresets.filter((p) => p.card?.fallback_preset);
-                const bar = (counts: Record<string, number>): Array<[string, number, string]> => {
-                  const max = Math.max(1, ...Object.values(counts));
-                  return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round((v / max) * 100), String(v)]);
-                };
-                const kpis: Array<[string, number]> = [
-                  ["Presets", allPresets.length], ["Annotated", annotated], ["Bench-proven", benchProven],
-                  ["Fallbacks", fallbacks.length], ["Families", Object.keys(familyCounts).length], ["Workloads", Object.keys(workloadCounts).length]
-                ];
-                return (
-                <>
-                  <div className="preset-analytics-kpis">
-                    {kpis.map(([label, value]) => (
-                      <div className="preset-stat" key={label}><span className="preset-stat-value">{value}</span><span className="preset-stat-label">{label}</span></div>
-                    ))}
-                  </div>
-                  <ModuleGrid className="preset-analytics-grid">
-                    <ModuleCard title="Workload Policy" icon={<SlidersHorizontal size={18} />} desc={`Allow/deny for ${selectedPreset}.`}>
-                      <PresetPolicyGraph card={card} />
-                    </ModuleCard>
-                    <ModuleCard title="Status Distribution" icon={<ShieldCheck size={18} />} desc={`${annotated} annotated · ${Object.keys(statusDist).length} statuses`}>
-                      <BarList rows={bar(statusDist)} />
-                    </ModuleCard>
-                    <ModuleCard title="Evidence Visibility" icon={<FileText size={18} />} desc={`${Object.keys(visibilityDist).length} visibility level${Object.keys(visibilityDist).length === 1 ? "" : "s"}`}>
-                      {Object.keys(visibilityDist).length ? <BarList rows={bar(visibilityDist)} /> : <p className="muted">No annotated presets.</p>}
-                    </ModuleCard>
-                    <ModuleCard title="Workload Coverage" icon={<Layers3 size={18} />} desc={`${Object.keys(workloadCounts).length} workload classes`}>
-                      <BarList rows={bar(workloadCounts)} />
-                    </ModuleCard>
-                    <ModuleCard title="Family Coverage" icon={<Box size={18} />} desc={`${Object.keys(familyCounts).length} routing families`}>
-                      <BarList rows={bar(familyCounts)} />
-                    </ModuleCard>
-                    <ModuleCard title="Fallback Chains" icon={<GitBranch size={18} />} desc={`${fallbacks.length} of ${allPresets.length} presets`}>
-                      {fallbacks.length ? (
-                        <CompactList rows={fallbacks.map((p) => [p.id, `→ ${asText(p.card?.fallback_preset, "-")}`] as [string, string])} />
-                      ) : (
-                        <p className="muted">No fallback chains declared.</p>
-                      )}
-                    </ModuleCard>
-                  </ModuleGrid>
-                </>
-                );
-              }
             }
           ]}
         />
