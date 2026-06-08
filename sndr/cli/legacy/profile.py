@@ -861,15 +861,26 @@ def render_profile_launcher(
         # as read-only and skips — Genesis hot-path patches stay inert.
         # Side effect: host overlay source files may be modified by
         # text-patches; markers + idempotency keep this safe + repeatable.
+        #
+        # v12.0 PATH UPDATE (2026-06-08): source paths moved from
+        # ``vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/``
+        # to the canonical ``sndr/engines/vllm/patches/attention/turboquant
+        # /overlays/pr42637/``. The legacy paths are 1KB re-export shims
+        # that import from the canonical location anyway; binding the
+        # shim into vllm site-packages would only expose the shim's
+        # ``from sndr...overlays.pr42637 import *`` to text_patcher
+        # (anchors live in the real module). Bind the canonical source
+        # files directly. Removes the last runtime dependency on the
+        # legacy ``vllm/sndr_core/`` tree.
         overlay_mounts = """\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/turboquant_attn.py:${TGT}/v1/attention/backends/turboquant_attn.py:rw \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/triton_turboquant_decode.py:${TGT}/v1/attention/ops/triton_turboquant_decode.py:rw \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/triton_turboquant_store.py:${TGT}/v1/attention/ops/triton_turboquant_store.py:rw \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/turboquant_config.py:${TGT}/model_executor/layers/quantization/turboquant/config.py:rw \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/kv_cache_interface.py:${TGT}/v1/kv_cache_interface.py:rw \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/kv_cache_utils.py:${TGT}/v1/core/kv_cache_utils.py:rw \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/single_type_kv_cache_manager.py:${TGT}/v1/core/single_type_kv_cache_manager.py:rw \\
-  -v ${GENESIS_REPO}/vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/block_pool.py:${TGT}/v1/core/block_pool.py:rw \\
+  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/turboquant_attn.py:${TGT}/v1/attention/backends/turboquant_attn.py:rw \\
+  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/triton_turboquant_decode.py:${TGT}/v1/attention/ops/triton_turboquant_decode.py:rw \\
+  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/triton_turboquant_store.py:${TGT}/v1/attention/ops/triton_turboquant_store.py:rw \\
+  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/turboquant_config.py:${TGT}/model_executor/layers/quantization/turboquant/config.py:rw \\
+  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/kv_cache_interface.py:${TGT}/v1/kv_cache_interface.py:rw \\
+  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/kv_cache_utils.py:${TGT}/v1/core/kv_cache_utils.py:rw \\
+  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/single_type_kv_cache_manager.py:${TGT}/v1/core/single_type_kv_cache_manager.py:rw \\
+  -v ${GENESIS_REPO}/sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/block_pool.py:${TGT}/v1/core/block_pool.py:rw \\
 """
 
     # Validation receipt comment block.

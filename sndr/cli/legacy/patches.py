@@ -70,17 +70,17 @@ from . import _io
 # module reference doesn't get shadowed by its re-exported function of
 # the same name (e.g. ``product_api.patches.diff_upstream`` is both a
 # module and a function).
-from sndr.product_api.patches import bench_attach as _bench_attach
-from sndr.product_api.patches import bundles as _bundles
-from sndr.product_api.patches import diff_upstream as _diff_upstream
-from sndr.product_api.patches import doctor as _doctor
-from sndr.product_api.patches import explain as _explain
-from sndr.product_api.patches import listing as _listing
-from sndr.product_api.patches import plan as _plan
-from sndr.product_api.patches import pn95 as _pn95
-from sndr.product_api.patches import proof_status as _proof_status
-from sndr.product_api.patches import prove as _prove
-from sndr.product_api.patches import release_check as _release_check
+from sndr.product_api.legacy.patches import bench_attach as _bench_attach
+from sndr.product_api.legacy.patches import bundles as _bundles
+from sndr.product_api.legacy.patches import diff_upstream as _diff_upstream
+from sndr.product_api.legacy.patches import doctor as _doctor
+from sndr.product_api.legacy.patches import explain as _explain
+from sndr.product_api.legacy.patches import listing as _listing
+from sndr.product_api.legacy.patches import plan as _plan
+from sndr.product_api.legacy.patches import pn95 as _pn95
+from sndr.product_api.legacy.patches import proof_status as _proof_status
+from sndr.product_api.legacy.patches import prove as _prove
+from sndr.product_api.legacy.patches import release_check as _release_check
 
 
 # ─── `sndr patches list` ─────────────────────────────────────────────────

@@ -36,7 +36,7 @@ import json
 from dataclasses import asdict
 from typing import Any, Optional
 
-from sndr.product_api import presets as preset_api
+from sndr.product_api.legacy import presets as preset_api
 
 from . import _io
 
