@@ -3305,7 +3305,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 @media (prefers-reduced-motion: reduce) { .chat-typing span { animation: none; } }
 
 /* ── Chat v2: two-pane (conversations sidebar + chat) ──────────────────── */
-.chat2 { display: flex; gap: 12px; height: calc(100vh - 232px); min-height: 540px; }
+.chat2 { display: flex; gap: 12px; height: clamp(380px, 70vh, calc(100vh - 220px)); min-height: 0; }
 .chat2-side { flex: none; width: 224px; display: flex; flex-direction: column; gap: 8px; }
 .chat2-new { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 12px; border: 1px solid var(--accent); border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); font-size: 0.85rem; font-weight: 600; cursor: pointer; }
 .chat2-new:hover { background: var(--accent); color: var(--accent-contrast); }
