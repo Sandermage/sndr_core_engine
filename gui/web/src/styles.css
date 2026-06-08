@@ -1181,10 +1181,20 @@ pre, .code-block, .cli-mirror pre, .artifact-preview pre {
 .runtime-envelope { display: flex; flex-direction: column; gap: var(--sp-3); }
 
 .policy-graph { display: flex; flex-direction: column; gap: var(--sp-3); }
+.policy-summary { display: flex; gap: 8px; }
+.policy-count { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: var(--r-pill); border: 1px solid var(--border); }
+.policy-count.allow { color: var(--ok, #16a34a); border-color: color-mix(in srgb, var(--ok, #16a34a) 40%, transparent); background: var(--ok-soft); }
+.policy-count.deny { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: var(--danger-soft); }
 .policy-pill-grid { display: flex; flex-wrap: wrap; gap: 6px; }
 .policy-pill { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: var(--r-pill); }
 .policy-pill.allow { background: var(--ok-soft); color: var(--ok); }
 .policy-pill.deny { background: var(--danger-soft); color: var(--danger); }
+/* Preset Policy & analytics — compact KPI strip + dense multi-column card grid
+   (the panels are small distribution charts; pack them instead of stretching to
+   1500px on a wide screen). */
+.preset-analytics-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: var(--gap); }
+[data-viewport="ultra"] .preset-analytics-kpis { grid-template-columns: repeat(auto-fit, minmax(120px, 160px)); justify-content: start; }
+.section-presets .preset-analytics-grid { grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); align-items: start; }
 
 .patch-summary-grid { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .patch-graph-grid { display: grid; gap: var(--sp-4); grid-template-columns: repeat(2, minmax(0, 1fr)); }

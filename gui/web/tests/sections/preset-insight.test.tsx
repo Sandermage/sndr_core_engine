@@ -22,19 +22,15 @@ describe("RuntimeEnvelopePanel", () => {
 });
 
 describe("PresetPolicyGraph", () => {
-  it("renders allow/deny pills + status distribution", () => {
+  it("renders allow/deny pills with counts", () => {
     render(
       <PresetPolicyGraph
         card={{ workload_allow: ["free_chat"], workload_deny: ["tool_call"] }}
-        presets={[
-          { has_card: true, card: { status: "available" } },
-          { has_card: true, card: { status: "available" } },
-          { has_card: true, card: { status: "missing" } },
-        ] as never}
       />
     );
     expect(screen.getByText("free_chat")).toBeTruthy();
     expect(screen.getByText("tool_call")).toBeTruthy();
-    expect(screen.getByText("available")).toBeTruthy();
+    expect(screen.getByText("1 allowed")).toBeTruthy();
+    expect(screen.getByText("1 denied")).toBeTruthy();
   });
 });

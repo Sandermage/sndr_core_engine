@@ -3,8 +3,7 @@
 // metric bars + KV/spec rows) and the workload policy graph (allow/deny pills +
 // per-status distribution). Extracted from App.tsx (modularization) with no
 // behavior change.
-import { type PresetRecord } from "../api";
-import { asRecord, asNumber, asText, asStringArray, countRecord } from "../lib/coerce";
+import { asRecord, asNumber, asText, asStringArray } from "../lib/coerce";
 import { formatTokens } from "../lib/format";
 import { BarList } from "../components/charts";
 import { InfoRows } from "../components/primitives";
@@ -45,33 +44,26 @@ export function RuntimeEnvelopePanel({
 }
 
 export function PresetPolicyGraph({
-  card,
-  presets
+  card
 }: {
   card: Record<string, unknown>;
-  presets: PresetRecord[];
 }) {
   const allow = asStringArray(card.workload_allow);
   const deny = asStringArray(card.workload_deny);
-  const statuses = countRecord(
-    presets
-      .filter((preset) => preset.has_card)
-      .map((preset) => asText(preset.card?.status, "unknown"))
-  );
-  const maxStatus = Math.max(1, ...Object.values(statuses));
   return (
     <div className="policy-graph">
-      <div className="policy-pill-grid">
-        {allow.map((item) => <span className="policy-pill allow" key={`allow-${item}`}>{item}</span>)}
-        {deny.map((item) => <span className="policy-pill deny" key={`deny-${item}`}>{item}</span>)}
+      <div className="policy-summary">
+        <span className="policy-count allow">{allow.length} allowed</span>
+        <span className="policy-count deny">{deny.length} denied</span>
       </div>
-      <BarList
-        rows={Object.entries(statuses).map(([status, value]) => [
-          status,
-          Math.round((value / maxStatus) * 100),
-          String(value)
-        ])}
-      />
+      {allow.length || deny.length ? (
+        <div className="policy-pill-grid">
+          {allow.map((item) => <span className="policy-pill allow" key={`allow-${item}`}>{item}</span>)}
+          {deny.map((item) => <span className="policy-pill deny" key={`deny-${item}`}>{item}</span>)}
+        </div>
+      ) : (
+        <p className="muted">No explicit workload policy — every workload is allowed.</p>
+      )}
     </div>
   );
 }

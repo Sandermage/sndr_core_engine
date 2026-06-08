@@ -2281,6 +2281,8 @@ function SectionWorkspace({
               icon: <BarChart3 size={15} />,
               render: () => {
                 const allPresets = presets?.presets ?? [];
+                const annotated = allPresets.filter((p) => p.has_card).length;
+                const benchProven = allPresets.filter((p) => asNumber(asRecord(p.card?.primary_metric).value) > 0).length;
                 const statusDist = countRecord(allPresets.map((p) => asText(p.card?.status, p.has_card ? "annotated" : "unannotated")));
                 const visibilityDist = countRecord(allPresets.filter((p) => p.has_card).map((p) => asText(p.card?.evidence_visibility, "unknown")));
                 const fallbacks = allPresets.filter((p) => p.card?.fallback_preset);
@@ -2288,31 +2290,42 @@ function SectionWorkspace({
                   const max = Math.max(1, ...Object.values(counts));
                   return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round((v / max) * 100), String(v)]);
                 };
+                const kpis: Array<[string, number]> = [
+                  ["Presets", allPresets.length], ["Annotated", annotated], ["Bench-proven", benchProven],
+                  ["Fallbacks", fallbacks.length], ["Families", Object.keys(familyCounts).length], ["Workloads", Object.keys(workloadCounts).length]
+                ];
                 return (
-                <ModuleGrid>
-                  <ModuleCard title="Workload Policy" icon={<SlidersHorizontal size={18} />} desc={`Allow/deny rules for ${selectedPreset}.`} wide>
-                    <PresetPolicyGraph card={card} presets={allPresets} />
-                  </ModuleCard>
-                  <ModuleCard title="Status Distribution" icon={<ShieldCheck size={18} />} desc="Production readiness across the catalog.">
-                    <BarList rows={bar(statusDist)} />
-                  </ModuleCard>
-                  <ModuleCard title="Evidence Visibility" icon={<FileText size={18} />} desc="How evidence is published across annotated presets.">
-                    {Object.keys(visibilityDist).length ? <BarList rows={bar(visibilityDist)} /> : <p className="muted">No annotated presets.</p>}
-                  </ModuleCard>
-                  <ModuleCard title="Workload Coverage" icon={<Layers3 size={18} />} desc="Presets allowing each workload (catalog-wide).">
-                    <BarList rows={bar(workloadCounts)} />
-                  </ModuleCard>
-                  <ModuleCard title="Family Coverage" icon={<Box size={18} />} desc="Presets per routing family.">
-                    <BarList rows={bar(familyCounts)} />
-                  </ModuleCard>
-                  <ModuleCard title="Fallback Chains" icon={<GitBranch size={18} />} desc="Presets that declare a fallback target.">
-                    {fallbacks.length ? (
-                      <CompactList rows={fallbacks.map((p) => [p.id, `→ ${asText(p.card?.fallback_preset, "-")}`] as [string, string])} />
-                    ) : (
-                      <p className="muted">No fallback chains declared.</p>
-                    )}
-                  </ModuleCard>
-                </ModuleGrid>
+                <>
+                  <div className="preset-analytics-kpis">
+                    {kpis.map(([label, value]) => (
+                      <div className="preset-stat" key={label}><span className="preset-stat-value">{value}</span><span className="preset-stat-label">{label}</span></div>
+                    ))}
+                  </div>
+                  <ModuleGrid className="preset-analytics-grid">
+                    <ModuleCard title="Workload Policy" icon={<SlidersHorizontal size={18} />} desc={`Allow/deny for ${selectedPreset}.`}>
+                      <PresetPolicyGraph card={card} />
+                    </ModuleCard>
+                    <ModuleCard title="Status Distribution" icon={<ShieldCheck size={18} />} desc={`${annotated} annotated · ${Object.keys(statusDist).length} statuses`}>
+                      <BarList rows={bar(statusDist)} />
+                    </ModuleCard>
+                    <ModuleCard title="Evidence Visibility" icon={<FileText size={18} />} desc={`${Object.keys(visibilityDist).length} visibility level${Object.keys(visibilityDist).length === 1 ? "" : "s"}`}>
+                      {Object.keys(visibilityDist).length ? <BarList rows={bar(visibilityDist)} /> : <p className="muted">No annotated presets.</p>}
+                    </ModuleCard>
+                    <ModuleCard title="Workload Coverage" icon={<Layers3 size={18} />} desc={`${Object.keys(workloadCounts).length} workload classes`}>
+                      <BarList rows={bar(workloadCounts)} />
+                    </ModuleCard>
+                    <ModuleCard title="Family Coverage" icon={<Box size={18} />} desc={`${Object.keys(familyCounts).length} routing families`}>
+                      <BarList rows={bar(familyCounts)} />
+                    </ModuleCard>
+                    <ModuleCard title="Fallback Chains" icon={<GitBranch size={18} />} desc={`${fallbacks.length} of ${allPresets.length} presets`}>
+                      {fallbacks.length ? (
+                        <CompactList rows={fallbacks.map((p) => [p.id, `→ ${asText(p.card?.fallback_preset, "-")}`] as [string, string])} />
+                      ) : (
+                        <p className="muted">No fallback chains declared.</p>
+                      )}
+                    </ModuleCard>
+                  </ModuleGrid>
+                </>
                 );
               }
             }
