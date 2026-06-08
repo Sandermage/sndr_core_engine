@@ -87,6 +87,7 @@ enable_chunked_prefill: true
 dtype: float16
 enforce_eager: false
 disable_custom_all_reduce: true
+disable_log_stats: true              # true (default) = --disable-log-stats; set false to expose live vLLM /metrics (GUI Inference panel). Also a rig sizing / profile sizing_override knob.
 language_model_only: true
 trust_remote_code: true
 enable_auto_tool_choice: true
