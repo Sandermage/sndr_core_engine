@@ -2,10 +2,10 @@
 // Hermetic API fixtures for CI. The real Control Center talks to the read-only
 // daemon (:8765); in CI there is no daemon, so we intercept every /api/** call
 // and serve a minimal valid-shaped response. Fixture shapes live in the shared
-// ../src/test/fixtures-data module (also used by the jsdom shell test) so the
+// ../tests/test/fixtures-data module (also used by the jsdom shell test) so the
 // two never drift; here we only map request URLs to those shapes.
 import type { Page, Route } from "@playwright/test";
-import { RESPONSES, URL_TABLE } from "../src/test/fixtures-data";
+import { RESPONSES, URL_TABLE } from "../tests/test/fixtures-data";
 
 /** Install a catch-all /api/** route on the page that serves the fixtures. */
 export async function mockApi(page: Page): Promise<void> {

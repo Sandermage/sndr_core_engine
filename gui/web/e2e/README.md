@@ -5,7 +5,7 @@ Two tiers, by design — they answer different questions and run in different pl
 ## 1. Hermetic tier (CI) — `hermetic.spec.ts`
 
 No backend. Every `/api/**` call is mocked from `fixtures.ts` (shapes shared with
-the jsdom shell test via `../src/test/fixtures-data.ts`), and the run is against
+the jsdom shell test via `../tests/test/fixtures-data.ts`), and the run is against
 `vite preview` of the production bundle.
 
 ```bash
