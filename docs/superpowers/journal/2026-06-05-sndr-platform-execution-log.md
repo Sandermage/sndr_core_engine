@@ -1987,3 +1987,127 @@ is isolated, the production 35B + 27B can't be moved off the
 Production 35B is on ``start_35b_NO_PN300_PN302.sh`` with HTTP 200
 verified. No changes pending on this front from this session.
 
+
+---
+
+## 2026-06-08 (cont.) — Deep regression audit: what's actually live on 35B
+
+User asked specifically: where did the speedup get lost? Expected
+241+, currently measuring 211. The deep audit below covers each
+hot-path patch + whether it actually engages at runtime.
+
+### Steady-state confirmed at 211 TPS — within historical band
+
+* ``genesis_bench_suite --quick`` (3 runs × 5 prompts × 1024 tokens):
+  **214.16 TPS** (CV 0.060, n=15).
+* Same harness, --runs 5: **211.43 TPS** (CV 0.071, n=25).
+* ``bench_decode_tpot_clean_ab`` (3 trials × 5 prompts × 1024):
+  **183.6 TPS mean** (CV 0.079, n=15) — note this bench's std is
+  15 TPS because the per-prompt range is 165-217.
+
+Historical canonical band for the same image / pin / launcher:
+**211 – 219 TPS** (multiple runs documented in this journal). Today's
+211 sits at the lower end of the band but is within CV.
+
+### Hot-path patch effectiveness — what's ON vs OFF vs no-op
+
+| Patch | Status | Notes |
+|---|---|---|
+| **P67 / P67b** TQ multi-query kernel for spec-decode K+1 | ✓ APPLIED + env-enabled + ``kernel_built: True`` | Routes to upstream Genesis-merged kernel via ``GENESIS_P67_USE_UPSTREAM=1``. The local-fork path (``=0``) was the "quality mirage" rolled back 2026-04-28. Today's setting is correct. |
+| **PN95** tier-aware KV cache | ✓ APPLIED + TierManager actually installed | ``register_kv_caches lazy-init from tier_configs/a5000-2x-tier-aware.yaml: installed=True, TierManager=set``. But ``n_pages_total: 0`` — TierManager has nothing to manage because the 1024-token benches don't fill KV beyond the demote threshold. Effective only on long-context or sustained-load workloads. |
+| **PN116 / PN118 / PN119** TurboQuant prefill / workspace / GQA | ✓ APPLIED | All three say ``applied`` and show the modified anchor body. |
+| **PN286** FA layout revert for SM 8.6 | ✓ APPLIED | "Expected: +9 % TPS recovery on MTP K=3 hybrid". Recorded. |
+| **PN125** Qwen3.5/3.6 hybrid ``verify_and_update_config`` hook | ✓ APPLIED | ``[Genesis PN125] hybrid Qwen3.5/3.6 FULL_AND_PIECEWISE installer wired``. |
+| **PN59** Streaming-GDN orchestrator | ✓ APPLIED | Engages on single-seq long-T workloads. |
+| **PN126 / PN127 / PN128 / PN129 / PN130** warmup orchestrator | ✓ APPLIED but PN128 covers 2/4 of its targets | See JIT-warmup gap section below. |
+| **PN302** Genesis model profile init | ✗ SKIPPED (env not set on this launcher) | Provides downstream patches with hardware/architecture hints. Operator's previous experiments tied this to a stability issue → off in ``NO_PN300_PN302``. |
+| **PN300** Universal Triton autotune wrapper | ✗ SKIPPED (correctly) | A separate bench in this session set ``PN300=1`` via ``ARCH.sh`` — TPS dropped 5 (214 → 206), JIT warnings grew 5 → 8. ``NO_PN300_PN302`` is the operator-validated baseline. |
+| **PN298 / PN299** FLA arch-aware NUM_WARPS prune | ✗ SKIPPED | These need ``PN296`` (and effectively PN302) to set the SM-8.6 max-warps env first; absent that, the patches are runtime no-ops. |
+| **SNDR_MTP_DYNAMIC_K_001** per-seq adaptive K MTP (port of vllm#26504) | ✗ SKIPPED | Phase 5 bench on 27B-multiconc reported NOT_SIGNIFICANT (p ≈ 0.9). Untested on single-conc 35B. Documented as a candidate but never validated in production. |
+
+### Partial-apply tail
+
+Genesis Results from the boot summary::
+
+    83 applied, 129 skipped, 1 failed, 1 ⚠️ partial-apply warning
+
+The one ``failed`` is the documented retired ``G4_05`` stub. The
+``partial-apply`` warning is the meta-warning that ``SNDR_MTP_DYNAMIC_K_001``
+is off and the operator may want to read the design doc — it does not
+indicate anchor drift.
+
+Three sub-patches "anchor not found — soft skip" without crashing the
+parent::
+
+    P12  p12_serving_layer_hooks    (tool-call cosmetics, perf-irrelevant)
+    P27  p27_nonstream_return_baseline  (BEFORE-THINK fallback, perf-irrelevant)
+    P5   p5_import_math             (KV cache page-size unification, perf-irrelevant)
+
+None of these are on the perf hot path. P5 in particular only
+modifies KV-page-size constants which are unchanged at runtime
+unless allocator topology changes.
+
+### The real cold-start gap (unchanged from earlier audit)
+
+PN128 reports ``num_reqs=1: 2/4 kernels warmed``. The MTP-specific
+gates (kernel 3: ``method != 'dflash' and rejected/masked masks
+present``; kernel 4: ``num_spec_tokens > 1 and not parallel_drafting``)
+skip *the kernel variants actually used by the MTP K=3 inference path*.
+The first user request therefore pays 5–8 JIT compilations
+(``_tq_grouped_decode_stage1``, ``_zero_kv_blocks_kernel``,
+``_compute_slot_mapping_kernel``, ``eagle_step_slot_mapping_metadata_kernel``,
+``expand_kernel`` — repeatedly observed in the same 35B logs across
+multiple reboots).
+
+A client-side TPS averager that includes the first 1–3 requests will
+report a number several times lower than the steady-state 211 because
+each JIT spike steals ~1–3 s of decode wall-time. That is consistent
+with a "+10 TPS vs vanilla" measurement on cold start vs the
+"+50–60 TPS vs vanilla" steady-state.
+
+### Why my v12 migration did NOT cause a steady-state regression
+
+Verified::
+
+    >>> from sndr.engines.vllm.kernels_legacy.p67_multi_query_kernel import (
+    ...     _tq_grouped_decode_stage1,
+    ... )
+    >>> from vllm.sndr_core.kernels.p67_multi_query_kernel import (
+    ...     _tq_grouped_decode_stage1 as _legacy,
+    ... )
+    >>> _tq_grouped_decode_stage1 is _legacy
+    True
+
+The legacy shim module copies the *same* function references via
+``globals().update(vars(canonical))``. Triton sees a single autotune
+key regardless of import path. The new ``from sndr.engines.vllm.<…>``
+text injected into vllm source by my migrator resolves to the *same*
+object — no fragmentation, no second autotune table.
+
+### Actionable items the user can pick from
+
+1. **Loosen PN128 gates** so MTP K=3 actually warms ``eagle_step_*``
+   and ``_tq_grouped_decode_stage1`` for the operative
+   ``(num_reqs, BLOCK_SIZE_TOKENS)`` combinations. This is the only
+   change that meaningfully recovers cold-start TPS without changing
+   any decode-path semantics. Closes the perceived "+10 vs +60"
+   gap because that gap is mostly the first 1–3 requests' JIT cost.
+
+2. **Enable ``GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001=1``** and rerun
+   the canonical bench. The earlier Phase 5 result on 27B-multiconc
+   was NOT_SIGNIFICANT, but the patch was never bench-validated on
+   single-conc 35B at K=3 — that is the regime the user's claim is
+   about.
+
+3. **Enable PN302 + PN296** together and accept the small chance
+   of the historic stability issue that produced the
+   ``NO_PN300_PN302`` launcher name. With PN302 the downstream
+   PN298/PN299 FLA autotune prune actually takes effect. Worth a
+   re-measure since the issue documented in the launcher name was
+   about PN300 (which we are leaving off) — PN302 alone may be
+   safe today.
+
+Decision: presented to the operator. Not applied in this session because
+each option requires a restart-and-bench cycle the user has not yet
+approved.
+
