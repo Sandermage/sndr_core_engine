@@ -3977,6 +3977,102 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN296"],
     },
+    "PN349": {
+        "title": "Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797)",
+        "tier": "community",
+        "family": "model_compat.gemma4",
+        "env_flag": "GENESIS_ENABLE_PN349",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.pn349_gemma4_kv_shared_norm_skip",
+        "lifecycle": "experimental",
+        "category": "correctness",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#44797 (Anai-Guo, "
+            "2026-06-08). Gemma4Attention.__init__ unconditionally registers "
+            "self.k_norm and self.v_norm RMSNorm Modules for every layer, "
+            "but KV-shared layers (last N layers per num_kv_shared_layers) "
+            "have checkpoints that OMIT k_norm/v_norm weights. Result: "
+            "Module params allocated at default-init (ones for k_norm, "
+            "no-weight for v_norm), never receive checkpoint values, "
+            "silent ~1% logit drift class if a future refactor accidentally "
+            "removes the `if not self.is_kv_shared_layer:` guard around "
+            "norm application (line 522 in our pin). Fix: 2 sub-patches: "
+            "(1) drop unconditional K/V norm allocation (keep q_norm), "
+            "(2) gated K/V norm allocation AFTER is_kv_shared_layer is "
+            "determined — None for shared, RMSNorm for owners. Direct "
+            "hit for Gemma 4 26B-A4B + 31B PROD; no-op on Qwen3.6. "
+            "Composes with all G4_* patches (different concerns: AWQ, "
+            "FP8 block, Marlin K-pad, etc.). Risk: low — behaviour-"
+            "preserved on both branches."
+        ),
+        "upstream_pr": 44797,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["G4_01", "G4_02", "G4_06", "G4_19"],
+    },
+    "PN351": {
+        "title": "Triton unified_attention head_dim>=512 tune (vendor of OPEN vllm#43257)",
+        "tier": "community",
+        "family": "attention",
+        "env_flag": "GENESIS_ENABLE_PN351",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.pn351_triton_unified_attention_large_head",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#43257 (ShuaiShao93, "
+            "2026-05-20). triton_unified_attention.py hardcodes num_warps=4 "
+            "+ num_stages=3 + 32-tile for all head sizes. For head_dim >= "
+            "512 (Gemma 4 31B + 26B-A4B global-attention heads) this hits "
+            "a register cliff that caps occupancy at 6-13% (Hopper) "
+            "instead of 25-40% achievable with num_warps=8 + num_stages=2 "
+            "+ 64-tile. Same architectural class on Ampere SM 8.6 (A5000). "
+            "Two sub-patches: (1) _get_tile_size head_dim>=512 + FP8 + "
+            "prefill branch returns 64 (vs default 32); (2) kernel launch "
+            "adds num_warps=8/num_stages=2 conditional on head_dim>=512. "
+            "FP8 gate keeps shmem within ~99 KiB opt-in budget. Expected "
+            "-3-7% decode_TPOT on Gemma 4 31B FP8 prefill. No-op on "
+            "Qwen3.6 head_dim=128. Composes with PN29x + PN345 (different "
+            "files); composes with G4_* family. Risk: LOW (gated path)."
+        ),
+        "upstream_pr": 43257,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN29", "PN298", "PN299", "PN299B", "PN299C", "PN299D", "PN299E", "PN345"],
+    },
+    "PN361": {
+        "title": "Spec-decode fail-closed on missing draft probs (vendor of OPEN vllm#44869)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN361",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn361_spec_decode_fail_closed_missing_probs",
+        "lifecycle": "experimental",
+        "category": "observability",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#44869 (masterFoad, "
+            "2026-06-08). GPUModelRunner._get_spec_decode_draft_probs "
+            "today silently returns None + logs warning when a request "
+            "with drafted tokens has no cached draft-probability row → "
+            "caller silently downgrades from probabilistic to greedy "
+            "rejection sampler. Our PROD spec_decode_config sets "
+            "draft_sample_method=probabilistic so the silent fallback "
+            "downgrades operator intent without notification. 20-LOC "
+            "fix replaces logger.warning + return None with raise "
+            "RuntimeError carrying a precise message. Fail-closed pattern: "
+            "converts silent quality regression to visible exception. "
+            "Disable via GENESIS_DISABLE_PN361=1 if PROD needs the "
+            "silent-fallback behaviour. Composes with PN340 + PN341 "
+            "(different methods in same file)."
+        ),
+        "upstream_pr": 44869,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN340", "PN341"],
+    },
     "PN346": {
         "title": "Mamba/GDN cache hit boundary fix for MTP + prefix caching (vendor of OPEN vllm#43650)",
         "tier": "community",

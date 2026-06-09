@@ -5111,6 +5111,66 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     return _skipped("PN299 FLA multi arch warps", detail)
 
 
+@register_patch("PN349 Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797)")
+def apply_patch_N349_gemma4_kv_shared_norm_skip() -> PatchResult:
+    """PN349: vendors OPEN PR vllm#44797. Gemma4Attention.__init__ now
+    skips k_norm + v_norm RMSNorm allocation on KV-shared layers
+    (their checkpoints omit k_norm/v_norm weights). Eliminates
+    default-init silent ~1% logit drift class + ~80 KiB VRAM dead
+    weight. No-op on Qwen3.6 (file-scoped to gemma4.py). Direct hit
+    for Gemma 4 26B-A4B + 31B PROD. Opt-in via GENESIS_ENABLE_PN349=1."""
+    from sndr.engines.vllm.patches.model_compat.gemma4 import (
+        pn349_gemma4_kv_shared_norm_skip as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN349 Gemma 4 KV-shared norm skip", detail)
+    if status == "failed":
+        return _failed("PN349 Gemma 4 KV-shared norm skip", detail)
+    return _skipped("PN349 Gemma 4 KV-shared norm skip", detail)
+
+
+@register_patch("PN351 Triton unified_attention head_dim>=512 tune (vendor of OPEN vllm#43257)")
+def apply_patch_N351_triton_unified_attention_large_head() -> PatchResult:
+    """PN351: vendors OPEN PR vllm#43257. _get_tile_size + kernel
+    launch in triton_unified_attention.py now gate on head_size >= 512
+    + FP8 prefill — use 64-tile + num_warps=8 + num_stages=2 to relieve
+    register pressure on Gemma 4 31B (head_dim=512) and 26B-A4B
+    global-attention heads. Author Hopper bench: occupancy 6-13% →
+    25-40%. Expected -3-7% decode_TPOT on Gemma 4 31B FP8 prefill.
+    No-op on Qwen3.6 head_dim=128 (default 4w/3s preserved). Opt-in
+    via GENESIS_ENABLE_PN351=1."""
+    from sndr.engines.vllm.patches.attention import (
+        pn351_triton_unified_attention_large_head as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN351 Triton unified_attention large head", detail)
+    if status == "failed":
+        return _failed("PN351 Triton unified_attention large head", detail)
+    return _skipped("PN351 Triton unified_attention large head", detail)
+
+
+@register_patch("PN361 Spec-decode fail-closed on missing draft probs (vendor of OPEN vllm#44869)")
+def apply_patch_N361_spec_decode_fail_closed_missing_probs() -> PatchResult:
+    """PN361: vendors OPEN PR vllm#44869. _get_spec_decode_draft_probs
+    in gpu_model_runner.py now raises RuntimeError instead of silently
+    falling back to greedy rejection when draft prob row is missing.
+    Defensive observability — surfaces silent quality regression as
+    visible exception. Our PROD spec_decode_config sets draft_sample_method:
+    probabilistic, so the silent-fallback today downgrades operator
+    intent without notification. Opt-in via GENESIS_ENABLE_PN361=1."""
+    from sndr.engines.vllm.patches.spec_decode import (
+        pn361_spec_decode_fail_closed_missing_probs as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN361 Spec-decode fail-closed missing probs", detail)
+    if status == "failed":
+        return _failed("PN361 Spec-decode fail-closed missing probs", detail)
+    return _skipped("PN361 Spec-decode fail-closed missing probs", detail)
+
+
 @register_patch("PN346 Mamba/GDN cache hit boundary fix (vendor of OPEN vllm#43650)")
 def apply_patch_N346_mamba_mtp_apc_boundary() -> PatchResult:
     """PN346: vendors OPEN PR vllm#43650 (6-LOC fix). Adds a boundary
