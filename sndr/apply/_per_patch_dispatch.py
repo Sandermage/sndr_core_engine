@@ -5111,6 +5111,67 @@ def apply_patch_N299_fla_multi_arch_warps() -> PatchResult:
     return _skipped("PN299 FLA multi arch warps", detail)
 
 
+@register_patch("PN346 Mamba/GDN cache hit boundary fix (vendor of OPEN vllm#43650)")
+def apply_patch_N346_mamba_mtp_apc_boundary() -> PatchResult:
+    """PN346: vendors OPEN PR vllm#43650 (6-LOC fix). Adds a boundary
+    guard to MambaManager.find_longest_cache_hit so the search loop
+    skips the final state block when drop_eagle_block=True (EAGLE/MTP
+    active). Recovers the ~1.6 pp GSM8K accuracy drop on Qwen3.5/3.6 +
+    MTP K=3 + --enable-prefix-caching overlap path (silently shipped
+    today on our exact PROD config). Closes vllm#43559. Opt-in via
+    GENESIS_ENABLE_PN346=1. Composes with PN340 + PN341 + PN345."""
+    from sndr.engines.vllm.patches.kv_cache import (
+        pn346_mamba_mtp_apc_boundary as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN346 Mamba/GDN cache hit boundary", detail)
+    if status == "failed":
+        return _failed("PN346 Mamba/GDN cache hit boundary", detail)
+    return _skipped("PN346 Mamba/GDN cache hit boundary", detail)
+
+
+@register_patch("PN347 MarlinFP8 N==K correctness fix (vendor of OPEN vllm#44113)")
+def apply_patch_N347_marlin_fp8_nk_correctness() -> PatchResult:
+    """PN347: vendors OPEN PR vllm#44113. Replaces the buggy
+    `w_q.shape != (in, out)` shape-tuple guard in
+    MarlinFP8ScaledMMLinearKernel.process_weights_after_loading with a
+    `w_q.is_contiguous()` check. Fixes silent data corruption on SQUARE
+    (N==K) weights on sm_75-88 — direct hit for Qwen3.6 27B (4096²)
+    and 35B (5120²) attn projections on our A5000 (sm_86). CORRECTNESS
+    fix, not perf. Opt-in via GENESIS_ENABLE_PN347=1. Closes vllm#44110."""
+    from sndr.engines.vllm.patches.quantization.marlin import (
+        pn347_marlin_fp8_nk_correctness as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN347 MarlinFP8 N==K correctness", detail)
+    if status == "failed":
+        return _failed("PN347 MarlinFP8 N==K correctness", detail)
+    return _skipped("PN347 MarlinFP8 N==K correctness", detail)
+
+
+@register_patch("PN348 Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644)")
+def apply_patch_N348_qwen3_mtp_backbone_dedup() -> PatchResult:
+    """PN348: vendors OPEN PR vllm#44644 (Qwen3.5/3.6 MTP backbone dedup).
+    Three sub-patches on models/qwen3_5_mtp.py replace unconditional
+    embed_tokens + lm_head allocation with a share predicate gated on
+    text_config.mtp_use_dedicated_embeddings=False AND PP world_size==1.
+    Our Qwen3.6-35B-A3B-FP8 config opts in → frees ~1 GiB/worker, ~2 GiB
+    cluster-wide on 2× A5000 TP=2. Qwen3.6 reuses Qwen3.5 model class
+    (per harsha20032020 PR #44720 already in pin). Opt-in via
+    GENESIS_ENABLE_PN348=1. Composes with PN108+PN133+PN290+PN340+PN341+PN77."""
+    from sndr.engines.vllm.patches.spec_decode import (
+        pn348_qwen3_mtp_backbone_dedup as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN348 Qwen3 MTP backbone dedup", detail)
+    if status == "failed":
+        return _failed("PN348 Qwen3 MTP backbone dedup", detail)
+    return _skipped("PN348 Qwen3 MTP backbone dedup", detail)
+
+
 @register_patch("PN345 Shmem-aware Triton autotune pruner (vendor of OPEN vllm#43047)")
 def apply_patch_N345_shmem_aware_autotune_pruner() -> PatchResult:
     """PN345: vendors OPEN PR vllm#43047 (shmem-aware autotune pruner)

@@ -3977,6 +3977,132 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN296"],
     },
+    "PN346": {
+        "title": "Mamba/GDN cache hit boundary fix for MTP + prefix caching (vendor of OPEN vllm#43650)",
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN346",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.kv_cache.pn346_mamba_mtp_apc_boundary",
+        "lifecycle": "experimental",
+        "category": "correctness",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#43650 (6-LOC). "
+            "MambaManager.find_longest_cache_hit (line 986 in our pin) "
+            "matches the full prefix-cache hit window when EAGLE/MTP is "
+            "active, but its state-cache layout is [null, ..., null, "
+            "state_block] — the LAST block IS the SSM state itself. "
+            "FullAttentionManager handles this by popping the last matched "
+            "block AFTER the loop (safe for token KVs). Mamba can't pop — "
+            "that destroys the state — so it leaves the partially-accepted "
+            "final state block in the result, which the MTP verify step "
+            "reads stale → quality drift. PR author measured silent "
+            "-1.6 pp GSM8K accuracy on Qwen3.5/3.6-35B-A3B FP8 + MTP K=3 + "
+            "--enable-prefix-caching (our exact PROD shape). The 6-LOC "
+            "fix walks max_num_blocks back by 1 BEFORE the search loop "
+            "when drop_eagle_block=True, so the final state block is "
+            "never considered. Trade-off: small QPS regression on the "
+            "prefix-cache overlap path (author: 18.6 QPS → 15.5; output "
+            "TPS 2494 → 1983) in exchange for accuracy parity with the "
+            "no-MTP-no-APC baseline (0.916 → 0.914). Trans-anchor note: "
+            "the upstream PR uses local var name 'use_eagle' (author's "
+            "fork); our pin (= upstream main) uses 'drop_eagle_block' as "
+            "the function parameter — Genesis patch uses the parameter "
+            "name that actually exists in our file. Composes with PN340 "
+            "+ PN341 + PN345 (different files / layers); independent of "
+            "P83 (FullAttentionManager path, currently opt-in OFF)."
+        ),
+        "upstream_pr": 43650,
+        "upstream_pr_relationship": "backport",
+        "upstream_issue": 43559,
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN340", "PN341", "PN345"],
+    },
+    "PN347": {
+        "title": "MarlinFP8 N==K silent corruption correctness fix (vendor of OPEN vllm#44113)",
+        "tier": "community",
+        "family": "quantization.marlin",
+        "env_flag": "GENESIS_ENABLE_PN347",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.quantization.marlin.pn347_marlin_fp8_nk_correctness",
+        "lifecycle": "experimental",
+        "category": "correctness",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#44113 (shernshiou, "
+            "Closes vllm#44110). MarlinFP8ScaledMMLinearKernel."
+            "process_weights_after_loading uses a shape-tuple guard "
+            "`if w_q.shape != (in, out)` to decide whether to transpose "
+            "the weight to (K, N). For SQUARE weights (N == K) the "
+            "tuples (N, K) and (K, N) are identical → the transpose is "
+            "silently skipped, regardless of actual memory layout → "
+            "Marlin multiplies a wrongly-laid-out weight → silent data "
+            "corruption. Bug fires on sm_75-88 (no native FP8 compute, "
+            "Marlin emulates) — our 2× A5000 (sm_86) is in scope. Direct "
+            "hit for Qwen3.6 27B INT4 (square 4096² q/k/v/o_proj) and "
+            "35B FP8 (square 5120² q/o_proj). Upstream A40 test result: "
+            "BF16 output coherent vs FP8 output total token-stream "
+            "collapse (',,,,,,,,...') on square layers. Fix: switch to "
+            "`w_q.is_contiguous()` (a `.t()` view is non-contiguous "
+            "regardless of square shape). One method, ~6 net lines. "
+            "Risk: LOW (behaviour-preserved on non-square, on modelopt "
+            "pre-transposed input, on sm_89+, on block-quant branch). "
+            "Composes with PN77 (FP8 lm_head — different layer), PN81 "
+            "(FP8 block-scaled — different branch), PN91/PN91B (INT4 "
+            "AutoRound — different scheme), P87 (Marlin INT4 sub-tile "
+            "pad — different kernel). CORRECTNESS category — not perf — "
+            "quality gain is restoration, not improvement."
+        ),
+        "upstream_pr": 44113,
+        "upstream_pr_relationship": "backport",
+        "upstream_issue": 44110,
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN77", "PN81", "PN91", "PN91B", "P87"],
+    },
+    "PN348": {
+        "title": "Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644) — ~1 GiB/worker freed",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN348",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn348_qwen3_mtp_backbone_dedup",
+        "lifecycle": "experimental",
+        "category": "memory_savings",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#44644 (Ntropic / "
+            "Michael Schilling, 2026-06-05). Qwen3.5 MTP backbone in "
+            "models/qwen3_5_mtp.py unconditionally allocates a fresh "
+            "VocabParallelEmbedding for embed_tokens AND a fresh "
+            "ParallelLMHead, even when the model config opts into sharing "
+            "with the target via text_config.mtp_use_dedicated_embeddings"
+            "=False (which Qwen3.5/3.6 checkpoints do — VERIFIED on our "
+            "PROD Qwen3.6-35B-A3B-FP8 config.json). At "
+            "vocab=248320 × hidden=2048 × 2B BF16 = 1.0 GiB per tensor, "
+            "duplicate per worker = ~1.0 GiB embed_tokens + lm_head "
+            "(TP-sharded). On 2× A5000 (24 GB ea) this is ~2 GiB freed "
+            "cluster-wide — non-trivial headroom on our perpetually-tight "
+            "Qwen3.6-35B + MTP K=3 stack. Three sub-patches text-patch "
+            "qwen3_5_mtp.py: (1) embed_tokens predicate, "
+            "(2) lm_head PPMissingLayer fallthrough, (3) weight-loader "
+            "skip for embed_tokens/lm_head names when sharing. Required "
+            "gate: PP=1 (matches our TP=2 PP=1). Per harsha20032020 "
+            "PR #44720 already in pin, Qwen3.6 reuses the "
+            "Qwen3_5MoeForConditionalGeneration class — single-file "
+            "patch covers both 27B and 35B SKUs. Composes with PN108, "
+            "PN133, PN290, PN340, PN341 (MTP runtime patches in "
+            "different files; no anchor overlap). Composes with PN77 "
+            "FP8 lm_head (targets the TARGET model's lm_head dtype; "
+            "this gates lm_head EXISTENCE on MTP backbone). Risk: low "
+            "(getattr default preserves legacy path on models that "
+            "don't opt in; world_size==1 gate preserves legacy on PP>1)."
+        ),
+        "upstream_pr": 44644,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN108", "PN133", "PN290", "PN340", "PN341", "PN77"],
+    },
     "PN345": {
         "title": "Shmem-aware Triton autotune pruner (vendor of vllm#43047) for FLA chunk kernels",
         "tier": "community",
