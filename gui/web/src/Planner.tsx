@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, CircleAlert, GitCompare, Save, Server, Sparkles, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { api, type CalcModels, type HostModelConfig, type HostProfile, type KvCalcResult, type KvEstimate, type BaselineDiff, type BaselineRec, type BaselineTrend } from "./api";
+import { tr } from "./i18n";
 
 const fmtGb = (m: number) => (Math.abs(m) >= 1024 ? `${(m / 1024).toFixed(1)} GB` : `${Math.round(m)} MB`);
 const fmtCtx = (c: number) => (c >= 1000 ? `${Math.round(c / 1000)}K` : String(c));
@@ -95,55 +96,55 @@ export function KvCalcPanel() {
   return (
     <div className="kvcalc">
       <div className="kvcalc-controls">
-        <label className="param-field"><span><Server size={11} /> Rig (from host card)</span>
+        <label className="param-field"><span><Server size={11} /> {tr("Rig (from host card)")}</span>
           <select value={hostId} onChange={(e) => applyHostRig(e.target.value)}>
-            <option value="">— manual / custom rig —</option>
-            {hosts.map((h) => <option key={h.id} value={h.id}>{h.label}{h.gpu_vram_mib ? ` · ${h.gpus}× ${Math.round(h.gpu_vram_mib / 1024)}GB ${h.gpu_arch || ""}` : " · run Discover first"}</option>)}
+            <option value="">{tr("— manual / custom rig —")}</option>
+            {hosts.map((h) => <option key={h.id} value={h.id}>{h.label}{h.gpu_vram_mib ? ` · ${h.gpus}× ${Math.round(h.gpu_vram_mib / 1024)}GB ${h.gpu_arch || ""}` : ` · ${tr("run Discover first")}`}</option>)}
           </select>
         </label>
-        <label className="param-field"><span>Model {real?.ok && <em className="kvcalc-real-tag">real dims</em>}</span>
+        <label className="param-field"><span>{tr("Model")} {real?.ok && <em className="kvcalc-real-tag">{tr("real dims")}</em>}</span>
           {real?.ok
-            ? <button className="ghost-button kvcalc-clear-real" onClick={() => setReal(null)} title="Back to curated model">{real.model_path?.split("/").pop()} ✕</button>
+            ? <button className="ghost-button kvcalc-clear-real" onClick={() => setReal(null)} title={tr("Back to curated model")}>{real.model_path?.split("/").pop()} ✕</button>
             : <select value={modelId} onChange={(e) => setModelId(e.target.value)}>
                 {meta && Object.entries(meta.models).map(([k, m]) => <option key={k} value={k}>{m.name}{m.is_moe ? " · MoE" : ""}</option>)}
               </select>}
         </label>
-        <label className="param-field"><span>Real architecture</span>
-          <button className="ghost-button" onClick={() => void loadReal()} disabled={!hostId || loadingReal} title="SSH to the host and read the running model's real config.json + exact weight size">
-            {loadingReal ? "Reading…" : "Load from engine"}
+        <label className="param-field"><span>{tr("Real architecture")}</span>
+          <button className="ghost-button" onClick={() => void loadReal()} disabled={!hostId || loadingReal} title={tr("SSH to the host and read the running model's real config.json + exact weight size")}>
+            {loadingReal ? tr("Reading…") : tr("Load from engine")}
           </button>
         </label>
-        <label className="param-field"><span>KV dtype</span>
+        <label className="param-field"><span>{tr("KV dtype")}</span>
           <select value={kvDtype} onChange={(e) => setKvDtype(e.target.value)}>
             {dtypeOpts.map((d) => <option key={d} value={d}>{d} ({meta!.kv_dtypes[d]} B/elem)</option>)}
           </select>
         </label>
-        <label className="param-field"><span>Tensor parallel</span><input type="number" min={1} max={8} value={tp} onChange={(e) => setTp(Math.max(1, Number(e.target.value) || 1))} /></label>
-        <label className="param-field"><span>VRAM / GPU (MiB)</span><input type="number" value={vram} onChange={(e) => { setVram(Number(e.target.value) || 24564); setHostId(""); }} /></label>
+        <label className="param-field"><span>{tr("Tensor parallel")}</span><input type="number" min={1} max={8} value={tp} onChange={(e) => setTp(Math.max(1, Number(e.target.value) || 1))} /></label>
+        <label className="param-field"><span>{tr("VRAM / GPU (MiB)")}</span><input type="number" value={vram} onChange={(e) => { setVram(Number(e.target.value) || 24564); setHostId(""); }} /></label>
         <label className="param-field"><span>gpu_mem_util</span><input type="number" min={0.1} max={1} step={0.01} value={util} onChange={(e) => setUtil(Number(e.target.value) || 0.9)} /></label>
-        <label className="param-field"><span>Concurrency</span><input type="number" min={1} value={conc} onChange={(e) => setConc(Math.max(1, Number(e.target.value) || 1))} /></label>
-        <label className="param-field"><span title="Calibrate overhead to a real measured VRAM total">Measured GB (optional)</span><input type="number" step={0.1} value={measured} placeholder="e.g. 14.0" onChange={(e) => setMeasured(e.target.value ? String(Number(e.target.value) * 1024) : "")} /></label>
+        <label className="param-field"><span>{tr("Concurrency")}</span><input type="number" min={1} value={conc} onChange={(e) => setConc(Math.max(1, Number(e.target.value) || 1))} /></label>
+        <label className="param-field"><span title={tr("Calibrate overhead to a real measured VRAM total")}>{tr("Measured GB (optional)")}</span><input type="number" step={0.1} value={measured} placeholder={tr("e.g. 14.0")} onChange={(e) => setMeasured(e.target.value ? String(Number(e.target.value) * 1024) : "")} /></label>
       </div>
 
-      {real && !real.ok && <div className="kvcalc-real-err"><AlertTriangle size={13} /> Couldn't read the model: {real.error}. Pick a host that has run Discover and whose engine is up.</div>}
+      {real && !real.ok && <div className="kvcalc-real-err"><AlertTriangle size={13} /> {tr("Couldn't read the model:")} {real.error}. {tr("Pick a host that has run Discover and whose engine is up.")}</div>}
       {real?.ok && (
         <div className="kvcalc-real">
           <CheckCircle2 size={14} />
-          <span><strong>Real dims from engine</strong> — {real.model_type} · {real.num_layers} layers · {real.num_kv_heads} KV-heads · head_dim {real.head_dim}{real.is_moe ? ` · MoE ${real.num_experts}e` : ""}{real.sliding_window ? ` · sliding window ${fmtCtx(real.sliding_window)} (${real.global_layers} global layers)` : ""} · weights {real.weights_bytes ? fmtGb(real.weights_bytes / (1024 * 1024)) : "?"} {real.quant_method} · native {fmtCtx(real.max_context || 0)}</span>
+          <span><strong>{tr("Real dims from engine")}</strong> — {real.model_type} · {real.num_layers} {tr("layers")} · {real.num_kv_heads} {tr("KV-heads")} · head_dim {real.head_dim}{real.is_moe ? ` · MoE ${real.num_experts}e` : ""}{real.sliding_window ? ` · ${tr("sliding window")} ${fmtCtx(real.sliding_window)} (${real.global_layers} ${tr("global layers")})` : ""} · {tr("weights")} {real.weights_bytes ? fmtGb(real.weights_bytes / (1024 * 1024)) : "?"} {real.quant_method} · {tr("native")} {fmtCtx(real.max_context || 0)}</span>
         </div>
       )}
       {rec && (
         <div className={`kvcalc-rec ${rec.fits ? "ok" : "bad"}`}>
           {rec.fits ? <Sparkles size={16} /> : <AlertTriangle size={16} />}
           <div className="kvcalc-rec-text">
-            <strong>{rec.fits ? `Recommended: ${rec.kv_dtype} KV` : "Won't fit at this target"}</strong>
+            <strong>{rec.fits ? `${tr("Recommended:")} ${rec.kv_dtype} KV` : tr("Won't fit at this target")}</strong>
             <span>{rec.fits
-              ? `${calc!.arch.name} on ${tp}× ${Math.round(vram / 1024)}GB at ${fmtCtx(ctx)} ctx · ${conc} conc → fits with ${fmtGb(rec.headroom_mib)} headroom (max ${fmtCtx(rec.max_context)}).`
-              : `Even ${calc!.recommendation[calc!.recommendation.length - 1].kv_dtype} KV is over budget at ${fmtCtx(ctx)} ctx · ${conc} conc. Lower context/concurrency, add a GPU (TP), or use a smaller model.`}</span>
+              ? `${calc!.arch.name} ${tr("on")} ${tp}× ${Math.round(vram / 1024)}GB ${tr("at")} ${fmtCtx(ctx)} ctx · ${conc} ${tr("conc")} → ${tr("fits with")} ${fmtGb(rec.headroom_mib)} ${tr("headroom")} (${tr("max")} ${fmtCtx(rec.max_context)}).`
+              : `${tr("Even")} ${calc!.recommendation[calc!.recommendation.length - 1].kv_dtype} KV ${tr("is over budget at")} ${fmtCtx(ctx)} ctx · ${conc} ${tr("conc")}. ${tr("Lower context/concurrency, add a GPU (TP), or use a smaller model.")}`}</span>
           </div>
           <div className="kvcalc-rec-opts">
             {calc!.recommendation.map((o) => (
-              <button key={o.kv_dtype} className={`kvcalc-rec-opt ${o.kv_dtype === kvDtype ? "active" : ""} ${o.fits ? "fits" : "over"}`} onClick={() => setKvDtype(o.kv_dtype)} title={`${o.kv_dtype}: ${o.fits ? fmtGb(o.headroom_mib) + " free" : fmtGb(-o.headroom_mib) + " over"}`}>
+              <button key={o.kv_dtype} className={`kvcalc-rec-opt ${o.kv_dtype === kvDtype ? "active" : ""} ${o.fits ? "fits" : "over"}`} onClick={() => setKvDtype(o.kv_dtype)} title={`${o.kv_dtype}: ${o.fits ? fmtGb(o.headroom_mib) + " " + tr("free") : fmtGb(-o.headroom_mib) + " " + tr("over")}`}>
                 {o.fits ? <CheckCircle2 size={11} /> : <CircleAlert size={11} />}{o.kv_dtype}
               </button>
             ))}
@@ -152,19 +153,19 @@ export function KvCalcPanel() {
       )}
 
       <label className="kvcalc-slider">
-        <div className="kvcalc-slider-head"><span>Context</span><strong>{ctx.toLocaleString()} tokens</strong>{r && <span className={`kvcalc-verdict ${r.fits ? "ok" : "bad"}`}>{r.fits ? <><CheckCircle2 size={13} /> fits · {fmtGb(r.headroom_mib)} free</> : <><AlertTriangle size={13} /> {fmtGb(-r.headroom_mib)} over budget</>}</span>}</div>
+        <div className="kvcalc-slider-head"><span>{tr("Context")}</span><strong>{ctx.toLocaleString()} {tr("tokens")}</strong>{r && <span className={`kvcalc-verdict ${r.fits ? "ok" : "bad"}`}>{r.fits ? <><CheckCircle2 size={13} /> {tr("fits")} · {fmtGb(r.headroom_mib)} {tr("free")}</> : <><AlertTriangle size={13} /> {fmtGb(-r.headroom_mib)} {tr("over budget")}</>}</span>}</div>
         <input type="range" min={1024} max={Math.max(262144, (r?.max_context ?? 0) + 8192)} step={1024} value={ctx} onChange={(e) => setCtx(Number(e.target.value))} />
       </label>
 
       {calc && r && (
         <>
           <div className="kpi-strip">
-            <Kpi label="Weights / GPU" value={fmtGb(r.weights_per_gpu_mib)} />
-            <Kpi label="KV cache / GPU" value={fmtGb(r.kv_per_gpu_mib)} tone="accent" />
-            <Kpi label="Overhead" value={fmtGb(r.overhead_mib)} />
-            <Kpi label="Total / GPU" value={fmtGb(r.total_per_gpu_mib)} sub={`of ${fmtGb(r.budget_per_gpu_mib)} budget`} />
-            <Kpi label="Headroom" value={r.fits ? fmtGb(r.headroom_mib) : `−${fmtGb(-r.headroom_mib)}`} tone={r.fits ? "ok" : "bad"} />
-            <Kpi label="Max context" value={`${fmtCtx(r.max_context)} tok`} />
+            <Kpi label={tr("Weights / GPU")} value={fmtGb(r.weights_per_gpu_mib)} />
+            <Kpi label={tr("KV cache / GPU")} value={fmtGb(r.kv_per_gpu_mib)} tone="accent" />
+            <Kpi label={tr("Overhead")} value={fmtGb(r.overhead_mib)} />
+            <Kpi label={tr("Total / GPU")} value={fmtGb(r.total_per_gpu_mib)} sub={`${tr("of")} ${fmtGb(r.budget_per_gpu_mib)} ${tr("budget")}`} />
+            <Kpi label={tr("Headroom")} value={r.fits ? fmtGb(r.headroom_mib) : `−${fmtGb(-r.headroom_mib)}`} tone={r.fits ? "ok" : "bad"} />
+            <Kpi label={tr("Max context")} value={`${fmtCtx(r.max_context)} ${tr("tok")}`} />
           </div>
           <VramChart curve={calc.curve} budget={budget} ctx={ctx} maxCtx={r.max_context} />
           <div className="kvcalc-grid">
@@ -175,7 +176,7 @@ export function KvCalcPanel() {
           </div>
           {calc.arch_advice && calc.arch_advice.recommendations.length > 0 && (
             <div className="kvcalc-advice">
-              <span className="kvcalc-label"><AlertTriangle size={12} /> Arch-aware notes — {calc.arch_advice.arch}</span>
+              <span className="kvcalc-label"><AlertTriangle size={12} /> {tr("Arch-aware notes")} — {calc.arch_advice.arch}</span>
               {calc.arch_advice.recommendations.map((a, i) => <span key={i} className={`kvcalc-arch-rec ${a.level}`}>{a.level === "ok" ? <CheckCircle2 size={11} /> : <CircleAlert size={11} />} {a.text}</span>)}
             </div>
           )}
@@ -211,8 +212,8 @@ function VramChart({ curve, budget, ctx, maxCtx }: { curve: KvCalcResult["curve"
   return (
     <div className="vram-chart-wrap">
       <div className="vram-chart-head">
-        <span className="kvcalc-label">Per-GPU VRAM as context grows</span>
-        <span className="vram-chart-sub">weights + KV + overhead vs the GPU budget</span>
+        <span className="kvcalc-label">{tr("Per-GPU VRAM as context grows")}</span>
+        <span className="vram-chart-sub">{tr("weights + KV + overhead vs the GPU budget")}</span>
       </div>
       <svg className="vram-chart" viewBox={`0 0 ${W} ${H}`}>
         <defs>
@@ -226,22 +227,22 @@ function VramChart({ curve, budget, ctx, maxCtx }: { curve: KvCalcResult["curve"
         <path d={area(o, w)} fill="url(#g-overhead)" className="vc-line-overhead" />
         <path d={area((p) => p.kv_mib, (p) => p.weights_mib + p.overhead_mib)} fill="url(#g-kv)" className="vc-line-kv" />
         <line x1={L} y1={y(budget)} x2={W - R} y2={y(budget)} className="vc-budget" />
-        <text x={W - R} y={y(budget) - 5} className="vc-budget-lbl">budget {(budget / 1024).toFixed(1)}G</text>
-        {maxCtx > 0 && maxCtx <= maxX && <><line x1={x(maxCtx)} y1={T} x2={x(maxCtx)} y2={H - B} className="vc-maxctx" /><text x={x(maxCtx) + 4} y={T + 11} className="vc-maxctx-lbl">max {fmtCtx(maxCtx)}</text></>}
+        <text x={W - R} y={y(budget) - 5} className="vc-budget-lbl">{tr("budget")} {(budget / 1024).toFixed(1)}G</text>
+        {maxCtx > 0 && maxCtx <= maxX && <><line x1={x(maxCtx)} y1={T} x2={x(maxCtx)} y2={H - B} className="vc-maxctx" /><text x={x(maxCtx) + 4} y={T + 11} className="vc-maxctx-lbl">{tr("max")} {fmtCtx(maxCtx)}</text></>}
         {/* cursor + point + callout */}
         <line x1={cx} y1={T} x2={cx} y2={H - B} className="vc-cursor" />
         {cur && <circle cx={cx} cy={y(cur.total_mib)} r={4} className={`vc-dot ${over ? "over" : "ok"}`} />}
         {cur && (
           <g transform={`translate(${calloutLeft ? cx - 156 : cx + 10}, ${T + 6})`}>
             <rect width={146} height={74} rx={7} className="vc-callout" />
-            <text x={10} y={17} className="vc-callout-ctx">{fmtCtx(cur.context)} ctx · {(cur.total_mib / 1024).toFixed(1)}G total</text>
-            <text x={10} y={33} className="vc-callout-row"><tspan className="vc-sw-weights">■</tspan> weights {(cur.weights_mib / 1024).toFixed(1)}G</text>
+            <text x={10} y={17} className="vc-callout-ctx">{fmtCtx(cur.context)} ctx · {(cur.total_mib / 1024).toFixed(1)}G {tr("total")}</text>
+            <text x={10} y={33} className="vc-callout-row"><tspan className="vc-sw-weights">■</tspan> {tr("weights")} {(cur.weights_mib / 1024).toFixed(1)}G</text>
             <text x={10} y={48} className="vc-callout-row"><tspan className="vc-sw-kv">■</tspan> KV {(cur.kv_mib / 1024).toFixed(1)}G</text>
-            <text x={10} y={63} className="vc-callout-row"><tspan className="vc-sw-overhead">■</tspan> overhead {(cur.overhead_mib / 1024).toFixed(1)}G</text>
+            <text x={10} y={63} className="vc-callout-row"><tspan className="vc-sw-overhead">■</tspan> {tr("overhead")} {(cur.overhead_mib / 1024).toFixed(1)}G</text>
           </g>
         )}
       </svg>
-      <div className="vram-chart-legend"><span><i className="vc-weights" /> weights</span><span><i className="vc-kv" /> KV cache</span><span><i className="vc-overhead" /> overhead</span><span className="vc-legend-budget"><i /> budget</span></div>
+      <div className="vram-chart-legend"><span><i className="vc-weights" /> {tr("weights")}</span><span><i className="vc-kv" /> {tr("KV cache")}</span><span><i className="vc-overhead" /> {tr("overhead")}</span><span className="vc-legend-budget"><i /> {tr("budget")}</span></div>
     </div>
   );
 }
@@ -251,9 +252,9 @@ function VramChart({ curve, budget, ctx, maxCtx }: { curve: KvCalcResult["curve"
 // with utilisation % and headroom in the centre.
 function VramDonut({ r }: { r: KvEstimate }) {
   const segs = [
-    { key: "weights", label: "weights", val: r.weights_per_gpu_mib, cls: "dw" },
-    { key: "kv", label: "KV cache", val: r.kv_per_gpu_mib, cls: "dk" },
-    { key: "overhead", label: "overhead", val: r.overhead_mib, cls: "do" },
+    { key: "weights", label: tr("weights"), val: r.weights_per_gpu_mib, cls: "dw" },
+    { key: "kv", label: tr("KV cache"), val: r.kv_per_gpu_mib, cls: "dk" },
+    { key: "overhead", label: tr("overhead"), val: r.overhead_mib, cls: "do" },
   ];
   const used = Math.max(1, r.weights_per_gpu_mib + r.kv_per_gpu_mib + r.overhead_mib);
   const RAD = 52, C = 2 * Math.PI * RAD;
@@ -261,9 +262,9 @@ function VramDonut({ r }: { r: KvEstimate }) {
   let acc = 0;
   return (
     <div className="vram-donut-wrap">
-      <div className="kvcalc-label">VRAM composition at {fmtCtx(r.context)} ctx — what fills the budget</div>
+      <div className="kvcalc-label">{tr("VRAM composition at")} {fmtCtx(r.context)} {tr("ctx — what fills the budget")}</div>
       <div className="vram-donut">
-        <svg viewBox="0 0 140 140" role="img" aria-label={`VRAM utilisation ${util}%`}>
+        <svg viewBox="0 0 140 140" role="img" aria-label={`${tr("VRAM utilisation")} ${util}%`}>
           <g transform="rotate(-90 70 70)">
             <circle cx="70" cy="70" r={RAD} className="donut-track" />
             {segs.map((s) => {
@@ -275,11 +276,11 @@ function VramDonut({ r }: { r: KvEstimate }) {
             })}
           </g>
           <text x="70" y="66" className={`donut-pct ${r.fits ? "ok" : "bad"}`}>{util}%</text>
-          <text x="70" y="84" className="donut-sub">{r.fits ? `${fmtGb(r.headroom_mib)} free` : `${fmtGb(-r.headroom_mib)} over`}</text>
+          <text x="70" y="84" className="donut-sub">{r.fits ? `${fmtGb(r.headroom_mib)} ${tr("free")}` : `${fmtGb(-r.headroom_mib)} ${tr("over")}`}</text>
         </svg>
         <div className="donut-legend">
           {segs.map((s) => <span key={s.key}><i className={s.cls} /> {s.label} <b>{fmtGb(s.val)}</b></span>)}
-          <span><i className="db" /> budget <b>{fmtGb(r.budget_per_gpu_mib)}</b></span>
+          <span><i className="db" /> {tr("budget")} <b>{fmtGb(r.budget_per_gpu_mib)}</b></span>
         </div>
       </div>
     </div>
@@ -292,7 +293,7 @@ function FitHeatmap({ env, ctx, conc, onPick }: { env: KvCalcResult["envelope"];
   const nearestCtx = env.contexts.reduce((a, b) => Math.abs(b - ctx) < Math.abs(a - ctx) ? b : a, env.contexts[0]);
   return (
     <div className="heatmap">
-      <div className="kvcalc-label">Operating envelope — does it fit? (concurrency × context)</div>
+      <div className="kvcalc-label">{tr("Operating envelope — does it fit? (concurrency × context)")}</div>
       <div className="heatmap-grid" style={{ gridTemplateColumns: `40px repeat(${env.contexts.length}, 1fr)` }}>
         <span className="heatmap-corner" />
         {env.contexts.map((c) => <span key={c} className="heatmap-xlabel">{fmtCtx(c)}</span>)}
@@ -303,14 +304,14 @@ function FitHeatmap({ env, ctx, conc, onPick }: { env: KvCalcResult["envelope"];
               <span className="heatmap-ylabel">{k}×</span>
               {row.map((cell) => (
                 <button key={`${k}-${cell.context}`} className={`heatmap-cell ${cellColor(cell.headroom_mib)} ${cell.context === nearestCtx && k === conc ? "current" : ""}`}
-                  title={`${fmtCtx(cell.context)} ctx · ${k} conc → ${cell.fits ? fmtGb(cell.headroom_mib) + " free" : fmtGb(-cell.headroom_mib) + " over"}`}
+                  title={`${fmtCtx(cell.context)} ctx · ${k} ${tr("conc")} → ${cell.fits ? fmtGb(cell.headroom_mib) + " " + tr("free") : fmtGb(-cell.headroom_mib) + " " + tr("over")}`}
                   onClick={() => onPick(cell.context, k)} />
               ))}
             </Fragment>
           );
         })}
       </div>
-      <div className="heatmap-legend"><span className="good" /> roomy<span className="ok" /> fits<span className="tight" /> tight<span className="over" /> over</div>
+      <div className="heatmap-legend"><span className="good" /> {tr("roomy")}<span className="ok" /> {tr("fits")}<span className="tight" /> {tr("tight")}<span className="over" /> {tr("over")}</div>
     </div>
   );
 }
@@ -320,7 +321,7 @@ function DtypeBars({ byDtype, active, onPick }: { byDtype: Record<string, number
   const max = entries[0]?.[1] || 1;
   return (
     <div className="dtype-bars">
-      <div className="kvcalc-label">Max context by KV dtype</div>
+      <div className="kvcalc-label">{tr("Max context by KV dtype")}</div>
       {entries.map(([d, mc]) => (
         <button key={d} className={`dtype-bar-row ${d === active ? "active" : ""}`} onClick={() => onPick(d)}>
           <span className="dtype-bar-name">{d}</span>
@@ -339,7 +340,7 @@ function TpScalingBars({ byTp, activeTp, onPick }: { byTp: Record<string, number
   const max = Math.max(1, ...entries.map(([, v]) => v));
   return (
     <div className="dtype-bars tp-bars">
-      <div className="kvcalc-label">Max context by GPU count (tensor-parallel)</div>
+      <div className="kvcalc-label">{tr("Max context by GPU count (tensor-parallel)")}</div>
       {entries.map(([t, mc]) => (
         <button key={t} className={`dtype-bar-row ${t === activeTp ? "active" : ""}`} onClick={() => onPick(t)}>
           <span className="dtype-bar-name">{t}× GPU</span>
@@ -369,8 +370,8 @@ function BaselineTrendChart({ reloadKey }: { reloadKey: number }) {
   if (pts.length < 2) {
     return (
       <div className="baseline-trend">
-        <div className="baseline-trend-head"><strong>Regression trend</strong></div>
-        <div className="baseline-trend-empty muted">Save at least 2 baselines to chart how {data?.metric || "a metric"} moves run-over-run.</div>
+        <div className="baseline-trend-head"><strong>{tr("Regression trend")}</strong></div>
+        <div className="baseline-trend-empty muted">{tr("Save at least 2 baselines to chart how")} {data?.metric || tr("a metric")} {tr("moves run-over-run.")}</div>
       </div>
     );
   }
@@ -388,12 +389,12 @@ function BaselineTrendChart({ reloadKey }: { reloadKey: number }) {
   return (
     <div className="baseline-trend">
       <div className="baseline-trend-head">
-        <strong>Regression trend</strong>
-        <select value={metric} onChange={(e) => setMetric(e.target.value)} aria-label="metric">
+        <strong>{tr("Regression trend")}</strong>
+        <select value={metric} onChange={(e) => setMetric(e.target.value)} aria-label={tr("metric")}>
           {metrics.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
         <span className={`baseline-trend-delta ${tone}`}>
-          {delta > 0 ? "+" : ""}{delta.toFixed(1)}% over {pts.length} runs
+          {delta > 0 ? "+" : ""}{delta.toFixed(1)}% {tr("over")} {pts.length} {tr("runs")}
         </span>
       </div>
       <svg className={`baseline-trend-svg ${tone}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
@@ -427,27 +428,27 @@ export function BaselinePanel() {
   return (
     <div className="baseline-panel">
       <div className="baseline-bar">
-        <label className="param-field"><span>Baseline to diff against</span>
+        <label className="param-field"><span>{tr("Baseline to diff against")}</span>
           <select value={against} onChange={(e) => setAgainst(e.target.value)}>
-            <option value="">— pick a saved baseline —</option>
+            <option value="">{tr("— pick a saved baseline —")}</option>
             {list.map((b) => <option key={b.id} value={b.id}>{b.label} · {new Date(b.saved_at * 1000).toLocaleDateString()}</option>)}
           </select>
         </label>
-        <button className="ghost-button" onClick={() => void save()} title="Save the current result JSON as a baseline"><Save size={14} /> Save as baseline</button>
-        <button className="primary-action" onClick={() => void runDiff()} disabled={!against}><GitCompare size={14} /> Diff</button>
+        <button className="ghost-button" onClick={() => void save()} title={tr("Save the current result JSON as a baseline")}><Save size={14} /> {tr("Save as baseline")}</button>
+        <button className="primary-action" onClick={() => void runDiff()} disabled={!against}><GitCompare size={14} /> {tr("Diff")}</button>
       </div>
-      <label className="param-field"><span>Current result (bench/eval JSON)</span>
+      <label className="param-field"><span>{tr("Current result (bench/eval JSON)")}</span>
         <textarea className="baseline-draft" value={draft} onChange={(e) => setDraft(e.target.value)} rows={4} spellCheck={false} />
       </label>
       {err && <div className="baseline-err"><AlertTriangle size={13} /> {err}</div>}
       {list.length > 0 && (
         <div className="baseline-list">{list.map((b) => (
-          <span key={b.id} className="baseline-chip">{b.label}<button className="icon-only" onClick={() => void remove(b.id)} title="Delete"><Trash2 size={11} /></button></span>
+          <span key={b.id} className="baseline-chip">{b.label}<button className="icon-only" onClick={() => void remove(b.id)} title={tr("Delete")}><Trash2 size={11} /></button></span>
         ))}</div>
       )}
       {diff && (
         <div className={`baseline-diff ${diff.has_regression ? "regress" : diff.improved ? "improve" : "stable"}`}>
-          <div className="baseline-verdict"><strong>{diff.verdict}</strong> · {diff.regressed} regressed · {diff.improved} improved · exit {diff.exit_code}</div>
+          <div className="baseline-verdict"><strong>{diff.verdict}</strong> · {diff.regressed} {tr("regressed")} · {diff.improved} {tr("improved")} · {tr("exit")} {diff.exit_code}</div>
           {diff.scenarios.map((s) => (
             <div className="baseline-scn" key={s.name}>
               <div className="baseline-scn-head">{s.name} {s.status !== "compared" && <em>({s.status})</em>}</div>

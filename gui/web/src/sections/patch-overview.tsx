@@ -7,6 +7,7 @@ import { type PatchListResult, type PatchRow } from "../api";
 import { countRecord } from "../lib/coerce";
 import { SegmentBar, BarList, segmentsFromCounts } from "../components/charts";
 import { KpiGrid, CompactList } from "../components/primitives";
+import { tr } from "../i18n";
 
 export function PatchSummaryPanel({
   summary,
@@ -23,14 +24,14 @@ export function PatchSummaryPanel({
     <div className="patch-summary-grid">
       <KpiGrid
         rows={[
-          ["Registry", total],
-          ["Selected Plan", selectedCount || "-"],
-          ["Stable", summary?.lifecycle_counts.stable ?? 0],
-          ["Default Applied", summary?.production_default_counts.applied ?? 0]
+          [tr("Registry"), total],
+          [tr("Selected Plan"), selectedCount || "-"],
+          [tr("Stable"), summary?.lifecycle_counts.stable ?? 0],
+          [tr("Default Applied"), summary?.production_default_counts.applied ?? 0]
         ]}
       />
-      <CompactList rows={lifecycleRows.map(([key, value]) => [`lifecycle:${key}`, String(value)])} />
-      <CompactList rows={productionRows.map(([key, value]) => [`default:${key}`, String(value)])} />
+      <CompactList rows={lifecycleRows.map(([key, value]) => [`${tr("lifecycle")}:${key}`, String(value)])} />
+      <CompactList rows={productionRows.map(([key, value]) => [`${tr("default")}:${key}`, String(value)])} />
     </div>
   );
 }
@@ -54,19 +55,19 @@ export function PatchLifecycleGraph({
   return (
     <div className="patch-graph-grid">
       <section>
-        <strong>Lifecycle distribution</strong>
+        <strong>{tr("Lifecycle distribution")}</strong>
         <SegmentBar
           segments={segmentsFromCounts(lifecycle, lifecycleColors)}
           total={lifecycleTotal}
-          totalLabel="patches"
+          totalLabel={tr("patches")}
         />
       </section>
       <section>
-        <strong>Production default behavior</strong>
+        <strong>{tr("Production default behavior")}</strong>
         <SegmentBar
           segments={segmentsFromCounts(production, defaultColors)}
           total={productionTotal}
-          totalLabel="patches"
+          totalLabel={tr("patches")}
         />
       </section>
     </div>
@@ -74,12 +75,12 @@ export function PatchLifecycleGraph({
 }
 
 const IMPL_MEANING: Record<string, string> = {
-  full: "complete overlay — observable ON/OFF difference",
-  partial: "some anchors wired; not yet fully effective",
-  marker_only: "registry marker, no runtime code",
-  placeholder: "reserved id, implementation pending",
-  experimental: "wired but unproven; needs evidence",
-  retired: "superseded/removed, kept for audit"
+  full: tr("complete overlay — observable ON/OFF difference"),
+  partial: tr("some anchors wired; not yet fully effective"),
+  marker_only: tr("registry marker, no runtime code"),
+  placeholder: tr("reserved id, implementation pending"),
+  experimental: tr("wired but unproven; needs evidence"),
+  retired: tr("superseded/removed, kept for audit")
 };
 
 function patchBar(counts: Record<string, number>, limit = 99): Array<[string, number, string]> {
@@ -104,20 +105,20 @@ export function PatchRegistryInsight({
     <div className="patch-insight">
       <div className="patch-insight-grid">
         <div>
-          <h5>Implementation status</h5>
+          <h5>{tr("Implementation status")}</h5>
           <BarList rows={patchBar(implCounts)} />
         </div>
         <div>
-          <h5>Families <em>{Object.keys(familyCounts).length}</em></h5>
+          <h5>{tr("Families")} <em>{Object.keys(familyCounts).length}</em></h5>
           <BarList rows={patchBar(familyCounts, 12)} />
         </div>
       </div>
       <div className="patch-legend">
-        <h5>What the values mean</h5>
+        <h5>{tr("What the values mean")}</h5>
         <dl>
-          <div><dt>Lifecycle</dt><dd><b>stable</b> safe default · <b>experimental</b> needs evidence · <b>research</b> idea-only · <b>legacy</b> older but kept · <b>retired</b> audit-only · <b>coordinator</b> orchestrates others.</dd></div>
-          <div><dt>Production default</dt><dd><b>applied</b> on with real code · <b>marker</b> on but no effect · <b>opt-in</b> off by default · <b>blocked</b> not production-safe.</dd></div>
-          <div><dt>Implementation</dt><dd>{Object.entries(IMPL_MEANING).map(([k, v]) => `${k}: ${v}`).join(" · ")}.</dd></div>
+          <div><dt>{tr("Lifecycle")}</dt><dd><b>stable</b> {tr("safe default")} · <b>experimental</b> {tr("needs evidence")} · <b>research</b> {tr("idea-only")} · <b>legacy</b> {tr("older but kept")} · <b>retired</b> {tr("audit-only")} · <b>coordinator</b> {tr("orchestrates others.")}</dd></div>
+          <div><dt>{tr("Production default")}</dt><dd><b>applied</b> {tr("on with real code")} · <b>marker</b> {tr("on but no effect")} · <b>opt-in</b> {tr("off by default")} · <b>blocked</b> {tr("not production-safe.")}</dd></div>
+          <div><dt>{tr("Implementation")}</dt><dd>{Object.entries(IMPL_MEANING).map(([k, v]) => `${k}: ${v}`).join(" · ")}.</dd></div>
         </dl>
       </div>
     </div>
@@ -129,13 +130,12 @@ export function PatchModelSupport({ models }: { models: Array<{ id: string; titl
   return (
     <div className="patch-models">
       <p className="muted">
-        Patches target the catalog models below. Each patch declares its own applicability — model family,
-        TurboQuant, vLLM version range — shown per-patch in the Inventory tab under <strong>Supported models</strong>.
+        {tr("Patches target the catalog models below. Each patch declares its own applicability — model family, TurboQuant, vLLM version range — shown per-patch in the Inventory tab under")} <strong>{tr("Supported models")}</strong>.
       </p>
       <div className="chip-row">
         {models.length ? models.map((model) => (
           <span className="chip" key={model.id} title={model.title ?? model.id}>{model.id}</span>
-        )) : <span className="muted">No models in the catalog.</span>}
+        )) : <span className="muted">{tr("No models in the catalog.")}</span>}
       </div>
     </div>
   );

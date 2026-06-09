@@ -14,6 +14,7 @@ import { type GateStatus, StatusPill } from "../components/primitives";
 import { CopyButton } from "../components/code-block";
 import { GateRow } from "./gate-row";
 import { JobResultBlock } from "./jobs";
+import { tr } from "../i18n";
 
 const SERVICE_RUNTIME_TARGETS: Array<{ id: string; label: string }> = [
   { id: "docker_compose", label: "Docker Compose" },
@@ -127,21 +128,21 @@ export function ServiceLifecyclePlanner({
 
   const engineTone = engine?.reachable ? "ok" : "danger";
   const engineLabel = engineChecking
-    ? "checking…"
+    ? tr("checking…")
     : engine?.reachable
-      ? `engine up${engine.version ? ` · v${engine.version}` : ""}`
-      : "engine down";
+      ? `${tr("engine up")}${engine.version ? ` · v${engine.version}` : ""}`
+      : tr("engine down");
 
   return (
     <div className="service-planner">
       <div className="service-toolbar">
-        <div className="settings-segmented service-actions" role="group" aria-label="Service action">
+        <div className="settings-segmented service-actions" role="group" aria-label={tr("Service action")}>
           {SERVICE_ACTIONS.map((item) => (
-            <button key={item} className={action === item ? "active" : ""} aria-pressed={action === item} onClick={() => setAction(item)}>{item}</button>
+            <button key={item} className={action === item ? "active" : ""} aria-pressed={action === item} onClick={() => setAction(item)}>{tr(item)}</button>
           ))}
         </div>
         <label className="service-runtime">
-          <span>Runtime</span>
+          <span>{tr("Runtime")}</span>
           <select value={target} onChange={(event) => setTarget(event.target.value)}>
             {SERVICE_RUNTIME_TARGETS.map((rt) => <option key={rt.id} value={rt.id}>{rt.label}</option>)}
           </select>
@@ -151,10 +152,10 @@ export function ServiceLifecyclePlanner({
 
       <div className="service-engine-strip">
         <span className={`fleet-status ${engineTone}`}><span className="fleet-dot" />{engineLabel}</span>
-        {engine?.reachable && engine.models.length > 0 && <span className="service-engine-models">serving {engine.models.join(", ")}</span>}
+        {engine?.reachable && engine.models.length > 0 && <span className="service-engine-models">{tr("serving")} {engine.models.join(", ")}</span>}
         {engine && !engine.reachable && engine.error && <span className="service-engine-err">{engine.error}</span>}
         <button className="ghost-button" onClick={() => void checkEngine()} disabled={engineChecking}>
-          <Activity size={14} /> {engineChecking ? "Checking…" : "Re-check engine"}
+          <Activity size={14} /> {engineChecking ? tr("Checking…") : tr("Re-check engine")}
         </button>
       </div>
 
@@ -168,7 +169,7 @@ export function ServiceLifecyclePlanner({
               <span>{plan.plan_id}</span>
             </div>
             <StatusPill tone={plan.mutating ? "warning" : "success"}>
-              {plan.mutating ? "mutating" : "read-only"}
+              {plan.mutating ? tr("mutating") : tr("read-only")}
             </StatusPill>
           </div>
 
@@ -187,7 +188,7 @@ export function ServiceLifecyclePlanner({
 
           {plan.side_effects.length > 0 && (
             <div className="service-effects">
-              <strong>Side effects</strong>
+              <strong>{tr("Side effects")}</strong>
               {plan.side_effects.map((effect, index) => (
                 <p key={index}><CircleAlert size={13} /> {effect}</p>
               ))}
@@ -198,14 +199,14 @@ export function ServiceLifecyclePlanner({
             {plan.gates.map((gate) => (
               <GateRow
                 key={gate.id}
-                gate={{ id: gate.id, label: gate.title, detail: gate.detail, status: gate.status as GateStatus, action: "Inspect" }}
+                gate={{ id: gate.id, label: gate.title, detail: gate.detail, status: gate.status as GateStatus, action: tr("Inspect") }}
               />
             ))}
           </div>
 
           <div className="service-exec-row">
             <label className="service-ssh">
-              <span>SSH target (empty = local)</span>
+              <span>{tr("SSH target (empty = local)")}</span>
               <input
                 value={sshTarget}
                 onChange={(event) => setSshTarget(event.target.value)}
@@ -215,7 +216,7 @@ export function ServiceLifecyclePlanner({
             {willExecute && mutating && (
               <label className="service-confirm">
                 <input type="checkbox" checked={confirm} onChange={(event) => setConfirm(event.target.checked)} />
-                <span>Confirm — execute this mutating action on {sshTarget.trim() || "localhost"}</span>
+                <span>{tr("Confirm — execute this mutating action on")} {sshTarget.trim() || "localhost"}</span>
               </label>
             )}
           </div>
@@ -229,24 +230,24 @@ export function ServiceLifecyclePlanner({
             >
               <Play size={15} />{" "}
               {applying
-                ? willExecute ? "Executing…" : "Recording…"
+                ? willExecute ? tr("Executing…") : tr("Recording…")
                 : willExecute
-                  ? (mutating ? `Execute ${action} (${transport})` : `Run ${action} (${transport})`)
-                  : "Apply (dry-run)"}
+                  ? (mutating ? `${tr("Execute")} ${action} (${transport})` : `${tr("Run")} ${action} (${transport})`)
+                  : tr("Apply (dry-run)")}
             </button>
           </div>
           <p className="service-reason">
             {willExecute
               ? blockedMutation
-                ? "Tick confirm to execute this mutating action."
-                : `Apply enabled — ${mutating ? "mutating" : "read-only"} action runs over ${transport}.`
+                ? tr("Tick confirm to execute this mutating action.")
+                : `${tr("Apply enabled —")} ${mutating ? tr("mutating") : tr("read-only")} ${tr("action runs over")} ${transport}.`
               : plan.action_reason}
           </p>
 
           {job && <JobResultBlock job={job} showNote />}
         </>
       )}
-      {state === "loading" && !plan && <p className="muted">Planning…</p>}
+      {state === "loading" && !plan && <p className="muted">{tr("Planning…")}</p>}
     </div>
   );
 }

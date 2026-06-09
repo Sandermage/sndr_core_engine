@@ -6,6 +6,7 @@ import { useState } from "react";
 import { type PatchDoctorReport, type ProductCapability } from "../api";
 import { StatusBadge, InfoRows } from "../components/primitives";
 import { PercentBar } from "../components/charts";
+import { tr } from "../i18n";
 
 export function DoctorCoveragePanel({ report }: { report: PatchDoctorReport | null }) {
   const coverage = report?.coverage;
@@ -21,43 +22,43 @@ export function DoctorCoveragePanel({ report }: { report: PatchDoctorReport | nu
   const unmapped = coverage?.unmapped ?? [];
   return (
     <div className="doctor-coverage">
-      <PercentBar value={mapped} max={total} label="apply modules mapped" caption={`${mapped} of ${total} patches`} tone="accent" />
+      <PercentBar value={mapped} max={total} label={tr("apply modules mapped")} caption={`${mapped} ${tr("of")} ${total} ${tr("patches")}`} tone="accent" />
       <InfoRows
         rows={[
-          ["Registry Size", report?.registry_size ?? "-"],
-          ["Validation Issues", issues.length],
-          ["Mapped", coverage?.mapped ?? "-"],
-          ["Intentionally Unmapped", coverage?.intentionally_unmapped.length ?? "-"],
-          ["Unmapped", unmapped.length]
+          [tr("Registry Size"), report?.registry_size ?? "-"],
+          [tr("Validation Issues"), issues.length],
+          [tr("Mapped"), coverage?.mapped ?? "-"],
+          [tr("Intentionally Unmapped"), coverage?.intentionally_unmapped.length ?? "-"],
+          [tr("Unmapped"), unmapped.length]
         ]}
       />
 
       {issues.length > 0 && (
         <div className="audit-drill">
           <div className="audit-drill-bar">
-            <strong>Validation issues</strong>
+            <strong>{tr("Validation issues")}</strong>
             {(["ERROR", "WARNING", "INFO"] as const).map((s) => (counts[s] ? (
               <button key={s} className={`audit-sevchip ${s.toLowerCase()} ${sev === s ? "active" : ""}`}
-                onClick={() => setSev(sev === s ? "" : s)}>{s.toLowerCase()} {counts[s]}</button>
+                onClick={() => setSev(sev === s ? "" : s)}>{tr(s.toLowerCase())} {counts[s]}</button>
             ) : null))}
-            {sev && <button className="audit-clear" onClick={() => setSev("")}>clear</button>}
+            {sev && <button className="audit-clear" onClick={() => setSev("")}>{tr("clear")}</button>}
           </div>
           <div className="audit-list">
             {shown.slice(0, 200).map((i, idx) => (
               <div key={`${i.patch_id}-${idx}`} className={`audit-issue ${i.severity.toLowerCase()}`}>
-                <span className={`audit-sev ${i.severity.toLowerCase()}`}>{i.severity}</span>
+                <span className={`audit-sev ${i.severity.toLowerCase()}`}>{tr(i.severity)}</span>
                 <span className="audit-pid">{i.patch_id}</span>
                 <span className="audit-msg">{i.message}</span>
               </div>
             ))}
-            {shown.length > 200 && <div className="audit-more">+{shown.length - 200} more…</div>}
+            {shown.length > 200 && <div className="audit-more">+{shown.length - 200} {tr("more…")}</div>}
           </div>
         </div>
       )}
 
       {unmapped.length > 0 && (
         <div className="audit-drill">
-          <div className="audit-drill-bar"><strong>Unmapped patches</strong> <span className="muted">({unmapped.length} — no apply_module)</span></div>
+          <div className="audit-drill-bar"><strong>{tr("Unmapped patches")}</strong> <span className="muted">({unmapped.length} {tr("— no apply_module")})</span></div>
           <div className="audit-chips">{unmapped.map((p) => <span key={p} className="audit-chip">{p}</span>)}</div>
         </div>
       )}
@@ -73,26 +74,26 @@ export function AdminSurfaceMatrix({
   patchDoctor: PatchDoctorReport | null;
 }) {
   const rows: Array<[string, string, string, string]> = [
-    ["Catalog", "GET", "Ready", "models, hardware, profiles, presets"],
-    ["Preset Workbench", "GET", "Ready", "list, explain, recommend"],
-    ["Patch Inventory", "GET", "Ready", `${patchDoctor?.registry_size ?? "-"} registry entries`],
-    ["Patch Doctor", "GET", "Ready", `${patchDoctor?.issues.length ?? "-"} validation issues`],
-    ["Service Lifecycle", "POST", "Ready", "plan/apply start-stop (gated by --enable-apply + confirm)"],
-    ["Launch Apply", "POST", "Ready", "launch a preset (gated + confirm)"],
-    ["Jobs and Events", "GET/SSE", "Ready", "dry-run/executed jobs + /events stream"],
-    ["Reports", "POST", "Ready", "redacted bundle generation to $SNDR_HOME"],
-    ["Bench / Evidence", "POST", "Ready", "queue dry-run jobs (full runs on rig)"],
-    ["Remote Host Profiles", "GET/POST/DELETE", "Ready", "operator-local profiles + SSH tunnel command"]
+    [tr("Catalog"), "GET", "Ready", tr("models, hardware, profiles, presets")],
+    [tr("Preset Workbench"), "GET", "Ready", tr("list, explain, recommend")],
+    [tr("Patch Inventory"), "GET", "Ready", `${patchDoctor?.registry_size ?? "-"} ${tr("registry entries")}`],
+    [tr("Patch Doctor"), "GET", "Ready", `${patchDoctor?.issues.length ?? "-"} ${tr("validation issues")}`],
+    [tr("Service Lifecycle"), "POST", "Ready", tr("plan/apply start-stop (gated by --enable-apply + confirm)")],
+    [tr("Launch Apply"), "POST", "Ready", tr("launch a preset (gated + confirm)")],
+    [tr("Jobs and Events"), "GET/SSE", "Ready", tr("dry-run/executed jobs + /events stream")],
+    [tr("Reports"), "POST", "Ready", tr("redacted bundle generation to $SNDR_HOME")],
+    [tr("Bench / Evidence"), "POST", "Ready", tr("queue dry-run jobs (full runs on rig)")],
+    [tr("Remote Host Profiles"), "GET/POST/DELETE", "Ready", tr("operator-local profiles + SSH tunnel command")]
   ];
   const featureStatus = new Map(featureRows.map((feature) => [feature.id, feature.status]));
   return (
     <table className="module-table">
       <thead>
         <tr>
-          <th>Surface</th>
-          <th>Transport</th>
-          <th>Status</th>
-          <th>Contract</th>
+          <th>{tr("Surface")}</th>
+          <th>{tr("Transport")}</th>
+          <th>{tr("Status")}</th>
+          <th>{tr("Contract")}</th>
         </tr>
       </thead>
       <tbody>

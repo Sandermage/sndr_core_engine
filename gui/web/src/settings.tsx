@@ -4,6 +4,7 @@
 // settings types and theme cycle without importing back into the app shell.
 import { type ReactNode } from "react";
 import { Sun, Moon, Sparkles, Leaf } from "lucide-react";
+import { tr } from "./i18n";
 
 /** Tabs on the operational console (jobs / events / logs / cli). */
 export type ConsoleTab = "jobs" | "events" | "logs" | "cli";
@@ -41,7 +42,7 @@ export function nextTheme(current: ThemeMode): ThemeMode {
 }
 
 export function themeLabel(theme: ThemeMode): string {
-  return theme === "light" ? "Light" : theme === "dark" ? "Dark" : theme === "carbon" ? "Carbon" : "Lime";
+  return theme === "light" ? tr("Light") : theme === "dark" ? tr("Dark") : theme === "carbon" ? tr("Carbon") : tr("Lime");
 }
 
 export function themeIcon(theme: ThemeMode): ReactNode {

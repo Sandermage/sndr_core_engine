@@ -10,6 +10,7 @@ import {
   Layers3, MemoryStick, PackageCheck, Search, ShieldCheck, SlidersHorizontal, Table2, Wrench, X
 } from "lucide-react";
 import { api, type V2ConfigItem, type V2ConfigCatalog, type PresetRecord } from "../api";
+import { tr } from "../i18n";
 import { useFetch } from "../hooks/useFetch";
 import { asRecord } from "../lib/coerce";
 import { formatVram } from "../lib/format";
@@ -68,12 +69,12 @@ function ModelSummaryStrip({ models, activeId }: { models: V2ConfigItem[]; activ
   const vrams = models.map((m) => Number(fieldsOf(m).min_total_vram_mib) || 0).filter(Boolean);
   const vramRange = vrams.length ? `${Math.round(Math.min(...vrams) / 1024)}–${Math.round(Math.max(...vrams) / 1024)} GB` : "—";
   const tiles: Array<{ label: string; value: string }> = [
-    { label: "Models", value: String(models.length) },
-    { label: "Families", value: String(families) },
+    { label: tr("Models"), value: String(models.length) },
+    { label: tr("Families"), value: String(families) },
     { label: "MoE", value: String(moe) },
-    { label: "Dense", value: String(models.length - moe) },
-    { label: "Tool-ready", value: String(toolReady) },
-    { label: "Min VRAM", value: vramRange }
+    { label: tr("Dense"), value: String(models.length - moe) },
+    { label: tr("Tool-ready"), value: String(toolReady) },
+    { label: tr("Min VRAM"), value: vramRange }
   ];
   return (
     <div className="preset-summary-strip model-summary-strip">
@@ -83,7 +84,7 @@ function ModelSummaryStrip({ models, activeId }: { models: V2ConfigItem[]; activ
           <span className="preset-stat-label">{tile.label}</span>
         </div>
       ))}
-      <div className="preset-stat"><span className="preset-stat-value">{activeId || "—"}</span><span className="preset-stat-label">Selected</span></div>
+      <div className="preset-stat"><span className="preset-stat-value">{activeId || "—"}</span><span className="preset-stat-label">{tr("Selected")}</span></div>
     </div>
   );
 }
@@ -93,13 +94,13 @@ function ModelKeyFacts({ fields, def }: { fields: Record<string, any>; def: Reco
   const reqs = (def.requires ?? {}) as Record<string, any>;
   const vram = Number(fields.min_total_vram_mib ?? reqs.min_total_vram_mib) || 0;
   const facts: Array<[string, string]> = [
-    ["Arch", String(fields.attention_arch ?? caps.attention_arch ?? "—")],
-    ["Quant", String(def.quantization ?? fields.quantization ?? "baked/none")],
-    ["Dtype", String(def.dtype ?? fields.dtype ?? "—")],
-    ["KV cache", String(caps.kv_cache_dtype ?? fields.kv_cache_dtype ?? "—")],
-    ["Min VRAM", vram ? `${Math.round(vram / 1024)} GB` : "—"],
-    ["Min GPUs", String(fields.min_gpu_count ?? reqs.min_gpu_count ?? "—")],
-    ["Patches", String(fields.patch_count ?? Object.keys(def.patches ?? {}).length ?? "—")]
+    [tr("Arch"), String(fields.attention_arch ?? caps.attention_arch ?? "—")],
+    [tr("Quant"), String(def.quantization ?? fields.quantization ?? tr("baked/none"))],
+    [tr("Dtype"), String(def.dtype ?? fields.dtype ?? "—")],
+    [tr("KV cache"), String(caps.kv_cache_dtype ?? fields.kv_cache_dtype ?? "—")],
+    [tr("Min VRAM"), vram ? `${Math.round(vram / 1024)} GB` : "—"],
+    [tr("Min GPUs"), String(fields.min_gpu_count ?? reqs.min_gpu_count ?? "—")],
+    [tr("Patches"), String(fields.patch_count ?? Object.keys(def.patches ?? {}).length ?? "—")]
   ];
   return (
     <div className="model-keyfacts">
@@ -211,12 +212,12 @@ export function ModelsWorkbench({
       <section className="model-list-panel">
         <div className="config-panel-title">
           <Box size={16} />
-          <strong>Model Catalog</strong>
+          <strong>{tr("Model Catalog")}</strong>
           <span>{models.length}</span>
         </div>
         <label className="search-box">
           <Search size={15} />
-          <input aria-label="Search models" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search model" />
+          <input aria-label={tr("Search models")} value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={tr("Search model")} />
         </label>
         <div className="catalog-list">
           {groupedModels.map(([family, items]) => (
@@ -241,14 +242,14 @@ export function ModelsWorkbench({
           {visible.length === 0 && (
             <EmptyState
               icon={<Boxes size={22} />}
-              title="No models match"
-              message={filter ? <>Nothing in the catalog matches “{filter}”.</> : "The model catalog is empty."}
-              action={filter ? { label: "Clear search", icon: <X size={14} />, onClick: () => setFilter("") } : undefined}
+              title={tr("No models match")}
+              message={filter ? <>{tr("Nothing in the catalog matches")} “{filter}”.</> : tr("The model catalog is empty.")}
+              action={filter ? { label: tr("Clear search"), icon: <X size={14} />, onClick: () => setFilter("") } : undefined}
             />
           )}
         </div>
         <div className="catalog-foot">
-          {visible.length} of {models.length} models · {groupedModels.length} famil{groupedModels.length === 1 ? "y" : "ies"}
+          {visible.length} {tr("of")} {models.length} {tr("models")} · {groupedModels.length} {groupedModels.length === 1 ? tr("family") : tr("families")}
         </div>
       </section>
 
@@ -256,8 +257,8 @@ export function ModelsWorkbench({
         <div className="model-detail-head">
           <Cpu size={18} />
           <div>
-            <strong>{def.title ?? active?.title ?? activeId ?? "No model"}</strong>
-            <span>{def.model_path ?? active?.summary ?? "model definition"}</span>
+            <strong>{def.title ?? active?.title ?? activeId ?? tr("No model")}</strong>
+            <span>{def.model_path ?? active?.summary ?? tr("model definition")}</span>
           </div>
           <StatusBadge status={defState === "loading" ? "partial" : active ? "available" : "missing"} />
         </div>
@@ -267,31 +268,31 @@ export function ModelsWorkbench({
           tabs={[
             {
               id: "overview",
-              label: "Overview",
+              label: tr("Overview"),
               icon: <Box size={15} />,
               render: () => (
                 <>
                 <ModuleGrid>
-                  <ModuleCard title="Fit envelope" icon={<Gauge size={18} />} desc="Does it fit? Context × concurrency headroom on a representative rig." wide>
+                  <ModuleCard title={tr("Fit envelope")} icon={<Gauge size={18} />} desc={tr("Does it fit? Context × concurrency headroom on a representative rig.")} wide>
                     <KvEnvelopeCard modelKey={archKey} tp={envHw.tp} vram={envHw.vram} rigLabel={envHw.label} />
                   </ModuleCard>
                 </ModuleGrid>
                 <ModuleGrid className="models-row">
-                  <ModuleCard title="Identity" icon={<Box size={18} />} desc="Serving name, precision, provenance and trust settings.">
+                  <ModuleCard title={tr("Identity")} icon={<Box size={18} />} desc={tr("Serving name, precision, provenance and trust settings.")}>
                     <InfoRows
                       rows={[
-                        ["Model id", activeId || "-"],
-                        ["Served name", dval(def.served_model_name)],
-                        ["Maintainer", dval(def.maintainer)],
-                        ["Quantization", dval(def.quantization)],
-                        ["Dtype", dval(def.dtype)],
-                        ["Trust remote code", dval(def.trust_remote_code)],
-                        ["License", dval(def.license)],
-                        ["Validated", dval(def.last_validated)]
+                        [tr("Model id"), activeId || "-"],
+                        [tr("Served name"), dval(def.served_model_name)],
+                        [tr("Maintainer"), dval(def.maintainer)],
+                        [tr("Quantization"), dval(def.quantization)],
+                        [tr("Dtype"), dval(def.dtype)],
+                        [tr("Trust remote code"), dval(def.trust_remote_code)],
+                        [tr("License"), dval(def.license)],
+                        [tr("Validated"), dval(def.last_validated)]
                       ]}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Architecture" icon={<Cpu size={18} />} desc="Real transformer dimensions — the basis for KV-cache and VRAM sizing.">
+                  <ModuleCard title={tr("Architecture")} icon={<Cpu size={18} />} desc={tr("Real transformer dimensions — the basis for KV-cache and VRAM sizing.")}>
                     {arch ? (() => {
                       // KV bytes/token = 2 (K+V) × layers × kv_heads × head_dim × elem_bytes.
                       const kvTok = (elem: number) => 2 * arch.num_layers * arch.num_kv_heads * arch.head_dim * elem;
@@ -300,15 +301,15 @@ export function ModelsWorkbench({
                       return (
                         <>
                           <InfoRows rows={[
-                            ["Parameters", `${arch.params_b}B${arch.is_moe && arch.active_params_b ? ` · ${arch.active_params_b}B active (MoE)` : ""}`],
-                            ["Type", arch.is_moe ? "Mixture-of-Experts" : "Dense"],
-                            ["Layers", String(arch.num_layers)],
-                            ["KV heads", String(arch.num_kv_heads)],
-                            ["Head dim", String(arch.head_dim)],
-                            ["Weight precision", `${arch.weight_bits}-bit`]
+                            [tr("Parameters"), `${arch.params_b}B${arch.is_moe && arch.active_params_b ? ` · ${arch.active_params_b}B ${tr("active")} (MoE)` : ""}`],
+                            [tr("Type"), arch.is_moe ? tr("Mixture-of-Experts") : tr("Dense")],
+                            [tr("Layers"), String(arch.num_layers)],
+                            [tr("KV heads"), String(arch.num_kv_heads)],
+                            [tr("Head dim"), String(arch.head_dim)],
+                            [tr("Weight precision"), `${arch.weight_bits}-bit`]
                           ]} />
                           <div className="kv-footprint">
-                            <div className="kv-footprint-head"><MemoryStick size={13} /> KV-cache footprint (1 request)</div>
+                            <div className="kv-footprint-head"><MemoryStick size={13} /> {tr("KV-cache footprint (1 request)")}</div>
                             <div className="kv-footprint-rows">
                               <div><span>fp8</span><b>{mbPerK(1).toFixed(1)} MB</b> / 1K · <b>{gbAt(32768, 1).toFixed(1)} GB</b> @ 32K</div>
                               <div><span>fp16</span><b>{mbPerK(2).toFixed(1)} MB</b> / 1K · <b>{gbAt(32768, 2).toFixed(1)} GB</b> @ 32K</div>
@@ -316,56 +317,56 @@ export function ModelsWorkbench({
                           </div>
                         </>
                       );
-                    })() : <p className="muted">No architecture metadata for this model id ({activeId || "—"}).</p>}
+                    })() : <p className="muted">{tr("No architecture metadata for this model id")} ({activeId || "—"}).</p>}
                   </ModuleCard>
                   <ModuleCard
-                    title="Local Cache"
+                    title={tr("Local Cache")}
                     icon={<HardDrive size={18} />}
-                    desc={`Checkpoint presence on the API daemon host${cacheReport ? ` (${cacheReport.host})` : ""}.`}
+                    desc={`${tr("Checkpoint presence on the API daemon host")}${cacheReport ? ` (${cacheReport.host})` : ""}.`}
                   >
                     {(() => {
                       const entry = cacheReport?.models.find((m) => m.model_id === activeId);
-                      if (!cacheReport) return <p className="muted">Checking cache…</p>;
-                      if (!entry) return <p className="muted">No cache entry for this model.</p>;
+                      if (!cacheReport) return <p className="muted">{tr("Checking cache…")}</p>;
+                      if (!entry) return <p className="muted">{tr("No cache entry for this model.")}</p>;
                       return (
                         <>
                           <InfoRows
                             rows={[
-                              ["Checkpoint path", entry.model_path || "-"],
-                              ["Present on host", entry.present ? "yes" : "no"],
-                              ["Size", entry.size_mib != null ? formatVram(entry.size_mib) : entry.present ? "unknown" : "-"]
+                              [tr("Checkpoint path"), entry.model_path || "-"],
+                              [tr("Present on host"), entry.present ? tr("yes") : tr("no")],
+                              [tr("Size"), entry.size_mib != null ? formatVram(entry.size_mib) : entry.present ? tr("unknown") : "-"]
                             ]}
                           />
                           <p className="fit-note">
                             {entry.present
-                              ? "Checkpoint directory is present on the daemon host."
-                              : "Absent on the daemon host — expected when controlling a remote GPU host from a laptop."}
+                              ? tr("Checkpoint directory is present on the daemon host.")
+                              : tr("Absent on the daemon host — expected when controlling a remote GPU host from a laptop.")}
                           </p>
                         </>
                       );
                     })()}
                   </ModuleCard>
-                  <ModuleCard title={`Presets using ${activeId || "model"}`} icon={<Database size={18} />} desc="Catalog presets that reference this model — click to load.">
+                  <ModuleCard title={`${tr("Presets using")} ${activeId || tr("model")}`} icon={<Database size={18} />} desc={tr("Catalog presets that reference this model — click to load.")}>
                     {modelPresets.length ? (
                       <div className="model-preset-chips">
                         {modelPresets.map((preset) => (
                           <button key={preset.id} className={preset.id === selectedPreset ? "active" : ""} onClick={() => onPreset(preset.id)}>
                             <strong>{preset.id}</strong>
-                            <small>{preset.profile ?? "no profile"}</small>
+                            <small>{preset.profile ?? tr("no profile")}</small>
                           </button>
                         ))}
                       </div>
                     ) : (
-                      <p className="muted">No presets reference this model yet.</p>
+                      <p className="muted">{tr("No presets reference this model yet.")}</p>
                     )}
                   </ModuleCard>
                 </ModuleGrid>
                 <ModuleGrid>
-                  <ModuleCard title="Notes" icon={<FileText size={18} />} desc="Maintainer notes and migration history." wide>
+                  <ModuleCard title={tr("Notes")} icon={<FileText size={18} />} desc={tr("Maintainer notes and migration history.")} wide>
                     {notes.length ? (
                       <ul className="model-notes">{notes.map((note, index) => (<li key={index}>{note}</li>))}</ul>
                     ) : (
-                      <p className="muted">No maintainer notes.</p>
+                      <p className="muted">{tr("No maintainer notes.")}</p>
                     )}
                   </ModuleCard>
                 </ModuleGrid>
@@ -374,40 +375,40 @@ export function ModelsWorkbench({
             },
             {
               id: "capabilities",
-              label: "Capabilities",
+              label: tr("Capabilities"),
               icon: <Layers3 size={15} />,
               render: () => (
                 <ModuleGrid className="models-row3">
-                  <ModuleCard title="Capabilities" icon={<Layers3 size={18} />} desc="Attention arch, parsers and speculative decode.">
+                  <ModuleCard title={tr("Capabilities")} icon={<Layers3 size={18} />} desc={tr("Attention arch, parsers and speculative decode.")}>
                     <InfoRows
                       rows={[
-                        ["Attention arch", dval(caps.attention_arch)],
-                        ["Tool parser", dval(caps.tool_call_parser)],
-                        ["Reasoning parser", dval(caps.reasoning_parser)],
-                        ["Auto tool choice", dval(caps.enable_auto_tool_choice)],
-                        ["KV cache dtype", dval(caps.kv_cache_dtype)],
-                        ["Spec decode", `${dval(spec.method)} / K=${dval(spec.num_speculative_tokens)}`]
+                        [tr("Attention arch"), dval(caps.attention_arch)],
+                        [tr("Tool parser"), dval(caps.tool_call_parser)],
+                        [tr("Reasoning parser"), dval(caps.reasoning_parser)],
+                        [tr("Auto tool choice"), dval(caps.enable_auto_tool_choice)],
+                        [tr("KV cache dtype"), dval(caps.kv_cache_dtype)],
+                        [tr("Spec decode"), `${dval(spec.method)} / K=${dval(spec.num_speculative_tokens)}`]
                       ]}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Version Pins" icon={<GitBranch size={18} />} desc="Genesis and vLLM pins this model was validated on.">
+                  <ModuleCard title={tr("Version Pins")} icon={<GitBranch size={18} />} desc={tr("Genesis and vLLM pins this model was validated on.")}>
                     <InfoRows
                       rows={[
-                        ["Genesis pin min", dval(vers.genesis_pin_min)],
-                        ["vLLM pin required", dval(vers.vllm_pin_required)],
-                        ["Reference metrics", dval(vers.reference_metrics_ref)],
-                        ["Pin hold", dval(vers.pin_hold)]
+                        [tr("Genesis pin min"), dval(vers.genesis_pin_min)],
+                        [tr("vLLM pin required"), dval(vers.vllm_pin_required)],
+                        [tr("Reference metrics"), dval(vers.reference_metrics_ref)],
+                        [tr("Pin hold"), dval(vers.pin_hold)]
                       ]}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Generation & Serving" icon={<SlidersHorizontal size={18} />} desc="Chat template, tool/reasoning parsing and sampling defaults.">
+                  <ModuleCard title={tr("Generation & Serving")} icon={<SlidersHorizontal size={18} />} desc={tr("Chat template, tool/reasoning parsing and sampling defaults.")}>
                     <InfoRows
                       rows={[
-                        ["Served name", dval(def.served_model_name)],
-                        ["Chat template", def.chat_template ? "custom template" : "model default"],
-                        ["Tool parser", dval(caps.tool_call_parser)],
-                        ["Reasoning parser", dval(caps.reasoning_parser)],
-                        ["Auto tool choice", dval(caps.enable_auto_tool_choice)]
+                        [tr("Served name"), dval(def.served_model_name)],
+                        [tr("Chat template"), def.chat_template ? tr("custom template") : tr("model default")],
+                        [tr("Tool parser"), dval(caps.tool_call_parser)],
+                        [tr("Reasoning parser"), dval(caps.reasoning_parser)],
+                        [tr("Auto tool choice"), dval(caps.enable_auto_tool_choice)]
                       ]}
                     />
                     {(() => {
@@ -415,11 +416,11 @@ export function ModelsWorkbench({
                       const keys = Object.keys(gen);
                       return keys.length ? (
                         <>
-                          <h5 className="model-subhead">Sampling overrides</h5>
+                          <h5 className="model-subhead">{tr("Sampling overrides")}</h5>
                           <InfoRows rows={keys.map((key) => [key.replace(/_/g, " "), dval(gen[key])] as [string, string])} />
                         </>
                       ) : (
-                        <p className="muted model-gen-none">No sampling overrides — uses the model's generation defaults.</p>
+                        <p className="muted model-gen-none">{tr("No sampling overrides — uses the model's generation defaults.")}</p>
                       );
                     })()}
                   </ModuleCard>
@@ -428,28 +429,28 @@ export function ModelsWorkbench({
             },
             {
               id: "fit",
-              label: "Hardware fit",
+              label: tr("Hardware fit"),
               icon: <Gauge size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Requirements" icon={<ShieldCheck size={18} />} desc="Minimum GPUs, VRAM and CUDA capability.">
+                  <ModuleCard title={tr("Requirements")} icon={<ShieldCheck size={18} />} desc={tr("Minimum GPUs, VRAM and CUDA capability.")}>
                     <InfoRows
                       rows={[
-                        ["Min GPUs", dval(reqs.min_gpu_count)],
-                        ["Min VRAM", formatVram(reqs.min_total_vram_mib)],
-                        ["Min CUDA cap", Array.isArray(reqs.min_cuda_capability) ? reqs.min_cuda_capability.join(".") : "-"],
-                        ["Arch blocklist", dval(reqs.rig_arch_blocklist)]
+                        [tr("Min GPUs"), dval(reqs.min_gpu_count)],
+                        [tr("Min VRAM"), formatVram(reqs.min_total_vram_mib)],
+                        [tr("Min CUDA cap"), Array.isArray(reqs.min_cuda_capability) ? reqs.min_cuda_capability.join(".") : "-"],
+                        [tr("Arch blocklist"), dval(reqs.rig_arch_blocklist)]
                       ]}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Hardware Fit" icon={<Gauge size={18} />} desc="Check this model against a rig: GPU count, CUDA capability and VRAM context." wide>
+                  <ModuleCard title={tr("Hardware Fit")} icon={<Gauge size={18} />} desc={tr("Check this model against a rig: GPU count, CUDA capability and VRAM context.")} wide>
                     <ModelFitCard
                       modelId={activeId}
                       hardwareOptions={(catalog?.hardware ?? []).map((item) => item.id)}
                       defaultHardware={modelPresets[0]?.hardware ?? ""}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Fit Matrix" icon={<Table2 size={18} />} desc="Where this model can run across every catalogued rig — fits, blockers and VRAM headroom." wide>
+                  <ModuleCard title={tr("Fit Matrix")} icon={<Table2 size={18} />} desc={tr("Where this model can run across every catalogued rig — fits, blockers and VRAM headroom.")} wide>
                     <ModelFitMatrix modelId={activeId} hardwareIds={(catalog?.hardware ?? []).map((item) => item.id)} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -457,17 +458,17 @@ export function ModelsWorkbench({
             },
             {
               id: "runtime",
-              label: "Runtime & patches",
+              label: tr("Runtime & patches"),
               icon: <SlidersHorizontal size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Runtime Envelope" icon={<SlidersHorizontal size={18} />} desc={`Composed runtime for ${selectedPreset}.`} wide>
+                  <ModuleCard title={tr("Runtime Envelope")} icon={<SlidersHorizontal size={18} />} desc={`${tr("Composed runtime for")} ${selectedPreset}.`} wide>
                     <RuntimeEnvelopePanel card={card} composed={composed} patchCount={patchCount} />
                   </ModuleCard>
-                  <ModuleCard title="Patch Matrix" icon={<Wrench size={18} />} desc="Canonical env-flag overrides shipped with this model — the patches baked into its composed runtime." wide>
+                  <ModuleCard title={tr("Patch Matrix")} icon={<Wrench size={18} />} desc={tr("Canonical env-flag overrides shipped with this model — the patches baked into its composed runtime.")} wide>
                     <PatchMatrixViewer patches={patchMatrix} attribution={attribution} loading={defState === "loading"} />
                   </ModuleCard>
-                  <ModuleCard title="Config Draft" icon={<Code2 size={18} />} desc="Local runtime draft (diff + YAML preview)." wide>
+                  <ModuleCard title={tr("Config Draft")} icon={<Code2 size={18} />} desc={tr("Local runtime draft (diff + YAML preview).")} wide>
                     <ConfigDraftEditor
                       selectedPreset={selectedPreset}
                       composed={composed}
@@ -480,11 +481,11 @@ export function ModelsWorkbench({
             },
             {
               id: "cache",
-              label: "Cache & download",
+              label: tr("Cache & download"),
               icon: <Download size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Checkpoint Cache" icon={<Download size={18} />} desc="Model weights present on the daemon host. Queue a pull for absent checkpoints." wide>
+                  <ModuleCard title={tr("Checkpoint Cache")} icon={<Download size={18} />} desc={tr("Model weights present on the daemon host. Queue a pull for absent checkpoints.")} wide>
                     <ModelManagementPanel />
                   </ModuleCard>
                 </ModuleGrid>
@@ -492,11 +493,11 @@ export function ModelsWorkbench({
             },
             {
               id: "edit",
-              label: "Edit",
+              label: tr("Edit"),
               icon: <PackageCheck size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title={`Visual Editor — ${activeId}`} icon={<Wrench size={18} />} desc="Full model definition editing (adaptive). Saves an operator-local copy." wide>
+                  <ModuleCard title={`${tr("Visual Editor")} — ${activeId}`} icon={<Wrench size={18} />} desc={tr("Full model definition editing (adaptive). Saves an operator-local copy.")} wide>
                     <LayerEditor kind="model" layerId={activeId} />
                   </ModuleCard>
                 </ModuleGrid>

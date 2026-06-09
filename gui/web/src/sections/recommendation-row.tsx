@@ -7,6 +7,7 @@ import { type PresetRecommendation } from "../api";
 import { asText, asStringArray } from "../lib/coerce";
 import { shortWorkload } from "../lib/format";
 import { StatusBadge } from "../components/primitives";
+import { tr } from "../i18n";
 
 export function RecommendationRow({
   row,
@@ -45,11 +46,11 @@ export function RecommendationRow({
         </div>
       </td>
       <td>
-        <span className={`visibility ${visibility}`}>{visibility}</span>
+        <span className={`visibility ${visibility}`}>{tr(visibility)}</span>
       </td>
       <td>{fallback}</td>
       <td>
-        <span className={`risk ${risk.toLowerCase()}`}>{risk}</span>
+        <span className={`risk ${risk.toLowerCase()}`}>{tr(risk)}</span>
       </td>
     </tr>
   );

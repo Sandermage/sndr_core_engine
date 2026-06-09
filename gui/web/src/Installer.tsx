@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Box, CheckCircle2, Container, Copy, Cpu, HardDrive, Loader2, Lock, Package, Rocket, Server, ShieldAlert, Tag } from "lucide-react";
 import { api, type InstallPlan, type InstallTarget, type InstallTargets, type PresetRecord } from "./api";
+import { tr } from "./i18n";
 
 const TARGET_ICON: Record<string, JSX.Element> = {
   compose: <Container size={18} />, quadlet: <Box size={18} />, kubernetes: <Package size={18} />,
@@ -53,7 +54,7 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
   // and the first incomplete step is "active".
   const stepDone = [!!hostId, !!target, !!presetId, !!plan];
   const activeStep = stepDone.findIndex((s) => !s);
-  const stepLabels = ["Host", "Target", "Preset", "Review & install"];
+  const stepLabels = [tr("Host"), tr("Target"), tr("Preset"), tr("Review & install")];
   const noHosts = !!meta && meta.hosts.length === 0;
 
   return (
@@ -70,39 +71,39 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
         <div className="install-empty">
           <Server size={16} />
           <div>
-            <strong>No hosts registered yet</strong>
-            <span>Add a GPU host in <b>Fleet</b> first — then return here to preview and install onto it over SSH.</span>
+            <strong>{tr("No hosts registered yet")}</strong>
+            <span>{tr("Add a GPU host in")} <b>{tr("Fleet")}</b> {tr("first — then return here to preview and install onto it over SSH.")}</span>
           </div>
         </div>
       )}
 
       <div className="install-row">
-        <label className="param-field"><span><Server size={11} /> Host (from registry)</span>
+        <label className="param-field"><span><Server size={11} /> {tr("Host (from registry)")}</span>
           <select value={hostId} onChange={(e) => { setHostId(e.target.value); setPlan(null); }}>
-            <option value="">— pick a host —</option>
+            <option value="">{tr("— pick a host —")}</option>
             {meta?.hosts.map((h) => <option key={h.id} value={h.id}>{h.label} · {h.host}{h.gpu_arch ? ` · ${h.gpus}× ${h.gpu_arch}` : ""}</option>)}
           </select>
         </label>
-        <label className="param-field"><span><Package size={11} /> Preset to install</span>
+        <label className="param-field"><span><Package size={11} /> {tr("Preset to install")}</span>
           <select value={presetId} onChange={(e) => { setPresetId(e.target.value); setPlan(null); }}>
             {presets.map((p) => <option key={p.id} value={p.id}>{p.id}</option>)}
           </select>
         </label>
-        <label className="param-field"><span><Tag size={11} /> Engine pin / image <em className="install-opt">(optional)</em></span>
+        <label className="param-field"><span><Tag size={11} /> {tr("Engine pin / image")} <em className="install-opt">({tr("optional")})</em></span>
           <input value={pin} onChange={(e) => { setPin(e.target.value); setPlan(null); }}
-            placeholder="preset default — e.g. vllm/vllm-openai:nightly-<sha> or @sha256:…"
+            placeholder={tr("preset default — e.g. vllm/vllm-openai:nightly-<sha> or @sha256:…")}
             spellCheck={false} />
         </label>
       </div>
 
       <div className="install-targets">
-        <span className="install-label">Install target</span>
+        <span className="install-label">{tr("Install target")}</span>
         <div className="install-target-grid">
           {targets.map((t: InstallTarget) => (
             <button key={t.id} className={`install-target ${target === t.id ? "active" : ""}`} onClick={() => { setTarget(t.id); setPlan(null); }}>
               <span className="install-target-head">{TARGET_ICON[t.id] || <Box size={18} />} <strong>{t.label}</strong>{(t.id === "proxmox" || t.id === "proxmox_vm") && <ShieldAlert size={12} className="install-infra-tag" />}</span>
               <span className="install-target-sum">{t.summary}</span>
-              {t.needs && <span className="install-needs">needs {t.needs}</span>}
+              {t.needs && <span className="install-needs">{tr("needs")} {t.needs}</span>}
             </button>
           ))}
         </div>
@@ -110,13 +111,13 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
 
       <label className="install-daemon-toggle">
         <input type="checkbox" checked={withDaemon} onChange={(e) => { setWithDaemon(e.target.checked); setPlan(null); }} />
-        <Cpu size={13} /> Also install the SNDR management daemon (GUI + sndr_core) alongside the engine
-        <span className="install-opt"> — one apply lands GUI + core + engine; sidecar for containers, native systemd for bare-metal, inside the guest for Proxmox</span>
+        <Cpu size={13} /> {tr("Also install the SNDR management daemon (GUI + sndr_core) alongside the engine")}
+        <span className="install-opt"> {tr("— one apply lands GUI + core + engine; sidecar for containers, native systemd for bare-metal, inside the guest for Proxmox")}</span>
       </label>
 
       <div className="install-actions">
         <button className="primary-action" onClick={() => void buildPlan()} disabled={!hostId || !presetId || loading}>
-          {loading ? <Loader2 size={14} className="spin" /> : <Rocket size={14} />} Build install plan (dry-run)
+          {loading ? <Loader2 size={14} className="spin" /> : <Rocket size={14} />} {tr("Build install plan (dry-run)")}
         </button>
       </div>
       {err && <div className="install-err"><AlertTriangle size={14} /> {err}</div>}
@@ -125,26 +126,26 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
         <div className="install-plan">
           <div className="install-plan-head">
             <strong>{plan.target_label} → {plan.host.label}</strong>
-            <span className="install-dry">dry-run · nothing executed</span>
-            {plan.image_override && <span className="install-pin"><Tag size={12} /> pinned: {plan.image_override}</span>}
-            {plan.with_daemon && <span className="install-pin"><Cpu size={12} /> + SNDR daemon</span>}
-            {plan.danger_count > 0 && <span className="install-danger-count"><ShieldAlert size={12} /> {plan.danger_count} infra-mutating step{plan.danger_count > 1 ? "s" : ""}</span>}
+            <span className="install-dry">{tr("dry-run · nothing executed")}</span>
+            {plan.image_override && <span className="install-pin"><Tag size={12} /> {tr("pinned:")} {plan.image_override}</span>}
+            {plan.with_daemon && <span className="install-pin"><Cpu size={12} /> {tr("+ SNDR daemon")}</span>}
+            {plan.danger_count > 0 && <span className="install-danger-count"><ShieldAlert size={12} /> {plan.danger_count} {plan.danger_count > 1 ? tr("infra-mutating steps") : tr("infra-mutating step")}</span>}
           </div>
-          {plan.provisions_infra && <div className="install-infra-warn"><ShieldAlert size={14} /> This target <b>provisions infrastructure</b> on the Proxmox host (creates a {plan.target === "proxmox_vm" ? "VM" : "container"}). Review every step; run only on the Proxmox node.</div>}
+          {plan.provisions_infra && <div className="install-infra-warn"><ShieldAlert size={14} /> {tr("This target")} <b>{tr("provisions infrastructure")}</b> {tr("on the Proxmox host (creates a")} {plan.target === "proxmox_vm" ? tr("VM") : tr("container")}). {tr("Review every step; run only on the Proxmox node.")}</div>}
 
           <ol className="install-step-list">
             {plan.steps.map((s) => (
               <li key={s.order} className={`install-step ${s.danger ? "danger" : ""}`}>
                 <span className={`install-step-kind k-${s.kind}`}>{s.kind}</span>
                 <span className="install-step-title">{s.danger && <ShieldAlert size={11} />} {s.title}</span>
-                {s.cmd && <button className="icon-only" title="Copy command" onClick={() => void navigator.clipboard?.writeText(s.cmd!)}><Copy size={12} /></button>}
+                {s.cmd && <button className="icon-only" title={tr("Copy command")} onClick={() => void navigator.clipboard?.writeText(s.cmd!)}><Copy size={12} /></button>}
               </li>
             ))}
           </ol>
 
           <div className="install-artifact">
             <div className="install-artifact-head"><span>{plan.artifact.filename} · {plan.artifact.kind}</span>
-              <button className="ghost-button" onClick={() => void navigator.clipboard?.writeText(plan.artifact.content)}><Copy size={13} /> Copy artifact</button>
+              <button className="ghost-button" onClick={() => void navigator.clipboard?.writeText(plan.artifact.content)}><Copy size={13} /> {tr("Copy artifact")}</button>
             </div>
             <pre className="install-artifact-body">{plan.artifact.content}</pre>
           </div>
@@ -153,26 +154,26 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
             {!confirming ? (
               <button className="primary-action" disabled={!applyOn || applying || !!applied}
                 onClick={() => setConfirming(true)}
-                title={applyOn ? "Run this plan on the host over SSH" : "Start the daemon with SNDR_ENABLE_APPLY=1 to enable remote execution"}>
-                {applyOn ? <Rocket size={14} /> : <Lock size={14} />} Install over SSH
+                title={applyOn ? tr("Run this plan on the host over SSH") : tr("Start the daemon with SNDR_ENABLE_APPLY=1 to enable remote execution")}>
+                {applyOn ? <Rocket size={14} /> : <Lock size={14} />} {tr("Install over SSH")}
               </button>
             ) : (
               <span className="install-confirm">
-                <ShieldAlert size={14} /> Run {plan.steps.filter((s) => s.kind === "remote-exec").length} command(s) on <b>{plan.host.label}</b> over SSH?
+                <ShieldAlert size={14} /> {tr("Run")} {plan.steps.filter((s) => s.kind === "remote-exec").length} {tr("command(s) on")} <b>{plan.host.label}</b> {tr("over SSH?")}
                 <button className="primary-action danger" onClick={() => void runApply()} disabled={applying}>
-                  {applying ? <Loader2 size={14} className="spin" /> : <CheckCircle2 size={14} />} Yes, run it
+                  {applying ? <Loader2 size={14} className="spin" /> : <CheckCircle2 size={14} />} {tr("Yes, run it")}
                 </button>
-                <button className="ghost-button" onClick={() => setConfirming(false)} disabled={applying}>Cancel</button>
+                <button className="ghost-button" onClick={() => setConfirming(false)} disabled={applying}>{tr("Cancel")}</button>
               </span>
             )}
-            {!applied && <span className="install-apply-note">{applyOn ? plan.notes : `${plan.notes} (daemon is read-only — set SNDR_ENABLE_APPLY=1)`}</span>}
+            {!applied && <span className="install-apply-note">{applyOn ? plan.notes : `${plan.notes} ${tr("(daemon is read-only — set SNDR_ENABLE_APPLY=1)")}`}</span>}
           </div>
 
           {applied && (
             <div className={`install-result ${applied.ok ? "ok" : "fail"}`}>
               <div className="install-result-head">
                 {applied.ok ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
-                <strong>{applied.ok ? `Installed on ${plan.host.label}` : "Install failed"}</strong>
+                <strong>{applied.ok ? `${tr("Installed on")} ${plan.host.label}` : tr("Install failed")}</strong>
                 {applied.error && <span className="install-result-err">{applied.error}</span>}
               </div>
               <ol className="install-result-steps">

@@ -13,6 +13,7 @@ import { useId, useState, type ReactNode } from "react";
 import { CheckCircle2, CircleAlert, AlertCircle, Clock3, ChevronRight, Wrench } from "lucide-react";
 import { type Gate, type SectionId, GATE_TARGET } from "../nav";
 import { type GateStatus } from "../components/primitives";
+import { tr } from "../i18n";
 
 const GATE_ICON: Record<GateStatus, ReactNode> = {
   pass: <CheckCircle2 size={16} />,
@@ -35,20 +36,20 @@ export function GateRow({ gate, onNavigate }: { gate: Gate; onNavigate?: (sectio
       >
         <span className="gate-icon" aria-hidden="true">{GATE_ICON[gate.status]}</span>
         <div>
-          <strong>{gate.label}</strong>
-          <small>{gate.detail}</small>
+          <strong>{tr(gate.label)}</strong>
+          <small>{tr(gate.detail)}</small>
         </div>
-        <span className="gate-status">{gate.status}</span>
+        <span className="gate-status">{tr(gate.status)}</span>
         <ChevronRight className="gate-caret" size={16} />
       </button>
       {open && (
         <div className="gate-detail" id={detailId}>
-          <p>{gate.detail}</p>
+          <p>{tr(gate.detail)}</p>
           <div className="gate-detail-actions">
-            <span className="gate-action-hint"><Wrench size={13} /> {gate.action}</span>
+            <span className="gate-action-hint"><Wrench size={13} /> {tr(gate.action)}</span>
             {target && onNavigate && (
               <button className="ghost-button" onClick={() => onNavigate(target.section)}>
-                <ChevronRight size={14} /> {target.label}
+                <ChevronRight size={14} /> {tr(target.label)}
               </button>
             )}
           </div>

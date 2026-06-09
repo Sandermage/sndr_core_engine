@@ -109,7 +109,7 @@ import { CodeBlock } from "./components/code-block";
 // dialog helpers now used only inside extracted modals.
 import { SkeletonCards } from "./Skeleton";
 import { useViewport, type ViewportTier } from "./hooks/useViewport";
-import { useLang, t } from "./i18n";
+import { useLang, t, tr } from "./i18n";
 import {
   BundleSpec,
   DiffUpstreamReport,
@@ -240,39 +240,39 @@ const defaultGuiSettings: GuiSettings = {
 type NavGroup = { label?: string; items: NavItem[] };
 const navGroups: NavGroup[] = [
   { items: [
-    { id: "overview", icon: <Home size={17} />, label: "Overview" },
+    { id: "overview", icon: <Home size={17} />, label: tr("Overview") },
   ] },
-  { label: "Infrastructure", items: [
-    { id: "hosts", icon: <LayoutGrid size={17} />, label: "Fleet" },
-    { id: "containers", icon: <Boxes size={17} />, label: "Containers" },
-    { id: "virtualization", icon: <Server size={17} />, label: "Virtualization" },
-    { id: "hardware", icon: <Cpu size={17} />, label: "Hardware" },
-    { id: "setup", icon: <Settings size={17} />, label: "Setup" },
+  { label: tr("Infrastructure"), items: [
+    { id: "hosts", icon: <LayoutGrid size={17} />, label: tr("Fleet") },
+    { id: "containers", icon: <Boxes size={17} />, label: tr("Containers") },
+    { id: "virtualization", icon: <Server size={17} />, label: tr("Virtualization") },
+    { id: "hardware", icon: <Cpu size={17} />, label: tr("Hardware") },
+    { id: "setup", icon: <Settings size={17} />, label: tr("Setup") },
   ] },
-  { label: "Models & Config", items: [
-    { id: "models", icon: <Box size={17} />, label: "Models" },
-    { id: "presets", icon: <Database size={17} />, label: "Presets" },
-    { id: "configs", icon: <SlidersHorizontal size={17} />, label: "Configs" },
-    { id: "planner", icon: <Gauge size={17} />, label: "Planner" },
+  { label: tr("Models & Config"), items: [
+    { id: "models", icon: <Box size={17} />, label: tr("Models") },
+    { id: "presets", icon: <Database size={17} />, label: tr("Presets") },
+    { id: "configs", icon: <SlidersHorizontal size={17} />, label: tr("Configs") },
+    { id: "planner", icon: <Gauge size={17} />, label: tr("Planner") },
   ] },
-  { label: "Deploy", items: [
-    { id: "launch-plan", icon: <Rocket size={17} />, label: "Launch Plan" },
-    { id: "services", icon: <Network size={17} />, label: "Services" },
+  { label: tr("Deploy"), items: [
+    { id: "launch-plan", icon: <Rocket size={17} />, label: tr("Launch Plan") },
+    { id: "services", icon: <Network size={17} />, label: tr("Services") },
   ] },
-  { label: "Engine", items: [
-    { id: "chat", icon: <MessageSquare size={17} />, label: "Chat & Copilot" },
-    { id: "routing", icon: <Route size={17} />, label: "Routing" },
-    { id: "clients", icon: <Link2 size={17} />, label: "Clients" },
+  { label: tr("Engine"), items: [
+    { id: "chat", icon: <MessageSquare size={17} />, label: tr("Chat & Copilot") },
+    { id: "routing", icon: <Route size={17} />, label: tr("Routing") },
+    { id: "clients", icon: <Link2 size={17} />, label: tr("Clients") },
   ] },
-  { label: "Validate", items: [
-    { id: "doctor", icon: <ShieldCheck size={17} />, label: "Doctor" },
-    { id: "patches", icon: <Wrench size={17} />, label: "Patches" },
-    { id: "benchmarks", icon: <BarChart3 size={17} />, label: "Benchmarks" },
-    { id: "evidence", icon: <FileText size={17} />, label: "Evidence" },
-    { id: "reports", icon: <Table2 size={17} />, label: "Reports" },
+  { label: tr("Validate"), items: [
+    { id: "doctor", icon: <ShieldCheck size={17} />, label: tr("Doctor") },
+    { id: "patches", icon: <Wrench size={17} />, label: tr("Patches") },
+    { id: "benchmarks", icon: <BarChart3 size={17} />, label: tr("Benchmarks") },
+    { id: "evidence", icon: <FileText size={17} />, label: tr("Evidence") },
+    { id: "reports", icon: <Table2 size={17} />, label: tr("Reports") },
   ] },
-  { label: "Tools", items: [
-    { id: "advanced", icon: <SlidersHorizontal size={17} />, label: "Advanced" },
+  { label: tr("Tools"), items: [
+    { id: "advanced", icon: <SlidersHorizontal size={17} />, label: tr("Advanced") },
   ] },
 ];
 // Flat list (command palette / lookups) — preserves the grouped order.
@@ -550,10 +550,10 @@ export default function App() {
     try {
       const job = await api.benchRun({ preset_id: selectedPreset });
       setMonitorJobId(job.job_id);
-      toast(`Benchmark queued for ${selectedPreset}`, "success");
+      toast(`${tr("Benchmark queued for")} ${selectedPreset}`, "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      toast("Benchmark failed to queue", "error");
+      toast(tr("Benchmark failed to queue"), "error");
     } finally {
       setJobActionBusy("");
     }
@@ -565,10 +565,10 @@ export default function App() {
     try {
       const job = await api.evidenceAttach({ preset_id: selectedPreset });
       setMonitorJobId(job.job_id);
-      toast(`Evidence attach queued for ${selectedPreset}`, "success");
+      toast(`${tr("Evidence attach queued for")} ${selectedPreset}`, "success");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      toast("Evidence attach failed to queue", "error");
+      toast(tr("Evidence attach failed to queue"), "error");
     } finally {
       setJobActionBusy("");
     }
@@ -622,7 +622,7 @@ export default function App() {
       switchServer(url);
       return;
     }
-    toast(`No SNDR daemon at ${hostLabel(url)}. If that host runs the vLLM engine, use its card's SSH / Discover / Terminal / Chat instead — not a daemon connection.`, "error");
+    toast(`${tr("No SNDR daemon at")} ${hostLabel(url)}. ${tr("If that host runs the vLLM engine, use its card's SSH / Discover / Terminal / Chat instead — not a daemon connection.")}`, "error");
   }
 
   // Self-heal a stale/bad daemon address. The GUI is served by a daemon at the
@@ -639,7 +639,7 @@ export default function App() {
     autoRecoveredRef.current = cur;
     void (async () => {
       if (await probeDaemon(origin)) {
-        toast(`Daemon at ${hostLabel(cur)} is unreachable — switched back to the local daemon.`, "info");
+        toast(`${tr("Daemon at")} ${hostLabel(cur)} ${tr("is unreachable — switched back to the local daemon.")}`, "info");
         switchServer(origin);
       }
     })();
@@ -653,7 +653,7 @@ export default function App() {
     // server-side from the encrypted secret (the raw key never reaches the browser).
     setChatTarget({ host: profile.host, port: profile.engine_port || 8000, hostId: profile.id, nonce: Date.now() });
     setActiveSection("chat");
-    toast(`Chat → ${profile.label} (${profile.host}:${profile.engine_port || 8000})`, "info");
+    toast(`${tr("Chat")} → ${profile.label} (${profile.host}:${profile.engine_port || 8000})`, "info");
   }
   // Returns true if a real daemon was found and the GUI re-pointed at it; false
   // if the host has no daemon (an engine box). The caller (host card) reflects a
@@ -667,15 +667,15 @@ export default function App() {
       // Explicit feedback (was previously silent → looked like the button did
       // nothing): say WHERE we looked and the likely fixes.
       toast(
-        `No SNDR daemon reachable at ${profile.host}:${port}. ` +
-        `Check the daemon port (8765 by default, not the engine port ${profile.engine_port || 8000}), ` +
-        `that the node daemon is running, and that it allows this origin — or "Set up as node" below.`,
+        `${tr("No SNDR daemon reachable at")} ${profile.host}:${port}. ` +
+        `${tr("Check the daemon port (8765 by default, not the engine port")} ${profile.engine_port || 8000}), ` +
+        `${tr("that the node daemon is running, and that it allows this origin — or \"Set up as node\" below.")}`,
         "error",
       );
       return false;
     }
     switchServer(url);  // the host is already in the registry — just connect
-    toast(`Connected to ${profile.label} daemon (${url})`, "success");
+    toast(`${tr("Connected to")} ${profile.label} ${tr("daemon")} (${url})`, "success");
     return true;
   }
 
@@ -883,7 +883,7 @@ export default function App() {
   const connectionTone: "success" | "warning" | "danger" =
     state === "error" ? "danger" : state === "loading" ? "warning" : "success";
   const connectionLabel =
-    state === "error" ? "Disconnected" : state === "loading" ? "Connecting" : "Connected";
+    state === "error" ? tr("Disconnected") : state === "loading" ? tr("Connecting") : tr("Connected");
   const presetCount = overview?.catalog.presets_count ?? presets?.presets.length ?? 0;
   const engineReady = overview?.capabilities.platform.engine_installed ?? false;
   const shellClass = [
@@ -901,7 +901,7 @@ export default function App() {
     return (
       <main className={shellClass} data-viewport={viewport.tier}>
         <div className="login-backdrop">
-          <div className="auth-loading"><span className="auth-spinner" /> Connecting…</div>
+          <div className="auth-loading"><span className="auth-spinner" /> {tr("Connecting…")}</div>
         </div>
       </main>
     );
@@ -924,13 +924,13 @@ export default function App() {
           <div className="brand-mark">S</div>
           <div>
             <strong>SNDR</strong>
-            <span>Control Center</span>
+            <span>{tr("Control Center")}</span>
           </div>
           <small>v{overview?.capabilities.platform.sndr_core_version ?? environment?.sndr_core_version ?? "—"}</small>
           <button
             className="sidebar-toggle"
-            title={settings.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-label={settings.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={settings.sidebarCollapsed ? tr("Expand sidebar") : tr("Collapse sidebar")}
+            aria-label={settings.sidebarCollapsed ? tr("Expand sidebar") : tr("Collapse sidebar")}
             aria-pressed={settings.sidebarCollapsed}
             onClick={() => updateSettings({ sidebarCollapsed: !settings.sidebarCollapsed })}
           >
@@ -938,7 +938,7 @@ export default function App() {
           </button>
         </div>
 
-        <nav className="side-nav" aria-label="SNDR sections">
+        <nav className="side-nav" aria-label={tr("SNDR sections")}>
           {navGroups.map((group, gi) => (
             <div className="side-nav-group" key={group.label ?? `g${gi}`}>
               {group.label && <div className="side-nav-header">{group.label}</div>}
@@ -958,20 +958,20 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="daemon-card" title={`API Daemon · ${apiBase} · SNDR Core v${environment?.sndr_core_version ?? "—"} · ${runtimeMode === "remote" ? "Remote Desktop" : "Local Server"}`}>
+        <div className="daemon-card" title={`${tr("API Daemon")} · ${apiBase} · SNDR Core v${environment?.sndr_core_version ?? "—"} · ${runtimeMode === "remote" ? tr("Remote Desktop") : tr("Local Server")}`}>
           <div className="daemon-line">
             <span className="live-dot" />
-            <strong>API Daemon</strong>
+            <strong>{tr("API Daemon")}</strong>
             <StatusBadge status={state === "error" ? "missing" : state === "loading" ? "partial" : "available"} />
           </div>
           <p>{apiBase}</p>
           <div className="daemon-meta">
             <span>SNDR Core v{environment?.sndr_core_version ?? "—"}</span>
-            <span>Engine: {environment ? (environment.engine_version ? `vLLM ${environment.engine_version}` : "vLLM not installed") : "…"}</span>
-            <span>Mode: {runtimeMode === "remote" ? "Remote Desktop" : "Local Server"} · Read-only</span>
+            <span>{tr("Engine")}: {environment ? (environment.engine_version ? `vLLM ${environment.engine_version}` : tr("vLLM not installed")) : "…"}</span>
+            <span>{tr("Mode")}: {runtimeMode === "remote" ? tr("Remote Desktop") : tr("Local Server")} · {tr("Read-only")}</span>
           </div>
-          <button className="ghost-button daemon-docs" title="Open API docs" onClick={() => window.open(`${apiBase.replace(/\/$/, "")}/docs`, "_blank", "noopener,noreferrer")}>
-            <FileText size={14} /> <span className="daemon-docs-label">View API Docs</span>
+          <button className="ghost-button daemon-docs" title={tr("Open API docs")} onClick={() => window.open(`${apiBase.replace(/\/$/, "")}/docs`, "_blank", "noopener,noreferrer")}>
+            <FileText size={14} /> <span className="daemon-docs-label">{tr("View API Docs")}</span>
           </button>
         </div>
       </aside>
@@ -979,22 +979,22 @@ export default function App() {
       <section className="main-shell">
         <header className="topbar">
           <div className="topbar-left">
-            <div className="mode-toggle" aria-label="GPU target" title="Where the GPU engine runs (launch/SSH/chat host hints). To change which daemon the GUI connects to, use the server switcher on the right.">
+            <div className="mode-toggle" aria-label={tr("GPU target")} title={tr("Where the GPU engine runs (launch/SSH/chat host hints). To change which daemon the GUI connects to, use the server switcher on the right.")}>
               <button
                 className={runtimeMode === "local" ? "active" : ""}
                 onClick={() => setRuntimeMode("local")}
-                title="GPU target: this machine"
+                title={tr("GPU target: this machine")}
               >
                 <Monitor size={16} />
-                Local GPU
+                {tr("Local GPU")}
               </button>
               <button
                 className={runtimeMode === "remote" ? "active" : ""}
                 onClick={() => setRuntimeMode("remote")}
-                title="GPU target: a remote node (via SSH)"
+                title={tr("GPU target: a remote node (via SSH)")}
               >
                 <ShieldCheck size={16} />
-                Remote GPU
+                {tr("Remote GPU")}
               </button>
             </div>
             <StatusPill tone={connectionTone}>{connectionLabel}</StatusPill>
@@ -1005,15 +1005,15 @@ export default function App() {
                 onChange={(e) => updateSettings({ remoteHost: e.target.value })}
                 onBlur={(e) => updateSettings({ remoteHost: e.target.value.trim() || DEFAULT_REMOTE_HOST })}
                 spellCheck={false}
-                aria-label="Remote engine host"
-                title="Engine host for Remote GPU mode — set the address of your GPU node (e.g. 192.168.1.10)"
+                aria-label={tr("Remote engine host")}
+                title={tr("Engine host for Remote GPU mode — set the address of your GPU node (e.g. 192.168.1.10)")}
                 placeholder={DEFAULT_REMOTE_HOST}
               />
             ) : (
               <span className="host-title">{endpointHost}</span>
             )}
             <span className="host-spec">{selectedPresetRecord?.hardware ?? recommendForm.hardware}</span>
-            <span className="host-spec">{engineReady ? "vLLM engine ready" : "Engine not installed"}</span>
+            <span className="host-spec">{engineReady ? tr("vLLM engine ready") : tr("Engine not installed")}</span>
           </div>
 
           <div className="topbar-actions">
@@ -1021,12 +1021,12 @@ export default function App() {
             <ServerSwitcher apiBase={apiBase} connectionTone={connectionTone} onSwitch={(url) => void switchServerGuarded(url)} hostProfiles={hostProfiles} onManageHosts={() => setActiveSection("hosts")} onOpenHost={(id) => { setFocusHostId(id); setActiveSection("hosts"); }} />
             <button className="tool-button" onClick={() => void loadAll()}>
               <RefreshCw size={16} />
-              Sync Catalog
+              {tr("Sync Catalog")}
             </button>
             <LangToggle />
             <button
               className="tool-button"
-              title={`Theme: ${themeLabel(settings.theme)} — switch to ${themeLabel(nextTheme(settings.theme))}`}
+              title={`${tr("Theme")}: ${themeLabel(settings.theme)} — ${tr("switch to")} ${themeLabel(nextTheme(settings.theme))}`}
               onClick={() => updateSettings({ theme: nextTheme(settings.theme) })}
             >
               {themeIcon(nextTheme(settings.theme))}
@@ -1037,14 +1037,14 @@ export default function App() {
               onClick={() => setActiveSection("advanced")}
             >
               <Settings size={16} />
-              Settings
+              {tr("Settings")}
             </button>
             <button
               className="tool-button"
               onClick={() => setCommandOpen(true)}
             >
               <Command size={16} />
-              Command
+              {tr("Command")}
             </button>
             {authState?.user && (
               <AccountMenu user={authState.user} onLoggedOut={() => { refreshAuth(); }} />
@@ -1063,11 +1063,11 @@ export default function App() {
           <section className="daemon-down">
             <PlugZap size={18} />
             <div className="daemon-down-text">
-              <strong>Can't reach a SNDR daemon at {apiBase}</strong>
-              <span>This is where patches, presets and the patcher version come from. A GPU server runs vLLM <em>engines</em>, not the daemon — manage it from <b>Hosts</b> (SSH check · Discover · Terminal · Chat). Point the GUI back at a running daemon to see project data.</span>
+              <strong>{tr("Can't reach a SNDR daemon at")} {apiBase}</strong>
+              <span>{tr("This is where patches, presets and the patcher version come from. A GPU server runs vLLM")} <em>{tr("engines")}</em>{tr(", not the daemon — manage it from")} <b>{tr("Hosts")}</b> {tr("(SSH check · Discover · Terminal · Chat). Point the GUI back at a running daemon to see project data.")}</span>
             </div>
             <button className="primary-action" onClick={() => switchServer(window.location.origin)}>
-              <Home size={15} /> Use local daemon
+              <Home size={15} /> {tr("Use local daemon")}
             </button>
           </section>
         )}
@@ -1077,23 +1077,23 @@ export default function App() {
           <section className="section-workspace section-launch-plan">
         <header className="section-heading">
           <div>
-            <span>Operator workbench</span>
-            <h1>Launch Plan</h1>
-            <p>Recommend a preset, compose the runtime, clear gates, then launch — plan-before-apply with a live job console.</p>
+            <span>{tr("Operator workbench")}</span>
+            <h1>{tr("Launch Plan")}</h1>
+            <p>{tr("Recommend a preset, compose the runtime, clear gates, then launch — plan-before-apply with a live job console.")}</p>
           </div>
           <div className="section-actions">
             <button className="tool-button" onClick={() => void refreshLaunchPlan()}>
-              <RefreshCw size={16} /> Re-run Gates
+              <RefreshCw size={16} /> {tr("Re-run Gates")}
             </button>
             <button className="tool-button" onClick={() => void loadAll()}>
-              <RefreshCw size={16} /> Sync
+              <RefreshCw size={16} /> {tr("Sync")}
             </button>
           </div>
         </header>
-        <section className="process-strip" aria-label="Launch process">
+        <section className="process-strip" aria-label={tr("Launch process")}>
           <Step
             number="1"
-            title="Choose Preset"
+            title={tr("Choose Preset")}
             detail={selectedPreset || recommendForm.workload.replace(/_/g, " ")}
             state="done"
             active={launchTab === "recommend"}
@@ -1101,7 +1101,7 @@ export default function App() {
           />
           <Step
             number="2"
-            title="Configure"
+            title={tr("Configure")}
             detail={`${targetTitle(runtimeTargets, runtimeTarget)} · ${patchPolicy}`}
             state="done"
             active={launchTab === "compose"}
@@ -1109,16 +1109,16 @@ export default function App() {
           />
           <Step
             number="3"
-            title="Review & Launch"
-            detail={gateCounts.blocked > 0 ? `${gateCounts.blocked} blocked` : applyEnabled ? "ready to launch" : "read-only"}
+            title={tr("Review & Launch")}
+            detail={gateCounts.blocked > 0 ? `${gateCounts.blocked} ${tr("blocked")}` : applyEnabled ? tr("ready to launch") : tr("read-only")}
             state={gateCounts.blocked > 0 ? "warning" : "active"}
             active={launchTab === "launch"}
             onClick={() => setLaunchTab("launch")}
           />
           <Step
             number="4"
-            title="Observe"
-            detail={launchJob ? `job ${launchJob.status}` : `${evidenceRefs.length} evidence refs`}
+            title={tr("Observe")}
+            detail={launchJob ? `${tr("job")} ${launchJob.status}` : `${evidenceRefs.length} ${tr("evidence refs")}`}
             state={launchJob ? "done" : "idle"}
             active={launchTab === "console"}
             onClick={() => setLaunchTab("console")}
@@ -1126,18 +1126,18 @@ export default function App() {
         </section>
 
         <section className="metric-strip">
-          <Metric icon={<Database size={18} />} label="Presets" value={overview?.catalog.presets_count ?? "-"} />
-          <Metric icon={<Cpu size={18} />} label="Models" value={overview?.catalog.models_count ?? "-"} />
-          <Metric icon={<GitBranch size={18} />} label="Profiles" value={overview?.catalog.profiles_count ?? "-"} />
+          <Metric icon={<Database size={18} />} label={tr("Presets")} value={overview?.catalog.presets_count ?? "-"} />
+          <Metric icon={<Cpu size={18} />} label={tr("Models")} value={overview?.catalog.models_count ?? "-"} />
+          <Metric icon={<GitBranch size={18} />} label={tr("Profiles")} value={overview?.catalog.profiles_count ?? "-"} />
           <Metric
             icon={<Sparkles size={18} />}
-            label="Product API"
-            value={state === "loading" ? "Loading" : state === "error" ? "Error" : "Ready"}
+            label={tr("Product API")}
+            value={state === "loading" ? tr("Loading") : state === "error" ? tr("Error") : tr("Ready")}
           />
           <Metric
             icon={<Gauge size={18} />}
             label={primaryMetricKind}
-            value={primaryMetricValue > 0 ? primaryMetricValue : "Pending"}
+            value={primaryMetricValue > 0 ? primaryMetricValue : tr("Pending")}
           />
         </section>
 
@@ -1148,21 +1148,21 @@ export default function App() {
           tabs={[
             {
               id: "recommend",
-              label: "1 · Choose",
+              label: `1 · ${tr("Choose")}`,
               icon: <SlidersHorizontal size={15} />,
               render: () => (
           <section className="panel builder-panel">
             <PanelHeader
               label="A."
-              title="Preset Recommendation Builder"
-              action={`${recommend?.total_matches ?? 0} matches`}
+              title={tr("Preset Recommendation Builder")}
+              action={`${recommend?.total_matches ?? 0} ${tr("matches")}`}
               icon={<SlidersHorizontal size={18} />}
             />
 
             <div className="builder-section">
               <span className="section-index">1.</span>
               <div>
-                <h3>Workload</h3>
+                <h3>{tr("Workload")}</h3>
                 <div className="segmented-row">
                   {workloadChoices.map((workload) => (
                     <button
@@ -1181,7 +1181,7 @@ export default function App() {
             <div className="builder-section two-column">
               <span className="section-index">2.</span>
               <label className="field">
-                <span>Hardware Target</span>
+                <span>{tr("Hardware Target")}</span>
                 <select
                   value={recommendForm.hardware}
                   onChange={(event) =>
@@ -1198,8 +1198,8 @@ export default function App() {
               <div className="hardware-card">
                 <HardDrive size={18} />
                 <div>
-                  <strong>Current host</strong>
-                  <span>{runtimeMode === "remote" ? "Remote GPU node" : "Local workstation"}</span>
+                  <strong>{tr("Current host")}</strong>
+                  <span>{runtimeMode === "remote" ? tr("Remote GPU node") : tr("Local workstation")}</span>
                 </div>
               </div>
             </div>
@@ -1207,7 +1207,7 @@ export default function App() {
             <div className="builder-section constraints-row">
               <span className="section-index">3.</span>
               <label className="field compact">
-                <span>Concurrency</span>
+                <span>{tr("Concurrency")}</span>
                 <input
                   type="number"
                   min={1}
@@ -1222,7 +1222,7 @@ export default function App() {
                 />
               </label>
               <label className="field compact">
-                <span>Result Count</span>
+                <span>{tr("Result Count")}</span>
                 <input
                   type="number"
                   min={1}
@@ -1234,11 +1234,11 @@ export default function App() {
                 />
               </label>
               <div className="toggle-field">
-                <span>Public evidence</span>
+                <span>{tr("Public evidence")}</span>
                 <button
                   type="button"
                   className={recommendForm.preferPublic ? "toggle active" : "toggle"}
-                  aria-label="Prefer public evidence"
+                  aria-label={tr("Prefer public evidence")}
                   aria-pressed={recommendForm.preferPublic}
                   onClick={() =>
                     setRecommendForm({ ...recommendForm, preferPublic: !recommendForm.preferPublic })
@@ -1246,18 +1246,18 @@ export default function App() {
                 />
               </div>
               <div className="toggle-field">
-                <span>Safe patch policy</span>
+                <span>{tr("Safe patch policy")}</span>
                 <button
                   type="button"
                   className={patchPolicy === "safe" ? "toggle active" : "toggle"}
-                  aria-label="Safe patch policy"
+                  aria-label={tr("Safe patch policy")}
                   aria-pressed={patchPolicy === "safe"}
                   onClick={() => setPatchPolicy(patchPolicy === "safe" ? "aggressive" : "safe")}
                 />
               </div>
               <button className="primary-action" onClick={() => void runRecommend()}>
                 <Search size={16} />
-                Recalculate
+                {tr("Recalculate")}
               </button>
             </div>
 
@@ -1265,28 +1265,28 @@ export default function App() {
               <span className="section-index">4.</span>
               <div className="recommend-table-wrap">
                 <div className="table-toolbar">
-                  <h3>Recommendation Results</h3>
+                  <h3>{tr("Recommendation Results")}</h3>
                   <label className="search-box">
                     <Search size={15} />
                     <input
-                      aria-label="Search presets"
+                      aria-label={tr("Search presets")}
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
-                      placeholder="Search preset, model, family"
+                      placeholder={tr("Search preset, model, family")}
                     />
                   </label>
                 </div>
                 <table className="recommend-table">
                   <thead>
                     <tr>
-                      <th>Preset</th>
-                      <th>Model Family</th>
-                      <th>Mode</th>
-                      <th>Status</th>
-                      <th>Allowed Workloads</th>
-                      <th>Evidence</th>
-                      <th>Fallback</th>
-                      <th>Risk</th>
+                      <th>{tr("Preset")}</th>
+                      <th>{tr("Model Family")}</th>
+                      <th>{tr("Mode")}</th>
+                      <th>{tr("Status")}</th>
+                      <th>{tr("Allowed Workloads")}</th>
+                      <th>{tr("Evidence")}</th>
+                      <th>{tr("Fallback")}</th>
+                      <th>{tr("Risk")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1301,13 +1301,13 @@ export default function App() {
                   </tbody>
                 </table>
                 {recommend?.results.length === 0 && (
-                  <div className="empty-state">No recommendation results for this query.</div>
+                  <div className="empty-state">{tr("No recommendation results for this query.")}</div>
                 )}
                 <div className="table-footer">
                   <span>
-                    Showing {(recommend?.results ?? []).length} of {recommend?.total_candidates ?? 0} candidates
+                    {tr("Showing")} {(recommend?.results ?? []).length} {tr("of")} {recommend?.total_candidates ?? 0} {tr("candidates")}
                   </span>
-                  <button className="ghost-button" onClick={() => setActiveSection("presets")}>View All Presets</button>
+                  <button className="ghost-button" onClick={() => setActiveSection("presets")}>{tr("View All Presets")}</button>
                 </div>
               </div>
             </div>
@@ -1317,33 +1317,33 @@ export default function App() {
             },
             {
               id: "compose",
-              label: "2 · Configure",
+              label: `2 · ${tr("Configure")}`,
               icon: <SlidersHorizontal size={15} />,
               render: () => (
           <section className="panel composer-panel">
             <PanelHeader
               label="B."
-              title="Launch Plan Composer"
-              action={`Plan ID: ${planId}`}
+              title={tr("Launch Plan Composer")}
+              action={`${tr("Plan ID")}: ${planId}`}
               icon={<Rocket size={18} />}
             />
 
             <div className="composer-grid">
               <section>
                 <div className="plan-flow">
-                  <PlanChip label="Selected Preset" value={selectedPreset} />
+                  <PlanChip label={tr("Selected Preset")} value={selectedPreset} />
                   <ChevronRight size={18} />
-                  <PlanChip label="Model" value={selectedPresetRecord?.model ?? "-"} />
+                  <PlanChip label={tr("Model")} value={selectedPresetRecord?.model ?? "-"} />
                   <ChevronRight size={18} />
-                  <PlanChip label="Hardware" value={selectedPresetRecord?.hardware ?? recommendForm.hardware} />
+                  <PlanChip label={tr("Hardware")} value={selectedPresetRecord?.hardware ?? recommendForm.hardware} />
                   <ChevronRight size={18} />
-                  <PlanChip label="Profile" value={selectedPresetRecord?.profile ?? "-"} />
+                  <PlanChip label={tr("Profile")} value={selectedPresetRecord?.profile ?? "-"} />
                   <ChevronRight size={18} />
-                  <PlanChip label="Baseline" value={primaryMetricValue > 0 ? `${primaryMetricValue.toLocaleString()} ${primaryMetricKind.replace(/^agg_/, "")}` : "pending"} />
+                  <PlanChip label={tr("Baseline")} value={primaryMetricValue > 0 ? `${primaryMetricValue.toLocaleString()} ${primaryMetricKind.replace(/^agg_/, "")}` : tr("pending")} />
                 </div>
 
                 <div className="option-block">
-                  <h3>Runtime Target</h3>
+                  <h3>{tr("Runtime Target")}</h3>
                   <div className="runtime-grid">
                     {runtimeTargets.map((target) => (
                       <button
@@ -1359,7 +1359,7 @@ export default function App() {
                 </div>
 
                 <div className="option-block">
-                  <h3>Patch Policy</h3>
+                  <h3>{tr("Patch Policy")}</h3>
                   <div className="policy-row">
                     {["compact", "safe", "minimal"].map((policy) => (
                       <button
@@ -1371,15 +1371,15 @@ export default function App() {
                       </button>
                     ))}
                     <span className="policy-note">
-                      Strict image digest and dry-run mode are enabled for GUI preview.
+                      {tr("Strict image digest and dry-run mode are enabled for GUI preview.")}
                     </span>
                   </div>
                 </div>
 
                 <div className="option-block">
-                  <h3>Launch Target</h3>
+                  <h3>{tr("Launch Target")}</h3>
                   <label className="field">
-                    <span>SSH target — empty = local execution</span>
+                    <span>{tr("SSH target — empty = local execution")}</span>
                     <input
                       value={launchSshTarget}
                       onChange={(event) => setLaunchSshTarget(event.target.value)}
@@ -1388,8 +1388,8 @@ export default function App() {
                   </label>
                   <p className="policy-note">
                     {launchSshTarget.trim()
-                      ? `Apply Launch will run over SSH on ${launchSshTarget.trim()} (when --enable-apply).`
-                      : "Apply Launch runs locally (when --enable-apply). Set an SSH target to launch on a remote host."}
+                      ? `${tr("Apply Launch will run over SSH on")} ${launchSshTarget.trim()} ${tr("(when --enable-apply).")}`
+                      : tr("Apply Launch runs locally (when --enable-apply). Set an SSH target to launch on a remote host.")}
                   </p>
                 </div>
 
@@ -1401,25 +1401,25 @@ export default function App() {
               </section>
 
               <section className="plan-summary">
-                <h3>Plan Summary</h3>
-                <KeyValue label="Preset" value={selectedPreset} />
-                <KeyValue label="Model" value={asText(planSummary.model, selectedPresetRecord?.model ?? "-")} />
-                <KeyValue label="Hardware" value={selectedPresetRecord?.hardware ?? recommendForm.hardware} />
-                <KeyValue label="Runtime" value={targetTitle(runtimeTargets, runtimeTarget)} />
-                <KeyValue label="Mode" value={runtimeMode === "remote" ? "Remote SSH tunnel" : "Local web daemon"} />
-                <KeyValue label="Context" value={formatTokens(asNumber(planSummary.context) || asNumber(composed.max_model_len))} />
-                <KeyValue label="Sequences" value={String(asNumber(planSummary.max_num_seqs) || asNumber(composed.max_num_seqs) || "-")} />
-                <KeyValue label="KV cache" value={asText(composed.kv_cache_dtype, "-")} />
-                <KeyValue label="Spec decode" value={`${asText(composed.spec_decode_method, "-")} / K=${asText(composed.spec_decode_K, "-")}`} />
-                <KeyValue label="Patches" value={asNumber(planSummary.enabled_patches_count) || asNumber(composed.enabled_patches_count) || "-"} />
-                <KeyValue label="Patch policy" value={patchPolicy} />
-                <KeyValue label="Fallback" value={asText(planSummary.fallback_preset, asText(card.fallback_preset, "-"))} />
-                <KeyValue label="Plan ID" value={planId} />
+                <h3>{tr("Plan Summary")}</h3>
+                <KeyValue label={tr("Preset")} value={selectedPreset} />
+                <KeyValue label={tr("Model")} value={asText(planSummary.model, selectedPresetRecord?.model ?? "-")} />
+                <KeyValue label={tr("Hardware")} value={selectedPresetRecord?.hardware ?? recommendForm.hardware} />
+                <KeyValue label={tr("Runtime")} value={targetTitle(runtimeTargets, runtimeTarget)} />
+                <KeyValue label={tr("Mode")} value={runtimeMode === "remote" ? tr("Remote SSH tunnel") : tr("Local web daemon")} />
+                <KeyValue label={tr("Context")} value={formatTokens(asNumber(planSummary.context) || asNumber(composed.max_model_len))} />
+                <KeyValue label={tr("Sequences")} value={String(asNumber(planSummary.max_num_seqs) || asNumber(composed.max_num_seqs) || "-")} />
+                <KeyValue label={tr("KV cache")} value={asText(composed.kv_cache_dtype, "-")} />
+                <KeyValue label={tr("Spec decode")} value={`${asText(composed.spec_decode_method, "-")} / K=${asText(composed.spec_decode_K, "-")}`} />
+                <KeyValue label={tr("Patches")} value={asNumber(planSummary.enabled_patches_count) || asNumber(composed.enabled_patches_count) || "-"} />
+                <KeyValue label={tr("Patch policy")} value={patchPolicy} />
+                <KeyValue label={tr("Fallback")} value={asText(planSummary.fallback_preset, asText(card.fallback_preset, "-"))} />
+                <KeyValue label={tr("Plan ID")} value={planId} />
                 <button className="primary-action launch-continue" onClick={() => setLaunchTab("launch")}>
-                  Review &amp; Launch
+                  {tr("Review & Launch")}
                   <ChevronRight size={16} />
                 </button>
-                <p className="policy-note">Step 3 confirms readiness and starts the runtime.</p>
+                <p className="policy-note">{tr("Step 3 confirms readiness and starts the runtime.")}</p>
               </section>
             </div>
           </section>
@@ -1428,7 +1428,7 @@ export default function App() {
             },
             {
               id: "launch",
-              label: "3 · Launch",
+              label: `3 · ${tr("Launch")}`,
               icon: <Rocket size={15} />,
               render: () => (
                 <LaunchPanel
@@ -1461,14 +1461,14 @@ export default function App() {
             },
             {
               id: "gates",
-              label: "Gates",
+              label: tr("Gates"),
               icon: <ListChecks size={15} />,
               render: () => (
           <section className="panel gates-panel">
             <PanelHeader
               label="C."
-              title="Gates & Blockers"
-              action={`${gateCounts.pass} ok / ${gateCounts.warning} warn / ${gateCounts.blocked} blocked`}
+              title={tr("Gates & Blockers")}
+              action={`${gateCounts.pass} ${tr("ok")} / ${gateCounts.warning} ${tr("warn")} / ${gateCounts.blocked} ${tr("blocked")}`}
               icon={<ListChecks size={18} />}
             />
             <div className="gates-list">
@@ -1481,7 +1481,7 @@ export default function App() {
               onClick={() => void refreshLaunchPlan()}
             >
               <RefreshCw size={15} />
-              Re-run All Gates
+              {tr("Re-run All Gates")}
             </button>
           </section>
 
@@ -1489,14 +1489,14 @@ export default function App() {
             },
             {
               id: "console",
-              label: "Console",
+              label: tr("Console"),
               icon: <SquareTerminal size={15} />,
               render: () => (
           <section className="panel console-panel">
             <PanelHeader
               label="E."
-              title="Job and Event Console"
-              action="Read-only mirror"
+              title={tr("Job and Event Console")}
+              action={tr("Read-only mirror")}
               icon={<SquareTerminal size={18} />}
             />
             <OperationalConsole
@@ -1514,7 +1514,7 @@ export default function App() {
             },
             {
               id: "endpoints",
-              label: "Endpoints & Evidence",
+              label: tr("Endpoints & Evidence"),
               icon: <Link2 size={15} />,
               render: () => (
           <div className="lp-endpoints-grid">
@@ -1540,7 +1540,7 @@ export default function App() {
               summary={patchSummary}
               registryTotal={patches?.total ?? patchRows.length}
               selectedCount={asNumber(composed.enabled_patches_count)}
-              onExplain={() => setDialog("Patch policy matrix reflects the live registry: default-applied, marker-only, opt-in and blocked patches, plus the count enabled by the selected preset plan.")}
+              onExplain={() => setDialog(tr("Patch policy matrix reflects the live registry: default-applied, marker-only, opt-in and blocked patches, plus the count enabled by the selected preset plan."))}
             />
           </div>
               )
@@ -1611,7 +1611,7 @@ export default function App() {
           <span>SNDR_HOME ~/.sndr</span>
           <span>API {apiBase}</span>
           <span className={`connected ${connectionTone}`}><span className="live-dot" /> {connectionLabel}</span>
-          <span>Mode {runtimeMode === "remote" ? "Remote Desktop" : "Local Server"}</span>
+          <span>{tr("Mode")} {runtimeMode === "remote" ? tr("Remote Desktop") : tr("Local Server")}</span>
         </footer>
       </section>
       {dialog && <InfoDialog message={dialog} onClose={() => setDialog(null)} />}
@@ -1635,25 +1635,25 @@ export default function App() {
           settings={settings}
           onSettings={updateSettings}
           searchItems={[
-            ...navItems.map((nav) => ({ icon: nav.icon, title: nav.label, detail: "Section", run: () => setActiveSection(nav.id) })),
+            ...navItems.map((nav) => ({ icon: nav.icon, title: nav.label, detail: tr("Section"), run: () => setActiveSection(nav.id) })),
             ...(presets?.presets ?? []).slice(0, 80).map((preset) => ({
-              icon: <Database size={16} />, title: preset.id, detail: `Preset · ${preset.model} · ${preset.hardware}`,
+              icon: <Database size={16} />, title: preset.id, detail: `${tr("Preset")} · ${preset.model} · ${preset.hardware}`,
               run: () => { void loadExplain(preset.id); setActiveSection("presets"); }
             })),
             ...(configCatalog?.models ?? []).map((m) => ({
-              icon: <Boxes size={16} />, title: m.title || m.id, detail: `Model · ${m.summary || m.id}`,
+              icon: <Boxes size={16} />, title: m.title || m.id, detail: `${tr("Model")} · ${m.summary || m.id}`,
               run: () => setActiveSection("configs")
             })),
             ...(configCatalog?.hardware ?? []).map((h) => ({
-              icon: <Server size={16} />, title: h.title || h.id, detail: `Hardware · ${h.summary || h.id}`,
+              icon: <Server size={16} />, title: h.title || h.id, detail: `${tr("Hardware")} · ${h.summary || h.id}`,
               run: () => setActiveSection("configs")
             })),
             ...(configCatalog?.profiles ?? []).map((p) => ({
-              icon: <SlidersHorizontal size={16} />, title: p.title || p.id, detail: `Profile · ${p.summary || p.id}`,
+              icon: <SlidersHorizontal size={16} />, title: p.title || p.id, detail: `${tr("Profile")} · ${p.summary || p.id}`,
               run: () => setActiveSection("configs")
             })),
             ...(patches?.patches ?? []).map((p) => ({
-              icon: <PackageCheck size={16} />, title: p.patch_id, detail: `Patch · ${p.title}`,
+              icon: <PackageCheck size={16} />, title: p.patch_id, detail: `${tr("Patch")} · ${p.title}`,
               run: () => setActiveSection("patches")
             }))
           ]}
@@ -1684,10 +1684,10 @@ class SectionErrorBoundary extends Component<{ section: string; children: ReactN
           <div className="error-boundary">
             <AlertCircle size={22} />
             <div>
-              <strong>This panel hit a rendering error.</strong>
-              <p>{this.state.error.message || "Unexpected error while rendering the panel."}</p>
+              <strong>{tr("This panel hit a rendering error.")}</strong>
+              <p>{this.state.error.message || tr("Unexpected error while rendering the panel.")}</p>
               <button type="button" className="ghost-button" onClick={() => this.setState({ error: null })}>
-                <RefreshCw size={14} /> Retry
+                <RefreshCw size={14} /> {tr("Retry")}
               </button>
             </div>
           </div>
@@ -1845,26 +1845,26 @@ function SectionWorkspace({
           {sectionId === "presets" && selectedPreset && (
             <button
               className="tool-button"
-              title={`Copy a shareable link to ${selectedPreset}`}
+              title={`${tr("Copy a shareable link to")} ${selectedPreset}`}
               onClick={() => {
                 const url = window.location.href;
                 void navigator.clipboard?.writeText(url).then(
-                  () => toast(`Link to ${selectedPreset} copied`, "success"),
-                  () => toast("Could not copy link", "error")
+                  () => toast(`${tr("Link to")} ${selectedPreset} ${tr("copied")}`, "success"),
+                  () => toast(tr("Could not copy link"), "error")
                 );
               }}
             >
               <Link2 size={16} />
-              Copy Link
+              {tr("Copy Link")}
             </button>
           )}
           <button className="tool-button" onClick={() => onSection("launch-plan")}>
             <Rocket size={16} />
-            Launch Plan
+            {tr("Launch Plan")}
           </button>
-          <button className="tool-button" onClick={onCommand} title="Open the command palette (⌘K)">
+          <button className="tool-button" onClick={onCommand} title={tr("Open the command palette (⌘K)")}>
             <Command size={16} />
-            Quick Action
+            {tr("Quick Action")}
           </button>
         </div>
       </header>
@@ -1875,28 +1875,28 @@ function SectionWorkspace({
           tabs={[
             {
               id: "summary",
-              label: "Summary",
+              label: tr("Summary"),
               icon: <Activity size={15} />,
               render: () => (
                 <>
                 <div className="ov-hero">
-                  <OvKpi icon={<Database size={15} />} label="Presets" value={overview?.catalog.presets_count ?? "—"} sub={`${benchProven} bench-proven`} onClick={() => onSection("presets")} />
-                  <OvKpi icon={<Box size={15} />} label="Models" value={overview?.catalog.models_count ?? "—"} sub={`${Object.keys(familyCounts).length} families`} onClick={() => onSection("models")} />
-                  <OvKpi icon={<Wrench size={15} />} label="Patches" value={patchRows.length || patches?.total || "—"} sub={`${patchRows.filter((p) => p.default_on).length} default-on`} onClick={() => onSection("patches")} />
-                  <OvKpi icon={<Server size={15} />} label="Hosts" value={hostProfiles.length} sub={runtimeMode === "remote" ? "remote + local" : "local fleet"} onClick={() => onSection("hosts")} />
-                  <OvKpi icon={<ShieldCheck size={15} />} label="Doctor" value={doctorReport ? (doctorReport.findings.length ? `${doctorReport.findings.length} findings` : "clean") : "—"} sub={doctorReport && doctorReport.findings.length ? `${doctorReport.findings.filter((f) => f.severity === "blocked").length} blocked · ${doctorReport.findings.filter((f) => f.severity === "warning").length} warn` : undefined} tone={doctorReport?.findings?.some((f) => f.severity === "blocked") ? "warn" : "ok"} onClick={() => onSection("doctor")} />
-                  <OvKpi icon={<Rocket size={15} />} label="Engine" value={environment?.engine_installed ? "ready" : "—"} sub={environment?.engine_installed ? `${environment.engine_name ?? "vLLM"} ${environment.engine_version ?? ""}`.trim() : "not installed"} tone={environment?.engine_installed ? "ok" : undefined} onClick={() => onSection("services")} />
+                  <OvKpi icon={<Database size={15} />} label={tr("Presets")} value={overview?.catalog.presets_count ?? "—"} sub={`${benchProven} ${tr("bench-proven")}`} onClick={() => onSection("presets")} />
+                  <OvKpi icon={<Box size={15} />} label={tr("Models")} value={overview?.catalog.models_count ?? "—"} sub={`${Object.keys(familyCounts).length} ${tr("families")}`} onClick={() => onSection("models")} />
+                  <OvKpi icon={<Wrench size={15} />} label={tr("Patches")} value={patchRows.length || patches?.total || "—"} sub={`${patchRows.filter((p) => p.default_on).length} ${tr("default-on")}`} onClick={() => onSection("patches")} />
+                  <OvKpi icon={<Server size={15} />} label={tr("Hosts")} value={hostProfiles.length} sub={runtimeMode === "remote" ? tr("remote + local") : tr("local fleet")} onClick={() => onSection("hosts")} />
+                  <OvKpi icon={<ShieldCheck size={15} />} label={tr("Doctor")} value={doctorReport ? (doctorReport.findings.length ? `${doctorReport.findings.length} ${tr("findings")}` : tr("clean")) : "—"} sub={doctorReport && doctorReport.findings.length ? `${doctorReport.findings.filter((f) => f.severity === "blocked").length} ${tr("blocked")} · ${doctorReport.findings.filter((f) => f.severity === "warning").length} ${tr("warn")}` : undefined} tone={doctorReport?.findings?.some((f) => f.severity === "blocked") ? "warn" : "ok"} onClick={() => onSection("doctor")} />
+                  <OvKpi icon={<Rocket size={15} />} label={tr("Engine")} value={environment?.engine_installed ? tr("ready") : "—"} sub={environment?.engine_installed ? `${environment.engine_name ?? "vLLM"} ${environment.engine_version ?? ""}`.trim() : tr("not installed")} tone={environment?.engine_installed ? "ok" : undefined} onClick={() => onSection("services")} />
                   {viewport === "ultra" && (
                     <>
-                      <OvKpi icon={<GitBranch size={15} />} label="Profiles" value={overview?.catalog.profiles_count ?? "—"} sub="runtime recipes" onClick={() => onSection("configs")} />
-                      <OvKpi icon={<Cpu size={15} />} label="Hardware" value={overview?.catalog.hardware_count ?? "—"} sub="defined targets" />
-                      <OvKpi icon={<FileText size={15} />} label="Preset cards" value={overview?.catalog.preset_cards_count ?? "—"} sub={`${overview?.catalog.unannotated_presets_count ?? 0} unannotated`} onClick={() => onSection("presets")} />
+                      <OvKpi icon={<GitBranch size={15} />} label={tr("Profiles")} value={overview?.catalog.profiles_count ?? "—"} sub={tr("runtime recipes")} onClick={() => onSection("configs")} />
+                      <OvKpi icon={<Cpu size={15} />} label={tr("Hardware")} value={overview?.catalog.hardware_count ?? "—"} sub={tr("defined targets")} />
+                      <OvKpi icon={<FileText size={15} />} label={tr("Preset cards")} value={overview?.catalog.preset_cards_count ?? "—"} sub={`${overview?.catalog.unannotated_presets_count ?? 0} ${tr("unannotated")}`} onClick={() => onSection("presets")} />
                     </>
                   )}
                 </div>
                 {settings.showConnectionMap && (
                   <ModuleGrid>
-                    <ModuleCard title="Control Plane Connections" icon={<Route size={18} />} wide>
+                    <ModuleCard title={tr("Control Plane Connections")} icon={<Route size={18} />} wide>
                       <ConnectionMap
                         runtimeMode={runtimeMode}
                         runtimeTarget={runtimeTarget}
@@ -1910,59 +1910,59 @@ function SectionWorkspace({
                 {/* Status cards live in their own grid (no full-width sibling, which
                     would defeat auto-fit's track collapsing and strand whitespace). */}
                 <ModuleGrid className="ov-status-grid">
-                  <ModuleCard title="Platform Snapshot" icon={<Monitor size={18} />}>
+                  <ModuleCard title={tr("Platform Snapshot")} icon={<Monitor size={18} />}>
                     <InfoRows
                       rows={[
-                        ["Brand", overview?.capabilities.platform.public_brand ?? "-"],
-                        ["Package", overview?.capabilities.platform.package_name ?? "-"],
-                        ["Version", overview?.capabilities.platform.sndr_core_version ?? "-"],
-                        ["OS", `${overview?.capabilities.platform.os_name ?? "-"} / ${overview?.capabilities.platform.machine ?? "-"}`],
-                        ["Python", overview?.capabilities.platform.python_version ?? "-"]
+                        [tr("Brand"), overview?.capabilities.platform.public_brand ?? "-"],
+                        [tr("Package"), overview?.capabilities.platform.package_name ?? "-"],
+                        [tr("Version"), overview?.capabilities.platform.sndr_core_version ?? "-"],
+                        [tr("OS"), `${overview?.capabilities.platform.os_name ?? "-"} / ${overview?.capabilities.platform.machine ?? "-"}`],
+                        [tr("Python"), overview?.capabilities.platform.python_version ?? "-"]
                       ]}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Catalog Health" icon={<Database size={18} />} desc="Annotation coverage and load integrity — not raw counts (those are above).">
+                  <ModuleCard title={tr("Catalog Health")} icon={<Database size={18} />} desc={tr("Annotation coverage and load integrity — not raw counts (those are above).")}>
                     <PercentBar
                       value={overview?.catalog.preset_cards_count ?? 0}
                       max={overview?.catalog.presets_count || 1}
-                      label="card coverage"
-                      caption={`${overview?.catalog.preset_cards_count ?? 0}/${overview?.catalog.presets_count ?? 0} presets annotated`}
+                      label={tr("card coverage")}
+                      caption={`${overview?.catalog.preset_cards_count ?? 0}/${overview?.catalog.presets_count ?? 0} ${tr("presets annotated")}`}
                       tone={(overview?.catalog.preset_load_error_count ?? 0) > 0 ? "warn" : "ok"}
                     />
                     <KpiGrid
                       rows={[
-                        ["Bench-proven", benchProven],
-                        ["Families", Object.keys(familyCounts).length],
-                        ["Unannotated", overview?.catalog.unannotated_presets_count ?? 0],
-                        ["Load errors", overview?.catalog.preset_load_error_count ?? 0]
+                        [tr("Bench-proven"), benchProven],
+                        [tr("Families"), Object.keys(familyCounts).length],
+                        [tr("Unannotated"), overview?.catalog.unannotated_presets_count ?? 0],
+                        [tr("Load errors"), overview?.catalog.preset_load_error_count ?? 0]
                       ]}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Launch Readiness" icon={<ShieldCheck size={18} />} desc="Gate verdict for the selected preset launch.">
+                  <ModuleCard title={tr("Launch Readiness")} icon={<ShieldCheck size={18} />} desc={tr("Gate verdict for the selected preset launch.")}>
                     <PercentBar
                       value={gateCounts.pass}
                       max={gates.length || 1}
-                      label="gates passing"
-                      caption={`${gateCounts.pass} ok · ${gateCounts.warning} warn · ${gateCounts.blocked} blocked`}
+                      label={tr("gates passing")}
+                      caption={`${gateCounts.pass} ${tr("ok")} · ${gateCounts.warning} ${tr("warn")} · ${gateCounts.blocked} ${tr("blocked")}`}
                       tone={gateCounts.blocked > 0 ? "warn" : "ok"}
                     />
                     <InfoRows
                       rows={[
-                        ["Selected preset", selectedPreset],
-                        ["Runtime target", targetTitle(runtimeTargets, runtimeTarget)],
-                        ["Mode", runtimeMode === "remote" ? "Remote (SSH tunnel)" : "Local server"],
-                        ["Patch policy", patchPolicy]
+                        [tr("Selected preset"), selectedPreset],
+                        [tr("Runtime target"), targetTitle(runtimeTargets, runtimeTarget)],
+                        [tr("Mode"), runtimeMode === "remote" ? tr("Remote (SSH tunnel)") : tr("Local server")],
+                        [tr("Patch policy"), patchPolicy]
                       ]}
                     />
                   </ModuleCard>
-                  <ModuleCard title="Engine & API" icon={<Cpu size={18} />} desc="The inference engine and the API surface it exposes (core/OS live in Platform Snapshot).">
+                  <ModuleCard title={tr("Engine & API")} icon={<Cpu size={18} />} desc={tr("The inference engine and the API surface it exposes (core/OS live in Platform Snapshot).")}>
                     <InfoRows
                       rows={[
-                        ["Engine", `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? ""}`.trim() || "vLLM"],
-                        ["Installed", environment?.engine_installed ? "yes" : "not installed"],
-                        ["Runtime targets", `${runtimeTargets.length} available`],
-                        ["Capabilities", `${featureRows.length} features`],
-                        ["OpenAI API", environment?.engine_installed ? "ready" : "engine off"]
+                        [tr("Engine"), `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? ""}`.trim() || "vLLM"],
+                        [tr("Installed"), environment?.engine_installed ? tr("yes") : tr("not installed")],
+                        [tr("Runtime targets"), `${runtimeTargets.length} ${tr("available")}`],
+                        [tr("Capabilities"), `${featureRows.length} ${tr("features")}`],
+                        [tr("OpenAI API"), environment?.engine_installed ? tr("ready") : tr("engine off")]
                       ]}
                     />
                   </ModuleCard>
@@ -1972,14 +1972,14 @@ function SectionWorkspace({
             },
             {
               id: "environment",
-              label: "Environment",
+              label: tr("Environment"),
               icon: <Cpu size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Runtime Environment" icon={<Cpu size={18} />} desc="Project version, engine version and the installed dependency stack." wide>
+                  <ModuleCard title={tr("Runtime Environment")} icon={<Cpu size={18} />} desc={tr("Project version, engine version and the installed dependency stack.")} wide>
                     <EnvironmentPanel env={environment} />
                   </ModuleCard>
-                  <ModuleCard title="Runtime Targets" icon={<Server size={18} />} wide>
+                  <ModuleCard title={tr("Runtime Targets")} icon={<Server size={18} />} wide>
                     <CapabilityTable rows={runtimeTargets} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -1987,14 +1987,14 @@ function SectionWorkspace({
             },
             {
               id: "coverage",
-              label: "Coverage",
+              label: tr("Coverage"),
               icon: <Layers3 size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Workload Coverage" icon={<Layers3 size={18} />}>
+                  <ModuleCard title={tr("Workload Coverage")} icon={<Layers3 size={18} />}>
                     <CompactList rows={Object.entries(workloadCounts).map(([key, value]) => [key, String(value)])} />
                   </ModuleCard>
-                  <ModuleCard title="Family Coverage" icon={<Box size={18} />}>
+                  <ModuleCard title={tr("Family Coverage")} icon={<Box size={18} />}>
                     <CompactList rows={Object.entries(familyCounts).map(([key, value]) => [key, String(value)])} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2013,12 +2013,12 @@ function SectionWorkspace({
             // 1) Orient: where you are + what to do next (read-only, safe).
             {
               id: "guided",
-              label: "1 · Guided setup",
+              label: `1 · ${tr("Guided setup")}`,
               icon: <ShieldCheck size={15} />,
               render: () => (
                 <>
-                  <TabIntro icon={<ShieldCheck size={16} />} title="Start here — guided setup"
-                    text="A read-only checklist of where you stand: environment, engine, dependencies and launch gates, with a clear next step. Nothing is changed here — it just tells you what to do." />
+                  <TabIntro icon={<ShieldCheck size={16} />} title={tr("Start here — guided setup")}
+                    text={tr("A read-only checklist of where you stand: environment, engine, dependencies and launch gates, with a clear next step. Nothing is changed here — it just tells you what to do.")} />
                   <SetupWizard
                     environment={environment}
                     overview={overview}
@@ -2035,12 +2035,12 @@ function SectionWorkspace({
             // 2) Install the SNDR daemon / engine onto a GPU server over SSH.
             {
               id: "install",
-              label: "2 · Install onto host",
+              label: `2 · ${tr("Install onto host")}`,
               icon: <Server size={15} />,
               render: () => (
                 <>
-                  <TabIntro icon={<Server size={16} />} title="Install onto a GPU host (over SSH)"
-                    text="Pick a registered host and a preset, preview the exact install plan, then apply it over SSH — it ships the daemon/engine onto that server so the GUI can manage it. Gated: review the plan before it runs." />
+                  <TabIntro icon={<Server size={16} />} title={tr("Install onto a GPU host (over SSH)")}
+                    text={tr("Pick a registered host and a preset, preview the exact install plan, then apply it over SSH — it ships the daemon/engine onto that server so the GUI can manage it. Gated: review the plan before it runs.")} />
                   <InstallWizard initial={installIntent || undefined} />
                 </>
               )
@@ -2048,12 +2048,12 @@ function SectionWorkspace({
             // 3) Render deploy artifacts (compose/systemd/run) for a chosen model.
             {
               id: "deploy",
-              label: "3 · Deploy a model",
+              label: `3 · ${tr("Deploy a model")}`,
               icon: <Rocket size={15} />,
               render: () => (
                 <>
-                  <TabIntro icon={<Rocket size={16} />} title="Deploy a model preset"
-                    text="Turn a preset into ready-to-run artifacts — docker-compose, systemd unit or a docker run line, with the right image, GPUs, ports and patch env baked in. Copy them to the host, or use Install above to push over SSH." />
+                  <TabIntro icon={<Rocket size={16} />} title={tr("Deploy a model preset")}
+                    text={tr("Turn a preset into ready-to-run artifacts — docker-compose, systemd unit or a docker run line, with the right image, GPUs, ports and patch env baked in. Copy them to the host, or use Install above to push over SSH.")} />
                   <DeploymentConsole
                     presets={presets}
                     selectedPreset={selectedPreset}
@@ -2068,7 +2068,7 @@ function SectionWorkspace({
 
       {sectionId === "fleet" && (
         <ModuleGrid>
-          <ModuleCard title="Fleet overview" icon={<LayoutGrid size={18} />} desc="Every registered GPU/engine host at a glance — a single concurrent SSH sweep shows status, running model, vLLM version, GPUs and live patch count per server. Click a server to drill into its card." wide>
+          <ModuleCard title={tr("Fleet overview")} icon={<LayoutGrid size={18} />} desc={tr("Every registered GPU/engine host at a glance — a single concurrent SSH sweep shows status, running model, vLLM version, GPUs and live patch count per server. Click a server to drill into its card.")} wide>
             <FleetPanel onOpenHost={(id) => { onFocusHost(id); onSection("hosts"); }} />
           </ModuleCard>
         </ModuleGrid>
@@ -2076,7 +2076,7 @@ function SectionWorkspace({
 
       {sectionId === "containers" && (
         <ModuleGrid>
-          <ModuleCard title="Containers" icon={<Boxes size={18} />} desc="Manage the vLLM/engine containers on a server — list, live CPU/memory, logs, start/stop/restart, and (when SNDR_ENABLE_EXEC is on) exec inside. Pick the local daemon's host (docker socket) or a registered host (over SSH). Scoped to engine containers only." wide>
+          <ModuleCard title={tr("Containers")} icon={<Boxes size={18} />} desc={tr("Manage the vLLM/engine containers on a server — list, live CPU/memory, logs, start/stop/restart, and (when SNDR_ENABLE_EXEC is on) exec inside. Pick the local daemon's host (docker socket) or a registered host (over SSH). Scoped to engine containers only.")} wide>
             <Suspense fallback={<SkeletonCards count={6} />}>
               <ContainersPanel hosts={hostOptions} onNavigate={(section) => onSection(section as SectionId)} initialHostId={focusHostId ?? undefined} />
             </Suspense>
@@ -2086,7 +2086,7 @@ function SectionWorkspace({
 
       {(sectionId === "virtualization" || sectionId === "kubernetes") && (
         <ModuleGrid>
-          <ModuleCard title="Virtualization" icon={<Server size={18} />} desc="One control plane over compute — Proxmox VE hosts & guests (VMs/LXC) and Kubernetes (nodes, pods, events, KubeVirt VMs, deploy) — each linked back to the SNDR preset it runs. Read-only; degrades to a connect/not-installed card per source." wide>
+          <ModuleCard title={tr("Virtualization")} icon={<Server size={18} />} desc={tr("One control plane over compute — Proxmox VE hosts & guests (VMs/LXC) and Kubernetes (nodes, pods, events, KubeVirt VMs, deploy) — each linked back to the SNDR preset it runs. Read-only; degrades to a connect/not-installed card per source.")} wide>
             <Suspense fallback={<SkeletonCards count={4} />}>
               <VirtualizationPanel />
             </Suspense>
@@ -2096,7 +2096,7 @@ function SectionWorkspace({
 
       {sectionId === "hardware" && (
         <ModuleGrid>
-          <ModuleCard title="GPU & Hardware" icon={<Cpu size={18} />} desc="Live per-GPU telemetry over nvidia-smi — utilisation, VRAM, temperature, power vs limits, clocks, fan, PCIe link, pstate and ECC — plus host CPU/RAM. Pick the local daemon host or a registered host (over SSH)." wide>
+          <ModuleCard title={tr("GPU & Hardware")} icon={<Cpu size={18} />} desc={tr("Live per-GPU telemetry over nvidia-smi — utilisation, VRAM, temperature, power vs limits, clocks, fan, PCIe link, pstate and ECC — plus host CPU/RAM. Pick the local daemon host or a registered host (over SSH).")} wide>
             <Suspense fallback={<SkeletonCards count={2} />}>
               <HardwarePanel hosts={hostOptions} initialHostId={focusHostId ?? undefined} />
             </Suspense>
@@ -2106,7 +2106,7 @@ function SectionWorkspace({
 
       {sectionId === "routing" && (
         <ModuleGrid>
-          <ModuleCard title="Workload routing" icon={<Route size={18} />} desc="The deterministic spec-decode router — the same brain the gateway uses. Per bench-validated profile: which workloads are allowed/denied and their measured TPS delta. Classify a request shape by its response_format / tool_choice / workload_class signals and see which profile it resolves to." wide>
+          <ModuleCard title={tr("Workload routing")} icon={<Route size={18} />} desc={tr("The deterministic spec-decode router — the same brain the gateway uses. Per bench-validated profile: which workloads are allowed/denied and their measured TPS delta. Classify a request shape by its response_format / tool_choice / workload_class signals and see which profile it resolves to.")} wide>
             <Suspense fallback={<SkeletonCards count={2} />}>
               <RoutingPanel />
             </Suspense>
@@ -2116,7 +2116,7 @@ function SectionWorkspace({
 
       {sectionId === "flags" && (
         <ModuleGrid>
-          <ModuleCard title="Env-flag matrix" icon={<SlidersHorizontal size={18} />} desc="Every GENESIS_ENABLE_* flag in the registry with its effective default — searchable, filterable by family. Name a running engine container to overlay its live ON/OFF state and flag drift (missing = default-on but off on the engine; extra = on beyond the default)." wide>
+          <ModuleCard title={tr("Env-flag matrix")} icon={<SlidersHorizontal size={18} />} desc={tr("Every GENESIS_ENABLE_* flag in the registry with its effective default — searchable, filterable by family. Name a running engine container to overlay its live ON/OFF state and flag drift (missing = default-on but off on the engine; extra = on beyond the default).")} wide>
             <Suspense fallback={<SkeletonCards count={2} />}>
               <FlagsPanel />
             </Suspense>
@@ -2178,7 +2178,7 @@ function SectionWorkspace({
           tabs={[
             {
               id: "catalog",
-              label: "Catalog",
+              label: tr("Catalog"),
               icon: <Database size={15} />,
               render: () => (
                 <div className="preset-catalog-view">
@@ -2186,20 +2186,20 @@ function SectionWorkspace({
                     <div className="preset-load-errors">
                       <AlertTriangle size={15} />
                       <div>
-                        <strong>{presets.load_errors.length} preset{presets.load_errors.length > 1 ? "s" : ""} failed to load</strong>
+                        <strong>{presets.load_errors.length} {presets.load_errors.length > 1 ? tr("presets failed to load") : tr("preset failed to load")}</strong>
                         {presets.load_errors.slice(0, 6).map((e, i) => (
                           <div key={i} className="preset-load-error"><code>{e.preset ?? e.id ?? e.file ?? "?"}</code> — {e.error ?? e.message ?? JSON.stringify(e)}</div>
                         ))}
-                        {presets.load_errors.length > 6 && <div className="muted">+{presets.load_errors.length - 6} more</div>}
+                        {presets.load_errors.length > 6 && <div className="muted">+{presets.load_errors.length - 6} {tr("more")}</div>}
                       </div>
                     </div>
                   )}
                   <PresetSummaryStrip presets={filteredPresets} selectedPreset={selectedPreset} />
                   <div className="preset-catalog-split">
                     <ModuleCard
-                      title="Preset Catalog"
+                      title={tr("Preset Catalog")}
                       icon={<Database size={18} />}
-                      desc="Pick a preset to inspect its runtime, edit a local copy, or launch it."
+                      desc={tr("Pick a preset to inspect its runtime, edit a local copy, or launch it.")}
                     >
                       <PresetCatalogTable
                         presets={filteredPresets}
@@ -2224,7 +2224,7 @@ function SectionWorkspace({
             },
             {
               id: "recommend",
-              label: "Recommend & analytics",
+              label: tr("Recommend & analytics"),
               icon: <Rocket size={15} />,
               render: () => {
                 const allPresets = presets?.presets ?? [];
@@ -2238,13 +2238,13 @@ function SectionWorkspace({
                   return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round((v / max) * 100), String(v)]);
                 };
                 const kpis: Array<[string, number]> = [
-                  ["Presets", allPresets.length], ["Annotated", annotated], ["Bench-proven", benchProven],
-                  ["Fallbacks", fallbacks.length], ["Families", Object.keys(familyCounts).length], ["Workloads", Object.keys(workloadCounts).length]
+                  [tr("Presets"), allPresets.length], [tr("Annotated"), annotated], [tr("Bench-proven"), benchProven],
+                  [tr("Fallbacks"), fallbacks.length], [tr("Families"), Object.keys(familyCounts).length], [tr("Workloads"), Object.keys(workloadCounts).length]
                 ];
                 return (
                 <>
                   <ModuleGrid>
-                    <ModuleCard title="Recommend a preset" icon={<Rocket size={18} />} desc="Rank presets for a workload + rig + concurrency target, then inspect the winner." wide>
+                    <ModuleCard title={tr("Recommend a preset")} icon={<Rocket size={18} />} desc={tr("Rank presets for a workload + rig + concurrency target, then inspect the winner.")} wide>
                       <PresetRecommendPanel
                         hardwareOptions={Array.from(new Set((presets?.presets ?? []).map((preset) => preset.hardware))).filter(Boolean)}
                         workloadCounts={overview?.catalog.workload_counts ?? {}}
@@ -2252,33 +2252,33 @@ function SectionWorkspace({
                       />
                     </ModuleCard>
                   </ModuleGrid>
-                  <div className="preset-analytics-heading"><BarChart3 size={15} /> Catalog analytics <span>policy, coverage and annotation across {allPresets.length} presets</span></div>
+                  <div className="preset-analytics-heading"><BarChart3 size={15} /> {tr("Catalog analytics")} <span>{tr("policy, coverage and annotation across")} {allPresets.length} {tr("presets")}</span></div>
                   <div className="preset-analytics-kpis">
                     {kpis.map(([label, value]) => (
                       <div className="preset-stat" key={label}><span className="preset-stat-value">{value}</span><span className="preset-stat-label">{label}</span></div>
                     ))}
                   </div>
                   <ModuleGrid className="preset-analytics-grid">
-                    <ModuleCard title="Workload Policy" icon={<SlidersHorizontal size={18} />} desc={`Allow/deny for ${selectedPreset}.`}>
+                    <ModuleCard title={tr("Workload Policy")} icon={<SlidersHorizontal size={18} />} desc={`${tr("Allow/deny for")} ${selectedPreset}.`}>
                       <PresetPolicyGraph card={card} />
                     </ModuleCard>
-                    <ModuleCard title="Status Distribution" icon={<ShieldCheck size={18} />} desc={`${annotated} annotated · ${Object.keys(statusDist).length} statuses`}>
+                    <ModuleCard title={tr("Status Distribution")} icon={<ShieldCheck size={18} />} desc={`${annotated} ${tr("annotated")} · ${Object.keys(statusDist).length} ${tr("statuses")}`}>
                       <BarList rows={bar(statusDist)} />
                     </ModuleCard>
-                    <ModuleCard title="Evidence Visibility" icon={<FileText size={18} />} desc={`${Object.keys(visibilityDist).length} visibility level${Object.keys(visibilityDist).length === 1 ? "" : "s"}`}>
-                      {Object.keys(visibilityDist).length ? <BarList rows={bar(visibilityDist)} /> : <p className="muted">No annotated presets.</p>}
+                    <ModuleCard title={tr("Evidence Visibility")} icon={<FileText size={18} />} desc={`${Object.keys(visibilityDist).length} ${Object.keys(visibilityDist).length === 1 ? tr("visibility level") : tr("visibility levels")}`}>
+                      {Object.keys(visibilityDist).length ? <BarList rows={bar(visibilityDist)} /> : <p className="muted">{tr("No annotated presets.")}</p>}
                     </ModuleCard>
-                    <ModuleCard title="Workload Coverage" icon={<Layers3 size={18} />} desc={`${Object.keys(workloadCounts).length} workload classes`}>
+                    <ModuleCard title={tr("Workload Coverage")} icon={<Layers3 size={18} />} desc={`${Object.keys(workloadCounts).length} ${tr("workload classes")}`}>
                       <BarList rows={bar(workloadCounts)} />
                     </ModuleCard>
-                    <ModuleCard title="Family Coverage" icon={<Box size={18} />} desc={`${Object.keys(familyCounts).length} routing families`}>
+                    <ModuleCard title={tr("Family Coverage")} icon={<Box size={18} />} desc={`${Object.keys(familyCounts).length} ${tr("routing families")}`}>
                       <BarList rows={bar(familyCounts)} />
                     </ModuleCard>
-                    <ModuleCard title="Fallback Chains" icon={<GitBranch size={18} />} desc={`${fallbacks.length} of ${allPresets.length} presets`}>
+                    <ModuleCard title={tr("Fallback Chains")} icon={<GitBranch size={18} />} desc={`${fallbacks.length} ${tr("of")} ${allPresets.length} ${tr("presets")}`}>
                       {fallbacks.length ? (
                         <CompactList rows={fallbacks.map((p) => [p.id, `→ ${asText(p.card?.fallback_preset, "-")}`] as [string, string])} />
                       ) : (
-                        <p className="muted">No fallback chains declared.</p>
+                        <p className="muted">{tr("No fallback chains declared.")}</p>
                       )}
                     </ModuleCard>
                   </ModuleGrid>
@@ -2288,7 +2288,7 @@ function SectionWorkspace({
             },
             {
               id: "selected",
-              label: "Selected",
+              label: tr("Selected"),
               icon: <FileText size={15} />,
               render: () => (
                 <PresetSelectedView
@@ -2308,14 +2308,14 @@ function SectionWorkspace({
             },
             {
               id: "edit",
-              label: "Edit",
+              label: tr("Edit"),
               icon: <SlidersHorizontal size={15} />,
               render: () => (
                 <ModuleGrid>
                   <ModuleCard
-                    title={`Visual Editor — ${selectedPreset}`}
+                    title={`${tr("Visual Editor")} — ${selectedPreset}`}
                     icon={<Wrench size={18} />}
-                    desc="Full preset editing: pointers, card metadata and any other fields the preset defines. Saves an operator-local copy."
+                    desc={tr("Full preset editing: pointers, card metadata and any other fields the preset defines. Saves an operator-local copy.")}
                     wide
                   >
                     <LayerEditor kind="preset" layerId={selectedPreset} />
@@ -2333,11 +2333,11 @@ function SectionWorkspace({
           tabs={[
             {
               id: "lifecycle",
-              label: "Lifecycle",
+              label: tr("Lifecycle"),
               icon: <Network size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Lifecycle Planner" icon={<Network size={18} />} desc="Plan start/stop/restart/status/logs across any runtime target, with live engine reachability and post-action verification." wide>
+                  <ModuleCard title={tr("Lifecycle Planner")} icon={<Network size={18} />} desc={tr("Plan start/stop/restart/status/logs across any runtime target, with live engine reachability and post-action verification.")} wide>
                     <ServiceLifecyclePlanner
                       selectedPreset={selectedPreset}
                       runtimeTarget={runtimeTarget}
@@ -2349,17 +2349,17 @@ function SectionWorkspace({
             },
             {
               id: "engine",
-              label: "Engine",
+              label: tr("Engine"),
               icon: <Cpu size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Live Engine" icon={<Activity size={18} />} desc="Reachability, loaded model and version of the running vLLM OpenAI server.">
+                  <ModuleCard title={tr("Live Engine")} icon={<Activity size={18} />} desc={tr("Reachability, loaded model and version of the running vLLM OpenAI server.")}>
                     <EngineStatusCard />
                   </ModuleCard>
-                  <ModuleCard title="Live Metrics" icon={<Gauge size={18} />} desc="Prometheus KPIs from the running engine — queue, KV cache, throughput, TTFT/TPOT, spec-decode.">
+                  <ModuleCard title={tr("Live Metrics")} icon={<Gauge size={18} />} desc={tr("Prometheus KPIs from the running engine — queue, KV cache, throughput, TTFT/TPOT, spec-decode.")}>
                     <EngineMetricsPanel />
                   </ModuleCard>
-                  <ModuleCard title="Engine & Dependencies" icon={<Cpu size={18} />} desc="Installed engine and library versions on the daemon host — what would serve." wide>
+                  <ModuleCard title={tr("Engine & Dependencies")} icon={<Cpu size={18} />} desc={tr("Installed engine and library versions on the daemon host — what would serve.")} wide>
                     <EnvironmentPanel env={environment} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2367,11 +2367,11 @@ function SectionWorkspace({
             },
             {
               id: "contracts",
-              label: "Contracts",
+              label: tr("Contracts"),
               icon: <ShieldCheck size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Lifecycle Surface" icon={<ShieldCheck size={18} />} desc="Which lifecycle capabilities the Product API exposes today." wide>
+                  <ModuleCard title={tr("Lifecycle Surface")} icon={<ShieldCheck size={18} />} desc={tr("Which lifecycle capabilities the Product API exposes today.")} wide>
                     <CapabilityTable rows={featureRows.filter((feature) => ["service_lifecycle", "web_daemon", "desktop_remote"].includes(feature.id))} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2387,17 +2387,17 @@ function SectionWorkspace({
           tabs={[
             {
               id: "diagnostics",
-              label: "Diagnostics",
+              label: tr("Diagnostics"),
               icon: <Stethoscope size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Diagnostics Summary" icon={<Activity size={18} />} desc="Aggregated environment, runtime, catalog, patch and proof health." wide>
+                  <ModuleCard title={tr("Diagnostics Summary")} icon={<Activity size={18} />} desc={tr("Aggregated environment, runtime, catalog, patch and proof health.")} wide>
                     <DoctorSummary report={doctorReport} />
                   </ModuleCard>
-                  <ModuleCard title="Findings" icon={<Stethoscope size={18} />} desc="Grouped by category — expand a row for evidence, action and CLI." wide>
+                  <ModuleCard title={tr("Findings")} icon={<Stethoscope size={18} />} desc={tr("Grouped by category — expand a row for evidence, action and CLI.")} wide>
                     <DoctorFindings report={doctorReport} />
                   </ModuleCard>
-                  <ModuleCard title="Host caveats" icon={<AlertTriangle size={18} />} desc="Known host-condition issues (kernel, virtualization, GPU, pin) evaluated live against this host — triggered caveats first." wide>
+                  <ModuleCard title={tr("Host caveats")} icon={<AlertTriangle size={18} />} desc={tr("Known host-condition issues (kernel, virtualization, GPU, pin) evaluated live against this host — triggered caveats first.")} wide>
                     <CaveatsPanel />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2405,11 +2405,11 @@ function SectionWorkspace({
             },
             {
               id: "gates",
-              label: "Readiness gates",
+              label: tr("Readiness gates"),
               icon: <ShieldCheck size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Launch Readiness Gates" icon={<ShieldCheck size={18} />} desc="Per-gate blockers for the selected preset launch." wide>
+                  <ModuleCard title={tr("Launch Readiness Gates")} icon={<ShieldCheck size={18} />} desc={tr("Per-gate blockers for the selected preset launch.")} wide>
                     <div className="gates-list">
                       {gates.map((gate) => (
                         <GateRow gate={gate} key={gate.id} onNavigate={onSection} />
@@ -2421,11 +2421,11 @@ function SectionWorkspace({
             },
             {
               id: "coverage",
-              label: "Coverage",
+              label: tr("Coverage"),
               icon: <PackageCheck size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Registry Coverage" icon={<PackageCheck size={18} />} desc="Patch apply-module coverage and validation." wide>
+                  <ModuleCard title={tr("Registry Coverage")} icon={<PackageCheck size={18} />} desc={tr("Patch apply-module coverage and validation.")} wide>
                     <DoctorCoveragePanel report={patchDoctor} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2441,20 +2441,20 @@ function SectionWorkspace({
           tabs={[
             {
               id: "registry",
-              label: "Registry",
+              label: tr("Registry"),
               icon: <PackageCheck size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Patch Registry Summary" icon={<PackageCheck size={18} />} desc={`${patches?.total ?? patchRows.length} runtime overlays across ${new Set(patchRows.map((p) => p.family)).size} families.`} wide>
+                  <ModuleCard title={tr("Patch Registry Summary")} icon={<PackageCheck size={18} />} desc={`${patches?.total ?? patchRows.length} ${tr("runtime overlays across")} ${new Set(patchRows.map((p) => p.family)).size} ${tr("families")}.`} wide>
                     <PatchSummaryPanel summary={patchSummary} total={patches?.total ?? patchRows.length} selectedCount={asNumber(composed.enabled_patches_count)} />
                   </ModuleCard>
-                  <ModuleCard title="Lifecycle & Default Behavior" icon={<BarChart3 size={18} />} wide>
+                  <ModuleCard title={tr("Lifecycle & Default Behavior")} icon={<BarChart3 size={18} />} wide>
                     <PatchLifecycleGraph summary={patchSummary} />
                   </ModuleCard>
-                  <ModuleCard title="Status, Families & Legend" icon={<ListChecks size={18} />} desc="Implementation maturity, subsystem coverage, and what each registry value means." wide>
+                  <ModuleCard title={tr("Status, Families & Legend")} icon={<ListChecks size={18} />} desc={tr("Implementation maturity, subsystem coverage, and what each registry value means.")} wide>
                     <PatchRegistryInsight summary={patchSummary} patches={patchRows} />
                   </ModuleCard>
-                  <ModuleCard title="Supported Models" icon={<Cpu size={18} />} desc="Catalog models the patch family targets — per-patch applicability is in the Inventory tab." wide>
+                  <ModuleCard title={tr("Supported Models")} icon={<Cpu size={18} />} desc={tr("Catalog models the patch family targets — per-patch applicability is in the Inventory tab.")} wide>
                     <PatchModelSupport models={configCatalog?.models ?? []} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2462,14 +2462,14 @@ function SectionWorkspace({
             },
             {
               id: "inventory",
-              label: "Inventory",
+              label: tr("Inventory"),
               icon: <Table2 size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Patch Inventory Control" icon={<Table2 size={18} />} wide>
+                  <ModuleCard title={tr("Patch Inventory Control")} icon={<Table2 size={18} />} wide>
                     <PatchInventoryControl patches={patchRows} />
                   </ModuleCard>
-                  <ModuleCard title="Patch Bundles" icon={<Layers3 size={18} />} wide>
+                  <ModuleCard title={tr("Patch Bundles")} icon={<Layers3 size={18} />} wide>
                     <BundlesPanel bundles={bundles} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2477,11 +2477,11 @@ function SectionWorkspace({
             },
             {
               id: "flags",
-              label: "Flags",
+              label: tr("Flags"),
               icon: <SlidersHorizontal size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Env-flag matrix" icon={<SlidersHorizontal size={18} />} desc="Every GENESIS_ENABLE_* flag with its effective default — searchable, filterable by family. Name a running engine container to overlay its live ON/OFF state and flag drift." wide>
+                  <ModuleCard title={tr("Env-flag matrix")} icon={<SlidersHorizontal size={18} />} desc={tr("Every GENESIS_ENABLE_* flag with its effective default — searchable, filterable by family. Name a running engine container to overlay its live ON/OFF state and flag drift.")} wide>
                     <Suspense fallback={<SkeletonCards count={2} />}>
                       <FlagsPanel />
                     </Suspense>
@@ -2491,14 +2491,14 @@ function SectionWorkspace({
             },
             {
               id: "upstream",
-              label: "Upstream & policy",
+              label: tr("Upstream & policy"),
               icon: <GitBranch size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Upstream Diff" icon={<GitBranch size={18} />} wide>
+                  <ModuleCard title={tr("Upstream Diff")} icon={<GitBranch size={18} />} wide>
                     <UpstreamDiffPanel report={diffUpstream} />
                   </ModuleCard>
-                  <ModuleCard title="Policy Preview" icon={<Code2 size={18} />} wide>
+                  <ModuleCard title={tr("Policy Preview")} icon={<Code2 size={18} />} wide>
                     <CodeBlock lines={[`preset=${selectedPreset}`, `policy=${patchPolicy}`, "strict_image_digest=true", "dry_run=true"]} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2514,14 +2514,14 @@ function SectionWorkspace({
           tabs={[
             {
               id: "baseline",
-              label: "Baseline",
+              label: tr("Baseline"),
               icon: <BarChart3 size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Benchmark Baseline" icon={<BarChart3 size={18} />} desc="Reference metric and the resolved runtime it was measured on." wide>
+                  <ModuleCard title={tr("Benchmark Baseline")} icon={<BarChart3 size={18} />} desc={tr("Reference metric and the resolved runtime it was measured on.")} wide>
                     <BenchmarkBaselinePanel card={card} composed={composed} record={selectedPresetRecord} selectedPreset={selectedPreset} />
                   </ModuleCard>
-                  <ModuleCard title="Capability Status" icon={<Activity size={18} />} wide>
+                  <ModuleCard title={tr("Capability Status")} icon={<Activity size={18} />} wide>
                     <CapabilityTable rows={featureRows.filter((feature) => feature.id === "benchmark_runs")} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2529,14 +2529,14 @@ function SectionWorkspace({
             },
             {
               id: "live",
-              label: "Live bench",
+              label: tr("Live bench"),
               icon: <TimerReset size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Live Engine" icon={<Activity size={18} />} desc="The bench drives the running engine — start the runtime first.">
+                  <ModuleCard title={tr("Live Engine")} icon={<Activity size={18} />} desc={tr("The bench drives the running engine — start the runtime first.")}>
                     <EngineStatusCard />
                   </ModuleCard>
-                  <ModuleCard title="Live Benchmark + A/B" icon={<TimerReset size={18} />} desc="Run a real micro-benchmark against the engine; run twice for an A/B delta." wide>
+                  <ModuleCard title={tr("Live Benchmark + A/B")} icon={<TimerReset size={18} />} desc={tr("Run a real micro-benchmark against the engine; run twice for an A/B delta.")} wide>
                     <EngineBenchPanel referenceTps={asNumber(asRecord(card.primary_metric).value) || null} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2544,11 +2544,11 @@ function SectionWorkspace({
             },
             {
               id: "coverage",
-              label: "Coverage",
+              label: tr("Coverage"),
               icon: <ShieldCheck size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Benchmark Coverage" icon={<ShieldCheck size={18} />} wide>
+                  <ModuleCard title={tr("Benchmark Coverage")} icon={<ShieldCheck size={18} />} wide>
                     <ProofStatusPanel report={proofStatus} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2556,16 +2556,16 @@ function SectionWorkspace({
             },
             {
               id: "run",
-              label: "Run plan",
+              label: tr("Run plan"),
               icon: <Play size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Run Plan" icon={<Play size={18} />}>
-                    <WorkflowSteps rows={[["1", "Warmup", "Stabilize cache and CUDA graph path"], ["2", "Load test", "Measure TTFT/TPS/acceptance"], ["3", "Proof", "Attach immutable evidence refs"]]} />
+                  <ModuleCard title={tr("Run Plan")} icon={<Play size={18} />}>
+                    <WorkflowSteps rows={[["1", tr("Warmup"), tr("Stabilize cache and CUDA graph path")], ["2", tr("Load test"), tr("Measure TTFT/TPS/acceptance")], ["3", tr("Proof"), tr("Attach immutable evidence refs")]]} />
                   </ModuleCard>
-                  <ModuleCard title="Run Commands" icon={<SquareTerminal size={18} />} desc="Queue a benchmark as a job, or copy the commands to run on the rig.">
+                  <ModuleCard title={tr("Run Commands")} icon={<SquareTerminal size={18} />} desc={tr("Queue a benchmark as a job, or copy the commands to run on the rig.")}>
                     <QueueJobButton
-                      label={`Queue bench (${selectedPreset})`}
+                      label={`${tr("Queue bench")} (${selectedPreset})`}
                       run={() => api.benchRun({ preset_id: selectedPreset, profile: "quick", ctx: "8k" })}
                       onMonitor={onMonitorJob}
                     />
@@ -2596,11 +2596,11 @@ function SectionWorkspace({
           tabs={[
             {
               id: "proof",
-              label: "Proof status",
+              label: tr("Proof status"),
               icon: <ShieldCheck size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Proof artifact status" icon={<ShieldCheck size={18} />} desc="Release-gate evidence across the whole patch catalog — every patch bucketed by the strongest proof it carries (measured baseline → bench attached → static-only → failed → dead), with family / tier / lifecycle breakdowns." wide>
+                  <ModuleCard title={tr("Proof artifact status")} icon={<ShieldCheck size={18} />} desc={tr("Release-gate evidence across the whole patch catalog — every patch bucketed by the strongest proof it carries (measured baseline → bench attached → static-only → failed → dead), with family / tier / lifecycle breakdowns.")} wide>
                     <ProofStatusPanel report={proofStatus} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2608,33 +2608,33 @@ function SectionWorkspace({
             },
             {
               id: "collect",
-              label: "Collect & coverage",
+              label: tr("Collect & coverage"),
               icon: <SquareTerminal size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title={`Preset evidence · ${selectedPreset}`} icon={<FileText size={18} />} desc="Evidence references the selected preset card exposes, and how they break down by visibility and type." wide>
+                  <ModuleCard title={`${tr("Preset evidence")} · ${selectedPreset}`} icon={<FileText size={18} />} desc={tr("Evidence references the selected preset card exposes, and how they break down by visibility and type.")} wide>
                     <EvidenceRows card={card} />
                     {refs.length > 0 && (
                       <div className="evidence-coverage" style={{ marginTop: "var(--sp-3)" }}>
                         <PercentBar
                           value={byVisibility.public ?? 0}
                           max={refs.length}
-                          label="public refs"
-                          caption={`${byVisibility.public ?? 0} of ${refs.length} reference${refs.length === 1 ? "" : "s"} public`}
+                          label={tr("public refs")}
+                          caption={`${byVisibility.public ?? 0} ${tr("of")} ${refs.length} ${refs.length === 1 ? tr("reference public") : tr("references public")}`}
                           tone={byVisibility.public ? "ok" : "warn"}
                         />
                         <CompactList
                           rows={[
                             ...Object.entries(byType).map(([k, v]) => [k, String(v)] as [string, string]),
-                            ...Object.entries(byVisibility).map(([k, v]) => [`visibility: ${k}`, String(v)] as [string, string])
+                            ...Object.entries(byVisibility).map(([k, v]) => [`${tr("visibility")}: ${k}`, String(v)] as [string, string])
                           ]}
                         />
                       </div>
                     )}
                   </ModuleCard>
-                  <ModuleCard title="Collect & attach evidence" icon={<SquareTerminal size={18} />} desc="Queue a dry-run evidence-collection job for this preset, or copy the exact CLI to run on the rig where the engine lives." wide>
+                  <ModuleCard title={tr("Collect & attach evidence")} icon={<SquareTerminal size={18} />} desc={tr("Queue a dry-run evidence-collection job for this preset, or copy the exact CLI to run on the rig where the engine lives.")} wide>
                     <QueueJobButton
-                      label={`Queue evidence (${selectedPreset})`}
+                      label={`${tr("Queue evidence")} (${selectedPreset})`}
                       run={() => api.evidenceAttach({ preset_id: selectedPreset })}
                       onMonitor={onMonitorJob}
                     />
@@ -2654,16 +2654,16 @@ function SectionWorkspace({
         const modelName = String(composed.served_model_name ?? selectedPreset);
         return (
         <ModuleGrid>
-          <ModuleCard title="Live Engine" icon={<Activity size={18} />} desc="Is the runtime up? Loaded model and version from the running server." wide>
+          <ModuleCard title={tr("Live Engine")} icon={<Activity size={18} />} desc={tr("Is the runtime up? Loaded model and version from the running server.")} wide>
             <EngineStatusCard />
           </ModuleCard>
-          <ModuleCard title="Playground" icon={<MessageSquare size={18} />} desc="Send a real prompt to the running engine — a one-click smoke test." wide>
+          <ModuleCard title={tr("Playground")} icon={<MessageSquare size={18} />} desc={tr("Send a real prompt to the running engine — a one-click smoke test.")} wide>
             <EnginePlayground />
           </ModuleCard>
-          <ModuleCard title="Client Endpoints" icon={<Link2 size={18} />} desc="OpenAI-compatible API, health and metrics URLs for the selected runtime host." wide>
+          <ModuleCard title={tr("Client Endpoints")} icon={<Link2 size={18} />} desc={tr("OpenAI-compatible API, health and metrics URLs for the selected runtime host.")} wide>
             <EndpointRows host={clientHost} />
           </ModuleCard>
-          <ModuleCard title="Quick Start" icon={<Code2 size={18} />} desc={`Copy-paste clients for the served model "${modelName}".`} wide>
+          <ModuleCard title={tr("Quick Start")} icon={<Code2 size={18} />} desc={`${tr("Copy-paste clients for the served model")} "${modelName}".`} wide>
             <CodeTabs
               tabs={[
                 {
@@ -2696,7 +2696,7 @@ function SectionWorkspace({
                 },
                 {
                   id: "stream",
-                  label: "Streaming",
+                  label: tr("Streaming"),
                   lines: [
                     "from openai import OpenAI",
                     "",
@@ -2713,7 +2713,7 @@ function SectionWorkspace({
                 },
                 {
                   id: "health",
-                  label: "Health",
+                  label: tr("Health"),
                   lines: [
                     `curl http://${clientHost}:8000/health`,
                     `curl http://${clientHost}:8001/metrics | grep vllm:`,
@@ -2723,27 +2723,27 @@ function SectionWorkspace({
               ]}
             />
           </ModuleCard>
-          <ModuleCard title="Served Model" icon={<Box size={18} />} desc="What the OpenAI-compatible server exposes for this preset.">
+          <ModuleCard title={tr("Served Model")} icon={<Box size={18} />} desc={tr("What the OpenAI-compatible server exposes for this preset.")}>
             <InfoRows
               rows={[
-                ["Model name", modelName],
-                ["Base URL", baseUrl],
-                ["Runtime target", targetTitle(runtimeTargets, runtimeTarget)],
-                ["Host mode", runtimeMode === "remote" ? "Remote host" : "Local server"]
+                [tr("Model name"), modelName],
+                [tr("Base URL"), baseUrl],
+                [tr("Runtime target"), targetTitle(runtimeTargets, runtimeTarget)],
+                [tr("Host mode"), runtimeMode === "remote" ? tr("Remote host") : tr("Local server")]
               ]}
             />
           </ModuleCard>
-          <ModuleCard title="Authentication" icon={<KeyRound size={18} />} desc="The Product API token; the inference server itself follows your vLLM launch flags.">
+          <ModuleCard title={tr("Authentication")} icon={<KeyRound size={18} />} desc={tr("The Product API token; the inference server itself follows your vLLM launch flags.")}>
             <InfoRows
               rows={[
-                ["GUI/Product API", "Open by default; set SNDR_GUI_TOKEN to require a bearer token"],
-                ["Header", "Authorization: Bearer <token> or X-SNDR-Token: <token>"],
-                ["Inference API key", 'OpenAI clients accept any value (e.g. "not-needed") unless vLLM --api-key is set']
+                ["GUI/Product API", tr("Open by default; set SNDR_GUI_TOKEN to require a bearer token")],
+                [tr("Header"), "Authorization: Bearer <token> or X-SNDR-Token: <token>"],
+                [tr("Inference API key"), tr('OpenAI clients accept any value (e.g. "not-needed") unless vLLM --api-key is set')]
               ]}
             />
           </ModuleCard>
-          <ModuleCard title="Client Modes" icon={<Layers3 size={18} />} desc="How operators reach this control plane.">
-            <CompactList rows={[["Web UI", "Browser control center"], ["Desktop", "Tauri remote shell"], ["API", "OpenAI-compatible endpoint"], ["CLI", "Operator mirror"]]} />
+          <ModuleCard title={tr("Client Modes")} icon={<Layers3 size={18} />} desc={tr("How operators reach this control plane.")}>
+            <CompactList rows={[[tr("Web UI"), tr("Browser control center")], [tr("Desktop"), tr("Tauri remote shell")], ["API", tr("OpenAI-compatible endpoint")], ["CLI", tr("Operator mirror")]]} />
           </ModuleCard>
         </ModuleGrid>
         );
@@ -2751,10 +2751,10 @@ function SectionWorkspace({
 
       {sectionId === "planner" && (
         <ModuleGrid>
-          <ModuleCard title="KV-cache / VRAM fit calculator" icon={<Gauge size={18} />} desc="GQA, MoE and tensor-parallel aware. Slide context to see weights / KV / overhead vs the per-GPU budget, the max context per KV dtype, and the VRAM curve." wide>
+          <ModuleCard title={tr("KV-cache / VRAM fit calculator")} icon={<Gauge size={18} />} desc={tr("GQA, MoE and tensor-parallel aware. Slide context to see weights / KV / overhead vs the per-GPU budget, the max context per KV dtype, and the VRAM curve.")} wide>
             <KvCalcPanel />
           </ModuleCard>
-          <ModuleCard title="Quality-baseline regression diff" icon={<GitCompare size={18} />} desc="Save a trusted bench/eval result, then diff a new run against it — direction-aware regression flags + a CI exit code." wide>
+          <ModuleCard title={tr("Quality-baseline regression diff")} icon={<GitCompare size={18} />} desc={tr("Save a trusted bench/eval result, then diff a new run against it — direction-aware regression flags + a CI exit code.")} wide>
             <BaselinePanel />
           </ModuleCard>
         </ModuleGrid>
@@ -2766,11 +2766,11 @@ function SectionWorkspace({
           tabs={[
             {
               id: "model",
-              label: "Model chat",
+              label: tr("Model chat"),
               icon: <MessageSquare size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Local model chat" icon={<MessageSquare size={18} />} desc="Multi-turn streaming conversation with a running vLLM model. Set the engine host/port, pick the model, tune the system prompt and sampling — a direct line to the inference server." wide>
+                  <ModuleCard title={tr("Local model chat")} icon={<MessageSquare size={18} />} desc={tr("Multi-turn streaming conversation with a running vLLM model. Set the engine host/port, pick the model, tune the system prompt and sampling — a direct line to the inference server.")} wide>
                     <ChatConsole defaultHost={runtimeHost(runtimeMode, settings.remoteHost)} target={chatTarget} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2778,11 +2778,11 @@ function SectionWorkspace({
             },
             {
               id: "copilot",
-              label: "Ops Copilot",
+              label: tr("Ops Copilot"),
               icon: <Sparkles size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Ops Copilot" icon={<Sparkles size={18} />} desc="An assistant that can read this control plane. Ask it about your presets, patches, doctor findings, hosts or VRAM fit in plain language — it calls read-only Product API tools, answers from the real live data, and proposes changes (with the exact section/CLI) for you to review and apply. It never mutates anything itself." wide>
+                  <ModuleCard title={tr("Ops Copilot")} icon={<Sparkles size={18} />} desc={tr("An assistant that can read this control plane. Ask it about your presets, patches, doctor findings, hosts or VRAM fit in plain language — it calls read-only Product API tools, answers from the real live data, and proposes changes (with the exact section/CLI) for you to review and apply. It never mutates anything itself.")} wide>
                     <CopilotPanel onNavigate={(section) => onSection(section as SectionId)} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2798,30 +2798,30 @@ function SectionWorkspace({
           tabs={[
             {
               id: "generate",
-              label: "Generate",
+              label: tr("Generate"),
               icon: <Table2 size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Generate a report" icon={<Table2 size={18} />} desc="Capture a redacted snapshot bundle (preset, gates, patches, proof) into the operator-local reports dir — a shareable hand-off / sign-off artifact." wide>
+                  <ModuleCard title={tr("Generate a report")} icon={<Table2 size={18} />} desc={tr("Capture a redacted snapshot bundle (preset, gates, patches, proof) into the operator-local reports dir — a shareable hand-off / sign-off artifact.")} wide>
                     <ReportGenerator selectedPreset={selectedPreset} />
                   </ModuleCard>
-                  <ModuleCard title="What this snapshot captures" icon={<FileText size={18} />} desc="The live state baked into a report generated right now." wide>
+                  <ModuleCard title={tr("What this snapshot captures")} icon={<FileText size={18} />} desc={tr("The live state baked into a report generated right now.")} wide>
                     <InfoRows
                       rows={[
-                        ["Preset", selectedPreset],
-                        ["Runtime target", targetTitle(runtimeTargets, runtimeTarget)],
-                        ["Patch policy", patchPolicy],
-                        ["Readiness gates", `${gateCounts.pass} ok / ${gateCounts.warning} warn / ${gateCounts.blocked} blocked`],
-                        ["Proof artifacts", proofStatus?.available ? String(proofStatus.total) : "unavailable"],
-                        ["Evidence visibility", asText(card.evidence_visibility, "-")]
+                        [tr("Preset"), selectedPreset],
+                        [tr("Runtime target"), targetTitle(runtimeTargets, runtimeTarget)],
+                        [tr("Patch policy"), patchPolicy],
+                        [tr("Readiness gates"), `${gateCounts.pass} ${tr("ok")} / ${gateCounts.warning} ${tr("warn")} / ${gateCounts.blocked} ${tr("blocked")}`],
+                        [tr("Proof artifacts"), proofStatus?.available ? String(proofStatus.total) : tr("unavailable")],
+                        [tr("Evidence visibility"), asText(card.evidence_visibility, "-")]
                       ]}
                     />
                     <CompactList
                       rows={[
-                        ["HTML", "Shareable operator review page"],
-                        ["PDF", "Archival / sign-off document"],
-                        ["JSON", "Machine-readable snapshot"],
-                        ["Markdown", "Inline notes and runbooks"]
+                        ["HTML", tr("Shareable operator review page")],
+                        ["PDF", tr("Archival / sign-off document")],
+                        ["JSON", tr("Machine-readable snapshot")],
+                        ["Markdown", tr("Inline notes and runbooks")]
                       ]}
                     />
                   </ModuleCard>
@@ -2830,11 +2830,11 @@ function SectionWorkspace({
             },
             {
               id: "activity",
-              label: "Activity log",
+              label: tr("Activity log"),
               icon: <Clock3 size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Recent activity" icon={<Clock3 size={18} />} desc="A live feed of control-center actions this session — what was selected, planned, queued or applied." wide>
+                  <ModuleCard title={tr("Recent activity")} icon={<Clock3 size={18} />} desc={tr("A live feed of control-center actions this session — what was selected, planned, queued or applied.")} wide>
                     <EventLog events={events} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2854,17 +2854,17 @@ function SectionWorkspace({
           tabs={[
             {
               id: "operations",
-              label: "Operations",
+              label: tr("Operations"),
               icon: <Terminal size={15} />,
               render: () => <OperationsConsole onMonitor={onMonitorJob} />
             },
             {
               id: "config-keys",
-              label: "Config keys",
+              label: tr("Config keys"),
               icon: <SlidersHorizontal size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Config-key glossary" icon={<SlidersHorizontal size={18} />} desc="Every GENESIS_ENABLE_* flag, V1/V2 config key and policy key with provenance — searchable operator reference (mirrors `sndr config-keys`)." wide>
+                  <ModuleCard title={tr("Config-key glossary")} icon={<SlidersHorizontal size={18} />} desc={tr("Every GENESIS_ENABLE_* flag, V1/V2 config key and policy key with provenance — searchable operator reference (mirrors `sndr config-keys`).")} wide>
                     <ConfigKeysPanel />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2872,11 +2872,11 @@ function SectionWorkspace({
             },
             {
               id: "traces",
-              label: "Traces",
+              label: tr("Traces"),
               icon: <Activity size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Diagnostic trace catalog" icon={<Activity size={18} />} desc="Per-patch debug traces — the container path each lands at and the env var that enables it. Operator reference (mirrors `sndr trace list`)." wide>
+                  <ModuleCard title={tr("Diagnostic trace catalog")} icon={<Activity size={18} />} desc={tr("Per-patch debug traces — the container path each lands at and the env var that enables it. Operator reference (mirrors `sndr trace list`).")} wide>
                     <TracesPanel />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2884,11 +2884,11 @@ function SectionWorkspace({
             },
             {
               id: "appearance",
-              label: "Appearance",
+              label: tr("Appearance"),
               icon: <Palette size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Appearance and Operator Mode" icon={<Palette size={18} />} wide>
+                  <ModuleCard title={tr("Appearance and Operator Mode")} icon={<Palette size={18} />} wide>
                     <AppearanceSettings settings={settings} onSettings={onSettings} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2896,11 +2896,11 @@ function SectionWorkspace({
             },
             {
               id: "license",
-              label: "License & modules",
+              label: tr("License & modules"),
               icon: <BadgeCheck size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="License & SNDR Engine" icon={<BadgeCheck size={18} />} desc="Active tier (community vs commercial SNDR Engine), the signed license token (subject / expiry / signature), whether the vllm.sndr_engine overlay is installed, and how many engine-tier patches it unlocks." wide>
+                  <ModuleCard title={tr("License & SNDR Engine")} icon={<BadgeCheck size={18} />} desc={tr("Active tier (community vs commercial SNDR Engine), the signed license token (subject / expiry / signature), whether the vllm.sndr_engine overlay is installed, and how many engine-tier patches it unlocks.")} wide>
                     <Suspense fallback={<SkeletonCards count={1} />}>
                       <LicensePanel />
                     </Suspense>
@@ -2910,11 +2910,11 @@ function SectionWorkspace({
             },
             {
               id: "notifications",
-              label: "Notifications",
+              label: tr("Notifications"),
               icon: <Bell size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Alerts & notifications" icon={<Bell size={18} />} desc="Get a Telegram push when a managed engine container goes DOWN (crash / OOM / stop) or recovers. The daemon watches over the docker socket; gated behind apply." wide>
+                  <ModuleCard title={tr("Alerts & notifications")} icon={<Bell size={18} />} desc={tr("Get a Telegram push when a managed engine container goes DOWN (crash / OOM / stop) or recovers. The daemon watches over the docker socket; gated behind apply.")} wide>
                     <NotificationSettings />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2922,24 +2922,24 @@ function SectionWorkspace({
             },
             {
               id: "api",
-              label: "API & Schema",
+              label: tr("API & Schema"),
               icon: <Settings size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Daemon & Access" icon={<Settings size={18} />} desc="Daemon endpoint, OpenAPI and the optional access token for remote/tunnel use.">
+                  <ModuleCard title={tr("Daemon & Access")} icon={<Settings size={18} />} desc={tr("Daemon endpoint, OpenAPI and the optional access token for remote/tunnel use.")}>
                     <InfoRows rows={[
-                      ["API Base", apiBase],
+                      [tr("API Base"), apiBase],
                       ["OpenAPI", `${apiBase}/openapi.json`],
-                      ["Mode", "Read-only Product API"],
+                      [tr("Mode"), tr("Read-only Product API")],
                       ["SNDR Core", environment?.sndr_core_version ?? "-"],
-                      ["Frontend", "Vite/React, served by daemon"]
+                      [tr("Frontend"), tr("Vite/React, served by daemon")]
                     ]} />
                     <ApiTokenField />
                   </ModuleCard>
-                  <ModuleCard title="API Tokens" icon={<KeyRound size={18} />} desc="Named, revocable Bearer tokens for programmatic / CI access (auth required). Plaintext shown once." wide>
+                  <ModuleCard title={tr("API Tokens")} icon={<KeyRound size={18} />} desc={tr("Named, revocable Bearer tokens for programmatic / CI access (auth required). Plaintext shown once.")} wide>
                     <ApiTokenManager enabled={!!authUser} />
                   </ModuleCard>
-                  <ModuleCard title="Endpoint Explorer" icon={<Code2 size={18} />} desc="Send a live GET to any read-only Product API endpoint and inspect the JSON." wide>
+                  <ModuleCard title={tr("Endpoint Explorer")} icon={<Code2 size={18} />} desc={tr("Send a live GET to any read-only Product API endpoint and inspect the JSON.")} wide>
                     <EndpointExplorer />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2947,11 +2947,11 @@ function SectionWorkspace({
             },
             {
               id: "audit",
-              label: "Audit log",
+              label: tr("Audit log"),
               icon: <FileText size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Audit log" icon={<FileText size={18} />} desc="Tamper-evident record of daemon events — auth, jobs, operations and system actions. Live." wide>
+                  <ModuleCard title={tr("Audit log")} icon={<FileText size={18} />} desc={tr("Tamper-evident record of daemon events — auth, jobs, operations and system actions. Live.")} wide>
                     <AuditLogPanel />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2959,11 +2959,11 @@ function SectionWorkspace({
             },
             {
               id: "updates",
-              label: "Updates",
+              label: tr("Updates"),
               icon: <DownloadCloud size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Updates" icon={<DownloadCloud size={18} />} desc="Pin-gated self-update for the GUI + sndr_core patcher. The vLLM pin only moves to a patcher-supported value; the server docker step stays manual. Apply is gated + confirmed." wide>
+                  <ModuleCard title={tr("Updates")} icon={<DownloadCloud size={18} />} desc={tr("Pin-gated self-update for the GUI + sndr_core patcher. The vLLM pin only moves to a patcher-supported value; the server docker step stays manual. Apply is gated + confirmed.")} wide>
                     <UpdatesPanel />
                   </ModuleCard>
                 </ModuleGrid>
@@ -2971,26 +2971,26 @@ function SectionWorkspace({
             },
             {
               id: "admin",
-              label: "Admin",
+              label: tr("Admin"),
               icon: <KeyRound size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Admin Surface Matrix" icon={<KeyRound size={18} />} desc="Product API write/read surfaces and their status." wide>
+                  <ModuleCard title={tr("Admin Surface Matrix")} icon={<KeyRound size={18} />} desc={tr("Product API write/read surfaces and their status.")} wide>
                     <AdminSurfaceMatrix featureRows={featureRows} patchDoctor={patchDoctor} />
                   </ModuleCard>
-                  <ModuleCard title="Engine & Dependencies" icon={<Cpu size={18} />} desc="Versions and runtime tools on the daemon host.">
+                  <ModuleCard title={tr("Engine & Dependencies")} icon={<Cpu size={18} />} desc={tr("Versions and runtime tools on the daemon host.")}>
                     <EnvironmentPanel env={environment} />
                   </ModuleCard>
-                  <ModuleCard title="Feature Contracts" icon={<ShieldCheck size={18} />} desc="Capability inventory with live statuses.">
+                  <ModuleCard title={tr("Feature Contracts")} icon={<ShieldCheck size={18} />} desc={tr("Capability inventory with live statuses.")}>
                     <CapabilityTable rows={featureRows} />
                   </ModuleCard>
                   {authUser && (
-                    <ModuleCard title="Account & Security" icon={<ShieldCheck size={18} />} desc="Your password and two-factor settings." wide>
+                    <ModuleCard title={tr("Account & Security")} icon={<ShieldCheck size={18} />} desc={tr("Your password and two-factor settings.")} wide>
                       <SecurityPanel user={authUser} onChanged={onAuthRefresh} />
                     </ModuleCard>
                   )}
                   {authUser?.role === "admin" && (
-                    <ModuleCard title="User Management" icon={<KeyRound size={18} />} desc="Create, list and remove accounts (admin)." wide>
+                    <ModuleCard title={tr("User Management")} icon={<KeyRound size={18} />} desc={tr("Create, list and remove accounts (admin).")} wide>
                       <UserAdminPanel currentUser={authUser} />
                     </ModuleCard>
                   )}
@@ -2999,11 +2999,11 @@ function SectionWorkspace({
             },
             {
               id: "developer",
-              label: "Developer",
+              label: tr("Developer"),
               icon: <SlidersHorizontal size={15} />,
               render: () => (
                 <ModuleGrid>
-                  <ModuleCard title="Config Draft and Diff" icon={<SlidersHorizontal size={18} />} desc={`Local runtime draft for ${selectedPreset}.`} wide>
+                  <ModuleCard title={tr("Config Draft and Diff")} icon={<SlidersHorizontal size={18} />} desc={`${tr("Local runtime draft for")} ${selectedPreset}.`} wide>
                     <ConfigDraftEditor
                       selectedPreset={selectedPreset}
                       composed={composed}
@@ -3011,10 +3011,10 @@ function SectionWorkspace({
                       patchPolicy={patchPolicy}
                     />
                   </ModuleCard>
-                  <ModuleCard title="CLI Mirror" icon={<SquareTerminal size={18} />} desc="Equivalent CLI for the current operator context.">
+                  <ModuleCard title={tr("CLI Mirror")} icon={<SquareTerminal size={18} />} desc={tr("Equivalent CLI for the current operator context.")}>
                     <CodeBlock lines={cliLines} />
                   </ModuleCard>
-                  <ModuleCard title="Live Events" icon={<Activity size={18} />} desc="Daemon event feed (jobs, lifecycle, reports).">
+                  <ModuleCard title={tr("Live Events")} icon={<Activity size={18} />} desc={tr("Daemon event feed (jobs, lifecycle, reports).")}>
                     <EventLog events={events} />
                   </ModuleCard>
                 </ModuleGrid>
@@ -3033,134 +3033,134 @@ function sectionSpec(sectionId: SectionId) {
     { kicker: string; title: string; description: string }
   > = {
     overview: {
-      kicker: "System map",
-      title: "Overview",
-      description: "One screen summary of Product API health, catalog coverage, runtime targets and workload readiness.",
+      kicker: tr("System map"),
+      title: tr("Overview"),
+      description: tr("One screen summary of Product API health, catalog coverage, runtime targets and workload readiness."),
     },
     setup: {
-      kicker: "First-run workflow",
-      title: "Setup",
-      description: "Local server and remote desktop setup path with explicit daemon, tunnel and gate stages.",
+      kicker: tr("First-run workflow"),
+      title: tr("Setup"),
+      description: tr("Local server and remote desktop setup path with explicit daemon, tunnel and gate stages."),
     },
     fleet: {
-      kicker: "Multi-server overview",
-      title: "Fleet",
-      description: "Every registered GPU/engine host at a glance — one concurrent SSH sweep shows status, running model, vLLM version, GPUs and live patch count per server.",
+      kicker: tr("Multi-server overview"),
+      title: tr("Fleet"),
+      description: tr("Every registered GPU/engine host at a glance — one concurrent SSH sweep shows status, running model, vLLM version, GPUs and live patch count per server."),
     },
     hosts: {
-      kicker: "Runtime inventory",
-      title: "Hosts",
-      description: "Local and remote host inventory, transport state, runtime tools and SSH tunnel commands.",
+      kicker: tr("Runtime inventory"),
+      title: tr("Hosts"),
+      description: tr("Local and remote host inventory, transport state, runtime tools and SSH tunnel commands."),
     },
     models: {
-      kicker: "Model catalog",
-      title: "Models",
-      description: "Model families, hardware envelopes and composed runtime details from the V2 registry.",
+      kicker: tr("Model catalog"),
+      title: tr("Models"),
+      description: tr("Model families, hardware envelopes and composed runtime details from the V2 registry."),
     },
     configs: {
-      kicker: "V2 config editor",
-      title: "Configs",
-      description: "Graphical editor for V2 model, hardware, profile and preset composition with safe draft preview.",
+      kicker: tr("V2 config editor"),
+      title: tr("Configs"),
+      description: tr("Graphical editor for V2 model, hardware, profile and preset composition with safe draft preview."),
     },
     presets: {
-      kicker: "Preset catalog",
-      title: "Presets",
-      description: "Full preset table with cards, workload policy, evidence visibility and selected explain payload.",
+      kicker: tr("Preset catalog"),
+      title: tr("Presets"),
+      description: tr("Full preset table with cards, workload policy, evidence visibility and selected explain payload."),
     },
     planner: {
-      kicker: "Capacity & regression",
-      title: "Planner",
-      description: "KV-cache / VRAM fit calculator (GQA, MoE and tensor-parallel aware, calibratable) and quality-baseline regression diff.",
+      kicker: tr("Capacity & regression"),
+      title: tr("Planner"),
+      description: tr("KV-cache / VRAM fit calculator (GQA, MoE and tensor-parallel aware, calibratable) and quality-baseline regression diff."),
     },
     copilot: {
-      kicker: "Read-only assistant",
-      title: "Ops Copilot",
-      description: "Tool-calling assistant over the read-only Product API — answers from real catalog/doctor/preset/patch/capacity data and proposes changes you review & apply.",
+      kicker: tr("Read-only assistant"),
+      title: tr("Ops Copilot"),
+      description: tr("Tool-calling assistant over the read-only Product API — answers from real catalog/doctor/preset/patch/capacity data and proposes changes you review & apply."),
     },
     "launch-plan": {
-      kicker: "Operator workbench",
-      title: "Launch Plan",
-      description: "Recommendation builder, plan composer, readiness gates, artifacts and CLI mirror.",
+      kicker: tr("Operator workbench"),
+      title: tr("Launch Plan"),
+      description: tr("Recommendation builder, plan composer, readiness gates, artifacts and CLI mirror."),
     },
     services: {
-      kicker: "Lifecycle",
-      title: "Services",
-      description: "Service lifecycle, rendered launch artifacts, status, logs and safe write API boundary.",
+      kicker: tr("Lifecycle"),
+      title: tr("Services"),
+      description: tr("Service lifecycle, rendered launch artifacts, status, logs and safe write API boundary."),
     },
     containers: {
-      kicker: "Docker control",
-      title: "Containers",
-      description: "Manage the vLLM/engine containers on a server — live CPU/memory, logs, start/stop/restart, and gated exec — over the local docker socket or a registered host via SSH.",
+      kicker: tr("Docker control"),
+      title: tr("Containers"),
+      description: tr("Manage the vLLM/engine containers on a server — live CPU/memory, logs, start/stop/restart, and gated exec — over the local docker socket or a registered host via SSH."),
     },
     kubernetes: {
-      kicker: "Cluster",
-      title: "Kubernetes",
-      description: "Read-only Kubernetes view — cluster status and nodes with GPU capacity/allocatable/requested, conditions, taints and labels. Honours your kubeconfig + RBAC.",
+      kicker: tr("Cluster"),
+      title: tr("Kubernetes"),
+      description: tr("Read-only Kubernetes view — cluster status and nodes with GPU capacity/allocatable/requested, conditions, taints and labels. Honours your kubeconfig + RBAC."),
     },
     virtualization: {
-      kicker: "Compute",
-      title: "Virtualization",
-      description: "Proxmox VE hosts & guests, KubeVirt VMs and Kubernetes nodes in one pane — each linked back to the SNDR preset it runs.",
+      kicker: tr("Compute"),
+      title: tr("Virtualization"),
+      description: tr("Proxmox VE hosts & guests, KubeVirt VMs and Kubernetes nodes in one pane — each linked back to the SNDR preset it runs."),
     },
     hardware: {
-      kicker: "GPU telemetry",
-      title: "GPU & Hardware",
-      description: "Live per-GPU utilisation, VRAM, temperature, power, clocks, fan, PCIe, pstate and ECC over nvidia-smi — for the daemon host or a registered host via SSH.",
+      kicker: tr("GPU telemetry"),
+      title: tr("GPU & Hardware"),
+      description: tr("Live per-GPU utilisation, VRAM, temperature, power, clocks, fan, PCIe, pstate and ECC over nvidia-smi — for the daemon host or a registered host via SSH."),
     },
     routing: {
-      kicker: "Spec-decode routing",
-      title: "Workload routing",
-      description: "Per bench-validated profile: which workloads are allowed/denied and their measured TPS delta — plus a classifier that predicts how a request's signals resolve to a profile. One source of truth, shared with the gateway.",
+      kicker: tr("Spec-decode routing"),
+      title: tr("Workload routing"),
+      description: tr("Per bench-validated profile: which workloads are allowed/denied and their measured TPS delta — plus a classifier that predicts how a request's signals resolve to a profile. One source of truth, shared with the gateway."),
     },
     flags: {
-      kicker: "Patch flags",
-      title: "Env-flag matrix",
-      description: "Every GENESIS_ENABLE_* flag with its default, searchable and filterable — overlay a running engine's live ON/OFF state and flag drift.",
+      kicker: tr("Patch flags"),
+      title: tr("Env-flag matrix"),
+      description: tr("Every GENESIS_ENABLE_* flag with its default, searchable and filterable — overlay a running engine's live ON/OFF state and flag drift."),
     },
     doctor: {
-      kicker: "Diagnostics",
-      title: "Doctor",
-      description: "Readiness gates, blockers, warnings and release-proof preflight diagnostics.",
+      kicker: tr("Diagnostics"),
+      title: tr("Doctor"),
+      description: tr("Readiness gates, blockers, warnings and release-proof preflight diagnostics."),
     },
     patches: {
-      kicker: "Patch control",
-      title: "Patches",
-      description: "Patch simulation, policy matrix, enabled patch count and safe/minimal/compact policy preview.",
+      kicker: tr("Patch control"),
+      title: tr("Patches"),
+      description: tr("Patch simulation, policy matrix, enabled patch count and safe/minimal/compact policy preview."),
     },
     benchmarks: {
-      kicker: "Performance",
-      title: "Benchmarks",
-      description: "Benchmark baselines, expected TPS/TTFT context, run plan and evidence orchestration state.",
+      kicker: tr("Performance"),
+      title: tr("Benchmarks"),
+      description: tr("Benchmark baselines, expected TPS/TTFT context, run plan and evidence orchestration state."),
     },
     evidence: {
-      kicker: "Proof bundle",
-      title: "Evidence",
-      description: "Evidence references, visibility, benchmark baseline status and future release report bundles.",
+      kicker: tr("Proof bundle"),
+      title: tr("Evidence"),
+      description: tr("Evidence references, visibility, benchmark baseline status and future release report bundles."),
     },
     clients: {
-      kicker: "Integrations",
-      title: "Clients",
-      description: "OpenAI-compatible endpoints, health/metrics URLs, client snippets and GUI/CLI integration modes.",
+      kicker: tr("Integrations"),
+      title: tr("Clients"),
+      description: tr("OpenAI-compatible endpoints, health/metrics URLs, client snippets and GUI/CLI integration modes."),
     },
     chat: {
-      kicker: "Local model chat",
-      title: "Chat",
-      description: "Multi-turn streaming chat with any running local vLLM model — pick the engine host/port and model, tune the system prompt and sampling.",
+      kicker: tr("Local model chat"),
+      title: tr("Chat"),
+      description: tr("Multi-turn streaming chat with any running local vLLM model — pick the engine host/port and model, tune the system prompt and sampling."),
     },
     reports: {
-      kicker: "Operator reports",
-      title: "Reports",
-      description: "Launch, benchmark, patch and release-proof report types planned for GUI export.",
+      kicker: tr("Operator reports"),
+      title: tr("Reports"),
+      description: tr("Launch, benchmark, patch and release-proof report types planned for GUI export."),
     },
     operations: {
-      kicker: "Project workbench",
-      title: "Operations",
-      description: "Run sndr_core's canonical maintenance, audit and proof workflows as live-monitored jobs — the CLI surface, integrated.",
+      kicker: tr("Project workbench"),
+      title: tr("Operations"),
+      description: tr("Run sndr_core's canonical maintenance, audit and proof workflows as live-monitored jobs — the CLI surface, integrated."),
     },
     advanced: {
-      kicker: "Developer surface",
-      title: "Advanced",
-      description: "API base, OpenAPI/schema, feature contracts, CLI mirror and future desktop settings.",
+      kicker: tr("Developer surface"),
+      title: tr("Advanced"),
+      description: tr("API base, OpenAPI/schema, feature contracts, CLI mirror and future desktop settings."),
     }
   };
   return specs[sectionId];
@@ -3333,52 +3333,52 @@ function buildReadinessGates({
   return [
     {
       id: "catalog",
-      label: "Catalog Snapshot",
-      detail: catalogErrors === 0 ? "V2 registry loaded without errors" : `${catalogErrors} load errors`,
+      label: tr("Catalog Snapshot"),
+      detail: catalogErrors === 0 ? tr("V2 registry loaded without errors") : `${catalogErrors} ${tr("load errors")}`,
       status: catalogErrors === 0 ? "pass" : "blocked",
-      action: "Re-run"
+      action: tr("Re-run")
     },
     {
       id: "preset-card",
-      label: "Preset Card",
-      detail: hasCard ? "Operator card and explain payload available" : "Preset has no product card yet",
+      label: tr("Preset Card"),
+      detail: hasCard ? tr("Operator card and explain payload available") : tr("Preset has no product card yet"),
       status: hasCard ? "pass" : "warning",
-      action: "Open"
+      action: tr("Open")
     },
     {
       id: "runtime",
-      label: "Runtime Target",
-      detail: target?.detail ?? "Runtime target not selected",
+      label: tr("Runtime Target"),
+      detail: target?.detail ?? tr("Runtime target not selected"),
       status: targetStatus(target),
-      action: "Check"
+      action: tr("Check")
     },
     {
       id: "engine",
-      label: "Engine Installed",
-      detail: capabilities?.platform.engine_installed ? "vLLM package detected" : "Engine package not installed in this shell",
+      label: tr("Engine Installed"),
+      detail: capabilities?.platform.engine_installed ? tr("vLLM package detected") : tr("Engine package not installed in this shell"),
       status: capabilities?.platform.engine_installed ? "pass" : "warning",
-      action: "Doctor"
+      action: tr("Doctor")
     },
     {
       id: "service-api",
-      label: "Service Lifecycle API",
-      detail: serviceLifecycle?.detail ?? "Plan/apply lifecycle API available (execution gated by --enable-apply)",
+      label: tr("Service Lifecycle API"),
+      detail: serviceLifecycle?.detail ?? tr("Plan/apply lifecycle API available (execution gated by --enable-apply)"),
       status: serviceLifecycle?.status === "available" ? "pass" : "warning",
-      action: "Plan"
+      action: tr("Plan")
     },
     {
       id: "evidence",
-      label: "Evidence Orchestration",
-      detail: benchmarkRuns?.detail ?? "Evidence/report jobs available; full GPU runs are a rig action",
+      label: tr("Evidence Orchestration"),
+      detail: benchmarkRuns?.detail ?? tr("Evidence/report jobs available; full GPU runs are a rig action"),
       status: benchmarkRuns?.status === "available" ? "pass" : "warning",
-      action: "Report"
+      action: tr("Report")
     },
     {
       id: "release-proof",
-      label: "Release Proof",
-      detail: "Generate a proof/report bundle (Reports) before a production launch — recommended",
+      label: tr("Release Proof"),
+      detail: tr("Generate a proof/report bundle (Reports) before a production launch — recommended"),
       status: "warning",
-      action: "Generate proof"
+      action: tr("Generate proof")
     }
   ];
 }
@@ -3467,10 +3467,10 @@ function buildEvents({
       minute: "2-digit"
     });
   const rows: Array<[string, string, string]> = [
-    [stamp(0), state === "error" ? "error" : "info", state === "loading" ? "Refreshing Product API snapshot..." : `Selected preset ${selectedPreset}`],
-    [stamp(2), "info", `Runtime target set to ${runtimeTarget}`],
-    [stamp(4), visibility === "public" ? "info" : "warn", `Evidence visibility: ${visibility}`],
-    [stamp(6), "info", "Catalog and capability surfaces loaded through typed Product API"]
+    [stamp(0), state === "error" ? "error" : "info", state === "loading" ? tr("Refreshing Product API snapshot...") : `${tr("Selected preset")} ${selectedPreset}`],
+    [stamp(2), "info", `${tr("Runtime target set to")} ${runtimeTarget}`],
+    [stamp(4), visibility === "public" ? "info" : "warn", `${tr("Evidence visibility")}: ${visibility}`],
+    [stamp(6), "info", tr("Catalog and capability surfaces loaded through typed Product API")]
   ];
   if (error) rows.unshift([stamp(0), "error", error]);
   // Real backend events (dry-run jobs, lifecycle) take precedence at the top.

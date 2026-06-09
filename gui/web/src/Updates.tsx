@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Copy, DownloadCloud, GitBranch, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import { api, type UpdateApplyResult, type UpdateCheck, type UpdatePlan, type UpdateStatus } from "./api";
+import { tr } from "./i18n";
 
 // Pin-gated self-updater panel: read-only status + plan by default; the apply
 // button is gated (daemon apply flag + confirm) and the vLLM pin only ever moves
@@ -35,17 +36,17 @@ export function UpdatesPanel() {
   return (
     <div className="updates-panel">
       <div className="updates-grid">
-        <div className="updates-kv"><span>Patcher (sndr_core)</span><strong>v{status?.sndr_core_version ?? "—"}</strong></div>
-        <div className="updates-kv"><span>Git</span><strong>{g?.is_repo ? `${g.branch} @ ${g.commit}${g.dirty ? " · dirty" : ""}` : "not a checkout"}</strong></div>
-        <div className="updates-kv"><span>GUI build</span><strong>{status?.gui_build?.bundle ?? (status?.gui_build?.published ? "published" : "—")}</strong></div>
-        <div className="updates-kv"><span>Apply</span><strong className={status?.apply_enabled ? "ok" : "muted"}>{status?.apply_enabled ? "enabled" : "read-only (SNDR_ENABLE_APPLY=0)"}</strong></div>
+        <div className="updates-kv"><span>{tr("Patcher (sndr_core)")}</span><strong>v{status?.sndr_core_version ?? "—"}</strong></div>
+        <div className="updates-kv"><span>{tr("Git")}</span><strong>{g?.is_repo ? `${g.branch} @ ${g.commit}${g.dirty ? " · dirty" : ""}` : tr("not a checkout")}</strong></div>
+        <div className="updates-kv"><span>{tr("GUI build")}</span><strong>{status?.gui_build?.bundle ?? (status?.gui_build?.published ? tr("published") : "—")}</strong></div>
+        <div className="updates-kv"><span>{tr("Apply")}</span><strong className={status?.apply_enabled ? "ok" : "muted"}>{status?.apply_enabled ? tr("enabled") : tr("read-only (SNDR_ENABLE_APPLY=0)")}</strong></div>
       </div>
 
       <div className="updates-pins">
-        <span className="updates-label"><ShieldCheck size={13} /> Patcher-supported vLLM pins (the only allowed targets)</span>
+        <span className="updates-label"><ShieldCheck size={13} /> {tr("Patcher-supported vLLM pins (the only allowed targets)")}</span>
         <div className="updates-pin-list">
           {(status?.supported_pins ?? []).map((p) => (
-            <button key={p} className={`updates-pin ${p === targetPin ? "active" : ""}`} onClick={() => setTargetPin(p)} title="Use as the update target pin">
+            <button key={p} className={`updates-pin ${p === targetPin ? "active" : ""}`} onClick={() => setTargetPin(p)} title={tr("Use as the update target pin")}>
               {p === status?.canonical_pin && <CheckCircle2 size={12} />}<code>{p}</code>
             </button>
           ))}
@@ -54,14 +55,14 @@ export function UpdatesPanel() {
 
       <div className="updates-actions">
         <button className="ghost-button" onClick={() => void runCheck()} disabled={busy === "check"}>
-          {busy === "check" ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Check remote
+          {busy === "check" ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} {tr("Check remote")}
         </button>
         <button className="ghost-button" onClick={() => void buildPlan()} disabled={busy === "plan"}>
-          {busy === "plan" ? <Loader2 size={14} className="spin" /> : <GitBranch size={14} />} Build plan
+          {busy === "plan" ? <Loader2 size={14} className="spin" /> : <GitBranch size={14} />} {tr("Build plan")}
         </button>
         {check && (
           <span className={`updates-check ${check.update_available ? "warn" : "ok"}`}>
-            {check.error ? `· ${check.error}` : check.update_available ? `· update available (remote ${check.remote_commit})` : "· up to date"}
+            {check.error ? `· ${check.error}` : check.update_available ? `· ${tr("update available (remote")} ${check.remote_commit})` : `· ${tr("up to date")}`}
           </span>
         )}
       </div>
@@ -70,8 +71,8 @@ export function UpdatesPanel() {
         <div className="updates-plan">
           <div className={`updates-plan-head ${plan.valid ? "ok" : "blocked"}`}>
             {plan.valid ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
-            <strong>Plan → pin {plan.target_pin ?? "—"}</strong>
-            {!plan.pin_gate.ok && <span className="updates-gate-fail">pin gate failed</span>}
+            <strong>{tr("Plan → pin")} {plan.target_pin ?? "—"}</strong>
+            {!plan.pin_gate.ok && <span className="updates-gate-fail">{tr("pin gate failed")}</span>}
           </div>
           {plan.blocked_reasons.length > 0 && (
             <ul className="updates-blocked">{plan.blocked_reasons.map((r, i) => <li key={i}><AlertTriangle size={12} /> {r}</li>)}</ul>
@@ -79,23 +80,23 @@ export function UpdatesPanel() {
           <ol className="updates-steps">
             {plan.steps.map((s) => (
               <li key={s.order} className={s.kind === "local" ? "step-local" : "step-manual"}>
-                <span className="step-kind">{s.kind === "local" ? "auto" : "manual"}</span>
+                <span className="step-kind">{s.kind === "local" ? tr("auto") : tr("manual")}</span>
                 <span className="step-title">{s.title}</span>
                 <code className="step-cmd">{s.cmd}</code>
-                <button className="icon-only" title="Copy command" onClick={() => void navigator.clipboard?.writeText(s.cmd)}><Copy size={12} /></button>
+                <button className="icon-only" title={tr("Copy command")} onClick={() => void navigator.clipboard?.writeText(s.cmd)}><Copy size={12} /></button>
               </li>
             ))}
           </ol>
           <div className="updates-apply">
             <label className="updates-confirm">
               <input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} disabled={!plan.valid || !status?.apply_enabled} />
-              I confirm running the local update steps now
+              {tr("I confirm running the local update steps now")}
             </label>
             <button className="primary-action" onClick={() => void applyUpdate()} disabled={!plan.valid || !status?.apply_enabled || !confirm || busy === "apply"}>
-              {busy === "apply" ? <Loader2 size={14} className="spin" /> : <DownloadCloud size={14} />} Apply local update
+              {busy === "apply" ? <Loader2 size={14} className="spin" /> : <DownloadCloud size={14} />} {tr("Apply local update")}
             </button>
           </div>
-          {!status?.apply_enabled && <p className="updates-hint">Apply is disabled — start the daemon with <code>SNDR_ENABLE_APPLY=1</code>. The server vLLM-pin step is always manual (pin policy).</p>}
+          {!status?.apply_enabled && <p className="updates-hint">{tr("Apply is disabled — start the daemon with")} <code>SNDR_ENABLE_APPLY=1</code>. {tr("The server vLLM-pin step is always manual (pin policy).")}</p>}
         </div>
       )}
 

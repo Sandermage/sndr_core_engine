@@ -3,6 +3,8 @@
 // after a blank/spinner. Used across App, ContainersPanel, Engine and Fleet, so
 // they live in their own module (no circular imports between those files).
 
+import { tr } from "./i18n";
+
 // Base block. `count` repeats it; `variant` picks the size (line / metric / card).
 export function Skeleton({ variant = "line", count = 1, className = "" }: {
   variant?: "line" | "metric" | "card";
@@ -22,7 +24,7 @@ export function Skeleton({ variant = "line", count = 1, className = "" }: {
 // Responsive grid of metric tiles — the canonical "catalog/stats loading" shape.
 export function SkeletonMetrics({ count = 4 }: { count?: number }) {
   return (
-    <div className="skel-grid metrics" role="status" aria-label="Loading…">
+    <div className="skel-grid metrics" role="status" aria-label={tr("Loading…")}>
       <Skeleton variant="metric" count={count} />
     </div>
   );
@@ -31,7 +33,7 @@ export function SkeletonMetrics({ count = 4 }: { count?: number }) {
 // Stacked lines — for key/value detail panels, logs and text blocks.
 export function SkeletonLines({ count = 5 }: { count?: number }) {
   return (
-    <div className="skel-grid" role="status" aria-label="Loading…">
+    <div className="skel-grid" role="status" aria-label={tr("Loading…")}>
       <Skeleton variant="line" count={count} />
     </div>
   );
@@ -40,7 +42,7 @@ export function SkeletonLines({ count = 5 }: { count?: number }) {
 // Responsive grid of cards — for lists rendered as cards (containers, hosts).
 export function SkeletonCards({ count = 6 }: { count?: number }) {
   return (
-    <div className="skel-grid cards" role="status" aria-label="Loading…">
+    <div className="skel-grid cards" role="status" aria-label={tr("Loading…")}>
       <Skeleton variant="card" count={count} />
     </div>
   );
@@ -51,7 +53,7 @@ export function SkeletonCards({ count = 6 }: { count?: number }) {
 export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
   const grid = { gridTemplateColumns: `repeat(${cols}, 1fr)` };
   return (
-    <div className="skel-table" role="status" aria-label="Loading…">
+    <div className="skel-table" role="status" aria-label={tr("Loading…")}>
       <div className="skel-table-row skel-table-head" style={grid}>
         {Array.from({ length: cols }).map((_, i) => <Skeleton key={i} variant="line" />)}
       </div>

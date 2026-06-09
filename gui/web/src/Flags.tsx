@@ -1,8 +1,9 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import { Box, RefreshCw, Search, ToggleLeft, ToggleRight } from "lucide-react";
 import { api, type FlagMatrix, type FlagRow } from "./api";
+import { tr } from "./i18n";
 
-const DRIFT_LABEL: Record<string, string> = { missing: "missing", extra: "extra", in_sync: "in sync" };
+const DRIFT_LABEL: Record<string, string> = { missing: tr("missing"), extra: tr("extra"), in_sync: tr("in sync") };
 
 export function FlagsPanel() {
   const [data, setData] = useState<FlagMatrix | null>(null);
@@ -32,44 +33,44 @@ export function FlagsPanel() {
     <div className="fm">
       <div className="fm-bar">
         <label className="fm-search"><Search size={14} />
-          <input aria-label="Filter flags by flag or patch id" value={q} onChange={(e) => setQ(e.target.value)} placeholder="filter by flag or patch id…" spellCheck={false} />
+          <input aria-label={tr("Filter flags by flag or patch id")} value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("filter by flag or patch id…")} spellCheck={false} />
         </label>
-        <select aria-label="Filter by family" value={family} onChange={(e) => setFamily(e.target.value)}>
-          <option value="">all families</option>
+        <select aria-label={tr("Filter by family")} value={family} onChange={(e) => setFamily(e.target.value)}>
+          <option value="">{tr("all families")}</option>
           {families.map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
-        <select aria-label="Filter by default state" value={def} onChange={(e) => setDef(e.target.value as "" | "on" | "off")}>
-          <option value="">any default</option>
-          <option value="on">default ON</option>
-          <option value="off">default OFF</option>
+        <select aria-label={tr("Filter by default state")} value={def} onChange={(e) => setDef(e.target.value as "" | "on" | "off")}>
+          <option value="">{tr("any default")}</option>
+          <option value="on">{tr("default ON")}</option>
+          <option value="off">{tr("default OFF")}</option>
         </select>
         <label className="fm-live"><Box size={13} />
-          <input aria-label="Live engine container" value={container} onChange={(e) => setContainer(e.target.value)} placeholder="container for live state…" spellCheck={false}
+          <input aria-label={tr("Live engine container")} value={container} onChange={(e) => setContainer(e.target.value)} placeholder={tr("container for live state…")} spellCheck={false}
             onKeyDown={(e) => { if (e.key === "Enter") load(container); }} />
         </label>
         <button className="ghost-button" onClick={() => load(container)} disabled={loading}>
-          {loading ? <RefreshCw size={14} className="spin" /> : <RefreshCw size={14} />} {container ? "Overlay live" : "Reload"}
+          {loading ? <RefreshCw size={14} className="spin" /> : <RefreshCw size={14} />} {container ? tr("Overlay live") : tr("Reload")}
         </button>
       </div>
 
       {c && (
         <div className="fm-counts">
-          <span className="fm-kpi"><strong>{c.total}</strong> flags</span>
-          <span className="fm-kpi ok"><ToggleRight size={13} /> {c.default_on} default ON</span>
-          <span className="fm-kpi"><ToggleLeft size={13} /> {c.default_off} default OFF</span>
-          {data?.has_live && <span className="fm-kpi warn">{c.missing} missing</span>}
-          {data?.has_live && <span className="fm-kpi extra">{c.extra} extra</span>}
-          <span className="fm-kpi muted">{rows.length} shown</span>
+          <span className="fm-kpi"><strong>{c.total}</strong> {tr("flags")}</span>
+          <span className="fm-kpi ok"><ToggleRight size={13} /> {c.default_on} {tr("default ON")}</span>
+          <span className="fm-kpi"><ToggleLeft size={13} /> {c.default_off} {tr("default OFF")}</span>
+          {data?.has_live && <span className="fm-kpi warn">{c.missing} {tr("missing")}</span>}
+          {data?.has_live && <span className="fm-kpi extra">{c.extra} {tr("extra")}</span>}
+          <span className="fm-kpi muted">{rows.length} {tr("shown")}</span>
         </div>
       )}
 
       <div className="fm-table">
         <div className="fm-head">
-          <span>Flag</span><span>Patch</span><span>Family</span><span>Default</span>
-          {data?.has_live && <span>Live</span>}
+          <span>{tr("Flag")}</span><span>{tr("Patch")}</span><span>{tr("Family")}</span><span>{tr("Default")}</span>
+          {data?.has_live && <span>{tr("Live")}</span>}
         </div>
         {rows.map((f) => <FlagRowView key={f.env_flag} f={f} hasLive={data?.has_live ?? false} />)}
-        {rows.length === 0 && <div className="fm-empty">No flags match the filters.</div>}
+        {rows.length === 0 && <div className="fm-empty">{tr("No flags match the filters.")}</div>}
       </div>
     </div>
   );

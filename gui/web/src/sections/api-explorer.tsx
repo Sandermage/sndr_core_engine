@@ -7,6 +7,7 @@ import { Play, AlertCircle, CheckCircle2 } from "lucide-react";
 import { api, type ReportBundleResult } from "../api";
 import { InfoRows } from "../components/primitives";
 import { CodeBlock } from "../components/code-block";
+import { tr } from "../i18n";
 
 const EXPLORER_ENDPOINTS = [
   "/api/v1/health", "/api/v1/auth/status", "/api/v1/capabilities", "/api/v1/overview",
@@ -44,17 +45,17 @@ export function EndpointExplorer() {
     <div className="endpoint-explorer">
       <div className="endpoint-explorer-bar">
         <span className="method-pill">GET</span>
-        <select aria-label="API endpoint" value={path} onChange={(event) => { setPath(event.target.value); setResult(null); setMeta(null); }}>
+        <select aria-label={tr("API endpoint")} value={path} onChange={(event) => { setPath(event.target.value); setResult(null); setMeta(null); }}>
           {EXPLORER_ENDPOINTS.map((endpoint) => (
             <option key={endpoint} value={endpoint}>{endpoint.replace(/\?.*$/, "")}</option>
           ))}
         </select>
         <button className="primary-action" onClick={() => void send()} disabled={busy}>
-          <Play size={15} /> {busy ? "Sending…" : "Send"}
+          <Play size={15} /> {busy ? tr("Sending…") : tr("Send")}
         </button>
         {meta && (
           <span className={`endpoint-meta ${meta.ok ? "ok" : "bad"}`}>
-            {meta.ok ? "200 OK" : "error"} · {meta.ms}ms
+            {meta.ok ? tr("200 OK") : tr("error")} · {meta.ms}ms
           </span>
         )}
       </div>
@@ -65,10 +66,10 @@ export function EndpointExplorer() {
 
 export function ReportGenerator({ selectedPreset }: { selectedPreset: string }) {
   const types: Array<[string, string, string]> = [
-    ["catalog", "Catalog snapshot", "Overview, catalog, environment, doctor and patch coverage"],
-    ["launch", "Launch report", "Plan, gates, runtime artifact and preset explain"],
-    ["patch", "Patch report", "Registry coverage, lifecycle and policy"],
-    ["doctor", "Doctor report", "Aggregated diagnostics snapshot"]
+    ["catalog", tr("Catalog snapshot"), tr("Overview, catalog, environment, doctor and patch coverage")],
+    ["launch", tr("Launch report"), tr("Plan, gates, runtime artifact and preset explain")],
+    ["patch", tr("Patch report"), tr("Registry coverage, lifecycle and policy")],
+    ["doctor", tr("Doctor report"), tr("Aggregated diagnostics snapshot")]
   ];
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<ReportBundleResult | null>(null);
@@ -81,7 +82,7 @@ export function ReportGenerator({ selectedPreset }: { selectedPreset: string }) 
       const out = await api.reportBundle({ report_type: reportType, preset_id: selectedPreset, redact: true });
       setResult(out);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate bundle");
+      setError(err instanceof Error ? err.message : tr("Failed to generate bundle"));
     } finally {
       setBusy(null);
     }
@@ -97,7 +98,7 @@ export function ReportGenerator({ selectedPreset }: { selectedPreset: string }) 
               <small>{detail}</small>
             </div>
             <button onClick={() => void generate(id)} disabled={busy !== null}>
-              {busy === id ? "Generating…" : "Generate"}
+              {busy === id ? tr("Generating…") : tr("Generate")}
             </button>
           </div>
         ))}
@@ -109,14 +110,14 @@ export function ReportGenerator({ selectedPreset }: { selectedPreset: string }) 
             <CheckCircle2 size={15} />
             <strong>{result.bundle_id}</strong>
             <span className={`status-badge ${result.redacted ? "applied" : "partial"}`}>
-              {result.redacted ? "redacted" : "raw"}
+              {result.redacted ? tr("redacted") : tr("raw")}
             </span>
           </div>
           <InfoRows
             rows={[
-              ["Type", result.report_type],
-              ["Files", result.files.join(", ")],
-              ["Written to", result.bundle_dir]
+              [tr("Type"), result.report_type],
+              [tr("Files"), result.files.join(", ")],
+              [tr("Written to"), result.bundle_dir]
             ]}
           />
           <p className="fit-note">{result.note}</p>

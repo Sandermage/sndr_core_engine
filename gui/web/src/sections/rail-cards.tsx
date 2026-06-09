@@ -8,6 +8,7 @@ import { type LaunchPlanEndpoint, type PatchListResult } from "../api";
 import { RailStat, RailCheck } from "../components/primitives";
 import { CopyButton } from "../components/code-block";
 import { formatTokens } from "../lib/format";
+import { tr } from "../i18n";
 
 export function RuntimeEndpoint({
   host,
@@ -20,15 +21,15 @@ export function RuntimeEndpoint({
     ? endpoints.map((endpoint) => [endpoint.label, endpoint.url])
     : [
         ["OpenAI API", `http://${host}:8000/v1`],
-        ["Metrics", `http://${host}:8001/metrics`],
-        ["Health", `http://${host}:8000/health`],
-        ["Docs", `http://${host}:8000/docs`]
+        [tr("Metrics"), `http://${host}:8001/metrics`],
+        [tr("Health"), `http://${host}:8000/health`],
+        [tr("Docs"), `http://${host}:8000/docs`]
       ];
   return (
     <section className="rail-card">
       <h3>
         <Link2 size={16} />
-        Runtime Endpoint
+        {tr("Runtime Endpoint")}
       </h3>
       {rows.map(([label, value]) => (
         <label className="endpoint-field" key={label}>
@@ -62,15 +63,15 @@ export function BenchmarkCard({
     <section className="rail-card">
       <h3>
         <Activity size={16} />
-        Benchmark Expectation
+        {tr("Benchmark Expectation")}
       </h3>
-      <RailStat label={metricKind} value={metricValue > 0 ? String(metricValue) : "pending"} />
-      <RailStat label="Context" value={formatTokens(context)} />
-      <RailStat label="Acceptance" value={metricValue > 0 ? "catalog baseline" : "needs proof"} />
-      <RailStat label="Confidence" value={visibility === "public" ? "High" : "Medium"} />
+      <RailStat label={metricKind} value={metricValue > 0 ? String(metricValue) : tr("pending")} />
+      <RailStat label={tr("Context")} value={formatTokens(context)} />
+      <RailStat label={tr("Acceptance")} value={metricValue > 0 ? tr("catalog baseline") : tr("needs proof")} />
+      <RailStat label={tr("Confidence")} value={visibility === "public" ? tr("High") : tr("Medium")} />
       {onRun && (
         <button className="rail-action" onClick={onRun} disabled={busy}>
-          <Activity size={14} /> {busy ? "Queuing…" : "Run benchmark"}
+          <Activity size={14} /> {busy ? tr("Queuing…") : tr("Run benchmark")}
         </button>
       )}
     </section>
@@ -94,33 +95,33 @@ export function EvidenceCard({
     <section className="rail-card">
       <h3>
         <ShieldCheck size={16} />
-        Evidence Status
+        {tr("Evidence Status")}
       </h3>
-      <RailCheck label="Static Proof (catalog)" value="Verified" status="pass" />
-      <RailCheck label="Benchmark Baseline" value={evidenceCount > 0 ? "Available" : "Missing"} status={evidenceCount > 0 ? "pass" : "warning"} />
+      <RailCheck label={tr("Static Proof (catalog)")} value={tr("Verified")} status="pass" />
+      <RailCheck label={tr("Benchmark Baseline")} value={evidenceCount > 0 ? tr("Available") : tr("Missing")} status={evidenceCount > 0 ? "pass" : "warning"} />
       <RailCheck
-        label="Release Check"
-        value={evidenceCount > 0 ? (isPublic ? "Ready" : "Private evidence") : "No evidence"}
+        label={tr("Release Check")}
+        value={evidenceCount > 0 ? (isPublic ? tr("Ready") : tr("Private evidence")) : tr("No evidence")}
         status={evidenceCount > 0 && isPublic ? "pass" : "warning"}
       />
-      <RailCheck label="Visibility" value={isPublic ? "Public" : "Private"} status={isPublic ? "pass" : "warning"} />
+      <RailCheck label={tr("Visibility")} value={isPublic ? tr("Public") : tr("Private")} status={isPublic ? "pass" : "warning"} />
       {open && (
         <div className="rail-expand">
-          <p>{evidenceCount} evidence reference{evidenceCount === 1 ? "" : "s"} attached to this preset.</p>
+          <p>{evidenceCount} {evidenceCount === 1 ? tr("evidence reference attached to this preset.") : tr("evidence references attached to this preset.")}</p>
           <p>
             {isPublic
-              ? "Visibility is public — evidence can ship in release proofs as-is."
-              : "Visibility is private — redact before publishing externally."}
+              ? tr("Visibility is public — evidence can ship in release proofs as-is.")
+              : tr("Visibility is private — redact before publishing externally.")}
           </p>
         </div>
       )}
       <div className="rail-card-foot">
         <button className="ghost-button" onClick={() => setOpen((value) => !value)}>
-          {open ? "Hide details" : "Show details"}
+          {open ? tr("Hide details") : tr("Show details")}
         </button>
         {onAttach && (
           <button className="rail-action" onClick={onAttach} disabled={busy}>
-            <ShieldCheck size={14} /> {busy ? "Queuing…" : "Attach evidence"}
+            <ShieldCheck size={14} /> {busy ? tr("Queuing…") : tr("Attach evidence")}
           </button>
         )}
       </div>
@@ -152,8 +153,8 @@ export function PatchMatrix({
     <section className="rail-card">
       <h3>
         <PackageCheck size={16} />
-        Patch Policy Matrix
-        <small>{registryTotal} in registry</small>
+        {tr("Patch Policy Matrix")}
+        <small>{registryTotal} {tr("in registry")}</small>
       </h3>
       <table className="mini-table">
         <tbody>
@@ -161,7 +162,7 @@ export function PatchMatrix({
             <tr key={label}>
               <td>
                 <span className={`matrix-dot ${label.toLowerCase().replace(/[^a-z]+/g, "-")}`} />
-                {label}
+                {tr(label)}
               </td>
               <td>{value}</td>
               <td>
@@ -173,17 +174,17 @@ export function PatchMatrix({
       </table>
       {open && (
         <div className="rail-expand">
-          <p><b>Applied</b> — default-on with a real apply module.</p>
-          <p><b>Marker</b> — default-on, no runtime mutation.</p>
-          <p><b>Opt-in</b> — off unless explicitly enabled.</p>
-          <p><b>Blocked</b> — unsafe for production defaults.</p>
+          <p><b>{tr("Applied")}</b> — {tr("default-on with a real apply module.")}</p>
+          <p><b>{tr("Marker")}</b> — {tr("default-on, no runtime mutation.")}</p>
+          <p><b>{tr("Opt-in")}</b> — {tr("off unless explicitly enabled.")}</p>
+          <p><b>{tr("Blocked")}</b> — {tr("unsafe for production defaults.")}</p>
         </div>
       )}
       <div className="rail-actions">
         <button className="ghost-button" onClick={() => setOpen((value) => !value)}>
-          {open ? "Hide legend" : "Legend"}
+          {open ? tr("Hide legend") : tr("Legend")}
         </button>
-        <button className="ghost-button" onClick={onExplain}>Explain</button>
+        <button className="ghost-button" onClick={onExplain}>{tr("Explain")}</button>
       </div>
     </section>
   );
@@ -194,9 +195,9 @@ export function PatchMatrix({
 export function EndpointRows({ host }: { host: string }) {
   const rows: Array<[string, string]> = [
     ["OpenAI API", `http://${host}:8000/v1`],
-    ["Health", `http://${host}:8000/health`],
-    ["Metrics", `http://${host}:8001/metrics`],
-    ["Docs", `http://${host}:8000/docs`]
+    [tr("Health"), `http://${host}:8000/health`],
+    [tr("Metrics"), `http://${host}:8001/metrics`],
+    [tr("Docs"), `http://${host}:8000/docs`]
   ];
   return (
     <div className="endpoint-rows">

@@ -15,7 +15,7 @@ import {
   type KubeVirtResult, type K8sStatus, type K8sNode, type K8sPod, type K8sEvent,
   type DeploymentPlan,
 } from "../api";
-import { useLang, t, type Lang } from "../i18n";
+import { useLang, t, tr, type Lang } from "../i18n";
 import { onKeyActivate } from "../dialog";
 import { K8sDeploy, PodRow, EventRow } from "./kubernetes";
 
@@ -348,7 +348,7 @@ function GuestCard({ g, lang }: { g: ProxmoxGuest; lang: Lang }) {
         <div className="px-guest-detail">
           {loading && !detail ? <SkeletonBlock />
             : detail && detail.available ? <GuestDetailBody d={detail} />
-            : <span className="muted">detail unavailable{detail?.error ? `: ${detail.error}` : ""}</span>}
+            : <span className="muted">{tr("detail unavailable")}{detail?.error ? `: ${detail.error}` : ""}</span>}
         </div>
       )}
     </div>
@@ -364,31 +364,31 @@ function GuestDetailBody({ d }: { d: ProxmoxGuestDetail }) {
         return (
           <>
             {gpus.length > 0 && (
-              <div className="px-gpu-row"><Cpu size={13} /> <strong>GPU passthrough</strong>{gpus.map((g) => <code key={g.address} className="px-gpu-chip" title={g.address}>{g.name}</code>)}</div>
+              <div className="px-gpu-row"><Cpu size={13} /> <strong>GPU {tr("passthrough")}</strong>{gpus.map((g) => <code key={g.address} className="px-gpu-chip" title={g.address}>{g.name}</code>)}</div>
             )}
             {others.length > 0 && (
-              <div className="px-detail-list"><span className="px-detail-l"><Plug size={11} /> Devices</span>{others.map((o) => <code key={o.address} title={o.address}>{o.kind}: {o.name}</code>)}</div>
+              <div className="px-detail-list"><span className="px-detail-l"><Plug size={11} /> {tr("Devices")}</span>{others.map((o) => <code key={o.address} title={o.address}>{o.kind}: {o.name}</code>)}</div>
             )}
           </>
         );
       })()}
       <div className="px-facts">
-        <GFact l="CPU" v={`${d.cores ?? "?"} cores${d.sockets && d.sockets > 1 ? ` × ${d.sockets}` : ""}${d.cpu_type ? ` · ${d.cpu_type}` : ""}`} />
-        <GFact l="Memory" v={`${fmtGiB(d.memory_mb)}${d.swap_mb ? ` + ${fmtGiB(d.swap_mb)} swap` : ""}${d.balloon ? "" : d.kind === "vm" ? " · no balloon" : ""}`} />
+        <GFact l="CPU" v={`${d.cores ?? "?"} ${tr("cores")}${d.sockets && d.sockets > 1 ? ` × ${d.sockets}` : ""}${d.cpu_type ? ` · ${d.cpu_type}` : ""}`} />
+        <GFact l={tr("Memory")} v={`${fmtGiB(d.memory_mb)}${d.swap_mb ? ` + ${fmtGiB(d.swap_mb)} swap` : ""}${d.balloon ? "" : d.kind === "vm" ? ` · ${tr("no balloon")}` : ""}`} />
         <GFact l="OS" v={osLabel(d.ostype)} />
-        {d.kind === "vm" ? <GFact l="Firmware" v={`${d.bios ?? "—"}${d.machine ? ` · ${d.machine}` : ""}`} /> : null}
-        {d.kind === "lxc" && d.unprivileged != null ? <GFact l="Privilege" v={d.unprivileged ? "unprivileged" : "privileged"} /> : null}
-        <GFact l="Boot" v={`${d.onboot ? "on boot" : "manual"}${d.boot_order ? ` · ${d.boot_order.replace("order=", "")}` : ""}`} />
-        {d.kind === "vm" ? <GFact l="Guest agent" v={d.agent_enabled ? (d.agent_ips.length ? d.agent_ips.join(", ") : "enabled") : "off"} /> : null}
-        {d.ha_managed != null ? <GFact l="HA" v={d.ha_managed ? "managed" : "no"} /> : null}
-        {d.features ? <GFact l="Features" v={d.features} /> : null}
-        {d.qmpstatus ? <GFact l="State" v={d.qmpstatus} /> : null}
+        {d.kind === "vm" ? <GFact l={tr("Firmware")} v={`${d.bios ?? "—"}${d.machine ? ` · ${d.machine}` : ""}`} /> : null}
+        {d.kind === "lxc" && d.unprivileged != null ? <GFact l={tr("Privilege")} v={d.unprivileged ? tr("unprivileged") : tr("privileged")} /> : null}
+        <GFact l={tr("Boot")} v={`${d.onboot ? tr("on boot") : tr("manual")}${d.boot_order ? ` · ${d.boot_order.replace("order=", "")}` : ""}`} />
+        {d.kind === "vm" ? <GFact l={tr("Guest agent")} v={d.agent_enabled ? (d.agent_ips.length ? d.agent_ips.join(", ") : tr("enabled")) : tr("off")} /> : null}
+        {d.ha_managed != null ? <GFact l="HA" v={d.ha_managed ? tr("managed") : tr("no")} /> : null}
+        {d.features ? <GFact l={tr("Features")} v={d.features} /> : null}
+        {d.qmpstatus ? <GFact l={tr("State")} v={d.qmpstatus} /> : null}
       </div>
       {d.disks.length > 0 && (
-        <div className="px-detail-list"><span className="px-detail-l"><HardDrive size={11} /> Disks</span>{d.disks.map((dk) => <code key={dk.id}>{dk.id}: {dk.storage ?? dk.volume}{dk.size ? ` · ${dk.size}` : ""}</code>)}</div>
+        <div className="px-detail-list"><span className="px-detail-l"><HardDrive size={11} /> {tr("Disks")}</span>{d.disks.map((dk) => <code key={dk.id}>{dk.id}: {dk.storage ?? dk.volume}{dk.size ? ` · ${dk.size}` : ""}</code>)}</div>
       )}
       {d.networks.length > 0 && (
-        <div className="px-detail-list"><span className="px-detail-l"><Network size={11} /> Net</span>{d.networks.map((n) => <code key={n.id}>{n.id}: {n.bridge ?? "?"}{n.model ? ` ${n.model}` : ""}{n.ip ? ` ${n.ip}` : ""}{n.mac ? ` ${n.mac}` : ""}</code>)}</div>
+        <div className="px-detail-list"><span className="px-detail-l"><Network size={11} /> {tr("Net")}</span>{d.networks.map((n) => <code key={n.id}>{n.id}: {n.bridge ?? "?"}{n.model ? ` ${n.model}` : ""}{n.ip ? ` ${n.ip}` : ""}{n.mac ? ` ${n.mac}` : ""}</code>)}</div>
       )}
       {d.description ? <div className="px-detail-desc muted">{d.description}</div> : null}
       {d.tags.length > 0 ? <div className="px-detail-tags">{d.tags.map((tg) => <span key={tg} className="px-tag">{tg}</span>)}</div> : null}
@@ -453,7 +453,7 @@ function ProxmoxDeploy({ lang }: { lang: Lang }) {
         <div className="px-plan">
           <div className="px-plan-head">
             <strong>{plan.artifact.filename}</strong>
-            <span className="install-dry">dry-run · nothing executed here</span>
+            <span className="install-dry">dry-run · {tr("nothing executed here")}</span>
             <div className="px-plan-acts">
               <button className="ghost-button" onClick={() => { void navigator.clipboard?.writeText(script); setCopied(true); window.setTimeout(() => setCopied(false), 1500); }}>
                 {copied ? <ShieldCheck size={13} /> : <Copy size={13} />} {copied ? t(lang, "virt.copied") : t(lang, "virt.copyScript")}
@@ -474,7 +474,7 @@ function ProxmoxDeploy({ lang }: { lang: Lang }) {
 // ── Kubernetes ───────────────────────────────────────────────────────────────
 function K8sNodesView({ lang, status, nodes }: { lang: Lang; status: K8sStatus; nodes: K8sNode[] | null }) {
   if (nodes == null) return <SkeletonBlock />;
-  if (nodes.length === 0) return <div className="empty-state"><div className="empty-state-icon"><Cpu size={20} /></div><p className="empty-state-msg">Cluster has no nodes</p></div>;
+  if (nodes.length === 0) return <div className="empty-state"><div className="empty-state-icon"><Cpu size={20} /></div><p className="empty-state-msg">{tr("Cluster has no nodes")}</p></div>;
   return (
     <>
       <div className="virt-clusterline muted">
@@ -490,20 +490,20 @@ function K8sNodesView({ lang, status, nodes }: { lang: Lang; status: K8sStatus; 
             <div key={n.name} className={`virt-node ${st}`}>
               <div className="virt-node-h">
                 <span className={`container-dot ${st}`} /><strong>{n.name}</strong>
-                <span className={`container-badge ${st}`}>{n.ready ? (n.schedulable ? "Ready" : "Cordoned") : "NotReady"}</span>
+                <span className={`container-badge ${st}`}>{n.ready ? (n.schedulable ? tr("Ready") : tr("Cordoned")) : tr("NotReady")}</span>
                 {n.pressures.map((p) => <span key={p} className="k8s-pressure" title={`${p}=True`}><ShieldAlert size={10} /> {p.replace("Pressure", "")}</span>)}
                 {n.roles.length ? <span className="virt-node-up">{n.roles.join(", ")}</span> : null}
               </div>
               {gpuAlloc > 0 ? (
                 <div className="virt-node-meters one">
-                  <Meter label={`GPU${product ? ` · ${product.replace(/^NVIDIA-?/, "")}` : ""}`} pct={gpuUsedPct} text={`${gpuFree} / ${gpuAlloc} free${n.gpu_requested ? ` · ${n.gpu_requested} used` : ""}`} />
+                  <Meter label={`GPU${product ? ` · ${product.replace(/^NVIDIA-?/, "")}` : ""}`} pct={gpuUsedPct} text={`${gpuFree} / ${gpuAlloc} ${tr("free")}${n.gpu_requested ? ` · ${n.gpu_requested} ${tr("used")}` : ""}`} />
                 </div>
               ) : <div className="virt-node-facts muted"><span>{t(lang, "common.none")} GPU</span></div>}
               <div className="virt-node-facts muted">
                 <span>{n.kubelet_version ?? ""}</span>
                 {n.cpu_capacity ? <span>{n.cpu_capacity} CPU</span> : null}
                 {n.mem_capacity ? <span>{n.mem_capacity}</span> : null}
-                {n.taints.length ? <span title={n.taints.map((tt) => tt.key).join(", ")}>{n.taints.length} taints</span> : null}
+                {n.taints.length ? <span title={n.taints.map((tt) => tt.key).join(", ")}>{n.taints.length} {tr("taints")}</span> : null}
               </div>
             </div>
           );
@@ -515,10 +515,10 @@ function K8sNodesView({ lang, status, nodes }: { lang: Lang; status: K8sStatus; 
 
 function PodsTable({ lang, pods }: { lang: Lang; pods: K8sPod[] | null }) {
   if (pods == null) return <SkeletonBlock />;
-  if (pods.length === 0) return <div className="empty-state"><div className="empty-state-icon"><Activity size={20} /></div><p className="empty-state-msg">No pods</p></div>;
+  if (pods.length === 0) return <div className="empty-state"><div className="empty-state-icon"><Activity size={20} /></div><p className="empty-state-msg">{tr("No pods")}</p></div>;
   return (
     <table className="containers-table virt-guests">
-      <thead><tr><th>{t(lang, "virt.pods")}</th><th>NS</th><th>Phase</th><th>Ready</th><th>↻</th><th>GPU</th><th>{t(lang, "virt.node")}</th></tr></thead>
+      <thead><tr><th>{t(lang, "virt.pods")}</th><th>NS</th><th>{tr("Phase")}</th><th>{tr("Ready")}</th><th>↻</th><th>GPU</th><th>{t(lang, "virt.node")}</th></tr></thead>
       <tbody>{pods.map((p) => <PodRow key={`${p.namespace}/${p.name}`} p={p} />)}</tbody>
     </table>
   );
@@ -526,10 +526,10 @@ function PodsTable({ lang, pods }: { lang: Lang; pods: K8sPod[] | null }) {
 
 function EventsTable({ events }: { events: K8sEvent[] | null }) {
   if (events == null) return <SkeletonBlock />;
-  if (events.length === 0) return <div className="empty-state"><div className="empty-state-icon"><AlertTriangle size={20} /></div><p className="empty-state-msg">No recent events</p></div>;
+  if (events.length === 0) return <div className="empty-state"><div className="empty-state-icon"><AlertTriangle size={20} /></div><p className="empty-state-msg">{tr("No recent events")}</p></div>;
   return (
     <table className="containers-table virt-guests">
-      <thead><tr><th>Type</th><th>Reason</th><th>Object</th><th>Message</th><th>×</th></tr></thead>
+      <thead><tr><th>{tr("Type")}</th><th>{tr("Reason")}</th><th>{tr("Object")}</th><th>{tr("Message")}</th><th>×</th></tr></thead>
       <tbody>{events.map((e, i) => <EventRow key={i} e={e} />)}</tbody>
     </table>
   );

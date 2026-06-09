@@ -8,23 +8,24 @@ import { asNumber, asStringArray, asText } from "../lib/coerce";
 import { formatTokens, targetTitle } from "../lib/format";
 import { InfoRows, StatusBadge } from "../components/primitives";
 import { ModuleCard, ModuleGrid } from "../components/layout";
+import { tr } from "../i18n";
 import { ConfigDraftEditor } from "./config-draft-editor";
 import { EvidenceRows } from "./bench";
 
 function PresetFallbackDiff({ explain }: { explain: PresetExplainResult | null }) {
   const fallback = (explain?.fallback_diff ?? null) as { fallback_preset?: string; diffs?: string[] } | null;
   if (!fallback || !fallback.fallback_preset) {
-    return <p className="muted">No fallback declared for this preset.</p>;
+    return <p className="muted">{tr("No fallback declared for this preset.")}</p>;
   }
   const diffs = Array.isArray(fallback.diffs) ? fallback.diffs : [];
   return (
     <div className="fallback-diff">
-      <div className="fallback-diff-head"><GitBranch size={14} /> overrides vs <strong>{fallback.fallback_preset}</strong></div>
+      <div className="fallback-diff-head"><GitBranch size={14} /> {tr("overrides vs")} <strong>{fallback.fallback_preset}</strong></div>
       {diffs.length > 0 ? (
         <ul className="fallback-diff-list">
           {diffs.map((line, index) => <li key={index}>{line}</li>)}
         </ul>
-      ) : <p className="muted">Matches its fallback exactly — no overrides.</p>}
+      ) : <p className="muted">{tr("Matches its fallback exactly — no overrides.")}</p>}
     </div>
   );
 }
@@ -68,12 +69,12 @@ export function PresetSelectedView({
   const allow = asStringArray(card.workload_allow);
   const deny = asStringArray(card.workload_deny);
   const metrics: Array<{ label: string; value: string }> = [
-    { label: "Max context", value: formatTokens(asNumber(cm.max_model_len)) },
-    { label: "Max sequences", value: val(cm.max_num_seqs) },
-    { label: "GPU mem util", value: util > 0 ? `${Math.round(util * 100)}%` : "—" },
-    { label: "KV cache", value: val(cm.kv_cache_dtype) },
-    { label: "Spec decode", value: specMethod ? `${specMethod} · K=${val(cm.spec_decode_K)}` : "—" },
-    { label: "Enabled patches", value: val(cm.enabled_patches_count) }
+    { label: tr("Max context"), value: formatTokens(asNumber(cm.max_model_len)) },
+    { label: tr("Max sequences"), value: val(cm.max_num_seqs) },
+    { label: tr("GPU mem util"), value: util > 0 ? `${Math.round(util * 100)}%` : "—" },
+    { label: tr("KV cache"), value: val(cm.kv_cache_dtype) },
+    { label: tr("Spec decode"), value: specMethod ? `${specMethod} · K=${val(cm.spec_decode_K)}` : "—" },
+    { label: tr("Enabled patches"), value: val(cm.enabled_patches_count) }
   ];
   return (
     <div className="preset-selected">
@@ -82,7 +83,7 @@ export function PresetSelectedView({
           <div className="preset-hero-id">
             <span className="preset-hero-icon"><Database size={20} /></span>
             <div className="preset-hero-text">
-              <h2>{asText(card.title, "Unannotated preset")}</h2>
+              <h2>{asText(card.title, tr("Unannotated preset"))}</h2>
               <code>{selectedPreset}</code>
             </div>
             <StatusBadge status={status} />
@@ -92,13 +93,13 @@ export function PresetSelectedView({
             <span className="hero-chip"><Server size={12} />{record?.hardware ?? "—"}</span>
             {record?.profile && <span className="hero-chip"><SlidersHorizontal size={12} />{record.profile}</span>}
             <span className="hero-chip"><Network size={12} />{targetTitle(runtimeTargets, runtimeTarget)}</span>
-            <span className="hero-chip"><Wrench size={12} />{patchPolicy} policy</span>
+            <span className="hero-chip"><Wrench size={12} />{patchPolicy} {tr("policy")}</span>
           </div>
         </div>
         <div className="preset-hero-actions">
-          <button className="primary-action" onClick={onLaunch}><Rocket size={15} /> Launch</button>
-          <button className="ghost-button" onClick={onEdit}><Wrench size={15} /> Edit</button>
-          <button className="ghost-button" onClick={onConfigs}><SlidersHorizontal size={15} /> Open in Configs</button>
+          <button className="primary-action" onClick={onLaunch}><Rocket size={15} /> {tr("Launch")}</button>
+          <button className="ghost-button" onClick={onEdit}><Wrench size={15} /> {tr("Edit")}</button>
+          <button className="ghost-button" onClick={onConfigs}><SlidersHorizontal size={15} /> {tr("Open in Configs")}</button>
         </div>
       </header>
 
@@ -112,46 +113,46 @@ export function PresetSelectedView({
       </div>
 
       <ModuleGrid className="stretch-row">
-        <ModuleCard title="Identity" icon={<FileText size={18} />} desc="What composes this preset.">
+        <ModuleCard title={tr("Identity")} icon={<FileText size={18} />} desc={tr("What composes this preset.")}>
           <InfoRows
             rows={[
-              ["Model", record?.model ?? asText(cm.model, "—")],
-              ["Hardware", record?.hardware ?? asText(cm.hardware, "—")],
-              ["Profile", record?.profile ?? asText(cm.profile, "—")],
-              ["Mode", asText(card.mode, "—")],
-              ["Runtime target", targetTitle(runtimeTargets, runtimeTarget)],
-              ["Fallback", asText(card.fallback_preset, "none")],
-              ["Evidence", asText(card.evidence_visibility, "—")]
+              [tr("Model"), record?.model ?? asText(cm.model, "—")],
+              [tr("Hardware"), record?.hardware ?? asText(cm.hardware, "—")],
+              [tr("Profile"), record?.profile ?? asText(cm.profile, "—")],
+              [tr("Mode"), asText(card.mode, "—")],
+              [tr("Runtime target"), targetTitle(runtimeTargets, runtimeTarget)],
+              [tr("Fallback"), asText(card.fallback_preset, tr("none"))],
+              [tr("Evidence"), asText(card.evidence_visibility, "—")]
             ]}
           />
         </ModuleCard>
-        <ModuleCard title="Workload Rules" icon={<SlidersHorizontal size={18} />} desc="Where this preset is allowed or denied.">
+        <ModuleCard title={tr("Workload Rules")} icon={<SlidersHorizontal size={18} />} desc={tr("Where this preset is allowed or denied.")}>
           <div className="wl-rules">
             {allow.length > 0 && (
               <div className="wl-group">
-                <span className="wl-label ok">Allow</span>
+                <span className="wl-label ok">{tr("Allow")}</span>
                 <div className="fleet-caps">{allow.map((item) => <span className="cap-chip on" key={item}>{item.replace(/_/g, " ")}</span>)}</div>
               </div>
             )}
             {deny.length > 0 && (
               <div className="wl-group">
-                <span className="wl-label danger">Deny</span>
+                <span className="wl-label danger">{tr("Deny")}</span>
                 <div className="fleet-caps">{deny.map((item) => <span className="cap-chip off" key={item}>{item.replace(/_/g, " ")}</span>)}</div>
               </div>
             )}
-            {allow.length === 0 && deny.length === 0 && <p className="muted">No workload restrictions — usable for any workload.</p>}
+            {allow.length === 0 && deny.length === 0 && <p className="muted">{tr("No workload restrictions — usable for any workload.")}</p>}
           </div>
         </ModuleCard>
-        <ModuleCard title="Evidence References" icon={<ShieldCheck size={18} />} desc="Proof refs attached to this preset.">
+        <ModuleCard title={tr("Evidence References")} icon={<ShieldCheck size={18} />} desc={tr("Proof refs attached to this preset.")}>
           <EvidenceRows card={card} />
         </ModuleCard>
-        <ModuleCard title="Overrides vs Fallback" icon={<GitBranch size={18} />} desc="What this preset changes relative to its fallback.">
+        <ModuleCard title={tr("Overrides vs Fallback")} icon={<GitBranch size={18} />} desc={tr("What this preset changes relative to its fallback.")}>
           <PresetFallbackDiff explain={explain} />
         </ModuleCard>
       </ModuleGrid>
 
       <ModuleGrid>
-        <ModuleCard title="Editable Runtime Draft" icon={<Code2 size={18} />} desc="Tune a local copy and render artifacts — operator-safe." wide>
+        <ModuleCard title={tr("Editable Runtime Draft")} icon={<Code2 size={18} />} desc={tr("Tune a local copy and render artifacts — operator-safe.")} wide>
           <ConfigDraftEditor
             selectedPreset={selectedPreset}
             composed={composed}
@@ -173,12 +174,12 @@ export function PresetSummaryStrip({ presets, selectedPreset }: { presets: Prese
   const models = new Set(presets.map((preset) => preset.model)).size;
   const hardware = new Set(presets.map((preset) => preset.hardware)).size;
   const tiles: Array<{ label: string; value: string; tone?: string }> = [
-    { label: "Presets", value: String(presets.length) },
-    { label: "Annotated", value: String(annotated), tone: "ok" },
-    { label: "Missing card", value: String(missing), tone: missing ? "warn" : "ok" },
-    { label: "Models", value: String(models) },
-    { label: "Hardware", value: String(hardware) },
-    { label: "Selected", value: selectedPreset || "—" }
+    { label: tr("Presets"), value: String(presets.length) },
+    { label: tr("Annotated"), value: String(annotated), tone: "ok" },
+    { label: tr("Missing card"), value: String(missing), tone: missing ? "warn" : "ok" },
+    { label: tr("Models"), value: String(models) },
+    { label: tr("Hardware"), value: String(hardware) },
+    { label: tr("Selected"), value: selectedPreset || "—" }
   ];
   return (
     <div className="preset-summary-strip">

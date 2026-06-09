@@ -8,6 +8,7 @@ import { type PresetRecord } from "../api";
 import { asText, asNumber, asRecord } from "../lib/coerce";
 import { StatusBadge } from "../components/primitives";
 import { EmptyState } from "../components/empty-state";
+import { tr } from "../i18n";
 
 // Benchmark-baseline chip for the preset catalog: surfaces the measured
 // reference metric (primary_metric) at the list level, so bench-proven presets
@@ -21,7 +22,7 @@ export function PresetBaselineCell({ card }: { card: Record<string, any> }) {
     const kind = asText(m.kind, "TPS").replace(/^agg_/, "");
     return <span className="bench-chip ok" title={tip || undefined}>{value.toLocaleString()} {kind}</span>;
   }
-  return <span className="bench-chip pending" title={tip || undefined}>pending</span>;
+  return <span className="bench-chip pending" title={tip || undefined}>{tr("pending")}</span>;
 }
 
 export function PresetCatalogTable({
@@ -73,7 +74,7 @@ export function PresetCatalogTable({
     <div className="preset-catalog">
       <div className="filter-chips">
         <button className={statusFilter === "all" ? "active" : ""} onClick={() => setStatusFilter("all")}>
-          All <em>{presets.length}</em>
+          {tr("All")} <em>{presets.length}</em>
         </button>
         {statuses.map((status) => (
           <button key={status} className={statusFilter === status ? "active" : ""} onClick={() => setStatusFilter(status)}>
@@ -81,22 +82,22 @@ export function PresetCatalogTable({
           </button>
         ))}
         <span className="filter-chips-sep" aria-hidden="true" />
-        <span className="filter-chips-label">Baseline</span>
-        <button className={benchFilter === "all" ? "active" : ""} onClick={() => setBenchFilter("all")}>any <em>{presets.length}</em></button>
-        <button className={benchFilter === "proven" ? "active" : ""} onClick={() => setBenchFilter("proven")}>bench-proven <em>{provenCount}</em></button>
-        <button className={benchFilter === "pending" ? "active" : ""} onClick={() => setBenchFilter("pending")}>pending <em>{presets.length - provenCount}</em></button>
+        <span className="filter-chips-label">{tr("Baseline")}</span>
+        <button className={benchFilter === "all" ? "active" : ""} onClick={() => setBenchFilter("all")}>{tr("any")} <em>{presets.length}</em></button>
+        <button className={benchFilter === "proven" ? "active" : ""} onClick={() => setBenchFilter("proven")}>{tr("bench-proven")} <em>{provenCount}</em></button>
+        <button className={benchFilter === "pending" ? "active" : ""} onClick={() => setBenchFilter("pending")}>{tr("pending")} <em>{presets.length - provenCount}</em></button>
       </div>
       <div className="catalog-scroll">
         <table className="module-table">
           <thead>
             <tr>
-              <th className="sortable" onClick={() => toggleSort("id")}>Preset{caret("id")}</th>
-              <th className="sortable" onClick={() => toggleSort("model")}>Model{caret("model")}</th>
-              <th>Hardware</th>
-              <th>Profile</th>
-              <th className="sortable" onClick={() => toggleSort("status")}>Card{caret("status")}</th>
-              <th className="sortable" onClick={() => toggleSort("baseline")}>Baseline{caret("baseline")}</th>
-              <th aria-label="Actions" />
+              <th className="sortable" onClick={() => toggleSort("id")}>{tr("Preset")}{caret("id")}</th>
+              <th className="sortable" onClick={() => toggleSort("model")}>{tr("Model")}{caret("model")}</th>
+              <th>{tr("Hardware")}</th>
+              <th>{tr("Profile")}</th>
+              <th className="sortable" onClick={() => toggleSort("status")}>{tr("Card")}{caret("status")}</th>
+              <th className="sortable" onClick={() => toggleSort("baseline")}>{tr("Baseline")}{caret("baseline")}</th>
+              <th aria-label={tr("Actions")} />
             </tr>
           </thead>
           <tbody>
@@ -121,8 +122,8 @@ export function PresetCatalogTable({
                   {onEdit && (
                     <button
                       className="icon-button"
-                      title={`Edit ${preset.id}`}
-                      aria-label={`Edit ${preset.id}`}
+                      title={`${tr("Edit")} ${preset.id}`}
+                      aria-label={`${tr("Edit")} ${preset.id}`}
                       onClick={(event) => { event.stopPropagation(); onEdit(preset.id); }}
                     >
                       <Wrench size={14} />
@@ -137,9 +138,9 @@ export function PresetCatalogTable({
               <tr><td colSpan={7}>
                 <EmptyState
                   icon={<Database size={22} />}
-                  title="No presets for this filter"
-                  message={filtered ? "No presets match the active filters." : "The preset catalog is empty."}
-                  action={filtered ? { label: "Clear filters", icon: <X size={14} />, onClick: () => { setStatusFilter("all"); setBenchFilter("all"); } } : undefined}
+                  title={tr("No presets for this filter")}
+                  message={filtered ? tr("No presets match the active filters.") : tr("The preset catalog is empty.")}
+                  action={filtered ? { label: tr("Clear filters"), icon: <X size={14} />, onClick: () => { setStatusFilter("all"); setBenchFilter("all"); } } : undefined}
                 />
               </td></tr>
               );

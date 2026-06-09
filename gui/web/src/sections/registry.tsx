@@ -4,19 +4,20 @@
 import { type BundleSpec, type DiffUpstreamReport } from "../api";
 import { StatusBadge, KpiGrid } from "../components/primitives";
 import { SkeletonLines } from "../Skeleton";
+import { tr } from "../i18n";
 
 export function BundlesPanel({ bundles }: { bundles: BundleSpec[] }) {
   if (!bundles.length) {
-    return <p className="muted">No multi-patch bundles reported by the registry.</p>;
+    return <p className="muted">{tr("No multi-patch bundles reported by the registry.")}</p>;
   }
   return (
     <table className="module-table">
       <thead>
         <tr>
-          <th>Bundle</th>
-          <th>Tier</th>
-          <th>Umbrella flag</th>
-          <th>Description</th>
+          <th>{tr("Bundle")}</th>
+          <th>{tr("Tier")}</th>
+          <th>{tr("Umbrella flag")}</th>
+          <th>{tr("Description")}</th>
         </tr>
       </thead>
       <tbody>
@@ -42,20 +43,20 @@ export function UpstreamDiffPanel({ report }: { report: DiffUpstreamReport | nul
     <div className="runtime-envelope">
       <KpiGrid
         rows={[
-          ["Active upstream PRs", active.length],
-          ["Merged upstream", report.merged_upstream.length]
+          [tr("Active upstream PRs"), active.length],
+          [tr("Merged upstream"), report.merged_upstream.length]
         ]}
       />
       {active.length === 0 ? (
-        <p className="muted">No patches currently track an open upstream PR.</p>
+        <p className="muted">{tr("No patches currently track an open upstream PR.")}</p>
       ) : (
         <div className="patch-table-scroll">
           <table className="module-table patch-table">
             <thead>
               <tr>
-                <th>Patch</th>
-                <th>Upstream PR</th>
-                <th>Lifecycle</th>
+                <th>{tr("Patch")}</th>
+                <th>{tr("Upstream PR")}</th>
+                <th>{tr("Lifecycle")}</th>
               </tr>
             </thead>
             <tbody>

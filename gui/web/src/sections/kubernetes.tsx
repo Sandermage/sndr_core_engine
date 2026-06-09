@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Boxes, Cpu, RefreshCw, Loader2, AlertTriangle, ShieldCheck, ShieldAlert, Server, Info, ChevronDown, Rocket, Copy, Layers, Package } from "lucide-react";
 import { api, type K8sStatus, type K8sNode, type K8sPod, type K8sEvent, type DeploymentPlan } from "../api";
 import { onKeyActivate } from "../dialog";
+import { tr } from "../i18n";
 
 type K8sTab = "nodes" | "pods" | "events" | "deploy";
 
@@ -39,9 +40,9 @@ export function KubernetesPanel() {
   return (
     <div className="k8s">
       <div className="section-head">
-        <div><h2><Boxes size={18} /> Kubernetes</h2><p className="muted">Monitor your cluster and deploy vLLM to it — honours your kubeconfig &amp; RBAC.</p></div>
+        <div><h2><Boxes size={18} /> Kubernetes</h2><p className="muted">{tr("Monitor your cluster and deploy vLLM to it — honours your kubeconfig & RBAC.")}</p></div>
         <button className="ghost-button" onClick={() => void load()} disabled={loading}>
-          {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Refresh
+          {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} {tr("Refresh")}
         </button>
       </div>
 
@@ -50,17 +51,17 @@ export function KubernetesPanel() {
 
       {status?.available && (
         <div className="k8s-kpis">
-          <Kpi label="Server" value={status.version ?? "—"} />
-          <Kpi label="Nodes" value={`${status.nodes_ready ?? 0}/${status.node_count ?? 0} ready`} />
-          <Kpi label="GPU nodes" value={String(status.gpu_node_count ?? 0)} accent />
-          <Kpi label="Namespaces" value={String(status.namespace_count ?? 0)} />
+          <Kpi label={tr("Server")} value={status.version ?? "—"} />
+          <Kpi label={tr("Nodes")} value={`${status.nodes_ready ?? 0}/${status.node_count ?? 0} ${tr("ready")}`} />
+          <Kpi label={tr("GPU nodes")} value={String(status.gpu_node_count ?? 0)} accent />
+          <Kpi label={tr("Namespaces")} value={String(status.namespace_count ?? 0)} />
         </div>
       )}
 
       <div className="k8s-tabs">
         {(["nodes", "pods", "events", "deploy"] as K8sTab[]).map((t) => (
           <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
-            {t === "deploy" ? "deploy vLLM" : t}
+            {t === "deploy" ? tr("deploy vLLM") : tr(t)}
             {t === "nodes" && nodes ? ` (${nodes.length})` : ""}{t === "pods" && pods ? ` (${pods.length})` : ""}
             {t === "events" && events ? ` (${events.filter((e) => e.type === "Warning").length}⚠)` : ""}
           </button>
@@ -72,28 +73,28 @@ export function KubernetesPanel() {
       {tab === "nodes" && clusterGated(
         <div className="containers-table-wrap">
           <table className="containers-table">
-            <thead><tr><th>Node</th><th>Status</th><th>Roles</th><th>Kubelet</th><th>GPU (free / alloc)</th><th>GPU labels</th><th>Taints</th></tr></thead>
+            <thead><tr><th>{tr("Node")}</th><th>{tr("Status")}</th><th>{tr("Roles")}</th><th>{tr("Kubelet")}</th><th>{tr("GPU (free / alloc)")}</th><th>{tr("GPU labels")}</th><th>{tr("Taints")}</th></tr></thead>
             <tbody>{(nodes ?? []).map((n) => <NodeRow key={n.name} n={n} />)}</tbody>
           </table>
-          {nodes && nodes.length === 0 && <div className="containers-empty"><strong>Cluster has no nodes</strong></div>}
+          {nodes && nodes.length === 0 && <div className="containers-empty"><strong>{tr("Cluster has no nodes")}</strong></div>}
         </div>
       )}
       {tab === "pods" && clusterGated(
         <div className="containers-table-wrap">
           <table className="containers-table">
-            <thead><tr><th>Pod</th><th>Namespace</th><th>Phase</th><th>Ready</th><th>Restarts</th><th>GPU</th><th>Node</th></tr></thead>
+            <thead><tr><th>{tr("Pod")}</th><th>{tr("Namespace")}</th><th>{tr("Phase")}</th><th>{tr("Ready")}</th><th>{tr("Restarts")}</th><th>{tr("GPU")}</th><th>{tr("Node")}</th></tr></thead>
             <tbody>{(pods ?? []).map((p) => <PodRow key={`${p.namespace}/${p.name}`} p={p} />)}</tbody>
           </table>
-          {pods && pods.length === 0 && <div className="containers-empty"><strong>No pods</strong></div>}
+          {pods && pods.length === 0 && <div className="containers-empty"><strong>{tr("No pods")}</strong></div>}
         </div>
       )}
       {tab === "events" && clusterGated(
         <div className="containers-table-wrap">
           <table className="containers-table">
-            <thead><tr><th>Type</th><th>Reason</th><th>Object</th><th>Message</th><th>×</th></tr></thead>
+            <thead><tr><th>{tr("Type")}</th><th>{tr("Reason")}</th><th>{tr("Object")}</th><th>{tr("Message")}</th><th>×</th></tr></thead>
             <tbody>{(events ?? []).map((e, i) => <EventRow key={i} e={e} />)}</tbody>
           </table>
-          {events && events.length === 0 && <div className="containers-empty"><strong>No recent events</strong></div>}
+          {events && events.length === 0 && <div className="containers-empty"><strong>{tr("No recent events")}</strong></div>}
         </div>
       )}
     </div>
@@ -104,9 +105,9 @@ function ConnectCard({ error }: { error: string | null }) {
   return (
     <div className="k8s-disconnected">
       <Server size={24} />
-      <strong>No cluster connected</strong>
+      <strong>{tr("No cluster connected")}</strong>
       <p className="muted">{error}</p>
-      <p className="upd-hint">Install the client and point the daemon at a kubeconfig (the Deploy tab works without a cluster):</p>
+      <p className="upd-hint">{tr("Install the client and point the daemon at a kubeconfig (the Deploy tab works without a cluster):")}</p>
       <code className="apply-gate-cmd">pip install 'vllm-sndr-core[k8s]'  ·  export KUBECONFIG=/path/to/config</code>
     </div>
   );
@@ -119,26 +120,26 @@ function K8sIntro({ available }: { available?: boolean }) {
     <div className="k8s-intro">
       <div className="k8s-intro-head" role="button" tabIndex={0} onClick={() => setOpen((v) => !v)} onKeyDown={onKeyActivate(() => setOpen((v) => !v))}>
         <Info size={14} />
-        <span><strong>Run vLLM on Kubernetes</strong> — {available ? "monitor this cluster (nodes · pods · events) and deploy presets to it." : "generate a ready-to-apply manifest from any preset; connect a kubeconfig to also monitor the cluster."}</span>
+        <span><strong>{tr("Run vLLM on Kubernetes")}</strong> — {available ? tr("monitor this cluster (nodes · pods · events) and deploy presets to it.") : tr("generate a ready-to-apply manifest from any preset; connect a kubeconfig to also monitor the cluster.")}</span>
         <ChevronDown size={15} className={open ? "rot" : ""} />
       </div>
       {open && (
         <div className="k8s-intro-body">
-          <p className="k8s-intro-lead">Today you run each vLLM engine as a Docker container you start/stop per host over SSH (the Containers tab). That is the right tool for <b>1–2 GPU boxes you operate by hand</b>. Kubernetes earns its keep once you have <b>3+ GPU hosts</b> — it treats them as one pool and runs your engines <i>for</i> you instead of you SSH-ing to each.</p>
-          <p><b>Concretely, what it does that Docker can't</b> — by scenario:</p>
+          <p className="k8s-intro-lead">{tr("Today you run each vLLM engine as a Docker container you start/stop per host over SSH (the Containers tab). That is the right tool for")} <b>{tr("1–2 GPU boxes you operate by hand")}</b>. {tr("Kubernetes earns its keep once you have")} <b>{tr("3+ GPU hosts")}</b> — {tr("it treats them as one pool and runs your engines")} <i>{tr("for")}</i> {tr("you instead of you SSH-ing to each.")}</p>
+          <p><b>{tr("Concretely, what it does that Docker can't")}</b> — {tr("by scenario:")}</p>
           <ul className="k8s-intro-list">
-            <li><b>An engine dies at 3am</b> → k8s restarts it, and with &gt;1 replica the endpoint never drops. Docker's <code>restart:</code> revives a process but can't drain a dead replica out of a load-balanced endpoint.</li>
-            <li><b>You need to place a 2-GPU engine</b> → k8s finds a node with 2 <i>free</i> <code>nvidia.com/gpu</code> and schedules it there, or tells you exactly why it can't (<code>Insufficient nvidia.com/gpu</code> in Events). Docker has no view of other hosts' free GPUs.</li>
-            <li><b>Traffic spikes</b> → with KEDA, k8s adds replicas when the vLLM queue (<code>num_requests_waiting</code>) grows and removes them when it drains. CPU-based autoscaling is useless here — inference is GPU-bound.</li>
-            <li><b>You bump the pin</b> dev338 → dev371 → k8s rolls pods one at a time, waits for <code>/health</code>, and <b>halts + keeps the old pin serving</b> if the new one never goes Ready (your exact patch-on-new-pin drift risk). That's your current/previous pin policy, enforced by the platform.</li>
-            <li><b>A node reboots</b> → k8s reconciles back to "3 replicas of preset X at pin Y". Docker is imperative: if the box came back and the unit didn't, it's just down.</li>
-            <li><b>A model won't fit on one box</b> → multi-node tensor/pipeline parallel needs gang-scheduled, co-placed pods (KubeRay). Docker-compose is single-host by definition.</li>
+            <li><b>{tr("An engine dies at 3am")}</b> → {tr("k8s restarts it, and with >1 replica the endpoint never drops. Docker's")} <code>restart:</code> {tr("revives a process but can't drain a dead replica out of a load-balanced endpoint.")}</li>
+            <li><b>{tr("You need to place a 2-GPU engine")}</b> → {tr("k8s finds a node with 2")} <i>{tr("free")}</i> <code>nvidia.com/gpu</code> {tr("and schedules it there, or tells you exactly why it can't")} (<code>Insufficient nvidia.com/gpu</code> {tr("in Events")}). {tr("Docker has no view of other hosts' free GPUs.")}</li>
+            <li><b>{tr("Traffic spikes")}</b> → {tr("with KEDA, k8s adds replicas when the vLLM queue")} (<code>num_requests_waiting</code>) {tr("grows and removes them when it drains. CPU-based autoscaling is useless here — inference is GPU-bound.")}</li>
+            <li><b>{tr("You bump the pin")}</b> dev338 → dev371 → {tr("k8s rolls pods one at a time, waits for")} <code>/health</code>, {tr("and")} <b>{tr("halts + keeps the old pin serving")}</b> {tr("if the new one never goes Ready (your exact patch-on-new-pin drift risk). That's your current/previous pin policy, enforced by the platform.")}</li>
+            <li><b>{tr("A node reboots")}</b> → {tr("k8s reconciles back to \"3 replicas of preset X at pin Y\". Docker is imperative: if the box came back and the unit didn't, it's just down.")}</li>
+            <li><b>{tr("A model won't fit on one box")}</b> → {tr("multi-node tensor/pipeline parallel needs gang-scheduled, co-placed pods (KubeRay). Docker-compose is single-host by definition.")}</li>
           </ul>
-          <p className="muted"><b>When NOT to bother:</b> 1–2 boxes, 1–2 engines you babysit — stay on Docker; the k8s tax (control plane, gpu-operator, RBAC) buys nothing. Use this tab purely as the <b>manifest generator</b> until you actually have a fleet.</p>
+          <p className="muted"><b>{tr("When NOT to bother:")}</b> {tr("1–2 boxes, 1–2 engines you babysit — stay on Docker; the k8s tax (control plane, gpu-operator, RBAC) buys nothing. Use this tab purely as the")} <b>{tr("manifest generator")}</b> {tr("until you actually have a fleet.")}</p>
           <hr className="k8s-intro-sep" />
-          <p><b>Why this is an SNDR panel, not a generic dashboard:</b> every manifest we render <b>stamps its SNDR identity</b> — preset, pin, and enabled-patch list — onto the Deployment (<code>sndr.io/preset</code>, <code>sndr.io/pin</code>, <code>sndr.io/patches</code>). So the <b>Pods</b> tab shows each pod's preset + pin + patch count inline (k9s/Lens show you anonymous pods; we show you <i>which engine, which pin, which patches</i>). That identity round-trip is the keystone the roadmap builds on — pod→preset drift badge, GPU-fleet capacity planner ("which node fits which preset"), autoscale bounds from the preset's measured concurrency envelope, and rolling pin upgrades driven by your pin policy.</p>
-          <p><b>This panel today:</b> <b>Deploy</b> renders a ready, identity-stamped manifest from any preset (no cluster needed to generate it) — <code>kubectl apply</code> and you're running. <b>Nodes/Pods/Events</b> read a connected cluster via your kubeconfig (your RBAC): GPU free/alloc per node, each SNDR pod's identity, and why a pod is Pending.</p>
-          <p className="muted"><b>GPU prerequisite:</b> the cluster needs the NVIDIA device plugin / gpu-operator so nodes advertise <code>nvidia.com/gpu</code> (it also bundles dcgm-exporter for fleet GPU telemetry) — otherwise GPU pods stay Pending and the Events tab shows exactly that.</p>
+          <p><b>{tr("Why this is an SNDR panel, not a generic dashboard:")}</b> {tr("every manifest we render")} <b>{tr("stamps its SNDR identity")}</b> — {tr("preset, pin, and enabled-patch list — onto the Deployment")} (<code>sndr.io/preset</code>, <code>sndr.io/pin</code>, <code>sndr.io/patches</code>). {tr("So the")} <b>{tr("Pods")}</b> {tr("tab shows each pod's preset + pin + patch count inline (k9s/Lens show you anonymous pods; we show you")} <i>{tr("which engine, which pin, which patches")}</i>). {tr("That identity round-trip is the keystone the roadmap builds on — pod→preset drift badge, GPU-fleet capacity planner (\"which node fits which preset\"), autoscale bounds from the preset's measured concurrency envelope, and rolling pin upgrades driven by your pin policy.")}</p>
+          <p><b>{tr("This panel today:")}</b> <b>{tr("Deploy")}</b> {tr("renders a ready, identity-stamped manifest from any preset (no cluster needed to generate it) —")} <code>kubectl apply</code> {tr("and you're running.")} <b>{tr("Nodes/Pods/Events")}</b> {tr("read a connected cluster via your kubeconfig (your RBAC): GPU free/alloc per node, each SNDR pod's identity, and why a pod is Pending.")}</p>
+          <p className="muted"><b>{tr("GPU prerequisite:")}</b> {tr("the cluster needs the NVIDIA device plugin / gpu-operator so nodes advertise")} <code>nvidia.com/gpu</code> {tr("(it also bundles dcgm-exporter for fleet GPU telemetry) — otherwise GPU pods stay Pending and the Events tab shows exactly that.")}</p>
         </div>
       )}
     </div>
@@ -170,24 +171,24 @@ export function K8sDeploy() {
   return (
     <div className="k8s-deploy">
       <div className="k8s-deploy-bar">
-        <label>Preset
-          <select value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="Preset to deploy">
+        <label>{tr("Preset")}
+          <select value={preset} onChange={(e) => setPreset(e.target.value)} aria-label={tr("Preset to deploy")}>
             {presets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
         </label>
         <button className="primary-button" disabled={!preset || busy} onClick={() => void generate()}>
-          {busy ? <Loader2 size={14} className="spin" /> : <Rocket size={14} />} Generate manifest
+          {busy ? <Loader2 size={14} className="spin" /> : <Rocket size={14} />} {tr("Generate manifest")}
         </button>
       </div>
       {err && <div className="containers-err"><AlertTriangle size={13} /> {err}</div>}
       {plan && (
         <>
           <div className="k8s-deploy-cmds">
-            <span className="muted">Apply &amp; watch:</span>
+            <span className="muted">{tr("Apply & watch:")}</span>
             <code>kubectl apply -f {plan.artifact.filename}</code>
             <code>kubectl rollout status deploy/sndr-{plan.preset_id.slice(0, 30)}</code>
             <button className="ghost-button" onClick={() => { navigator.clipboard?.writeText(yaml); setCopied(true); window.setTimeout(() => setCopied(false), 1500); }}>
-              {copied ? <ShieldCheck size={13} /> : <Copy size={13} />} {copied ? "copied" : "copy YAML"}
+              {copied ? <ShieldCheck size={13} /> : <Copy size={13} />} {copied ? tr("copied") : tr("copy YAML")}
             </button>
           </div>
           <pre className="k8s-yaml"><code>{yaml}</code></pre>
@@ -210,18 +211,18 @@ export function NodeRow({ n }: { n: K8sNode }) {
     <tr className={`crow ${st}`}>
       <td className="crow-name"><span className={`container-dot ${st}`} />{n.name}</td>
       <td>
-        <span className={`container-badge ${st}`}>{n.ready ? (n.schedulable ? "Ready" : "Ready (cordoned)") : "NotReady"}</span>
+        <span className={`container-badge ${st}`}>{n.ready ? (n.schedulable ? tr("Ready") : tr("Ready (cordoned)")) : tr("NotReady")}</span>
         {n.pressures.map((p) => <span key={p} className="k8s-pressure" title={`${p} = True`}><ShieldAlert size={10} /> {p.replace("Pressure", "")}</span>)}
       </td>
       <td className="muted">{n.roles.join(", ") || "—"}</td>
       <td className="muted">{n.kubelet_version ?? "—"}</td>
       <td>
         {hasGpu
-          ? <span className={`k8s-gpu ${gpuFree === 0 ? "full" : "free"}`}><Cpu size={11} /> {gpuFree} / {gpuAlloc}{n.gpu_requested ? ` · ${n.gpu_requested} used` : ""}</span>
+          ? <span className={`k8s-gpu ${gpuFree === 0 ? "full" : "free"}`}><Cpu size={11} /> {gpuFree} / {gpuAlloc}{n.gpu_requested ? ` · ${n.gpu_requested} ${tr("used")}` : ""}</span>
           : <span className="muted">—</span>}
       </td>
       <td className="muted k8s-gpulabels" title={Object.entries(n.gpu_labels).map(([k, v]) => `${k}=${v}`).join("\n")}>
-        {n.gpu_labels["nvidia.com/gpu.product"] ?? (Object.keys(n.gpu_labels).length ? `${Object.keys(n.gpu_labels).length} labels` : "—")}
+        {n.gpu_labels["nvidia.com/gpu.product"] ?? (Object.keys(n.gpu_labels).length ? `${Object.keys(n.gpu_labels).length} ${tr("labels")}` : "—")}
       </td>
       <td className="muted">{n.taints.length ? n.taints.map((t) => t.key).join(", ") : <ShieldCheck size={12} />}</td>
     </tr>
@@ -235,7 +236,7 @@ export function PodRow({ p }: { p: K8sPod }) {
       <td className="crow-name">
         <span className="k8s-pod-name"><span className={`container-dot ${st}`} />{p.name}</span>
         {p.sndr_managed && (
-          <span className="k8s-sndr-id" title={p.sndr_patches.length ? `Enabled patches: ${p.sndr_patches.join(", ")}` : undefined}>
+          <span className="k8s-sndr-id" title={p.sndr_patches.length ? `${tr("Enabled patches:")} ${p.sndr_patches.join(", ")}` : undefined}>
             <span className="k8s-sndr-chip preset"><Package size={9} /> {p.sndr_preset}</span>
             {p.sndr_pin && <span className="k8s-sndr-chip"><Boxes size={9} /> {p.sndr_pin}</span>}
             {p.sndr_patch_count != null && <span className="k8s-sndr-chip"><Layers size={9} /> {p.sndr_patch_count}p</span>}

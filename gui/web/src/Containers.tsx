@@ -12,6 +12,7 @@ import {
   type ManagedContainer, type SourceReport, type SystemDf, type UpdateMode,
 } from "./api";
 import { hashParam, buildHash, replaceHash } from "./route";
+import { tr } from "./i18n";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop, onKeyActivate } from "./dialog";
 import { SkeletonLines, SkeletonCards } from "./Skeleton";
 import { cacheGet, cachePeek, cacheSet } from "./lib/swr-cache";
@@ -285,7 +286,7 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
     const names = [...selected];
     if (!names.length) return;
     if ((action === "stop" || action === "restart") &&
-        !window.confirm(`${action} ${names.length} selected container(s)? They are processed one at a time.`)) return;
+        !window.confirm(`${tr(action)} ${names.length} ${tr("selected container(s)? They are processed one at a time.")}`)) return;
     for (const name of names) {
       setBusy(`${name}:${action}`);
       try { await api.containerAction(source, name, action); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
@@ -341,28 +342,28 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
       <div className="containers-bar">
         <label className="containers-source">
           <Server size={14} />
-          <select aria-label="Container source host" value={source.kind === "local" ? "__local__" : source.hostId}
+          <select aria-label={tr("Container source host")} value={source.kind === "local" ? "__local__" : source.hostId}
             onChange={(e) => { const v = e.target.value; setSource(v === "__local__" ? { kind: "local" } : { kind: "host", hostId: v }); }}>
-            <option value="__local__">This daemon · docker socket</option>
+            <option value="__local__">{tr("This daemon · docker socket")}</option>
             {hosts.map((h) => <option key={h.id} value={h.id}>{h.label} · SSH</option>)}
           </select>
         </label>
-        <div className="containers-search"><Search size={13} /><input aria-label="Filter containers by name or image" value={queryText} onChange={(e) => setQueryText(e.target.value)} placeholder="filter name / image…" /></div>
+        <div className="containers-search"><Search size={13} /><input aria-label={tr("Filter containers by name or image")} value={queryText} onChange={(e) => setQueryText(e.target.value)} placeholder={tr("filter name / image…")} /></div>
         <div className="containers-chips">
-          {(["all", "running", "stopped"] as StateFilter[]).map((f) => <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>{f}</button>)}
+          {(["all", "running", "stopped"] as StateFilter[]).map((f) => <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>{tr(f)}</button>)}
         </div>
         <label className="containers-sort"><ArrowDownUp size={13} />
-          <select aria-label="Sort containers" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-            <option value="state">state</option><option value="name">name</option><option value="cpu">cpu</option><option value="mem">memory</option>
+          <select aria-label={tr("Sort containers")} value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+            <option value="state">{tr("state")}</option><option value="name">{tr("name")}</option><option value="cpu">{tr("cpu")}</option><option value="mem">{tr("memory")}</option>
           </select>
         </label>
         <button className="ghost-button icon-only" onClick={() => setViewMode((m) => (m === "cards" ? "table" : "cards"))}
-          title={viewMode === "cards" ? "Switch to dense table view" : "Switch to card view"}>
+          title={viewMode === "cards" ? tr("Switch to dense table view") : tr("Switch to card view")}>
           {viewMode === "cards" ? <List size={15} /> : <LayoutGrid size={15} />}
         </button>
-        <button className="ghost-button" onClick={() => setAlertsOpen(true)} title="Engine health alerts → Telegram"><Bell size={14} /> Alerts</button>
+        <button className="ghost-button" onClick={() => setAlertsOpen(true)} title={tr("Engine health alerts → Telegram")}><Bell size={14} /> {tr("Alerts")}</button>
         <button className="ghost-button" onClick={() => void load()} disabled={loading}>
-          {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Refresh
+          {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} {tr("Refresh")}
         </button>
       </div>
       {alertsOpen && <AlertsModal onClose={() => setAlertsOpen(false)} />}
@@ -370,36 +371,36 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
 
       {items !== null && (
         <div className="containers-summary">
-          <span className="csum ok"><b>{running.length}</b> running</span>
-          <span className="csum"><b>{stopped}</b> stopped</span>
+          <span className="csum ok"><b>{running.length}</b> {tr("running")}</span>
+          <span className="csum"><b>{stopped}</b> {tr("stopped")}</span>
           <span className="csum"><Cpu size={12} /> <b>{sumCpu.toFixed(0)}%</b> CPU</span>
           <span className="csum"><MemoryStick size={12} /> <b>{fmtBytes(sumMem)}</b></span>
-          {df && Array.isArray(df.types) && <span className="csum" title={df.types.map((t) => `${t.type}: ${fmtBytes(t.size)} (${fmtBytes(t.reclaimable)} reclaimable)`).join("\n")}><Database size={12} /> <b>{fmtBytes(df.total_size ?? 0)}</b> disk</span>}
-          <span className="containers-auto">live · 4s</span>
+          {df && Array.isArray(df.types) && <span className="csum" title={df.types.map((t) => `${t.type}: ${fmtBytes(t.size)} (${fmtBytes(t.reclaimable)} ${tr("reclaimable")})`).join("\n")}><Database size={12} /> <b>{fmtBytes(df.total_size ?? 0)}</b> {tr("disk")}</span>}
+          <span className="containers-auto">{tr("live")} · 4s</span>
         </div>
       )}
 
       {err && (
         <div className="containers-empty err">
           <AlertTriangle size={22} />
-          <strong>Containers unavailable</strong>
+          <strong>{tr("Containers unavailable")}</strong>
           <span>{err}</span>
         </div>
       )}
       {loading && items === null && <SkeletonCards count={6} />}
       {items !== null && view.length === 0 && !err && (
-        <div className="containers-empty"><Boxes size={22} /><strong>{items.length === 0 ? "No managed containers" : "Nothing matches the filter"}</strong>
-          <span>Only vLLM/engine containers (<code>vllm*</code> / <code>sndr-daemon</code> or label <code>sndr.managed=true</code>).</span></div>
+        <div className="containers-empty"><Boxes size={22} /><strong>{items.length === 0 ? tr("No managed containers") : tr("Nothing matches the filter")}</strong>
+          <span>{tr("Only vLLM/engine containers")} (<code>vllm*</code> / <code>sndr-daemon</code> {tr("or label")} <code>sndr.managed=true</code>).</span></div>
       )}
 
       {selected.size > 0 && (
         <div className="bulk-bar">
-          <span className="bulk-count">{selected.size} selected</span>
-          <button className="ghost-button" disabled={!!busy} onClick={() => void bulkAct("start")}><Play size={13} /> Start</button>
-          <button className="ghost-button" disabled={!!busy} onClick={() => void bulkAct("restart")}><RotateCw size={13} /> Restart</button>
-          <button className="ghost-button danger" disabled={!!busy} onClick={() => void bulkAct("stop")}><Square size={13} /> Stop</button>
-          <span className="bulk-hint">rolling · one at a time</span>
-          <button className="ghost-button" onClick={() => setSelected(new Set())}><X size={13} /> Clear</button>
+          <span className="bulk-count">{selected.size} {tr("selected")}</span>
+          <button className="ghost-button" disabled={!!busy} onClick={() => void bulkAct("start")}><Play size={13} /> {tr("Start")}</button>
+          <button className="ghost-button" disabled={!!busy} onClick={() => void bulkAct("restart")}><RotateCw size={13} /> {tr("Restart")}</button>
+          <button className="ghost-button danger" disabled={!!busy} onClick={() => void bulkAct("stop")}><Square size={13} /> {tr("Stop")}</button>
+          <span className="bulk-hint">{tr("rolling · one at a time")}</span>
+          <button className="ghost-button" onClick={() => setSelected(new Set())}><X size={13} /> {tr("Clear")}</button>
         </div>
       )}
 
@@ -408,7 +409,7 @@ export function ContainersPanel({ hosts, onNavigate, initialHostId }: { hosts: H
           <table className="containers-table">
             <thead>
               <tr>
-                <th></th><th>Name</th><th>State</th><th>Image</th><th>CPU</th><th>MEM</th><th>Ports</th><th></th>
+                <th></th><th>{tr("Name")}</th><th>{tr("State")}</th><th>{tr("Image")}</th><th>CPU</th><th>MEM</th><th>{tr("Ports")}</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -455,11 +456,11 @@ function ContainerRow({ c, source, stats, busy, selected, onToggleSelect, onAct,
   }, [source, c.name]);
   return (
     <tr className={`crow ${st}${selected ? " selected" : ""}`}>
-      <td className="crow-sel">{onToggleSelect && <input type="checkbox" checked={!!selected} onChange={onToggleSelect} aria-label={`Select ${c.name}`} />}</td>
+      <td className="crow-sel">{onToggleSelect && <input type="checkbox" checked={!!selected} onChange={onToggleSelect} aria-label={`${tr("Select")} ${c.name}`} />}</td>
       <td className="crow-name">
         <span className={`container-dot ${st}`} />
         <span role="button" tabIndex={0} onClick={() => onOpen()} onKeyDown={onKeyActivate(() => onOpen())}>{c.name}</span>
-        {upd?.update_available && <span className="ccard-upd-pill" title="Update available" role="button" tabIndex={0} onClick={() => onOpen("config")} onKeyDown={onKeyActivate(() => onOpen("config"))}><ArrowUp size={10} /></span>}
+        {upd?.update_available && <span className="ccard-upd-pill" title={tr("Update available")} role="button" tabIndex={0} onClick={() => onOpen("config")} onKeyDown={onKeyActivate(() => onOpen("config"))}><ArrowUp size={10} /></span>}
         {upd && upd.mode !== "manual" && <span className={`ccard-mode-badge ${upd.mode}`}>{upd.mode}</span>}
       </td>
       <td><span className={`container-badge ${st}`}>{c.state || "—"}</span></td>
@@ -470,11 +471,11 @@ function ContainerRow({ c, source, stats, busy, selected, onToggleSelect, onAct,
       <td className="crow-acts">
         {acting ? <Loader2 size={13} className="spin" /> : online ? (
           <>
-            <button className="icon-btn" title="Restart" disabled={!!busy} onClick={() => onAct(c.name, "restart")}><RotateCw size={13} /></button>
-            <button className="icon-btn danger" title="Stop" disabled={!!busy} onClick={() => onAct(c.name, "stop")}><Square size={13} /></button>
+            <button className="icon-btn" title={tr("Restart")} disabled={!!busy} onClick={() => onAct(c.name, "restart")}><RotateCw size={13} /></button>
+            <button className="icon-btn danger" title={tr("Stop")} disabled={!!busy} onClick={() => onAct(c.name, "stop")}><Square size={13} /></button>
           </>
         ) : (
-          <button className="icon-btn" title="Start" disabled={!!busy} onClick={() => onAct(c.name, "start")}><Play size={13} /></button>
+          <button className="icon-btn" title={tr("Start")} disabled={!!busy} onClick={() => onAct(c.name, "start")}><Play size={13} /></button>
         )}
       </td>
     </tr>
@@ -531,34 +532,34 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
       <div className="ccard-top">
         {onToggleSelect && (
           <input type="checkbox" className="ccard-select" checked={!!selected} onChange={onToggleSelect}
-            aria-label={`Select ${c.name}`} onClick={(e) => e.stopPropagation()} />
+            aria-label={`${tr("Select")} ${c.name}`} onClick={(e) => e.stopPropagation()} />
         )}
-        <span className={`ccard-avatar ${kind}`} title={kind === "engine" ? "vLLM engine" : kind === "daemon" ? "Management daemon" : "Managed container"}>
+        <span className={`ccard-avatar ${kind}`} title={kind === "engine" ? tr("vLLM engine") : kind === "daemon" ? tr("Management daemon") : tr("Managed container")}>
           <KindIcon size={15} />
           <span className={`ccard-avatar-dot ${st}`} />
         </span>
         <span className="ccard-name" title={c.name} role="button" tabIndex={0} onClick={() => onOpen()} onKeyDown={onKeyActivate(() => onOpen())}>{c.name}</span>
         <span className={`container-badge ${st}`}>{c.state || "—"}</span>
         {upd?.update_available && (
-          <span className="ccard-upd-pill" title="A newer local image exists — open Update" role="button" tabIndex={0} onClick={() => onOpen("config")} onKeyDown={onKeyActivate(() => onOpen("config"))}>
-            <ArrowUp size={11} /> update
+          <span className="ccard-upd-pill" title={tr("A newer local image exists — open Update")} role="button" tabIndex={0} onClick={() => onOpen("config")} onKeyDown={onKeyActivate(() => onOpen("config"))}>
+            <ArrowUp size={11} /> {tr("update")}
           </span>
         )}
         {upd && upd.mode && upd.mode !== "manual" && (
-          <span className={`ccard-mode-badge ${upd.mode}`} title={`Update mode: ${upd.mode}`}>{upd.mode}</span>
+          <span className={`ccard-mode-badge ${upd.mode}`} title={`${tr("Update mode")}: ${upd.mode}`}>{upd.mode}</span>
         )}
         <div className="ccard-menu-wrap">
-          <button className="ccard-kebab" onClick={() => setMenu((v) => !v)} title="More"><MoreVertical size={15} /></button>
+          <button className="ccard-kebab" onClick={() => setMenu((v) => !v)} title={tr("More")}><MoreVertical size={15} /></button>
           {menu && (
             <>
               <div className="ccard-menu-back" role="presentation" onClick={() => setMenu(false)} />
               <div className="ccard-menu">
-                <button onClick={() => onOpen("config")}><Settings size={13} /> Config</button>
-                <button onClick={() => onOpen("overview")}><Cpu size={13} /> Stats</button>
-                <button onClick={() => onOpen("processes")}><Activity size={13} /> Processes</button>
-                <button onClick={() => onOpen("files")}><Folder size={13} /> Files</button>
-                <button onClick={() => onOpen("changes")}><GitCompare size={13} /> Changes</button>
-                <button onClick={() => onOpen("exec")}><TerminalSquare size={13} /> Exec</button>
+                <button onClick={() => onOpen("config")}><Settings size={13} /> {tr("Config")}</button>
+                <button onClick={() => onOpen("overview")}><Cpu size={13} /> {tr("Stats")}</button>
+                <button onClick={() => onOpen("processes")}><Activity size={13} /> {tr("Processes")}</button>
+                <button onClick={() => onOpen("files")}><Folder size={13} /> {tr("Files")}</button>
+                <button onClick={() => onOpen("changes")}><GitCompare size={13} /> {tr("Changes")}</button>
+                <button onClick={() => onOpen("exec")}><TerminalSquare size={13} /> {tr("Exec")}</button>
               </div>
             </>
           )}
@@ -567,15 +568,15 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
       <code className="ccard-image" title={`${c.image}${c.id ? ` · ${c.id}` : ""}`}>{c.image}{c.id ? <span className="ccard-id"> · {c.id.slice(0, 12)}</span> : null}</code>
       {(c.labels?.["sndr.preset"] || c.networks) && (
         <div className="ccard-tags">
-          {c.labels?.["sndr.preset"] && <span className="ccard-tag preset" title="Source preset"><Database size={10} /> {c.labels["sndr.preset"]}</span>}
-          {c.networks && <span className="ccard-tag net" title="Networks"><Network size={10} /> {c.networks}</span>}
+          {c.labels?.["sndr.preset"] && <span className="ccard-tag preset" title={tr("Source preset")}><Database size={10} /> {c.labels["sndr.preset"]}</span>}
+          {c.networks && <span className="ccard-tag net" title={tr("Networks")}><Network size={10} /> {c.networks}</span>}
         </div>
       )}
       {ver?.ok && (ver.vllm_version || ver.sndr_version) && (
-        <div className="ccard-ver" title="Project versions running inside this container">
+        <div className="ccard-ver" title={tr("Project versions running inside this container")}>
           {ver.vllm_version && <span className="ccard-ver-chip vllm"><Box size={10} /> vLLM {shortVer(ver.vllm_version)}</span>}
           {ver.sndr_version && <span className="ccard-ver-chip sndr"><ShieldCheck size={10} /> SNDR {ver.sndr_version}</span>}
-          {ver.patches != null && <span className="ccard-ver-chip" title={`${ver.patches} patches · ${ver.configs ?? "?"} configs`}><Layers size={10} /> {ver.patches}p</span>}
+          {ver.patches != null && <span className="ccard-ver-chip" title={`${ver.patches} ${tr("patches")} · ${ver.configs ?? "?"} ${tr("configs")}`}><Layers size={10} /> {ver.patches}p</span>}
         </div>
       )}
 
@@ -591,27 +592,27 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
       </div>
 
       <div className="ccard-strip">
-        <span title="status"><Clock size={11} /> {compactStatus(c.status) || (online ? "up" : "stopped")}</span>
-        <span title="memory">{online ? `${fmtBytes(stats?.mem_usage)}${stats?.mem_limit ? ` / ${fmtBytes(stats?.mem_limit)}` : ""}` : "—"}</span>
-        {online && stats?.pids ? <span title="processes"><Activity size={11} /> {stats.pids}</span> : null}
+        <span title={tr("status")}><Clock size={11} /> {compactStatus(c.status) || (online ? tr("up") : tr("stopped"))}</span>
+        <span title={tr("memory")}>{online ? `${fmtBytes(stats?.mem_usage)}${stats?.mem_limit ? ` / ${fmtBytes(stats?.mem_limit)}` : ""}` : "—"}</span>
+        {online && stats?.pids ? <span title={tr("processes")}><Activity size={11} /> {stats.pids}</span> : null}
       </div>
 
       <div className="ccard-ports">
-        {ports.length ? ports.slice(0, 3).map((p) => <span key={p} className="port-chip" title={p}>{p}</span>) : <span className="ccard-noports">no published ports</span>}
+        {ports.length ? ports.slice(0, 3).map((p) => <span key={p} className="port-chip" title={p}>{p}</span>) : <span className="ccard-noports">{tr("no published ports")}</span>}
         {ports.length > 3 && <span className="port-chip more" title={ports.slice(3).join("\n")}>+{ports.length - 3}</span>}
       </div>
 
       <div className="ccard-foot">
         {online ? (
           <>
-            <button className="ccard-act" disabled={acting} onClick={() => onAct(c.name, "restart")} title="Restart">{busy === `${c.name}:restart` ? <Loader2 size={13} className="spin" /> : <RotateCw size={13} />}</button>
-            <button className="ccard-act" disabled={acting} onClick={() => onAct(c.name, "stop")} title="Stop">{busy === `${c.name}:stop` ? <Loader2 size={13} className="spin" /> : <Square size={13} />}</button>
+            <button className="ccard-act" disabled={acting} onClick={() => onAct(c.name, "restart")} title={tr("Restart")}>{busy === `${c.name}:restart` ? <Loader2 size={13} className="spin" /> : <RotateCw size={13} />}</button>
+            <button className="ccard-act" disabled={acting} onClick={() => onAct(c.name, "stop")} title={tr("Stop")}>{busy === `${c.name}:stop` ? <Loader2 size={13} className="spin" /> : <Square size={13} />}</button>
           </>
         ) : (
-          <button className="ccard-act primary" disabled={acting} onClick={() => onAct(c.name, "start")} title="Start">{busy === `${c.name}:start` ? <Loader2 size={13} className="spin" /> : <Play size={13} />} Start</button>
+          <button className="ccard-act primary" disabled={acting} onClick={() => onAct(c.name, "start")} title={tr("Start")}>{busy === `${c.name}:start` ? <Loader2 size={13} className="spin" /> : <Play size={13} />} {tr("Start")}</button>
         )}
-        <button className="ccard-act" onClick={() => onOpen("logs")} title="Logs"><FileText size={13} /></button>
-        <button className="ccard-open" onClick={() => onOpen()}>Open <ChevronRight size={13} /></button>
+        <button className="ccard-act" onClick={() => onOpen("logs")} title={tr("Logs")}><FileText size={13} /></button>
+        <button className="ccard-open" onClick={() => onOpen()}>{tr("Open")} <ChevronRight size={13} /></button>
       </div>
     </div>
   );
@@ -621,13 +622,13 @@ function ContainerCard({ c, source, stats, history, busy, selected, onToggleSele
 
 type Tab = "overview" | "config" | "processes" | "files" | "changes" | "logs" | "exec";
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "overview", label: "Overview", icon: <Box size={15} /> },
-  { id: "config", label: "Config", icon: <Settings size={15} /> },
-  { id: "processes", label: "Processes", icon: <Activity size={15} /> },
-  { id: "files", label: "Files", icon: <Folder size={15} /> },
-  { id: "changes", label: "Changes", icon: <GitCompare size={15} /> },
-  { id: "logs", label: "Logs", icon: <FileText size={15} /> },
-  { id: "exec", label: "Exec", icon: <TerminalSquare size={15} /> },
+  { id: "overview", label: tr("Overview"), icon: <Box size={15} /> },
+  { id: "config", label: tr("Config"), icon: <Settings size={15} /> },
+  { id: "processes", label: tr("Processes"), icon: <Activity size={15} /> },
+  { id: "files", label: tr("Files"), icon: <Folder size={15} /> },
+  { id: "changes", label: tr("Changes"), icon: <GitCompare size={15} /> },
+  { id: "logs", label: tr("Logs"), icon: <FileText size={15} /> },
+  { id: "exec", label: tr("Exec"), icon: <TerminalSquare size={15} /> },
 ];
 
 function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNavigate }: {
@@ -668,7 +669,7 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
   return (
     <div className="cpage">
       <div className="cpage-head">
-        <button className="ghost-button" onClick={onBack}><ArrowLeft size={15} /> Back</button>
+        <button className="ghost-button" onClick={onBack}><ArrowLeft size={15} /> {tr("Back")}</button>
         <span className={`container-dot ${online ? "online" : "offline"}`} />
         <strong className="cpage-name">{name}</strong>
         <span className={`container-badge ${online ? "online" : "offline"}`}>{state.Status || "—"}</span>
@@ -676,24 +677,24 @@ function ContainerPage({ source, name, busy, onBack, onAct, initialTab, onNaviga
         <div className="cpage-acts">
           {online ? (
             <>
-              <button disabled={busy !== null} onClick={() => onAct("restart")}><RotateCw size={14} /> Restart</button>
-              <button disabled={busy !== null} onClick={() => onAct("stop")}><Square size={14} /> Stop</button>
+              <button disabled={busy !== null} onClick={() => onAct("restart")}><RotateCw size={14} /> {tr("Restart")}</button>
+              <button disabled={busy !== null} onClick={() => onAct("stop")}><Square size={14} /> {tr("Stop")}</button>
             </>
           ) : (
-            <button disabled={busy !== null} onClick={() => onAct("start")}><Play size={14} /> Start</button>
+            <button disabled={busy !== null} onClick={() => onAct("start")}><Play size={14} /> {tr("Start")}</button>
           )}
-          <button title="Copy a shareable link to this container" onClick={() => {
+          <button title={tr("Copy a shareable link to this container")} onClick={() => {
             void navigator.clipboard?.writeText(window.location.href).then(
-              () => toast(`Link to ${name} copied`, "success"),
-              () => toast("Could not copy link", "error"),
+              () => toast(`${tr("Link to")} ${name} ${tr("copied")}`, "success"),
+              () => toast(tr("Could not copy link"), "error"),
             );
-          }}><Copy size={14} /> Copy link</button>
+          }}><Copy size={14} /> {tr("Copy link")}</button>
           {updPlan?.update_available && (
-            <span className="upd-avail-pill" title={`A newer local image exists for ${updPlan.image}. Running ${updPlan.running_image_id}, latest ${updPlan.latest_image_id}.`}>
-              <ArrowUp size={12} /> Update available
+            <span className="upd-avail-pill" title={`${tr("A newer local image exists for")} ${updPlan.image}. ${tr("Running")} ${updPlan.running_image_id}, ${tr("latest")} ${updPlan.latest_image_id}.`}>
+              <ArrowUp size={12} /> {tr("Update available")}
             </span>
           )}
-          <button className={`primary-button${updPlan?.update_available ? " has-update" : ""}`} onClick={() => setShowUpdate(true)}><Wrench size={14} /> Update{updPlan?.mode && updPlan.mode !== "manual" ? ` · ${updPlan.mode}` : ""}</button>
+          <button className={`primary-button${updPlan?.update_available ? " has-update" : ""}`} onClick={() => setShowUpdate(true)}><Wrench size={14} /> {tr("Update")}{updPlan?.mode && updPlan.mode !== "manual" ? ` · ${updPlan.mode}` : ""}</button>
         </div>
       </div>
       <code className="cpage-sub">{image}{inspect?.Id ? ` · ${String(inspect.Id).slice(0, 12)}` : ""}</code>
@@ -773,54 +774,54 @@ function SourceCard({ source, name, onNavigate }: { source: ContainerSource; nam
         <Database size={14} />
         {engine && (
           engine.reachable
-            ? <span className="src-engine ok" title={`engine /health on :${engine.port}`}><span className="live-dot on" /> engine serving{engine.port ? ` :${engine.port}` : ""}</span>
-            : <span className="src-engine bad" title="container is up but the engine isn't answering /health"><AlertTriangle size={11} /> engine not responding</span>
+            ? <span className="src-engine ok" title={`${tr("engine /health on")} :${engine.port}`}><span className="live-dot on" /> {tr("engine serving")}{engine.port ? ` :${engine.port}` : ""}</span>
+            : <span className="src-engine bad" title={tr("container is up but the engine isn't answering /health")}><AlertTriangle size={11} /> {tr("engine not responding")}</span>
         )}
-        {rep.served_model && <span className="src-model" title={`served model${rep.pin ? ` · pin ${rep.pin}` : ""}`}><Box size={11} /> {rep.served_model}</span>}
+        {rep.served_model && <span className="src-model" title={`${tr("served model")}${rep.pin ? ` · ${tr("pin")} ${rep.pin}` : ""}`}><Box size={11} /> {rep.served_model}</span>}
         {rep.preset_id ? (
           <>
-            <span className="src-label">Source config</span>
+            <span className="src-label">{tr("Source config")}</span>
             <strong>{rep.preset_title || rep.preset_id}</strong>
-            <span className="src-by" title={`linked by ${rep.linked_by}`}>via {rep.linked_by}</span>
+            <span className="src-by" title={`${tr("linked by")} ${rep.linked_by}`}>{tr("via")} {rep.linked_by}</span>
             {rep.drift_count > 0
-              ? <span className="src-drift bad"><AlertTriangle size={11} /> {rep.drift_count} drift</span>
-              : <span className="src-drift ok"><ShieldCheck size={11} /> in sync</span>}
-            {onNavigate && <button className="ghost-button" onClick={() => onNavigate("configs")}>Open in Configs <ChevronRight size={12} /></button>}
+              ? <span className="src-drift bad"><AlertTriangle size={11} /> {rep.drift_count} {tr("drift")}</span>
+              : <span className="src-drift ok"><ShieldCheck size={11} /> {tr("in sync")}</span>}
+            {onNavigate && <button className="ghost-button" onClick={() => onNavigate("configs")}>{tr("Open in Configs")} <ChevronRight size={12} /></button>}
           </>
         ) : (
-          <span className="src-label">No linked preset — launched outside the GUI (no <code>sndr.preset</code> label / name match)</span>
+          <span className="src-label">{tr("No linked preset — launched outside the GUI (no")} <code>sndr.preset</code> {tr("label / name match)")}</span>
         )}
       </div>
       {rep.drift_count > 0 && (
         <div className="src-drift-list">
-          <div className="src-drift-title">Runtime differs from the config that defines it:</div>
+          <div className="src-drift-title">{tr("Runtime differs from the config that defines it:")}</div>
           {rep.drift.slice(0, 12).map((d, i) => (
             <div key={i} className={`drift-row ${d.kind}`}>
               <code className="drift-field">{d.field}</code>
-              <span className="drift-exp" title="config">{d.expected}</span>
+              <span className="drift-exp" title={tr("config")}>{d.expected}</span>
               <span className="drift-arrow">→</span>
-              <span className="drift-act" title="running">{d.actual ?? "(unset)"}</span>
+              <span className="drift-act" title={tr("running")}>{d.actual ?? tr("(unset)")}</span>
             </div>
           ))}
-          {rep.drift.length > 12 && <div className="drift-more">+{rep.drift.length - 12} more</div>}
+          {rep.drift.length > 12 && <div className="drift-more">+{rep.drift.length - 12} {tr("more")}</div>}
         </div>
       )}
       {rep.patch_sync && (rep.patch_sync.missing.length > 0 || rep.patch_sync.extra.length > 0) && (
         <div className="src-patch-sync">
           {rep.patch_sync.missing.length > 0 && (
-            <span className="sps bad" title={rep.patch_sync.missing.join("\n")}><AlertTriangle size={11} /> {rep.patch_sync.missing.length} config patches NOT live</span>
+            <span className="sps bad" title={rep.patch_sync.missing.join("\n")}><AlertTriangle size={11} /> {rep.patch_sync.missing.length} {tr("config patches NOT live")}</span>
           )}
           {rep.patch_sync.extra.length > 0 && (
-            <span className="sps warn" title={rep.patch_sync.extra.join("\n")}>{rep.patch_sync.extra.length} live patches not in config</span>
+            <span className="sps warn" title={rep.patch_sync.extra.join("\n")}>{rep.patch_sync.extra.length} {tr("live patches not in config")}</span>
           )}
-          {rep.patch_sync.in_sync.length > 0 && <span className="sps ok">{rep.patch_sync.in_sync.length} in sync</span>}
+          {rep.patch_sync.in_sync.length > 0 && <span className="sps ok">{rep.patch_sync.in_sync.length} {tr("in sync")}</span>}
         </div>
       )}
       {rep.live_patch_count > 0 && (
         <div className="src-patches">
           <div className="src-patches-head">
-            <Wrench size={12} /> <strong>{rep.live_patch_count}</strong> Genesis patches live in this engine
-            {onNavigate && <button className="link-btn" onClick={() => onNavigate("patches")}>open Patches</button>}
+            <Wrench size={12} /> <strong>{rep.live_patch_count}</strong> {tr("Genesis patches live in this engine")}
+            {onNavigate && <button className="link-btn" onClick={() => onNavigate("patches")}>{tr("open Patches")}</button>}
           </div>
           <div className="src-patches-chips">
             {rep.live_patches.slice(0, 16).map((p) => <code key={p.flag} className="patch-chip" title={`${p.flag}=${p.value}`}>{p.flag.replace(/^GENESIS_ENABLE_/, "")}</code>)}
@@ -897,38 +898,38 @@ function InferenceCard({ online, ver, onMetrics }: { online: boolean; ver: HostS
   return (
     <div className="ov-card inf-card">
       <div className="ov-card-h inf-card-h">
-        <span className="inf-card-title"><Gauge size={12} /> Inference {reachable && hasStats ? <span className="live-dot on" /> : null}</span>
-        {reachable && hasStats ? <span className="muted inf-card-sub">live · {m?.metric_families} metrics</span> : null}
+        <span className="inf-card-title"><Gauge size={12} /> {tr("Inference")} {reachable && hasStats ? <span className="live-dot on" /> : null}</span>
+        {reachable && hasStats ? <span className="muted inf-card-sub">{tr("live")} · {m?.metric_families} {tr("metrics")}</span> : null}
         <div className="inf-card-actions">
-          {reachable && hasStats ? <button className={`mini-toggle${live ? " on" : ""}`} onClick={() => setLive((v) => !v)}>{live ? "Pause" : "Resume"}</button> : null}
-          <button className="inf-collapse" onClick={() => setOpen((v) => !v)} title={open ? "Hide" : "Show"} aria-label={open ? "Hide" : "Show"}><ChevronDown size={14} className={open ? "" : "rot-270"} /></button>
+          {reachable && hasStats ? <button className={`mini-toggle${live ? " on" : ""}`} onClick={() => setLive((v) => !v)}>{live ? tr("Pause") : tr("Resume")}</button> : null}
+          <button className="inf-collapse" onClick={() => setOpen((v) => !v)} title={open ? tr("Hide") : tr("Show")} aria-label={open ? tr("Hide") : tr("Show")}><ChevronDown size={14} className={open ? "" : "rot-270"} /></button>
         </div>
       </div>
       {open ? (
         !loaded ? <div className="inf-card-body"><SkeletonLines count={2} /></div> :
         !reachable ? (
-          <div className="inf-card-body inf-card-msg muted"><AlertTriangle size={13} /> Engine <code>/metrics</code> not reachable{m?.metrics_url ? <> (<code>{m.metrics_url}</code>)</> : null} — it may still be loading weights.</div>
+          <div className="inf-card-body inf-card-msg muted"><AlertTriangle size={13} /> {tr("Engine")} <code>/metrics</code> {tr("not reachable")}{m?.metrics_url ? <> (<code>{m.metrics_url}</code>)</> : null} — {tr("it may still be loading weights.")}</div>
         ) : !hasStats ? (
           <div className="inf-card-body inf-card-off">
-            <div><b>Stat logging is off</b> — the engine answers <code>/metrics</code> ({m?.metric_families ?? 0} families) but exposes no request / KV-cache / throughput counters (<code>--disable-log-stats</code>).</div>
-            <div className="muted">Enable: set <code>disable_log_stats: false</code> on the rig <code>sizing</code>, re-render the launcher, restart. Small overhead — off by default.</div>
+            <div><b>{tr("Stat logging is off")}</b> — {tr("the engine answers")} <code>/metrics</code> ({m?.metric_families ?? 0} {tr("families")}) {tr("but exposes no request / KV-cache / throughput counters")} (<code>--disable-log-stats</code>).</div>
+            <div className="muted">{tr("Enable: set")} <code>disable_log_stats: false</code> {tr("on the rig")} <code>sizing</code>, {tr("re-render the launcher, restart. Small overhead — off by default.")}</div>
           </div>
         ) : (
           <div className="inf-card-body">
             <div className="inf-metrics">
               {([
-                { l: "Running", v: intf(k.requests_running) },
-                { l: "Waiting", v: intf(k.requests_waiting), tone: waitTone },
+                { l: tr("Running"), v: intf(k.requests_running) },
+                { l: tr("Waiting"), v: intf(k.requests_waiting), tone: waitTone },
                 { l: "KV-cache", v: kvPct == null ? "—" : `${kvPct.toFixed(0)}%`, tone: kvTone },
-                { l: "Throughput", v: k.generation_toks_per_s != null ? `${k.generation_toks_per_s.toFixed(0)} /s` : "—" },
+                { l: tr("Throughput"), v: k.generation_toks_per_s != null ? `${k.generation_toks_per_s.toFixed(0)} /s` : "—" },
                 { l: "TTFT", v: sec(k.ttft_avg_s) },
                 { l: "TPOT", v: sec(k.tpot_avg_s) },
                 { l: "E2E", v: sec(k.e2e_latency_avg_s) },
-                { l: "Preempt", v: intf(k.preemptions_total), tone: k.preemptions_total ? "tone-warn" : "" },
-                { l: "Acceptance", v: accept != null ? `${(accept * 100).toFixed(0)}%` : "—", tone: acceptTone },
-                { l: "Accepted", v: intf(k.spec_decode_accepted_total) },
-                { l: "Draft", v: intf(k.spec_decode_draft_total) },
-                { l: "Gen tok", v: intf(k.generation_tokens_total) },
+                { l: tr("Preempt"), v: intf(k.preemptions_total), tone: k.preemptions_total ? "tone-warn" : "" },
+                { l: tr("Acceptance"), v: accept != null ? `${(accept * 100).toFixed(0)}%` : "—", tone: acceptTone },
+                { l: tr("Accepted"), v: intf(k.spec_decode_accepted_total) },
+                { l: tr("Draft"), v: intf(k.spec_decode_draft_total) },
+                { l: tr("Gen tok"), v: intf(k.generation_tokens_total) },
               ] as { l: string; v: string; tone?: string }[]).map((mt) => (
                 <div className="inf-metric" key={mt.l}>
                   <span className="inf-metric-l">{mt.l}</span>
@@ -936,7 +937,7 @@ function InferenceCard({ online, ver, onMetrics }: { online: boolean; ver: HostS
                 </div>
               ))}
             </div>
-            <div className="inf-tbl-foot muted">KV-cache ~100% or rising Waiting = saturated (lower concurrency / raise KV budget). Acceptance = MTP draft quality. {ver?.vllm_version ? `vLLM ${shortVer(ver.vllm_version)}` : ""}</div>
+            <div className="inf-tbl-foot muted">{tr("KV-cache ~100% or rising Waiting = saturated (lower concurrency / raise KV budget). Acceptance = MTP draft quality.")} {ver?.vllm_version ? `vLLM ${shortVer(ver.vllm_version)}` : ""}</div>
           </div>
         )
       ) : null}
@@ -982,10 +983,10 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate, onOpen }:
         <div className="ov-dash-main">
           <div className="ov-kpis">
             <KpiTile icon={<Cpu size={12} />} label="CPU" value={online ? `${cpu.toFixed(0)}%` : "—"} spark={online ? hist.cpu : []} tone={cpu > 85 ? "hot" : cpu > 60 ? "warn" : "ok"} />
-            <KpiTile icon={<MemoryStick size={12} />} label="Memory" value={online ? `${memPct.toFixed(0)}%` : "—"} sub={online ? `${fmtBytes(s?.mem_usage)}${s?.mem_limit ? ` / ${fmtBytes(s.mem_limit)}` : ""}` : undefined} spark={online ? hist.mem : []} tone={memPct > 85 ? "hot" : memPct > 60 ? "warn" : "ok"} />
-            <KpiTile icon={<Clock size={12} />} label="Uptime" value={online ? uptimeFrom(state.StartedAt) : "stopped"} />
-            <KpiTile icon={<RotateCw size={12} />} label="Restarts" value={String(restarts)} tone={restarts > 0 ? "warn" : undefined} />
-            <KpiTile icon={<Heart size={12} />} label="Health" value={health ?? "none"} tone={health === "healthy" ? "ok" : health === "unhealthy" ? "hot" : undefined} />
+            <KpiTile icon={<MemoryStick size={12} />} label={tr("Memory")} value={online ? `${memPct.toFixed(0)}%` : "—"} sub={online ? `${fmtBytes(s?.mem_usage)}${s?.mem_limit ? ` / ${fmtBytes(s.mem_limit)}` : ""}` : undefined} spark={online ? hist.mem : []} tone={memPct > 85 ? "hot" : memPct > 60 ? "warn" : "ok"} />
+            <KpiTile icon={<Clock size={12} />} label={tr("Uptime")} value={online ? uptimeFrom(state.StartedAt) : tr("stopped")} />
+            <KpiTile icon={<RotateCw size={12} />} label={tr("Restarts")} value={String(restarts)} tone={restarts > 0 ? "warn" : undefined} />
+            <KpiTile icon={<Heart size={12} />} label={tr("Health")} value={health ?? tr("none")} tone={health === "healthy" ? "ok" : health === "unhealthy" ? "hot" : undefined} />
             {(() => {
               // Promote the headline inference metrics to the top row for an
               // engine container — KV-cache pressure, request queue and gen rate.
@@ -996,7 +997,7 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate, onOpen }:
               return (
                 <>
                   <KpiTile icon={<Database size={12} />} label="KV-cache" value={kvPct == null ? "—" : `${kvPct.toFixed(0)}%`} tone={kvPct == null ? undefined : kvPct >= 90 ? "hot" : kvPct >= 70 ? "warn" : "ok"} />
-                  <KpiTile icon={<Layers size={12} />} label="Queue" value={String(waiting)} tone={waiting >= 10 ? "hot" : waiting > 0 ? "warn" : undefined} />
+                  <KpiTile icon={<Layers size={12} />} label={tr("Queue")} value={String(waiting)} tone={waiting >= 10 ? "hot" : waiting > 0 ? "warn" : undefined} />
                   <KpiTile icon={<Gauge size={12} />} label="Tok/s" value={ek.generation_toks_per_s != null ? `${ek.generation_toks_per_s.toFixed(0)}` : "—"} />
                 </>
               );
@@ -1008,55 +1009,55 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate, onOpen }:
           {isEngine ? <InferenceCard online={online} ver={ver} onMetrics={setEngineM} /> : null}
 
           <div className="ov-card">
-            <div className="ov-card-h"><Box size={12} /> Container</div>
+            <div className="ov-card-h"><Box size={12} /> {tr("Container")}</div>
             <div className="ov-facts ov-facts-col">
-              <Fact label="Image"><code title={image}>{image}</code></Fact>
-              <Fact label="Command"><code className="kv-cmd" title={cmd}>{cmd}</code></Fact>
-              <Fact label="Network">{ip}{networks.length ? ` · ${networks.join(", ")}` : ""}</Fact>
-              <Fact label="Ports">{ports.length ? (
+              <Fact label={tr("Image")}><code title={image}>{image}</code></Fact>
+              <Fact label={tr("Command")}><code className="kv-cmd" title={cmd}>{cmd}</code></Fact>
+              <Fact label={tr("Network")}>{ip}{networks.length ? ` · ${networks.join(", ")}` : ""}</Fact>
+              <Fact label={tr("Ports")}>{ports.length ? (
                 <span className="ov-ports">{ports.map((p, i) => (
                   <a key={i} className="ov-port" href={`http://${p.ip && p.ip !== "0.0.0.0" ? p.ip : "127.0.0.1"}:${p.host}`} target="_blank" rel="noreferrer" title={`${p.host} → ${p.container}`}><Link2 size={9} /> {p.host}</a>
                 ))}</span>
-              ) : <span className="muted">none published</span>}</Fact>
-              {s ? <Fact label="I/O">net ↓{fmtBytes(s.net_rx)} ↑{fmtBytes(s.net_tx)} · blk ↓{fmtBytes(s.blk_read)} ↑{fmtBytes(s.blk_write)}{s.pids ? ` · ${s.pids} procs` : ""}</Fact> : null}
+              ) : <span className="muted">{tr("none published")}</span>}</Fact>
+              {s ? <Fact label="I/O">net ↓{fmtBytes(s.net_rx)} ↑{fmtBytes(s.net_tx)} · blk ↓{fmtBytes(s.blk_read)} ↑{fmtBytes(s.blk_write)}{s.pids ? ` · ${s.pids} ${tr("procs")}` : ""}</Fact> : null}
             </div>
           </div>
         </div>
 
         <aside className="ov-dash-side">
           <div className="ov-card">
-            <div className="ov-card-h"><Clock size={12} /> Runtime</div>
+            <div className="ov-card-h"><Clock size={12} /> {tr("Runtime")}</div>
             <div className="ov-facts ov-facts-col">
-              <Fact label="Status"><span className={online ? "tone-ok" : (exitCode ? "tone-hot" : "")}>{state.Status || (online ? "running" : "stopped")}</span></Fact>
-              <Fact label="Uptime">{online ? uptimeFrom(state.StartedAt) : "stopped"}</Fact>
-              <Fact label="Started">{fmtDt(state.StartedAt)}</Fact>
-              <Fact label="Created">{fmtDt(inspect.Created as string | undefined)}</Fact>
-              {!online && exitCode != null ? <Fact label="Exit code"><span className={exitCode ? "tone-hot" : ""}>{exitCode}{oom ? " · OOMKilled" : ""}</span></Fact> : null}
+              <Fact label={tr("Status")}><span className={online ? "tone-ok" : (exitCode ? "tone-hot" : "")}>{state.Status || (online ? tr("running") : tr("stopped"))}</span></Fact>
+              <Fact label={tr("Uptime")}>{online ? uptimeFrom(state.StartedAt) : tr("stopped")}</Fact>
+              <Fact label={tr("Started")}>{fmtDt(state.StartedAt)}</Fact>
+              <Fact label={tr("Created")}>{fmtDt(inspect.Created as string | undefined)}</Fact>
+              {!online && exitCode != null ? <Fact label={tr("Exit code")}><span className={exitCode ? "tone-hot" : ""}>{exitCode}{oom ? " · OOMKilled" : ""}</span></Fact> : null}
               {online && pid ? <Fact label="PID">{pid}</Fact> : null}
-              <Fact label="Health">{health ?? "none"}{healthStreak ? <span className="tone-warn"> · streak {healthStreak}</span> : ""}</Fact>
-              <Fact label="Restart">{restartPolicy} · {restarts} done</Fact>
-              <Fact label="GPU">{gpus ? "yes" : "no"}</Fact>
+              <Fact label={tr("Health")}>{health ?? tr("none")}{healthStreak ? <span className="tone-warn"> · {tr("streak")} {healthStreak}</span> : ""}</Fact>
+              <Fact label={tr("Restart")}>{restartPolicy} · {restarts} {tr("done")}</Fact>
+              <Fact label="GPU">{gpus ? tr("yes") : tr("no")}</Fact>
               <Fact label="ID"><code>{inspect.Id ? String(inspect.Id).slice(0, 12) : "—"}</code></Fact>
             </div>
           </div>
 
           {ver?.ok && (ver.vllm_version || ver.sndr_version) ? (
             <div className="ov-card">
-              <div className="ov-card-h"><ShieldCheck size={12} /> Engine &amp; SNDR</div>
+              <div className="ov-card-h"><ShieldCheck size={12} /> {tr("Engine")} &amp; SNDR</div>
               <div className="ov-facts ov-facts-col">
-                <Fact label="Image pin"><code title={image}>{pin}</code></Fact>
+                <Fact label={tr("Image pin")}><code title={image}>{pin}</code></Fact>
                 {ver.vllm_version ? <Fact label="vLLM"><code>{shortVer(ver.vllm_version)}</code></Fact> : null}
                 {ver.sndr_version ? <Fact label="SNDR"><code>{ver.sndr_version}</code></Fact> : null}
-                {ver.patches != null ? <Fact label="Patches live"><b>{ver.patches}</b></Fact> : null}
-                {ver.configs != null ? <Fact label="Configs"><b>{ver.configs}</b></Fact> : null}
+                {ver.patches != null ? <Fact label={tr("Patches live")}><b>{ver.patches}</b></Fact> : null}
+                {ver.configs != null ? <Fact label={tr("Configs")}><b>{ver.configs}</b></Fact> : null}
               </div>
             </div>
           ) : null}
 
           <div className="ov-more-tabs">
-            <button className={more === "mounts" ? "active" : ""} onClick={() => setMore((m) => (m === "mounts" ? "" : "mounts"))}><HardDrive size={11} /> Mounts <span className="ov-count">{mounts.length}</span></button>
-            <button className={more === "env" ? "active" : ""} onClick={() => setMore((m) => (m === "env" ? "" : "env"))}><Settings size={11} /> Env <span className="ov-count">{env.length}</span>{sndrEnv.length ? <span className="ov-env-sndr">{sndrEnv.length}</span> : null}</button>
-            <button className={more === "labels" ? "active" : ""} onClick={() => setMore((m) => (m === "labels" ? "" : "labels"))}><Database size={11} /> Labels <span className="ov-count">{labels.length}</span></button>
+            <button className={more === "mounts" ? "active" : ""} onClick={() => setMore((m) => (m === "mounts" ? "" : "mounts"))}><HardDrive size={11} /> {tr("Mounts")} <span className="ov-count">{mounts.length}</span></button>
+            <button className={more === "env" ? "active" : ""} onClick={() => setMore((m) => (m === "env" ? "" : "env"))}><Settings size={11} /> {tr("Env")} <span className="ov-count">{env.length}</span>{sndrEnv.length ? <span className="ov-env-sndr">{sndrEnv.length}</span> : null}</button>
+            <button className={more === "labels" ? "active" : ""} onClick={() => setMore((m) => (m === "labels" ? "" : "labels"))}><Database size={11} /> {tr("Labels")} <span className="ov-count">{labels.length}</span></button>
           </div>
         </aside>
       </div>
@@ -1064,7 +1065,7 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate, onOpen }:
       {more === "mounts" ? (
         <div className="ov-panel ov-mounts">{mounts.length ? mounts.map((m, i) => (
           <div key={i} className="ov-mount"><code className="ov-mount-dst">{m.dst}</code><span className={`ov-mount-mode ${m.rw ? "rw" : "ro"}`}>{m.rw ? "rw" : "ro"}</span><code className="ov-mount-src muted" title={m.src}>{m.src}</code></div>
-        )) : <span className="muted">none</span>}</div>
+        )) : <span className="muted">{tr("none")}</span>}</div>
       ) : null}
       {more === "env" ? (
         <div className="ov-panel ov-env">{(env.length ? env : [["—", ""] as [string, string]]).map(([k, v]) => (
@@ -1072,7 +1073,7 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate, onOpen }:
         ))}</div>
       ) : null}
       {more === "labels" ? (
-        <div className="ov-panel ov-labels">{labels.length ? labels.map(([k, v]) => <span key={k} className="ov-label" title={`${k}=${v}`}><b>{k.split(".").pop()}</b> {v.slice(0, 32)}</span>) : <span className="muted">none</span>}</div>
+        <div className="ov-panel ov-labels">{labels.length ? labels.map(([k, v]) => <span key={k} className="ov-label" title={`${k}=${v}`}><b>{k.split(".").pop()}</b> {v.slice(0, 32)}</span>) : <span className="muted">{tr("none")}</span>}</div>
       ) : null}
     </div>
   );
@@ -1112,7 +1113,7 @@ function EditableSettings({ source, name, inspect, onChanged }: { source: Contai
   const memErr = memNum !== null && (!isFinite(memNum) || memNum < 0);
   const changeCount = [rp !== origRp, cpus !== origCpus, memGiB !== origMem].filter(Boolean).length;
   const canApply = changeCount > 0 && !cpuErr && !memErr && !busy;
-  const fmtCur = (v: string) => (v === "" ? "unlimited" : v);
+  const fmtCur = (v: string) => (v === "" ? tr("unlimited") : v);
   const CPU_PRESETS = ["0.5", "1", "2", "4", ""];
   const MEM_PRESETS = ["1", "2", "4", "8", "16", ""];
 
@@ -1126,7 +1127,7 @@ function EditableSettings({ source, name, inspect, onChanged }: { source: Contai
         cpus: cpuNum,
         memory: memNum !== null ? Math.round(memNum * 1024 ** 3) : null,
       });
-      setMsg({ ok: true, text: `Applied ${changeCount} change${changeCount === 1 ? "" : "s"} (live).` }); onChanged();
+      setMsg({ ok: true, text: `${tr("Applied")} ${changeCount} ${changeCount === 1 ? tr("change") : tr("changes")} (${tr("live")}).` }); onChanged();
     } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
     finally { setBusy(false); }
   }
@@ -1141,13 +1142,13 @@ function EditableSettings({ source, name, inspect, onChanged }: { source: Contai
   return (
     <section className="cfg-edit">
       <div className="cfg-edit-top">
-        <h4><Wrench size={13} /> Live settings <span>docker update — no recreate</span></h4>
-        {changeCount > 0 && <span className="cfg-edit-dirty">{changeCount} pending change{changeCount === 1 ? "" : "s"}</span>}
+        <h4><Wrench size={13} /> {tr("Live settings")} <span>{tr("docker update — no recreate")}</span></h4>
+        {changeCount > 0 && <span className="cfg-edit-dirty">{changeCount} {changeCount === 1 ? tr("pending change") : tr("pending changes")}</span>}
       </div>
 
       <div className="cfg-edit-fields">
         <div className="cfg-field">
-          <div className="cfg-field-head"><RotateCw size={12} /> Restart policy <span className="cfg-cur">now: {origRp}</span></div>
+          <div className="cfg-field-head"><RotateCw size={12} /> {tr("Restart policy")} <span className="cfg-cur">{tr("now")}: {origRp}</span></div>
           <div className="cfg-chips">
             {["no", "always", "unless-stopped", "on-failure"].map((p) => (
               <button key={p} type="button" className={`cfg-chip ${rp === p ? "active" : ""}`} onClick={() => setRp(p)}>{p}</button>
@@ -1156,54 +1157,54 @@ function EditableSettings({ source, name, inspect, onChanged }: { source: Contai
         </div>
 
         <div className={`cfg-field${cpuErr ? " err" : ""}`}>
-          <div className="cfg-field-head"><Cpu size={12} /> CPUs <span className="cfg-cur">now: {fmtCur(origCpus)}</span></div>
+          <div className="cfg-field-head"><Cpu size={12} /> CPUs <span className="cfg-cur">{tr("now")}: {fmtCur(origCpus)}</span></div>
           <div className="cfg-field-row">
-            <input value={cpus} onChange={(e) => setCpus(e.target.value)} placeholder="unlimited" inputMode="decimal" aria-label="CPU limit (cores)" />
+            <input value={cpus} onChange={(e) => setCpus(e.target.value)} placeholder={tr("unlimited")} inputMode="decimal" aria-label={tr("CPU limit (cores)")} />
             <div className="cfg-chips">
               {CPU_PRESETS.map((p) => <button key={p || "unl"} type="button" className={`cfg-chip ${cpus === p ? "active" : ""}`} onClick={() => setCpus(p)}>{p === "" ? "∞" : p}</button>)}
             </div>
           </div>
-          {cpuErr && <span className="cfg-err-msg"><AlertTriangle size={10} /> 0–1024 cores</span>}
+          {cpuErr && <span className="cfg-err-msg"><AlertTriangle size={10} /> {tr("0–1024 cores")}</span>}
         </div>
 
         <div className={`cfg-field${memErr ? " err" : ""}`}>
-          <div className="cfg-field-head"><MemoryStick size={12} /> Memory (GiB) <span className="cfg-cur">now: {fmtCur(origMem)}</span></div>
+          <div className="cfg-field-head"><MemoryStick size={12} /> {tr("Memory")} (GiB) <span className="cfg-cur">{tr("now")}: {fmtCur(origMem)}</span></div>
           <div className="cfg-field-row">
-            <input value={memGiB} onChange={(e) => setMemGiB(e.target.value)} placeholder="unlimited" inputMode="decimal" aria-label="Memory limit (GiB)" />
+            <input value={memGiB} onChange={(e) => setMemGiB(e.target.value)} placeholder={tr("unlimited")} inputMode="decimal" aria-label={tr("Memory limit (GiB)")} />
             <div className="cfg-chips">
               {MEM_PRESETS.map((p) => <button key={p || "unl"} type="button" className={`cfg-chip ${memGiB === p ? "active" : ""}`} onClick={() => setMemGiB(p)}>{p === "" ? "∞" : p}</button>)}
             </div>
           </div>
-          {memErr && <span className="cfg-err-msg"><AlertTriangle size={10} /> must be ≥ 0</span>}
+          {memErr && <span className="cfg-err-msg"><AlertTriangle size={10} /> {tr("must be ≥ 0")}</span>}
         </div>
       </div>
 
       <div className="cfg-edit-actions">
         <button className="primary-button" disabled={!canApply} onClick={() => void saveSettings()}>
-          {busy ? <Loader2 size={13} className="spin" /> : <Settings size={13} />} Apply{changeCount ? ` ${changeCount} change${changeCount === 1 ? "" : "s"}` : ""}
+          {busy ? <Loader2 size={13} className="spin" /> : <Settings size={13} />} {tr("Apply")}{changeCount ? ` ${changeCount} ${changeCount === 1 ? tr("change") : tr("changes")}` : ""}
         </button>
-        <button className="ghost-button" disabled={changeCount === 0 || busy} onClick={reset}>Reset</button>
+        <button className="ghost-button" disabled={changeCount === 0 || busy} onClick={reset}>{tr("Reset")}</button>
       </div>
 
       <div className="cfg-field cfg-nets-field">
-        <div className="cfg-field-head"><Network size={12} /> Networks <span className="cfg-cur">{connected.length} attached · applied live</span></div>
+        <div className="cfg-field-head"><Network size={12} /> {tr("Networks")} <span className="cfg-cur">{connected.length} {tr("attached · applied live")}</span></div>
         <div className="cfg-nets">
           {connected.length ? connected.map((n) => (
-            <span key={n} className="net-chip">{n}<button title="Disconnect" disabled={busy} onClick={() => void net(n, "disconnect")}><X size={11} /></button></span>
-          )) : <span className="cfg-nets-empty">none attached</span>}
+            <span key={n} className="net-chip">{n}<button title={tr("Disconnect")} disabled={busy} onClick={() => void net(n, "disconnect")}><X size={11} /></button></span>
+          )) : <span className="cfg-nets-empty">{tr("none attached")}</span>}
           {attachable.length > 0 && (
             <span className="cfg-nets-attach">
-              <select aria-label="Attach network" value={attach} onChange={(e) => setAttach(e.target.value)}>
-                <option value="">attach…</option>
+              <select aria-label={tr("Attach network")} value={attach} onChange={(e) => setAttach(e.target.value)}>
+                <option value="">{tr("attach…")}</option>
                 {attachable.map((n) => <option key={n.name} value={n.name}>{n.name}</option>)}
               </select>
-              {attach && <button className="cfg-chip cfg-attach-btn" disabled={busy} onClick={() => void net(attach, "connect")}>Attach</button>}
+              {attach && <button className="cfg-chip cfg-attach-btn" disabled={busy} onClick={() => void net(attach, "connect")}>{tr("Attach")}</button>}
             </span>
           )}
         </div>
       </div>
       {msg && <div className={msg.ok ? "upd-done" : "containers-err"}>{!msg.ok && <AlertTriangle size={12} />} {msg.text}</div>}
-      <p className="upd-hint">Live edits require apply enabled (SNDR_ENABLE_APPLY=1). cpus/memory/restart apply without recreating; env/ports/image changes need a rebuild.</p>
+      <p className="upd-hint">{tr("Live edits require apply enabled (SNDR_ENABLE_APPLY=1). cpus/memory/restart apply without recreating; env/ports/image changes need a rebuild.")}</p>
     </section>
   );
 }
@@ -1217,14 +1218,14 @@ function EnvSection({ env }: { env: string[] }) {
   const filtered = needle ? rows.filter((r) => `${r.k}=${r.v}`.toLowerCase().includes(needle)) : rows;
   return (
     <section>
-      <h4><Layers size={13} /> Environment <span>({env.length})</span>
+      <h4><Layers size={13} /> {tr("Environment")} <span>({env.length})</span>
         <span className="cfg-env-tools">
-          <label className="containers-search sm"><Search size={11} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="filter…" aria-label="Filter environment" /></label>
-          <button className="ghost-button icon-only" title="Copy all env" onClick={() => void navigator.clipboard?.writeText(env.join("\n"))}><Copy size={12} /></button>
+          <label className="containers-search sm"><Search size={11} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("filter…")} aria-label={tr("Filter environment")} /></label>
+          <button className="ghost-button icon-only" title={tr("Copy all env")} onClick={() => void navigator.clipboard?.writeText(env.join("\n"))}><Copy size={12} /></button>
         </span>
       </h4>
       <div className="inspect-mono">
-        {filtered.length === 0 ? <em>{needle ? "no match" : "none"}</em> : filtered.map(({ k, v }) => (
+        {filtered.length === 0 ? <em>{needle ? tr("no match") : tr("none")}</em> : filtered.map(({ k, v }) => (
           <div key={k} className={/^(GENESIS|SNDR)_/.test(k) ? "env-row-sndr" : ""}><span className="env-k">{k}</span>=<span className="env-v">{SECRET_RE.test(k) ? "••••••••" : v}</span></div>
         ))}
       </div>
@@ -1241,24 +1242,24 @@ function ConfigTab({ source, name, inspect, onChanged }: { source: ContainerSour
   return (
     <div className="cfg">
       <EditableSettings source={source} name={name} inspect={inspect} onChanged={onChanged} />
-      <section><h4><Settings size={13} /> Runtime</h4><div className="kv">
-        <Row label="Image">{cfg.Image}</Row>
-        <Row label="Entrypoint"><code className="kv-cmd">{(cfg.Entrypoint ?? []).join(" ") || "—"}</code></Row>
-        <Row label="Command"><code className="kv-cmd">{(cfg.Cmd ?? []).join(" ") || "—"}</code></Row>
-        <Row label="Working dir">{cfg.WorkingDir || "—"}</Row>
-        <Row label="Network mode">{host.NetworkMode || "—"}</Row>
+      <section><h4><Settings size={13} /> {tr("Runtime")}</h4><div className="kv">
+        <Row label={tr("Image")}>{cfg.Image}</Row>
+        <Row label={tr("Entrypoint")}><code className="kv-cmd">{(cfg.Entrypoint ?? []).join(" ") || "—"}</code></Row>
+        <Row label={tr("Command")}><code className="kv-cmd">{(cfg.Cmd ?? []).join(" ") || "—"}</code></Row>
+        <Row label={tr("Working dir")}>{cfg.WorkingDir || "—"}</Row>
+        <Row label={tr("Network mode")}>{host.NetworkMode || "—"}</Row>
       </div></section>
-      <section><h4><Cpu size={13} /> Resources</h4><div className="kv">
+      <section><h4><Cpu size={13} /> {tr("Resources")}</h4><div className="kv">
         <Row label="GPUs">{gpuOf(host)}</Row>
-        <Row label="Privileged">{host.Privileged ? "yes" : "no"}</Row>
-        <Row label="Ports">{ports.join(", ") || "—"}</Row>
+        <Row label={tr("Privileged")}>{host.Privileged ? tr("yes") : tr("no")}</Row>
+        <Row label={tr("Ports")}>{ports.join(", ") || "—"}</Row>
       </div></section>
       <EnvSection env={env} />
-      <section><h4><HardDrive size={13} /> Mounts <span>({mounts.length})</span></h4><div className="inspect-mono">
-        {mounts.length === 0 ? <em>none</em> : mounts.map((m, i) => <div key={i}><span className="env-k">{m.Source}</span> → {m.Destination} <span className="env-v">{m.RW ? "rw" : "ro"}{m.Type ? ` (${m.Type})` : ""}</span></div>)}
+      <section><h4><HardDrive size={13} /> {tr("Mounts")} <span>({mounts.length})</span></h4><div className="inspect-mono">
+        {mounts.length === 0 ? <em>{tr("none")}</em> : mounts.map((m, i) => <div key={i}><span className="env-k">{m.Source}</span> → {m.Destination} <span className="env-v">{m.RW ? "rw" : "ro"}{m.Type ? ` (${m.Type})` : ""}</span></div>)}
       </div></section>
-      <section><h4><Boxes size={13} /> Labels <span>({Object.keys(labels).length})</span></h4><div className="inspect-mono">
-        {Object.keys(labels).length === 0 ? <em>none</em> : Object.entries(labels).map(([k, v]) => <div key={k}><span className="env-k">{k}</span>=<span className="env-v">{v}</span></div>)}
+      <section><h4><Boxes size={13} /> {tr("Labels")} <span>({Object.keys(labels).length})</span></h4><div className="inspect-mono">
+        {Object.keys(labels).length === 0 ? <em>{tr("none")}</em> : Object.entries(labels).map(([k, v]) => <div key={k}><span className="env-k">{k}</span>=<span className="env-v">{v}</span></div>)}
       </div></section>
     </div>
   );
@@ -1292,13 +1293,13 @@ function ProcessesTab({ source, name, online }: { source: ContainerSource; name:
   return (
     <div className="proc">
       <div className="proc-bar">
-        <span>{data.processes.length} processes{cpuCol >= 0 ? " · sort by any column" : ""}</span>
-        <button className={`ghost-button ${live ? "live-on" : ""}`} onClick={() => setLive(!live)} title="Auto-refresh every 2.5s"><span className={`live-dot ${live ? "on" : ""}`} /> {live ? "Live" : "Follow"}</button>
-        <button className="ghost-button" onClick={load} aria-label="Refresh processes"><RefreshCw size={13} /></button>
+        <span>{data.processes.length} {tr("processes")}{cpuCol >= 0 ? ` · ${tr("sort by any column")}` : ""}</span>
+        <button className={`ghost-button ${live ? "live-on" : ""}`} onClick={() => setLive(!live)} title={tr("Auto-refresh every 2.5s")}><span className={`live-dot ${live ? "on" : ""}`} /> {live ? tr("Live") : tr("Follow")}</button>
+        <button className="ghost-button" onClick={load} aria-label={tr("Refresh processes")}><RefreshCw size={13} /></button>
       </div>
       <table className="ptable">
         <thead><tr>{data.titles.map((t, i) => (
-          <th key={t} className={`psort ${sortCol === i ? "sorted" : ""}`} onClick={() => sortBy(i)} title="Sort">{t}{sortCol === i ? (desc ? " ↓" : " ↑") : ""}</th>
+          <th key={t} className={`psort ${sortCol === i ? "sorted" : ""}`} onClick={() => sortBy(i)} title={tr("Sort")}>{t}{sortCol === i ? (desc ? " ↓" : " ↑") : ""}</th>
         ))}</tr></thead>
         <tbody>{rows.map((row, i) => (
           <tr key={i} className={isEngine(row) ? "proc-engine" : ""}>
@@ -1327,9 +1328,9 @@ function ChangesTab({ source, name }: { source: ContainerSource; name: string })
   if (!data) return (
     <div className="containers-empty diff-intro">
       <GitCompare size={22} />
-      <strong>Filesystem changes vs image</strong>
-      <span>Files added / changed / deleted since the image was built. This scans the whole container filesystem — for an engine container (large model cache) it can take a few seconds and return thousands of paths.</span>
-      <button className="primary-button" disabled={loading} onClick={load}>{loading ? <Loader2 size={14} className="spin" /> : <GitCompare size={14} />} Scan filesystem</button>
+      <strong>{tr("Filesystem changes vs image")}</strong>
+      <span>{tr("Files added / changed / deleted since the image was built. This scans the whole container filesystem — for an engine container (large model cache) it can take a few seconds and return thousands of paths.")}</span>
+      <button className="primary-button" disabled={loading} onClick={load}>{loading ? <Loader2 size={14} className="spin" /> : <GitCompare size={14} />} {tr("Scan filesystem")}</button>
     </div>
   );
   const mark = { added: "A", modified: "C", deleted: "D" } as Record<string, string>;
@@ -1340,16 +1341,16 @@ function ChangesTab({ source, name }: { source: ContainerSource; name: string })
   return (
     <div className="diff">
       <div className="diff-summary">
-        <span className="diff-chip added">{counts.added} added</span>
-        <span className="diff-chip modified">{counts.modified} changed</span>
-        <span className="diff-chip deleted">{counts.deleted} deleted</span>
-        <div className="containers-search"><Search size={12} /><input aria-label="Filter changed paths" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="filter path…" /></div>
-        <button className="ghost-button" disabled={loading} onClick={load} aria-label="Rescan">{loading ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}</button>
+        <span className="diff-chip added">{counts.added} {tr("added")}</span>
+        <span className="diff-chip modified">{counts.modified} {tr("changed")}</span>
+        <span className="diff-chip deleted">{counts.deleted} {tr("deleted")}</span>
+        <div className="containers-search"><Search size={12} /><input aria-label={tr("Filter changed paths")} value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={tr("filter path…")} /></div>
+        <button className="ghost-button" disabled={loading} onClick={load} aria-label={tr("Rescan")}>{loading ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}</button>
       </div>
-      {data.length === 0 ? <div className="containers-empty"><GitCompare size={20} /><strong>No changes</strong><span>Container filesystem matches its image.</span></div> : (
+      {data.length === 0 ? <div className="containers-empty"><GitCompare size={20} /><strong>{tr("No changes")}</strong><span>{tr("Container filesystem matches its image.")}</span></div> : (
         <>
           <div className="inspect-mono diff-list">{shown.slice(0, CAP).map((c, i) => <div key={i} className={`diff-${c.kind}`}><span className="diff-mark">{mark[c.kind]}</span> {c.path}</div>)}</div>
-          {shown.length > CAP && <p className="upd-hint">Showing first {CAP} of {shown.length} — filter to narrow down.</p>}
+          {shown.length > CAP && <p className="upd-hint">{tr("Showing first")} {CAP} {tr("of")} {shown.length} — {tr("filter to narrow down.")}</p>}
         </>
       )}
     </div>
@@ -1411,14 +1412,14 @@ function FilesTab({ source, name }: { source: ContainerSource; name: string }) {
   return (
     <div className={`files ${open ? "has-view" : ""}`}>
       <div className="files-bar">
-        <button className="files-nav" title="Root" onClick={() => void load("/")}><Home size={13} /></button>
-        <button className="files-nav" title="Up" disabled={path === "/"} onClick={() => void load(parent)}><ArrowUp size={13} /></button>
+        <button className="files-nav" title={tr("Root")} onClick={() => void load("/")}><Home size={13} /></button>
+        <button className="files-nav" title={tr("Up")} disabled={path === "/"} onClick={() => void load(parent)}><ArrowUp size={13} /></button>
         <div className="files-crumb">
           <button onClick={() => void load("/")}>/</button>
           {parts.map((p, i) => <span key={i}><ChevronRight size={11} /><button onClick={() => void load("/" + parts.slice(0, i + 1).join("/"))}>{p}</button></span>)}
         </div>
-        <span className="files-count">{entries ? `${entries.length} items` : ""}</span>
-        <button className="files-nav" title="Refresh" onClick={() => void load(path)} disabled={loading}>{loading ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}</button>
+        <span className="files-count">{entries ? `${entries.length} ${tr("items")}` : ""}</span>
+        <button className="files-nav" title={tr("Refresh")} onClick={() => void load(path)} disabled={loading}>{loading ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}</button>
       </div>
       {err && <ErrBox msg={err} />}
       <div className="files-split">
@@ -1436,12 +1437,12 @@ function FilesTab({ source, name }: { source: ContainerSource; name: string }) {
                 <span className="file-mtime">{e.mtime}</span>
                 <span className="file-perms">{e.perms}</span>
                 {!e.is_dir && (
-                  <button className="file-dl" title="Download" onClick={(ev) => { ev.stopPropagation(); void download(join(path, e.name), e.name); }}><Download size={13} /></button>
+                  <button className="file-dl" title={tr("Download")} onClick={(ev) => { ev.stopPropagation(); void download(join(path, e.name), e.name); }}><Download size={13} /></button>
                 )}
               </div>
             );
           })}
-          {entries && entries.length === 0 && !loading && <div className="file-empty"><Folder size={18} /> empty directory</div>}
+          {entries && entries.length === 0 && !loading && <div className="file-empty"><Folder size={18} /> {tr("empty directory")}</div>}
           {loading && !entries && <Loading />}
         </div>
         {open && (
@@ -1450,13 +1451,13 @@ function FilesTab({ source, name }: { source: ContainerSource; name: string }) {
               {(() => { const g = fileGlyph(open.entry); return <g.Icon size={14} className={`file-glyph ${g.cls}`} />; })()}
               <code title={join(path, open.entry.name)}>{open.entry.name}</code>
               <span className="files-view-size">{fmtBytes(open.entry.size)}</span>
-              {open.truncated && <span className="files-trunc" title="Preview is capped; download for the full file">preview</span>}
-              <button className="ghost-button" title="Copy" disabled={busy} onClick={() => navigator.clipboard?.writeText(open.content)}><Copy size={13} /></button>
-              <button className="ghost-button" title="Download" disabled={busy} onClick={() => void download(join(path, open.entry.name), open.entry.name)}>{busy ? <Loader2 size={13} className="spin" /> : <Download size={13} />}</button>
-              <button className="ghost-button" title="Close" onClick={() => setOpen(null)}><X size={14} /></button>
+              {open.truncated && <span className="files-trunc" title={tr("Preview is capped; download for the full file")}>{tr("preview")}</span>}
+              <button className="ghost-button" title={tr("Copy")} disabled={busy} onClick={() => navigator.clipboard?.writeText(open.content)}><Copy size={13} /></button>
+              <button className="ghost-button" title={tr("Download")} disabled={busy} onClick={() => void download(join(path, open.entry.name), open.entry.name)}>{busy ? <Loader2 size={13} className="spin" /> : <Download size={13} />}</button>
+              <button className="ghost-button" title={tr("Close")} onClick={() => setOpen(null)}><X size={14} /></button>
             </div>
-            <pre className="container-logs wrap files-content">{open.content || "(empty file)"}</pre>
-            {open.truncated && <div className="files-view-foot"><AlertTriangle size={12} /> Showing the first 64 KB — <button className="link-btn" onClick={() => void download(join(path, open.entry.name), open.entry.name)}>download the full file</button>.</div>}
+            <pre className="container-logs wrap files-content">{open.content || tr("(empty file)")}</pre>
+            {open.truncated && <div className="files-view-foot"><AlertTriangle size={12} /> {tr("Showing the first 64 KB —")} <button className="link-btn" onClick={() => void download(join(path, open.entry.name), open.entry.name)}>{tr("download the full file")}</button>.</div>}
           </div>
         )}
       </div>
@@ -1495,7 +1496,7 @@ function ContainerGpu({ source }: { source: ContainerSource }) {
   if (missing || !gpus || !gpus.length) return null;
   return (
     <div className="stats-gpu compact">
-      <div className="stats-gpu-head"><HardDrive size={13} /> <strong>GPU</strong> <span className="muted">{gpus.length}× · host telemetry · nvidia-smi</span></div>
+      <div className="stats-gpu-head"><HardDrive size={13} /> <strong>GPU</strong> <span className="muted">{gpus.length}× · {tr("host telemetry")} · nvidia-smi</span></div>
       <div className="gpu-rows">
         {gpus.map((g, i) => {
           const util = g.gpu_util ?? 0;
@@ -1507,17 +1508,17 @@ function ContainerGpu({ source }: { source: ContainerSource }) {
                 <span className="gpu-row-name">{(g.name ?? "—").replace(/^NVIDIA\s+/, "")}</span>
               </div>
               <div className="gpu-row-bars">
-                <GpuBar label="Util" pct={util} text={`${util}%`} />
+                <GpuBar label={tr("Util")} pct={util} text={`${util}%`} />
                 <GpuBar label="VRAM" pct={vramPct} text={`${fmtBytes((g.mem_used ?? 0) * 1048576)} / ${fmtBytes((g.mem_total ?? 0) * 1048576)}`} />
               </div>
               <div className="gpu-row-stats">
-                {g.temp_gpu != null && <span title="GPU temperature" className="gpu-stat"><b>{g.temp_gpu}°</b>C</span>}
-                {g.power != null && <span title="Power draw / limit" className="gpu-stat"><b>{Math.round(g.power)}</b>{g.power_default_limit != null ? `/${Math.round(g.power_default_limit)}` : ""}W</span>}
-                {g.clock_gpu != null && <span title="GPU clock (current / max)" className="gpu-stat">clk <b>{g.clock_gpu}</b>{g.clock_gpu_max != null ? `/${g.clock_gpu_max}` : ""}</span>}
-                {g.mem_util != null && <span title="Memory-bandwidth utilization" className="gpu-stat">mem <b>{g.mem_util}%</b></span>}
-                {g.pcie_gen != null && <span title="PCIe generation × width" className="gpu-stat">PCIe {g.pcie_gen}{g.pcie_width != null ? `×${g.pcie_width}` : ""}</span>}
-                {g.fan_speed != null && <span title="Fan speed" className="gpu-stat">fan {g.fan_speed}%</span>}
-                {g.pstate && <span title="Performance state" className="gpu-stat">{g.pstate}</span>}
+                {g.temp_gpu != null && <span title={tr("GPU temperature")} className="gpu-stat"><b>{g.temp_gpu}°</b>C</span>}
+                {g.power != null && <span title={tr("Power draw / limit")} className="gpu-stat"><b>{Math.round(g.power)}</b>{g.power_default_limit != null ? `/${Math.round(g.power_default_limit)}` : ""}W</span>}
+                {g.clock_gpu != null && <span title={tr("GPU clock (current / max)")} className="gpu-stat">clk <b>{g.clock_gpu}</b>{g.clock_gpu_max != null ? `/${g.clock_gpu_max}` : ""}</span>}
+                {g.mem_util != null && <span title={tr("Memory-bandwidth utilization")} className="gpu-stat">mem <b>{g.mem_util}%</b></span>}
+                {g.pcie_gen != null && <span title={tr("PCIe generation × width")} className="gpu-stat">PCIe {g.pcie_gen}{g.pcie_width != null ? `×${g.pcie_width}` : ""}</span>}
+                {g.fan_speed != null && <span title={tr("Fan speed")} className="gpu-stat">fan {g.fan_speed}%</span>}
+                {g.pstate && <span title={tr("Performance state")} className="gpu-stat">{g.pstate}</span>}
               </div>
             </div>
           );
@@ -1587,7 +1588,7 @@ function LogsTab({ source, name }: { source: ContainerSource; name: string }) {
   // Memoize the (expensive) filter + ANSI→HTML so it only recomputes when the
   // text or query actually change — not on every unrelated re-render.
   const shown = useMemo(() => q ? logs.split("\n").filter((l) => l.toLowerCase().includes(q.toLowerCase())).join("\n") : logs, [q, logs]);
-  const html = useMemo(() => ansiToHtml(shown) || (loading ? "" : "(no output)"), [shown, loading]);
+  const html = useMemo(() => ansiToHtml(shown) || (loading ? "" : tr("(no output)")), [shown, loading]);
   function download() {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([logs], { type: "text/plain" }));
@@ -1596,14 +1597,14 @@ function LogsTab({ source, name }: { source: ContainerSource; name: string }) {
   return (
     <div className="logs-tab">
       <div className="logs-bar">
-        <button className={`ghost-button ${live ? "live-on" : ""}`} onClick={() => setLive(!live)} title="Follow logs live">
-          <span className={`live-dot ${live ? "on" : ""}`} /> {live ? "Live" : "Follow"}
+        <button className={`ghost-button ${live ? "live-on" : ""}`} onClick={() => setLive(!live)} title={tr("Follow logs live")}>
+          <span className={`live-dot ${live ? "on" : ""}`} /> {live ? tr("Live") : tr("Follow")}
         </button>
-        <div className="containers-search"><Search size={12} /><input aria-label="Filter log lines" value={q} onChange={(e) => setQ(e.target.value)} placeholder="grep logs…" /></div>
-        <select aria-label="Log tail length" value={tail} onChange={(e) => setTail(Number(e.target.value))}>{[200, 500, 1000, 2000].map((n) => <option key={n} value={n}>{n} lines</option>)}</select>
-        <button className={`ghost-button ${wrap ? "on" : ""}`} onClick={() => setWrap(!wrap)}>wrap</button>
+        <div className="containers-search"><Search size={12} /><input aria-label={tr("Filter log lines")} value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("grep logs…")} /></div>
+        <select aria-label={tr("Log tail length")} value={tail} onChange={(e) => setTail(Number(e.target.value))}>{[200, 500, 1000, 2000].map((n) => <option key={n} value={n}>{n} {tr("lines")}</option>)}</select>
+        <button className={`ghost-button ${wrap ? "on" : ""}`} onClick={() => setWrap(!wrap)}>{tr("wrap")}</button>
         {!live && <button className="ghost-button" onClick={() => void load()} disabled={loading}>{loading ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}</button>}
-        <button className="ghost-button" onClick={download} aria-label="Download logs"><DownloadCloud size={13} /></button>
+        <button className="ghost-button" onClick={download} aria-label={tr("Download logs")}><DownloadCloud size={13} /></button>
       </div>
       {err && <ErrBox msg={err} />}
       <pre ref={preRef} className={`container-logs ansi ${wrap ? "wrap" : ""}`}
@@ -1630,11 +1631,11 @@ function ExecTab({ source, name }: { source: ContainerSource; name: string }) {
   }
   return (
     <div className="exec-tab">
-      <div className="container-exec-warn"><AlertTriangle size={12} /> Runs inside the container. Requires <code>SNDR_ENABLE_EXEC=1</code>.</div>
+      <div className="container-exec-warn"><AlertTriangle size={12} /> {tr("Runs inside the container. Requires")} <code>SNDR_ENABLE_EXEC=1</code>.</div>
       <div className="exec-scroll">
         {hist.map((h, i) => (
           <div key={i} className="exec-entry">
-            <div className="exec-cmd"><code>$ {h.cmd}</code> <span className={h.rc === 0 ? "exec-rc ok" : "exec-rc bad"}>exit {h.rc}</span></div>
+            <div className="exec-cmd"><code>$ {h.cmd}</code> <span className={h.rc === 0 ? "exec-rc ok" : "exec-rc bad"}>{tr("exit")} {h.rc}</span></div>
             {h.out && <pre className="container-logs wrap">{h.out}</pre>}
           </div>
         ))}
@@ -1642,8 +1643,8 @@ function ExecTab({ source, name }: { source: ContainerSource; name: string }) {
       {err && <ErrBox msg={err} />}
       <div className="container-exec-input">
         <code>$</code>
-        <input aria-label="Exec command" value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !running) void run(); }} placeholder="python3 -c 'print(1)'" autoFocus />
-        <button className="primary-button" disabled={running || !cmd.trim()} onClick={() => void run()}>{running ? <Loader2 size={13} className="spin" /> : <Play size={13} />} Run</button>
+        <input aria-label={tr("Exec command")} value={cmd} onChange={(e) => setCmd(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !running) void run(); }} placeholder="python3 -c 'print(1)'" autoFocus />
+        <button className="primary-button" disabled={running || !cmd.trim()} onClick={() => void run()}>{running ? <Loader2 size={13} className="spin" /> : <Play size={13} />} {tr("Run")}</button>
       </div>
     </div>
   );
@@ -1656,33 +1657,33 @@ function ContainerVersions({ state }: { state: HostSndrState | null }) {
   if (!state?.ok) return null;
   return (
     <div className="cpage-versions">
-      <span className="cpage-versions-label">Running</span>
+      <span className="cpage-versions-label">{tr("Running")}</span>
       <span className="ver-chip">vLLM {state.vllm_version ?? "—"}</span>
       <span className="ver-chip">SNDR {state.sndr_version ?? "—"}</span>
-      {state.configs != null && <span className="ver-chip">{state.configs} configs</span>}
-      {state.patches != null && <span className="ver-chip">{state.patches} patches</span>}
+      {state.configs != null && <span className="ver-chip">{state.configs} {tr("configs")}</span>}
+      {state.patches != null && <span className="ver-chip">{state.patches} {tr("patches")}</span>}
     </div>
   );
 }
 
-const MODE_LABEL: Record<UpdateMode, string> = { manual: "Manual", semi: "Semi-auto", auto: "Automatic" };
+const MODE_LABEL: Record<UpdateMode, string> = { manual: tr("Manual"), semi: tr("Semi-auto"), auto: tr("Automatic") };
 const MODE_DESC: Record<UpdateMode, string> = {
-  manual: "Never auto-pulls. Updates are applied by hand. Safe default — required for vLLM engines (pin policy).",
-  semi: "Auto-downloads the new image and notifies you; you click Apply (restart) when traffic allows — so a warm KV cache is never dropped mid-request.",
-  auto: "Pulls + recreates on the daemon's schedule, health-gated with rollback. Non-critical containers only.",
+  manual: tr("Never auto-pulls. Updates are applied by hand. Safe default — required for vLLM engines (pin policy)."),
+  semi: tr("Auto-downloads the new image and notifies you; you click Apply (restart) when traffic allows — so a warm KV cache is never dropped mid-request."),
+  auto: tr("Pulls + recreates on the daemon's schedule, health-gated with rollback. Non-critical containers only."),
 };
 
 function UpdateModeSelector({ plan, mode, onChange, busy }: { plan: ContainerUpdatePlan; mode: UpdateMode; onChange: (m: UpdateMode) => void; busy: boolean }) {
   return (
     <div className="upd-modes">
-      <div className="upd-modes-head"><Settings size={13} /> <strong>Update mode</strong></div>
-      <div className="seg upd-seg" role="tablist" aria-label="Update mode">
+      <div className="upd-modes-head"><Settings size={13} /> <strong>{tr("Update mode")}</strong></div>
+      <div className="seg upd-seg" role="tablist" aria-label={tr("Update mode")}>
         {(plan.modes ?? ["manual", "semi", "auto"]).map((m) => {
           const blocked = m === "auto" && plan.is_critical;
           return (
             <button key={m} role="tab" aria-selected={mode === m} disabled={blocked || busy}
               className={`seg-btn ${mode === m ? "active" : ""}${blocked ? " blocked" : ""}`}
-              title={blocked ? "Critical container (vLLM engine) — automatic updates are blocked by the pin policy" : MODE_DESC[m]}
+              title={blocked ? tr("Critical container (vLLM engine) — automatic updates are blocked by the pin policy") : MODE_DESC[m]}
               onClick={() => onChange(m)}>
               {MODE_LABEL[m]}{blocked && <Lock size={11} />}
             </button>
@@ -1694,9 +1695,8 @@ function UpdateModeSelector({ plan, mode, onChange, busy }: { plan: ContainerUpd
         <div className="upd-lock-note">
           <Lock size={13} />
           <span>
-            <strong>Automatic is locked for vLLM engines.</strong> The pin policy requires deliberate image moves —
-            an unattended auto-pull could drop live inference (warm KV cache) or land a build that regresses a patch.
-            Use <b>Manual</b> (apply by hand) or <b>Semi-auto</b> (download now, apply when traffic allows).
+            <strong>{tr("Automatic is locked for vLLM engines.")}</strong> {tr("The pin policy requires deliberate image moves — an unattended auto-pull could drop live inference (warm KV cache) or land a build that regresses a patch.")}
+            {tr("Use")} <b>{tr("Manual")}</b> ({tr("apply by hand")}) {tr("or")} <b>{tr("Semi-auto")}</b> ({tr("download now, apply when traffic allows")}).
           </span>
         </div>
       )}
@@ -1722,8 +1722,8 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
     const prev = mode; setMode(m); setErr(null);
     try {
       const r = await api.containerSetUpdateMode(source, name, m);
-      if (!r.ok) { setMode(prev); toast(r.error || "mode not allowed", "error"); }
-      else { setMode(r.mode); toast(`Update mode → ${MODE_LABEL[r.mode]}`, "success"); }
+      if (!r.ok) { setMode(prev); toast(r.error || tr("mode not allowed"), "error"); }
+      else { setMode(r.mode); toast(`${tr("Update mode")} → ${MODE_LABEL[r.mode]}`, "success"); }
     } catch (e) { setMode(prev); setErr(e instanceof Error ? e.message : String(e)); }
   }
 
@@ -1737,28 +1737,28 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
   async function guardedUpdate() {
     setBusy(true); setErr(null); setDone(null);
     // Recreate (not pull+restart): a plain restart re-runs the SAME image.
-    try { const r = await api.containerRecreate(source, name); setDone(`Recreated onto ${r.image}.`); }
+    try { const r = await api.containerRecreate(source, name); setDone(`${tr("Recreated onto")} ${r.image}.`); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
   async function downloadOnly() {
     setBusy(true); setErr(null); setDone(null);
-    try { const r = await api.containerPull(source, name, false); setDone(`Downloaded ${r.image} — click Apply (recreate) when ready.`); }
+    try { const r = await api.containerPull(source, name, false); setDone(`${tr("Downloaded")} ${r.image} — ${tr("click Apply (recreate) when ready.")}`); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
   async function applyRestart() {
     setBusy(true); setErr(null); setDone(null);
-    try { const r = await api.containerRecreate(source, name); setDone(`Applied — recreated onto ${r.image}.`); }
+    try { const r = await api.containerRecreate(source, name); setDone(`${tr("Applied — recreated onto")} ${r.image}.`); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
   async function rollback() {
     setBusy(true); setErr(null); setDone(null);
-    try { const r = await api.containerRecreate(source, name, true); setDone(`Rolled back onto ${r.image}.`); }
+    try { const r = await api.containerRecreate(source, name, true); setDone(`${tr("Rolled back onto")} ${r.image}.`); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
@@ -1766,72 +1766,72 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
   return (
     <div className="container-drawer-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
       <div className="container-modal upd-modal">
-        <div className="container-modal-head"><Wrench size={16} /><strong>Update {name}</strong><div className="container-modal-acts"><button className="ghost-button" onClick={onClose}><X size={15} /></button></div></div>
+        <div className="container-modal-head"><Wrench size={16} /><strong>{tr("Update")} {name}</strong><div className="container-modal-acts"><button className="ghost-button" onClick={onClose}><X size={15} /></button></div></div>
         <div className="container-modal-body">
           {err && <ErrBox msg={err} />}
           {!plan ? <Loading /> : (
           <>
           <UpdateModeSelector plan={plan} mode={mode} onChange={(m) => void changeMode(m)} busy={busy} />
           {plan.update_available && (
-            <div className="upd-avail-banner"><ArrowUp size={13} /> A newer image is available locally for <code>{plan.image}</code> — apply it below.</div>
+            <div className="upd-avail-banner"><ArrowUp size={13} /> {tr("A newer image is available locally for")} <code>{plan.image}</code> — {tr("apply it below.")}</div>
           )}
           {plan.is_engine ? (
             <div className="upd">
-              <p className="upd-note"><AlertTriangle size={13} /> This is a vLLM engine. {plan.policy} Run these on the GPU host:</p>
+              <p className="upd-note"><AlertTriangle size={13} /> {tr("This is a vLLM engine.")} {plan.policy} {tr("Run these on the GPU host:")}</p>
               <div className="upd-cmds">
                 {plan.commands.map((c, i) => (
                   <div key={i} className="upd-cmd"><code>{c}</code>{!c.trim().startsWith("#") && <button className="ghost-button" onClick={() => navigator.clipboard?.writeText(c)}><Copy size={12} /></button>}</div>
                 ))}
               </div>
-              <button className="ghost-button" onClick={() => navigator.clipboard?.writeText(plan.commands.filter((c) => !c.trim().startsWith("#")).join("\n"))}><Copy size={13} /> Copy all</button>
-              <div className="upd-pins"><span>Patcher-supported pins:</span> {plan.supported_pins.map((p) => <code key={p} className={p === plan.canonical_pin ? "pin canonical" : "pin"}>{p}</code>)}</div>
+              <button className="ghost-button" onClick={() => navigator.clipboard?.writeText(plan.commands.filter((c) => !c.trim().startsWith("#")).join("\n"))}><Copy size={13} /> {tr("Copy all")}</button>
+              <div className="upd-pins"><span>{tr("Patcher-supported pins:")}</span> {plan.supported_pins.map((p) => <code key={p} className={p === plan.canonical_pin ? "pin canonical" : "pin"}>{p}</code>)}</div>
             </div>
           ) : (
             <div className="upd">
               {mode === "semi" ? (
                 <>
-                  <p className="upd-note">Semi-auto: download <code>{plan.image}</code> now, then apply (recreate) when ready.</p>
+                  <p className="upd-note">{tr("Semi-auto: download")} <code>{plan.image}</code> {tr("now, then apply (recreate) when ready.")}</p>
                   <div className="upd-actions">
-                    <button className="ghost-button" disabled={busy} onClick={downloadOnly}>{busy ? <Loader2 size={13} className="spin" /> : <DownloadCloud size={13} />} Download now</button>
-                    <button className="primary-button" disabled={busy} onClick={applyRestart}><RotateCw size={13} /> Apply (recreate)</button>
+                    <button className="ghost-button" disabled={busy} onClick={downloadOnly}>{busy ? <Loader2 size={13} className="spin" /> : <DownloadCloud size={13} />} {tr("Download now")}</button>
+                    <button className="primary-button" disabled={busy} onClick={applyRestart}><RotateCw size={13} /> {tr("Apply (recreate)")}</button>
                   </div>
                 </>
               ) : (
                 <>
-                  <p className="upd-note">{mode === "auto" ? <>Automatic — the daemon applies on schedule. You can also apply <code>{plan.image}</code> now:</> : <>Pull the latest <code>{plan.image}</code> and recreate the container (a plain restart keeps the old image).</>}</p>
-                  <button className="primary-button" disabled={busy} onClick={guardedUpdate}>{busy ? <Loader2 size={13} className="spin" /> : <DownloadCloud size={13} />} Pull image + recreate</button>
+                  <p className="upd-note">{mode === "auto" ? <>{tr("Automatic — the daemon applies on schedule. You can also apply")} <code>{plan.image}</code> {tr("now:")}</> : <>{tr("Pull the latest")} <code>{plan.image}</code> {tr("and recreate the container (a plain restart keeps the old image).")}</>}</p>
+                  <button className="primary-button" disabled={busy} onClick={guardedUpdate}>{busy ? <Loader2 size={13} className="spin" /> : <DownloadCloud size={13} />} {tr("Pull image + recreate")}</button>
                 </>
               )}
               <div className="upd-actions">
                 {plan.has_previous && (
-                  <button className="ghost-button" disabled={busy} onClick={rollback} title="Recreate from the image that ran before the last update">
-                    <RotateCw size={13} /> Roll back to previous
+                  <button className="ghost-button" disabled={busy} onClick={rollback} title={tr("Recreate from the image that ran before the last update")}>
+                    <RotateCw size={13} /> {tr("Roll back to previous")}
                   </button>
                 )}
               </div>
               {done && <div className="upd-done">{done}</div>}
-              <p className="upd-hint">Recreate = stop + recreate with the same config so the new image takes effect. Requires apply enabled (SNDR_ENABLE_APPLY=1).</p>
+              <p className="upd-hint">{tr("Recreate = stop + recreate with the same config so the new image takes effect. Requires apply enabled (SNDR_ENABLE_APPLY=1).")}</p>
             </div>
           )}
           </>
           )}
 
           <div className="upd-scan">
-            <div className="upd-scan-head"><ShieldCheck size={14} /> <strong>Image vulnerability scan</strong> <span>safe-pull · Grype/Trivy</span>
-              <button className="ghost-button" onClick={() => void runScan()} disabled={scanning}>{scanning ? <Loader2 size={13} className="spin" /> : <ShieldAlert size={13} />} Scan</button>
+            <div className="upd-scan-head"><ShieldCheck size={14} /> <strong>{tr("Image vulnerability scan")}</strong> <span>{tr("safe-pull")} · Grype/Trivy</span>
+              <button className="ghost-button" onClick={() => void runScan()} disabled={scanning}>{scanning ? <Loader2 size={13} className="spin" /> : <ShieldAlert size={13} />} {tr("Scan")}</button>
             </div>
-            {scanning && <p className="upd-hint">Scanning {plan?.image || "image"} — this pulls a CVE database, may take a minute…</p>}
+            {scanning && <p className="upd-hint">{tr("Scanning")} {plan?.image || tr("image")} — {tr("this pulls a CVE database, may take a minute…")}</p>}
             {scan && !scan.available && <p className="upd-hint"><AlertTriangle size={12} /> {scan.reason}</p>}
             {scan && scan.available && scan.counts && (
               <div className="scan-result">
                 <span className="scan-scanner">{scan.scanner}</span>
-                {scan.total === 0 ? <span className="sev clean"><ShieldCheck size={12} /> no known CVEs</span> : (
+                {scan.total === 0 ? <span className="sev clean"><ShieldCheck size={12} /> {tr("no known CVEs")}</span> : (
                   <>
-                    {scan.counts.critical > 0 && <span className="sev critical">{scan.counts.critical} critical</span>}
-                    {scan.counts.high > 0 && <span className="sev high">{scan.counts.high} high</span>}
-                    {scan.counts.medium > 0 && <span className="sev medium">{scan.counts.medium} medium</span>}
-                    {scan.counts.low > 0 && <span className="sev low">{scan.counts.low} low</span>}
-                    <span className="sev total">{scan.total} total</span>
+                    {scan.counts.critical > 0 && <span className="sev critical">{scan.counts.critical} {tr("critical")}</span>}
+                    {scan.counts.high > 0 && <span className="sev high">{scan.counts.high} {tr("high")}</span>}
+                    {scan.counts.medium > 0 && <span className="sev medium">{scan.counts.medium} {tr("medium")}</span>}
+                    {scan.counts.low > 0 && <span className="sev low">{scan.counts.low} {tr("low")}</span>}
+                    <span className="sev total">{scan.total} {tr("total")}</span>
                   </>
                 )}
               </div>
@@ -1853,22 +1853,22 @@ function ConfirmActionModal({ name, action, busy, onConfirm, onCancel }: {
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef);
   useEscapeKey(onCancel);
-  const verb = action === "stop" ? "Stop" : "Restart";
+  const verb = action === "stop" ? tr("Stop") : tr("Restart");
   return (
     <div className="container-drawer-backdrop" role="presentation" onClick={closeOnBackdrop(onCancel)}>
       <div ref={dialogRef} className="container-modal confirm-modal" role="dialog" aria-modal="true" aria-label={`${verb} ${name}`}>
         <div className="container-modal-head">
           <AlertTriangle size={16} /><strong>{verb} {name}?</strong>
-          <div className="container-modal-acts"><button className="ghost-button" onClick={onCancel} aria-label="Cancel"><X size={15} /></button></div>
+          <div className="container-modal-acts"><button className="ghost-button" onClick={onCancel} aria-label={tr("Cancel")}><X size={15} /></button></div>
         </div>
         <div className="container-modal-body">
           <p className="confirm-msg">
             {action === "stop"
-              ? "This stops the container. If it serves a live engine, in-flight inference is dropped until it is started again."
-              : "This restarts the container. The engine is briefly unavailable and any in-flight inference is interrupted."}
+              ? tr("This stops the container. If it serves a live engine, in-flight inference is dropped until it is started again.")
+              : tr("This restarts the container. The engine is briefly unavailable and any in-flight inference is interrupted.")}
           </p>
           <div className="confirm-actions">
-            <button className="ghost-button" onClick={onCancel} disabled={busy} autoFocus>Cancel</button>
+            <button className="ghost-button" onClick={onCancel} disabled={busy} autoFocus>{tr("Cancel")}</button>
             <button className={`primary-button ${action === "stop" ? "danger" : ""}`} onClick={onConfirm} disabled={busy}>
               {busy ? <Loader2 size={13} className="spin" /> : action === "stop" ? <Square size={13} /> : <RotateCw size={13} />} {verb}
             </button>
@@ -1899,13 +1899,13 @@ function AlertsModal({ onClose }: { onClose: () => void }) {
         ...(token ? { bot_token: token } : {}),
       });
       setCfg(next); setToken("");
-      setMsg({ ok: true, text: "Saved." });
+      setMsg({ ok: true, text: tr("Saved.") });
     } catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
     finally { setBusy(false); }
   }
   async function test() {
     setBusy(true); setMsg(null);
-    try { const r = await api.alertsTest(); setMsg({ ok: r.ok, text: r.ok ? "Test sent — check Telegram." : (r.error || "Send failed") }); }
+    try { const r = await api.alertsTest(); setMsg({ ok: r.ok, text: r.ok ? tr("Test sent — check Telegram.") : (r.error || tr("Send failed")) }); }
     catch (e) { setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
     finally { setBusy(false); }
   }
@@ -1913,32 +1913,32 @@ function AlertsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="container-drawer-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
       <div className="container-modal upd-modal">
-        <div className="container-modal-head"><Bell size={16} /><strong>Engine health alerts</strong><span>Telegram</span>
+        <div className="container-modal-head"><Bell size={16} /><strong>{tr("Engine health alerts")}</strong><span>Telegram</span>
           <div className="container-modal-acts"><button className="ghost-button" onClick={onClose}><X size={15} /></button></div>
         </div>
         <div className="container-modal-body">
           {!cfg ? <Loading /> : (
             <div className="alerts-cfg">
-              <p className="upd-note">Get a push when a managed engine container goes <b>DOWN</b> (crash / OOM / stop) or recovers. The daemon watches over the docker socket.</p>
-              <div className="alerts-row"><span>Enabled</span>
-                <button className={`toggle ${cfg.enabled ? "on" : ""}`} disabled={busy} onClick={() => void save(!cfg.enabled)} aria-pressed={cfg.enabled} aria-label="Enable alerts"><span className="toggle-knob" /></button>
+              <p className="upd-note">{tr("Get a push when a managed engine container goes")} <b>DOWN</b> ({tr("crash / OOM / stop")}) {tr("or recovers. The daemon watches over the docker socket.")}</p>
+              <div className="alerts-row"><span>{tr("Enabled")}</span>
+                <button className={`toggle ${cfg.enabled ? "on" : ""}`} disabled={busy} onClick={() => void save(!cfg.enabled)} aria-pressed={cfg.enabled} aria-label={tr("Enable alerts")}><span className="toggle-knob" /></button>
               </div>
-              <label className="alerts-row"><span>Chat ID</span>
-                <input value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="e.g. 123456789" />
+              <label className="alerts-row"><span>{tr("Chat ID")}</span>
+                <input value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder={tr("e.g. 123456789")} />
               </label>
-              <label className="alerts-row"><span>Bot token</span>
-                <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={cfg.has_token ? "•••••• (stored — leave blank to keep)" : "123456:ABC-DEF…"} />
+              <label className="alerts-row"><span>{tr("Bot token")}</span>
+                <input type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder={cfg.has_token ? tr("•••••• (stored — leave blank to keep)") : "123456:ABC-DEF…"} />
               </label>
               <div className="alerts-status">
-                <span className={`sev ${cfg.has_token ? "clean" : "low"}`}>{cfg.has_token ? "token stored" : "no token"}</span>
-                <span className={`sev ${cfg.configured ? "clean" : "low"}`}>{cfg.configured ? "configured" : "incomplete"}</span>
+                <span className={`sev ${cfg.has_token ? "clean" : "low"}`}>{cfg.has_token ? tr("token stored") : tr("no token")}</span>
+                <span className={`sev ${cfg.configured ? "clean" : "low"}`}>{cfg.configured ? tr("configured") : tr("incomplete")}</span>
               </div>
               <div className="alerts-actions">
-                <button className="primary-button" disabled={busy} onClick={() => void save()}>{busy ? <Loader2 size={13} className="spin" /> : <Settings size={13} />} Save</button>
-                <button className="ghost-button" disabled={busy || !cfg.configured} onClick={() => void test()}><Send size={13} /> Send test</button>
+                <button className="primary-button" disabled={busy} onClick={() => void save()}>{busy ? <Loader2 size={13} className="spin" /> : <Settings size={13} />} {tr("Save")}</button>
+                <button className="ghost-button" disabled={busy || !cfg.configured} onClick={() => void test()}><Send size={13} /> {tr("Send test")}</button>
               </div>
               {msg && <div className={msg.ok ? "upd-done" : "containers-err"}>{!msg.ok && <AlertTriangle size={13} />} {msg.text}</div>}
-              <p className="upd-hint">Saving requires the daemon to run with apply enabled (SNDR_ENABLE_APPLY=1). Token is stored encrypted; env <code>SNDR_TELEGRAM_BOT_TOKEN</code>/<code>SNDR_TELEGRAM_CHAT_ID</code> also work.</p>
+              <p className="upd-hint">{tr("Saving requires the daemon to run with apply enabled (SNDR_ENABLE_APPLY=1). Token is stored encrypted; env")} <code>SNDR_TELEGRAM_BOT_TOKEN</code>/<code>SNDR_TELEGRAM_CHAT_ID</code> {tr("also work.")}</p>
             </div>
           )}
         </div>
@@ -1951,5 +1951,5 @@ function AlertsModal({ onClose }: { onClose: () => void }) {
 // Content placeholder for in-flight detail panels (inspect, files, stats, …).
 // Renders shimmer lines instead of a spinner so the panel holds its layout.
 function Loading(_props: { label?: string }) { return <SkeletonLines count={4} />; }
-function NotRunning() { return <div className="containers-empty"><Activity size={20} /><strong>Container not running</strong><span>Start it to see live data.</span></div>; }
+function NotRunning() { return <div className="containers-empty"><Activity size={20} /><strong>{tr("Container not running")}</strong><span>{tr("Start it to see live data.")}</span></div>; }
 function ErrBox({ msg }: { msg: string }) { return <div className="containers-err"><AlertTriangle size={13} /> {msg}</div>; }

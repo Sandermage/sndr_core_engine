@@ -10,6 +10,7 @@ import {
   CheckCircle2, AlertCircle, CircleAlert, HardDrive, FileText, Terminal, Download
 } from "lucide-react";
 import { api, type PresetListResult, type DeployTargetsResult, type DeploymentPlan, type DeployTarget } from "../api";
+import { tr } from "../i18n";
 import { ModuleGrid, ModuleCard } from "../components/layout";
 import { InfoRows, RailCheck } from "../components/primitives";
 import { CodeBlock, CopyButton } from "../components/code-block";
@@ -95,9 +96,9 @@ export function DeploymentConsole({
   return (
     <ModuleGrid>
       <ModuleCard
-        title="Deployment target"
+        title={tr("Deployment target")}
         icon={<Rocket size={18} />}
-        desc="Choose how the pinned vLLM stack lands on the host. Each target renders a ready-to-apply artifact."
+        desc={tr("Choose how the pinned vLLM stack lands on the host. Each target renders a ready-to-apply artifact.")}
         wide
       >
         <div className="deploy-targets">
@@ -111,22 +112,22 @@ export function DeploymentConsole({
               <span className="deploy-target-head">
                 {DEPLOY_TARGET_ICONS[entry.id] ?? <Box size={16} />}
                 <strong>{entry.label}</strong>
-                {entry.needs && <em className="deploy-need">needs {entry.needs}</em>}
+                {entry.needs && <em className="deploy-need">{tr("needs")} {entry.needs}</em>}
               </span>
               <small>{entry.summary}</small>
             </button>
           ))}
-          {targets.length === 0 && <p className="muted">Loading deployment targets…</p>}
+          {targets.length === 0 && <p className="muted">{tr("Loading deployment targets…")}</p>}
         </div>
       </ModuleCard>
 
       <ModuleCard
-        title="Preset & launch parameters"
+        title={tr("Preset & launch parameters")}
         icon={<Database size={18} />}
-        desc="The resolved engine command for this preset — tensor parallelism, KV-cache dtype, context window and Genesis pin."
+        desc={tr("The resolved engine command for this preset — tensor parallelism, KV-cache dtype, context window and Genesis pin.")}
       >
         <label className="deploy-field">
-          <span>Preset</span>
+          <span>{tr("Preset")}</span>
           <select value={selectedPreset} onChange={(event) => onSelectPreset(event.target.value)}>
             {presetList.length === 0 && <option value={selectedPreset}>{selectedPreset}</option>}
             {presetList.map((preset) => (
@@ -137,34 +138,34 @@ export function DeploymentConsole({
         {params ? (
           <InfoRows
             rows={[
-              ["Tensor parallel", `${fmtParam(params.tensor_parallel)} GPU`],
-              ["KV-cache dtype", fmtParam(params.kv_cache_dtype)],
-              ["Max context", fmtParam(params.max_model_len)],
-              ["Max sequences", fmtParam(params.max_num_seqs)],
-              ["GPU mem util", params.gpu_memory_utilization != null ? `${Math.round(params.gpu_memory_utilization * 100)}%` : "—"],
-              ["Min VRAM / GPU", params.min_vram_per_gpu_mib != null ? `${Math.round(params.min_vram_per_gpu_mib / 1024)} GiB` : "—"],
-              ["Genesis flags", fmtParam(params.genesis_env_count)],
-              ["Pin", fmtParam(params.genesis_pin)],
-              ["Container", fmtParam(params.container_name)],
-              ["Host port", fmtParam(params.host_port)],
-              ["Image", fmtParam(params.image)]
+              [tr("Tensor parallel"), `${fmtParam(params.tensor_parallel)} GPU`],
+              [tr("KV-cache dtype"), fmtParam(params.kv_cache_dtype)],
+              [tr("Max context"), fmtParam(params.max_model_len)],
+              [tr("Max sequences"), fmtParam(params.max_num_seqs)],
+              [tr("GPU mem util"), params.gpu_memory_utilization != null ? `${Math.round(params.gpu_memory_utilization * 100)}%` : "—"],
+              [tr("Min VRAM / GPU"), params.min_vram_per_gpu_mib != null ? `${Math.round(params.min_vram_per_gpu_mib / 1024)} GiB` : "—"],
+              [tr("Genesis flags"), fmtParam(params.genesis_env_count)],
+              [tr("Pin"), fmtParam(params.genesis_pin)],
+              [tr("Container"), fmtParam(params.container_name)],
+              [tr("Host port"), fmtParam(params.host_port)],
+              [tr("Image"), fmtParam(params.image)]
             ]}
           />
         ) : (
-          loading ? <SkeletonLines count={5} /> : <p className="muted">Select a preset to resolve launch parameters.</p>
+          loading ? <SkeletonLines count={5} /> : <p className="muted">{tr("Select a preset to resolve launch parameters.")}</p>
         )}
       </ModuleCard>
 
       <ModuleCard
-        title="Host readiness"
+        title={tr("Host readiness")}
         icon={<ShieldCheck size={18} />}
-        desc="Live inventory of the daemon host and the dependency plan for this preset."
+        desc={tr("Live inventory of the daemon host and the dependency plan for this preset.")}
       >
         <div className="setup-glance">
           <RailCheck label="OS" value={host ? `${host.os.distro || host.os.system} ${host.os.arch}` : "…"} status="pass" />
-          <RailCheck label="Docker" value={host ? (dockerOk ? `running ${host.docker.server_version ?? ""}`.trim() : host.docker.installed ? "stopped" : "missing") : "…"} status={dockerOk ? "pass" : "warning"} />
-          <RailCheck label="GPU" value={host ? (gpuOk ? `${host.nvidia.n_gpus}× ${host.nvidia.gpu_names[0] ?? "GPU"}` : "none") : "…"} status={gpuOk ? "pass" : "warning"} />
-          <RailCheck label="vLLM" value={host ? (host.vllm.installed ? host.vllm.version ?? "installed" : "not installed") : "…"} status={host?.vllm.installed ? "pass" : "warning"} />
+          <RailCheck label="Docker" value={host ? (dockerOk ? `${tr("running")} ${host.docker.server_version ?? ""}`.trim() : host.docker.installed ? tr("stopped") : tr("missing")) : "…"} status={dockerOk ? "pass" : "warning"} />
+          <RailCheck label="GPU" value={host ? (gpuOk ? `${host.nvidia.n_gpus}× ${host.nvidia.gpu_names[0] ?? "GPU"}` : tr("none")) : "…"} status={gpuOk ? "pass" : "warning"} />
+          <RailCheck label="vLLM" value={host ? (host.vllm.installed ? host.vllm.version ?? tr("installed") : tr("not installed")) : "…"} status={host?.vllm.installed ? "pass" : "warning"} />
         </div>
         {deps && (
           <div className="deploy-deps">
@@ -172,8 +173,8 @@ export function DeploymentConsole({
               {depTone === "pass" ? <CheckCircle2 size={15} /> : depTone === "blocked" ? <AlertCircle size={15} /> : <CircleAlert size={15} />}
               <strong>
                 {deps.is_ready
-                  ? "Host is ready for this preset"
-                  : `${deps.n_blockers} blocker${deps.n_blockers === 1 ? "" : "s"} · ${deps.n_warnings} warning${deps.n_warnings === 1 ? "" : "s"}`}
+                  ? tr("Host is ready for this preset")
+                  : `${deps.n_blockers} ${deps.n_blockers === 1 ? tr("blocker") : tr("blockers")} · ${deps.n_warnings} ${deps.n_warnings === 1 ? tr("warning") : tr("warnings")}`}
               </strong>
             </div>
             {(deps.items ?? []).map((item, index) => (
@@ -187,16 +188,16 @@ export function DeploymentConsole({
                 {item.suggested_command && <CodeBlock lines={[item.suggested_command]} />}
               </div>
             ))}
-            {(deps.items ?? []).length === 0 && <p className="muted">No host changes required for this preset.</p>}
+            {(deps.items ?? []).length === 0 && <p className="muted">{tr("No host changes required for this preset.")}</p>}
           </div>
         )}
       </ModuleCard>
 
       {plan && (plan.mount_vars?.length ?? 0) > 0 && (
         <ModuleCard
-          title="Storage & mount paths"
+          title={tr("Storage & mount paths")}
           icon={<HardDrive size={18} />}
-          desc="Map the preset's container mounts to real host paths. Edits re-render the artifact below."
+          desc={tr("Map the preset's container mounts to real host paths. Edits re-render the artifact below.")}
           wide
         >
           <div className="deploy-mounts">
@@ -216,9 +217,9 @@ export function DeploymentConsole({
       )}
 
       <ModuleCard
-        title={activeTarget ? `${activeTarget.label} — ${activeTarget.filename}` : "Generated artifact"}
+        title={activeTarget ? `${activeTarget.label} — ${activeTarget.filename}` : tr("Generated artifact")}
         icon={<FileText size={18} />}
-        desc="The exact file to drop on the host, plus the operator commands to apply it."
+        desc={tr("The exact file to drop on the host, plus the operator commands to apply it.")}
         wide
       >
         {error && <div className="inline-error"><AlertCircle size={15} /> {error}</div>}
@@ -229,13 +230,13 @@ export function DeploymentConsole({
               <div className="deploy-artifact-actions">
                 <CopyButton value={plan.artifact.content} label={plan.artifact.filename} />
                 <button className="ghost-button" onClick={() => downloadText(plan.artifact.filename, plan.artifact.content)}>
-                  <Download size={14} /> Download
+                  <Download size={14} /> {tr("Download")}
                 </button>
               </div>
             </div>
             <div className="deploy-artifact"><CodeBlock lines={plan.artifact.content.split("\n")} title={plan.artifact.filename} /></div>
             <div className="deploy-cmd-head">
-              <h4 className="deploy-cmd-title">Apply commands</h4>
+              <h4 className="deploy-cmd-title">{tr("Apply commands")}</h4>
               {(() => {
                 // One copyable, fail-fast shell script: write the artifact via a
                 // heredoc, then run the apply commands — no manual file shuffling.
@@ -250,8 +251,8 @@ export function DeploymentConsole({
                 ].join("\n");
                 return (
                   <div className="deploy-cmd-actions">
-                    <CopyButton value={script} label="apply script" />
-                    <button className="ghost-button" onClick={() => downloadText(`apply-${activeTarget?.id ?? "deploy"}.sh`, script)}><Download size={13} /> Script</button>
+                    <CopyButton value={script} label={tr("apply script")} />
+                    <button className="ghost-button" onClick={() => downloadText(`apply-${activeTarget?.id ?? "deploy"}.sh`, script)}><Download size={13} /> {tr("Script")}</button>
                   </div>
                 );
               })()}
@@ -259,7 +260,7 @@ export function DeploymentConsole({
             <CodeBlock lines={plan.commands ?? []} />
           </>
         ) : (
-          loading ? <SkeletonLines count={5} /> : <p className="muted">Select a preset and target to render the deployment artifact.</p>
+          loading ? <SkeletonLines count={5} /> : <p className="muted">{tr("Select a preset and target to render the deployment artifact.")}</p>
         )}
       </ModuleCard>
     </ModuleGrid>

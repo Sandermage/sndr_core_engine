@@ -14,6 +14,7 @@ import { SkeletonTable } from "../Skeleton";
 import { CodeBlock, CopyButton } from "../components/code-block";
 import { StatusPill } from "../components/primitives";
 import { useDialogFocus, useEscapeKey, closeOnBackdrop } from "../dialog";
+import { tr } from "../i18n";
 
 /** Tone for a job's executor outcome: queued dry-run, succeeded, or failed. */
 export function jobTone(job: Job): "neutral" | "success" | "danger" {
@@ -31,7 +32,7 @@ export function JobResultBlock({ job, showNote = false }: { job: Job; showNote?:
           <span>{job.kind}</span>
         </div>
         <StatusPill tone={jobTone(job)}>
-          {job.dry_run ? "dry-run recorded" : `executed: ${job.status}`}
+          {job.dry_run ? tr("dry-run recorded") : `${tr("executed:")} ${job.status}`}
         </StatusPill>
       </div>
       <CodeBlock lines={job.log} />
@@ -64,8 +65,7 @@ export function JobsTable({ onMonitor }: { onMonitor?: (id: string) => void }) {
   if (jobs.length === 0) {
     return (
       <p className="muted">
-        No jobs yet. Run <strong>Apply Launch</strong>, a service action, or queue a
-        bench/evidence job — real dry-run and executed jobs appear here.
+        {tr("No jobs yet. Run")} <strong>{tr("Apply Launch")}</strong>{tr(", a service action, or queue a bench/evidence job — real dry-run and executed jobs appear here.")}
       </p>
     );
   }
@@ -76,12 +76,12 @@ export function JobsTable({ onMonitor }: { onMonitor?: (id: string) => void }) {
       <table className="jobs-table">
         <thead>
           <tr>
-            <th scope="col">Job</th>
-            <th scope="col">Kind</th>
-            <th scope="col">Status</th>
-            <th scope="col">Steps</th>
-            <th scope="col">Time</th>
-            <th scope="col" aria-label="Actions" />
+            <th scope="col">{tr("Job")}</th>
+            <th scope="col">{tr("Kind")}</th>
+            <th scope="col">{tr("Status")}</th>
+            <th scope="col">{tr("Steps")}</th>
+            <th scope="col">{tr("Time")}</th>
+            <th scope="col" aria-label={tr("Actions")} />
           </tr>
         </thead>
         <tbody>
@@ -90,12 +90,12 @@ export function JobsTable({ onMonitor }: { onMonitor?: (id: string) => void }) {
               <tr className={openId === job.job_id ? "active job-row" : "job-row"} onClick={() => setOpenId(openId === job.job_id ? null : job.job_id)}>
                 <td><code>{job.job_id}</code></td>
                 <td>{job.kind}</td>
-                <td><span className={`job-status ${cls(job)}`}>{job.dry_run ? "dry-run" : job.status}</span></td>
+                <td><span className={`job-status ${cls(job)}`}>{job.dry_run ? tr("dry-run") : tr(job.status)}</span></td>
                 <td>{job.steps.length}</td>
                 <td>{stamp(job.created_at)}</td>
                 <td className="job-row-actions">
                   {onMonitor && (
-                    <button className="icon-only" title="Live monitor" aria-label={`Monitor ${job.job_id}`} onClick={(event) => { event.stopPropagation(); onMonitor(job.job_id); }}>
+                    <button className="icon-only" title={tr("Live monitor")} aria-label={`${tr("Monitor")} ${job.job_id}`} onClick={(event) => { event.stopPropagation(); onMonitor(job.job_id); }}>
                       <Activity size={14} />
                     </button>
                   )}
@@ -118,7 +118,7 @@ export function JobsTable({ onMonitor }: { onMonitor?: (id: string) => void }) {
   );
 }
 
-export function Progress({ value, label = "Progress" }: { value: number; label?: string }) {
+export function Progress({ value, label = tr("Progress") }: { value: number; label?: string }) {
   const clamped = Math.max(0, Math.min(100, value));
   return (
     <span className="progress-track" role="progressbar" aria-label={label} aria-valuenow={Math.round(clamped)} aria-valuemin={0} aria-valuemax={100}>
@@ -158,25 +158,25 @@ export function JobMonitorModal({ jobId, onClose }: { jobId: string; onClose: ()
 
   const running = !!job && !job.dry_run && !JOB_TERMINAL.has(job.status);
   const tone = !job ? "running" : job.dry_run ? "queued" : job.status === "succeeded" || job.status === "done" ? "done" : job.status === "failed" || job.status === "error" ? "failed" : "running";
-  const statusText = !job ? "polling…" : job.dry_run ? "dry-run (recorded)" : job.status;
+  const statusText = !job ? tr("polling…") : job.dry_run ? tr("dry-run (recorded)") : tr(job.status);
   const progress = typeof job?.progress === "number" ? job.progress : running ? -1 : 100;
 
   return (
     <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
-      <section ref={dialogRef} className="job-monitor" role="dialog" aria-modal="true" aria-label={`${job?.title ?? "Job"} monitor`}>
+      <section ref={dialogRef} className="job-monitor" role="dialog" aria-modal="true" aria-label={`${job?.title ?? tr("Job")} ${tr("monitor")}`}>
         <header className="job-monitor-head">
           <div className="job-monitor-title">
             <Activity size={18} className={running ? "spin" : ""} />
             <div>
-              <h2>{job?.title ?? "Job"}</h2>
+              <h2>{job?.title ?? tr("Job")}</h2>
               <code>{jobId}{job ? ` · ${job.kind}` : ""}</code>
             </div>
           </div>
           <span className={`job-status ${tone}`}>{statusText}</span>
-          <button className="icon-only" onClick={onClose} aria-label="Close"><X size={16} /></button>
+          <button className="icon-only" onClick={onClose} aria-label={tr("Close")}><X size={16} /></button>
         </header>
 
-        {progress >= 0 ? <Progress value={progress} label={`${job?.title ?? "Job"} progress`} /> : <div className="job-monitor-indeterminate"><span /></div>}
+        {progress >= 0 ? <Progress value={progress} label={`${job?.title ?? tr("Job")} ${tr("progress")}`} /> : <div className="job-monitor-indeterminate"><span /></div>}
         {error && <div className="inline-error"><AlertCircle size={15} /> {error}</div>}
 
         {job && job.steps.length > 0 && (
@@ -196,13 +196,13 @@ export function JobMonitorModal({ jobId, onClose }: { jobId: string; onClose: ()
         {job && job.note && <p className="fit-note">{job.note}</p>}
 
         <div className="job-monitor-log">
-          <div className="job-monitor-log-head"><Terminal size={13} /> Log{running ? " · live" : ""}<CopyButton value={(job?.log ?? []).join("\n")} label="job log" /></div>
-          <pre className="code-block">{(job?.log ?? ["(waiting for output…)"]).join("\n")}</pre>
+          <div className="job-monitor-log-head"><Terminal size={13} /> {tr("Log")}{running ? ` · ${tr("live")}` : ""}<CopyButton value={(job?.log ?? []).join("\n")} label={tr("job log")} /></div>
+          <pre className="code-block">{(job?.log ?? [tr("(waiting for output…)")]).join("\n")}</pre>
         </div>
 
         <div className="job-monitor-foot">
-          <span className="muted">{running ? "Polling every 1.5s until the job finishes." : job?.dry_run ? "Dry-run — start the daemon with --enable-apply to execute." : "Job finished."}</span>
-          <button className="primary-action" onClick={onClose}>Close</button>
+          <span className="muted">{running ? tr("Polling every 1.5s until the job finishes.") : job?.dry_run ? tr("Dry-run — start the daemon with --enable-apply to execute.") : tr("Job finished.")}</span>
+          <button className="primary-action" onClick={onClose}>{tr("Close")}</button>
         </div>
       </section>
     </div>
@@ -234,13 +234,13 @@ export function QueueJobButton({ label, run, onMonitor }: { label: string; run: 
           }
         }}
       >
-        <Play size={15} /> {busy ? "Queuing…" : label}
+        <Play size={15} /> {busy ? tr("Queuing…") : label}
       </button>
       {error && <div className="config-plan-error"><AlertCircle size={14} /><span>{error}</span></div>}
       {job && !onMonitor && <JobResultBlock job={job} />}
       {job && onMonitor && (
         <button className="ghost-button queue-job-reopen" onClick={() => onMonitor(job.job_id)}>
-          <Activity size={14} /> View job {job.job_id}
+          <Activity size={14} /> {tr("View job")} {job.job_id}
         </button>
       )}
     </div>

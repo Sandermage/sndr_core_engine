@@ -2,15 +2,16 @@
 // Preset section panels: operator-local user presets + profile-delta inspector.
 // Extracted from App.tsx (modularization) with no behavior change.
 import { type UserPresetList } from "../api";
+import { tr } from "../i18n";
 
 export function UserPresetsPanel({ presets }: { presets: UserPresetList | null }) {
   const rows = presets?.presets ?? [];
   return (
     <div className="config-item-inspector">
-      <strong>User presets ({presets?.count ?? 0})</strong>
-      <span>operator-local config dir</span>
+      <strong>{tr("User presets")} ({presets?.count ?? 0})</strong>
+      <span>{tr("operator-local config dir")}</span>
       {rows.length === 0 ? (
-        <p className="muted">No operator-local presets yet. Apply a draft to create one.</p>
+        <p className="muted">{tr("No operator-local presets yet. Apply a draft to create one.")}</p>
       ) : (
         rows.map((preset) => (
           <p key={preset.id}>
@@ -31,14 +32,14 @@ export function ProfileDeltaPanel({ def }: { def: Record<string, any> }) {
   const sizing = def.sizing_override as Record<string, any> | null;
   return (
     <div className="config-item-inspector delta">
-      <strong>Profile delta: {def.id}</strong>
-      <span>{String(def.status ?? "experimental")} · role {String(def.role ?? "default")}</span>
-      <p><em>enable</em><code>{Object.keys(enable).length}</code></p>
-      <p><em>disable</em><code>{disable.length}</code></p>
-      <p><em>override</em><code>{Object.keys(override).length}</code></p>
-      <p><em>sizing override</em><code>{sizing ? "yes" : "no"}</code></p>
+      <strong>{tr("Profile delta:")} {def.id}</strong>
+      <span>{String(def.status ?? "experimental")} · {tr("role")} {String(def.role ?? "default")}</span>
+      <p><em>{tr("enable")}</em><code>{Object.keys(enable).length}</code></p>
+      <p><em>{tr("disable")}</em><code>{disable.length}</code></p>
+      <p><em>{tr("override")}</em><code>{Object.keys(override).length}</code></p>
+      <p><em>{tr("sizing override")}</em><code>{sizing ? tr("yes") : tr("no")}</code></p>
       {disable.length > 0 && (
-        <p><em>disabled</em><code>{disable.map(String).join(", ")}</code></p>
+        <p><em>{tr("disabled")}</em><code>{disable.map(String).join(", ")}</code></p>
       )}
     </div>
   );

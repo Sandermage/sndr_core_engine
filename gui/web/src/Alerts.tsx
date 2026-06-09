@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Bell, Check, ChevronRight, Cpu, HardDrive, Server } from "lucide-react";
 import { api, type Alert, type AlertsSnapshot } from "./api";
+import { tr } from "./i18n";
 
 const CAT_ICON: Record<string, React.ReactNode> = {
   gpu: <Cpu size={14} />,
@@ -23,7 +24,7 @@ function AlertRow({ a, resolved }: { a: Alert; resolved?: boolean }) {
         <strong className="alert-title">{a.title}</strong>
         <span className="alert-detail">{a.detail}</span>
       </div>
-      <span className="alert-age">{resolved ? "cleared" : rel(a.first_seen)}</span>
+      <span className="alert-age">{resolved ? tr("cleared") : rel(a.first_seen)}</span>
     </div>
   );
 }
@@ -64,22 +65,22 @@ export function AlertsBell({ onOpenHardware }: { onOpenHardware?: () => void }) 
   return (
     <div className="alerts-bell" ref={ref}>
       <button className={`tool-button alerts-trigger ${tone}`} onClick={() => setOpen((o) => !o)}
-        title={total > 0 ? `${total} active alert${total === 1 ? "" : "s"}` : "No active alerts"}>
+        title={total > 0 ? `${total} ${total === 1 ? tr("active alert") : tr("active alerts")}` : tr("No active alerts")}>
         <Bell size={16} />
         {total > 0 && <span className={`alerts-badge ${tone}`}>{total}</span>}
       </button>
       {open && (
         <div className="alerts-pop">
           <div className="alerts-pop-head">
-            <strong>Alerts</strong>
+            <strong>{tr("Alerts")}</strong>
             {onOpenHardware && (
               <button className="alerts-link" onClick={() => { setOpen(false); onOpenHardware(); }}>
-                Hardware <ChevronRight size={13} />
+                {tr("Hardware")} <ChevronRight size={13} />
               </button>
             )}
           </div>
           {active.length === 0 && (
-            <div className="alerts-clear"><Check size={18} /><span>All clear — no active alerts.</span></div>
+            <div className="alerts-clear"><Check size={18} /><span>{tr("All clear — no active alerts.")}</span></div>
           )}
           {active.length > 0 && (
             <div className="alerts-list">
@@ -88,7 +89,7 @@ export function AlertsBell({ onOpenHardware }: { onOpenHardware?: () => void }) 
           )}
           {recent.length > 0 && (
             <>
-              <div className="alerts-sub">Recently cleared</div>
+              <div className="alerts-sub">{tr("Recently cleared")}</div>
               <div className="alerts-list muted">
                 {recent.slice(0, 5).map((a) => <AlertRow key={`${a.key}:${a.resolved_at}`} a={a} resolved />)}
               </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Box, ChevronRight, Cpu, Heart, Link2, Loader2, RefreshCw, Server, ShieldCheck } from "lucide-react";
 import { api, type FleetHost } from "./api";
 import { SkeletonCards } from "./Skeleton";
+import { tr } from "./i18n";
 
 type Status = "online" | "partial" | "offline";
 
@@ -51,21 +52,21 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
     <div className="fleet">
       <div className="fleet-bar">
         <div className="fleet-stats">
-          <span className="fleet-stat"><b>{hosts ? hosts.length : "—"}</b> servers</span>
-          <span className="fleet-stat ok"><b>{online}</b> online</span>
+          <span className="fleet-stat"><b>{hosts ? hosts.length : "—"}</b> {tr("servers")}</span>
+          <span className="fleet-stat ok"><b>{online}</b> {tr("online")}</span>
           <span className="fleet-stat"><b>{totalGpus}</b> GPUs</span>
-          <span className="fleet-stat"><b>{totalPatches}</b> live patches</span>
+          <span className="fleet-stat"><b>{totalPatches}</b> {tr("live patches")}</span>
         </div>
-        <span className="fleet-auto">auto · 60s</span>
+        <span className="fleet-auto">{tr("auto")} · 60s</span>
         <button className="ghost-button" onClick={() => void load()} disabled={loading}>
-          {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Refresh fleet
+          {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} {tr("Refresh fleet")}
         </button>
       </div>
       {err && <div className="fleet-err"><AlertTriangle size={14} /> {err}</div>}
 
       {hosts !== null && hosts.length === 0 && (
-        <div className="fleet-empty"><Server size={22} /><strong>No engine hosts yet</strong>
-          <span>Add a GPU server in <b>Hosts</b> — it shows up here with its live state.</span></div>
+        <div className="fleet-empty"><Server size={22} /><strong>{tr("No engine hosts yet")}</strong>
+          <span>{tr("Add a GPU server in")} <b>{tr("Hosts")}</b> — {tr("it shows up here with its live state.")}</span></div>
       )}
 
       {loading && hosts === null && <SkeletonCards count={4} />}
@@ -74,12 +75,12 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
         {(hosts || []).map((h) => {
           const st = statusOf(h);
           return (
-            <button key={h.id} className={`fleet-server ${st}`} onClick={() => onOpenHost(h.id)} title="Open this host's card">
+            <button key={h.id} className={`fleet-server ${st}`} onClick={() => onOpenHost(h.id)} title={tr("Open this host's card")}>
               <div className="fleet-server-head">
                 <span className={`fleet-server-dot ${st}`} />
                 <strong>{h.label}</strong>
                 {h.role && <span className="fleet-server-role">{h.role}</span>}
-                <span className="fleet-server-status">{STATUS_LABEL[st]}</span>
+                <span className="fleet-server-status">{tr(STATUS_LABEL[st])}</span>
                 <ChevronRight size={15} className="fleet-server-go" />
               </div>
               <code className="fleet-server-host">{h.host}</code>
@@ -100,7 +101,7 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
                       {h.gpus.map((g, i) => {
                         const u = pct(g.utilization);
                         return (
-                          <div key={i} className="fleet-gpu-bar" title={`GPU ${i} · ${shortGpu(g.name)} · ${gpb(mib(g.memory_total_mib))}GB · ${u}% util`}>
+                          <div key={i} className="fleet-gpu-bar" title={`GPU ${i} · ${shortGpu(g.name)} · ${gpb(mib(g.memory_total_mib))}GB · ${u}% ${tr("util")}`}>
                             <div className="fleet-gpu-fill" style={{ width: `${Math.max(u, 2)}%` }} />
                             <span>{u}%</span>
                           </div>
@@ -114,9 +115,9 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
               {/* Engines — per-container reachability, port, version and patch count */}
               {h.engines.length > 0 && (
                 <div className="fleet-eng">
-                  <div className="fleet-eng-head"><Box size={11} /> {h.engines.length} container{h.engines.length > 1 ? "s" : ""}</div>
+                  <div className="fleet-eng-head"><Box size={11} /> {h.engines.length} {h.engines.length > 1 ? tr("containers") : tr("container")}</div>
                   {h.engines.slice(0, 4).map((e, i) => (
-                    <div key={i} className="fleet-eng-row" title={`${e.container ?? "container"}${e.port ? " · :" + e.port : ""} · ${e.reachable ? "reachable" : "not reachable"}`}>
+                    <div key={i} className="fleet-eng-row" title={`${e.container ?? tr("container")}${e.port ? " · :" + e.port : ""} · ${e.reachable ? tr("reachable") : tr("not reachable")}`}>
                       <span className={`fleet-eng-dot ${e.reachable ? "up" : "down"}`} />
                       <code className="fleet-eng-name">{e.container ?? "—"}</code>
                       {e.port && <span className="fleet-eng-port">:{e.port}</span>}
@@ -132,9 +133,9 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
               )}
 
               <div className="fleet-server-meta">
-                {h.vllm_version && <span title="vLLM build"><Heart size={11} /> vLLM {shortVer(h.vllm_version)}</span>}
-                {h.active_patches > 0 && <span className="fleet-server-patches" title="active Genesis patches"><ShieldCheck size={11} /> {h.active_patches} patches</span>}
-                <span className="fleet-server-open"><ChevronRight size={11} /> open host card</span>
+                {h.vllm_version && <span title={tr("vLLM build")}><Heart size={11} /> vLLM {shortVer(h.vllm_version)}</span>}
+                {h.active_patches > 0 && <span className="fleet-server-patches" title={tr("active Genesis patches")}><ShieldCheck size={11} /> {h.active_patches} {tr("patches")}</span>}
+                <span className="fleet-server-open"><ChevronRight size={11} /> {tr("open host card")}</span>
               </div>
             </button>
           );
@@ -184,20 +185,20 @@ function FleetDeployPlanner({ hosts }: { hosts: FleetHost[] }) {
 
   return (
     <div className="fleet-deploy">
-      <div className="fleet-deploy-head"><Server size={15} /> <strong>Deploy to fleet</strong> <span className="muted">— dry-run plan across N hosts</span></div>
+      <div className="fleet-deploy-head"><Server size={15} /> <strong>{tr("Deploy to fleet")}</strong> <span className="muted">— {tr("dry-run plan across N hosts")}</span></div>
       <div className="fleet-deploy-controls">
-        <label>Preset
+        <label>{tr("Preset")}
           <select value={preset} onChange={(e) => setPreset(e.target.value)}>
             {presets.map((p) => <option key={p.id} value={p.id}>{p.title || p.id}</option>)}
           </select>
         </label>
-        <label>Target
+        <label>{tr("Target")}
           <select value={target} onChange={(e) => setTarget(e.target.value)}>
             {targets.map((t) => <option key={t.id} value={t.id}>{t.label || t.id}</option>)}
           </select>
         </label>
         <button className="primary-button" disabled={busy || !preset || !target || chosen.length === 0} onClick={() => void runPlan()}>
-          {busy ? <Loader2 size={14} className="spin" /> : <Server size={14} />} Plan deploy ({chosen.length})
+          {busy ? <Loader2 size={14} className="spin" /> : <Server size={14} />} {tr("Plan deploy")} ({chosen.length})
         </button>
       </div>
       <div className="fleet-deploy-hosts">
@@ -212,17 +213,17 @@ function FleetDeployPlanner({ hosts }: { hosts: FleetHost[] }) {
       {plan && (
         <div className="fleet-deploy-result">
           <div className="fleet-deploy-rollup">
-            <span className="chip ok">{plan.rollup.ready} ready</span>
-            {plan.rollup.errors > 0 && <span className="chip danger">{plan.rollup.errors} errors</span>}
-            <span className="chip">{plan.rollup.mutating_steps_total} mutating steps</span>
-            <span className="muted">{plan.rollup.apply_enabled ? "apply enabled — run per-host in Hosts to execute" : "read-only daemon — plan only"}</span>
+            <span className="chip ok">{plan.rollup.ready} {tr("ready")}</span>
+            {plan.rollup.errors > 0 && <span className="chip danger">{plan.rollup.errors} {tr("errors")}</span>}
+            <span className="chip">{plan.rollup.mutating_steps_total} {tr("mutating steps")}</span>
+            <span className="muted">{plan.rollup.apply_enabled ? tr("apply enabled — run per-host in Hosts to execute") : tr("read-only daemon — plan only")}</span>
           </div>
           {plan.results.map((r) => (
             <div className={`fleet-deploy-row ${r.ok ? "ok" : "bad"}`} key={r.host_id}>
               <span className={`container-dot ${r.ok ? "online" : "offline"}`} />
               <strong>{r.label || r.host_id}</strong>
               {r.ok
-                ? <span className="muted">{r.mutating_steps ?? 0} mutating steps</span>
+                ? <span className="muted">{r.mutating_steps ?? 0} {tr("mutating steps")}</span>
                 : <span className="fleet-deploy-err">{r.error}</span>}
             </div>
           ))}

@@ -9,6 +9,7 @@
 import { type ProductOverview, type EnvironmentReport } from "../api";
 import { SkeletonMetrics } from "../Skeleton";
 import { InfoRows } from "../components/primitives";
+import { tr } from "../i18n";
 
 export function ProjectCatalogPanel({ overview, environment }: { overview: ProductOverview | null; environment: EnvironmentReport | null }) {
   if (!overview) return <SkeletonMetrics count={4} />;
@@ -16,10 +17,10 @@ export function ProjectCatalogPanel({ overview, environment }: { overview: Produ
   const features = overview.capabilities.features ?? [];
   const capsReady = features.filter((feature) => feature.status === "available").length;
   const tiles: Array<[string, number]> = [
-    ["Presets", catalog.presets_count],
-    ["Models", catalog.models_count],
-    ["Profiles", catalog.profiles_count],
-    ["Hardware", catalog.hardware_count]
+    [tr("Presets"), catalog.presets_count],
+    [tr("Models"), catalog.models_count],
+    [tr("Profiles"), catalog.profiles_count],
+    [tr("Hardware"), catalog.hardware_count]
   ];
   const annotated = catalog.presets_count ? Math.round((catalog.preset_cards_count / catalog.presets_count) * 100) : 0;
   const lifecycle = Object.entries(catalog.status_counts || {});
@@ -36,31 +37,31 @@ export function ProjectCatalogPanel({ overview, environment }: { overview: Produ
         ))}
       </div>
       <InfoRows rows={[
-        ["Engine target", `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? "(not installed)"}`.trim()],
-        ["Annotated presets", `${catalog.preset_cards_count}/${catalog.presets_count} · ${annotated}%`],
-        ["Capabilities ready", `${capsReady}/${features.length}`],
-        ["Load errors", String(catalog.preset_load_error_count)]
+        [tr("Engine target"), `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? tr("(not installed)")}`.trim()],
+        [tr("Annotated presets"), `${catalog.preset_cards_count}/${catalog.presets_count} · ${annotated}%`],
+        [tr("Capabilities ready"), `${capsReady}/${features.length}`],
+        [tr("Load errors"), String(catalog.preset_load_error_count)]
       ]} />
       {lifecycle.length > 0 && (
         <div className="catalog-dist">
-          <span className="catalog-dist-label">Lifecycle</span>
-          <div className="fleet-caps" role="group" aria-label="Preset lifecycle distribution">
+          <span className="catalog-dist-label">{tr("Lifecycle")}</span>
+          <div className="fleet-caps" role="group" aria-label={tr("Preset lifecycle distribution")}>
             {lifecycle.map(([key, value]) => <span className="cap-chip neutral" key={key}>{key} · {value}</span>)}
           </div>
         </div>
       )}
       {workloads.length > 0 && (
         <div className="catalog-dist">
-          <span className="catalog-dist-label">Workloads</span>
-          <div className="fleet-caps" role="group" aria-label="Workload distribution">
+          <span className="catalog-dist-label">{tr("Workloads")}</span>
+          <div className="fleet-caps" role="group" aria-label={tr("Workload distribution")}>
             {workloads.map(([key, value]) => <span className="cap-chip neutral" key={key}>{key.replace(/_/g, " ")} · {value}</span>)}
           </div>
         </div>
       )}
       {families.length > 0 && (
         <div className="catalog-dist">
-          <span className="catalog-dist-label">Patch families</span>
-          <div className="fleet-caps" role="group" aria-label="Patch family distribution">
+          <span className="catalog-dist-label">{tr("Patch families")}</span>
+          <div className="fleet-caps" role="group" aria-label={tr("Patch family distribution")}>
             {families.map(([key, value]) => <span className="cap-chip neutral" key={key}>{key} · {value}</span>)}
           </div>
         </div>

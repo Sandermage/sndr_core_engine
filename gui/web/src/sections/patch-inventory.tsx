@@ -14,6 +14,7 @@ import { api, type PatchRow, type PatchExplainResult } from "../api";
 import { StatusBadge } from "../components/primitives";
 import { EmptyState } from "../components/empty-state";
 import { PatchExplainPanel } from "./patch-explain";
+import { tr } from "../i18n";
 
 function PatchFamilyGroup({
   family,
@@ -42,7 +43,7 @@ function PatchFamilyGroup({
         <ChevronRight className="coll-caret" size={14} />
         <strong>{family}</strong>
         <span className="patch-family-count">{rows.length}</span>
-        <em>{applied} applied</em>
+        <em>{applied} {tr("applied")}</em>
       </button>
       {expanded && (
         <div className="patch-family-rows" id={rowsId}>
@@ -54,7 +55,7 @@ function PatchFamilyGroup({
             >
               <strong>{patch.patch_id}</strong>
               <StatusBadge status={patch.lifecycle} />
-              <span className="patch-row-default">{patch.production_default}</span>
+              <span className="patch-row-default">{tr(patch.production_default)}</span>
               <small>{patch.title}</small>
             </button>
           ))}
@@ -143,23 +144,23 @@ export function PatchInventoryControl({ patches }: { patches: PatchRow[] }) {
           <input
             value={needle}
             onChange={(event) => setNeedle(event.target.value)}
-            placeholder="Filter patch id, family, env flag"
-            aria-label="Filter patches"
+            placeholder={tr("Filter patch id, family, env flag")}
+            aria-label={tr("Filter patches")}
           />
         </label>
-        <select value={lifecycle} onChange={(event) => setLifecycle(event.target.value)} aria-label="Filter by lifecycle">
-          <option value="all">All lifecycles</option>
-          {lifecycleOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+        <select value={lifecycle} onChange={(event) => setLifecycle(event.target.value)} aria-label={tr("Filter by lifecycle")}>
+          <option value="all">{tr("All lifecycles")}</option>
+          {lifecycleOptions.map((item) => <option key={item} value={item}>{tr(item)}</option>)}
         </select>
-        <select value={productionDefault} onChange={(event) => setProductionDefault(event.target.value)} aria-label="Filter by production default">
-          <option value="all">All defaults</option>
-          {defaultOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+        <select value={productionDefault} onChange={(event) => setProductionDefault(event.target.value)} aria-label={tr("Filter by production default")}>
+          <option value="all">{tr("All defaults")}</option>
+          {defaultOptions.map((item) => <option key={item} value={item}>{tr(item)}</option>)}
         </select>
-        <div className="settings-segmented" role="group" aria-label="Patch grouping">
-          <button className={groupByFamily ? "active" : ""} aria-pressed={groupByFamily} onClick={() => setGroupByFamily(true)}>By family</button>
-          <button className={!groupByFamily ? "active" : ""} aria-pressed={!groupByFamily} onClick={() => setGroupByFamily(false)}>Flat list</button>
+        <div className="settings-segmented" role="group" aria-label={tr("Patch grouping")}>
+          <button className={groupByFamily ? "active" : ""} aria-pressed={groupByFamily} onClick={() => setGroupByFamily(true)}>{tr("By family")}</button>
+          <button className={!groupByFamily ? "active" : ""} aria-pressed={!groupByFamily} onClick={() => setGroupByFamily(false)}>{tr("Flat list")}</button>
         </div>
-        <span>{visibleRows.length} matched · {familyGroups.length} families</span>
+        <span>{visibleRows.length} {tr("matched")} · {familyGroups.length} {tr("families")}</span>
       </div>
       <div className="patch-control-grid">
         <div className="patch-table-scroll">
@@ -179,9 +180,9 @@ export function PatchInventoryControl({ patches }: { patches: PatchRow[] }) {
                 return (
                   <EmptyState
                     icon={<PackageCheck size={22} />}
-                    title="No patches match"
-                    message={filtered ? "No patches in the registry match the active filters." : "The patch registry is empty."}
-                    action={filtered ? { label: "Clear filters", icon: <X size={14} />, onClick: () => { setNeedle(""); setLifecycle("all"); setProductionDefault("all"); } } : undefined}
+                    title={tr("No patches match")}
+                    message={filtered ? tr("No patches in the registry match the active filters.") : tr("The patch registry is empty.")}
+                    action={filtered ? { label: tr("Clear filters"), icon: <X size={14} />, onClick: () => { setNeedle(""); setLifecycle("all"); setProductionDefault("all"); } } : undefined}
                   />
                 );
               })()}
@@ -198,12 +199,12 @@ export function PatchInventoryControl({ patches }: { patches: PatchRow[] }) {
               </colgroup>
               <thead>
                 <tr>
-                  <th scope="col">Patch</th>
-                  <th scope="col">Lifecycle</th>
-                  <th scope="col">Default</th>
-                  <th scope="col">Family</th>
-                  <th scope="col">Upstream</th>
-                  <th scope="col">Title</th>
+                  <th scope="col">{tr("Patch")}</th>
+                  <th scope="col">{tr("Lifecycle")}</th>
+                  <th scope="col">{tr("Default")}</th>
+                  <th scope="col">{tr("Family")}</th>
+                  <th scope="col">{tr("Upstream")}</th>
+                  <th scope="col">{tr("Title")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -219,7 +220,7 @@ export function PatchInventoryControl({ patches }: { patches: PatchRow[] }) {
                       </button>
                     </td>
                     <td><StatusBadge status={patch.lifecycle} /></td>
-                    <td>{patch.production_default}</td>
+                    <td>{tr(patch.production_default)}</td>
                     <td>{patch.family || "-"}</td>
                     <td>{patch.upstream_pr ? `#${patch.upstream_pr}` : "-"}</td>
                     <td>{patch.title}</td>

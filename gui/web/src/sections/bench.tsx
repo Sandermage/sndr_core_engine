@@ -6,6 +6,7 @@ import { type PresetRecord } from "../api";
 import { asRecord, asNumber, asText } from "../lib/coerce";
 import { formatTokens } from "../lib/format";
 import { StatusBadge, InfoRows } from "../components/primitives";
+import { tr } from "../i18n";
 
 export function BenchmarkBaselinePanel({
   card,
@@ -26,29 +27,29 @@ export function BenchmarkBaselinePanel({
       <div className="bench-hero">
         <div className="bench-hero-metric">
           <span className="bench-hero-value">{hasValue ? value.toLocaleString() : "—"}</span>
-          <span className="bench-hero-unit">{asText(metric.kind, "no baseline metric")}</span>
+          <span className="bench-hero-unit">{asText(metric.kind, tr("no baseline metric"))}</span>
         </div>
         <InfoRows
           rows={[
-            ["Measured at", asText(metric.measured_at, "not measured")],
-            ["Source", asText(metric.source, "-")],
-            ["Preset", selectedPreset || "-"]
+            [tr("Measured at"), asText(metric.measured_at, tr("not measured"))],
+            [tr("Source"), asText(metric.source, "-")],
+            [tr("Preset"), selectedPreset || "-"]
           ]}
         />
       </div>
       <div className="bench-runtime">
-        <h5>Runtime under test</h5>
+        <h5>{tr("Runtime under test")}</h5>
         <InfoRows
           rows={[
-            ["Model", asText(composed.model ?? record?.model, "-")],
-            ["Hardware", asText(composed.hardware ?? record?.hardware, "-")],
-            ["Profile", asText(composed.profile ?? record?.profile, "-")],
-            ["Max context", formatTokens(asNumber(composed.max_model_len))],
-            ["Max sequences", asText(composed.max_num_seqs, "-")],
-            ["GPU mem util", asText(composed.gpu_memory_utilization, "-")],
-            ["KV cache", asText(composed.kv_cache_dtype, "-")],
-            ["Spec decode", `${asText(composed.spec_decode_method, "-")} / K=${asText(composed.spec_decode_K, "-")}`],
-            ["Enabled patches", asText(composed.enabled_patches_count, "-")]
+            [tr("Model"), asText(composed.model ?? record?.model, "-")],
+            [tr("Hardware"), asText(composed.hardware ?? record?.hardware, "-")],
+            [tr("Profile"), asText(composed.profile ?? record?.profile, "-")],
+            [tr("Max context"), formatTokens(asNumber(composed.max_model_len))],
+            [tr("Max sequences"), asText(composed.max_num_seqs, "-")],
+            [tr("GPU mem util"), asText(composed.gpu_memory_utilization, "-")],
+            [tr("KV cache"), asText(composed.kv_cache_dtype, "-")],
+            [tr("Spec decode"), `${asText(composed.spec_decode_method, "-")} / K=${asText(composed.spec_decode_K, "-")}`],
+            [tr("Enabled patches"), asText(composed.enabled_patches_count, "-")]
           ]}
         />
       </div>
@@ -74,8 +75,8 @@ export function EvidenceRows({ card }: { card: Record<string, unknown> }) {
       }) : (
         <div>
           <div>
-            <strong>No evidence refs</strong>
-            <small>Selected preset does not expose evidence metadata yet.</small>
+            <strong>{tr("No evidence refs")}</strong>
+            <small>{tr("Selected preset does not expose evidence metadata yet.")}</small>
           </div>
           <StatusBadge status="missing" />
         </div>

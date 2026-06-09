@@ -14,6 +14,7 @@ import {
   api, type V2ConfigCatalog, type V2ConfigItem, type V2ConfigApplyResult, type V2ConfigPlan,
   type V2ConfigPreview, type V2LayerApplyResult, type V2LayerDefinition, type UserPresetList
 } from "../api";
+import { tr } from "../i18n";
 import { asNumber, asText } from "../lib/coerce";
 import { formatTokens, formatVram } from "../lib/format";
 import { type RuntimeConfigDraft, buildRuntimeDraft, runtimeDraftDiff } from "../lib/runtime-draft";
@@ -27,7 +28,7 @@ import { TabbedSection } from "../components/tabbed-section";
 import { EmptyState } from "../components/empty-state";
 import { CatalogCard, ModelFitCard } from "./catalog-cards";
 import { ConfigApplyPanel, ConfigComparePanel, ConfigPlanPanel } from "./config";
-import { type ElementKind, ELEMENT_FIELDS, discoverExtraFields, groupFields, ElementField } from "./element-fields";
+import { type ElementKind, ELEMENT_FIELDS_FOR, discoverExtraFields, groupFields, ElementField } from "./element-fields";
 import { ParamFields } from "./config-draft-editor";
 import { ProfileDeltaPanel, UserPresetsPanel } from "./presets";
 import { itemBadges } from "./models-workbench";
@@ -84,7 +85,7 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
   // Adaptive: curated fields first, then any extra scalar leaves the loaded
   // definition actually contains (so new/unknown fields still render + edit).
   const fields = useMemo(() => {
-    const curated = ELEMENT_FIELDS[kind];
+    const curated = ELEMENT_FIELDS_FOR(kind);
     if (!edited) return curated;
     const known = new Set(curated.map((spec) => spec.path));
     return [...curated, ...discoverExtraFields(edited, known)];
@@ -112,9 +113,9 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
       <aside className="element-rail">
         <div className="config-panel-title">
           <Layers3 size={16} />
-          <strong>Element</strong>
+          <strong>{tr("Element")}</strong>
         </div>
-        <p className="config-panel-desc">Choose a config layer and item to inspect and edit.</p>
+        <p className="config-panel-desc">{tr("Choose a config layer and item to inspect and edit.")}</p>
         <div className="element-kind-tiles">
           {([
             { id: "model", icon: <Box size={15} /> },
@@ -136,7 +137,7 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
         </div>
         <label className="search-box">
           <Search size={15} />
-          <input aria-label={`Search ${kind}`} value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={`Search ${kind}`} />
+          <input aria-label={`${tr("Search")} ${kind}`} value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={`${tr("Search")} ${kind}`} />
         </label>
         <div className="catalog-list">
           {visible.map((item) => (
@@ -158,9 +159,9 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
           {visible.length === 0 && (
             <EmptyState
               icon={<Layers size={22} />}
-              title={`No ${kind} matches`}
-              message={filter ? <>Nothing in {kind} matches “{filter}”.</> : `No ${kind} elements in the catalog.`}
-              action={filter ? { label: "Clear search", icon: <X size={14} />, onClick: () => setFilter("") } : undefined}
+              title={`${tr("No")} ${kind} ${tr("matches")}`}
+              message={filter ? <>{tr("Nothing in")} {kind} {tr("matches")} “{filter}”.</> : `${tr("No")} ${kind} ${tr("elements in the catalog.")}`}
+              action={filter ? { label: tr("Clear search"), icon: <X size={14} />, onClick: () => setFilter("") } : undefined}
             />
           )}
         </div>
@@ -169,7 +170,7 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
       <section className="element-form-panel">
         <div className="config-panel-title">
           <SlidersHorizontal size={16} />
-          <strong>{activeId || "No selection"}</strong>
+          <strong>{activeId || tr("No selection")}</strong>
           <StatusBadge status={state === "loading" ? "partial" : state === "error" ? "missing" : "available"} />
         </div>
         <p className="element-source">{source}</p>
@@ -201,19 +202,19 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
               {applyResult.status === "applied" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
             </span>
             <div>
-              <strong>{applyResult.status === "applied" ? "Saved to user dir" : applyResult.status}</strong>
+              <strong>{applyResult.status === "applied" ? tr("Saved to user dir") : applyResult.status}</strong>
               <small>{applyResult.target_path || applyResult.message}</small>
               {applyResult.blocked_reasons.length > 0 && <small>{applyResult.blocked_reasons.join("; ")}</small>}
             </div>
           </div>
         )}
         <div className="config-actions">
-          <span className="config-actions-note">Edits update the YAML draft on the right</span>
+          <span className="config-actions-note">{tr("Edits update the YAML draft on the right")}</span>
           <button className="ghost-button" onClick={() => { setItemId(activeId); setState("idle"); }}>
-            <RefreshCw size={14} /> Reload
+            <RefreshCw size={14} /> {tr("Reload")}
           </button>
           <button className="primary-action" onClick={() => void runSave()} disabled={!edited || applying}>
-            <PackageCheck size={14} /> {applying ? "Saving…" : "Save to user dir"}
+            <PackageCheck size={14} /> {applying ? tr("Saving…") : tr("Save to user dir")}
           </button>
         </div>
       </section>
@@ -222,12 +223,11 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
         <div className="config-panel-title">
           <Code2 size={16} />
           <strong>{kind}.yaml</strong>
-          <span>{yaml.length} lines</span>
+          <span>{yaml.length} {tr("lines")}</span>
         </div>
         <CodeBlock lines={yaml} />
         <p className="element-note">
-          Full definition with your edits. Copy to export, or use the Compose tab → Apply Plan to persist an
-          operator-local preset. Direct model/hardware/profile writes need a layer-apply API.
+          {tr("Full definition with your edits. Copy to export, or use the Compose tab → Apply Plan to persist an operator-local preset. Direct model/hardware/profile writes need a layer-apply API.")}
         </p>
       </section>
     </section>
@@ -247,10 +247,10 @@ export function ConfigsSection(props: {
     <div className="configs-section">
       <div className="configs-top-tabs">
         <button className={tab === "compose" ? "active" : ""} onClick={() => setTab("compose")}>
-          <Layers3 size={15} /> Compose
+          <Layers3 size={15} /> {tr("Compose")}
         </button>
         <button className={tab === "edit" ? "active" : ""} onClick={() => setTab("edit")}>
-          <SlidersHorizontal size={15} /> Edit element
+          <SlidersHorizontal size={15} /> {tr("Edit element")}
         </button>
       </div>
       {tab === "compose" ? <V2ConfigWorkbench {...props} /> : <ConfigElementEditor catalog={props.catalog} />}
@@ -265,12 +265,12 @@ function CompositionChain({ model, hardware, profile, composed }: {
   model: V2ConfigItem | null; hardware: V2ConfigItem | null; profile: V2ConfigItem | null; composed: Record<string, any>;
 }) {
   const layers = [
-    { kind: "Model", icon: <Box size={13} />, item: model, optional: false,
+    { kind: tr("Model"), icon: <Box size={13} />, item: model, optional: false,
       fact: model ? [model.fields?.quantization || model.fields?.dtype, model.fields?.attention_arch].filter(Boolean).join(" · ") : "" },
-    { kind: "Hardware", icon: <Server size={13} />, item: hardware, optional: false,
+    { kind: tr("Hardware"), icon: <Server size={13} />, item: hardware, optional: false,
       fact: hardware ? `${hardware.fields?.n_gpus ?? "?"}× GPU${hardware.fields?.min_vram_per_gpu_mib ? ` · ${Math.round(hardware.fields.min_vram_per_gpu_mib / 1024)}GB` : ""}` : "" },
-    { kind: "Profile", icon: <SlidersHorizontal size={13} />, item: profile, optional: true,
-      fact: profile ? String(profile.fields?.role || profile.status || "override") : "" }
+    { kind: tr("Profile"), icon: <SlidersHorizontal size={13} />, item: profile, optional: true,
+      fact: profile ? String(profile.fields?.role || profile.status || tr("override")) : "" }
   ];
   const resultFacts = [
     composed?.max_model_len && `${(Number(composed.max_model_len) / 1024).toFixed(0)}K ctx`,
@@ -282,17 +282,17 @@ function CompositionChain({ model, hardware, profile, composed }: {
       {layers.map((l) => (
         <Fragment key={l.kind}>
           <div className={`comp-layer ${l.item ? "" : l.optional ? "none" : "empty"}`}>
-            <div className="comp-layer-head">{l.icon} {l.kind}{l.optional && !l.item ? " (none)" : ""}</div>
-            <code className="comp-layer-id">{l.item?.id ?? (l.optional ? "—" : "pick one")}</code>
+            <div className="comp-layer-head">{l.icon} {l.kind}{l.optional && !l.item ? ` (${tr("none")})` : ""}</div>
+            <code className="comp-layer-id">{l.item?.id ?? (l.optional ? "—" : tr("pick one"))}</code>
             {l.fact && <div className="comp-layer-fact">{l.fact}</div>}
           </div>
           <ChevronRight className="comp-arrow" size={16} />
         </Fragment>
       ))}
       <div className="comp-layer result">
-        <div className="comp-layer-head"><Rocket size={13} /> Composed</div>
-        <code className="comp-layer-id">runtime config</code>
-        <div className="comp-layer-fact">{resultFacts.length ? resultFacts.join(" · ") : "preview to resolve"}</div>
+        <div className="comp-layer-head"><Rocket size={13} /> {tr("Composed")}</div>
+        <code className="comp-layer-id">{tr("runtime config")}</code>
+        <div className="comp-layer-fact">{resultFacts.length ? resultFacts.join(" · ") : tr("preview to resolve")}</div>
       </div>
     </div>
   );
@@ -308,10 +308,10 @@ function ResolvedConfig({ composed }: { composed: Record<string, any> }) {
   if (!entries.length) return null;
   return (
     <details className="resolved-config" open>
-      <summary>Resolved runtime config — {entries.length} parameters{envCount ? ` · ${envCount} patch flags` : ""}</summary>
+      <summary>{tr("Resolved runtime config")} — {entries.length} {tr("parameters")}{envCount ? ` · ${envCount} ${tr("patch flags")}` : ""}</summary>
       <div className="resolved-grid">
         {entries.map(([k, v]) => (
-          <div key={k} className="resolved-row"><code>{k}</code><span>{typeof v === "boolean" ? (v ? "yes" : "no") : String(v)}</span></div>
+          <div key={k} className="resolved-row"><code>{k}</code><span>{typeof v === "boolean" ? (v ? tr("yes") : tr("no")) : String(v)}</span></div>
         ))}
       </div>
     </details>
@@ -509,7 +509,7 @@ function V2ConfigWorkbench({
       <div className="config-control-bar">
         <div className="config-control-selects">
           <ConfigSelect
-            label="Model"
+            label={tr("Model")}
             icon={<Box size={16} />}
             value={modelId}
             items={catalog?.models ?? []}
@@ -521,14 +521,14 @@ function V2ConfigWorkbench({
             }}
           />
           <ConfigSelect
-            label="Hardware"
+            label={tr("Hardware")}
             icon={<HardDrive size={16} />}
             value={hardwareId}
             items={catalog?.hardware ?? []}
             onChange={(value) => { setHardwareId(value); void runPreview({ hardware: value }); }}
           />
           <ConfigSelect
-            label="Profile"
+            label={tr("Profile")}
             icon={<Gauge size={16} />}
             value={profileId}
             items={compatibleProfiles}
@@ -536,71 +536,71 @@ function V2ConfigWorkbench({
             onChange={(value) => { setProfileId(value); void runPreview({ profile: value }); }}
           />
           <label className="config-select-card">
-            <span><Server size={16} /> Runtime</span>
+            <span><Server size={16} /> {tr("Runtime")}</span>
             <select value={runtime} onChange={(event) => { setRuntime(event.target.value); void runPreview({ runtime: event.target.value }); }}>
               {["docker", "podman", "kubernetes", "systemd", "bare"].map((item) => (<option key={item} value={item}>{item}</option>))}
             </select>
-            <small>Container / orchestration target</small>
+            <small>{tr("Container / orchestration target")}</small>
           </label>
           <label className="config-select-card">
-            <span><PackageCheck size={16} /> Draft id</span>
+            <span><PackageCheck size={16} /> {tr("Draft id")}</span>
             <input
               value={draftPresetId}
               onChange={(event) => { setDraftPresetId(event.target.value); setConfigPlan(null); setPlanState("idle"); setPlanError(null); }}
             />
-            <small>Operator-local config name</small>
+            <small>{tr("Operator-local config name")}</small>
           </label>
         </div>
         <div className="config-control-actions">
-          <button className="ghost-button" onClick={() => void runPreview()}><RefreshCw size={15} /> Preview</button>
+          <button className="ghost-button" onClick={() => void runPreview()}><RefreshCw size={15} /> {tr("Preview")}</button>
           <button className="ghost-button" onClick={() => void runConfigPlan()} disabled={planState === "loading"}>
-            <ListChecks size={15} /> {planState === "loading" ? "Planning" : "Plan"}
+            <ListChecks size={15} /> {planState === "loading" ? tr("Planning") : tr("Plan")}
           </button>
           <button
             className={configPlan?.valid ? "primary-action" : "disabled-launch"}
             disabled={!configPlan?.valid || applyState === "loading"}
-            title={configPlan?.valid ? "Write this draft to your operator-local config dir" : "Run Plan first"}
+            title={configPlan?.valid ? tr("Write this draft to your operator-local config dir") : tr("Run Plan first")}
             onClick={() => void runConfigApply()}
           >
-            <PackageCheck size={15} /> {applyState === "loading" ? "Applying" : "Apply Plan"}
+            <PackageCheck size={15} /> {applyState === "loading" ? tr("Applying") : tr("Apply Plan")}
           </button>
         </div>
       </div>
 
       <div className="config-status-strip">
-        <RailCheck label="Compatible" value={preview?.compatible ? "yes" : "no"} status={preview?.compatible ? "pass" : "warning"} />
-        <RailCheck label="Status" value={preview?.status ?? "—"} status={preview?.status ? "pass" : "warning"} />
-        <RailCheck label="Context" value={formatTokens(asNumber(preview?.composed.max_model_len))} status="pass" />
-        <RailCheck label="Sequences" value={String(asNumber(preview?.composed.max_num_seqs) || "—")} status="pass" />
-        <RailCheck label="KV cache" value={asText(preview?.composed.kv_cache_dtype, "—")} status="pass" />
-        <RailCheck label="Spec decode" value={asText(preview?.composed.spec_decode_method, "—")} status="pass" />
-        <RailCheck label="Patches" value={String(asNumber(preview?.composed.enabled_patches_count) || "—")} status="pass" />
+        <RailCheck label={tr("Compatible")} value={preview?.compatible ? tr("yes") : tr("no")} status={preview?.compatible ? "pass" : "warning"} />
+        <RailCheck label={tr("Status")} value={preview?.status ?? "—"} status={preview?.status ? "pass" : "warning"} />
+        <RailCheck label={tr("Context")} value={formatTokens(asNumber(preview?.composed.max_model_len))} status="pass" />
+        <RailCheck label={tr("Sequences")} value={String(asNumber(preview?.composed.max_num_seqs) || "—")} status="pass" />
+        <RailCheck label={tr("KV cache")} value={asText(preview?.composed.kv_cache_dtype, "—")} status="pass" />
+        <RailCheck label={tr("Spec decode")} value={asText(preview?.composed.spec_decode_method, "—")} status="pass" />
+        <RailCheck label={tr("Patches")} value={String(asNumber(preview?.composed.enabled_patches_count) || "—")} status="pass" />
       </div>
 
       <TabbedSection
         id={`config-${modelId}-${hardwareId}-${profileId}`}
         tabs={[
           {
-            id: "composition", label: "Composition", icon: <SlidersHorizontal size={15} />,
+            id: "composition", label: tr("Composition"), icon: <SlidersHorizontal size={15} />,
             render: () => (
               <>
               <ModuleGrid>
-                <ModuleCard title="Layer Inspector" icon={<SlidersHorizontal size={18} />} desc="A preset is composed from three layers — model + hardware + profile — resolved to one runtime config." wide>
+                <ModuleCard title={tr("Layer Inspector")} icon={<SlidersHorizontal size={18} />} desc={tr("A preset is composed from three layers — model + hardware + profile — resolved to one runtime config.")} wide>
                   <CompositionChain model={selectedModel} hardware={selectedHardware} profile={selectedProfile} composed={preview?.composed ?? {}} />
                   {selectedProfile?.parent_model && modelId && selectedProfile.parent_model !== modelId && (
                     <div className="comp-conflict">
-                      <AlertTriangle size={13} /> Profile <code>{selectedProfile.id}</code> targets model <code>{selectedProfile.parent_model}</code>, but the composer has <code>{modelId}</code> — sizing/patches from this profile may not apply cleanly.
+                      <AlertTriangle size={13} /> {tr("Profile")} <code>{selectedProfile.id}</code> {tr("targets model")} <code>{selectedProfile.parent_model}</code>, {tr("but the composer has")} <code>{modelId}</code> — {tr("sizing/patches from this profile may not apply cleanly.")}
                     </div>
                   )}
                   <ResolvedConfig composed={preview?.composed ?? {}} />
                   <div className="config-layers-row">
-                    <ConfigItemInspector title="Model" item={selectedModel} />
-                    <ConfigItemInspector title="Hardware" item={selectedHardware} />
-                    <ConfigItemInspector title="Profile" item={selectedProfile} />
+                    <ConfigItemInspector title="Model" titleLabel={tr("Model")} item={selectedModel} />
+                    <ConfigItemInspector title="Hardware" titleLabel={tr("Hardware")} item={selectedHardware} />
+                    <ConfigItemInspector title="Profile" titleLabel={tr("Profile")} item={selectedProfile} />
                   </div>
                   {profileDef && <ProfileDeltaPanel def={profileDef.definition} />}
                 </ModuleCard>
-                <ModuleCard title="Compatibility & Fit" icon={<Gauge size={18} />} desc={`Does ${modelId} fit on ${hardwareId}?`} wide>
+                <ModuleCard title={tr("Compatibility & Fit")} icon={<Gauge size={18} />} desc={`${tr("Does")} ${modelId} ${tr("fit on")} ${hardwareId}?`} wide>
                   <ModelFitCard
                     modelId={modelId}
                     hardwareOptions={(catalog?.hardware ?? []).map((item) => item.id)}
@@ -609,15 +609,15 @@ function V2ConfigWorkbench({
                 </ModuleCard>
               </ModuleGrid>
               <ModuleGrid className="config-aux-grid">
-                <ModuleCard title="Compose Messages" icon={<FileText size={18} />} desc="Notes emitted while composing this configuration.">
+                <ModuleCard title={tr("Compose Messages")} icon={<FileText size={18} />} desc={tr("Notes emitted while composing this configuration.")}>
                   {(preview?.messages ?? []).length
-                    ? <CompactList rows={(preview?.messages ?? []).map((message, index) => [`Message ${index + 1}`, message])} />
-                    : <p className="muted">Composition produced no messages.</p>}
+                    ? <CompactList rows={(preview?.messages ?? []).map((message, index) => [`${tr("Message")} ${index + 1}`, message])} />
+                    : <p className="muted">{tr("Composition produced no messages.")}</p>}
                 </ModuleCard>
-                <ModuleCard title="Preset Templates" icon={<Database size={18} />} desc="Load a builtin preset's layer stack into the composer.">
+                <ModuleCard title={tr("Preset Templates")} icon={<Database size={18} />} desc={tr("Load a builtin preset's layer stack into the composer.")}>
                   <label className="search-box">
                     <Search size={15} />
-                    <input aria-label="Search presets, models and profiles" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Search preset/model/profile" />
+                    <input aria-label={tr("Search presets, models and profiles")} value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={tr("Search preset/model/profile")} />
                   </label>
                   <div className="preset-template-list">
                     {visiblePresets.map((preset) => (
@@ -628,12 +628,12 @@ function V2ConfigWorkbench({
                       >
                         <strong>{preset.id}</strong>
                         <span>{preset.model}</span>
-                        <small>{preset.profile ?? "no profile"} / {preset.status || "unannotated"}</small>
+                        <small>{preset.profile ?? tr("no profile")} / {preset.status || tr("unannotated")}</small>
                       </button>
                     ))}
                   </div>
                 </ModuleCard>
-                <ModuleCard title="User Presets" icon={<PackageCheck size={18} />} desc="Operator-local presets written by Apply Plan.">
+                <ModuleCard title={tr("User Presets")} icon={<PackageCheck size={18} />} desc={tr("Operator-local presets written by Apply Plan.")}>
                   <UserPresetsPanel presets={userPresets} />
                 </ModuleCard>
               </ModuleGrid>
@@ -641,30 +641,30 @@ function V2ConfigWorkbench({
             )
           },
           {
-            id: "draft", label: "Draft", icon: <Code2 size={15} />,
+            id: "draft", label: tr("Draft"), icon: <Code2 size={15} />,
             render: () => (
               <ModuleGrid>
-                <ModuleCard title="Runtime Parameters" icon={<SlidersHorizontal size={18} />} desc={`Local draft — diff vs composed baseline (${configDiffs.length} changes).`} wide>
+                <ModuleCard title={tr("Runtime Parameters")} icon={<SlidersHorizontal size={18} />} desc={`${tr("Local draft — diff vs composed baseline")} (${configDiffs.length} ${tr("changes")}).`} wide>
                   <div className="param-editor-controls">
                     <ParamFields baseDraft={baseDraft} draft={draft} set={setParam} />
                   </div>
                 </ModuleCard>
-                <ModuleCard title="Draft YAML" icon={<Code2 size={18} />} desc="Editable preview — persist via Apply Plan." wide>
+                <ModuleCard title={tr("Draft YAML")} icon={<Code2 size={18} />} desc={tr("Editable preview — persist via Apply Plan.")} wide>
                   <div className="yaml-editor">
-                    <CodeEditorField value={configYaml} onChange={setYamlText} label="config YAML" />
+                    <CodeEditorField value={configYaml} onChange={setYamlText} label={tr("config YAML")} />
                     <div className="config-actions">
-                      <span className="config-actions-note">Editable preview — persist via Apply Plan</span>
-                      <button className="ghost-button" onClick={() => setYamlText(null)}>Reset to generated</button>
+                      <span className="config-actions-note">{tr("Editable preview — persist via Apply Plan")}</span>
+                      <button className="ghost-button" onClick={() => setYamlText(null)}>{tr("Reset to generated")}</button>
                     </div>
                   </div>
                 </ModuleCard>
-                <ModuleCard title="Draft Diff" icon={<GitBranch size={18} />} desc="Draft vs composed baseline + planned file diff." wide>
+                <ModuleCard title={tr("Draft Diff")} icon={<GitBranch size={18} />} desc={tr("Draft vs composed baseline + planned file diff.")} wide>
                   <div className="diff-panel tall">
-                    <strong>Draft vs composed baseline ({configDiffs.length})</strong>
-                    {configDiffs.length ? configDiffs.map((line, index) => <span key={index}>{line}</span>) : <span>No parameter changes</span>}
+                    <strong>{tr("Draft vs composed baseline")} ({configDiffs.length})</strong>
+                    {configDiffs.length ? configDiffs.map((line, index) => <span key={index}>{line}</span>) : <span>{tr("No parameter changes")}</span>}
                     {configPlan && configPlan.diff_lines.length > 0 && (
                       <>
-                        <strong className="diff-section">Planned file diff</strong>
+                        <strong className="diff-section">{tr("Planned file diff")}</strong>
                         {configPlan.diff_lines.map((line, index) => (
                           <span key={`plan-${index}`} className={line.startsWith("+") ? "add" : line.startsWith("-") ? "del" : ""}>{line}</span>
                         ))}
@@ -676,10 +676,10 @@ function V2ConfigWorkbench({
             )
           },
           {
-            id: "outputs", label: "Outputs", icon: <SquareTerminal size={15} />,
+            id: "outputs", label: tr("Outputs"), icon: <SquareTerminal size={15} />,
             render: () => (
               <ModuleGrid>
-                <ModuleCard title="Generated Artifacts" icon={<Layers3 size={18} />} desc="Compose / docker run / systemd / env rendered from this draft." wide>
+                <ModuleCard title={tr("Generated Artifacts")} icon={<Layers3 size={18} />} desc={tr("Compose / docker run / systemd / env rendered from this draft.")} wide>
                   <div className="artifact-mode">
                     <div className="artifact-tabs">
                       {(["compose", "run", "systemd", "env"] as const).map((kind) => (
@@ -691,30 +691,30 @@ function V2ConfigWorkbench({
                     <CodeBlock lines={configArtifacts[artifactKind]} />
                   </div>
                 </ModuleCard>
-                <ModuleCard title="CLI Mirror" icon={<SquareTerminal size={18} />} desc="Equivalent sndr CLI to reproduce this composition." wide>
+                <ModuleCard title={tr("CLI Mirror")} icon={<SquareTerminal size={18} />} desc={tr("Equivalent sndr CLI to reproduce this composition.")} wide>
                   <CodeBlock lines={configCli} />
                 </ModuleCard>
               </ModuleGrid>
             )
           },
           {
-            id: "compare", label: "Compare", icon: <GitBranch size={15} />,
+            id: "compare", label: tr("Compare"), icon: <GitBranch size={15} />,
             render: () => (
               <ModuleGrid>
-                <ModuleCard title="Compare presets" icon={<GitBranch size={18} />} desc="Diff two presets' composed runtime configuration — context, concurrency, KV, patches and more." wide>
+                <ModuleCard title={tr("Compare presets")} icon={<GitBranch size={18} />} desc={tr("Diff two presets' composed runtime configuration — context, concurrency, KV, patches and more.")} wide>
                   <ConfigComparePanel presets={catalog?.presets ?? []} />
                 </ModuleCard>
               </ModuleGrid>
             )
           },
           {
-            id: "plan", label: "Plan & Apply", icon: <PackageCheck size={15} />,
+            id: "plan", label: tr("Plan & Apply"), icon: <PackageCheck size={15} />,
             render: () => (
               <ModuleGrid>
-                <ModuleCard title="Plan & Apply" icon={<PackageCheck size={18} />} desc="Write-safe plan, then Apply Plan to persist an operator-local preset." wide>
+                <ModuleCard title={tr("Plan & Apply")} icon={<PackageCheck size={18} />} desc={tr("Write-safe plan, then Apply Plan to persist an operator-local preset.")} wide>
                   {planError && <div className="config-plan-error"><AlertCircle size={15} /><span>{planError}</span></div>}
                   {applyError && <div className="config-plan-error"><AlertCircle size={15} /><span>{applyError}</span></div>}
-                  {configPlan ? <ConfigPlanPanel plan={configPlan} /> : <p className="muted">Run “Plan” to preview the write (diff + target path), then “Apply Plan”.</p>}
+                  {configPlan ? <ConfigPlanPanel plan={configPlan} /> : <p className="muted">{tr("Run “Plan” to preview the write (diff + target path), then “Apply Plan”.")}</p>}
                   {applyResult && <ConfigApplyPanel result={applyResult} />}
                 </ModuleCard>
               </ModuleGrid>
@@ -751,39 +751,40 @@ function ConfigSelect({
     <label className="config-select-card">
       <span>{icon} {label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {allowEmpty && <option value="">No profile</option>}
+        {allowEmpty && <option value="">{tr("No profile")}</option>}
         {items.map((item) => (
           <option key={item.id} value={item.id}>{item.id}</option>
         ))}
       </select>
-      <small>{selected?.title ?? "No layer selected"}</small>
+      <small>{selected?.title ?? tr("No layer selected")}</small>
     </label>
   );
 }
 
-const _INSPECTOR_ROWS: Record<string, Array<[string, string]>> = {
+const inspectorRows = (): Record<string, Array<[string, string]>> => ({
   Model: [
-    ["served_model_name", "Served"], ["quantization", "Quant"], ["dtype", "Dtype"],
-    ["attention_arch", "Attention"], ["kv_cache_dtype", "KV cache"],
-    ["min_gpu_count", "Min GPUs"], ["min_total_vram_mib", "Min VRAM"], ["patch_count", "Patches"]
+    ["served_model_name", tr("Served")], ["quantization", tr("Quant")], ["dtype", tr("Dtype")],
+    ["attention_arch", tr("Attention")], ["kv_cache_dtype", tr("KV cache")],
+    ["min_gpu_count", tr("Min GPUs")], ["min_total_vram_mib", tr("Min VRAM")], ["patch_count", tr("Patches")]
   ],
   Hardware: [
-    ["n_gpus", "GPUs"], ["min_vram_per_gpu_mib", "VRAM/GPU"], ["max_model_len", "Max ctx"],
-    ["max_num_seqs", "Max seqs"], ["gpu_memory_utilization", "GPU util"], ["runtime_default", "Runtime"]
+    ["n_gpus", tr("GPUs")], ["min_vram_per_gpu_mib", tr("VRAM/GPU")], ["max_model_len", tr("Max ctx")],
+    ["max_num_seqs", tr("Max seqs")], ["gpu_memory_utilization", tr("GPU util")], ["runtime_default", tr("Runtime")]
   ],
   Profile: [
-    ["max_model_len", "Max ctx"], ["max_num_seqs", "Max seqs"],
-    ["gpu_memory_utilization", "GPU util"], ["enable_delta", "Patch +"], ["disable_delta", "Patch −"]
+    ["max_model_len", tr("Max ctx")], ["max_num_seqs", tr("Max seqs")],
+    ["gpu_memory_utilization", tr("GPU util")], ["enable_delta", tr("Patch +")], ["disable_delta", tr("Patch −")]
   ]
-};
+});
 
-function ConfigItemInspector({ title, item }: { title: string; item: V2ConfigItem | null }) {
+function ConfigItemInspector({ title, titleLabel, item }: { title: string; titleLabel?: string; item: V2ConfigItem | null }) {
+  const label = titleLabel ?? title;
   const icon = title === "Hardware" ? <Cpu size={16} /> : title === "Profile" ? <SlidersHorizontal size={16} /> : <Box size={16} />;
   if (!item) {
     return (
       <div className="config-item-inspector empty">
         <span className="catalog-card-ico">{icon}</span>
-        <div><strong>{title}</strong><small>No selection</small></div>
+        <div><strong>{label}</strong><small>{tr("No selection")}</small></div>
       </div>
     );
   }
@@ -795,7 +796,7 @@ function ConfigItemInspector({ title, item }: { title: string; item: V2ConfigIte
     if (Array.isArray(value)) return value.length ? value.map(String).join(", ") : "-";
     return String(value);
   };
-  const rows = (_INSPECTOR_ROWS[title] ?? [])
+  const rows = (inspectorRows()[title] ?? [])
     .filter(([key]) => f[key] !== undefined && f[key] !== null && f[key] !== "")
     .map(([key, label]) => [label, fmt(key, f[key])] as [string, string]);
   return (
@@ -803,7 +804,7 @@ function ConfigItemInspector({ title, item }: { title: string; item: V2ConfigIte
       <div className="config-inspector-head">
         <span className="catalog-card-ico">{icon}</span>
         <div>
-          <strong>{title}: {item.id}</strong>
+          <strong>{label}: {item.id}</strong>
           {item.title && item.title !== item.id && <small>{item.title}</small>}
         </div>
       </div>
@@ -836,19 +837,19 @@ function CodeEditorField({ value, onChange, label }: { value: string; onChange: 
   return (
     <div className="code-wrap code-editor-field">
       <div className="code-actions">
-        <button className="icon-only" title="Expand editor" aria-label="Expand editor to fullscreen" onClick={() => setExpanded(true)}><Maximize2 size={13} /></button>
-        <CopyButton value={value} label={label ?? "text"} />
+        <button className="icon-only" title={tr("Expand editor")} aria-label={tr("Expand editor to fullscreen")} onClick={() => setExpanded(true)}><Maximize2 size={13} /></button>
+        <CopyButton value={value} label={label ?? tr("text")} />
       </div>
       <textarea className="yaml-area" value={value} spellCheck={false} onChange={(event) => onChange(event.target.value)} />
       {expanded && (
         <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(() => setExpanded(false))}>
-          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" aria-label={`${label ?? "Editor"} — fullscreen editor`}>
+          <section ref={dialogRef} className="code-expand" role="dialog" aria-modal="true" aria-label={`${label ?? tr("Editor")} — ${tr("fullscreen editor")}`}>
             <header className="code-expand-head">
               <Code2 size={15} />
-              <strong>{label ?? "Editor"}</strong>
-              <span className="muted">{value.split("\n").length} lines</span>
-              <CopyButton value={value} label={label ?? "text"} />
-              <button className="icon-only" onClick={() => setExpanded(false)} aria-label="Close"><X size={16} /></button>
+              <strong>{label ?? tr("Editor")}</strong>
+              <span className="muted">{value.split("\n").length} {tr("lines")}</span>
+              <CopyButton value={value} label={label ?? tr("text")} />
+              <button className="icon-only" onClick={() => setExpanded(false)} aria-label={tr("Close")}><X size={16} /></button>
             </header>
             <textarea className="yaml-area code-expand-editor" value={value} spellCheck={false} autoFocus onChange={(event) => onChange(event.target.value)} />
           </section>

@@ -3,6 +3,7 @@ import { ArrowRight, Bot, BookText, ChevronDown, CircleAlert, Copy, Database, Do
 import type { ReactNode } from "react";
 import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, type RoutingActive, type RoutingClassify, type RoutingSignals, api } from "./api";
 import { SkeletonMetrics } from "./Skeleton";
+import { tr } from "./i18n";
 
 function fmtCount(n: number | null): string {
   if (n === null || n === undefined) return "—";
@@ -40,7 +41,7 @@ export function EngineStatusCard({ host }: { host?: string }) {
       <div className="engine-status-head">
         <span className={`engine-dot ${up ? "up" : "down"}`} />
         <div>
-          <strong>{loading && !data ? "Probing engine…" : up ? "Engine online" : "Engine offline"}</strong>
+          <strong>{loading && !data ? tr("Probing engine…") : up ? tr("Engine online") : tr("Engine offline")}</strong>
           <small>{data?.base_url ?? "—"}</small>
         </div>
         {up && data?.version && <span className="engine-version">v{data.version}</span>}
@@ -52,12 +53,12 @@ export function EngineStatusCard({ host }: { host?: string }) {
               <span className="chip" key={model}>{model}</span>
             ))
           ) : (
-            <span className="muted">No model reported by /v1/models.</span>
+            <span className="muted">{tr("No model reported by /v1/models.")}</span>
           )}
         </div>
       ) : (
         <p className="muted">
-          {data?.error ? `${data.error}. ` : ""}Start the runtime (Launch Plan) — this reads the live OpenAI server.
+          {data?.error ? `${data.error}. ` : ""}{tr("Start the runtime (Launch Plan) — this reads the live OpenAI server.")}
         </p>
       )}
     </div>
@@ -78,7 +79,7 @@ const KPI_SPECS: Array<{ key: string; label: string; fmt: (v: number) => string;
 /** Dependency-free inline SVG sparkline. Null samples are skipped. */
 function Sparkline({ values, color }: { values: Array<number | null>; color: string }) {
   const points = values.filter((v): v is number => v !== null && !Number.isNaN(v));
-  if (points.length < 2) return <span className="sparkline-empty muted">collecting…</span>;
+  if (points.length < 2) return <span className="sparkline-empty muted">{tr("collecting…")}</span>;
   const min = Math.min(...points);
   const max = Math.max(...points);
   const range = max - min || 1;
@@ -100,7 +101,7 @@ function TrendRow({ label, values, unit, color }: { label: string; values: Array
   return (
     <div className="engine-trend">
       <div className="engine-trend-head">
-        <span>{label}</span>
+        <span>{tr(label)}</span>
         <strong>{latest === undefined ? "—" : `${Math.round((latest as number) * 10) / 10}${unit}`}</strong>
       </div>
       <Sparkline values={values} color={color} />
@@ -119,8 +120,8 @@ export function EngineMetricsPanel({ host }: { host?: string }) {
       <div className="engine-offline">
         <CircleAlert size={18} />
         <div>
-          <strong>Metrics unavailable</strong>
-          <p className="muted">{data?.error ?? "Engine /metrics endpoint is not reachable."}</p>
+          <strong>{tr("Metrics unavailable")}</strong>
+          <p className="muted">{data?.error ?? tr("Engine /metrics endpoint is not reachable.")}</p>
         </div>
       </div>
     );
@@ -130,8 +131,8 @@ export function EngineMetricsPanel({ host }: { host?: string }) {
   return (
     <div className="engine-metrics">
       <div className="engine-metrics-head">
-        <span className="muted">{data.metric_families ?? 0} metric families · refreshing every 3s</span>
-        <button className="ghost-button" onClick={reload}><RefreshCw size={13} /> Now</button>
+        <span className="muted">{data.metric_families ?? 0} {tr("metric families")} · {tr("refreshing every 3s")}</span>
+        <button className="ghost-button" onClick={reload}><RefreshCw size={13} /> {tr("Now")}</button>
       </div>
       <div className="engine-kpis">
         {tiles.map((spec) => {
@@ -140,7 +141,7 @@ export function EngineMetricsPanel({ host }: { host?: string }) {
           return (
             <div className={`engine-kpi ${tone}`} key={spec.key}>
               <span className="engine-kpi-value">{spec.fmt(value)}</span>
-              <span className="engine-kpi-label">{spec.label}</span>
+              <span className="engine-kpi-label">{tr(spec.label)}</span>
             </div>
           );
         })}
@@ -179,7 +180,7 @@ export function ModelManagementPanel() {
     try {
       setJob(await fn());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to queue download.");
+      setError(err instanceof Error ? err.message : tr("Failed to queue download."));
     } finally {
       setBusyId(null);
     }
@@ -194,7 +195,7 @@ export function ModelManagementPanel() {
     try {
       setHubResults((await api.hubSearch(hubQuery.trim(), 20)).results);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Hugging Face search failed.");
+      setError(err instanceof Error ? err.message : tr("Hugging Face search failed."));
     } finally {
       setHubBusy(false);
     }
@@ -218,14 +219,14 @@ export function ModelManagementPanel() {
     <div className="model-mgmt">
       <div className="model-mgmt-head">
         <span className="muted">
-          {loading ? "Reading cache…" : `${data?.present_count ?? 0}/${models.length} present on the daemon host`}
+          {loading ? tr("Reading cache…") : `${data?.present_count ?? 0}/${models.length} ${tr("present on the daemon host")}`}
         </span>
-        <button className="ghost-button" onClick={reload}><RefreshCw size={13} /> Refresh</button>
+        <button className="ghost-button" onClick={reload}><RefreshCw size={13} /> {tr("Refresh")}</button>
       </div>
       {error && <div className="login-error"><CircleAlert size={14} /> <span>{error}</span></div>}
       <table className="module-table model-mgmt-table">
         <thead>
-          <tr><th>Model</th><th>Cache path</th><th>Size</th><th>Status</th><th /></tr>
+          <tr><th>{tr("Model")}</th><th>{tr("Cache path")}</th><th>{tr("Size")}</th><th>{tr("Status")}</th><th /></tr>
         </thead>
         <tbody>
           {models.map((entry) => (
@@ -235,20 +236,20 @@ export function ModelManagementPanel() {
               <td>{entry.size_mib !== null ? `${(entry.size_mib / 1024).toFixed(1)} GiB` : "—"}</td>
               <td>
                 <span className={`dl-status ${entry.present ? "present" : "absent"}`}>
-                  {entry.present ? "present" : "absent"}
+                  {entry.present ? tr("present") : tr("absent")}
                 </span>
               </td>
               <td className="preset-row-actions">
                 {!entry.present && (
                   <button className="ghost-button" onClick={() => download(entry.model_id)} disabled={busyId === entry.model_id}>
-                    {busyId === entry.model_id ? <Loader2 size={13} className="spin" /> : <Download size={13} />} Download
+                    {busyId === entry.model_id ? <Loader2 size={13} className="spin" /> : <Download size={13} />} {tr("Download")}
                   </button>
                 )}
               </td>
             </tr>
           ))}
           {models.length === 0 && !loading && (
-            <tr><td colSpan={5} className="muted">No models declared in the catalog.</td></tr>
+            <tr><td colSpan={5} className="muted">{tr("No models declared in the catalog.")}</td></tr>
           )}
         </tbody>
       </table>
@@ -257,13 +258,13 @@ export function ModelManagementPanel() {
         <h4><Search size={14} /> Hugging Face Hub</h4>
         <form className="hub-search-bar" onSubmit={searchHub}>
           <input
-            aria-label="Search Hugging Face Hub"
+            aria-label={tr("Search Hugging Face Hub")}
             value={hubQuery}
             onChange={(event) => setHubQuery(event.target.value)}
-            placeholder="Search models on huggingface.co (e.g. qwen3, llama)…"
+            placeholder={tr("Search models on huggingface.co (e.g. qwen3, llama)…")}
           />
           <button className="primary-button" type="submit" disabled={hubBusy}>
-            {hubBusy ? <Loader2 size={14} className="spin" /> : <Search size={14} />} Search
+            {hubBusy ? <Loader2 size={14} className="spin" /> : <Search size={14} />} {tr("Search")}
           </button>
         </form>
         {hubResults && (
@@ -273,7 +274,7 @@ export function ModelManagementPanel() {
                 <div className="hub-result" key={model.id}>
                   <div className="hub-result-id">
                     <a href={`https://huggingface.co/${model.id}`} target="_blank" rel="noreferrer">{model.id}</a>
-                    {model.gated && <span className="chip hub-gated">gated</span>}
+                    {model.gated && <span className="chip hub-gated">{tr("gated")}</span>}
                   </div>
                   <div className="hub-result-meta">
                     <span><Download size={11} /> {fmtCount(model.downloads)}</span>
@@ -281,13 +282,13 @@ export function ModelManagementPanel() {
                     {model.pipeline_tag && <span>{model.pipeline_tag}</span>}
                   </div>
                   <button className="ghost-button" onClick={() => downloadRepo(model.id)} disabled={busyId === model.id}>
-                    {busyId === model.id ? <Loader2 size={13} className="spin" /> : <Download size={13} />} Download
+                    {busyId === model.id ? <Loader2 size={13} className="spin" /> : <Download size={13} />} {tr("Download")}
                   </button>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="muted">No models found for “{hubQuery}”.</p>
+            <p className="muted">{tr("No models found for")} “{hubQuery}”.</p>
           )
         )}
       </div>
@@ -297,7 +298,7 @@ export function ModelManagementPanel() {
           <div className="dl-job-head">
             <strong>{job.job_id}</strong>
             <span className={`chip dl-${job.status}`}>
-              {job.dry_run ? "dry-run queued" : job.status}
+              {job.dry_run ? tr("dry-run queued") : job.status}
               {job.status === "running" && <Loader2 size={11} className="spin" />}
             </span>
           </div>
@@ -348,7 +349,7 @@ export function EnginePlayground({ host, models }: { host?: string; models?: str
         setResult(await api.engineChat(payload));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed.");
+      setError(err instanceof Error ? err.message : tr("Request failed."));
     } finally {
       setBusy(false);
     }
@@ -357,39 +358,39 @@ export function EnginePlayground({ host, models }: { host?: string; models?: str
   return (
     <form className="engine-playground" onSubmit={send}>
       <label className="field">
-        <span>Prompt</span>
+        <span>{tr("Prompt")}</span>
         <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={3} />
       </label>
       <div className="engine-pg-controls">
         {models && models.length > 0 && (
           <label className="field">
-            <span>Model</span>
+            <span>{tr("Model")}</span>
             <select value={model} onChange={(event) => setModel(event.target.value)}>
               {models.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
           </label>
         )}
         <label className="field">
-          <span>Max tokens</span>
+          <span>{tr("Max tokens")}</span>
           <input type="number" min={1} max={4096} value={maxTokens} onChange={(event) => setMaxTokens(Number(event.target.value) || 128)} />
         </label>
         <label className="field">
-          <span>Temperature</span>
+          <span>{tr("Temperature")}</span>
           <input type="number" min={0} max={2} step={0.1} value={temperature} onChange={(event) => setTemperature(Number(event.target.value))} />
         </label>
-        <label className="pg-stream-toggle" title="Stream tokens as they generate">
-          <input type="checkbox" checked={stream} onChange={(e) => setStream(e.target.checked)} /> Stream
+        <label className="pg-stream-toggle" title={tr("Stream tokens as they generate")}>
+          <input type="checkbox" checked={stream} onChange={(e) => setStream(e.target.checked)} /> {tr("Stream")}
         </label>
         <button className="primary-button" type="submit" disabled={busy || !prompt.trim()}>
           {busy ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
-          {busy ? (stream ? "Streaming…" : "Sending…") : "Send"}
+          {busy ? (stream ? tr("Streaming…") : tr("Sending…")) : tr("Send")}
         </button>
       </div>
       {error && <div className="login-error"><CircleAlert size={14} /> <span>{error}</span></div>}
       {(streamText || streamMeta || result) && (
         <div className="engine-pg-result">
           <div className="engine-pg-reply">
-            {(stream ? streamText : result?.reply) || (busy ? <span className="muted">…</span> : <span className="muted">(empty response)</span>)}
+            {(stream ? streamText : result?.reply) || (busy ? <span className="muted">…</span> : <span className="muted">{tr("(empty response)")}</span>)}
             {stream && busy && <span className="pg-caret" />}
           </div>
           <div className="engine-pg-meta">
@@ -398,16 +399,16 @@ export function EnginePlayground({ host, models }: { host?: string; models?: str
                 <>
                   {streamMeta.latency_ms !== undefined && <span><Zap size={12} /> {streamMeta.latency_ms} ms</span>}
                   {streamMeta.ttft_ms !== undefined && <span>{streamMeta.ttft_ms} ms TTFT</span>}
-                  {streamMeta.tokens !== undefined && <span>{streamMeta.tokens} tokens</span>}
+                  {streamMeta.tokens !== undefined && <span>{streamMeta.tokens} {tr("tokens")}</span>}
                 </>
               )
             ) : result ? (
               <>
                 <span><Zap size={12} /> {result.latency_ms} ms</span>
-                {result.usage?.total_tokens !== undefined && <span>{result.usage.total_tokens} tokens</span>}
-                {result.usage?.prompt_tokens !== undefined && <span>{result.usage.prompt_tokens} prompt</span>}
-                {result.usage?.completion_tokens !== undefined && <span>{result.usage.completion_tokens} output</span>}
-                {result.finish_reason && <span>finish: {result.finish_reason}</span>}
+                {result.usage?.total_tokens !== undefined && <span>{result.usage.total_tokens} {tr("tokens")}</span>}
+                {result.usage?.prompt_tokens !== undefined && <span>{result.usage.prompt_tokens} {tr("prompt")}</span>}
+                {result.usage?.completion_tokens !== undefined && <span>{result.usage.completion_tokens} {tr("output")}</span>}
+                {result.finish_reason && <span>{tr("finish")}: {result.finish_reason}</span>}
               </>
             ) : null}
           </div>
@@ -453,7 +454,7 @@ export function EngineBenchPanel({ host, referenceTps }: { host?: string; refere
       if (!runA) setRunA(out);
       else setRunB(out);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Benchmark failed.");
+      setError(err instanceof Error ? err.message : tr("Benchmark failed."));
     } finally {
       setBusy(false);
     }
@@ -464,23 +465,22 @@ export function EngineBenchPanel({ host, referenceTps }: { host?: string; refere
   return (
     <div className="engine-bench">
       <div className="bench-controls">
-        <label className="field"><span>Requests</span>
+        <label className="field"><span>{tr("Requests")}</span>
           <input type="number" min={1} max={64} value={numRequests} onChange={(e) => setNumRequests(Number(e.target.value) || 8)} /></label>
-        <label className="field"><span>Concurrency</span>
+        <label className="field"><span>{tr("Concurrency")}</span>
           <input type="number" min={1} max={16} value={concurrency} onChange={(e) => setConcurrency(Number(e.target.value) || 2)} /></label>
-        <label className="field"><span>Max tokens</span>
+        <label className="field"><span>{tr("Max tokens")}</span>
           <input type="number" min={1} max={2048} value={maxTokens} onChange={(e) => setMaxTokens(Number(e.target.value) || 128)} /></label>
         <button className="primary-button" onClick={run} disabled={busy}>
           {busy ? <Loader2 size={15} className="spin" /> : <TimerReset size={15} />}
-          {busy ? "Running…" : runA ? "Run B" : "Run benchmark"}
+          {busy ? tr("Running…") : runA ? tr("Run B") : tr("Run benchmark")}
         </button>
-        {(runA || runB) && <button className="ghost-button" onClick={reset}>Reset</button>}
+        {(runA || runB) && <button className="ghost-button" onClick={reset}>{tr("Reset")}</button>}
       </div>
       <p className="bench-method muted">
-        Live quick-bench against the running engine — real TTFT/TPOT/throughput. Not the canonical Wave suite
-        (different prompt set); use A/B for like-for-like deltas.
+        {tr("Live quick-bench against the running engine — real TTFT/TPOT/throughput. Not the canonical Wave suite (different prompt set); use A/B for like-for-like deltas.")}
         {typeof referenceTps === "number" && referenceTps > 0 && (
-          <> Card reference: <strong>{referenceTps} tok/s</strong> (canonical suite).</>
+          <> {tr("Card reference:")} <strong>{referenceTps} tok/s</strong> {tr("(canonical suite)")}.</>
         )}
       </p>
       {error && <div className="login-error"><CircleAlert size={14} /> <span>{error}</span></div>}
@@ -489,7 +489,7 @@ export function EngineBenchPanel({ host, referenceTps }: { host?: string; refere
         <table className="bench-table">
           <thead>
             <tr>
-              <th>Metric</th>
+              <th>{tr("Metric")}</th>
               <th>A {runA && <small>({runA.params.num_requests}×c{runA.params.concurrency})</small>}</th>
               {runB && <th>B <small>({runB.params.num_requests}×c{runB.params.concurrency})</small></th>}
               {runB && <th>Δ</th>}
@@ -501,7 +501,7 @@ export function EngineBenchPanel({ host, referenceTps }: { host?: string; refere
               const b = runB ? row.get(runB.metrics) : null;
               return (
                 <tr key={row.label}>
-                  <td>{row.label}</td>
+                  <td>{tr(row.label)}</td>
                   <td className="bench-val">{a ?? "—"}{a !== null && row.unit ? ` ${row.unit}` : ""}</td>
                   {runB && <td className="bench-val">{b ?? "—"}{b !== null && row.unit ? ` ${row.unit}` : ""}</td>}
                   {runB && deltaCell(a, b, row.better)}
@@ -509,9 +509,9 @@ export function EngineBenchPanel({ host, referenceTps }: { host?: string; refere
               );
             })}
             <tr>
-              <td>Requests</td>
-              <td className="bench-val">{runA.metrics.requests_ok} ok{runA.metrics.requests_failed ? ` · ${runA.metrics.requests_failed} fail` : ""}</td>
-              {runB && <td className="bench-val">{runB.metrics.requests_ok} ok{runB.metrics.requests_failed ? ` · ${runB.metrics.requests_failed} fail` : ""}</td>}
+              <td>{tr("Requests")}</td>
+              <td className="bench-val">{runA.metrics.requests_ok} {tr("ok")}{runA.metrics.requests_failed ? ` · ${runA.metrics.requests_failed} ${tr("fail")}` : ""}</td>
+              {runB && <td className="bench-val">{runB.metrics.requests_ok} {tr("ok")}{runB.metrics.requests_failed ? ` · ${runB.metrics.requests_failed} ${tr("fail")}` : ""}</td>}
               {runB && <td className="bench-delta muted">—</td>}
             </tr>
           </tbody>
@@ -519,7 +519,7 @@ export function EngineBenchPanel({ host, referenceTps }: { host?: string; refere
       )}
       {runB && (
         <button className="ghost-button bench-promote" onClick={promoteBtoA}>
-          <ArrowRight size={13} /> Use B as the new baseline (A)
+          <ArrowRight size={13} /> {tr("Use B as the new baseline (A)")}
         </button>
       )}
     </div>
@@ -559,7 +559,7 @@ function MarkdownLite({ text }: { text: string }) {
           const code = (lang ? block.slice(nl + 1) : block).replace(/\n$/, "");
           return (
             <div className="md-code" key={bi}>
-              <div className="md-code-head"><span>{lang || "code"}</span><button className="icon-only" title="Copy" onClick={() => void navigator.clipboard?.writeText(code)}><Copy size={11} /></button></div>
+              <div className="md-code-head"><span>{lang || tr("code")}</span><button className="icon-only" title={tr("Copy")} onClick={() => void navigator.clipboard?.writeText(code)}><Copy size={11} /></button></div>
               <pre>{code}</pre>
             </div>
           );
@@ -641,7 +641,7 @@ function SourcesRow({ docs }: { docs: RagDoc[] }) {
   const kindClass = (k: string) => (k === "patch" ? "src-patch" : k === "preset" ? "src-preset" : k === "note" ? "src-note" : "src-config");
   return (
     <div className="chat-sources">
-      <span className="chat-sources-label"><BookText size={12} /> Grounded in {docs.length} project source{docs.length > 1 ? "s" : ""}</span>
+      <span className="chat-sources-label"><BookText size={12} /> {tr("Grounded in")} {docs.length} {docs.length > 1 ? tr("project sources") : tr("project source")}</span>
       <div className="chat-sources-chips">
         {docs.map((d, i) => (
           <button key={d.ref + i} className={`chat-src ${kindClass(d.kind)} ${open === d.ref ? "open" : ""}`} onClick={() => setOpen(open === d.ref ? null : d.ref)} title={d.title}>
@@ -687,14 +687,14 @@ function ChatRoutingHint({ value, onChange }: { value: string; onChange: (w: str
   const delta = res?.expected_delta_tps;
   return (
     <div className="chat-routing">
-      <span className="chat-routing-l"><Route size={13} /> Workload</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} title="Tag this chat's workload class to preview spec-decode routing">
-        <option value="">untagged</option>
+      <span className="chat-routing-l"><Route size={13} /> {tr("Workload")}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} title={tr("Tag this chat's workload class to preview spec-decode routing")}>
+        <option value="">{tr("untagged")}</option>
         {classes.map((c) => <option key={c} value={c}>{c}</option>)}
       </select>
       {res && (
         <span className={`chat-routing-verdict ${accepted ? "ok" : "fallback"}`} title={res.reason}>
-          <ArrowRight size={12} /> {accepted ? res.profile : "fallback (MTP off)"}
+          <ArrowRight size={12} /> {accepted ? res.profile : tr("fallback (MTP off)")}
           {typeof delta === "number" && <em className={delta >= 0 ? "ok" : "hot"}>{delta > 0 ? "+" : ""}{(delta * 100).toFixed(0)}% TPS</em>}
         </span>
       )}
@@ -761,7 +761,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
       ...(target.hostId ? { apiKey: "" } : target.apiKey !== undefined ? { apiKey: target.apiKey } : {}),
       ...(target.model ? { model: target.model } : {}),
     });
-    chatToast(`Connecting to ${target.host}:${target.port}…`, "info");
+    chatToast(`${tr("Connecting to")} ${target.host}:${target.port}…`, "info");
     // Always re-probe, even if host/port match the current settings (the
     // dep-based effect wouldn't fire then).
     void refreshStatus({ host: target.host, port: target.port, apiKey: target.hostId ? "" : target.apiKey, hostId: target.hostId ?? "" });
@@ -858,16 +858,16 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   async function addVault() {
     const path = vaultInput.trim();
     if (!path) return;
-    if (settings.ragVaults.includes(path)) { chatToast("That folder is already connected.", "warn"); return; }
+    if (settings.ragVaults.includes(path)) { chatToast(tr("That folder is already connected."), "warn"); return; }
     setVaultBusy(true);
     try {
       const info = await api.ragPreview(path);
-      if (!info.ok) { chatToast(`Can't read folder: ${info.error}`, "danger"); return; }
+      if (!info.ok) { chatToast(`${tr("Can't read folder:")} ${info.error}`, "danger"); return; }
       set({ ragVaults: [...settings.ragVaults, info.path || path] });
       setVaultInput("");
-      chatToast(`Connected ${info.files} note${info.files === 1 ? "" : "s"} (${info.chunks} chunks) from this folder.`, "ok");
+      chatToast(`${tr("Connected")} ${info.files} ${info.files === 1 ? tr("note") : tr("notes")} (${info.chunks} ${tr("chunks")}) ${tr("from this folder.")}`, "ok");
     } catch (err) {
-      chatToast(err instanceof Error ? err.message : "Failed to read folder", "danger");
+      chatToast(err instanceof Error ? err.message : tr("Failed to read folder"), "danger");
     } finally { setVaultBusy(false); }
   }
   function removeVault(path: string) { set({ ragVaults: settings.ragVaults.filter((v) => v !== path) }); }
@@ -876,12 +876,12 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   return (
     <div className="chat2">
       <aside className="chat2-side">
-        <button className="chat2-new" onClick={startConversation}><Plus size={15} /> New chat</button>
+        <button className="chat2-new" onClick={startConversation}><Plus size={15} /> {tr("New chat")}</button>
         <div className="chat2-list">
           {conversations.map((c) => (
             <div className={`chat2-item ${c.id === activeId ? "active" : ""}`} key={c.id}>
-              <button type="button" className="chat2-item-title" aria-current={c.id === activeId ? "true" : undefined} onClick={() => setActiveId(c.id)}>{c.title || "Untitled"}</button>
-              <button className="icon-only" title="Delete chat" aria-label={`Delete chat: ${c.title || "Untitled"}`} onClick={() => deleteConversation(c.id)}><X size={13} /></button>
+              <button type="button" className="chat2-item-title" aria-current={c.id === activeId ? "true" : undefined} onClick={() => setActiveId(c.id)}>{c.title || tr("Untitled")}</button>
+              <button className="icon-only" title={tr("Delete chat")} aria-label={`${tr("Delete chat")}: ${c.title || tr("Untitled")}`} onClick={() => deleteConversation(c.id)}><X size={13} /></button>
             </div>
           ))}
         </div>
@@ -889,47 +889,47 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
 
       <div className="chat2-main">
         <div className="chat-bar">
-          <label className="chat-field"><span>Host</span><input value={settings.host} onChange={(e) => set({ host: e.target.value })} spellCheck={false} /></label>
-          <label className="chat-field chat-field-port"><span>Port</span><input type="number" value={settings.port} onChange={(e) => set({ port: Number(e.target.value) || 8000 })} /></label>
-          <label className="chat-field chat-field-model"><span>Model</span>
+          <label className="chat-field"><span>{tr("Host")}</span><input value={settings.host} onChange={(e) => set({ host: e.target.value })} spellCheck={false} /></label>
+          <label className="chat-field chat-field-port"><span>{tr("Port")}</span><input type="number" value={settings.port} onChange={(e) => set({ port: Number(e.target.value) || 8000 })} /></label>
+          <label className="chat-field chat-field-model"><span>{tr("Model")}</span>
             <select value={settings.model} onChange={(e) => set({ model: e.target.value })}>
-              {status?.models?.length ? status.models.map((m) => <option key={m} value={m}>{m}</option>) : <option value="">{reachable ? "default" : "—"}</option>}
+              {status?.models?.length ? status.models.map((m) => <option key={m} value={m}>{m}</option>) : <option value="">{reachable ? tr("default") : "—"}</option>}
             </select>
           </label>
-          <label className="chat-field chat-field-key"><span>API key</span><input type="password" value={settings.apiKey} onChange={(e) => set({ apiKey: e.target.value })} placeholder="if engine requires one" autoComplete="off" spellCheck={false} /></label>
-          <span className={`chat-status ${reachable ? (status && !status.models?.length ? "warn" : "ok") : "down"}`}><span className="chat-dot" />{reachable ? `up${status?.version ? ` · v${status.version}` : ""}${status && !status.models?.length ? " · no models (API key?)" : ""}` : "down"}</span>
+          <label className="chat-field chat-field-key"><span>{tr("API key")}</span><input type="password" value={settings.apiKey} onChange={(e) => set({ apiKey: e.target.value })} placeholder={tr("if engine requires one")} autoComplete="off" spellCheck={false} /></label>
+          <span className={`chat-status ${reachable ? (status && !status.models?.length ? "warn" : "ok") : "down"}`}><span className="chat-dot" />{reachable ? `${tr("up")}${status?.version ? ` · v${status.version}` : ""}${status && !status.models?.length ? ` · ${tr("no models (API key?)")}` : ""}` : tr("down")}</span>
           <span className="chat-bar-spacer" />
-          <button className={`chat-rag-toggle ${settings.useProject ? "on" : ""}`} onClick={() => set({ useProject: !settings.useProject })} title="Ground answers in your knowledge sources (project patches/presets/configs + connected Obsidian/notes folders). Configure sources in Params."><Database size={14} /> Project RAG{settings.useProject && settings.ragVaults.length ? ` · ${settings.ragVaults.length}` : ""}</button>
-          <button className="ghost-button" onClick={() => void refreshStatus()} title="Reconnect"><RefreshCw size={14} /></button>
-          <button className={`ghost-button ${showSettings ? "active" : ""}`} onClick={() => setShowSettings((v) => !v)}><SlidersHorizontal size={14} /> Params</button>
-          {messages.length > 0 && <button className="ghost-button" onClick={exportConversation} title="Copy conversation as markdown"><Copy size={14} /></button>}
+          <button className={`chat-rag-toggle ${settings.useProject ? "on" : ""}`} onClick={() => set({ useProject: !settings.useProject })} title={tr("Ground answers in your knowledge sources (project patches/presets/configs + connected Obsidian/notes folders). Configure sources in Params.")}><Database size={14} /> {tr("Project RAG")}{settings.useProject && settings.ragVaults.length ? ` · ${settings.ragVaults.length}` : ""}</button>
+          <button className="ghost-button" onClick={() => void refreshStatus()} title={tr("Reconnect")}><RefreshCw size={14} /></button>
+          <button className={`ghost-button ${showSettings ? "active" : ""}`} onClick={() => setShowSettings((v) => !v)}><SlidersHorizontal size={14} /> {tr("Params")}</button>
+          {messages.length > 0 && <button className="ghost-button" onClick={exportConversation} title={tr("Copy conversation as markdown")}><Copy size={14} /></button>}
         </div>
 
         {showSettings && (
           <div className="chat-settings">
-            <label className="chat-field chat-field-wide"><span>System prompt</span><textarea value={settings.system} onChange={(e) => set({ system: e.target.value })} rows={2} /></label>
-            <label className="chat-field"><span>Temperature</span><input type="number" min={0} max={2} step={0.1} value={settings.temperature} onChange={(e) => set({ temperature: Number(e.target.value) })} /></label>
-            <label className="chat-field"><span>Max tokens</span><input type="number" min={1} max={4096} value={settings.maxTokens} onChange={(e) => set({ maxTokens: Number(e.target.value) || 512 })} /></label>
-            <label className="chat-field"><span>Top P</span><input type="number" min={0} max={1} step={0.05} value={settings.topP} onChange={(e) => set({ topP: Number(e.target.value) })} /></label>
-            <label className="chat-field"><span>Presence</span><input type="number" min={-2} max={2} step={0.1} value={settings.presencePenalty} onChange={(e) => set({ presencePenalty: Number(e.target.value) })} /></label>
-            <label className="chat-field"><span>Frequency</span><input type="number" min={-2} max={2} step={0.1} value={settings.frequencyPenalty} onChange={(e) => set({ frequencyPenalty: Number(e.target.value) })} /></label>
-            <label className="chat-field chat-field-stop"><span>Stop (comma-sep)</span><input value={settings.stop} onChange={(e) => set({ stop: e.target.value })} placeholder="</s>, ###" /></label>
-            <label className="chat-think"><input type="checkbox" checked={settings.thinking} onChange={(e) => set({ thinking: e.target.checked })} /> Thinking mode <span className="chat-think-hint">(enable_thinking — reasoning models render the &lt;think&gt; path)</span></label>
-            {settings.thinking && /coder/i.test(settings.model) && <div className="chat-advisory"><CircleAlert size={13} /> With reasoning + tool-calls, the <code>qwen3_coder</code> streaming parser drops <code>delta.tool_calls</code> — serve with <code>--tool-call-parser qwen3_xml</code> for reliable streaming tool calls.</div>}
+            <label className="chat-field chat-field-wide"><span>{tr("System prompt")}</span><textarea value={settings.system} onChange={(e) => set({ system: e.target.value })} rows={2} /></label>
+            <label className="chat-field"><span>{tr("Temperature")}</span><input type="number" min={0} max={2} step={0.1} value={settings.temperature} onChange={(e) => set({ temperature: Number(e.target.value) })} /></label>
+            <label className="chat-field"><span>{tr("Max tokens")}</span><input type="number" min={1} max={4096} value={settings.maxTokens} onChange={(e) => set({ maxTokens: Number(e.target.value) || 512 })} /></label>
+            <label className="chat-field"><span>{tr("Top P")}</span><input type="number" min={0} max={1} step={0.05} value={settings.topP} onChange={(e) => set({ topP: Number(e.target.value) })} /></label>
+            <label className="chat-field"><span>{tr("Presence")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.presencePenalty} onChange={(e) => set({ presencePenalty: Number(e.target.value) })} /></label>
+            <label className="chat-field"><span>{tr("Frequency")}</span><input type="number" min={-2} max={2} step={0.1} value={settings.frequencyPenalty} onChange={(e) => set({ frequencyPenalty: Number(e.target.value) })} /></label>
+            <label className="chat-field chat-field-stop"><span>{tr("Stop (comma-sep)")}</span><input value={settings.stop} onChange={(e) => set({ stop: e.target.value })} placeholder="</s>, ###" /></label>
+            <label className="chat-think"><input type="checkbox" checked={settings.thinking} onChange={(e) => set({ thinking: e.target.checked })} /> {tr("Thinking mode")} <span className="chat-think-hint">{tr("(enable_thinking — reasoning models render the <think> path)")}</span></label>
+            {settings.thinking && /coder/i.test(settings.model) && <div className="chat-advisory"><CircleAlert size={13} /> {tr("With reasoning + tool-calls, the")} <code>qwen3_coder</code> {tr("streaming parser drops")} <code>delta.tool_calls</code> — {tr("serve with")} <code>--tool-call-parser qwen3_xml</code> {tr("for reliable streaming tool calls.")}</div>}
             <div className="chat-knowledge">
-              <div className="chat-knowledge-head"><Database size={13} /> Knowledge sources (RAG)</div>
-              <label className="chat-knowledge-toggle"><input type="checkbox" checked={settings.ragProject} onChange={(e) => set({ ragProject: e.target.checked })} /> Project — patches, presets &amp; configs</label>
+              <div className="chat-knowledge-head"><Database size={13} /> {tr("Knowledge sources (RAG)")}</div>
+              <label className="chat-knowledge-toggle"><input type="checkbox" checked={settings.ragProject} onChange={(e) => set({ ragProject: e.target.checked })} /> {tr("Project — patches, presets & configs")}</label>
               {settings.ragVaults.map((v) => (
                 <div className="chat-vault" key={v}>
                   <BookText size={12} /><span className="chat-vault-path" title={v}>{v}</span>
-                  <button className="icon-only" title="Disconnect folder" onClick={() => removeVault(v)}><X size={12} /></button>
+                  <button className="icon-only" title={tr("Disconnect folder")} onClick={() => removeVault(v)}><X size={12} /></button>
                 </div>
               ))}
               <div className="chat-vault-add">
-                <input aria-label="Vault or notes folder path" value={vaultInput} onChange={(e) => setVaultInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addVault(); } }} placeholder="Path to an Obsidian vault or notes folder…" spellCheck={false} />
-                <button className="ghost-button" onClick={() => void addVault()} disabled={vaultBusy || !vaultInput.trim()}>{vaultBusy ? <Loader2 size={13} className="spin" /> : <Plus size={13} />} Connect</button>
+                <input aria-label={tr("Vault or notes folder path")} value={vaultInput} onChange={(e) => setVaultInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void addVault(); } }} placeholder={tr("Path to an Obsidian vault or notes folder…")} spellCheck={false} />
+                <button className="ghost-button" onClick={() => void addVault()} disabled={vaultBusy || !vaultInput.trim()}>{vaultBusy ? <Loader2 size={13} className="spin" /> : <Plus size={13} />} {tr("Connect")}</button>
               </div>
-              <span className="chat-knowledge-hint">Notes (.md / .txt) in the folder are indexed locally and read-only. Turn on RAG with the <strong>Project RAG</strong> button above.</span>
+              <span className="chat-knowledge-hint">{tr("Notes (.md / .txt) in the folder are indexed locally and read-only. Turn on RAG with the")} <strong>{tr("Project RAG")}</strong> {tr("button above.")}</span>
             </div>
           </div>
         )}
@@ -938,11 +938,11 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
           {messages.length === 0 ? (
             <div className="chat-empty">
               <span className="chat-empty-orb"><Sparkles size={26} /></span>
-              <strong>{settings.useProject ? "Ask about this project" : "Chat with your local model"}</strong>
+              <strong>{settings.useProject ? tr("Ask about this project") : tr("Chat with your local model")}</strong>
               <span>{settings.useProject
-                ? `RAG is on — grounding in ${[settings.ragProject && "project knowledge", settings.ragVaults.length && `${settings.ragVaults.length} notes folder${settings.ragVaults.length === 1 ? "" : "s"}`].filter(Boolean).join(" + ") || "no sources (enable some in Params)"}.`
-                : reachable ? `Connected to ${settings.model || "the engine"} on ${settings.host}:${settings.port}.` : `Point Host/Port at a running vLLM engine (e.g. ${settings.host}:8101), then say hello.`}</span>
-              <div className="chat-suggest">{(settings.useProject ? PROJECT_SUGGESTIONS : SUGGESTIONS).map((s) => <button key={s} onClick={() => send(s)}>{s}</button>)}</div>
+                ? `${tr("RAG is on — grounding in")} ${[settings.ragProject && tr("project knowledge"), settings.ragVaults.length && `${settings.ragVaults.length} ${settings.ragVaults.length === 1 ? tr("notes folder") : tr("notes folders")}`].filter(Boolean).join(" + ") || tr("no sources (enable some in Params)")}.`
+                : reachable ? `${tr("Connected to")} ${settings.model || tr("the engine")} ${tr("on")} ${settings.host}:${settings.port}.` : `${tr("Point Host/Port at a running vLLM engine (e.g.")} ${settings.host}:8101), ${tr("then say hello.")}`}</span>
+              <div className="chat-suggest">{(settings.useProject ? PROJECT_SUGGESTIONS : SUGGESTIONS).map((s) => <button key={s} onClick={() => send(s)}>{tr(s)}</button>)}</div>
             </div>
           ) : messages.map((msg, index) => (
             <div className={`chat-msg ${msg.role}`} key={index}>
@@ -950,18 +950,18 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
               <div className="chat-col">
                 <div className="chat-bubble">
                   {retrieving && index === messages.length - 1 && msg.role === "assistant" && !msg.content
-                    ? <span className="chat-retrieving"><Database size={13} /> Searching project knowledge…</span>
-                    : msg.content ? <MarkdownLite text={msg.content} /> : (streaming && index === messages.length - 1 ? <span className="chat-typing"><span /><span /><span /></span> : <em className="muted">(empty)</em>)}
+                    ? <span className="chat-retrieving"><Database size={13} /> {tr("Searching project knowledge…")}</span>
+                    : msg.content ? <MarkdownLite text={msg.content} /> : (streaming && index === messages.length - 1 ? <span className="chat-typing"><span /><span /><span /></span> : <em className="muted">{tr("(empty)")}</em>)}
                   {streaming && index === messages.length - 1 && msg.content && <span className="chat-cursor" />}
                 </div>
                 {msg.sources && msg.sources.length > 0 && <SourcesRow docs={msg.sources} />}
                 <div className="chat-msg-foot">
                   {msg.stat && <span className="chat-stat">{msg.stat.tokens ?? 0} tok{msg.stat.tps ? ` · ${msg.stat.tps} tok/s` : ""}{msg.stat.ttft_ms ? ` · ${msg.stat.ttft_ms}ms TTFT` : ""}</span>}
                   <div className="chat-msg-actions">
-                    <button className="icon-only" title="Copy" onClick={() => void navigator.clipboard?.writeText(msg.content)}><Copy size={12} /></button>
-                    {msg.role === "user" && <button className="icon-only" title="Edit & resend" onClick={() => editUser(index)}><Pencil size={12} /></button>}
-                    {msg.role === "assistant" && index === messages.length - 1 && !streaming && <button className="icon-only" title="Regenerate" onClick={regenerate}><RefreshCw size={12} /></button>}
-                    <button className="icon-only" title="Delete" onClick={() => deleteTurn(index)}><Trash2 size={12} /></button>
+                    <button className="icon-only" title={tr("Copy")} onClick={() => void navigator.clipboard?.writeText(msg.content)}><Copy size={12} /></button>
+                    {msg.role === "user" && <button className="icon-only" title={tr("Edit & resend")} onClick={() => editUser(index)}><Pencil size={12} /></button>}
+                    {msg.role === "assistant" && index === messages.length - 1 && !streaming && <button className="icon-only" title={tr("Regenerate")} onClick={regenerate}><RefreshCw size={12} /></button>}
+                    <button className="icon-only" title={tr("Delete")} onClick={() => deleteTurn(index)}><Trash2 size={12} /></button>
                   </div>
                 </div>
               </div>
@@ -979,13 +979,13 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={reachable ? "Message… (Enter to send, Shift+Enter for newline)" : "Engine not reachable — set Host/Port above"}
+            placeholder={reachable ? tr("Message… (Enter to send, Shift+Enter for newline)") : tr("Engine not reachable — set Host/Port above")}
             rows={2}
           />
           <div className="chat-composer-actions">
             {streaming
-              ? <button className="primary-button chat-stop" onClick={stop}><Square size={14} /> Stop</button>
-              : <button className="primary-button" onClick={() => send()} disabled={!input.trim()}><Send size={15} /> Send</button>}
+              ? <button className="primary-button chat-stop" onClick={stop}><Square size={14} /> {tr("Stop")}</button>
+              : <button className="primary-button" onClick={() => send()} disabled={!input.trim()}><Send size={15} /> {tr("Send")}</button>}
           </div>
         </div>
       </div>

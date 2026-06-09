@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { ElementField, discoverExtraFields, groupFields, ELEMENT_FIELDS } from "@/sections/element-fields";
+import { ElementField, discoverExtraFields, groupFields, ELEMENT_FIELDS_FOR } from "@/sections/element-fields";
 
 afterEach(cleanup);
 
-describe("ELEMENT_FIELDS", () => {
+describe("ELEMENT_FIELDS_FOR", () => {
   it("defines curated specs for every element kind", () => {
     for (const kind of ["model", "hardware", "profile", "preset"] as const) {
-      expect(Array.isArray(ELEMENT_FIELDS[kind])).toBe(true);
-      expect(ELEMENT_FIELDS[kind].length).toBeGreaterThan(0);
+      expect(Array.isArray(ELEMENT_FIELDS_FOR(kind))).toBe(true);
+      expect(ELEMENT_FIELDS_FOR(kind).length).toBeGreaterThan(0);
     }
   });
 });

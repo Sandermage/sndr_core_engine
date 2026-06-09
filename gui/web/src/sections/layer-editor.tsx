@@ -5,8 +5,9 @@
  
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Code2, PackageCheck } from "lucide-react";
+import { tr } from "../i18n";
 import { api, type V2LayerApplyResult } from "../api";
-import { type ElementKind, ELEMENT_FIELDS, discoverExtraFields, groupFields, ElementField } from "./element-fields";
+import { type ElementKind, ELEMENT_FIELDS_FOR, discoverExtraFields, groupFields, ElementField } from "./element-fields";
 import { getIn, setIn, objToYaml } from "../lib/config-utils";
 import { CodeBlock } from "../components/code-block";
 
@@ -41,7 +42,7 @@ export function LayerEditor({ kind, layerId }: { kind: ElementKind; layerId: str
   }, [kind, layerId]);
 
   const fields = useMemo(() => {
-    const curated = ELEMENT_FIELDS[kind];
+    const curated = ELEMENT_FIELDS_FOR(kind);
     if (!edited) return curated;
     const known = new Set(curated.map((spec) => spec.path));
     return [...curated, ...discoverExtraFields(edited, known)];
@@ -66,7 +67,7 @@ export function LayerEditor({ kind, layerId }: { kind: ElementKind; layerId: str
 
   return (
     <div className="preset-editor">
-      <p className="element-source">{source || (state === "loading" ? "loading…" : "")}</p>
+      <p className="element-source">{source || (state === "loading" ? tr("loading…") : "")}</p>
       {error && <div className="config-plan-error"><AlertCircle size={15} /><span>{error}</span></div>}
       {edited ? (
         <div className="preset-editor-cols">
@@ -88,12 +89,12 @@ export function LayerEditor({ kind, layerId }: { kind: ElementKind; layerId: str
             ))}
           </div>
           <div className="preset-editor-yaml">
-            <div className="config-panel-title"><Code2 size={16} /><strong>{kind}.yaml</strong><span>{yaml.length} lines</span></div>
+            <div className="config-panel-title"><Code2 size={16} /><strong>{kind}.yaml</strong><span>{yaml.length} {tr("lines")}</span></div>
             <CodeBlock lines={yaml} />
           </div>
         </div>
       ) : (
-        <p className="muted">Select a {kind} to edit.</p>
+        <p className="muted">{tr("Select a")} {kind} {tr("to edit.")}</p>
       )}
       {applyResult && (
         <div className={`element-apply ${applyResult.status}`}>
@@ -101,15 +102,15 @@ export function LayerEditor({ kind, layerId }: { kind: ElementKind; layerId: str
             {applyResult.status === "applied" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
           </span>
           <div>
-            <strong>{applyResult.status === "applied" ? "Saved to user dir" : applyResult.status}</strong>
+            <strong>{applyResult.status === "applied" ? tr("Saved to user dir") : applyResult.status}</strong>
             <small>{applyResult.target_path || applyResult.message}</small>
           </div>
         </div>
       )}
       <div className="config-actions">
-        <span className="config-actions-note">Edits write an operator-local {kind} copy (never the builtin)</span>
+        <span className="config-actions-note">{tr("Edits write an operator-local")} {kind} {tr("copy (never the builtin)")}</span>
         <button className="primary-action" onClick={() => void runSave()} disabled={!edited || applying}>
-          <PackageCheck size={14} /> {applying ? "Saving…" : "Save to user dir"}
+          <PackageCheck size={14} /> {applying ? tr("Saving…") : tr("Save to user dir")}
         </button>
       </div>
     </div>

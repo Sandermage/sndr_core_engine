@@ -11,6 +11,7 @@ import {
   type HostInventory, type FleetHost, type ReliabilitySnapshot
 } from "../api";
 import { type RuntimeMode } from "../nav";
+import { tr } from "../i18n";
 import { InfoRows } from "../components/primitives";
 import { ModuleCard, ModuleGrid } from "../components/layout";
 import { CodeBlock, CopyButton } from "../components/code-block";
@@ -81,7 +82,7 @@ export function HostsSection({
     return () => { cancelled = true; window.clearInterval(t); window.clearInterval(tf); };
   }, []);
   async function remove(id: string) {
-    try { await api.hostDelete(id); onHostsRefresh(); toast(`Host removed: ${id}`, "success"); } catch { toast("Failed to remove host", "error"); }
+    try { await api.hostDelete(id); onHostsRefresh(); toast(`${tr("Host removed:")} ${id}`, "success"); } catch { toast(tr("Failed to remove host"), "error"); }
   }
   return (
     <>
@@ -90,14 +91,14 @@ export function HostsSection({
         tabs={[
           {
             id: "fleet",
-            label: "Fleet",
+            label: tr("Fleet"),
             icon: <Server size={15} />,
             render: () => (
               <ModuleGrid>
-                <ModuleCard title="Host fleet" icon={<Server size={18} />} desc="The daemon host plus every saved target, with a live per-host engine probe." wide>
+                <ModuleCard title={tr("Host fleet")} icon={<Server size={18} />} desc={tr("The daemon host plus every saved target, with a live per-host engine probe.")} wide>
                   <div className="fleet-toolbar">
-                    <span className="muted">{hostProfiles.length} saved host{hostProfiles.length === 1 ? "" : "s"}</span>
-                    <button className="primary-action" onClick={() => setModal({ profile: null })}><Server size={15} /> Add host</button>
+                    <span className="muted">{hostProfiles.length} {hostProfiles.length === 1 ? tr("saved host") : tr("saved hosts")}</span>
+                    <button className="primary-action" onClick={() => setModal({ profile: null })}><Server size={15} /> {tr("Add host")}</button>
                   </div>
                   {(() => {
                     const fl = Object.values(fleetById);
@@ -106,10 +107,10 @@ export function HostsSection({
                     const livePatches = fl.reduce((n, h) => n + (h.active_patches || 0), 0);
                     return (
                       <div className="fleet-kpis">
-                        <span className="fleet-kpi"><strong>{hostProfiles.length}</strong> servers</span>
-                        <span className="fleet-kpi ok"><strong>{online}</strong> online</span>
+                        <span className="fleet-kpi"><strong>{hostProfiles.length}</strong> {tr("servers")}</span>
+                        <span className="fleet-kpi ok"><strong>{online}</strong> {tr("online")}</span>
                         <span className="fleet-kpi"><strong>{gpus}</strong> GPUs</span>
-                        <span className="fleet-kpi"><strong>{livePatches}</strong> live patches</span>
+                        <span className="fleet-kpi"><strong>{livePatches}</strong> {tr("live patches")}</span>
                       </div>
                     );
                   })()}
@@ -119,27 +120,27 @@ export function HostsSection({
                       <FleetHostCard key={profile.id} profile={profile} onEdit={(p) => setModal({ profile: p })} onDelete={askDelete} onChat={onChatWithHost} onAddServer={onAddServer} onRefresh={onHostsRefresh} onTerminal={setTerminalHost} focused={focusHostId === profile.id} onFocusConsumed={onFocusConsumed} onSetupNode={onSetupNode} onContainers={onContainers} onHardware={onHardware} reliability={reliability[profile.id] ?? null} fleet={fleetById[profile.id] ?? null} applyEnabled={applyEnabled} restartCommand={environment?.restart_command} />
                     ))}
                   </div>
-                  {hostProfiles.length === 0 && <p className="muted">No remote hosts yet — add your GPU box to probe its engine from here.</p>}
+                  {hostProfiles.length === 0 && <p className="muted">{tr("No remote hosts yet — add your GPU box to probe its engine from here.")}</p>}
                 </ModuleCard>
               </ModuleGrid>
             )
           },
           {
             id: "inventory",
-            label: "Inventory",
+            label: tr("Inventory"),
             icon: <Cpu size={15} />,
             render: () => (
               <ModuleGrid className="stretch-row">
-                <ModuleCard title="Daemon host inventory" icon={<Cpu size={18} />} desc="Live OS / Python / Docker / GPU / vLLM snapshot of the host serving this UI." wide>
+                <ModuleCard title={tr("Daemon host inventory")} icon={<Cpu size={18} />} desc={tr("Live OS / Python / Docker / GPU / vLLM snapshot of the host serving this UI.")} wide>
                   <HostInventoryPanel inventory={inventory} environment={environment} />
                 </ModuleCard>
-                <ModuleCard title="Dependency stack" icon={<PackageCheck size={18} />} desc="Python libraries and runtime tools detected on the daemon host.">
+                <ModuleCard title={tr("Dependency stack")} icon={<PackageCheck size={18} />} desc={tr("Python libraries and runtime tools detected on the daemon host.")}>
                   <DependencyStackPanel env={environment} />
                 </ModuleCard>
-                <ModuleCard title="Project & catalog" icon={<Database size={18} />} desc="Catalog coverage and project parameters this daemon serves.">
+                <ModuleCard title={tr("Project & catalog")} icon={<Database size={18} />} desc={tr("Catalog coverage and project parameters this daemon serves.")}>
                   <ProjectCatalogPanel overview={overview} environment={environment} />
                 </ModuleCard>
-                <ModuleCard title="Runtime target matrix" icon={<Network size={18} />} desc="Which runtime backends can be rendered or controlled on this host." wide>
+                <ModuleCard title={tr("Runtime target matrix")} icon={<Network size={18} />} desc={tr("Which runtime backends can be rendered or controlled on this host.")} wide>
                   <CapabilityTable rows={runtimeTargets} />
                 </ModuleCard>
               </ModuleGrid>
@@ -147,14 +148,14 @@ export function HostsSection({
           },
           {
             id: "profiles",
-            label: "Profiles",
+            label: tr("Profiles"),
             icon: <SlidersHorizontal size={15} />,
             render: () => (
               <ModuleGrid>
-                <ModuleCard title="Saved host profiles" icon={<Server size={18} />} desc="Operator-local registry of hosts. Edit role, hardware, ports and tags — execution stays manual." wide>
+                <ModuleCard title={tr("Saved host profiles")} icon={<Server size={18} />} desc={tr("Operator-local registry of hosts. Edit role, hardware, ports and tags — execution stays manual.")} wide>
                   <div className="fleet-toolbar">
-                    <span className="muted">{hostProfiles.length} profile{hostProfiles.length === 1 ? "" : "s"}</span>
-                    <button className="primary-action" onClick={() => setModal({ profile: null })}><Server size={15} /> Add host</button>
+                    <span className="muted">{hostProfiles.length} {hostProfiles.length === 1 ? tr("profile") : tr("profiles")}</span>
+                    <button className="primary-action" onClick={() => setModal({ profile: null })}><Server size={15} /> {tr("Add host")}</button>
                   </div>
                   <HostProfileTable profiles={hostProfiles} onEdit={(p) => setModal({ profile: p })} onDelete={askDelete} />
                 </ModuleCard>
@@ -163,19 +164,19 @@ export function HostsSection({
           },
           {
             id: "access",
-            label: "Access",
+            label: tr("Access"),
             icon: <Network size={15} />,
             render: () => (
               <ModuleGrid>
-                <ModuleCard title="Current connection" icon={<Network size={18} />} desc="How this UI reaches the Product API.">
+                <ModuleCard title={tr("Current connection")} icon={<Network size={18} />} desc={tr("How this UI reaches the Product API.")}>
                   <InfoRows rows={[
-                    ["API base", apiBase],
-                    ["Mode", runtimeMode === "remote" ? "Remote (SSH tunnel)" : "Local server"],
-                    ["Engine", `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? (environment?.engine_installed ? "" : "(not installed)")}`.trim()],
-                    ["Saved profiles", String(hostProfiles.length)]
+                    [tr("API base"), apiBase],
+                    [tr("Mode"), runtimeMode === "remote" ? tr("Remote (SSH tunnel)") : tr("Local server")],
+                    [tr("Engine"), `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? (environment?.engine_installed ? "" : tr("(not installed)"))}`.trim()],
+                    [tr("Saved profiles"), String(hostProfiles.length)]
                   ]} />
                 </ModuleCard>
-                <ModuleCard title="Remote access (SSH tunnel)" icon={<Server size={18} />} desc="Keep the daemon on 127.0.0.1; forward a loopback port from your laptop." wide>
+                <ModuleCard title={tr("Remote access (SSH tunnel)")} icon={<Server size={18} />} desc={tr("Keep the daemon on 127.0.0.1; forward a loopback port from your laptop.")} wide>
                   <CodeBlock lines={[
                     "# on your laptop — forward the daemon's loopback port",
                     "ssh -L 8765:127.0.0.1:8765 user@gpu-host",
@@ -190,9 +191,9 @@ export function HostsSection({
       {modal && <HostFormModal initial={modal.profile} onClose={() => setModal(null)} onSaved={onHostsRefresh} />}
       {confirmDelete && (
         <ConfirmDialog
-          title="Remove host profile?"
-          message={<>This deletes the saved profile <strong>{confirmDelete.label}</strong> (connection details, SSH target, stored key reference). The remote host is not touched, but the profile must be re-added to manage it from here.</>}
-          confirmLabel="Remove host"
+          title={tr("Remove host profile?")}
+          message={<>{tr("This deletes the saved profile")} <strong>{confirmDelete.label}</strong> {tr("(connection details, SSH target, stored key reference). The remote host is not touched, but the profile must be re-added to manage it from here.")}</>}
+          confirmLabel={tr("Remove host")}
           danger
           onConfirm={() => { const id = confirmDelete.id; setConfirmDelete(null); void remove(id); }}
           onCancel={() => setConfirmDelete(null)}
@@ -213,11 +214,11 @@ function HostProfileTable({
   onEdit: (profile: HostProfile) => void;
   onDelete: (id: string) => void;
 }) {
-  if (profiles.length === 0) return <p className="muted">No saved profiles yet — add one above.</p>;
+  if (profiles.length === 0) return <p className="muted">{tr("No saved profiles yet — add one above.")}</p>;
   return (
     <table className="module-table host-table">
       <thead>
-        <tr><th>Label</th><th>Host</th><th>Role</th><th>Hardware</th><th>Ports</th><th>Tags</th><th></th></tr>
+        <tr><th>{tr("Label")}</th><th>{tr("Host")}</th><th>{tr("Role")}</th><th>{tr("Hardware")}</th><th>{tr("Ports")}</th><th>{tr("Tags")}</th><th></th></tr>
       </thead>
       <tbody>
         {profiles.map((profile) => (
@@ -229,9 +230,9 @@ function HostProfileTable({
             <td><small>gui {profile.port}<br />engine {profile.engine_port}</small></td>
             <td>{profile.tags.length ? <div className="fleet-tags">{profile.tags.map((t) => <span key={t} className="fleet-tag">{t}</span>)}</div> : <span className="muted">—</span>}</td>
             <td className="host-table-actions">
-              <CopyButton value={tunnelCommand(profile)} label="tunnel command" />
-              <button className="icon-only" onClick={() => onEdit(profile)} aria-label={`Edit ${profile.label}`}><Pencil size={14} /></button>
-              <button className="icon-only danger" onClick={() => onDelete(profile.id)} aria-label={`Delete ${profile.label}`}><Trash2 size={14} /></button>
+              <CopyButton value={tunnelCommand(profile)} label={tr("tunnel command")} />
+              <button className="icon-only" onClick={() => onEdit(profile)} aria-label={`${tr("Edit")} ${profile.label}`}><Pencil size={14} /></button>
+              <button className="icon-only danger" onClick={() => onDelete(profile.id)} aria-label={`${tr("Delete")} ${profile.label}`}><Trash2 size={14} /></button>
             </td>
           </tr>
         ))}

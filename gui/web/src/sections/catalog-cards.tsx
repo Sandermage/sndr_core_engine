@@ -5,6 +5,7 @@
 import { useState, useEffect, Fragment, type ReactNode } from "react";
 import { CheckCircle2, CircleAlert, RefreshCw } from "lucide-react";
 import { api, type FitCheck, type MemoryFitReport } from "../api";
+import { tr } from "../i18n";
 import { useFetch } from "../hooks/useFetch";
 import { PercentBar } from "../components/charts";
 import { formatVram } from "../lib/format";
@@ -85,7 +86,7 @@ export function ModelFitCard({
     <div className="model-fit">
       <div className="model-fit-bar">
         <label className="model-fit-pick">
-          <span>Target hardware</span>
+          <span>{tr("Target hardware")}</span>
           <select value={hardware} onChange={(event) => setHardware(event.target.value)}>
             {hardwareOptions.map((id) => (
               <option key={id} value={id}>
@@ -98,23 +99,23 @@ export function ModelFitCard({
           <span className={`fit-verdict ${report.compatible ? "ok" : "blocked"}`}>
             {report.compatible ? (
               <>
-                <CheckCircle2 size={15} /> Compatible
+                <CheckCircle2 size={15} /> {tr("Compatible")}
               </>
             ) : (
               <>
-                <CircleAlert size={15} /> Blocked
+                <CircleAlert size={15} /> {tr("Blocked")}
               </>
             )}
           </span>
         )}
       </div>
 
-      {state === "loading" && <p className="muted">Checking fit…</p>}
+      {state === "loading" && <p className="muted">{tr("Checking fit…")}</p>}
       {state === "error" && (
         <p className="muted fit-error">
-          Could not build a fit report for this pairing.
+          {tr("Could not build a fit report for this pairing.")}
           <button type="button" className="link-button" onClick={reload}>
-            <RefreshCw size={13} /> Retry
+            <RefreshCw size={13} /> {tr("Retry")}
           </button>
         </p>
       )}
@@ -136,8 +137,8 @@ export function ModelFitCard({
             <PercentBar
               value={Math.min(vram.model_min_mib, vram.rig_floor_mib)}
               max={Math.max(vram.model_min_mib, vram.rig_floor_mib, 1)}
-              label="VRAM (informational)"
-              caption={`model needs ${formatVram(vram.model_min_mib)} · rig floor ${formatVram(
+              label={tr("VRAM (informational)")}
+              caption={`${tr("model needs")} ${formatVram(vram.model_min_mib)} · ${tr("rig floor")} ${formatVram(
                 vram.rig_floor_mib
               )} (${vram.n_gpus}×${formatVram(vram.vram_per_gpu_mib)} × ${Math.round(
                 vram.gpu_memory_utilization * 100
@@ -146,9 +147,7 @@ export function ModelFitCard({
             />
           )}
           <p className="fit-note">
-            Verdict uses the deterministic requirements (GPU count, CUDA capability, blocklist).
-            VRAM is shown for context — the rig floor is a conservative match threshold, not the
-            card's real capacity, so it never flips the verdict.
+            {tr("Verdict uses the deterministic requirements (GPU count, CUDA capability, blocklist). VRAM is shown for context — the rig floor is a conservative match threshold, not the card's real capacity, so it never flips the verdict.")}
           </p>
         </>
       )}
@@ -173,25 +172,25 @@ export function ModelFitMatrix({ modelId, hardwareIds }: { modelId: string; hard
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelId, key]);
 
-  if (loading && !rows) return <p className="muted">Checking {hardwareIds.length} rigs…</p>;
-  if (!rows || rows.length === 0) return <p className="muted">No hardware in the catalog to match against.</p>;
+  if (loading && !rows) return <p className="muted">{tr("Checking")} {hardwareIds.length} {tr("rigs…")}</p>;
+  if (!rows || rows.length === 0) return <p className="muted">{tr("No hardware in the catalog to match against.")}</p>;
   const fits = rows.filter((report) => report.compatible).length;
   return (
     <div className="fit-matrix">
       <div className="fit-matrix-summary">
-        <span className="fleet-status ok"><span className="fleet-dot" />fits on {fits}</span>
-        <span className="fleet-status danger"><span className="fleet-dot" />blocked on {rows.length - fits}</span>
+        <span className="fleet-status ok"><span className="fleet-dot" />{tr("fits on")} {fits}</span>
+        <span className="fleet-status danger"><span className="fleet-dot" />{tr("blocked on")} {rows.length - fits}</span>
       </div>
       <div className="patch-table-scroll">
         <table className="module-table fit-matrix-table">
-          <thead><tr><th>Hardware</th><th>Verdict</th><th>GPUs</th><th>VRAM headroom</th><th>KV</th><th>Blockers</th></tr></thead>
+          <thead><tr><th>{tr("Hardware")}</th><th>{tr("Verdict")}</th><th>GPUs</th><th>{tr("VRAM headroom")}</th><th>KV</th><th>{tr("Blockers")}</th></tr></thead>
           <tbody>
             {rows.map((report) => {
               const blockers = report.checks.filter((check) => !check.ok).map((check) => check.title);
               return (
                 <tr key={report.hardware_id}>
                   <td><strong>{report.hardware_title || report.hardware_id}</strong></td>
-                  <td><span className={`fit-pill ${report.compatible ? "ok" : "blocked"}`}>{report.compatible ? "fits" : "blocked"}</span></td>
+                  <td><span className={`fit-pill ${report.compatible ? "ok" : "blocked"}`}>{report.compatible ? tr("fits") : tr("blocked")}</span></td>
                   <td>{report.vram.n_gpus}× {formatVram(report.vram.vram_per_gpu_mib)}</td>
                   <td className={report.vram.headroom_mib >= 0 ? "fit-pos" : "fit-neg"}>{report.vram.headroom_mib >= 0 ? "+" : "−"}{Math.abs(report.vram.headroom_mib / 1024).toFixed(1)} GB</td>
                   <td>{report.vram.kv_cache_dtype}</td>
@@ -202,7 +201,7 @@ export function ModelFitMatrix({ modelId, hardwareIds }: { modelId: string; hard
           </tbody>
         </table>
       </div>
-      <p className="fit-note">Verdict uses deterministic requirements (GPU count, CUDA capability, arch blocklist). VRAM headroom is informational context against a conservative rig floor.</p>
+      <p className="fit-note">{tr("Verdict uses deterministic requirements (GPU count, CUDA capability, arch blocklist). VRAM headroom is informational context against a conservative rig floor.")}</p>
     </div>
   );
 }
@@ -221,14 +220,14 @@ export function KvEnvelopeCard({ modelKey, tp, vram, rigLabel }: { modelKey: str
       .then((r) => { if (alive) setEnv(r.envelope); }).catch(() => { if (alive) setErr(true); });
     return () => { alive = false; };
   }, [modelKey, tp, vram]);
-  if (!modelKey) return <p className="muted">No KV sizing metadata for this model id.</p>;
-  if (err) return <p className="muted">Couldn't compute the fit envelope.</p>;
-  if (!env) return <p className="muted">Computing fit envelope…</p>;
+  if (!modelKey) return <p className="muted">{tr("No KV sizing metadata for this model id.")}</p>;
+  if (err) return <p className="muted">{tr("Couldn't compute the fit envelope.")}</p>;
+  if (!env) return <p className="muted">{tr("Computing fit envelope…")}</p>;
   const fmtC = (c: number) => (c >= 1000 ? `${Math.round(c / 1000)}K` : String(c));
   const color = (h: number) => (h < 0 ? "over" : h < 2048 ? "tight" : h < 6144 ? "ok" : "good");
   return (
     <>
-      <p className="fit-note">On <code>{rigLabel}</code> · {tp}× {Math.round(vram / 1024)}GB · fp8 KV · 90% util.</p>
+      <p className="fit-note">{tr("On")} <code>{rigLabel}</code> · {tp}× {Math.round(vram / 1024)}GB · fp8 KV · 90% util.</p>
       <div className="heatmap">
         <div className="heatmap-grid" style={{ gridTemplateColumns: `40px repeat(${env.contexts.length}, 1fr)` }}>
           <span className="heatmap-corner" />
@@ -238,12 +237,12 @@ export function KvEnvelopeCard({ modelKey, tp, vram, rigLabel }: { modelKey: str
             return (
               <Fragment key={k}>
                 <span className="heatmap-ylabel">{k}×</span>
-                {row.map((cell) => <div key={cell.context} className={`heatmap-cell ${color(cell.headroom_mib)}`} title={`${fmtC(cell.context)} ctx · ${k} conc → ${cell.fits ? "fits" : "over budget"}`} />)}
+                {row.map((cell) => <div key={cell.context} className={`heatmap-cell ${color(cell.headroom_mib)}`} title={`${fmtC(cell.context)} ctx · ${k} conc → ${cell.fits ? tr("fits") : tr("over budget")}`} />)}
               </Fragment>
             );
           })}
         </div>
-        <div className="heatmap-legend"><span className="good" /> roomy<span className="ok" /> fits<span className="tight" /> tight<span className="over" /> over</div>
+        <div className="heatmap-legend"><span className="good" /> {tr("roomy")}<span className="ok" /> {tr("fits")}<span className="tight" /> {tr("tight")}<span className="over" /> {tr("over")}</div>
       </div>
     </>
   );

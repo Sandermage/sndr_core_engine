@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowRight, Ban, Check, Cpu, Route, Workflow, Info, ChevronDown, Activity, Database, Zap, Clock, Layers } from "lucide-react";
 import { api, type RoutingActive, type RoutingArtifact, type RoutingArtifacts, type RoutingClassify, type RoutingSignals, type EngineMetrics } from "./api";
-import { useLang, t, type Lang } from "./i18n";
+import { useLang, t, tr, type Lang } from "./i18n";
 import { onKeyActivate } from "./dialog";
 
 // Workload classes the router knows — used by the classifier when no bench
@@ -37,12 +37,12 @@ function RoutingLive({ lang }: { lang: Lang }) {
   const sec = (v?: number) => (v == null ? "—" : v >= 1 ? `${v.toFixed(2)} s` : `${Math.round(v * 1000)} ms`);
   const accept = k.spec_decode_acceptance_rate;
   const cells: { icon: ReactNode; l: string; v: string; tone?: string }[] = [
-    { icon: <Activity size={13} />, l: "Running", v: String(Math.round(k.requests_running ?? 0)) },
-    { icon: <Clock size={13} />, l: "Waiting", v: String(Math.round(k.requests_waiting ?? 0)), tone: (k.requests_waiting ?? 0) > 0 ? "warn" : "" },
+    { icon: <Activity size={13} />, l: tr("Running"), v: String(Math.round(k.requests_running ?? 0)) },
+    { icon: <Clock size={13} />, l: tr("Waiting"), v: String(Math.round(k.requests_waiting ?? 0)), tone: (k.requests_waiting ?? 0) > 0 ? "warn" : "" },
     { icon: <Database size={13} />, l: "KV-cache", v: k.kv_cache_usage != null ? `${(k.kv_cache_usage * 100).toFixed(0)}%` : "—" },
     { icon: <Zap size={13} />, l: "tok/s", v: k.generation_toks_per_s != null ? k.generation_toks_per_s.toFixed(0) : "—" },
     { icon: <Clock size={13} />, l: "TTFT", v: sec(k.ttft_avg_s) },
-    { icon: <Layers size={13} />, l: "MTP accept", v: accept != null ? `${(accept * 100).toFixed(0)}%` : "—" },
+    { icon: <Layers size={13} />, l: tr("MTP accept"), v: accept != null ? `${(accept * 100).toFixed(0)}%` : "—" },
   ];
   return (
     <div className="rt-section rt-live">
@@ -72,12 +72,12 @@ function WorkloadRow({ wclass, art, maxTps }: { wclass: string; art: RoutingArti
     <div className="rt-wl">
       <span className="rt-wl-name">{wclass}</span>
       <span className={`rt-wl-gate ${allowed ? "ok" : denied ? "deny" : "muted"}`}>
-        {allowed ? <><Check size={11} /> allowed</> : denied ? <><Ban size={11} /> denied</> : "—"}
+        {allowed ? <><Check size={11} /> {tr("allowed")}</> : denied ? <><Ban size={11} /> {tr("denied")}</> : "—"}
       </span>
       <div className="rt-tps-track"><span className={`rt-tps-fill ${denied ? "deny" : "ok"}`} style={{ width: `${pct}%` }} /></div>
       <span className="rt-wl-tps"><b>{typeof tps === "number" ? tps.toFixed(0) : "—"}</b> tok/s</span>
       <span className={`rt-wl-base ${hasDelta ? pctTone(delta as number) : ""}`}>
-        {hasDelta ? `${fmtPct(delta)} vs base` : typeof base === "number" ? `base ${base.toFixed(0)}` : ""}
+        {hasDelta ? `${fmtPct(delta)} ${tr("vs base")}` : typeof base === "number" ? `${tr("base")} ${base.toFixed(0)}` : ""}
       </span>
     </div>
   );
@@ -106,21 +106,21 @@ function Classifier({ profile, workloadClasses }: { profile: string; workloadCla
       <div className="rt-cls-controls">
         <label className="rt-cls-field"><span>response_format</span>
           <select value={rf} onChange={(e) => setRf(e.target.value)}>
-            <option value="">— none —</option>
+            <option value="">{tr("— none —")}</option>
             <option value="json_object">json_object</option>
             <option value="json_schema">json_schema</option>
           </select>
         </label>
         <label className="rt-cls-field"><span>tool_choice</span>
           <select value={tc} onChange={(e) => setTc(e.target.value)}>
-            <option value="">— none —</option>
+            <option value="">{tr("— none —")}</option>
             <option value="required">required</option>
             <option value="function">function</option>
           </select>
         </label>
         <label className="rt-cls-field"><span>workload_class</span>
           <select value={wc} onChange={(e) => setWc(e.target.value)}>
-            <option value="">— none —</option>
+            <option value="">{tr("— none —")}</option>
             {workloadClasses.map((w) => <option key={w} value={w}>{w}</option>)}
           </select>
         </label>
@@ -128,7 +128,7 @@ function Classifier({ profile, workloadClasses }: { profile: string; workloadCla
       {res && (
         <div className={`rt-verdict ${accepted ? "ok" : "fallback"}`}>
           <div className="rt-verdict-head">
-            <span className="rt-verdict-sig">signal: <strong>{res.signal}</strong></span>
+            <span className="rt-verdict-sig">{tr("signal")}: <strong>{res.signal}</strong></span>
             <ArrowRight size={14} />
             <span className={`rt-verdict-prof ${accepted ? "ok" : "fallback"}`}>
               {accepted ? <Check size={13} /> : <ArrowRight size={13} />}
@@ -162,8 +162,8 @@ export function RoutingPanel() {
     return (
       <div className="rt-empty">
         <Workflow size={22} />
-        <strong>Spec-decode routing unavailable</strong>
-        <span>{arts.reason ?? "The spec_decode integration is not present in this deployment (the GUI ships with sndr_core; the engine/patch layer may be absent)."}</span>
+        <strong>{tr("Spec-decode routing unavailable")}</strong>
+        <span>{arts.reason ?? tr("The spec_decode integration is not present in this deployment (the GUI ships with sndr_core; the engine/patch layer may be absent).")}</span>
       </div>
     );
   }
@@ -179,18 +179,18 @@ export function RoutingPanel() {
       <div className="rt-bar-top">
         <label className="rt-source">
           <Route size={14} />
-          <select aria-label="Routing profile" value={profile} onChange={(e) => setProfile(e.target.value)}>
-            {candidates.length === 0 && <option value="">— no profiles —</option>}
+          <select aria-label={tr("Routing profile")} value={profile} onChange={(e) => setProfile(e.target.value)}>
+            {candidates.length === 0 && <option value="">{tr("— no profiles —")}</option>}
             {candidates.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
         <button className="rt-set-active" disabled={!profile || profile === active?.profile || setting}
-          title="Pin this profile as the daemon's active route (clears on restart; set SNDR_ACTIVE_PROFILE to persist for the gateway)"
+          title={tr("Pin this profile as the daemon's active route (clears on restart; set SNDR_ACTIVE_PROFILE to persist for the gateway)")}
           onClick={async () => { setSetting(true); const r = await api.routingSetActive(profile).catch(() => null); if (r) setActive(r); setSetting(false); }}>
-          {profile && profile === active?.profile ? <><Check size={13} /> active</> : "Set active"}
+          {profile && profile === active?.profile ? <><Check size={13} /> {tr("active")}</> : tr("Set active")}
         </button>
-        {active?.source && <span className="rt-source-tag">source: {active.source}</span>}
-        {profile && <code className="rt-env-hint" title="Set on the gateway process to persist across restarts">SNDR_ACTIVE_PROFILE={profile}</code>}
+        {active?.source && <span className="rt-source-tag">{tr("source")}: {active.source}</span>}
+        {profile && <code className="rt-env-hint" title={tr("Set on the gateway process to persist across restarts")}>SNDR_ACTIVE_PROFILE={profile}</code>}
       </div>
 
       <RoutingLive lang={lang} />
@@ -205,13 +205,13 @@ export function RoutingPanel() {
             <span className={`rt-decision ${art.decision.includes("conditional") ? "warn" : art.decision.includes("denied") ? "hot" : "ok"}`}>{art.decision}</span>
           </div>
           <div className="rt-profile-kpis">
-            <div className="rt-kpi"><span className="rt-kpi-l">Global Δ</span><strong className={`rt-kpi-v ${pctTone(art.profile_delta_global ?? 0)}`}>{fmtPct(art.profile_delta_global)}</strong></div>
-            <div className="rt-kpi"><span className="rt-kpi-l">Accept mean</span><strong className="rt-kpi-v">{art.acceptance_mean != null ? art.acceptance_mean.toFixed(2) : "—"}</strong></div>
-            <div className="rt-kpi"><span className="rt-kpi-l">VRAM floor</span><strong className="rt-kpi-v">{art.vram_free_mib_min != null ? `${(art.vram_free_mib_min / 1024).toFixed(1)} GB free` : "—"}</strong></div>
-            <div className="rt-kpi"><span className="rt-kpi-l">Allowed</span><strong className="rt-kpi-v">{art.allowed_workloads.length}/{art.workload_classes.length}</strong></div>
+            <div className="rt-kpi"><span className="rt-kpi-l">{tr("Global")} Δ</span><strong className={`rt-kpi-v ${pctTone(art.profile_delta_global ?? 0)}`}>{fmtPct(art.profile_delta_global)}</strong></div>
+            <div className="rt-kpi"><span className="rt-kpi-l">{tr("Accept mean")}</span><strong className="rt-kpi-v">{art.acceptance_mean != null ? art.acceptance_mean.toFixed(2) : "—"}</strong></div>
+            <div className="rt-kpi"><span className="rt-kpi-l">{tr("VRAM floor")}</span><strong className="rt-kpi-v">{art.vram_free_mib_min != null ? `${(art.vram_free_mib_min / 1024).toFixed(1)} ${tr("GB free")}` : "—"}</strong></div>
+            <div className="rt-kpi"><span className="rt-kpi-l">{tr("Allowed")}</span><strong className="rt-kpi-v">{art.allowed_workloads.length}/{art.workload_classes.length}</strong></div>
           </div>
           {art.notes && <div className="rt-notes">{art.notes}</div>}
-          <div className="rt-wl-head"><span>Workload</span><span>Gate</span><span>Measured throughput</span><span>tok/s</span><span>vs baseline</span></div>
+          <div className="rt-wl-head"><span>{tr("Workload")}</span><span>{tr("Gate")}</span><span>{tr("Measured throughput")}</span><span>tok/s</span><span>{tr("vs baseline")}</span></div>
           <div className="rt-wl-list">
             {(() => {
               const tpsVals = art.workload_classes.map((w) => art.profile_tps_per_class[w]).filter((v): v is number => typeof v === "number");
@@ -223,7 +223,7 @@ export function RoutingPanel() {
       )}
 
       {arts && list.length === 0 && (
-        <div className="rt-note"><AlertTriangle size={14} /> <span>No bench-validated artifacts in this deployment — the per-workload TPS table appears once profiles are benched. The classifier below works live against the active profile regardless.</span></div>
+        <div className="rt-note"><AlertTriangle size={14} /> <span>{tr("No bench-validated artifacts in this deployment — the per-workload TPS table appears once profiles are benched. The classifier below works live against the active profile regardless.")}</span></div>
       )}
 
       <div className="rt-section">

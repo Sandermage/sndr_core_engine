@@ -7,6 +7,7 @@ import { type HostInventory, type EnvironmentReport, type DependencyInfo } from 
 import { InfoRows, CapChip } from "../components/primitives";
 import { totalVramGiB } from "../lib/format";
 import { SkeletonMetrics, SkeletonLines } from "../Skeleton";
+import { tr } from "../i18n";
 
 export function HostInventoryPanel({ inventory, environment }: { inventory: HostInventory | null; environment: EnvironmentReport | null }) {
   if (!inventory) return <SkeletonMetrics count={6} />;
@@ -16,42 +17,42 @@ export function HostInventoryPanel({ inventory, environment }: { inventory: Host
   // Per-GPU rows: pair each detected GPU name with its VRAM.
   const gpuRows: Array<[string, string]> = nvidia.gpu_names.length
     ? nvidia.gpu_names.map((name, index) => [`GPU ${index}`, `${name}${vram[index] ? ` · ${Math.round((vram[index] ?? 0) / 1024)} GiB` : ""}`])
-    : [["GPUs", "none detected"]];
+    : [["GPUs", tr("none detected")]];
   const canServe = nvidia.installed && nvidia.n_gpus > 0 && vllm.installed;
   return (
     <div className="host-inv-grid">
       <div className="host-inv-block">
-        <h4><Cpu size={14} /> System</h4>
-        <InfoRows rows={[["OS", `${os.distro || os.system}`], ["Arch", os.arch], ["Kernel", os.release || "—"], ["Python", `${python.version} (${python.implementation})`], ["Interpreter", python.binary_path || "—"], ["venv", python.venv_active ? "active" : "system"], ["pip", python.pip_present ? python.pip_version ?? "present" : "missing"]]} />
+        <h4><Cpu size={14} /> {tr("System")}</h4>
+        <InfoRows rows={[["OS", `${os.distro || os.system}`], [tr("Arch"), os.arch], [tr("Kernel"), os.release || "—"], ["Python", `${python.version} (${python.implementation})`], [tr("Interpreter"), python.binary_path || "—"], ["venv", python.venv_active ? tr("active") : tr("system")], ["pip", python.pip_present ? python.pip_version ?? tr("present") : tr("missing")]]} />
       </div>
       <div className="host-inv-block">
-        <h4><Box size={14} /> Container runtime</h4>
-        <InfoRows rows={[["Docker", docker.installed ? docker.version ?? "installed" : "missing"], ["Daemon", docker.daemon_running ? "running" : "stopped"], ["Server", docker.server_version ?? "—"], ["Path", docker.binary_path ?? "—"], ["NVIDIA runtime", docker.nvidia_runtime_present ? "present" : "absent"]]} />
+        <h4><Box size={14} /> {tr("Container runtime")}</h4>
+        <InfoRows rows={[["Docker", docker.installed ? docker.version ?? tr("installed") : tr("missing")], [tr("Daemon"), docker.daemon_running ? tr("running") : tr("stopped")], [tr("Server"), docker.server_version ?? "—"], [tr("Path"), docker.binary_path ?? "—"], [tr("NVIDIA runtime"), docker.nvidia_runtime_present ? tr("present") : tr("absent")]]} />
         {docker.notes && <p className="muted">{docker.notes}</p>}
       </div>
       <div className="host-inv-block">
-        <h4><Server size={14} /> GPU &amp; accelerators</h4>
-        <InfoRows rows={[["Driver", nvidia.installed ? nvidia.driver_version ?? "present" : "not detected"], ["CUDA", nvidia.cuda_version ?? "—"], ["GPU count", nvidia.n_gpus ? String(nvidia.n_gpus) : "0"], ["Total VRAM", total ? `${total} GiB` : "—"], ...gpuRows]} />
+        <h4><Server size={14} /> {tr("GPU & accelerators")}</h4>
+        <InfoRows rows={[[tr("Driver"), nvidia.installed ? nvidia.driver_version ?? tr("present") : tr("not detected")], ["CUDA", nvidia.cuda_version ?? "—"], [tr("GPU count"), nvidia.n_gpus ? String(nvidia.n_gpus) : "0"], [tr("Total VRAM"), total ? `${total} GiB` : "—"], ...gpuRows]} />
         {nvidia.notes && <p className="muted">{nvidia.notes}</p>}
       </div>
       <div className="host-inv-block">
-        <h4><PackageCheck size={14} /> Engine</h4>
-        <InfoRows rows={[["vLLM", vllm.installed ? vllm.version ?? "installed" : "not installed"], ["Engine name", environment?.engine_name ?? "vLLM"], ["Location", vllm.location ?? "—"]]} />
+        <h4><PackageCheck size={14} /> {tr("Engine")}</h4>
+        <InfoRows rows={[["vLLM", vllm.installed ? vllm.version ?? tr("installed") : tr("not installed")], [tr("Engine name"), environment?.engine_name ?? "vLLM"], [tr("Location"), vllm.location ?? "—"]]} />
       </div>
       <div className="host-inv-block">
-        <h4><ShieldCheck size={14} /> Project · SNDR Core</h4>
-        <InfoRows rows={[["Brand", environment?.brand ?? "—"], ["Package", environment?.package_name ?? "—"], ["Core version", environment ? `v${environment.sndr_core_version}` : "—"], ["Engine target", `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? ""}`.trim() || "—"], ["Dependencies", environment ? `${environment.dependencies.filter((d) => d.present).length}/${environment.dependencies.length} present` : "—"]]} />
+        <h4><ShieldCheck size={14} /> {tr("Project")} · SNDR Core</h4>
+        <InfoRows rows={[[tr("Brand"), environment?.brand ?? "—"], [tr("Package"), environment?.package_name ?? "—"], [tr("Core version"), environment ? `v${environment.sndr_core_version}` : "—"], [tr("Engine target"), `${environment?.engine_name ?? "vLLM"} ${environment?.engine_version ?? ""}`.trim() || "—"], [tr("Dependencies"), environment ? `${environment.dependencies.filter((d) => d.present).length}/${environment.dependencies.length} ${tr("present")}` : "—"]]} />
       </div>
       <div className="host-inv-block">
-        <h4><Activity size={14} /> Serving readiness</h4>
+        <h4><Activity size={14} /> {tr("Serving readiness")}</h4>
         <div className="fleet-caps inv-caps">
-          <CapChip on={nvidia.installed && nvidia.n_gpus > 0} label="GPU present" />
-          <CapChip on={docker.installed && docker.daemon_running} label="Docker ready" />
-          <CapChip on={docker.nvidia_runtime_present} label="NVIDIA runtime" />
-          <CapChip on={vllm.installed} label="vLLM installed" />
-          <CapChip on={canServe} label="can serve" />
+          <CapChip on={nvidia.installed && nvidia.n_gpus > 0} label={tr("GPU present")} />
+          <CapChip on={docker.installed && docker.daemon_running} label={tr("Docker ready")} />
+          <CapChip on={docker.nvidia_runtime_present} label={tr("NVIDIA runtime")} />
+          <CapChip on={vllm.installed} label={tr("vLLM installed")} />
+          <CapChip on={canServe} label={tr("can serve")} />
         </div>
-        <p className="muted">{canServe ? "This host can launch the pinned vLLM stack." : "Resolve the unmet items above before launching here."}</p>
+        <p className="muted">{canServe ? tr("This host can launch the pinned vLLM stack.") : tr("Resolve the unmet items above before launching here.")}</p>
       </div>
     </div>
   );
@@ -76,36 +77,36 @@ export function DependencyStackPanel({ env }: { env: EnvironmentReport | null })
       <div className="dep-summary">
         <div className="dep-summary-item">
           <strong>{libsPresent}<span>/{env.dependencies.length}</span></strong>
-          <span>Python libraries</span>
+          <span>{tr("Python libraries")}</span>
         </div>
         <div className="dep-summary-item">
           <strong>{toolsPresent}<span>/{env.tools.length}</span></strong>
-          <span>Runtime tools</span>
+          <span>{tr("Runtime tools")}</span>
         </div>
       </div>
 
-      <div className="dep-section-label">Serving-critical</div>
+      <div className="dep-section-label">{tr("Serving-critical")}</div>
       <div className="dep-critical">
         {criticalDeps.map((dep) => (
           <div className={`dep-crit ${dep.present ? "on" : "off"}`} key={dep.name}>
             <span className="dep-crit-name">{dep.present ? <CheckCircle2 size={12} /> : <CircleAlert size={12} />}{dep.name}</span>
-            <strong>{dep.present ? (dep.version ?? "ok") : "missing"}</strong>
+            <strong>{dep.present ? (dep.version ?? tr("ok")) : tr("missing")}</strong>
           </div>
         ))}
       </div>
 
-      <div className="dep-section-label">All libraries</div>
+      <div className="dep-section-label">{tr("All libraries")}</div>
       <div className="dep-list">
         {env.dependencies.map((dep) => (
           <div className={`dep-item ${dep.present ? "on" : "off"}`} key={dep.name}>
             <span className={`sev-dot ${dep.present ? "sev-ok" : "sev-warn"}`} />
             <em>{dep.name}</em>
-            <code>{dep.version ?? (dep.present ? "present" : "missing")}</code>
+            <code>{dep.version ?? (dep.present ? tr("present") : tr("missing"))}</code>
           </div>
         ))}
       </div>
 
-      <div className="dep-section-label">Runtime tools{missingTools.length > 0 ? ` · ${missingTools.length} missing` : ""}</div>
+      <div className="dep-section-label">{tr("Runtime tools")}{missingTools.length > 0 ? ` · ${missingTools.length} ${tr("missing")}` : ""}</div>
       <div className="fleet-caps">
         {env.tools.map((tool) => (
           <span className={`cap-chip ${tool.present ? "on" : "off"}`} key={tool.name}>
@@ -117,8 +118,8 @@ export function DependencyStackPanel({ env }: { env: EnvironmentReport | null })
       <div className={`dep-verdict ${criticalReady ? "ok" : "warn"}`}>
         {criticalReady ? <CheckCircle2 size={14} /> : <CircleAlert size={14} />}
         <span>{criticalReady
-          ? "Serving-critical libraries present — this host can run the engine."
-          : `Missing ${missing.length ? missing.join(", ") : "dependencies"} — install the pinned build before serving here.`}</span>
+          ? tr("Serving-critical libraries present — this host can run the engine.")
+          : `${tr("Missing")} ${missing.length ? missing.join(", ") : tr("dependencies")} — ${tr("install the pinned build before serving here.")}`}</span>
       </div>
     </div>
   );
@@ -136,21 +137,21 @@ export function EnvironmentPanel({ env }: { env: EnvironmentReport | null }) {
           <strong>v{env.sndr_core_version}</strong>
         </div>
         <div className={`env-badge ${env.engine_version ? "on" : "off"}`}>
-          <span>{env.engine_name} engine</span>
-          <strong>{env.engine_version ? `v${env.engine_version}` : "not installed"}</strong>
+          <span>{env.engine_name} {tr("engine")}</span>
+          <strong>{env.engine_version ? `v${env.engine_version}` : tr("not installed")}</strong>
         </div>
         <div className="env-badge">
           <span>Python</span>
           <strong>{env.python_version}</strong>
         </div>
         <div className="env-badge">
-          <span>Platform</span>
+          <span>{tr("Platform")}</span>
           <strong>{env.os_name} / {env.machine}</strong>
         </div>
       </div>
       <div className="env-grid">
         <div className="env-col">
-          <strong>Dependency stack</strong>
+          <strong>{tr("Dependency stack")}</strong>
           {env.dependencies.map((dep) => (
             <div className="env-dep" key={dep.name}>
               <span className={`sev-dot ${dep.present ? "sev-ok" : "sev-warn"}`} />
@@ -160,12 +161,12 @@ export function EnvironmentPanel({ env }: { env: EnvironmentReport | null }) {
           ))}
         </div>
         <div className="env-col">
-          <strong>Runtime tools</strong>
+          <strong>{tr("Runtime tools")}</strong>
           {env.tools.map((tool) => (
             <div className="env-dep" key={tool.name}>
               <span className={`sev-dot ${tool.present ? "sev-ok" : "sev-danger"}`} />
               <em>{tool.name}</em>
-              <code>{tool.present ? "available" : "missing"}</code>
+              <code>{tool.present ? tr("available") : tr("missing")}</code>
             </div>
           ))}
         </div>

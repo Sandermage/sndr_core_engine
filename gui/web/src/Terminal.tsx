@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { AlertTriangle, Maximize2, Minus, SquareTerminal, X } from "lucide-react";
 import { getApiBase, getApiToken, type HostProfile } from "./api";
+import { tr } from "./i18n";
 
 function terminalWsUrl(hostId: string): string {
   let u: URL;
@@ -139,23 +140,23 @@ export function TerminalModal({ host, onClose }: { host: HostProfile; onClose: (
     : { left: box.x, top: box.y, width: box.w, height: box.h };
 
   return (
-    <div className="terminal-window" style={style} role="dialog" aria-modal="false" aria-label={`Terminal ${host.label}`}>
+    <div className="terminal-window" style={style} role="dialog" aria-modal="false" aria-label={`${tr("Terminal")} ${host.label}`}>
       <header className="terminal-titlebar" onPointerDown={(e) => beginDrag(e, "move")} onDoubleClick={toggleMax}>
         <span className="terminal-traffic"><i /><i /><i /></span>
         <SquareTerminal size={15} />
         <strong>{host.label}</strong>
         <span className="terminal-target">{(host.ssh_user || "ssh") + "@" + host.host}{host.ssh_port && host.ssh_port !== 22 ? `:${host.ssh_port}` : ""}</span>
-        <span className={`terminal-state ${dot}`}><span className="terminal-dot" />{state}</span>
+        <span className={`terminal-state ${dot}`}><span className="terminal-dot" />{tr(state)}</span>
         <span className="terminal-winbtns">
-          <button className="terminal-winbtn" onPointerDown={(e) => e.stopPropagation()} onClick={() => sendResize()} title="Refit"><Minus size={14} /></button>
-          <button className="terminal-winbtn" onPointerDown={(e) => e.stopPropagation()} onClick={toggleMax} title={maximized ? "Restore" : "Maximize"}><Maximize2 size={14} /></button>
-          <button className="terminal-winbtn close" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close"><X size={15} /></button>
+          <button className="terminal-winbtn" onPointerDown={(e) => e.stopPropagation()} onClick={() => sendResize()} title={tr("Refit")}><Minus size={14} /></button>
+          <button className="terminal-winbtn" onPointerDown={(e) => e.stopPropagation()} onClick={toggleMax} title={maximized ? tr("Restore") : tr("Maximize")}><Maximize2 size={14} /></button>
+          <button className="terminal-winbtn close" onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title={tr("Close")}><X size={15} /></button>
         </span>
       </header>
       {banner && <div className="terminal-banner"><AlertTriangle size={14} /> {banner}</div>}
       <div className="terminal-body" ref={mountRef} onPointerDown={() => termRef.current?.focus()} />
       <footer className="terminal-footer">
-        <span className={`terminal-foot-state ${dot}`}><span className="terminal-dot" />{state === "open" ? "connected" : state}</span>
+        <span className={`terminal-foot-state ${dot}`}><span className="terminal-dot" />{state === "open" ? tr("connected") : tr(state)}</span>
         <span className="terminal-foot-host">{(host.ssh_user || "ssh") + "@" + host.host}{host.ssh_port && host.ssh_port !== 22 ? `:${host.ssh_port}` : ""}</span>
         <span className="terminal-foot-sp" />
         <span className="terminal-foot-meta">SSH · PTY</span>

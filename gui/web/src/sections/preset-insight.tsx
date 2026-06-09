@@ -7,6 +7,7 @@ import { asRecord, asNumber, asText, asStringArray } from "../lib/coerce";
 import { formatTokens } from "../lib/format";
 import { BarList } from "../components/charts";
 import { InfoRows } from "../components/primitives";
+import { tr } from "../i18n";
 
 export function RuntimeEnvelopePanel({
   card,
@@ -25,18 +26,18 @@ export function RuntimeEnvelopePanel({
     <div className="runtime-envelope">
       <BarList
         rows={[
-          ["Context", Math.min(100, Math.round(context / 4096)), formatTokens(context)],
-          ["Concurrency", Math.min(100, sequences * 10), String(sequences || "-")],
-          ["Enabled patches", patchCount ? Math.round((patches / patchCount) * 100) : 0, String(patches || 0)],
-          ["Metric", Math.min(100, Math.round(asNumber(metric.value) / 8)), String(asNumber(metric.value) || "pending")]
+          [tr("Context"), Math.min(100, Math.round(context / 4096)), formatTokens(context)],
+          [tr("Concurrency"), Math.min(100, sequences * 10), String(sequences || "-")],
+          [tr("Enabled patches"), patchCount ? Math.round((patches / patchCount) * 100) : 0, String(patches || 0)],
+          [tr("Metric"), Math.min(100, Math.round(asNumber(metric.value) / 8)), String(asNumber(metric.value) || tr("pending"))]
         ]}
       />
       <InfoRows
         rows={[
-          ["KV Cache", asText(composed.kv_cache_dtype, "-")],
-          ["Spec Decode", asText(composed.spec_decode_method, "-")],
-          ["Spec K", String(asNumber(composed.spec_decode_K) || "-")],
-          ["Evidence", asText(card.evidence_visibility, "unknown")]
+          [tr("KV Cache"), asText(composed.kv_cache_dtype, "-")],
+          [tr("Spec Decode"), asText(composed.spec_decode_method, "-")],
+          [tr("Spec K"), String(asNumber(composed.spec_decode_K) || "-")],
+          [tr("Evidence"), asText(card.evidence_visibility, tr("unknown"))]
         ]}
       />
     </div>
@@ -53,8 +54,8 @@ export function PresetPolicyGraph({
   return (
     <div className="policy-graph">
       <div className="policy-summary">
-        <span className="policy-count allow">{allow.length} allowed</span>
-        <span className="policy-count deny">{deny.length} denied</span>
+        <span className="policy-count allow">{allow.length} {tr("allowed")}</span>
+        <span className="policy-count deny">{deny.length} {tr("denied")}</span>
       </div>
       {allow.length || deny.length ? (
         <div className="policy-pill-grid">
@@ -62,7 +63,7 @@ export function PresetPolicyGraph({
           {deny.map((item) => <span className="policy-pill deny" key={`deny-${item}`}>{item}</span>)}
         </div>
       ) : (
-        <p className="muted">No explicit workload policy — every workload is allowed.</p>
+        <p className="muted">{tr("No explicit workload policy — every workload is allowed.")}</p>
       )}
     </div>
   );

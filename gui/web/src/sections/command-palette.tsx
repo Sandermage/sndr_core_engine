@@ -11,6 +11,7 @@ import { RefreshCw, Rocket, Terminal, ShieldCheck, PackageCheck, Rows3, Command,
 import { type SectionId } from "../nav";
 import { type GuiSettings, themeIcon, nextTheme, themeLabel } from "../settings";
 import { useDialogFocus, closeOnBackdrop } from "../dialog";
+import { tr } from "../i18n";
 
 export function CommandPalette({
   onClose,
@@ -35,15 +36,15 @@ export function CommandPalette({
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus(dialogRef);
   const commands: Array<{ icon: ReactNode; title: string; detail: string; keep?: boolean; run: () => void }> = [
-    { icon: <RefreshCw size={16} />, title: "Sync Catalog", detail: "Refresh overview, presets, patch registry and doctor state", run: onRefresh },
-    { icon: <Rocket size={16} />, title: "Open Launch Plan", detail: "Recommendation builder and launch composer", run: () => onSection("launch-plan") },
-    { icon: <Terminal size={16} />, title: "Open Operations", detail: "Run project maintenance and diagnostic workflows", run: () => onSection("operations") },
-    { icon: <ShieldCheck size={16} />, title: "Run Doctor View", detail: "Readiness gates and registry doctor panel", run: () => onSection("doctor") },
-    { icon: <PackageCheck size={16} />, title: "Patch Matrix", detail: "Patch lifecycle, default policy and registry coverage", run: () => onSection("patches") },
-    { icon: themeIcon(nextTheme(settings.theme)), title: "Toggle Theme", detail: `Cycle themes (next: ${themeLabel(nextTheme(settings.theme))})`, keep: true, run: () => onSettings({ theme: nextTheme(settings.theme) }) },
-    { icon: <Rows3 size={16} />, title: "Toggle Density", detail: "Switch comfortable/compact density", keep: true, run: () => onSettings({ density: settings.density === "compact" ? "comfortable" : "compact" }) },
-    { icon: <Command size={16} />, title: "Keyboard Shortcuts", detail: "Show all shortcuts and navigation chords (?)", run: onShortcuts },
-    { icon: <Settings size={16} />, title: "Settings", detail: "Appearance, API, schema and admin", run: () => onSection("advanced") }
+    { icon: <RefreshCw size={16} />, title: tr("Sync Catalog"), detail: tr("Refresh overview, presets, patch registry and doctor state"), run: onRefresh },
+    { icon: <Rocket size={16} />, title: tr("Open Launch Plan"), detail: tr("Recommendation builder and launch composer"), run: () => onSection("launch-plan") },
+    { icon: <Terminal size={16} />, title: tr("Open Operations"), detail: tr("Run project maintenance and diagnostic workflows"), run: () => onSection("operations") },
+    { icon: <ShieldCheck size={16} />, title: tr("Run Doctor View"), detail: tr("Readiness gates and registry doctor panel"), run: () => onSection("doctor") },
+    { icon: <PackageCheck size={16} />, title: tr("Patch Matrix"), detail: tr("Patch lifecycle, default policy and registry coverage"), run: () => onSection("patches") },
+    { icon: themeIcon(nextTheme(settings.theme)), title: tr("Toggle Theme"), detail: `${tr("Cycle themes (next:")} ${themeLabel(nextTheme(settings.theme))})`, keep: true, run: () => onSettings({ theme: nextTheme(settings.theme) }) },
+    { icon: <Rows3 size={16} />, title: tr("Toggle Density"), detail: tr("Switch comfortable/compact density"), keep: true, run: () => onSettings({ density: settings.density === "compact" ? "comfortable" : "compact" }) },
+    { icon: <Command size={16} />, title: tr("Keyboard Shortcuts"), detail: tr("Show all shortcuts and navigation chords (?)"), run: onShortcuts },
+    { icon: <Settings size={16} />, title: tr("Settings"), detail: tr("Appearance, API, schema and admin"), run: () => onSection("advanced") }
   ];
   const all = [...commands, ...searchItems];
   const q = query.trim().toLowerCase();
@@ -83,15 +84,15 @@ export function CommandPalette({
   };
   return (
     <div className="dialog-backdrop" role="presentation" onClick={closeOnBackdrop(onClose)}>
-      <section ref={dialogRef} className="command-dialog" role="dialog" aria-modal="true" aria-label="Command palette">
+      <section ref={dialogRef} className="command-dialog" role="dialog" aria-modal="true" aria-label={tr("Command palette")}>
         <div className="command-search">
           <Search size={16} />
-          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search commands, sections, presets, models, configs, patches…" spellCheck={false}
-            role="combobox" aria-label="Search commands and sections" aria-expanded={true} aria-controls="command-list" aria-activedescendant={shown[activeIndex] ? `command-item-${activeIndex}` : undefined}
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tr("Search commands, sections, presets, models, configs, patches…")} spellCheck={false}
+            role="combobox" aria-label={tr("Search commands and sections")} aria-expanded={true} aria-controls="command-list" aria-activedescendant={shown[activeIndex] ? `command-item-${activeIndex}` : undefined}
             onKeyDown={onKeyDown} />
           <kbd>esc</kbd>
         </div>
-        <div className="command-list" id="command-list" role="listbox" aria-label="Commands" ref={listRef}>
+        <div className="command-list" id="command-list" role="listbox" aria-label={tr("Commands")} ref={listRef}>
           {shown.map((item, index) => (
             <button
               key={`${item.title}-${index}`}
@@ -110,7 +111,7 @@ export function CommandPalette({
               <ChevronRight size={16} />
             </button>
           ))}
-          {shown.length === 0 && <p className="muted command-empty">No matches for “{query}”.</p>}
+          {shown.length === 0 && <p className="muted command-empty">{tr("No matches for")} “{query}”.</p>}
         </div>
       </section>
     </div>

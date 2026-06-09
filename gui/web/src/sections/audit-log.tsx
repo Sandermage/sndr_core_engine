@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { api, type BackendEvent } from "../api";
 import { SkeletonTable } from "../Skeleton";
+import { tr } from "../i18n";
 
 export function AuditLogPanel() {
   const [events, setEvents] = useState<BackendEvent[]>([]);
@@ -27,13 +28,13 @@ export function AuditLogPanel() {
   return (
     <div className="audit-log">
       <div className="audit-bar">
-        <span className="muted">{events.length} recorded event{events.length === 1 ? "" : "s"} · live</span>
-        <input aria-label="Filter audit log" className="audit-filter" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter by kind or message…" spellCheck={false} />
+        <span className="muted">{events.length} {events.length === 1 ? tr("recorded event") : tr("recorded events")} · {tr("live")}</span>
+        <input aria-label={tr("Filter audit log")} className="audit-filter" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={tr("Filter by kind or message…")} spellCheck={false} />
       </div>
-      {rows.length === 0 ? <p className="muted">No events match.</p> : (
+      {rows.length === 0 ? <p className="muted">{tr("No events match.")}</p> : (
         <div className="patch-table-scroll">
           <table className="module-table audit-table">
-            <thead><tr><th>Time</th><th>Kind</th><th>Event</th><th>Seq</th></tr></thead>
+            <thead><tr><th>{tr("Time")}</th><th>{tr("Kind")}</th><th>{tr("Event")}</th><th>{tr("Seq")}</th></tr></thead>
             <tbody>
               {rows.map((event) => (
                 <tr key={event.seq}>

@@ -7,6 +7,7 @@ import { asText, countRecord } from "../lib/coerce";
 import { SegmentBar, BarList, segmentsFromCounts } from "../components/charts";
 import { InfoRows } from "../components/primitives";
 import { SkeletonLines } from "../Skeleton";
+import { tr } from "../i18n";
 
 const PROOF_PROBLEM_BUCKETS = new Set(["dead", "static_failed"]);
 
@@ -44,14 +45,14 @@ function ProofPatchDrilldown({
   return (
     <div className="proof-drilldown">
       <div className="proof-drill-head">
-        <h5>Per-patch proof</h5>
+        <h5>{tr("Per-patch proof")}</h5>
         <div className="chip-row">
           <button
             type="button"
             className={`chip chip-link ${bucket === "all" ? "active" : ""}`}
             onClick={() => setBucket("all")}
           >
-            all ({patches.length})
+            {tr("all")} ({patches.length})
           </button>
           {buckets.map((b) => {
             const n = patches.filter((p) => patchBucket(p) === b).length;
@@ -71,7 +72,7 @@ function ProofPatchDrilldown({
       <table className="proof-drill-table">
         <thead>
           <tr>
-            <th>Patch</th><th>Bucket</th><th>Family</th><th>Tier</th><th>Lifecycle</th><th>Artifacts</th>
+            <th>{tr("Patch")}</th><th>{tr("Bucket")}</th><th>{tr("Family")}</th><th>{tr("Tier")}</th><th>{tr("Lifecycle")}</th><th>{tr("Artifacts")}</th>
           </tr>
         </thead>
         <tbody>
@@ -97,7 +98,7 @@ function ProofPatchDrilldown({
       </table>
       {filtered.length > LIMIT && (
         <button type="button" className="proof-drill-more" onClick={() => setExpanded((v) => !v)}>
-          {expanded ? "Show fewer" : `Show all ${filtered.length}`}
+          {expanded ? tr("Show fewer") : `${tr("Show all")} ${filtered.length}`}
         </button>
       )}
     </div>
@@ -112,9 +113,9 @@ export function ProofStatusPanel({ report }: { report: ProofStatusReport | null 
     return (
       <InfoRows
         rows={[
-          ["Proof subsystem", "Unavailable"],
-          ["Reason", report.reason ?? "not initialized"],
-          ["Hint", "Run sndr patches prove to generate artifacts"]
+          [tr("Proof subsystem"), tr("Unavailable")],
+          [tr("Reason"), report.reason ?? tr("not initialized")],
+          [tr("Hint"), tr("Run sndr patches prove to generate artifacts")]
         ]}
       />
     );
@@ -128,11 +129,11 @@ export function ProofStatusPanel({ report }: { report: ProofStatusReport | null 
     dead: "var(--danger)"
   };
   const bucketMeaning: Record<string, string> = {
-    bench_with_baseline: "Has a measured TPS/TPOT baseline",
-    bench_attached: "Benchmark evidence attached",
-    static_only: "Static artifact only — no live run",
-    static_failed: "Static check failed",
-    dead: "No artifact / dead reference"
+    bench_with_baseline: tr("Has a measured TPS/TPOT baseline"),
+    bench_attached: tr("Benchmark evidence attached"),
+    static_only: tr("Static artifact only — no live run"),
+    static_failed: tr("Static check failed"),
+    dead: tr("No artifact / dead reference")
   };
   const patches = report.patches ?? [];
   const totalArtefacts = patches.reduce(
@@ -157,10 +158,10 @@ export function ProofStatusPanel({ report }: { report: ProofStatusReport | null 
         <SegmentBar
           segments={segmentsFromCounts(report.counts, proofColors)}
           total={report.total}
-          totalLabel="proof artifacts"
+          totalLabel={tr("proof artifacts")}
         />
       ) : (
-        <p className="muted">No proof artifacts collected yet.</p>
+        <p className="muted">{tr("No proof artifacts collected yet.")}</p>
       )}
       <div className="proof-buckets">
         {entries.map(([key, value]) => (
@@ -175,21 +176,21 @@ export function ProofStatusPanel({ report }: { report: ProofStatusReport | null 
       </div>
       <div className="proof-dists">
         <div className="proof-dist">
-          <h5>By family {familyHidden > 0 && <em>top {familyShown}</em>}</h5>
+          <h5>{tr("By family")} {familyHidden > 0 && <em>{tr("top")} {familyShown}</em>}</h5>
           <BarList rows={bar(byFamily, 10)} />
-          {familyHidden > 0 && <small className="muted">+{familyHidden} more famil{familyHidden === 1 ? "y" : "ies"}</small>}
+          {familyHidden > 0 && <small className="muted">+{familyHidden} {familyHidden === 1 ? tr("more family") : tr("more families")}</small>}
         </div>
         <div className="proof-dist">
-          <h5>By tier</h5>
+          <h5>{tr("By tier")}</h5>
           <BarList rows={bar(byTier)} />
         </div>
         <div className="proof-dist">
-          <h5>By lifecycle</h5>
+          <h5>{tr("By lifecycle")}</h5>
           <BarList rows={bar(byLifecycle)} />
         </div>
       </div>
       <ProofPatchDrilldown patches={patches} colors={proofColors} />
-      <p className="proof-foot muted">{patches.length} patches indexed · {totalArtefacts} artifact file{totalArtefacts === 1 ? "" : "s"}</p>
+      <p className="proof-foot muted">{patches.length} {tr("patches indexed")} · {totalArtefacts} {totalArtefacts === 1 ? tr("artifact file") : tr("artifact files")}</p>
     </div>
   );
 }

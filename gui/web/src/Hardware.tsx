@@ -4,6 +4,7 @@ import {
   HardDrive, Network, RefreshCw, Server, Thermometer, Zap,
 } from "lucide-react";
 import { api, type GpuInfo, type HardwareSystem, type HardwareTelemetry } from "./api";
+import { tr } from "./i18n";
 
 type HostOption = { id: string; label: string };
 type Source = { kind: "local" } | { kind: "host"; hostId: string };
@@ -113,11 +114,11 @@ function GpuCard({ gpu, index, hist }: { gpu: GpuInfo; index: number; hist?: Gpu
 
   // A coarse health verdict surfaced as a status dot in the header.
   const status: { t: "ok" | "warn" | "hot"; label: string } =
-    eccUnc > 0 ? { t: "hot", label: "ECC fault" }
-    : temp >= 84 ? { t: "hot", label: "Hot" }
-    : util >= 70 || temp >= 70 ? { t: "warn", label: "Under load" }
-    : util < 5 ? { t: "ok", label: "Idle" }
-    : { t: "ok", label: "Active" };
+    eccUnc > 0 ? { t: "hot", label: tr("ECC fault") }
+    : temp >= 84 ? { t: "hot", label: tr("Hot") }
+    : util >= 70 || temp >= 70 ? { t: "warn", label: tr("Under load") }
+    : util < 5 ? { t: "ok", label: tr("Idle") }
+    : { t: "ok", label: tr("Active") };
 
   return (
     <div className="hw-gpu">
@@ -126,65 +127,65 @@ function GpuCard({ gpu, index, hist }: { gpu: GpuInfo; index: number; hist?: Gpu
         <div className="hw-gpu-id">
           <strong className="hw-gpu-name" title={gpu.name ?? ""}>{(gpu.name ?? "GPU").replace(/^NVIDIA\s+/i, "")}</strong>
           <span className="hw-gpu-meta">
-            {gpu.driver_version ? `driver ${gpu.driver_version}` : "driver —"}
+            {gpu.driver_version ? `${tr("driver")} ${gpu.driver_version}` : `${tr("driver")} —`}
             {gpu.compute_mode ? ` · ${gpu.compute_mode}` : ""}
           </span>
         </div>
-        {gpu.pstate && <span className={`hw-pstate ${gpu.pstate === "P0" ? "ok" : ""}`} title="performance state">{gpu.pstate}</span>}
+        {gpu.pstate && <span className={`hw-pstate ${gpu.pstate === "P0" ? "ok" : ""}`} title={tr("performance state")}>{gpu.pstate}</span>}
         <span className={`hw-status-dot ${status.t}`} title={status.label} />
       </div>
 
       <div className="hw-rings">
-        <Ring label="Util" icon={<Gauge size={10} />} value={`${util}%`} pct={util} sub="utilization" />
-        <Ring label="Temp" icon={<Thermometer size={10} />} value={`${temp}°`} pct={tempPct} sub={`${temp} °C`} />
-        <Ring label="Power" icon={<Zap size={10} />} value={`${Math.round(powerPct)}%`} pct={powerPct}
+        <Ring label={tr("Util")} icon={<Gauge size={10} />} value={`${util}%`} pct={util} sub={tr("utilization")} />
+        <Ring label={tr("Temp")} icon={<Thermometer size={10} />} value={`${temp}°`} pct={tempPct} sub={`${temp} °C`} />
+        <Ring label={tr("Power")} icon={<Zap size={10} />} value={`${Math.round(powerPct)}%`} pct={powerPct}
           sub={powerMax ? `${Math.round(power)} / ${Math.round(powerMax)} W` : `${Math.round(power)} W`} />
       </div>
 
       {hist && hist.util.length >= 2 && (
         <div className="hw-trend">
-          <span className="hw-trend-l">Util trend · last {hist.util.length * 4}s</span>
+          <span className="hw-trend-l">{tr("Util trend · last")} {hist.util.length * 4}s</span>
           <Sparkline data={hist.util} t={tone(util)} />
         </div>
       )}
 
       <div className="hw-block">
         <Bar label="VRAM" value={`${gib1(memUsed)} / ${gib1(memTotal)} GB`} pct={memPct} tint
-          sub={`${gib1(memFree)} GB free · ${Math.round(memPct)}% used`} />
-        <Bar label="Memory bandwidth" value={`${memBw}%`} pct={memBw} sub="memory controller load" />
+          sub={`${gib1(memFree)} GB ${tr("free")} · ${Math.round(memPct)}% ${tr("used")}`} />
+        <Bar label={tr("Memory bandwidth")} value={`${memBw}%`} pct={memBw} sub={tr("memory controller load")} />
       </div>
 
       <div className="hw-grid">
         <div className="hw-sect">
-          <div className="hw-sect-t"><Gauge size={11} /> Clocks</div>
-          <Row k="Graphics" v={`${num(gpu.clock_gpu)} / ${num(gpu.clock_gpu_max)}`} unit="MHz" />
-          <Row k="Memory" v={`${num(gpu.clock_mem)} / ${num(gpu.clock_mem_max)}`} unit="MHz" />
+          <div className="hw-sect-t"><Gauge size={11} /> {tr("Clocks")}</div>
+          <Row k={tr("Graphics")} v={`${num(gpu.clock_gpu)} / ${num(gpu.clock_gpu_max)}`} unit="MHz" />
+          <Row k={tr("Memory")} v={`${num(gpu.clock_mem)} / ${num(gpu.clock_mem_max)}`} unit="MHz" />
           <Row k="SM" v={`${num(gpu.clock_sm)}`} unit="MHz" />
         </div>
         <div className="hw-sect">
-          <div className="hw-sect-t"><Fan size={11} /> Thermal &amp; power</div>
-          <Row k="Fan" v={fan != null ? `${fan}` : "—"} unit={fan != null ? "%" : ""} />
-          {gpu.temp_mem ? <Row k="Mem temp" v={`${gpu.temp_mem}`} unit="°C" /> : <Row k="Headroom" v={`${Math.round(powerHeadroom)}`} unit="W" />}
-          <Row k="Limit" v={powerMax ? (gpu.power_min_limit != null ? `${Math.round(num(gpu.power_min_limit))}–${Math.round(powerMax)}` : `${Math.round(powerMax)}`) : "—"} unit={powerMax ? "W" : ""} />
+          <div className="hw-sect-t"><Fan size={11} /> {tr("Thermal & power")}</div>
+          <Row k={tr("Fan")} v={fan != null ? `${fan}` : "—"} unit={fan != null ? "%" : ""} />
+          {gpu.temp_mem ? <Row k={tr("Mem temp")} v={`${gpu.temp_mem}`} unit="°C" /> : <Row k={tr("Headroom")} v={`${Math.round(powerHeadroom)}`} unit="W" />}
+          <Row k={tr("Limit")} v={powerMax ? (gpu.power_min_limit != null ? `${Math.round(num(gpu.power_min_limit))}–${Math.round(powerMax)}` : `${Math.round(powerMax)}`) : "—"} unit={powerMax ? "W" : ""} />
         </div>
         <div className="hw-sect">
-          <div className="hw-sect-t"><CircuitBoard size={11} /> Bus &amp; link</div>
+          <div className="hw-sect-t"><CircuitBoard size={11} /> {tr("Bus & link")}</div>
           <Row k="PCIe" v={gpu.pcie_gen ? `gen${gpu.pcie_gen}×${num(gpu.pcie_width)}` : "—"} />
-          <Row k="Max" v={gpu.pcie_gen_max ? `gen${num(gpu.pcie_gen_max)}×${num(gpu.pcie_width_max)}` : "—"} />
-          <Row k="State" v={<span className={gpu.pcie_gen && !pcieFull ? "hw-warn-t" : ""}>{gpu.pcie_gen ? (pcieFull ? "full" : "degraded") : "—"}</span>} />
+          <Row k={tr("Max")} v={gpu.pcie_gen_max ? `gen${num(gpu.pcie_gen_max)}×${num(gpu.pcie_width_max)}` : "—"} />
+          <Row k={tr("State")} v={<span className={gpu.pcie_gen && !pcieFull ? "hw-warn-t" : ""}>{gpu.pcie_gen ? (pcieFull ? tr("full") : tr("degraded")) : "—"}</span>} />
         </div>
         <div className="hw-sect">
-          <div className="hw-sect-t"><Activity size={11} /> Reliability</div>
-          <Row k="P-state" v={gpu.pstate ?? "—"} />
-          <Row k="ECC corr" v={gpu.ecc_corrected ?? "—"} />
-          <Row k="ECC uncorr" v={<span className={eccUnc > 0 ? "hw-bad" : ""}>{gpu.ecc_uncorrected ?? "—"}</span>} />
+          <div className="hw-sect-t"><Activity size={11} /> {tr("Reliability")}</div>
+          <Row k={tr("P-state")} v={gpu.pstate ?? "—"} />
+          <Row k={tr("ECC corr")} v={gpu.ecc_corrected ?? "—"} />
+          <Row k={tr("ECC uncorr")} v={<span className={eccUnc > 0 ? "hw-bad" : ""}>{gpu.ecc_uncorrected ?? "—"}</span>} />
         </div>
       </div>
 
       <div className="hw-foot">
         {gpu.vbios_version && <span className="hw-foot-i"><CircuitBoard size={10} /> vBIOS {gpu.vbios_version}</span>}
-        {gpu.serial && <span className="hw-foot-i" title="serial number">S/N {gpu.serial}</span>}
-        {gpu.uuid && <span className="hw-foot-i hw-uuid" title="GPU UUID"><Server size={10} /> {gpu.uuid}</span>}
+        {gpu.serial && <span className="hw-foot-i" title={tr("serial number")}>S/N {gpu.serial}</span>}
+        {gpu.uuid && <span className="hw-foot-i hw-uuid" title={tr("GPU UUID")}><Server size={10} /> {gpu.uuid}</span>}
       </div>
     </div>
   );
@@ -207,26 +208,26 @@ function HostPanel({ system, gpuCount, netRate }: { system: HardwareSystem; gpuC
     <div className="hw-host">
       <div className="hw-host-head">
         <span className="hw-host-name"><HardDrive size={15} /> {system.hostname ?? "host"}</span>
-        {system.cpu && <span className="hw-host-cpu"><Cpu size={13} /> {system.cpu}{system.cpu_count ? ` · ${system.cpu_count} cores` : ""}</span>}
+        {system.cpu && <span className="hw-host-cpu"><Cpu size={13} /> {system.cpu}{system.cpu_count ? ` · ${system.cpu_count} ${tr("cores")}` : ""}</span>}
         {system.platform && <span className="hw-host-cpu"><Server size={12} /> {system.platform}</span>}
         {system.primary_ip && <span className="hw-host-ip"><Network size={12} /> {system.primary_ip}</span>}
         <span className="hw-host-gpus"><Activity size={12} /> {gpuCount} GPU{gpuCount === 1 ? "" : "s"}</span>
       </div>
       <div className="hw-host-grid">
         {ramTotal > 0 && (
-          <Bar label="System memory" value={`${ramUsed.toFixed(1)} / ${ramTotal.toFixed(1)} GB`} pct={ramPct} tint
-            sub={`${ramFree.toFixed(1)} GB available · ${Math.round(ramPct)}% used`} />
+          <Bar label={tr("System memory")} value={`${ramUsed.toFixed(1)} / ${ramTotal.toFixed(1)} GB`} pct={ramPct} tint
+            sub={`${ramFree.toFixed(1)} GB ${tr("available")} · ${Math.round(ramPct)}% ${tr("used")}`} />
         )}
         {disk && diskTotal > 0 && (
-          <Bar label={`Disk · ${disk.mount}`} value={`${diskUsed.toFixed(0)} / ${diskTotal.toFixed(0)} GB`} pct={diskPct} tint
-            sub={`${num(disk.free_gb).toFixed(0)} GB free · ${Math.round(diskPct)}% used`} />
+          <Bar label={`${tr("Disk")} · ${disk.mount}`} value={`${diskUsed.toFixed(0)} / ${diskTotal.toFixed(0)} GB`} pct={diskPct} tint
+            sub={`${num(disk.free_gb).toFixed(0)} GB ${tr("free")} · ${Math.round(diskPct)}% ${tr("used")}`} />
         )}
         {hasNet && (
           <div className="hw-net">
-            <span className="hw-bar-label">Network{iface ? ` · ${iface}` : ""}</span>
+            <span className="hw-bar-label">{tr("Network")}{iface ? ` · ${iface}` : ""}</span>
             <div className="hw-net-rates">
-              <span className="hw-net-r down"><ArrowDown size={14} /> {netRate ? rate(netRate.rx) : "measuring…"}</span>
-              <span className="hw-net-r up"><ArrowUp size={14} /> {netRate ? rate(netRate.tx) : "measuring…"}</span>
+              <span className="hw-net-r down"><ArrowDown size={14} /> {netRate ? rate(netRate.rx) : tr("measuring…")}</span>
+              <span className="hw-net-r up"><ArrowUp size={14} /> {netRate ? rate(netRate.tx) : tr("measuring…")}</span>
             </div>
           </div>
         )}
@@ -301,15 +302,15 @@ export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; i
       <div className="hw-bar-top">
         <label className="hw-source">
           <Server size={14} />
-          <select aria-label="Telemetry source host" value={source.kind === "local" ? "__local__" : source.hostId}
+          <select aria-label={tr("Telemetry source host")} value={source.kind === "local" ? "__local__" : source.hostId}
             onChange={(e) => { const v = e.target.value; setSource(v === "__local__" ? { kind: "local" } : { kind: "host", hostId: v }); }}>
-            <option value="__local__">This daemon host</option>
+            <option value="__local__">{tr("This daemon host")}</option>
             {hosts.map((h) => <option key={h.id} value={h.id}>{h.label} · SSH</option>)}
           </select>
         </label>
-        <span className="hw-auto">live · 4s</span>
+        <span className="hw-auto">{tr("live · 4s")}</span>
         <button className="ghost-button" onClick={() => void load()} disabled={loading}>
-          {loading ? <RefreshCw size={14} className="spin" /> : <RefreshCw size={14} />} Refresh
+          {loading ? <RefreshCw size={14} className="spin" /> : <RefreshCw size={14} />} {tr("Refresh")}
         </button>
       </div>
 
@@ -317,11 +318,11 @@ export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; i
         <HostPanel system={sys} gpuCount={gpus.length} netRate={netRate} />
       )}
 
-      {err && <div className="hw-empty err"><AlertTriangle size={22} /><strong>Telemetry unavailable</strong><span>{err}</span></div>}
+      {err && <div className="hw-empty err"><AlertTriangle size={22} /><strong>{tr("Telemetry unavailable")}</strong><span>{err}</span></div>}
 
       {!err && data && gpus.length === 0 && (
-        <div className="hw-empty"><Activity size={22} /><strong>No GPU telemetry</strong>
-          <span>{data.error ?? "nvidia-smi reported no devices on this host."}</span></div>
+        <div className="hw-empty"><Activity size={22} /><strong>{tr("No GPU telemetry")}</strong>
+          <span>{data.error ?? tr("nvidia-smi reported no devices on this host.")}</span></div>
       )}
 
       {gpus.length > 0 && (
@@ -330,7 +331,7 @@ export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; i
         </div>
       )}
 
-      {!data && loading && <div className="hw-empty"><RefreshCw size={20} className="spin" /><span>Reading hardware telemetry…</span></div>}
+      {!data && loading && <div className="hw-empty"><RefreshCw size={20} className="spin" /><span>{tr("Reading hardware telemetry…")}</span></div>}
     </div>
   );
 }
