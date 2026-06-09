@@ -3007,7 +3007,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         # Mutually exclusive with retired P7 (same forward_cuda Part 1
         # target). Operator must keep P7 disabled when enabling PN204.
-        "conflicts_with": ["P7"],
+        # Also mutually exclusive with PN365 (port of vllm#42746 fuses
+        # the two in_proj GEMMs into one — nothing to overlap, AND PN204
+        # anchor no longer matches the patched file).
+        "conflicts_with": ["P7", "PN365"],
         "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn204_dual_stream_inproj",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -4060,6 +4063,64 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["PN340", "PN341", "PN345", "PN204", "PN54", "PN29", "P28"],
+    },
+    "PN365": {
+        "title": "Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)",
+        "tier": "community",
+        "family": "attention.gdn",
+        "env_flag": "GENESIS_ENABLE_PN365_GDN_GEMM_FUSE",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn365_gdn_qkvz_ba_fuse_gemm",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "Port of OPEN vllm#42746 (author forrestl111, 2026-05-15). "
+            "Collapses the 2 GDN linear_attn input GEMMs (in_proj_qkvz + "
+            "in_proj_ba) into a single MergedColumnParallelLinear named "
+            "in_proj_qkvzba with output_sizes [key, key, value, value, "
+            "n_v, n_v]. Bit-equivalent at the matmul level — same weight "
+            "values, just concatenated along output dim. Win comes from "
+            "(a) one kernel launch instead of two (saves ~5-10us/layer on "
+            "A5000 from cudaLaunchKernel overhead); (b) larger N "
+            "(12352 vs 12288 + 64 separately) gives cuBLASLt a better tile "
+            "selection on Ampere SM 8.6 — the in_proj_ba GEMM at N=64 "
+            "wastes most of the SM throughput because tiles pad to 64x64 "
+            "minimum. Author bench (RTX PRO 6000 sm_120, Qwen3.5-35B-A3B "
+            "NVFP4, TP=1): +3.7% TPOT @ C=3, +3.3% @ C=5, +2.4% @ C=8; "
+            "at SLO TPOT<=10ms max concurrency rises 5 -> 6 (+20%), "
+            "request throughput 2.95 -> 3.50 req/s (+19%). On Ampere SM "
+            "8.6 the launch-overhead win carries fully (~+1.5-2%); the "
+            "cuBLASLt tile win partially carries (~+0.5-1%) -> combined "
+            "+1-3% wall_TPS single-stream estimate on Qwen3.6-35B-A3B "
+            "FP8 / 2x A5000. Strict no-regression: when env flag is unset, "
+            "the patched conditional branches are bit-equivalent to "
+            "upstream. Default OFF. Three text-patch anchors (GDN ctor, "
+            "forward_cuda Part 1, forward_cuda gqa-split short-circuit) "
+            "on qwen_gdn_linear_attn.py + one anchor (load_weights "
+            "stacked_params_mapping) on qwen3_5.py. Runtime detection of "
+            "the fused Linear (no env-flag read inside load_weights). "
+            "LoRA-incompatible (auto-disabled when vllm_config.lora_"
+            "config is set). HARD CONFLICT with PN204: PN204 wraps the "
+            "two in_proj GEMMs in dual streams; PN365 fuses them into "
+            "one GEMM with nothing to overlap, AND PN204's anchor no "
+            "longer matches. Operator must set GENESIS_ENABLE_PN204_DUAL_"
+            "STREAM_INPROJ=0 when enabling PN365 (apply() refuses with "
+            "'failed' status if both env flags are on). Composes cleanly "
+            "with PN350 (downstream of conv1d, different site), PN54 "
+            "(.contiguous() dedup — PN365 fused path already emits "
+            "contiguous), PN11 (a/b contiguous — PN365 path already "
+            "calls .contiguous()), P28 (gdn_core_attn pool, downstream), "
+            "PN50 (GDN fused proj, post-conv). Drift markers auto-SKIP "
+            "if upstream lands #42746 (in_proj_qkvzba / "
+            "VLLM_GDN_FUSE_QKVZBA / create_in_proj_qkvzba)."
+        ),
+        "upstream_pr": 42746,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "requires_patches": [],
+        "conflicts_with": ["PN204"],  # same forward_cuda Part 1 site + semantic conflict
+        "implementation_status": "full",
+        "composes_with": ["PN350", "PN54", "PN11", "P28", "PN50", "PN340", "PN341", "PN345"],
     },
     "PN349": {
         "title": "Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797)",

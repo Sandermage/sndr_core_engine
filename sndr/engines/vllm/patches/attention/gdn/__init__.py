@@ -30,6 +30,7 @@ __all__ = [
     "pn79_inplace_ssm_state",
     # "pn108_fused_recurrent_prefill",  # moved to _retired/ 2026-05-14
     "pn204_dual_stream_inproj",
+    "pn365_gdn_qkvz_ba_fuse_gemm",
 ]
 
 def __getattr__(name: str):

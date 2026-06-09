@@ -5179,6 +5179,34 @@ def apply_patch_N350_gdn_qkv_fused_split() -> PatchResult:
     return _skipped("PN350 fused GDN QKV split kernel", detail)
 
 
+@register_patch("PN365 Fused GDN qkv|z|b|a single-GEMM input projection (port of OPEN vllm#42746)")
+def apply_patch_N365_gdn_qkvz_ba_fuse_gemm() -> PatchResult:
+    """PN365: collapses the 2 GDN input GEMMs (in_proj_qkvz + in_proj_ba)
+    into a single MergedColumnParallelLinear (in_proj_qkvzba) with
+    output_sizes [key, key, value, value, n_v, n_v]. Bit-equivalent at
+    the matmul level. Win: one kernel launch (saves ~5-10us/layer
+    cudaLaunchKernel overhead) + larger N for cuBLASLt tile selection.
+    Author bench (Blackwell sm_120, Qwen3.5-35B-A3B-NVFP4, TP=1):
+    +3.7% TPOT @ C=3, +20% concurrency at SLO TPOT<=10ms. Ampere SM 8.6
+    derate -> expected +1-3% wall_TPS single-stream on Qwen3.6-35B-A3B
+    FP8 / A5000 TP=2. Default OFF — opt-in via
+    GENESIS_ENABLE_PN365_GDN_GEMM_FUSE=1. HARD CONFLICT with PN204
+    (same forward_cuda Part 1 site + semantic conflict — PN204 wraps
+    two GEMMs in dual streams, PN365 fuses them into one). Operator
+    must set GENESIS_ENABLE_PN204_DUAL_STREAM_INPROJ=0. Composes with
+    PN350 + PN54 + PN11 + P28 + PN50 (different sites). LoRA-incompatible
+    (auto-disabled). Drift markers auto-SKIP if upstream #42746 lands."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn365_gdn_qkvz_ba_fuse_gemm as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN365 fused GDN qkv|z|b|a single-GEMM input projection", detail)
+    if status == "failed":
+        return _failed("PN365 fused GDN qkv|z|b|a single-GEMM input projection", detail)
+    return _skipped("PN365 fused GDN qkv|z|b|a single-GEMM input projection", detail)
+
+
 @register_patch("PN349 Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797)")
 def apply_patch_N349_gemma4_kv_shared_norm_skip() -> PatchResult:
     """PN349: vendors OPEN PR vllm#44797. Gemma4Attention.__init__ now
