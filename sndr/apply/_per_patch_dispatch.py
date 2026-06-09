@@ -6498,6 +6498,39 @@ def apply_patch_32_33_tq_bundled_preallocs() -> PatchResult:
     ):
         return _failed(name, "get_or_create_synth_seq_lens missing")
 
+    # 2026-06-09 drift check: P32/P33 helpers are CALLED only from
+    # `ensure_turboquant_buffers()`, which is wired into the live
+    # forward path by P22's wrap of TurboQuantAttentionImpl._ensure_on_device.
+    # Upstream pin 0.22.1rc1.dev259+ merged equivalent lazy preallocs INLINE
+    # in `vllm.v1.attention.backends.turboquant_attn` itself:
+    #   * `self._cu_2`         (TurboQuantAttentionImpl forward, line ~1093)
+    #   * `self._cu_2_q/_cu_2_k` (continuation_prefill, line ~1323)
+    #   * `_arange_cache`-backed synth_seq_lens (line ~1168)
+    # P22 auto-retires on this pin (detects missing _init_turboquant_buffers
+    # method), so `ensure_turboquant_buffers` is never invoked — our P32/P33
+    # helpers are registered but DORMANT.
+    #
+    # Honest report: status=skipped with reason=upstream_merged_equivalent.
+    # The helpers stay importable for unit-test cover + historical reference;
+    # boot log no longer falsely claims "applied" on a no-op.
+    try:
+        import vllm.v1.attention.backends.turboquant_attn as _tqa  # noqa: F401
+        import inspect
+        src = inspect.getsource(_tqa)
+        if "self._cu_2 = torch.zeros" in src and "_arange_cache" in src:
+            return _skipped(
+                name,
+                "upstream merged equivalent inline preallocs in "
+                "vllm.v1.attention.backends.turboquant_attn (_cu_2 + "
+                "_arange_cache); P22 wrap auto-retired on this pin so "
+                "ensure_turboquant_buffers helpers are dormant — same "
+                "behavior as upstream native lazy prealloc",
+            )
+    except Exception:
+        # Backend missing or introspection failed — fall through to
+        # legacy 'applied' message so we don't mask the absence of TQ.
+        pass
+
     return _applied(
         name,
         "cu_2 + synth_seq_lens preallocs registered (invoked from "
