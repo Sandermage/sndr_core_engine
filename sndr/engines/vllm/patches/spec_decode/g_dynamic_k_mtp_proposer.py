@@ -300,13 +300,20 @@ def apply() -> tuple[str, str]:
     so operators can leave the flag at default-off until ready to A/B.
     """
     if not _env_enabled():
+        # 2026-06-09 boot-log cleanup: prefix with "opt-in" so
+        # apply._state.partial_apply_warnings (see BENIGN list) does
+        # NOT treat this default-off message as a partial-apply
+        # warning. The three empirical benches in registry credit
+        # already ratified default-off — operator should not see
+        # this as a noisy issue at every boot.
         return "skipped", (
-            "SNDR_MTP_DYNAMIC_K_001 is OFF by default. Set "
+            "opt-in (default off): SNDR_MTP_DYNAMIC_K_001 — set "
             "GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001=1 to enable the "
             "per-seq adaptive K MTP proposer (port of vllm#26504 to "
             "the DraftModelProposer base used by all 4 PROD MTP "
             "models). Optional: GENESIS_SNDR_MTP_DYNAMIC_K_THRESHOLD=<float> "
-            "(default 0.7 per PR #26504)."
+            "(default 0.7 per PR #26504). Default-OFF ratified by 3 "
+            "empirical benches (35B+27B + multi-turn) — see registry credit."
         )
     try:
         from vllm.v1.spec_decode.draft_model import DraftModelProposer

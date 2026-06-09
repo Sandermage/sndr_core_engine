@@ -6859,11 +6859,41 @@ def _g4_dispatch_factory(name: str, module_attr: str, family_pkg: str = "gemma4"
          patches that have been relocated to a technical-area family
          per Phase 3 — kv_cache, attention.turboquant, spec_decode).
       3. Calls its apply() and maps (status, reason) → PatchResult
+
+    Sentinel ``family_pkg="_retired"`` (and ``"_archive"``): the patch
+    has been superseded upstream. The factory does NOT attempt an
+    import (the legacy module path under ``patches/_retired/`` was
+    never created — files live in ``sndr/engines/vllm/_archive/`` for
+    historical reference only). Emits a benign ``_skipped`` result
+    with a ``retired`` reason that ``apply._state.partial_apply_warnings``
+    classifies as expected, so boot logs stay clean. Position
+    invariant in ``_G4_PATCHES`` is preserved, so the
+    ``apply_registry.json`` snapshot ordering is unchanged.
     """
     family_dotted = family_pkg.replace("/", ".")
     full_module_path = (
         f"sndr.engines.vllm.patches.{family_dotted}.{module_attr}"
     )
+
+    # PIN.R-G4_05-RETIRE.1 follow-up (2026-06-09): when a G4 entry is
+    # tagged with the "_retired" / "_archive" sentinel family, short-
+    # circuit the dispatch — do NOT attempt to import the missing
+    # patches/_retired/ path. See registry "G4_05" lifecycle="retired"
+    # + superseded_by vllm#39930 for the upstream supersession trail.
+    _RETIRED_SENTINELS = {"_retired", "_archive"}
+    if family_pkg in _RETIRED_SENTINELS:
+        def _g4_retired_dispatch():
+            return _skipped(
+                name,
+                f"retired — wiring module {module_attr!r} archived under "
+                "sndr/engines/vllm/_archive/ (registry lifecycle=retired); "
+                "see registry credit for the superseding upstream PR.",
+            )
+        _g4_retired_dispatch.__name__ = f"apply_patch_{module_attr}"
+        _g4_retired_dispatch.__doc__ = (
+            f"Retired dispatch stub for {name} (no import, no-op skip)."
+        )
+        return _g4_retired_dispatch
 
     def _g4_dispatch():
         if not _state._APPLY_MODE:
@@ -6896,7 +6926,7 @@ _G4_PATCHES: tuple[tuple[str, str, str], ...] = (
     ("G4_04", "G4_04 gemma4 AWQ MoE keys remap (vendor #40886)",
      "g4_04_gemma4_awq_moe_keys_remap", "model_compat.gemma4"),  # Phase 2.2: relocated 2026-05-22
     ("G4_05", "G4_05 gemma4 DFlash drafter backend autoselect (retired — superseded by vllm#39930)",
-     "g4_05_dflash_backend_autoselect", "_retired"),  # PIN.R-G4_05-RETIRE.1 (2026-05-24): superseded by vllm#39930, moved to _retired/
+     "g4_05_dflash_backend_autoselect", "_retired"),  # PIN.R-G4_05-RETIRE.1 (2026-05-24): superseded by vllm#39930. 2026-06-09 boot-log fix: dispatcher factory now short-circuits on "_retired" sentinel — does NOT attempt importlib.import_module (the patches/_retired/ path never existed; file lives in sndr/engines/vllm/_archive/ for historical reference).
     ("G4_06", "G4_06 gemma4 v_head_size=0 for k_eq_v (vendor #41944)",
      "g4_06_kv_proj_v_head_size_zero", "kv_cache"),  # Phase 3 bucket 2: relocated 2026-05-21
     ("G4_07", "G4_07 gemma4 FP8_BLOCK double-scale fix (custom quant config)",

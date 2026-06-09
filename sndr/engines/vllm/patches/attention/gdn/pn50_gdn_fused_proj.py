@@ -57,6 +57,15 @@ def _is_enabled() -> bool:
 # Qwen3.5 contiguous branch only matches in `forward()` — `forward_cpu()`
 # has the same comment but lacks the trailing `.contiguous()` calls, so
 # our anchor remains unique (single match in the file).
+#
+# 2026-06-09 re-anchor: PROD pin 0.22.1rc1.dev259+g303916e93 ships
+# `qwen_gdn_linear_attn.py` (file rename via vllm#41126) with
+# `b, a = self.split_ba(ba)` instead of `b, a = ba.chunk(2, dim=-1)`.
+# Verified via container grep at lines 1040-1047. forward_cpu() at
+# line 1149-1154 still uses the older `ba.chunk(2, dim=-1)` shape
+# AND lacks the trailing `.contiguous()` pair — so anchoring on the
+# full nine-line block including `b = b.contiguous()` /
+# `a = a.contiguous()` keeps the match unique to forward() only.
 ANCHOR_OLD = (
     "        else:\n"
     "            # Qwen3.5: weights are already in [q, k, v, z] and [b, a] order\n"
@@ -64,7 +73,7 @@ ANCHOR_OLD = (
     "            z_size = self.value_dim // self.tp_size\n"
     "            mixed_qkv, z = mixed_qkvz.split([qkv_size, z_size], dim=-1)\n"
     "            z = z.reshape(z.size(0), -1, self.head_v_dim)\n"
-    "            b, a = ba.chunk(2, dim=-1)\n"
+    "            b, a = self.split_ba(ba)\n"
     "            b = b.contiguous()\n"
     "            a = a.contiguous()"
 )

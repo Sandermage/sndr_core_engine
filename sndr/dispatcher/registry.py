@@ -1091,7 +1091,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "27B Lorbus expect modest gain (memory-bound layer, A5000 PCIe "
             "slower than H200). Composable with PN11/PN29/PN32/P103 — verified "
             "no overlap (PN11 acts in interleaved branch, others in different "
-            "files). Default OFF until live A/B prod-validates."
+            "files). Default OFF until live A/B prod-validates. "
+            "RE-ANCHOR 2026-06-09 (PROD pin 0.22.1rc1.dev259+g303916e93): "
+            "the `b, a = ba.chunk(2, dim=-1)` line in the Qwen3.5 contiguous "
+            "branch became `b, a = self.split_ba(ba)` via vllm#41126's "
+            "`mamba/` → `mamba/gdn/qwen_gdn_linear_attn.py` rename. Re-anchored "
+            "to the new shape; forward_cpu() still uses the old chunk(2,...) "
+            "form but lacks the .contiguous() pair, so the 9-line block "
+            "remains unique to forward()."
         ),
         "upstream_pr": None,
         "applies_to": {
