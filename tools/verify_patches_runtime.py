@@ -123,12 +123,33 @@ HOT_PATH_PATCHES = [
 
     # PN364 — hybrid GDN/Mamba warmup wrapper.
     # Hook lives on the V1 Worker class — verify via class attr.
+    # NOTE: monkey-patch wrap attr is PER-PROCESS. docker exec creates a
+    # SEPARATE process which has its own Worker class import — that one
+    # WILL NOT have the wrap. The wrap lives in the engine's Worker_TP*
+    # processes via fork inheritance. Per-class probe gives false negative.
+    # Behavioral probe (search container logs for Pass/Pass logs) is the
+    # ULTIMATE proof — see _check_behavioral_evidence below.
     ("PN364",
      "vllm.v1.worker.gpu_worker",
      None,
      None,
      "_genesis_pn364_hybrid_gdn_warmup_installed"),  # attr on method
 ]
+
+
+# Behavioral evidence patterns — search container logs for these strings
+# to confirm the wrap's body ACTUALLY EXECUTED in worker subprocesses.
+# This is the only reliable check for monkey-patch wrappers because per-
+# process class state is invisible to `docker exec`.
+BEHAVIORAL_EVIDENCE = {
+    "PN126": ["[PN126] Pass 1 done", "[PN126] Pass 2 done"],
+    "PN128": ["[PN128] num_reqs", "[PN128] spec-decode helper warmup complete"],
+    # Note: PN130 uses unicode ✓ in log but grep on it through ssh-quote
+    # is unreliable. Use a stable substring instead.
+    "PN130": ["[PN130] TQ decode warmup", "[PN130] starting TQ decode warmup"],
+    "PN364": ["[PN364] wrapped compile_or_warm_up_model called",
+              "[PN364] Pass 1 done"],
+}
 
 
 def _build_probe_script() -> str:
@@ -272,6 +293,33 @@ print(json.dumps({"verification_results": results}, indent=2))
 '''
 
 
+def run_behavioral_probe(ssh_target: str, container: str) -> dict[str, list[bool]]:
+    """Search container logs for behavioral evidence each monkey-patch fired.
+
+    Returns mapping patch_id -> list of (pattern_matched: bool) per
+    expected log pattern. All True => wrap fired and emitted all
+    expected log lines. Any False => wrap may have silently no-op'd.
+    """
+    results: dict[str, list[bool]] = {}
+    for patch_id, patterns in BEHAVIORAL_EVIDENCE.items():
+        results[patch_id] = []
+        for pat in patterns:
+            # docker logs grep — escape the pattern
+            cmd = [
+                "ssh", ssh_target,
+                f"docker logs {container} 2>&1 | grep -F {json.dumps(pat)} | head -1",
+            ]
+            try:
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=30,
+                )
+                found = bool(proc.stdout.strip())
+            except Exception:  # noqa: BLE001
+                found = False
+            results[patch_id].append(found)
+    return results
+
+
 def run_live_probe(ssh_target: str, container: str) -> dict[str, Any]:
     """Copy the probe script into the container and run it via docker exec."""
     script = _build_probe_script()
@@ -355,6 +403,28 @@ def render(audit: dict[str, Any]) -> str:
     lines.append("")
     lines.append(f"**Silent-failure suspects**: {silent_fail}")
     lines.append(f"**Function-missing (pin drift)**: {fn_missing}")
+
+    # Behavioral evidence — the ultimate proof for monkey-patches.
+    behavioral = audit.get("behavioral_evidence") or {}
+    if behavioral:
+        lines.append("")
+        lines.append("## Behavioral evidence (boot log search)")
+        lines.append("")
+        lines.append(
+            "Monkey-patch wrappers (PN126/128/130/364) have per-process "
+            "state — `docker exec` runs in a SEPARATE process that does NOT "
+            "see the wrap. The static probe above gives a false-negative "
+            "for them. The ULTIMATE proof that a wrap fired is finding its "
+            "expected log line in `docker logs`."
+        )
+        lines.append("")
+        lines.append("| Patch | Expected boot log pattern | Found |")
+        lines.append("|---|---|---|")
+        for pid, found_list in behavioral.items():
+            patterns = BEHAVIORAL_EVIDENCE.get(pid, [])
+            for pat, found in zip(patterns, found_list):
+                icon = "✅" if found else "🚨"
+                lines.append(f"| {icon} {pid} | `{pat}` | {'yes' if found else 'NO'} |")
     lines.append("")
     if silent_fail or fn_missing:
         lines.append(
@@ -379,6 +449,8 @@ def main() -> int:
     args = ap.parse_args()
 
     audit = run_live_probe(args.ssh_target, args.container)
+    behavioral = run_behavioral_probe(args.ssh_target, args.container)
+    audit["behavioral_evidence"] = behavioral
 
     if args.patch:
         # filter
