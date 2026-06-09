@@ -246,6 +246,14 @@ def _genesis_pn126_run_warmup_extras(worker) -> None:
     # captured sizes so user-request shapes that land on 4 or 16 don't
     # JIT mid-inference. Cheap: each call is a couple of ms once
     # kernels are cached.
+    #
+    # Constraint (2026-06-09 fix): uniform_decode=True requires
+    #   num_tokens = num_reqs * decode_query_len
+    # with num_reqs ≤ max_num_seqs. For our K=3 + max_num_seqs=2 the
+    # only valid uniform shapes are {decode_query_len, 2 * decode_query_len}
+    # = {4, 8}. Sizes that fail this constraint (16 in our case) are
+    # warmed up with uniform_decode=False instead — covers prefill /
+    # mixed-shape JIT paths for those capture sizes.
     try:
         capture_sizes = list(
             worker.vllm_config.compilation_config.cudagraph_capture_sizes or []
@@ -254,22 +262,45 @@ def _genesis_pn126_run_warmup_extras(worker) -> None:
         capture_sizes = []
     extra_sizes = [s for s in capture_sizes if s != decode_tokens]
     if extra_sizes:
+        uniform_sizes = [
+            s for s in extra_sizes
+            if s % decode_query_len == 0
+            and 1 <= (s // decode_query_len) <= max_num_seqs
+        ]
+        mixed_sizes = [s for s in extra_sizes if s not in uniform_sizes]
         log.info(
-            "[PN126] Pass 3: covering extra capture sizes %s (decode shapes)",
-            extra_sizes,
+            "[PN126] Pass 3: capture sizes %s — uniform_decode %s, mixed %s",
+            extra_sizes, uniform_sizes, mixed_sizes,
         )
-        for size in extra_sizes:
+        for size in uniform_sizes:
             try:
                 runner._dummy_run(
                     num_tokens=size,
-                    cudagraph_runtime_mode=None,  # auto-dispatch
+                    cudagraph_runtime_mode=None,
                     uniform_decode=True,
                     skip_eplb=True,
                     is_profile=False,
                 )
+                log.info("[PN126] Pass 3 uniform size=%d done", size)
             except Exception as e:
                 log.warning(
-                    "[PN126] Pass 3 size=%d failed: %s — continuing", size, e,
+                    "[PN126] Pass 3 uniform size=%d failed: %r — continuing",
+                    size, e,
+                )
+        for size in mixed_sizes:
+            try:
+                runner._dummy_run(
+                    num_tokens=size,
+                    cudagraph_runtime_mode=None,
+                    uniform_decode=False,
+                    skip_eplb=True,
+                    is_profile=False,
+                )
+                log.info("[PN126] Pass 3 mixed size=%d done", size)
+            except Exception as e:
+                log.warning(
+                    "[PN126] Pass 3 mixed size=%d failed: %r — continuing",
+                    size, e,
                 )
 
     log.info("[PN126] all extra warmup passes complete; first user request "

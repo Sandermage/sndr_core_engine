@@ -248,15 +248,22 @@ def _do_extra_warmups(worker) -> None:
     except Exception:  # noqa: BLE001
         capture_sizes = []
 
-    # Only do shapes < 16 — anything larger has already been hit by PN126.
-    extra_decode_sizes = [s for s in capture_sizes if 1 <= s <= 16
-                          and s != single_token_tokens]
-    if extra_decode_sizes:
+    # Pass 3 constraint (2026-06-09 fix): uniform_decode=True requires
+    #   num_tokens = num_reqs * decode_query_len
+    # PN364 uses single-token-decode (decode_query_len = 1), so the only
+    # valid uniform shapes are integers in [1, max_num_seqs]. Anything
+    # larger needs uniform_decode=False (mixed/prefill path). Previously
+    # all sizes [4, 8, 16] silently failed at .debug because num_reqs > max.
+    uniform_valid = [s for s in capture_sizes
+                     if 1 <= s <= max_num_seqs and s != single_token_tokens]
+    mixed_extra = [s for s in capture_sizes
+                   if s > max_num_seqs and s != single_token_tokens]
+    if uniform_valid or mixed_extra:
         log.info(
-            "[PN364] Pass 3: extra single-token-decode shapes %s",
-            extra_decode_sizes[:5],
+            "[PN364] Pass 3: capture %s — uniform %s, mixed %s",
+            capture_sizes, uniform_valid, mixed_extra[:3],
         )
-        for size in extra_decode_sizes[:5]:  # cap at 5 to avoid long boot
+        for size in uniform_valid:
             try:
                 runner._dummy_run(
                     num_tokens=size,
@@ -265,9 +272,25 @@ def _do_extra_warmups(worker) -> None:
                     skip_eplb=True,
                     is_profile=False,
                 )
+                log.info("[PN364] Pass 3 uniform size=%d done", size)
             except Exception as e:  # noqa: BLE001
-                log.debug(
-                    "[PN364] Pass 3 size=%d failed: %s — continuing",
+                log.warning(
+                    "[PN364] Pass 3 uniform size=%d failed: %r — continuing",
+                    size, e,
+                )
+        for size in mixed_extra[:3]:
+            try:
+                runner._dummy_run(
+                    num_tokens=size,
+                    cudagraph_runtime_mode=None,
+                    uniform_decode=False,
+                    skip_eplb=True,
+                    is_profile=False,
+                )
+                log.info("[PN364] Pass 3 mixed size=%d done", size)
+            except Exception as e:  # noqa: BLE001
+                log.warning(
+                    "[PN364] Pass 3 mixed size=%d failed: %r — continuing",
                     size, e,
                 )
         log.info("[PN364] Pass 3 done")
