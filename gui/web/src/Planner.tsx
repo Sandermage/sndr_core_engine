@@ -6,7 +6,6 @@ import { tr } from "./i18n";
 const fmtGb = (m: number) => (Math.abs(m) >= 1024 ? `${(m / 1024).toFixed(1)} GB` : `${Math.round(m)} MB`);
 const fmtCtx = (c: number) => (c >= 1000 ? `${Math.round(c / 1000)}K` : String(c));
 
-// Enterprise KPI tile — the key numbers, legible at a glance (app .metric look).
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "ok" | "bad" | "accent" }) {
   return (
     <div className={`kpi ${tone ?? ""}`}>
@@ -229,7 +228,6 @@ function VramChart({ curve, budget, ctx, maxCtx }: { curve: KvCalcResult["curve"
         <line x1={L} y1={y(budget)} x2={W - R} y2={y(budget)} className="vc-budget" />
         <text x={W - R} y={y(budget) - 5} className="vc-budget-lbl">{tr("budget")} {(budget / 1024).toFixed(1)}G</text>
         {maxCtx > 0 && maxCtx <= maxX && <><line x1={x(maxCtx)} y1={T} x2={x(maxCtx)} y2={H - B} className="vc-maxctx" /><text x={x(maxCtx) + 4} y={T + 11} className="vc-maxctx-lbl">{tr("max")} {fmtCtx(maxCtx)}</text></>}
-        {/* cursor + point + callout */}
         <line x1={cx} y1={T} x2={cx} y2={H - B} className="vc-cursor" />
         {cur && <circle cx={cx} cy={y(cur.total_mib)} r={4} className={`vc-dot ${over ? "over" : "ok"}`} />}
         {cur && (
@@ -247,9 +245,6 @@ function VramChart({ curve, budget, ctx, maxCtx }: { curve: KvCalcResult["curve"
   );
 }
 
-// VRAM-composition donut at the current operating point — a different view from
-// the area sweep: what *fills* the budget right now (weights / KV / overhead),
-// with utilisation % and headroom in the centre.
 function VramDonut({ r }: { r: KvEstimate }) {
   const segs = [
     { key: "weights", label: tr("weights"), val: r.weights_per_gpu_mib, cls: "dw" },

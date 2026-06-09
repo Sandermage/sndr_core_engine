@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Benchmark / evidence section panels: baseline hero + runtime-under-test, and
-// evidence-ref rows. Extracted from App.tsx (modularization) with no behavior
-// change.
+// evidence-ref rows.
 import { type PresetRecord } from "../api";
 import { asRecord, asNumber, asText } from "../lib/coerce";
 import { formatTokens } from "../lib/format";

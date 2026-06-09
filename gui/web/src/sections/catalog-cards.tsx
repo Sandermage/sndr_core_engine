@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Catalog cards: selectable catalog entry, single-rig fit report, all-rigs fit
-// matrix, and the KV fit-envelope heatmap. Extracted from App.tsx
-// (modularization) with no behavior change.
+// matrix, and the KV fit-envelope heatmap.
 import { useState, useEffect, Fragment, type ReactNode } from "react";
 import { CheckCircle2, CircleAlert, RefreshCw } from "lucide-react";
 import { api, type FitCheck, type MemoryFitReport } from "../api";
@@ -155,8 +154,8 @@ export function ModelFitCard({
   );
 }
 
-// Enterprise fit matrix: probe the model against EVERY catalogued rig so an
-// operator sees at a glance where it can run and where it is blocked.
+// Fit matrix: probe the model against every catalogued rig to show where it can
+// run and where it is blocked.
 export function ModelFitMatrix({ modelId, hardwareIds }: { modelId: string; hardwareIds: string[] }) {
   const [rows, setRows] = useState<MemoryFitReport[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -206,9 +205,8 @@ export function ModelFitMatrix({ modelId, hardwareIds }: { modelId: string; hard
   );
 }
 
-// Interactive fit envelope for a model on a representative rig — context ×
-// concurrency, cell colour = headroom. Reuses the KV calculator backend so the
-// catalog answers "what can this model actually run?" in place.
+// Fit envelope for a model on a representative rig — context × concurrency, cell
+// colour = headroom. Reuses the KV calculator backend.
 export function KvEnvelopeCard({ modelKey, tp, vram, rigLabel }: { modelKey: string | null; tp: number; vram: number; rigLabel: string }) {
   const [env, setEnv] = useState<{ contexts: number[]; concurrencies: number[]; grid: Array<Array<{ context: number; headroom_mib: number; fits: boolean }>> } | null>(null);
   const [err, setErr] = useState(false);

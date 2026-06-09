@@ -19,9 +19,8 @@ const pct = (v: string | null | undefined) => Math.max(0, Math.min(100, parseInt
 const shortGpu = (name: string) => name.replace(/^NVIDIA\s+/i, "").replace(/\s+(GPU|Graphics)$/i, "");
 const shortVer = (v: string) => v.replace(/^(\d+\.\d+\.\d+).*/, "$1");
 
-// Fleet overview — every registered engine host at a glance (the hybrid model's
-// width layer). One concurrent SSH+probe sweep; drill into a host's card for
-// detail. Read-only: nothing here mutates a server.
+// Fleet overview — every registered engine host. Read-only: nothing here
+// mutates a server.
 export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void }) {
   const [hosts, setHosts] = useState<FleetHost[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -87,7 +86,6 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
 
               {h.error && <div className="fleet-server-err"><AlertTriangle size={12} /> {h.error}</div>}
 
-              {/* GPU block — model, total VRAM, interconnect + per-GPU utilisation bars */}
               {h.gpus.length > 0 && (() => {
                 const totalVram = h.gpus.reduce((n, g) => n + mib(g.memory_total_mib), 0);
                 return (
@@ -112,7 +110,6 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
                 );
               })()}
 
-              {/* Engines — per-container reachability, port, version and patch count */}
               {h.engines.length > 0 && (
                 <div className="fleet-eng">
                   <div className="fleet-eng-head"><Box size={11} /> {h.engines.length} {h.engines.length > 1 ? tr("containers") : tr("container")}</div>
@@ -148,9 +145,8 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
 }
 
 // Fleet deploy orchestrator — render the install plan for one preset/target
-// across N selected hosts at once, with a fleet-wide rollup. Read-only
-// (dry-run): the actual apply stays per-host in the Hosts/Setup flow, which
-// is apply+confirm gated. Closes the multihost-deploy gap.
+// across N selected hosts at once. Read-only (dry-run): the actual apply stays
+// per-host in the Hosts/Setup flow, which is apply+confirm gated.
 function FleetDeployPlanner({ hosts }: { hosts: FleetHost[] }) {
   const [presets, setPresets] = useState<{ id: string; title?: string }[]>([]);
   const [targets, setTargets] = useState<{ id: string; label?: string }[]>([]);

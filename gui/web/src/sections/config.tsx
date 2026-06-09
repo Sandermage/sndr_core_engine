@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Config section panels: preset diff (compare) + read-only apply plan + apply
-// result. Extracted from App.tsx (modularization) with no behavior change.
+// result.
 import { useState } from "react";
 import { GitBranch, AlertCircle } from "lucide-react";
 import { tr } from "../i18n";

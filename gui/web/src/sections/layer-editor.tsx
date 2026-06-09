@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Layer editor — load a model/hardware/profile/preset definition, edit its
 // curated + discovered fields with a live YAML mirror, and save an operator-local
-// copy. Extracted from App.tsx (modularization) with no behavior change.
- 
+// copy.
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Code2, PackageCheck } from "lucide-react";
 import { tr } from "../i18n";

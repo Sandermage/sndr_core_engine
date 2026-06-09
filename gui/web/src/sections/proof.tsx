@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // Proof / evidence section panel: bucket distribution + per-patch drill-down.
-// Extracted from App.tsx (modularization) with no behavior change.
 import { useState } from "react";
 import { type ProofStatusReport } from "../api";
 import { asText, countRecord } from "../lib/coerce";
@@ -11,8 +10,6 @@ import { tr } from "../i18n";
 
 const PROOF_PROBLEM_BUCKETS = new Set(["dead", "static_failed"]);
 
-// Per-patch proof drill-down — internal to ProofStatusPanel. Surfaces WHICH
-// patches fall into each bucket, problematic (dead/static_failed) first.
 function ProofPatchDrilldown({
   patches,
   colors,

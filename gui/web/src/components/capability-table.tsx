@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Capability table — a labelled grid of Product API capabilities (status +
-// required tools + detail). Shared across several tabs. Extracted from App.tsx
-// (modularization).
-//
-// Enterprise touch over the inline original (classes unchanged): headers carry
-// scope=col for screen-reader table navigation.
+// required tools + detail). Shared across several tabs.
 import { type ProductCapability } from "../api";
 import { tr } from "../i18n";
 import { StatusBadge } from "./primitives";

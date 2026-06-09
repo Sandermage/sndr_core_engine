@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Preset recommender — pick a workload + target hardware + concurrency, rank the
-// catalogue presets that fit. Extracted from App.tsx (modularization).
-//
-// Enterprise touches over the inline original (classes unchanged): the workload
-// selector is a role="group" whose buttons expose aria-pressed, and the results
-// table headers gain scope=col.
+// catalogue presets that fit.
 import { useEffect, useState } from "react";
 import { Rocket, AlertCircle, FileText, Database } from "lucide-react";
 import { api, type PresetRecommendResult } from "../api";

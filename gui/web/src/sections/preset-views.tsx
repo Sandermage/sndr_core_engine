@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Preset display views — the Presets tab summary strip, the selected-preset
 // detail view (what-will-run + runtime + evidence + draft editor) and the
-// fallback diff. Extracted from App.tsx (modularization) with no behavior change.
+// fallback diff.
 import { Box, Code2, Database, FileText, GitBranch, Network, Rocket, Server, ShieldCheck, SlidersHorizontal, Wrench } from "lucide-react";
 import { type PresetRecord, type PresetExplainResult, type ProductCapability } from "../api";
 import { asNumber, asStringArray, asText } from "../lib/coerce";
@@ -30,9 +30,6 @@ function PresetFallbackDiff({ explain }: { explain: PresetExplainResult | null }
   );
 }
 
-// Enterprise "selected preset" detail view: a hero with identity + quick
-// actions, a row of runtime metric tiles, then equal-height detail cards
-// (identity, evidence, workload rules, fallback) and the editable draft.
 export function PresetSelectedView({
   selectedPreset,
   record,
@@ -165,9 +162,6 @@ export function PresetSelectedView({
   );
 }
 
-// OperationsConsole (+ OP_GROUP_ICON) extracted to ./sections/operations.
-// OperationsConsole moved to ./sections/operations (see import).
-
 export function PresetSummaryStrip({ presets, selectedPreset }: { presets: PresetRecord[]; selectedPreset: string }) {
   const annotated = presets.filter((preset) => preset.has_card).length;
   const missing = presets.length - annotated;
@@ -192,52 +186,3 @@ export function PresetSummaryStrip({ presets, selectedPreset }: { presets: Prese
     </div>
   );
 }
-
-// PresetQuickPanel extracted to ./sections/preset-quick.
-
-// Benchmark-baseline chip for the preset catalog: surfaces the measured
-// reference metric (primary_metric) at the list level, so bench-proven presets
-// are distinguishable from pending ones at a glance. value 0 / missing = pending.
-// PresetBaselineCell + PresetCatalogTable extracted to ./sections/preset-catalog.
-
-// PatchSummaryPanel + PatchLifecycleGraph + PatchRegistryInsight + PatchModelSupport extracted to ./sections/patch-overview.
-
-// PatchInventoryControl + PatchFamilyGroup extracted to ./sections/patch-inventory.
-
-// formatAppliesTo extracted to ./lib/format.
-
-// PatchExplainPanel (+ lifecycle/default explanation helpers) extracted to ./sections/patch-explain.
-
-// CaveatsPanel / ConfigKeysPanel / TracesPanel extracted to ./sections/diagnostics.
-// DoctorStat extracted to ./components/primitives.
-// SEVERITY_META + DoctorSummary / DoctorFindings (+ DoctorCategory / SeverityDot /
-// DoctorFindingRow) extracted to ./sections/doctor.
-
-// WizardStatus + SetupWizard extracted to ./sections/setup-wizard.
-
-// fmtParam extracted to ./lib/format.
-// DeploymentConsole (+ DEPLOY_TARGET_ICONS + downloadText) extracted to ./sections/deployment.
-
-
-
-// EnvironmentPanel extracted to ./sections/environment.
-
-// SERVICE_RUNTIME_TARGETS + ServiceLifecyclePlanner extracted to ./sections/services.
-
-// DoctorCoveragePanel + AdminSurfaceMatrix extracted to ./sections/patch-doctor.
-// (BundlesPanel + UpstreamDiffPanel previously extracted to ./sections/registry;
-//  ProofStatusPanel + drill-down to ./sections/proof.)
-
-// BenchmarkBaselinePanel + EvidenceRows extracted to ./sections/bench.
-
-// EndpointRows extracted to ./sections/rail-cards.
-
-// Reusable confirmation dialog for destructive/irreversible actions. Focus is
-// trapped, Cancel is the autofocused default, Esc/backdrop cancel, and the
-// confirm button can be styled as danger. Keeps destructive paths deliberate.
-// ConfirmDialog + InfoDialog extracted to ./components/dialogs.
-
-// toast + ToastHost (+ ToastTone) extracted to ./components/toast.
-
-// ── Audit log (surfaces the daemon's recorded events: auth, jobs, system) ──
-// AuditLogPanel extracted to ./sections/audit-log.

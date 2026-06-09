@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Preset recommendation table row: identity + routing family + workload icons +
-// evidence visibility/risk. Extracted from App.tsx (modularization) with no
-// behavior change.
+// evidence visibility/risk.
 import { CheckCircle2, Circle } from "lucide-react";
 import { type PresetRecommendation } from "../api";
 import { asText, asStringArray } from "../lib/coerce";

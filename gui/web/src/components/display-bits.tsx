@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Small shared presentational helpers: a labelled plan chip, a key/value row,
-// and the launch-artifact tabbed preview. Extracted from App.tsx (modularization)
-// with no behavior change.
+// and the launch-artifact tabbed preview.
 import { type LaunchPlanArtifact } from "../api";
 import { tr } from "../i18n";
 import { CodeBlock } from "./code-block";

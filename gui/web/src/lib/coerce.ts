@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Pure value-coercion helpers shared across panels. Defensive readers for the
-// loosely-typed (Record<string, unknown>) payloads the API surfaces. Extracted
-// from App.tsx (modularization) with no behavior change.
+// loosely-typed (Record<string, unknown>) payloads the API surfaces.
 
 /** Narrow to a plain object, else `{}`. Arrays are NOT objects here. */
 export function asRecord(value: unknown): Record<string, unknown> {

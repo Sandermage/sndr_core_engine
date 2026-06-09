@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Add/edit modal for a remote host profile (label, host/SSH, ports, engine key,
-// SSH auth, hardware, tags). Extracted from App.tsx (modularization).
-//
-// Enterprise touch over the inline original (classes unchanged): the dialog
-// carries an aria-label so assistive tech announces add-vs-edit context.
+// SSH auth, hardware, tags). The dialog carries an aria-label so assistive tech
+// announces add-vs-edit context.
 import { useRef, useState } from "react";
 import { Server, AlertCircle } from "lucide-react";
 import { api, type HostProfile } from "../api";

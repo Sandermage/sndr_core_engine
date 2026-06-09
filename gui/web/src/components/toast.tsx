@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Transient toast notifications: a fire-and-forget `toast()` dispatcher and the
-// `ToastHost` that renders + auto-dismisses them. Extracted from App.tsx
-// (modularization) with no behavior change.
+// `ToastHost` that renders + auto-dismisses them.
 import { useEffect, useState } from "react";
 import { CheckCircle2, AlertCircle, Activity, X } from "lucide-react";
 import { tr } from "../i18n";

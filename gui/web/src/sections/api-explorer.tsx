@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // API explorer section: a read-only GET endpoint prober + a redacted report
-// bundle generator. Extracted from App.tsx (modularization) with no behavior
-// change.
+// bundle generator.
 import { useState } from "react";
 import { Play, AlertCircle, CheckCircle2 } from "lucide-react";
 import { api, type ReportBundleResult } from "../api";

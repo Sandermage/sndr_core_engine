@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // "This host" card — the daemon host's own inventory at a glance (OS, Python,
-// Docker, GPU/VRAM, vLLM, SNDR Core) with capability chips. Extracted from
-// App.tsx (modularization) with no behavior change.
+// Docker, GPU/VRAM, vLLM, SNDR Core) with capability chips.
 import { HardDrive } from "lucide-react";
 import { type HostInventory, type EnvironmentReport } from "../api";
 import { totalVramGiB } from "../lib/format";

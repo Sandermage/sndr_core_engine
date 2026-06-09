@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Pure display-formatting helpers shared across panels. Extracted from App.tsx
-// (modularization) with no behavior change.
+// Pure display-formatting helpers shared across panels.
 import { asRecord } from "./coerce";
 
 /** Flatten a patch `applies_to` record into label/value rows for display. */

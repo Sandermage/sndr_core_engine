@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Self-contained diagnostic section panels (no props; fetch their own data via
-// useFetch + api). Extracted from App.tsx (modularization) with no behavior
-// change. Surface the CLI caveats / config-keys / trace registries.
+// useFetch + api). Surface the CLI caveats / config-keys / trace registries.
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { api } from "../api";

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Reusable WCAG APG tablist: roving tabindex + arrow/Home/End keyboard nav,
 // aria-selected/controls wiring and a labelled tabpanel. Supports an optional
-// controlled mode so a parent can drive the active tab. Extracted from App.tsx
-// (modularization) with no behavior change.
+// controlled mode so a parent can drive the active tab.
 import { useEffect, useState, type ReactNode } from "react";
 
 export function TabbedSection({

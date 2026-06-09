@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Small pure presentational primitives shared across panels. Props-only, no
-// closure or data dependencies. Extracted from App.tsx (modularization) with
-// no behavior change.
+// closure or data dependencies.
 import { type ReactNode } from "react";
 import { CheckCircle2, CircleAlert } from "lucide-react";
 import { tr } from "../i18n";

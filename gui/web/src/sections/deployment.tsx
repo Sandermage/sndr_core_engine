@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-// Enterprise deployment console — pick a target + preset, review the resolved
-// launch parameters, host readiness and dependency plan, then render the exact
+// Deployment console — pick a target + preset, review the resolved launch
+// parameters, host readiness and dependency plan, then render the exact
 // deployment artifact (compose / quadlet / k8s / systemd / bare-metal / proxmox)
 // with copy + download. Read-only against the daemon: nothing is executed on the
-// host. Extracted from App.tsx (modularization) with no behavior change.
+// host.
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Rocket, Box, Package, Layers, Settings, Cpu, Server, Database, ShieldCheck,

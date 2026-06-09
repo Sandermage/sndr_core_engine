@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Lightweight, dependency-free chart/KPI primitives shared across panels.
-// Props-only, no closure/data deps. Extracted from App.tsx (modularization)
-// with no behavior change.
+// Props-only, no closure/data deps.
 import { type ReactNode } from "react";
 import { tr } from "../i18n";
 

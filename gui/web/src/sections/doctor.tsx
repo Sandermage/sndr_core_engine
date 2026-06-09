@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // Doctor / diagnostics section panels: severity summary + collapsible findings.
-// Extracted from App.tsx (modularization) with no behavior change.
 import { useState } from "react";
 import { ChevronRight, CheckCircle2, Circle, CircleAlert, AlertCircle } from "lucide-react";
 import { type DoctorReport, type DoctorFinding } from "../api";

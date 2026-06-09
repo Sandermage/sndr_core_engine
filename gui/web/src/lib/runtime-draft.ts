@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Runtime config draft model + pure helpers: build a draft from a composed
 // config, render its YAML overlay, and diff a draft against its baseline.
-// Extracted from App.tsx (modularization) with no behavior change.
 import { asNumber, asText } from "./coerce";
 
 export type RuntimeConfigDraft = {

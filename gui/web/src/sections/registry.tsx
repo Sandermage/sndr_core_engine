@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // Registry-facing section panels: multi-patch bundles + upstream-PR diff.
-// Extracted from App.tsx (modularization) with no behavior change.
 import { type BundleSpec, type DiffUpstreamReport } from "../api";
 import { StatusBadge, KpiGrid } from "../components/primitives";
 import { SkeletonLines } from "../Skeleton";

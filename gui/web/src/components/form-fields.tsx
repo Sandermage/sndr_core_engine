@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Generic labelled form-field primitives shared by the config editors: text,
-// number, boolean toggle (aria-pressed) and select. Extracted from App.tsx
-// (modularization) with no behavior change.
+// number, boolean toggle (aria-pressed) and select.
 
 export function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (

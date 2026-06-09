@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Patch matrix viewer: the per-model env-flag override table with a filter,
-// an enabled-count bar and load-bearing attribution. Extracted from App.tsx
-// (modularization).
-//
-// Enterprise touch over the inline original (classes unchanged): the filter
-// input gets an aria-label (a placeholder is not a reliable accessible name).
+// an enabled-count bar and load-bearing attribution.
 import { useState } from "react";
 import { Search } from "lucide-react";
 import { Skeleton } from "../Skeleton";

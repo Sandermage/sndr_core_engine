@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Settings tab panels: API token manager, notification/alert config, and
 // appearance settings (theme/density/accent/detail/layers) with their small
-// setting primitives. Extracted from App.tsx (modularization) with no behavior
-// change.
+// setting primitives.
 import { useEffect, useState, type ReactNode } from "react";
 import { AlertTriangle, Bell, KeyRound, Loader2, Palette, PanelLeft, Route, Rows3, Send, Settings, Sparkles, Trash2 } from "lucide-react";
 import { api, type AlertConfig, type ApiTokenRecord, getApiToken, setApiToken } from "../api";

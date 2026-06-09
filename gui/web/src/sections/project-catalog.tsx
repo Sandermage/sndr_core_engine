@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Project catalog snapshot — count tiles, annotation/capability rows and the
-// lifecycle/workload/family chip distributions. Extracted from App.tsx
-// (modularization).
-//
-// Enterprise touch over the inline original (classes unchanged): each chip
-// distribution is a role="group" with an aria-label so assistive tech announces
-// what the chips count.
+// lifecycle/workload/family chip distributions.
 import { type ProductOverview, type EnvironmentReport } from "../api";
 import { SkeletonMetrics } from "../Skeleton";
 import { InfoRows } from "../components/primitives";

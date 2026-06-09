@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Operational console — a unified tabbed surface over jobs, events, synthesized
-// logs and the CLI mirror. Extracted from App.tsx (modularization).
-//
-// Enterprise hardening over the inline originals (markup classes unchanged):
-//   * the tab strip is a real WCAG tablist — role="tablist"/"tab" with
-//     aria-selected, and the body is a role="tabpanel"; assistive tech now
-//     announces the tab relationship and the selected tab;
-//   * the event feed is a role="log" so screen readers treat it as a live log.
+// logs and the CLI mirror.
 import { type ConsoleTab } from "../settings";
 import { type Gate } from "../nav";
 import { CodeBlock } from "../components/code-block";

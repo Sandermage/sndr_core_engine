@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Jobs domain: the recent-jobs table, a small progress bar, and the live job
-// monitor modal that polls a job to completion. Extracted from App.tsx
-// (modularization).
-//
-// Enterprise hardening over the inline originals (markup classes unchanged):
-//   * table headers carry scope="col" and the action column an aria-label, so
-//     screen-reader table navigation announces real column relationships;
-//   * Progress is a real role="progressbar" with aria-valuenow/min/max.
+// monitor modal that polls a job to completion.
 import { useEffect, useRef, useState, Fragment } from "react";
 import { Activity, ChevronRight, X, CheckCircle2, AlertCircle, Circle, Terminal, Play } from "lucide-react";
 import { api, type Job } from "../api";

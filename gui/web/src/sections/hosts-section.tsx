@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Hosts section — the Hosts tab: fleet overview with live probes (FleetHostCard),
 // this-host inventory, host-profile CRUD (HostFormModal + table), runtime-target
-// matrix and an SSH terminal modal. Extracted from App.tsx (modularization) with
-// no behavior change.
+// matrix and an SSH terminal modal.
  
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Cpu, Database, Network, PackageCheck, Pencil, Server, SlidersHorizontal, Trash2 } from "lucide-react";
@@ -240,7 +239,4 @@ function HostProfileTable({
     </table>
   );
 }
-
-// CodeBlock + CopyButton extracted to ./components/code-block.
-// Editable text field (YAML / config) with copy + a fullscreen-edit expand.
 

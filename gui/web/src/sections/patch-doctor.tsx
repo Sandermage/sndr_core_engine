@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Patch-doctor section panels: apply-module coverage + validation drill-down,
-// and the admin API surface matrix. Extracted from App.tsx (modularization)
-// with no behavior change.
+// and the admin API surface matrix.
 import { useState } from "react";
 import { type PatchDoctorReport, type ProductCapability } from "../api";
 import { StatusBadge, InfoRows } from "../components/primitives";

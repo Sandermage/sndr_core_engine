@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Command palette (Cmd/Ctrl-K): a combobox over built-in commands + searchable
-// sections/presets/models. Extracted from App.tsx (modularization).
-//
-// Enterprise hardening over the inline original (markup classes unchanged):
-//   * the combobox input and the listbox carry explicit aria-labels (a
-//     placeholder is not a reliable accessible name) and aria-expanded={true};
-//   * Home/End jump to the first/last result, on top of ArrowUp/Down/Enter.
+// sections/presets/models.
 import { useEffect, useRef, useState, type ReactNode, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { RefreshCw, Rocket, Terminal, ShieldCheck, PackageCheck, Rows3, Command, Settings, Search, ChevronRight } from "lucide-react";
 import { type SectionId } from "../nav";
@@ -49,11 +44,8 @@ export function CommandPalette({
   const all = [...commands, ...searchItems];
   const q = query.trim().toLowerCase();
   const shown = (q ? all.filter((item) => `${item.title} ${item.detail}`.toLowerCase().includes(q)) : commands).slice(0, 40);
-  // Keep the highlighted index in range as the filtered set shrinks/grows.
   const activeIndex = Math.min(active, Math.max(0, shown.length - 1));
-  // Reset the highlight to the top whenever the query changes.
   useEffect(() => { setActive(0); }, [q]);
-  // Scroll the highlighted row into view as it moves past the visible window.
   useEffect(() => {
     const row = listRef.current?.children[activeIndex] as HTMLElement | undefined;
     row?.scrollIntoView({ block: "nearest" });

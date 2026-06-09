@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Core layout primitives shared across the GUI: a responsive module grid and a
-// titled module card. Extracted from App.tsx (modularization) with no behavior
-// change.
+// titled module card.
 import { type ReactNode } from "react";
 
 export function ModuleGrid({ children, className }: { children: ReactNode; className?: string }) {

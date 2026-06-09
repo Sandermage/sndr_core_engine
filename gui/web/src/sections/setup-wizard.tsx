@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // First-run setup wizard: a guided, read-only path (detect → mode → preset →
-// validate → launch) that never mutates the host. Extracted from App.tsx
-// (modularization).
-//
-// Enterprise hardening over the inline original (markup classes unchanged, so
-// visuals are identical):
-//   * the progress track is a real role="progressbar" with aria-valuenow/min/max
-//     + aria-valuetext, so assistive tech announces "N of M steps ready";
-//   * the active step carries aria-current="step".
+// validate → launch) that never mutates the host. The progress track is a real
+// role="progressbar" (aria-valuenow/min/max + aria-valuetext) and the active
+// step carries aria-current="step", so assistive tech announces progress.
 import { useState } from "react";
 import { CheckCircle2, AlertCircle, CircleAlert, Circle, Database, Rocket, ShieldCheck, Network } from "lucide-react";
 import { type EnvironmentReport, type ProductOverview, type DoctorReport } from "../api";

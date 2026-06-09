@@ -57,20 +57,15 @@ import {
   type ConsoleTab, type AccentMode, type GuiSettings,
   nextTheme, themeLabel, themeIcon, VALID_THEMES, DEFAULT_REMOTE_HOST
 } from "./settings";
-// useFetch now used only inside extracted sections.
 import { asRecord, asText, asNumber, countRecord } from "./lib/coerce";
 import { formatTokens, targetTitle } from "./lib/format";
-// config-utils / runtime-draft / element-fields now used only inside extracted sections.
 import { LayerEditor } from "./sections/layer-editor";
 import { ConfigDraftEditor } from "./sections/config-draft-editor";
 import { ModelsWorkbench } from "./sections/models-workbench";
-// settings-panels lazy-loaded below.
-// ConfigsSection lazy-loaded below.
 import { CapabilityTable } from "./components/capability-table";
 import { PlanChip, KeyValue, ArtifactPreview, type ArtifactTab } from "./components/display-bits";
 import { Step, Metric, PanelHeader, TabIntro, CodeTabs } from "./components/shell-bits";
 import { ServerSwitcher, ConnectionMap } from "./sections/connection-bar";
-// HostsSection lazy-loaded below.
 import { PresetSelectedView, PresetSummaryStrip } from "./sections/preset-views";
 import { StatusBadge, StatusPill, InfoRows, CompactList, KpiGrid, type GateStatus } from "./components/primitives";
 import { PercentBar, BarList, OvKpi } from "./components/charts";
@@ -88,17 +83,14 @@ import { RecommendationRow } from "./sections/recommendation-row";
 import { ModuleGrid, ModuleCard } from "./components/layout";
 import { toast, ToastHost } from "./components/toast";
 import { OperationsConsole } from "./sections/operations";
-// DeploymentConsole lazy-loaded below.
 import { GateRow } from "./sections/gate-row";
 import { SetupWizard } from "./sections/setup-wizard";
 import { JobMonitorModal, QueueJobButton } from "./sections/jobs";
-// ServiceLifecyclePlanner lazy-loaded below.
 import { CommandPalette } from "./sections/command-palette";
 import { EventLog, OperationalConsole } from "./sections/operational-console";
 import { LaunchPanel } from "./sections/launch-panel";
 import { PresetPolicyGraph } from "./sections/preset-insight";
 import { PatchSummaryPanel, PatchLifecycleGraph, PatchRegistryInsight, PatchModelSupport } from "./sections/patch-overview";
-// PatchInventoryControl lazy-loaded below.
 import { PresetRecommendPanel } from "./sections/preset-recommend";
 import { type RecommendForm, defaultRecommend, workloadChoices } from "./recommend";
 import { TabbedSection } from "./components/tabbed-section";
@@ -106,7 +98,6 @@ import { PresetQuickPanel } from "./sections/preset-quick";
 import { PresetCatalogTable } from "./sections/preset-catalog";
 import { ProofStatusPanel } from "./sections/proof";
 import { CodeBlock } from "./components/code-block";
-// dialog helpers now used only inside extracted modals.
 import { SkeletonCards } from "./Skeleton";
 import { useViewport, type ViewportTier } from "./hooks/useViewport";
 import { useLang, t, tr } from "./i18n";
@@ -164,10 +155,6 @@ const ApiTokenManager = lazy(() => import("./sections/settings-panels").then((m)
 const NotificationSettings = lazy(() => import("./sections/settings-panels").then((m) => ({ default: m.NotificationSettings })));
 const AppearanceSettings = lazy(() => import("./sections/settings-panels").then((m) => ({ default: m.AppearanceSettings })));
 const ApiTokenField = lazy(() => import("./sections/settings-panels").then((m) => ({ default: m.ApiTokenField })));
-// ModelManagementPanel is lazy-loaded inside ./sections/models-workbench now.
-// Lazy: the xterm-based terminal is heavy and rarely opened — keep it out of the
-// initial bundle so the app loads fast; the chunk fetches only when a terminal opens.
-// TerminalModal is lazy-loaded inside ./sections/hosts-section now.
 import { UpdatesPanel } from "./Updates";
 const KvCalcPanel = lazy(() => import("./Planner").then((m) => ({ default: m.KvCalcPanel })));
 const BaselinePanel = lazy(() => import("./Planner").then((m) => ({ default: m.BaselinePanel })));
@@ -197,26 +184,12 @@ const FlagsPanel = lazy(() => import("./Flags").then((m) => ({ default: m.FlagsP
 const LicensePanel = lazy(() => import("./License").then((m) => ({ default: m.LicensePanel })));
 
 type LoadState = "idle" | "loading" | "ready" | "error";
-// GateStatus is now owned by ./components/primitives (re-imported above) so the
-// RailCheck primitive and the gate logic share one source of truth.
-// RuntimeMode moved to ./nav.
-// SectionId / RuntimeMode / Gate / GATE_TARGET now live in ./nav (imported above).
-// ArtifactTab moved to ./components/display-bits.
-// ConsoleTab / ThemeMode / DensityMode / AccentMode / DetailMode / GuiSettings +
-// theme helpers (nextTheme/themeLabel/themeIcon/THEME_CYCLE/VALID_THEMES) now
-// live in ./settings (imported above).
-
-// RecommendForm / defaultRecommend / workloadChoices moved to ./recommend (imported above).
 
 type NavItem = {
   id: SectionId;
   icon: ReactNode;
   label: string;
 };
-
-// Gate type moved to ./nav.
-
-// RuntimeConfigDraft moved to ./lib/runtime-draft.
 
 
 const GUI_SETTINGS_STORAGE_KEY = "sndr.gui.settings";
@@ -282,8 +255,6 @@ const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 // replaceHash) live in ./route so ContainersPanel can share them without a
 // circular import. sectionFromHash returns a plain string; callers cast to
 // SectionId after the SECTION_IDS validation guarantees membership.
-
-// useFetch + FetchState extracted to ./hooks/useFetch (modularization slice).
 
 export default function App() {
   const [navLang] = useLang();
@@ -1664,9 +1635,6 @@ export default function App() {
   );
 }
 
-// Keyboard-shortcut reference overlay (opened with `?`). Documents the global
-// chords so power users can discover them without leaving the keyboard.
-// ShortcutsModal extracted to ./components/dialogs.
 class SectionErrorBoundary extends Component<{ section: string; children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
   static getDerivedStateFromError(error: Error) {
@@ -1698,9 +1666,6 @@ class SectionErrorBoundary extends Component<{ section: string; children: ReactN
   }
 }
 
-// ConnectionMap extracted to ./sections/connection-bar.
-
-// Settings tab panels (ApiTokenManager/NotificationSettings/AppearanceSettings + primitives) extracted to ./sections/settings-panels.
 function SectionWorkspace({
   sectionId,
   viewport,
@@ -3166,39 +3131,6 @@ function sectionSpec(sectionId: SectionId) {
   return specs[sectionId];
 }
 
-// PatchMatrixViewer extracted to ./sections/patch-matrix.
-
-// CatalogBadge type is now owned/exported by ./sections/catalog-cards (imported above).
-
-// CatalogCard extracted to ./sections/catalog-cards.
-
-// modelFamily/itemBadges/ModelSummaryStrip/ModelKeyFacts + ModelsWorkbench extracted to ./sections/models-workbench.
-
-// Configs workbench (ConfigElementEditor/V2ConfigWorkbench/ConfigsSection/ConfigSelect/ConfigItemInspector/CompositionChain/ResolvedConfig + CodeEditorField + config-artifact builders) extracted to ./sections/configs-workbench.
-// TabIntro extracted to ./components/shell-bits.
-
-// Overview hero KPI tile — bold headline numbers, optionally click-through to a section.
-// OvKpi extracted to ./components/charts.
-
-// TabbedSection extracted to ./components/tabbed-section.
-
-// ModuleCard extracted to ./components/layout.
-
-// InfoRows extracted to ./components/primitives.
-
-// KpiGrid extracted to ./components/primitives.
-
-// RuntimeEnvelopePanel + PresetPolicyGraph extracted to ./sections/preset-insight.
-
-// ConfigDraftEditor + Collapsible + DraftControl extracted to ./sections/config-draft-editor.
-
-// CHART_PALETTE / DonutSegment / SegmentBar / PercentBar / segmentsFromCounts
-// / BarList extracted to ./components/charts.
-
-// CapabilityTable extracted to ./components/capability-table.
-
-// CompactList extracted to ./components/primitives.
-
 function WorkflowSteps({ rows }: { rows: Array<[string, string, string]> }) {
   return (
     <div className="workflow-steps">
@@ -3214,47 +3146,6 @@ function WorkflowSteps({ rows }: { rows: Array<[string, string, string]> }) {
     </div>
   );
 }
-
-// QueueJobButton extracted to ./sections/jobs.
-
-// EndpointExplorer + ReportGenerator extracted to ./sections/api-explorer.
-
-// HOST_ROLES moved to ./sections/host-form-modal.
-
-// roleTone + tunnelCommand + FleetHostCard (+ ApplyDisabledNote / RelSpark) extracted to ./sections/fleet-host-card.
-
-// The daemon host this UI talks to — live inventory, no probe needed.
-// ThisHostCard extracted to ./sections/this-host-card.
-
-// Detailed inventory grid for the Inventory tab.
-// HostInventoryPanel + DependencyStackPanel extracted to ./sections/environment.
-
-// Illustrated empty state — icon badge + title + guidance + optional recovery
-// action. Used on primary content areas in place of bare muted "No X" text.
-// EmptyState extracted to ./components/empty-state.
-
-// Project & catalog snapshot — fills the row beside the dependency stack with
-// the most useful project parameters: catalog counts, annotation coverage,
-// capability readiness and the workload/lifecycle distribution.
-// ProjectCatalogPanel extracted to ./sections/project-catalog.
-
-// Add/edit modal for a host profile.
-// HostFormModal (+ HOST_ROLES) extracted to ./sections/host-form-modal.
-
-// Enterprise Hosts section: fleet overview with live probes, full daemon-host
-// inventory, profile CRUD with a modal, runtime-target matrix and access.
-// HostsSection + HostProfileTable extracted to ./sections/hosts-section.
-// CodeTabs extracted to ./components/shell-bits.
-
-// Enterprise recommend tab: surface the catalog's recommendation engine inside
-// Presets. Pick a workload + rig + concurrency and get a ranked, scored list of
-// presets — click to select and inspect. Connects browse → recommend → select.
-// PresetRecommendPanel extracted to ./sections/preset-recommend.
-
-// What this preset overrides relative to its declared fallback target.
-// PresetFallbackDiff + PresetSelectedView + PresetSummaryStrip extracted to ./sections/preset-views.
-
-// CommandPalette extracted to ./sections/command-palette.
 
 function loadGuiSettings(): GuiSettings {
   try {
@@ -3293,23 +3184,6 @@ function loadGuiSettings(): GuiSettings {
 function isAccent(value: unknown): value is AccentMode {
   return value === "teal" || value === "blue" || value === "emerald" || value === "amber";
 }
-
-// RecommendationRow extracted to ./sections/recommendation-row.
-
-// CopyButton extracted to ./components/code-block.
-
-// RuntimeEndpoint + BenchmarkCard + EvidenceCard + PatchMatrix extracted to ./sections/rail-cards.
-
-// PlanChip + KeyValue + ArtifactPreview (+ ArtifactTab) extracted to ./components/display-bits.
-
-// GATE_TARGET moved to ./nav.
-
-
-// JobsTable + Progress + JobMonitorModal extracted to ./sections/jobs.
-
-// EventLog + CliMirror + OperationalConsole extracted to ./sections/operational-console.
-
-// RailStat + RailCheck extracted to ./components/primitives.
 
 function buildReadinessGates({
   overview,
@@ -3507,22 +3381,6 @@ function buildCliMirror({
   ];
 }
 
-// targetTitle moved to ./lib/format.
-
 function runtimeHost(mode: RuntimeMode, remoteHost: string = DEFAULT_REMOTE_HOST) {
   return mode === "remote" ? (remoteHost.trim() || DEFAULT_REMOTE_HOST) : "127.0.0.1";
 }
-
-// countRecord extracted to ./lib/coerce.
-
-// buildRuntimeDraft + buildDraftYaml extracted to ./lib/runtime-draft.
-
-
-// ParamFields extracted to ./sections/config-draft-editor.
-
-// DRAFT_FIELD_LABELS + runtimeDraftDiff extracted to ./lib/runtime-draft.
-
-
-// asRecord / asText / asNumber / asStringArray extracted to ./lib/coerce.
-
-// shortWorkload / formatTokens / formatVram extracted to ./lib/format.

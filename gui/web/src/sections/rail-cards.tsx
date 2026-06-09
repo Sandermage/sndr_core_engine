@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Launch-plan rail cards: runtime endpoints, benchmark expectation, evidence
-// status, and the patch-policy matrix. Extracted from App.tsx (modularization)
-// with no behavior change.
+// status, and the patch-policy matrix.
 import { useState } from "react";
 import { Link2, Activity, ShieldCheck, PackageCheck, ChevronDown } from "lucide-react";
 import { type LaunchPlanEndpoint, type PatchListResult } from "../api";
@@ -190,8 +189,6 @@ export function PatchMatrix({
   );
 }
 
-// Flat list of the standard runtime endpoints for a host, each copyable. A
-// lighter sibling of RuntimeEndpoint used in the clients view.
 export function EndpointRows({ host }: { host: string }) {
   const rows: Array<[string, string]> = [
     ["OpenAI API", `http://${host}:8000/v1`],

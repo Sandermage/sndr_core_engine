@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Connection bar — the top-bar server switcher (re-point the GUI's Product API
-// at any host's daemon, health-pinged) + the small connection map. Extracted
-// from App.tsx (modularization) with no behavior change.
+// at any host's daemon, health-pinged) + the small connection map.
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Database, Link2, Monitor, PackageCheck, PlugZap, Plus, Server } from "lucide-react";
 import { type HostProfile, getApiToken, normalizeBaseUrl, hostLabel } from "../api";
@@ -104,12 +103,6 @@ export function ServerSwitcher({
     </div>
   );
 }
-
-// jobTone + JobResultBlock extracted to ./sections/jobs (shared executor-job card).
-
-// Section-level error boundary: a render error in one panel shows an inline
-// recoverable message instead of crashing the whole shell. Resets when the
-// active section changes so navigating away clears a stuck panel.
 
 export function ConnectionMap({
   runtimeMode,

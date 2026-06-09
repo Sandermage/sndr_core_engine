@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Small shared shell presentational helpers: workflow step, metric tile, panel
-// header, tab intro banner and a code-tabs viewer. Extracted from App.tsx
-// (modularization) with no behavior change.
+// header, tab intro banner and a code-tabs viewer.
 import { useState, type ReactNode } from "react";
 import { tr } from "../i18n";
 import { CodeBlock } from "./code-block";
@@ -83,7 +82,6 @@ export function PanelHeader({
   );
 }
 
-// Short explanatory banner at the top of a tab — what it does + when to use it.
 export function TabIntro({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
     <div className="tab-intro">
@@ -96,8 +94,6 @@ export function TabIntro({ icon, title, text }: { icon: ReactNode; title: string
   );
 }
 
-// Enterprise touch over the inline original: the tab strip is a WCAG tablist
-// (role=tablist/tab + aria-selected) instead of plain buttons.
 export function CodeTabs({ tabs }: { tabs: Array<{ id: string; label: string; lines: string[] }> }) {
   const [active, setActive] = useState(tabs[0]?.id ?? "");
   const current = tabs.find((tab) => tab.id === active) ?? tabs[0];

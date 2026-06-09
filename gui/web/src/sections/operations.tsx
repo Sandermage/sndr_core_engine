@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Project Operations console — surfaces sndr_core's canonical CLI maintenance
 // workflows as one-click, live-monitored jobs. Commands are server-defined; the
-// client only sends an operation id. Extracted from App.tsx (modularization)
-// with no behavior change.
+// client only sends an operation id.
 import { useEffect, useState, type ReactNode } from "react";
 import { Terminal, Activity, ShieldCheck, AlertCircle, Play, Stethoscope, Database, PackageCheck } from "lucide-react";
 import { api, type OperationsResult } from "../api";

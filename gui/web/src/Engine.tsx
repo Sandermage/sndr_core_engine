@@ -791,7 +791,6 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
           const docs = result.docs ?? [];
           if (docs.length) {
             ragMessages = [{ role: "system", content: buildRagContext(docs) }];
-            // Attach the cited sources to the assistant placeholder.
             patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (last?.role === "assistant") msgs[msgs.length - 1] = { ...last, sources: docs }; return { ...c, messages: msgs }; });
           }
         } catch { /* retrieval is best-effort — fall back to ungrounded chat */ }

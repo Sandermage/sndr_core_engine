@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // Preset section panels: operator-local user presets + profile-delta inspector.
-// Extracted from App.tsx (modularization) with no behavior change.
 import { type UserPresetList } from "../api";
 import { tr } from "../i18n";
 

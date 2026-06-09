@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Fleet host card — one card per saved host: identity, role, live engine probe,
 // SSH checks, discovery, one-click node setup, and live GPU/engine telemetry.
-// Extracted from App.tsx (modularization) with no behavior change. roleTone and
-// tunnelCommand are exported because the Hosts table reuses them.
+// roleTone and tunnelCommand are exported because the Hosts table reuses them.
 import { useEffect, useRef, useState } from "react";
 import {
   Server, Cpu, Link2, Boxes, ShieldCheck, KeyRound, MessageSquare, Loader2, PlugZap,

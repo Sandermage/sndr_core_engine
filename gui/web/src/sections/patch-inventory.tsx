@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Patch inventory control — the patches-tab registry browser: search + lifecycle
 // /default filters, by-family or flat view, and a linked PatchExplainPanel for
-// the selected patch. Extracted from App.tsx (modularization).
-//
-// Enterprise hardening over the inline originals (classes unchanged):
-//   * filter input + the two selects carry aria-labels (placeholders aren't
-//     reliable accessible names);
-//   * the by-family/flat segmented control is a role="group" with aria-pressed;
-//   * each family group is a WCAG disclosure — aria-controls points at its rows.
+// the selected patch.
 import { useEffect, useId, useMemo, useState } from "react";
 import { Search, PackageCheck, X, ChevronRight } from "lucide-react";
 import { api, type PatchRow, type PatchExplainResult } from "../api";

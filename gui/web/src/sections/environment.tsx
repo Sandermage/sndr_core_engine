@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Environment section panels: host inventory (system/runtime/GPU/engine) +
-// dependency stack (Python libs + runtime tools). Extracted from App.tsx
-// (modularization) with no behavior change.
+// dependency stack (Python libs + runtime tools).
 import { Cpu, Box, Server, PackageCheck, ShieldCheck, Activity, CheckCircle2, CircleAlert } from "lucide-react";
 import { type HostInventory, type EnvironmentReport, type DependencyInfo } from "../api";
 import { InfoRows, CapChip } from "../components/primitives";
@@ -14,7 +13,6 @@ export function HostInventoryPanel({ inventory, environment }: { inventory: Host
   const { os, python, docker, nvidia, vllm } = inventory;
   const vram = nvidia.gpu_total_vram_mib ?? [];
   const total = totalVramGiB(vram);
-  // Per-GPU rows: pair each detected GPU name with its VRAM.
   const gpuRows: Array<[string, string]> = nvidia.gpu_names.length
     ? nvidia.gpu_names.map((name, index) => [`GPU ${index}`, `${name}${vram[index] ? ` · ${Math.round((vram[index] ?? 0) / 1024)} GiB` : ""}`])
     : [["GPUs", tr("none detected")]];
@@ -58,8 +56,6 @@ export function HostInventoryPanel({ inventory, environment }: { inventory: Host
   );
 }
 
-// Improved dependency stack: a health summary, the Python library list with
-// versions, and runtime tools as availability chips.
 const CRITICAL_LIBS = ["vllm", "torch", "transformers"];
 
 export function DependencyStackPanel({ env }: { env: EnvironmentReport | null }) {
@@ -125,8 +121,6 @@ export function DependencyStackPanel({ env }: { env: EnvironmentReport | null })
   );
 }
 
-// Compact environment summary — version badges + dependency/tool columns. A
-// lighter sibling of HostInventoryPanel used where space is tight.
 export function EnvironmentPanel({ env }: { env: EnvironmentReport | null }) {
   if (!env) return <SkeletonMetrics count={4} />;
   return (

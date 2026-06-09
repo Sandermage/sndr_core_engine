@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Shared modal dialogs: a confirm/cancel prompt and a one-button info preview.
-// Both trap focus and close on Escape/backdrop. Extracted from App.tsx
-// (modularization) with no behavior change.
+// Both trap focus and close on Escape/backdrop.
 import { useRef, type ReactNode } from "react";
 import { AlertTriangle, Command, X } from "lucide-react";
 import { tr } from "../i18n";
@@ -53,7 +52,6 @@ export function InfoDialog({ message, onClose }: { message: string; onClose: () 
   );
 }
 
-// Keyboard shortcuts reference modal.
 export function ShortcutsModal({ onClose }: { onClose: () => void }) {
   const dialogRef = useRef<HTMLElement>(null);
   useDialogFocus(dialogRef);

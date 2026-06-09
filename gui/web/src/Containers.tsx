@@ -448,8 +448,8 @@ function ContainerRow({ c, source, stats, busy, selected, onToggleSelect, onAct,
     let alive = true;
     const key = `cplan:${srcKey(source)}:${c.name}`;
     const stale = cachePeek<ContainerUpdatePlan>(key);
-    if (stale) setUpd(stale);  // instant paint on re-render / re-open
-    if (!cacheGet(key, 120_000)) {  // revalidate only when stale
+    if (stale) setUpd(stale);
+    if (!cacheGet(key, 120_000)) {
       api.containerUpdatePlan(source, c.name).then((p) => { cacheSet(key, p); if (alive) setUpd(p); }).catch(() => {});
     }
     return () => { alive = false; };

@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Configs workbench — the Configs tab: element editor, V2 config workbench
 // (compose/preview/plan/apply), composition chain, resolved config, and the
-// model/hardware/profile selectors + inspectors. Extracted from App.tsx
-// (modularization) with no behavior change.
- 
+// model/hardware/profile selectors + inspectors.
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertCircle, AlertTriangle, Box, CheckCircle2, ChevronRight, Code2, Cpu, Database, FileText,
@@ -259,8 +257,7 @@ export function ConfigsSection(props: {
 }
 
 // Visual composition chain — a preset = model + hardware + profile, resolved to
-// the runtime config. Makes the layering explicit instead of three side-by-side
-// cards the operator has to mentally stitch together.
+// the runtime config.
 function CompositionChain({ model, hardware, profile, composed }: {
   model: V2ConfigItem | null; hardware: V2ConfigItem | null; profile: V2ConfigItem | null; composed: Record<string, any>;
 }) {
@@ -298,8 +295,7 @@ function CompositionChain({ model, hardware, profile, composed }: {
   );
 }
 
-// The full resolved runtime config (every scalar the layers compose to) — the
-// composer previously surfaced only a handful of key fields.
+// The full resolved runtime config (every scalar the layers compose to).
 function ResolvedConfig({ composed }: { composed: Record<string, any> }) {
   const entries = Object.entries(composed || {})
     .filter(([, v]) => v !== null && v !== undefined && v !== "" && typeof v !== "object")
@@ -726,11 +722,6 @@ function V2ConfigWorkbench({
   );
 }
 
-// Side-by-side comparison of two presets' composed runtime configs. Uses the
-// preset explain endpoint (composed dict) and highlights every differing field
-// — the "show me prod vs staging" view operators ask for.
-
-
 function ConfigSelect({
   label,
   icon,
@@ -821,8 +812,6 @@ function ConfigItemInspector({ title, titleLabel, item }: { title: string; title
   );
 }
 
-
-// Short explanatory banner at the top of a tab — what it does + when to use it.
 
 function CodeEditorField({ value, onChange, label }: { value: string; onChange: (next: string) => void; label?: string }) {
   const [expanded, setExpanded] = useState(false);

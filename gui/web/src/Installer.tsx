@@ -9,8 +9,8 @@ const TARGET_ICON: Record<string, JSX.Element> = {
 };
 
 // First-run remote-install wizard: pick host → target → preset → review a
-// dry-run plan (artifact + ordered steps, infra-mutating steps flagged). It
-// renders and copies; it never executes (the gated SSH apply is a later phase).
+// dry-run plan (artifact + ordered steps, infra-mutating steps flagged), then
+// optionally apply over SSH when the daemon is started with apply enabled.
 export function InstallWizard({ initial }: { initial?: { hostId?: string; target?: string } }) {
   const [meta, setMeta] = useState<InstallTargets | null>(null);
   const [presets, setPresets] = useState<PresetRecord[]>([]);

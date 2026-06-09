@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Selected-preset quick panel: status + runtime summary + allowed workloads and
-// the edit/card/policy/launch actions. Extracted from App.tsx (modularization).
-//
-// Enterprise touch over the inline original (classes unchanged): the allowed-
-// workload chips are grouped under role="group" + aria-label.
+// the edit/card/policy/launch actions.
 import { MousePointerClick, Wrench, FileText, BarChart3, Rocket } from "lucide-react";
 import { type PresetRecord } from "../api";
 import { asText, asStringArray, asNumber } from "../lib/coerce";

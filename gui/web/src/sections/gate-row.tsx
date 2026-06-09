@@ -1,14 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Readiness-gate row: a collapsible disclosure showing a gate's status, detail
-// and a one-click jump to the section that resolves it. Extracted from App.tsx
-// (modularization).
-//
-// Enterprise hardening over the original inline version:
-//   * proper WCAG disclosure wiring — the trigger's aria-controls points at the
-//     detail region's id (useId), so assistive tech announces the relationship;
-//   * the decorative status glyph is aria-hidden (status is also text);
-//   * the four-way status→icon branch is a typed lookup instead of a chain.
-// Markup classes are unchanged, so the visual style is identical.
+// and a one-click jump to the section that resolves it.
 import { useId, useState, type ReactNode } from "react";
 import { CheckCircle2, CircleAlert, AlertCircle, Clock3, ChevronRight, Wrench } from "lucide-react";
 import { type Gate, type SectionId, GATE_TARGET } from "../nav";

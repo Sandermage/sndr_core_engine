@@ -113,7 +113,6 @@ function ConnectCard({ error }: { error: string | null }) {
   );
 }
 
-// What k8s mode is + the GPU prerequisites — so it's a real, explained option.
 function K8sIntro({ available }: { available?: boolean }) {
   const [open, setOpen] = useState(false);
   return (

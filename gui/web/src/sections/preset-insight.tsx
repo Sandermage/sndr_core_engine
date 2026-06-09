@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Preset insight panels: the runtime envelope (context/concurrency/patches/
 // metric bars + KV/spec rows) and the workload policy graph (allow/deny pills +
-// per-status distribution). Extracted from App.tsx (modularization) with no
-// behavior change.
+// per-status distribution).
 import { asRecord, asNumber, asText, asStringArray } from "../lib/coerce";
 import { formatTokens } from "../lib/format";
 import { BarList } from "../components/charts";

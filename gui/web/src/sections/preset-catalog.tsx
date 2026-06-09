@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Preset catalog table: status + bench filters, sortable columns, a measured
-// baseline chip per row, and an illustrated empty state. Extracted from App.tsx
-// (modularization) with no behavior change.
+// baseline chip per row, and an illustrated empty state.
 import { useState } from "react";
 import { ChevronRight, Wrench, Database, X } from "lucide-react";
 import { type PresetRecord } from "../api";

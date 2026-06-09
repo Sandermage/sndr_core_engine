@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Dedicated launch surface — the hero "set it and launch" screen. Consolidates
 // what-will-run, the resolved runtime parameters, preflight readiness and the
-// prominent Launch control. Pure presentational (no own state). Extracted from
-// App.tsx (modularization).
-//
-// Enterprise touch over the inline original (classes unchanged): the readiness
-// pass/warn/blocked tally is grouped under role="group" + aria-label so screen
-// readers announce it as one labelled summary.
+// prominent Launch control. Pure presentational (no own state).
 import { CircleAlert, CheckCircle2, Rocket, SlidersHorizontal, ListChecks, Play } from "lucide-react";
 import { type LaunchPlanEndpoint, type Job } from "../api";
 import { type RuntimeMode, type Gate } from "../nav";

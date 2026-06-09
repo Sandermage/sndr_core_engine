@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Runtime config draft editor: live sliders/toggles for sizing, spec-decode and
-// KV/runtime, with a pending-changes diff and a YAML preview. Extracted from
-// App.tsx (modularization).
-//
-// Enterprise touch over the inline original (classes unchanged): the Collapsible
-// disclosure now wires aria-controls -> body id (useId) for WCAG conformance.
+// KV/runtime, with a pending-changes diff and a YAML preview.
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { Copy, ChevronRight } from "lucide-react";
 import { tr } from "../i18n";

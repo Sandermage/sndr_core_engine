@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Patch explain panel — the registry drill-down aside: enablement override,
 // applicability, requires/conflicts graph, full metadata and the live decision
-// from the Product API. Extracted from App.tsx (modularization).
-//
-// Enterprise touch over the inline original (classes unchanged): the
-// default/force-on/force-off override is a role="group" whose buttons expose
-// aria-pressed, so assistive tech announces the chosen override.
+// from the Product API.
 import { Wrench, Activity } from "lucide-react";
 import { type PatchRow, type PatchExplainResult } from "../api";
 import { asText, asStringArray } from "../lib/coerce";
@@ -91,7 +87,6 @@ export function PatchExplainPanel({
         <StatusBadge status={patch.lifecycle} />
       </div>
 
-      {/* Enablement override — operator forces on/off, written into the launch env. */}
       <div className="patch-override">
         <div className="patch-override-head">
           <strong>{tr("Enablement override")}</strong>

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Patch overview panels (the patches-tab header strip): KPI summary, lifecycle /
 // production-default distributions, registry insight with a plain-language
-// legend, and the supported-models chips. Extracted from App.tsx
-// (modularization) with no behavior change.
+// legend, and the supported-models chips.
 import { type PatchListResult, type PatchRow } from "../api";
 import { countRecord } from "../lib/coerce";
 import { SegmentBar, BarList, segmentsFromCounts } from "../components/charts";

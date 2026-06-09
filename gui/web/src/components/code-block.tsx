@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Reusable code-display + copy primitives. Extracted from App.tsx
-// (modularization) with no behavior change.
+// Reusable code-display + copy primitives.
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Copy, Maximize2, Terminal, X } from "lucide-react";
 import { tr } from "../i18n";

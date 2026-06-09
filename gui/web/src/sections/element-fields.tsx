@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Element field schema + editor: the curated per-kind field specs, adaptive
 // discovery of extra scalar fields, grouping, per-field validation and the
-// ElementField input dispatcher. Extracted from App.tsx (modularization) with
-// no behavior change. Shared by LayerEditor and ConfigElementEditor.
- 
+// ElementField input dispatcher. Shared by LayerEditor and ConfigElementEditor.
 import { AlertTriangle } from "lucide-react";
 import { tr } from "../i18n";
 import { TextField, NumberField, BoolField, SelectField } from "../components/form-fields";

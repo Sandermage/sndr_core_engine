@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Generic, dependency-free data utilities shared by the config editors: deep
-// path get/set on plain objects, and a small YAML serializer. Extracted from
-// App.tsx (modularization) with no behavior change. Kept type-light (any) to
-// match the dynamic config payloads these operate on.
+// path get/set on plain objects, and a small YAML serializer. Kept type-light
+// (any) to match the dynamic config payloads these operate on.
  
 
 /** Read a dotted path out of a nested object; undefined if any segment is missing. */

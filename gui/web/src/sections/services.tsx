@@ -2,11 +2,7 @@
 // Service lifecycle planner — pick an action (status/logs/start/restart/stop) +
 // runtime target, review the resolved plan + gates, then run it as a dry-run or
 // (when the daemon enables apply, with explicit confirm for mutating actions)
-// execute it locally or over SSH. Extracted from App.tsx (modularization).
-//
-// Enterprise hardening over the inline original (markup classes unchanged):
-//   * the action segmented control is a role="group" whose buttons expose
-//     aria-pressed, so assistive tech announces which action is selected.
+// execute it locally or over SSH.
 import { useEffect, useState } from "react";
 import { Activity, AlertCircle, CircleAlert, RefreshCw, Play } from "lucide-react";
 import { api, type ServiceActionPlan, type Job, type EngineStatus } from "../api";

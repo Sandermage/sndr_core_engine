@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Audit-log section panel: live event feed with a kind/message filter, polling
-// the daemon every 5s while the tab is visible. Extracted from App.tsx
-// (modularization) with no behavior change.
+// the daemon every 5s while the tab is visible.
 import { useEffect, useState } from "react";
 import { api, type BackendEvent } from "../api";
 import { SkeletonTable } from "../Skeleton";

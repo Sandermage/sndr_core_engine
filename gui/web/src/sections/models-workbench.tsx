@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Models workbench — the Models tab: catalog browser with per-model key facts,
 // fit cards/matrix, KV envelope, patch matrix, runtime envelope and the layer /
-// draft / management editors. Extracted from App.tsx (modularization) with no
-// behavior change. itemBadges is exported because the catalog views reuse it.
- 
+// draft / management editors. itemBadges is exported because the catalog views
+// reuse it.
 import { lazy, useMemo, useState } from "react";
 import {
   Box, Boxes, Code2, Cpu, Database, Download, FileText, Gauge, GitBranch, HardDrive,
@@ -59,8 +58,6 @@ export function itemBadges(item: V2ConfigItem): CatalogBadge[] {
   return out.slice(0, 3);
 }
 
-// ModelFitCard + ModelFitMatrix extracted to ./sections/catalog-cards.
-
 function ModelSummaryStrip({ models, activeId }: { models: V2ConfigItem[]; activeId: string }) {
   const fieldsOf = (m: V2ConfigItem) => (m.fields ?? {}) as Record<string, any>;
   const families = new Set(models.map((m) => modelFamily(m.id))).size;
@@ -113,8 +110,6 @@ function ModelKeyFacts({ fields, def }: { fields: Record<string, any>; def: Reco
     </div>
   );
 }
-
-// KvEnvelopeCard extracted to ./sections/catalog-cards.
 
 export function ModelsWorkbench({
   catalog,
