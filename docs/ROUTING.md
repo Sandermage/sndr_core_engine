@@ -6,7 +6,7 @@ requests to the correct vllm preset based on **workload class**,
 **expected output length**, **concurrency mode**, and **model
 family**.
 
-Schema: [`vllm/sndr_core/cli/routing_schema.json`](../vllm/sndr_core/cli/routing_schema.json) (v1).
+Schema: [`vllm/sndr_core/cli/routing_schema.json`](../sndr/cli/legacy/routing_schema.json) (v1).
 
 ## What this is — and what it is NOT
 

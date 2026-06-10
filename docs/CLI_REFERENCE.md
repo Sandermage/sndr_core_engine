@@ -256,7 +256,7 @@ GENESIS_REPO_ROOT=/path/to/genesis-vllm-patches sndr self-test
 ```
 
 **Adding a new check.** Self-test lives in
-`vllm/sndr_core/compat/self_test.py`. Add a function
+`sndr/compat/self_test.py`. Add a function
 `_check_<name>() -> tuple[str, str]` returning
 `(status, message)`, append to the `_CHECKS` list, and add a unit
 test pinning the new check name. Contract: a check must never raise.
@@ -890,7 +890,7 @@ Operators regenerate locally; CI verifies determinism and redaction.
 
 Five row types — `preset`, `profile`, `model`, `hardware`, `baseline` —
 each with its own schema (see
-[`vllm/sndr_core/model_configs/catalog_schema.py`](../vllm/sndr_core/model_configs/catalog_schema.py)).
+[`sndr/model_configs/catalog_schema.py`](../sndr/model_configs/catalog_schema.py)).
 
 **Redaction.** Maintainer-private tree paths and `visibility: private`
 evidence refs are stripped at output time on every leaf (`--redact-private`

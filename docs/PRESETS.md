@@ -7,7 +7,7 @@ How to find, inspect, and choose between Genesis V2 presets using
 
 > Quick reference table of the 16 currently-annotated production
 > presets is in §6 below. Card schema reference lives next to the
-> Python types in [`preset_schema.py`](../vllm/sndr_core/model_configs/preset_schema.py).
+> Python types in [`preset_schema.py`](../sndr/model_configs/preset_schema.py).
 
 ## What a preset is
 

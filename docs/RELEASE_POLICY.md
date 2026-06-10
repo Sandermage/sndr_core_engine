@@ -27,7 +27,7 @@ Every entry in `PATCH_REGISTRY` must have a static-proof JSON under
 
 - registry presence (id resolves)
 - `apply_module` resolution (file exists OR `_retired/` exemption)
-- env-flag declaration matches `vllm/sndr_core/env.py::Flags`
+- env-flag declaration matches `sndr/env.py::Flags`
 - dispatcher wiring matches expectations (legacy `@register_patch` OR
   spec-driven dispatch via `dispatcher/spec.py`)
 
@@ -38,7 +38,7 @@ runs under `evidence/patch_proof/`.
 Why this is the gate: every patch the registry advertises must at least
 *resolve* before release; bench data quality varies per patch and is
 hardware-bound, so making it mandatory would block every release until
-operators re-bench all 254 entries on their rig. See
+operators re-bench all 276 entries on their rig. See
 `audit_release_check_baseline-optional` rationale in the Makefile for
 the historical decision.
 
@@ -56,7 +56,7 @@ comparison (`bench_with_baseline`). This is the strictest mode and
 takes the longest to satisfy because every patch needs a reference
 bench run.
 
-Currently 0/254 entries carry `bench_with_baseline`. Operators who
+Currently 0/276 entries carry `bench_with_baseline`. Operators who
 want to adopt this gate should:
 
 1. Promote the **default-on patches in production presets** first
@@ -110,8 +110,8 @@ target date for re-enabling the strict gate.
 ## Related artefacts
 
 - `Makefile` targets: `audit-release-check*`
-- CLI: `vllm/sndr_core/cli/patches.py::release_check`
-- Implementation: `vllm/sndr_core/proof/release_check.py`
+- CLI: `sndr/cli/legacy/patches.py::release_check`
+- Implementation: `sndr/proof/release_check.py`
 - CI workflow: `.github/workflows/test.yml` (`make evidence --release`)
 - Audit history is captured per-release in the production-readiness
   audit reports that maintainers attach to each release artifact.
@@ -119,7 +119,7 @@ target date for re-enabling the strict gate.
 ## Operator runbook — promoting the production subset to `bench_with_baseline`
 
 This section is the step-by-step recipe for going from the public
-release gate (`require-static`, 254/254 covered out-of-the-box) to
+release gate (`require-static`, 276/276 covered out-of-the-box) to
 the hardened ratchet (`require-bench` or `require-baseline`) on the
 practical subset that actually ships in production presets.
 
@@ -218,7 +218,7 @@ sndr launch <preset>             # e.g., sndr launch prod-qwen3.6-27b-tq-multico
 sndr patches prove --all
 
 # 3. Bench the live endpoint
-python3 vllm/sndr_core/tools/genesis_bench_suite.py \
+python3 sndr/extras/tools/genesis_bench_suite.py \
     --host localhost --port 8000 --api-key genesis-local \
     --model <model_id> --quick \
     --out tools/bench_results/<preset>_$(date +%Y%m%d_%H%M%S).json

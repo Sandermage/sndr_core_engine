@@ -2040,7 +2040,7 @@ class TestMyFamilyFamilyRegistry(make_family_registry_class("<fam>", PATCHES)): 
 | `attention.gdn` | 17 | Largest single-family GDN coverage |
 | `attention.turboquant` | 19 | (4 legacy-only entries P18b/P20/P32/P51 excluded — no files) |
 
-**Real bug surfaced + fixed**: [p38_tq_continuation_memory.py](vllm/sndr_core/integrations/attention/turboquant/p38_tq_continuation_memory.py) had top-level `import torch` + `import torch.nn.functional as F` — breaks torch-less pytest collection contract. Moved to lazy `try/except ImportError` block; preserves runtime behavior, restores torch-less collection safety.
+**Real bug surfaced + fixed**: [p38_tq_continuation_memory.py](sndr/engines/vllm/patches/attention/turboquant/p38_tq_continuation_memory.py) had top-level `import torch` + `import torch.nn.functional as F` — breaks torch-less pytest collection contract. Moved to lazy `try/except ImportError` block; preserves runtime behavior, restores torch-less collection safety.
 
 **Cumulative**: 17 family contracts (6 hand-written + 11 factory + 3 attention nested) covering **ALL 18 families** that have integration code. Total test suite **1577 passed + 37 skipped + 21 xfailed** (was 1166 at start of iteration — **+411 family-contract tests**).
 
@@ -2081,7 +2081,7 @@ Note: registry entry `SPRINT26_CG_DISPATCH_TRACE` declares `family="worker"` but
 
 ### Audit F-013 closure — Unified paths via project_paths.py (2026-05-11)
 
-Per audit F-013 ("Не все hardcoded адреса и пути переведены в переменные"): all hardcoded paths in configs/scripts now flow through a single canonical settings file [`vllm/sndr_core/locations/project_paths.py`](vllm/sndr_core/locations/project_paths.py).
+Per audit F-013 ("Не все hardcoded адреса и пути переведены в переменные"): all hardcoded paths in configs/scripts now flow through a single canonical settings file [`vllm/sndr_core/locations/project_paths.py`](sndr/engines/vllm/locations/project_paths.py).
 
 **Extended `project_paths.py` with 4 new helpers** (covers what previously lived as hardcoded strings):
 
@@ -2126,7 +2126,7 @@ Two layer renames to remove semantic overload + improve discoverability. Both ba
 - 88 Python files rewrote `vllm.sndr_core.patches` → `vllm.sndr_core.integrations`
 - 18 family subfolders preserved (mirror registry `family` field — clean granularity)
 - Test tree moved `tests/unit/patches/` → `tests/unit/integrations/`
-- Dispatcher's filesystem walk ([spec.py:320](vllm/sndr_core/dispatcher/spec.py#L320)) updated with legacy `patches/` fallback during transition
+- Dispatcher's filesystem walk ([spec.py:320](sndr/dispatcher/spec.py#L320)) updated with legacy `patches/` fallback during transition
 - Back-compat alias in `vllm/sndr_core/__init__.py.__getattr__`: `import vllm.sndr_core.patches` still resolves to `integrations` (transition path)
 
 **`vllm/sndr_core/paths/` → `vllm/sndr_core/locations/`** + file renames per audit P-01:
@@ -2139,7 +2139,7 @@ Two layer renames to remove semantic overload + improve discoverability. Both ba
 | `vllm_install.py` | (unchanged — small forwarder shim) | re-exports `vllm_install_root` from `detection.guards` |
 
 - Folder `locations/` semantic: "where files live" — covers both Genesis project layout + vllm target paths without overloading "paths"
-- Module aliases in [locations init](vllm/sndr_core/locations/__init__.py): `engine_targets = vllm_targets` and `sndr_paths = project_paths` (back-compat during transition)
+- Module aliases in [locations init](sndr/engines/vllm/locations/__init__.py): `engine_targets = vllm_targets` and `sndr_paths = project_paths` (back-compat during transition)
 - Back-compat alias in `vllm/sndr_core/__init__.py.__getattr__`: `import vllm.sndr_core.paths` still resolves to `locations`
 
 **Verification**: full test suite 1034 passed + 18 skipped + 5 xfailed. PROD restarted twice (each layer rename + server sync). Smoke gen on final layout: `LAYOUT_OK`. Server-side cleanup of stale pycache via `sudo rm -rf` (root-owned by container).
@@ -2218,7 +2218,7 @@ Sprint 1 regression source remains unknown. PN17 ruled out. Other Wave 7 guards 
 
 After dev209 cutover, full boot-log audit (`/tmp/genesis_boot.log` — 897 lines) surfaced 3 real bugs + 1 iron-rule-#11 retire candidate:
 
-- **PN95 init schema mismatch** (fixed): YAML field `prev_long_gen_tps_sprint1` (Wave 8 sprint reference) + 4 `wave8_delta_pct_*` audit-trail fields weren't in `ReferenceMetrics` dataclass → `ReferenceMetrics.__init__() got an unexpected keyword argument` on every cold container. Two-part fix: (1) added `prev_long_gen_tps_sprint1: Optional[float]` to [schema.py:317](vllm/sndr_core/model_configs/schema.py) (legitimate second-tier historical reference, parallel to `prev_long_gen_tps`); (2) defensive unknown-field filtering with `log.warning` in `_from_plain_dict` reference_metrics path — audit-trail fields no longer crash loaders. PN95 lazy init now succeeds: `register_kv_caches: 65 layers (mamba+attn), 17 attention layers eligible for demote`.
+- **PN95 init schema mismatch** (fixed): YAML field `prev_long_gen_tps_sprint1` (Wave 8 sprint reference) + 4 `wave8_delta_pct_*` audit-trail fields weren't in `ReferenceMetrics` dataclass → `ReferenceMetrics.__init__() got an unexpected keyword argument` on every cold container. Two-part fix: (1) added `prev_long_gen_tps_sprint1: Optional[float]` to [schema.py:317](sndr/model_configs/schema.py) (legitimate second-tier historical reference, parallel to `prev_long_gen_tps`); (2) defensive unknown-field filtering with `log.warning` in `_from_plain_dict` reference_metrics path — audit-trail fields no longer crash loaders. PN95 lazy init now succeeds: `register_kv_caches: 65 layers (mamba+attn), 17 attention layers eligible for demote`.
 - **Bench self-test fallback** (fixed): `tools/genesis_bench_suite.py:capture_genesis_patch_state` used host `python3 -m vllm.sndr_core.compat.cli self-test` which fails with `ModuleNotFoundError` when bench runs outside container → printed `self-test exit=1` as if patcher was broken. Rewrote with 2-stage fallback: try host python first, then `docker exec` into auto-detected Genesis containers (preferring `vllm-*` prefix). Returns clear `reason` with stderr context instead of bare exit code.
 - **Boot log truncation** (fixed): PROD start-script piped Genesis pre-pass through `python3 -m vllm.sndr_core.apply 2>&1 | tail -3` — operator saw only "… and 38 more" + 2 final lines, losing 800+ lines of apply trace including `[Genesis pin-gate]` log, dep-graph check, per-patch APPLY/SKIP reasons, anchor-drift detector findings. Changed to `| tee /tmp/genesis_boot.log | tail -20` — full audit trail saved, last 20 lines surface for boot UI. Now visible: pin-gate confirms `vllm 0.20.2rc1.dev209+g5536fc0c0 is on the Genesis allowlist`, dep-graph clean across 73 enabled patches, 58 applied / 72 skipped / 3 anchor-drift soft-skips on dev209.
 - **PN52 retire via iron rule #11** (lifecycle update): full boot log + deep-diff revealed upstream #41411 (merged 2026-05-04, in dev209) implements BOTH PN52 fixes byte-equivalently — `< prompt_lens` without -1 in `prompt_logprob.py` AND `in_progress_prompt_logprobs_cpu` moved to `CachedRequestState` (gpu_input_batch.py:54 + gpu_model_runner.py:5200/5207/5264). Patch self-skips via wiring's drift detector; registry now formalizes: `lifecycle="retired"` + `vllm_version_range: "<0.20.2rc1.dev209"` + `superseded_by` annotation. Patch file kept in tree as audit trail; queued for delete in next cleanup pass.
@@ -2246,7 +2246,7 @@ After dev209 cutover, full boot-log audit (`/tmp/genesis_boot.log` — 897 lines
 - **Deep-diff verification** (per skill iron rule #11, Sander 2026-05-11): cross-referenced every Genesis `upstream_pr` field (57 patches with declared upstream PR) against PRs merged in window. **0 new supersessions in dev93→dev209 window** — every merged upstream_pr in our registry was already in dev93 (PR #25784/#39930/#40941/#41043/#41235/#41268/#41411 all merged 2025-11 → 2026-05-04). The 116 dev-counter increments are unrelated upstream work (sparse MLA, ROCm DSv4, internal refactors, etc.).
 - **Pin-gate validation**: all 13 pin-gated patches applied without `VERSION:` skip. PN90 anchor-tight range admitted (dev209 ≥ dev9 ✓). PN9/PN13 retire upper-bounds correctly skip on dev209 (gate functioning as designed).
 - **PROD cutover**: `~/start_pn95_2xa5000_test.sh` image swapped `vllm-genesis-pinned:dev93-2026-05-09` → `vllm/vllm-openai:nightly`. Backup retained at `~/start_pn95_2xa5000_test.sh.bak.dev93-2026-05-11`. PROD restarted, smoke gen confirmed `PROD_DEV209_BUMP_OK` (191 tokens, finish=stop, reasoning + content clean).
-- **Allowlist updates**: `KNOWN_GOOD_VLLM_PINS` += `"0.20.2rc1.dev209+g5536fc0c0"` ([detection/guards.py](vllm/sndr_core/detection/guards.py)); `EXPECTED_PINS` matched in [tests/unit/dispatcher/test_pin_gate.py](tests/unit/dispatcher/test_pin_gate.py) (drift trap green).
+- **Allowlist updates**: `KNOWN_GOOD_VLLM_PINS` += `"0.20.2rc1.dev209+g5536fc0c0"` ([detection/guards.py](sndr/engines/vllm/detection/guards.py)); `EXPECTED_PINS` matched in [tests/unit/dispatcher/test_pin_gate.py](tests/unit/dispatcher/test_pin_gate.py) (drift trap green).
 - **Bench artifact**: `Genesis_internal_docs/bench_dev209_2026-05-11.json` (18.4 KB).
 - **PN95 init failure on cold container** (known issue, init-only cost): `ReferenceMetrics.__init__() got an unexpected keyword argument 'prev_long_gen_tps_sprint1'` — schema drift in PN95 lazy init, surfaced when cache dir is fresh. Not blocking, kept env=1 per Wave 8 audit decision.
 

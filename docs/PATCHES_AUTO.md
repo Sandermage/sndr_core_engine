@@ -4,30 +4,30 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-09T17:13:36Z
-Total entries: **274**
+Generated: 2026-06-10T01:59:24Z
+Total entries: **276**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **274**
+- `tier=community`: **276**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **200**
+- `lifecycle=experimental`: **202**
 - `lifecycle=legacy`: **33**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **19**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **53** / 274
+### Default-on at boot: **54** / 276
 
 ### By family
 - `attention`: 1
 - `attention.flash`: 3
 - `attention.gdn`: 33
 - `attention.turboquant`: 56
-- `compile_safety`: 14
+- `compile_safety`: 15
 - `detection`: 3
 - `gemma4`: 18
 - `kernels`: 9
@@ -37,7 +37,7 @@ Total entries: **274**
 - `memory`: 5
 - `middleware`: 3
 - `model_compat.gemma4`: 1
-- `moe`: 6
+- `moe`: 7
 - `multimodal`: 1
 - `observability`: 4
 - `offload`: 3
@@ -166,7 +166,7 @@ Total entries: **274**
 | **PN118_V2_MD5_WORKSPACE** | `community` | `experimental` | · | `GENESIS_ENABLE_PN118_V2_MD5_WORKSPACE` | [#42551](https://github.com/vllm-project/vllm/pull/42551) | PN118 v2 — md5+full-file PoC (PN119 reference pattern, workspace.py scope only) |
 | **PN26b** | `community` | `research` | · | `GENESIS_ENABLE_PN26_SPARSE_V` | [#41422](https://github.com/vllm-project/vllm/pull/41422) | Sparse-V tile-skip Genesis kernel (BLASST λ=a/L for SM86) |
 
-### `compile_safety` (14)
+### `compile_safety` (15)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -184,6 +184,7 @@ Total entries: **274**
 | **PN132** | `community` | `retired` | · | `GENESIS_ENABLE_PN132_TOPK_TOPP_CONTIGUOUS` | [#42739](https://github.com/vllm-project/vllm/pull/42739) | Triton top-k/top-p contiguous logits fix (backport vllm#42739) |
 | **PN134** | `community` | `retired` | · | `GENESIS_ENABLE_PN134_TORCH_COMPILE_FULLGRAPH_211` | [#42686](https://github.com/vllm-project/vllm/pull/42686) | torch.compile fullgraph patch for PyTorch 2.11 (backport vllm#42686) — BENCH-... |
 | **PN364** | `community` | `experimental` | · | `GENESIS_ENABLE_PN364_HYBRID_GDN_WARMUP` | [#43642](https://github.com/vllm-project/vllm/pull/43642) | Hybrid GDN/Mamba/MRoPE startup warmup (vendor of OPEN vllm#43642) |
+| **PN367** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN367` | [#45076](https://github.com/vllm-project/vllm/pull/45076) | CUDA graph memory estimate clamp (vendor of OPEN vllm#45076) |
 
 ### `detection` (3)
 
@@ -285,7 +286,7 @@ Total entries: **274**
 |---|---|---|:---:|---|:---:|---|
 | **PN349** | `community` | `experimental` | · | `GENESIS_ENABLE_PN349` | [#44797](https://github.com/vllm-project/vllm/pull/44797) | Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797) |
 
-### `moe` (6)
+### `moe` (7)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -294,6 +295,7 @@ Total entries: **274**
 | **P31** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P31` | — | MoE router fp32 softmax |
 | **P37** | `community` | `legacy` | · | `GENESIS_ENABLE_P37` | — | MoE intermediate cache pool (opt-in) |
 | **PN27** | `community` | `experimental` | · | `GENESIS_ENABLE_PN27_REVERT_PLUGGABLE_MOE` | [#41440](https://github.com/vllm-project/vllm/pull/41440) | Revert MoERunnerInterface PluggableLayer (vllm#41440) |
+| **PN352** | `community` | `experimental` | · | `GENESIS_ENABLE_PN352` | [#44557](https://github.com/vllm-project/vllm/pull/44557) | Triton moe_sum for unsupported topk (counterpart of OPEN vllm#44557) |
 | **PN96b** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN96B` | — | Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore) |
 
 ### `multimodal` (1)

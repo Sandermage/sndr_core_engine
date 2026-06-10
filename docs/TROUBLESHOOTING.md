@@ -245,7 +245,7 @@ the bug it was guarding against is back.
 - Run anchor-presence tests before bumping a pin.
 - Pin vLLM commits in your launch script; don't float on `main`.
 
-**Refs.** `vllm/sndr_core/core/text_patch.py`,
+**Refs.** `sndr/kernel/text_patch.py`,
 [`PATCHES.md`](PATCHES.md) for the currently-tested pin.
 
 ## OOM recipes
@@ -851,7 +851,7 @@ launcher is the source of truth.
 ### Bug Class 12 — strict-opt-in policy
 
 **Policy**: per Sander directive 2026-05-17
-(`vllm/sndr_core/dispatcher/decision.py:355-386`), `default_on=True`
+(`sndr/dispatcher/decision.py:355-386`), `default_on=True`
 in the registry does NOT auto-apply the patch. Every patch — including
 those marked `default_on=True` — requires its `GENESIS_ENABLE_*` env
 var explicitly set in the launcher script. Escape hatch:
@@ -944,7 +944,7 @@ preamble — returns HTTP 500 to the client and the container's APIServer
 shuts down. `docker logs` shows
 `torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1024.00 MiB`
 inside
-`vllm/sndr_core/integrations/attention/turboquant/p38_tq_continuation_memory.py:_genesis_continuation_prefill`,
+`sndr/engines/vllm/patches/attention/turboquant/p38_tq_continuation_memory.py:_genesis_continuation_prefill`,
 specifically at the `GPB.get_or_create(ns_k_full, full_max_shape, ...)`
 call site.
 
@@ -1067,7 +1067,7 @@ whole stream, you have Class 15.
 
 The Genesis-original Hermes/Kimi-style rewrite of
 `extract_tool_calls_streaming` lives at
-`vllm/sndr_core/integrations/tool_parsing/q3_t1_qwen3coder_tool_parser_overlay.py`.
+`sndr/engines/vllm/patches/tool_parsing/q3_t1_qwen3coder_tool_parser_overlay.py`.
 It replaces the upstream state machine with the same
 accumulated-text rescan + diff pattern used by G4_T1 v2 (PR #42237
 for gemma4):
@@ -1332,7 +1332,7 @@ spec_decode Gateway (port 8100)
 
 The router NEVER reads prompt text — false-positives cost -50% TPS,
 false-negatives cost zero, so the gate is conservative by design
-(see `vllm/sndr_core/integrations/spec_decode/request_router.py`).
+(see `sndr/engines/vllm/patches/spec_decode/request_router.py`).
 
 **Gateway env knobs**:
 

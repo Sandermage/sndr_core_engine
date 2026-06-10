@@ -16,7 +16,7 @@ env flag to toggle, upstream PR (if backported), and credit.
 
 ## Current state (v12.0.0, 2026-06-01)
 
-**Total PATCH_REGISTRY entries:** 254 — range covers `P1`–`P109` legacy +
+**Total PATCH_REGISTRY entries:** 276 — range covers `P1`–`P109` legacy +
 `PN8`–`PN275` modern + `G4_01`–`G4_78` Gemma 4 family + sub-patches
 (P5b, P7b, P15B, P18b, P38B, P39a, P61c, P67b, P67c, P79d, PN26b,
 PN40-classifier) + library/diagnostic (P51, P102, P103) + the standalone
@@ -32,19 +32,19 @@ added as a registry patch.
 
 | Metric | Count |
 |:-------|:------|
-| Total PATCH_REGISTRY entries | **254** |
+| Total PATCH_REGISTRY entries | **276** |
 | Tier=community (Apache 2.0, sndr) | **252** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
 | Default-on at boot | 52 |
-| Lifecycle=experimental | 180 |
+| Lifecycle=experimental | 202 |
 | Lifecycle=legacy (pre-dispatcher) | 33 |
 | Lifecycle=retired | 19 |
 | Lifecycle=research | 4 |
 | Lifecycle=stable | 14 (G4_01, G4_02, G4_03, G4_04, G4_05 [retired], G4_09, G4_11, G4_12, G4_13, G4_14, G4_16, G4_23, G4_25, PN33, PN35 — ratchet active with `stable_kind` declared; see [CONTRIBUTING.md § Promoting a patch to lifecycle=stable](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)) |
 | Lifecycle=coordinator | 4 (env-flag-only, no real binding) |
-| Implementation status=full | 194 |
+| Implementation status=full | 216 |
 | Implementation status=marker_only / placeholder / partial / retired | 34 (20 + 2 + 8 + 4) |
-| Apply-loop coverage (apply_module set) | 232 / 254 = 91.3% |
+| Apply-loop coverage (apply_module set) | 254 / 276 = 92.0% |
 | Spec-only (intentional, allow-listed) | 17 (P1, P17, P18b, P20, P23, P29, P32, P51, P102, PN60, PN63, PN64, PN256, PN261, G4_70, G4_70B, G4_70C) |
 
 ### Engine tier (the strict-AND boundary)
@@ -60,7 +60,7 @@ strict AND rule, audit 2026-05-08):
 After the strict-AND + github-presence audit (2026-05-08):
 
 - **PN72** was the only candidate but reclassified to community since
-  its real algorithm lives in `vllm/sndr_core/kernels/ngram_frequency_filter.py`
+  its real algorithm lives in `sndr/engines/vllm/kernels_legacy/ngram_frequency_filter.py`
   (subsystem boundary). `sndr_engine` namespace remains reserved but empty;
   `engine_available()` returns `False`.
 
@@ -87,7 +87,7 @@ to community and ships in `vllm/sndr_core/integrations/<family>/` under Apache 2
   because Mamba state lives outside the KV pool). Two anchors:
   `single_type_kv_cache_manager.py::cache_blocks` notify_admit, and
   `block_pool.py::get_cached_block` notify_touch. Runtime singleton
-  TierManager (`vllm/sndr_core/cache/tier_manager.py`) owns per-tier
+  TierManager (`sndr/cache/tier_manager.py`) owns per-tier
   EvictionPolicy + CPU-pool slab + vision-first demote ordering +
   Mamba-exclusion filter + spec-decode hot ring. Schema:
   `cache_config.tiers: [CacheTier(...), ...]` with `exclude_mamba_ssm:
@@ -97,7 +97,7 @@ to community and ships in `vllm/sndr_core/integrations/<family>/` under Apache 2
   live 27B Lorbus bench) deferred to live integration.
 - **PN16_V6** (2026-05-09, Sprint 4) — Genesis-original streaming
   `<think>` token-budget enforcer. Per-request stateful truncator
-  (`vllm/sndr_core/middleware/think_streaming_truncator.py`) wraps
+  (`sndr/engines/vllm/middleware/think_streaming_truncator.py`) wraps
   `OpenAIServingChat.chat_completion_stream_generator` via class-rebind.
   When request has tools attached AND
   `GENESIS_PN16_MAX_THINKING_STREAM_TOKENS > 0`, counts
@@ -205,8 +205,8 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 
 - **Integrations** (text-patcher hooks + runtime hooks): `vllm/sndr_core/integrations/<family>/<patch_id>_*.py` — organized by subsystem family (Phase 6 reorg, ~15 subdirs: attention/, spec_decode/, scheduler/, kv_cache/, memory/, kernels/, compile_safety/, loader/, lora/, middleware/, moe/, multimodal/, observability/, quantization/, reasoning/, serving/, tool_parsing/, worker/). Resolution is layout-agnostic via `compat/categories.module_for(patch_id)`.
 - **Kernels** (Triton / CUDA): `vllm/sndr_core/kernels/`
-- **Dispatcher metadata** (P56+): `vllm/sndr_core/dispatcher/registry.py:PATCH_REGISTRY`
-- **Registration**: `vllm/sndr_core/apply/_per_patch_dispatch.py:@register_patch`
+- **Dispatcher metadata** (P56+): `sndr/dispatcher/registry.py:PATCH_REGISTRY`
+- **Registration**: `sndr/apply/_per_patch_dispatch.py:@register_patch`
 - **Per-patch CHANGELOG entries**: `CHANGELOG.md` (root, search by patch ID — audit 2026-05-11)
 
 ---
@@ -847,19 +847,19 @@ they don't change behaviour, just visibility.
 ### Reference
 
 - Resolver code:
-  `vllm/sndr_core/model_configs/patch_plan.py`
+  `sndr/model_configs/patch_plan.py`
 - Schema: `PatchAttribution` in
-  `vllm/sndr_core/model_configs/schema.py`,
+  `sndr/model_configs/schema.py`,
   `PatchesDelta.attribution` in `schema_v2.py`.
 - Audit gates: `scripts/audit_patch_attribution.py`,
   `scripts/audit_patch_plan_resolves.py`.
 
 ## Adding a new patch
 
-1. **Pick a free ID.** Run `grep -E '^@register_patch' vllm/sndr_core/apply/_per_patch_dispatch.py | head` and `grep -E '"P[0-9]+' vllm/sndr_core/dispatcher/registry.py` to confirm the next available number. Don't reuse retired IDs (P56/P57/P63 are deprecated but kept).
-2. **Write integration module**: `vllm/sndr_core/integrations/<family>/<patch_id>_<name>.py`. Use [`p71_block_verify.py`](../vllm/sndr_core/integrations/spec_decode/p71_block_verify.py) or [`p82_sglang_acceptance_threshold.py`](../vllm/sndr_core/integrations/spec_decode/p82_sglang_acceptance_threshold.py) as templates. The family should match a `compat/categories.py` bucket — `_build_module_index` will rglob the new file in automatically.
-3. **Register in dispatcher** (P56+): add an entry to `PATCH_REGISTRY` in [`vllm/sndr_core/dispatcher/registry.py`](../vllm/sndr_core/dispatcher/registry.py).
-4. **Hook in apply dispatch**: add `@register_patch(...)` + `apply_patch_<id>_*` function in [`vllm/sndr_core/apply/_per_patch_dispatch.py`](../vllm/sndr_core/apply/_per_patch_dispatch.py).
+1. **Pick a free ID.** Run `grep -E '^@register_patch' sndr/apply/_per_patch_dispatch.py | head` and `grep -E '"P[0-9]+' sndr/dispatcher/registry.py` to confirm the next available number. Don't reuse retired IDs (P56/P57/P63 are deprecated but kept).
+2. **Write integration module**: `vllm/sndr_core/integrations/<family>/<patch_id>_<name>.py`. Use [`p71_block_verify.py`](../sndr/engines/vllm/patches/spec_decode/p71_block_verify.py) or [`p82_sglang_acceptance_threshold.py`](../sndr/engines/vllm/patches/spec_decode/p82_sglang_acceptance_threshold.py) as templates. The family should match a `compat/categories.py` bucket — `_build_module_index` will rglob the new file in automatically.
+3. **Register in dispatcher** (P56+): add an entry to `PATCH_REGISTRY` in [`sndr/dispatcher/registry.py`](../sndr/dispatcher/registry.py).
+4. **Hook in apply dispatch**: add `@register_patch(...)` + `apply_patch_<id>_*` function in [`sndr/apply/_per_patch_dispatch.py`](../sndr/apply/_per_patch_dispatch.py).
 5. **Document in CHANGELOG**: add a `vX.YZ` entry to [`CHANGELOG.md`](../CHANGELOG.md) explaining the WHY, empirical data, and ship/reject decision.
 6. **Validate**:
    - Static: `python3 -c 'import ast; ast.parse(open("vllm/sndr_core/integrations/<family>/<patch_id>_*.py").read())'`

@@ -116,7 +116,7 @@ def apply():
 
 Never raise out of `apply()` — wrap with `try/except` and return `("failed", str(e))`. Boot must continue even if a single patch breaks.
 
-### 3. Register in `vllm/sndr_core/dispatcher/registry.py`
+### 3. Register in `sndr/dispatcher/registry.py`
 
 > Path updated 2026-05-11 audit (was `dispatcher.py` pre-v11 refactor — now split across `dispatcher/{registry,spec,decision,audit}.py`).
 
@@ -152,7 +152,7 @@ Add an entry to `PATCH_REGISTRY` dict with full metadata:
 
 **CRITICAL: env_flag exact match** — `env.py` Flags class enumerates canonical short or long form for each. Wrong-name `-e GENESIS_ENABLE_X=1` is silently ignored (audit 2026-05-11: P94/P103 short form bug cost ~6% TPS until fixed). Verify:
 ```bash
-grep "PNN" vllm/sndr_core/env.py  # must find canonical form
+grep "PNN" sndr/env.py  # must find canonical form
 ```
 
 `default_on=True` reserved для bug fixes validated на 2+ workloads. New patches start False; promoted в later PR after bench.
@@ -341,7 +341,7 @@ Genesis is a runtime-patch package — every text-patch anchors verbatim upstrea
 
 | Layer | File | Purpose |
 | --- | --- | --- |
-| **Allowlist (boot)** | [`vllm/sndr_core/detection/guards.py`](../vllm/sndr_core/detection/guards.py) `KNOWN_GOOD_VLLM_PINS` | Boot-time `assert_vllm_pin_allowed` — orchestrator logs WARN if running pin not in tuple. Strict mode (`GENESIS_STRICT_PIN=1`) `sys.exit(2)`. |
+| **Allowlist (boot)** | [`sndr/engines/vllm/detection/guards.py`](../sndr/engines/vllm/detection/guards.py) `KNOWN_GOOD_VLLM_PINS` | Boot-time `assert_vllm_pin_allowed` — orchestrator logs WARN if running pin not in tuple. Strict mode (`GENESIS_STRICT_PIN=1`) `sys.exit(2)`. |
 | **Per-patch range** | `PATCH_REGISTRY[<id>]["applies_to"]["vllm_version_range"]` (PEP 440 spec tuple) | `decision._check_applies_to` calls `compat.version_check.check_version_constraints` — patches out-of-range return `(False, "VERSION: ...")` and dispatcher skips cleanly. |
 | **Anchor drift** | `TextPatcher.apply` returns `("skipped", "anchor not found")` | Last line of defense — if anchor moved on a "validated" pin, drift detector skips with explicit reason instead of corrupting source. |
 
@@ -454,7 +454,7 @@ its current state.
 1. **Add `patch_id` to every `TextPatcher`** in the wiring module.
    Naming convention: `<PatchID>.Sub-<N>` where `<N>` is 1-based
    across all TextPatchers in the patch.
-   [`pn79_inplace_ssm_state.py`](../vllm/sndr_core/integrations/attention/gdn/pn79_inplace_ssm_state.py)
+   [`pn79_inplace_ssm_state.py`](../sndr/engines/vllm/patches/attention/gdn/pn79_inplace_ssm_state.py)
    is the reference example (`PN79.Sub-1` … `PN79.Sub-4` across
    four files).
 2. **Add a `register_for_manifest(pristine_root)` function** that
@@ -536,7 +536,7 @@ PN33 and PN35 are the reference examples.
 ### General Python
 
 - We don't enforce a formatter on contributors, but we do run `ruff` on the maintainer side. PRs may be reformatted before merge.
-- Type hints encouraged on public surfaces (the modules under `vllm/sndr_core/dispatcher/`, `vllm/sndr_core/core/text_patch.py` (TextPatcher API), and `vllm/sndr_core/apply/orchestrator.py`).
+- Type hints encouraged on public surfaces (the modules under `vllm/sndr_core/dispatcher/`, `sndr/kernel/text_patch.py` (TextPatcher API), and `sndr/apply/orchestrator.py`).
 - Logging via `logger = logging.getLogger("vllm.sndr_core")`. The pre-v11 `vllm._genesis` namespace was removed in v11.0.0 and no longer resolves — any new code (and any pre-v11 code being touched) must use `vllm.sndr_core`. Print only in the boot-summary path.
 
 ---
@@ -811,14 +811,14 @@ Validator rules:
 
 Reference code:
 
-- `vllm/sndr_core/model_configs/schema_v2.py` — `PatchManifest` +
+- `sndr/model_configs/schema_v2.py` — `PatchManifest` +
   `PatchCompatibility` + `PatchTargetFile` + `PatchAnchor`.
-- `vllm/sndr_core/community/manifest.py` — load + path enumeration.
-- `vllm/sndr_core/community/discovery.py` — filesystem +
+- `sndr/community/manifest.py` — load + path enumeration.
+- `sndr/community/discovery.py` — filesystem +
   entry-points.
-- `vllm/sndr_core/community/validator.py` — release-tier rules.
-- `vllm/sndr_core/community/scaffold.py` — scaffold generator.
-- `vllm/sndr_core/cli/community.py` — CLI surface.
+- `sndr/community/validator.py` — release-tier rules.
+- `sndr/community/scaffold.py` — scaffold generator.
+- `sndr/cli/legacy/community.py` — CLI surface.
 - `plugins/community/_template/` — reference example layout.
 
 ## Project map — where things live
@@ -830,15 +830,15 @@ quick "I want to change X, where is X" reference.
 
 | Command | File | Purpose |
 | --- | --- | --- |
-| `sndr launch <preset>` | `vllm/sndr_core/cli/launch.py` | Render + exec a preset. |
-| `sndr doctor` | `vllm/sndr_core/compat/cli.py` (legacy bridge) + `vllm/sndr_core/cli/doctor_system.py` (extended) | Health check (basic + UNIFIED_CONFIG C1 extended). |
-| `sndr model-config` | `vllm/sndr_core/compat/model_config_cli.py` | Preset CRUD + bench. |
-| `sndr patches` | `vllm/sndr_core/cli/patches.py` | Registry browse / plan / release-check. |
-| `sndr service` | `vllm/sndr_core/cli/service.py` | systemd / compose / quadlet / k8s / proxmox lifecycle. |
-| `sndr community` | `vllm/sndr_core/cli/community.py` | In-repo SDK. |
-| `sndr report` | `vllm/sndr_core/cli/report.py` | Diagnostic tar.gz bundle. |
+| `sndr launch <preset>` | `sndr/cli/legacy/launch.py` | Render + exec a preset. |
+| `sndr doctor` | `sndr/compat/cli.py` (legacy bridge) + `sndr/cli/legacy/doctor_system.py` (extended) | Health check (basic + UNIFIED_CONFIG C1 extended). |
+| `sndr model-config` | `sndr/compat/model_config_cli.py` | Preset CRUD + bench. |
+| `sndr patches` | `sndr/cli/legacy/patches.py` | Registry browse / plan / release-check. |
+| `sndr service` | `sndr/cli/legacy/service.py` | systemd / compose / quadlet / k8s / proxmox lifecycle. |
+| `sndr community` | `sndr/cli/legacy/community.py` | In-repo SDK. |
+| `sndr report` | `sndr/cli/legacy/report.py` | Diagnostic tar.gz bundle. |
 | `install.sh` | `install.sh` (root) | One-command bootstrap. |
-| Bench harness | `vllm/sndr_core/tools/genesis_bench_suite.py` | Canonical bench. Shim under `tools/`. |
+| Bench harness | `sndr/extras/tools/genesis_bench_suite.py` | Canonical bench. Shim under `tools/`. |
 
 ### `vllm/sndr_core/` subpackages
 

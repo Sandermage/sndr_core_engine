@@ -4,7 +4,7 @@
 > Source: `vllm/sndr_core/model_configs/builtin/*.yaml`
 > Companion to curated [CONFIGS.md](CONFIGS.md) (narrative).
 
-Generated: 2026-06-03T16:57:26Z
+Generated: 2026-06-10T01:59:24Z
 Total configs: **0**
 
 > ℹ **V1 monolithic preset tier fully retired 2026-06-01** (Phase 10 sunset cascade complete). All operator-facing presets now live under the V2 layered triplet:
@@ -15,7 +15,7 @@ Total configs: **0**
 > - `builtin/presets/<alias>.yaml` — operator-facing alias bundling the triplet
 >
 > Discover via `sndr preset list` / `sndr preset recommend`.
-> Load via `from vllm.sndr_core.model_configs.registry_v2 import load_alias`.
+> Load via `from sndr.model_configs.registry_v2 import load_alias`.
 
 ---
 

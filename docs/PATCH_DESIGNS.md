@@ -405,7 +405,7 @@ All 32 tokens went into reasoning; content is empty.
 ### Genesis architectural solution
 
 The PN16 lazy-reasoner patch (v2 — see
-`vllm/sndr_core/middleware/lazy_reasoner.py`) explicitly rejected
+`sndr/engines/vllm/middleware/lazy_reasoner.py`) explicitly rejected
 mutating `enable_thinking` through the chat-template (variant V1).
 Reason: a 28 % TPS regression and 6× CV blow-up due to CUDA-graph
 dispatch breakage (Wave 6 closure).
@@ -498,8 +498,8 @@ Exit codes:
 
 ### Related files
 
-- `vllm/sndr_core/middleware/lazy_reasoner.py` — PN16 v2 implementation.
-- `vllm/sndr_core/integrations/middleware/pn16_lazy_reasoner.py` — wiring.
+- `sndr/engines/vllm/middleware/lazy_reasoner.py` — PN16 v2 implementation.
+- `sndr/engines/vllm/patches/middleware/pn16_lazy_reasoner.py` — wiring.
 - `tools/openai_smoke.py` — smoke test.
 - `Makefile::smoke-content` — CI gate target.
 

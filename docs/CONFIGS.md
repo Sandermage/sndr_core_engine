@@ -7,7 +7,7 @@ If you're new to Genesis, read [../docs/QUICKSTART.md](../docs/QUICKSTART.md) fi
 > 📊 **Full machine-readable config inventory** — V1 monolithic preset
 > tier was fully retired 2026-06-01 (Phase 10 sunset, commit `607385f1`).
 > All operator-facing presets now live under the V2 layered triplet
-> in [`vllm/sndr_core/model_configs/builtin/`](../vllm/sndr_core/model_configs/builtin/):
+> in [`vllm/sndr_core/model_configs/builtin/`](../sndr/model_configs/builtin/):
 > **10 model defs · 3 hardware envelopes · 23 profiles · 23 presets**
 > (16 `prod-*` + 7 non-prod, all carded). Discover via
 > `sndr preset list` / `sndr preset recommend`; per-preset narrative

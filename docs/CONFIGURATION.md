@@ -6,7 +6,7 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
 > **Current PROD baseline (v12.0.0 current registry; pin bumped 2026-05-15):**
 >
-> - Genesis v12.0.0 — registry has **254 entries**: 194 full-implementation,
+> - Genesis v12.0.0 — registry has **276 entries**: 216 full-implementation,
 >   26 experimental, 20 marker_only, 8 partial, 4 retired, 2 placeholder.
 >   Wave 10 additions: PN125-PN130 warmup-orchestrator family, PN132
 >   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated),
@@ -483,7 +483,7 @@ closure).
 [`scripts/audit_v1_migration.py`](../scripts/audit_v1_migration.py)
 classifies every legacy V1 monolithic key into one of four buckets via
 the frozen
-[`vllm/sndr_core/model_configs/_v1_migration_table.json`](../vllm/sndr_core/model_configs/_v1_migration_table.json)
+[`vllm/sndr_core/model_configs/_v1_migration_table.json`](../sndr/model_configs/_v1_migration_table.json)
 (shipped as package data):
 
 | Bucket | Action implied |

@@ -43,7 +43,7 @@ your own**, and **how the V2 layered config system works underneath**.
    Wave 10. A dense 35B model would saturate the PCIe Gen4 bus and
    run 3–4× slower. A3B is the highest-throughput configuration the
    SM 8.6 generation can sustain at this parameter count.
-3. **Genesis patch lock-in (254 entries in `PATCH_REGISTRY`).** ~52
+3. **Genesis patch lock-in (276 entries in `PATCH_REGISTRY`).** ~52
    default-on entries are production-eligible. ~30 fire on 35B PROD
    in steady state; the rest are conditional on workload / hardware /
    spec method. Switching architecture (Gemma 4, DeepSeek V4, GLM 5)
@@ -257,7 +257,7 @@ presets.
 
 ### Composition rules
 
-The composer (`vllm/sndr_core/model_configs/compose.py`):
+The composer (`sndr/model_configs/compose.py`):
 
 1. **Compat gate first.** `check_compat(model, hardware)` rejects
    pairings where `requires.min_gpu_count` /
@@ -512,10 +512,10 @@ best for 2× A5000-class hardware.
 
 ## Reference
 
-- Dataclass schema: `vllm/sndr_core/model_configs/schema_v2.py`
-- Composer: `vllm/sndr_core/model_configs/compose.py`
-- Registry helpers: `vllm/sndr_core/model_configs/registry_v2.py`
-- RuntimeContainerSpec: `vllm/sndr_core/model_configs/runtime_container.py`
+- Dataclass schema: `sndr/model_configs/schema_v2.py`
+- Composer: `sndr/model_configs/compose.py`
+- Registry helpers: `sndr/model_configs/registry_v2.py`
+- RuntimeContainerSpec: `sndr/model_configs/runtime_container.py`
 - Auto-generated inventory: [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md)
 - Community SDK guide: [`CONTRIBUTING.md` § Community SDK](CONTRIBUTING.md)
 - Rollback procedures: [`TROUBLESHOOTING.md` § Rollback playbook](TROUBLESHOOTING.md)

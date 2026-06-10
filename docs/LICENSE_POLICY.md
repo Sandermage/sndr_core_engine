@@ -3,7 +3,7 @@
 > Codifies how Genesis source files and built artefacts relate to
 > the Apache-2.0 [`LICENSE`](../LICENSE) at the repo root and to the
 > Ed25519-signed license gate in
-> [`vllm/sndr_core/license.py`](../vllm/sndr_core/license.py).
+> [`sndr/license.py`](../sndr/license.py).
 > Companion to [`CORE_ENGINE_BOUNDARY.md`](CORE_ENGINE_BOUNDARY.md)
 > and [`SPONSORS.md`](SPONSORS.md).
 
@@ -74,7 +74,7 @@ If and when the engine wheel ships, the following terms apply:
   through optional-discovery imports (`engine_available()`), so a
   missing or unlicensed engine wheel never breaks the community
   install.
-- The runtime license gate in [`vllm/sndr_core/license.py`](../vllm/sndr_core/license.py)
+- The runtime license gate in [`sndr/license.py`](../sndr/license.py)
   refuses to enable `tier="engine"` patches unless an Ed25519-signed
   token is present. The check returns a structured `LicenseStatus`
   enum so operators see a specific failure mode (`UNSIGNED_TOKEN`,

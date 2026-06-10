@@ -52,7 +52,7 @@ optional-discovery imports from `sndr_core`; never a hard import.
 Currently the namespace is **reserved but empty**. After the
 2026-05-08 strict-AND audit, the only previous candidate (PN72) was
 reclassified to community because its real algorithm ships in
-`vllm/sndr_core/kernels/ngram_frequency_filter.py`.
+`sndr/engines/vllm/kernels_legacy/ngram_frequency_filter.py`.
 
 Boundary rule for new patches — `tier="engine"` only when **all four**
 conditions hold (Sander's strict-AND rule, see
