@@ -52,11 +52,13 @@ class _FakeSSHClient:
     fail_auth = False
     sftp_ok = True
 
+    host_key_policies: list = []
+
     def load_system_host_keys(self):
         pass
 
     def set_missing_host_key_policy(self, policy):
-        pass
+        type(self).host_key_policies.append(policy)
 
     def connect(self, **kwargs):
         type(self).connect_calls.append(kwargs)
@@ -90,9 +92,18 @@ class _FakeAuthError(Exception):
     pass
 
 
+class _FakeRejectPolicy:
+    pass
+
+
+class _FakeAutoAddPolicy:
+    pass
+
+
 class _FakeParamiko:
     SSHClient = _FakeSSHClient
-    AutoAddPolicy = object
+    AutoAddPolicy = _FakeAutoAddPolicy
+    RejectPolicy = _FakeRejectPolicy
 
     class ssh_exception:
         AuthenticationException = _FakeAuthError
@@ -102,11 +113,34 @@ class _FakeParamiko:
 @pytest.fixture()
 def fake_paramiko(monkeypatch):
     _FakeSSHClient.connect_calls = []
+    _FakeSSHClient.host_key_policies = []
     _FakeSSHClient.fail_auth = False
     _FakeSSHClient.sftp_ok = True
     _FakeSSHClient.exec_map = {}
     monkeypatch.setattr(ssh_client, "_load_paramiko", lambda: _FakeParamiko)
     return _FakeParamiko
+
+
+def test_host_key_policy_strict_by_default(fake_paramiko, monkeypatch):
+    """Hardening: an unknown host key is REJECTED unless the operator opts
+    into TOFU — defends the initial connect against a MITM / DNS-spoof."""
+    monkeypatch.delenv("SNDR_SSH_STRICT_HOST_KEYS", raising=False)
+    monkeypatch.delenv("SNDR_SSH_HOST_KEY_POLICY", raising=False)
+    ssh_client.check_connectivity(
+        {"host": "h", "user": "u", "auth_method": "agent"}, timeout=1.0,
+    )
+    assert _FakeSSHClient.host_key_policies, "no host-key policy was set"
+    assert isinstance(_FakeSSHClient.host_key_policies[-1], _FakeRejectPolicy)
+
+
+def test_host_key_policy_tofu_opt_out(fake_paramiko, monkeypatch):
+    """SNDR_SSH_STRICT_HOST_KEYS=0 restores trust-on-first-use for homelabs
+    that don't pre-provision known_hosts."""
+    monkeypatch.setenv("SNDR_SSH_STRICT_HOST_KEYS", "0")
+    ssh_client.check_connectivity(
+        {"host": "h", "user": "u", "auth_method": "agent"}, timeout=1.0,
+    )
+    assert isinstance(_FakeSSHClient.host_key_policies[-1], _FakeAutoAddPolicy)
 
 
 def test_check_connectivity_success(fake_paramiko):

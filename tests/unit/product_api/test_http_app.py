@@ -14,6 +14,35 @@ def _client() -> TestClient:
     return TestClient(create_app(allowed_origins=()))
 
 
+def test_security_headers_present():
+    """Defense-in-depth headers must be on every response."""
+    r = _client().get("/api/v1/health")
+    h = r.headers
+    assert h.get("X-Content-Type-Options") == "nosniff"
+    assert h.get("X-Frame-Options") == "DENY"
+    assert h.get("Referrer-Policy") == "no-referrer"
+    assert "camera=()" in (h.get("Permissions-Policy") or "")
+    assert "script-src 'self'" in (h.get("Content-Security-Policy") or "")
+    # Clickjacking / cross-window isolation.
+    assert (h.get("Cross-Origin-Opener-Policy") or "").startswith("same-origin")
+
+
+def test_hsts_only_when_request_is_https():
+    """HSTS must NOT be sent over plain http (it would pin a name a homelab
+    serves on http), but MUST appear once the daemon is fronted by TLS —
+    detected via the X-Forwarded-Proto a reverse proxy sets."""
+    client = _client()
+    assert "Strict-Transport-Security" not in client.get("/api/v1/health").headers
+    https = client.get("/api/v1/health", headers={"X-Forwarded-Proto": "https"})
+    assert "max-age=" in (https.headers.get("Strict-Transport-Security") or "")
+
+
+def test_force_hsts_env(monkeypatch):
+    monkeypatch.setenv("SNDR_FORCE_HSTS", "1")
+    r = _client().get("/api/v1/health")
+    assert "max-age=" in (r.headers.get("Strict-Transport-Security") or "")
+
+
 def test_health_reflects_apply_state_when_enabled():
     from fastapi.testclient import TestClient
     from sndr.product_api.legacy.http_app import create_app as _ca

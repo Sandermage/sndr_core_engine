@@ -21,12 +21,16 @@ running VM/LXC back to its preset exactly like the docker/k8s identity does.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import ssl
 import urllib.error
 import urllib.request
 from typing import Any, Optional
+
+log = logging.getLogger("sndr.product_api.proxmox")
+_warned_insecure_tls = False
 
 _PRESET_TAG_PREFIX = "sndr-preset-"
 
@@ -83,6 +87,14 @@ def _api_get(path: str, *, timeout: float = 6.0) -> Any:
     })
     ctx = None
     if c["host"].startswith("https") and not c["verify_ssl"]:
+        global _warned_insecure_tls
+        if not _warned_insecure_tls:
+            log.warning(
+                "Proxmox TLS verification is DISABLED (SNDR_PROXMOX_VERIFY_SSL=0) "
+                "for %s — the token can be intercepted by a MITM. Use a trusted "
+                "certificate or a PVE CA and remove the override.", c["host"],
+            )
+            _warned_insecure_tls = True
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE

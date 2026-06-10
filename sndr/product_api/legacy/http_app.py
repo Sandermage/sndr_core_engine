@@ -294,6 +294,15 @@ def create_app(
     )
     _csp_off = (os.environ.get("SNDR_DISABLE_CSP") or "").strip().lower() in ("1", "true", "yes", "on")
     _csp_skip = ("/docs", "/redoc", "/openapi.json")
+    _force_hsts = (os.environ.get("SNDR_FORCE_HSTS") or "").strip().lower() in ("1", "true", "yes", "on")
+
+    def _is_https(request) -> bool:  # type: ignore[no-untyped-def]
+        # Direct TLS, or a reverse proxy that terminated TLS and set the
+        # de-facto-standard forwarded-proto header.
+        if request.url.scheme == "https":
+            return True
+        fwd = request.headers.get("x-forwarded-proto", "")
+        return "https" in fwd.split(",")[0].strip().lower()
 
     @app.middleware("http")
     async def _security_headers(request, call_next):  # type: ignore[no-untyped-def]
@@ -304,6 +313,18 @@ def create_app(
         response.headers.setdefault(
             "Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()"
         )
+        # Cross-window isolation (defence-in-depth alongside frame-ancestors).
+        # `-allow-popups` keeps any redirect/OAuth popup flow working.
+        response.headers.setdefault(
+            "Cross-Origin-Opener-Policy", "same-origin-allow-popups"
+        )
+        # HSTS only over TLS — pinning it on a plain-http homelab origin would
+        # make the daemon unreachable. A reverse proxy fronting TLS gets it via
+        # X-Forwarded-Proto; SNDR_FORCE_HSTS=1 forces it unconditionally.
+        if _force_hsts or _is_https(request):
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=63072000; includeSubDomains"
+            )
         if not _csp_off and not any(request.url.path.startswith(p) for p in _csp_skip):
             response.headers.setdefault("Content-Security-Policy", _csp)
         return response

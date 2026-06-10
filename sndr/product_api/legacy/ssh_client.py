@@ -112,16 +112,47 @@ def _open_client(target: dict[str, Any], timeout: float):
         client.load_system_host_keys()  # ~/.ssh/known_hosts + system known_hosts
     except Exception:
         pass
-    # Host-key policy. Default is TOFU (AutoAddPolicy): an unknown host is trusted
-    # on first connect, but paramiko still REJECTS a CHANGED key for a known host
-    # (the real MITM signal). Enterprise deployments that pre-provision
-    # known_hosts can set SNDR_SSH_STRICT_HOST_KEYS=1 to reject unknown hosts too.
-    _strict = (os.environ.get("SNDR_SSH_STRICT_HOST_KEYS") or "").strip().lower() in ("1", "true", "yes", "on")
+    # Host-key policy. Hardened default: REJECT an unknown host key (a known
+    # host with a CHANGED key is always rejected regardless). This defends the
+    # initial connect against a MITM / DNS-spoof that would otherwise let an
+    # attacker impersonate the host and capture every SSH command + any stored
+    # password. Homelabs that don't pre-provision ~/.ssh/known_hosts can opt
+    # back into trust-on-first-use with SNDR_SSH_STRICT_HOST_KEYS=0 (or
+    # SNDR_SSH_HOST_KEY_POLICY=tofu).
     client.set_missing_host_key_policy(
-        paramiko.RejectPolicy() if _strict else paramiko.AutoAddPolicy()
+        paramiko.AutoAddPolicy() if _host_key_tofu() else paramiko.RejectPolicy()
     )
-    client.connect(**_connect_kwargs(target, timeout))
+    try:
+        client.connect(**_connect_kwargs(target, timeout))
+    except _paramiko_ssh_exception(paramiko) as exc:  # noqa: BLE001
+        msg = str(exc)
+        if "known_hosts" in msg or "not found" in msg.lower():
+            raise RuntimeError(
+                f"SSH host key for {target.get('host')!r} is not in known_hosts "
+                "(strict host-key checking is on). Add it with `ssh-keyscan` / a "
+                "manual `ssh` once, or set SNDR_SSH_STRICT_HOST_KEYS=0 to trust "
+                "on first connect."
+            ) from exc
+        raise
     return client
+
+
+def _host_key_tofu() -> bool:
+    """True when the operator opted into trust-on-first-use (insecure)."""
+    explicit = (os.environ.get("SNDR_SSH_HOST_KEY_POLICY") or "").strip().lower()
+    if explicit:
+        return explicit in ("tofu", "auto", "autoadd", "auto_add")
+    strict = (os.environ.get("SNDR_SSH_STRICT_HOST_KEYS") or "").strip().lower()
+    # Back-compat: the old flag meant "set me to 1 for strict"; absence used to
+    # mean TOFU. The secure default flips that — only an explicit 0/false/off
+    # (or unset SNDR_SSH_HOST_KEY_POLICY=tofu above) re-enables TOFU.
+    return strict in ("0", "false", "no", "off")
+
+
+def _paramiko_ssh_exception(paramiko: Any) -> type:
+    """The paramiko SSHException type, falling back to Exception if absent."""
+    exc_mod = getattr(paramiko, "ssh_exception", None)
+    return getattr(exc_mod, "SSHException", Exception) if exc_mod else Exception
 
 
 def _exec(client, command: str, timeout: float) -> tuple[int, str, str]:
