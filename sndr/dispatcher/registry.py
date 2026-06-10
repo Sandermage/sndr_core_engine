@@ -4071,6 +4071,42 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["PN340", "PN341", "PN345", "PN204", "PN54", "PN29", "P28"],
     },
+    "PN367": {
+        "title": "CUDA graph memory estimate clamp (vendor of OPEN vllm#45076)",
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN367",
+        "default_on": True,
+        "apply_module": "sndr.engines.vllm.patches.compile_safety.pn367_cudagraph_mem_estimate_clamp",
+        "lifecycle": "experimental",
+        "category": "stability",
+        "credit": (
+            "Genesis vendor of OPEN vllm PR #45076 (Oxygen56, fixes "
+            "#44740) — negative CUDA graph memory estimation under MTP "
+            "spec-decode. Verified at pin g303916e93: decoder profiling "
+            "path appends raw mem_before - free_after (can go negative "
+            "via CachingAllocator freelist consolidation or MTP lazy "
+            "buffer GC between measurements) while the encoder path in "
+            "the same function already clamps to >= 0. A negative "
+            "first_capture understates graph memory -> KV cache sized "
+            "larger than the card affords -> silent headroom loss / OOM "
+            "risk on 24 GB A5000 at gpu_memory_utilization=0.9 + MTP "
+            "K=3. Vendored: per-sample clamp + WARNING on negative delta "
+            "(visible at PROD's VLLM_LOGGING_LEVEL=WARNING) in "
+            "gpu_model_runner.py + final non-negative guard in "
+            "gpu_worker.py. NOT vendored (documented divergence): the "
+            "PR's per-measurement empty_cache() — measurement-stability "
+            "improvement with boot-time cost; clamp alone removes the "
+            "correctness hazard. Defensive: zero behavior change when "
+            "estimates are positive. Self-skips when #45076 lands "
+            "(drift markers)."
+        ),
+        "upstream_pr": 45076,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["P66", "PN125", "PN126", "PN364"],
+    },
     "PN352": {
         "title": "Triton moe_sum for unsupported topk (counterpart of OPEN vllm#44557)",
         "tier": "community",

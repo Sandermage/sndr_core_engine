@@ -5179,6 +5179,26 @@ def apply_patch_N350_gdn_qkv_fused_split() -> PatchResult:
     return _skipped("PN350 fused GDN QKV split kernel", detail)
 
 
+@register_patch("PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#45076)")
+def apply_patch_N367_cudagraph_mem_clamp() -> PatchResult:
+    """PN367: clamps the decoder cudagraph memory profiling deltas to
+    >= 0 (encoder path already clamps) + final non-negative guard in
+    gpu_worker. Vendor of OPEN vllm#45076 (fixes #44740 — negative
+    estimates under MTP spec-decode via allocator non-monotonicity /
+    MTP lazy buffers). Protects 24 GB A5000 KV-cache budget from
+    negative-estimate inflation. Negative deltas log WARNING (visible
+    at PROD log level). Zero behavior change for positive estimates."""
+    from sndr.engines.vllm.patches.compile_safety import (
+        pn367_cudagraph_mem_estimate_clamp as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN367 cudagraph mem estimate clamp", detail)
+    if status == "failed":
+        return _failed("PN367 cudagraph mem estimate clamp", detail)
+    return _skipped("PN367 cudagraph mem estimate clamp", detail)
+
+
 @register_patch("PN352 Triton moe_sum for unsupported topk (counterpart of OPEN vllm#44557)")
 def apply_patch_N352_moe_sum_topk8() -> PatchResult:
     """PN352: routes moe_sum for topk not in (2,3,4) through a Genesis
