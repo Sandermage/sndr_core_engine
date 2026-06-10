@@ -49,10 +49,14 @@ def _is_enabled() -> bool:
 # the ``auto_tools_called`` OR-clause from the if-head — live file at
 # vllm/entrypoints/openai/chat_completion/serving.py:820-826 now reads
 # ``if (tools_streamed[i] and ...) or (self.use_harmony and ...):``. The
-# ``auto_tools_called`` variable still exists in the surrounding function
-# (used in our injected detector at L91-96 below), so the semantics of
-# the detector are unchanged — we just shrink the anchor's leading
-# conditional to match the new shape. P107's misleading ``# likely
+# v3 (2026-06-11): the v2 comment claiming ``auto_tools_called`` still
+# exists in the streaming generator was WRONG — on this pin the variable
+# lives only in the NON-streaming full generator (pristine serving.py
+# 1069+, streaming generator is 399-1000). The baked v2 text raised a
+# live NameError at stream end on every tool-bearing streamed request
+# (caught by fleet validation 2026-06-11, predicted by the preflight
+# triage). The clause is dropped; ``not tools_streamed[i]`` +
+# ``not delta_message.tool_calls`` retain the detector's protection. P107's misleading ``# likely
 # upstream merged`` skip-message was wrong (PR #41467 still OPEN); the
 # anchor drift was code-shape refactor, not behavioral upstreaming.
 ANCHOR_OLD = (
@@ -88,7 +92,6 @@ ANCHOR_NEW = (
     "                            finish_reason_ == \"stop\"\n"
     "                            and request.tools\n"
     "                            and not tools_streamed[i]\n"
-    "                            and not auto_tools_called\n"
     "                            and reasoning_parser is not None\n"
     "                            and delta_message is not None\n"
     "                            and not delta_message.content\n"
