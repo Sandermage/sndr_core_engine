@@ -2,9 +2,30 @@
 """Wiring for Patch N22 — Local argmax for TP draft (vllm#39419 backport).
 
 Backport of [vllm#39419](https://github.com/vllm-project/vllm/pull/39419)
-(EanWang, OPEN as of 2026-05-01). Adds `get_top_tokens()` plumbing methods
-to Qwen3 + Qwen3-DFlash model classes, enabling vocab-parallel argmax
-without all-gathering full logits across TP ranks.
+(EanWang; MERGED upstream 2026-06-10T07:59Z — after our current pin
+0.22.1rc1.dev259+g303916e93). Adds `get_top_tokens()` plumbing methods
+to Qwen3 + Qwen3-DFlash + Qwen3_5MTP model classes, enabling
+vocab-parallel argmax without all-gathering full logits across TP ranks.
+
+v2 extension (2026-06-10, dead-binding audit fix): the original v7.65
+backport covered qwen3.py + qwen3_dflash.py only — but the live 35B MTP
+drafter is class `Qwen3_5MTP` in `qwen3_5_mtp.py` (imports from
+qwen3_5.py, NOT qwen3.py), so the proposer's local-argmax path never
+engaged on 35B PROD: vanilla full-vocab all-gather argmax ran every
+draft step over PCIe (TP=2, vocab 151k). The merged PR refactors the
+method into `LocalArgmaxMixin` (interfaces.py) and mixes it into
+Qwen3_5MTP; we backport the method body directly onto the class (text
+patch can't safely rewrite class bases) with identical semantics,
+including the draft_id_to_target_id (D2T) remap parity.
+
+Merged-PR proposer delta vs our pin: logging-only (the D2T
+warning/else-info block in `_maybe_share_lm_head` collapses to a single
+info log because the mixin now handles D2T instead of bypassing). Our
+pin already has the behavioral pieces: `use_local_argmax_reduction`
+config (config/speculative.py:134, default False), the `_greedy_sample`
+gate calling `self.model.get_top_tokens(hidden_states)`, and the
+init-time ValueError when the draft model lacks the method. No
+proposer-side vendoring needed.
 
 ================================================================
 WHY THIS IS NEEDED
@@ -28,17 +49,29 @@ Empirical (PR author): +9.4% to +30.6% throughput on TP=2 + draft model
 SCOPE
 ================================================================
 
-Genesis backport covers our two production model classes:
+Genesis backport covers our three production model classes:
 - `qwen3.py` — main 27B / 35B-A3B
 - `qwen3_dflash.py` — DFlash drafter
+- `qwen3_5_mtp.py` — Qwen3_5MTP, the LIVE 35B MTP drafter (v2, 2026-06-10)
 
-Llama (`llama.py`) and Eagle3 (`llama_eagle3.py`) parts of upstream PR are
-NOT backported here — Genesis does not run those models in production.
-If a user needs them, they can copy this pattern.
+Llama (`llama.py`), Eagle3 (`llama_eagle3.py`) and DeepSeek
+(`deepseek_eagle3.py`) parts of upstream PR are NOT backported here —
+Genesis does not run those models in production. If a user needs them,
+they can copy this pattern.
 
 `LogitsProcessor.get_top_tokens()` itself already exists in our pin
-(verified at line 106 of `vllm/model_executor/layers/logits_processor.py`).
+(verified at line 106 of `vllm/model_executor/layers/logits_processor.py`
+on dev259: local shard argmax -> all-gather (value, index) pairs ->
+global argmax; padding masked via shard_indices.num_org_vocab_padding).
 The PR is pure plumbing — wiring model classes through to that method.
+
+Qwen3_5MTP lm_head note: with PN348 (shared backbone embed+lm_head) the
+class allocates `PPMissingLayer()`, but the proposer's
+`_maybe_share_lm_head` ALWAYS rebinds `self.model.lm_head` to the target
+model's vocab-sharded ParallelLMHead for MTP models — the same object
+`compute_logits()` uses — so `quant_method.apply` + `shard_indices` are
+valid on every TP rank and local-argmax shard semantics match the
+full-logits path bit-exactly.
 
 ================================================================
 SAFETY MODEL
@@ -49,12 +82,18 @@ SAFETY MODEL
 - Idempotent (marker check)
 - Falls through cleanly if anchor missed (SKIPPED, not crash).
 - NO callsite swap: this patch only adds the methods. The proposer
-  in `vllm/v1/spec_decode/llm_base_proposer.py` already calls
-  `get_top_tokens()` when available (PR #34049 plumbing already merged
-  in our pin). So enabling PN22 == enabling vocab-parallel argmax.
-- Auto-no-op once vllm#39419 merges (drift markers).
+  in `vllm/v1/spec_decode/llm_base_proposer.py` only calls
+  `get_top_tokens()` when `use_local_argmax_reduction: true` is set in
+  `--speculative-config`. ORDER MATTERS: the model method must exist
+  BEFORE flipping that config flag, otherwise the proposer raises
+  ValueError at init ("does not implement get_top_tokens()").
+- Auto-no-op once the pin includes the vllm#39419 merge: drift marker
+  "LocalArgmaxMixin" on all three patchers (post-merge files carry the
+  mixin in the class bases, NOT a literal `def get_top_tokens(`; a
+  plain-method override would drop the mixin's D2T remap, so we must
+  self-skip rather than re-apply).
 
-Author: backport for Genesis from EanWang's vllm#39419.
+Author: backport for Genesis from EanWang's vllm#39419 (merged).
 """
 from __future__ import annotations
 
@@ -127,6 +166,79 @@ PN22_DFLASH_REPLACEMENT = (
     "    def precompute_and_store_context_kv(\n"
 )
 
+# ─── Sub-patch 3: qwen3_5_mtp.py (Qwen3_5MTP — live 35B MTP drafter) ──
+# v2 extension 2026-06-10. Anchor verified on live pin
+# 0.22.1rc1.dev259+g303916e93 (container vllm-qwen3.6-35b-balanced-k3):
+# count=1, get_top_tokens absent, LocalArgmaxMixin absent.
+PN22_QWEN3_5_MTP_ANCHOR = (
+    "    def compute_logits(\n"
+    "        self,\n"
+    "        hidden_states: torch.Tensor,\n"
+    "        spec_step_idx: int = 0,\n"
+    "    ) -> torch.Tensor | None:\n"
+    "        return self.logits_processor(self.lm_head, hidden_states)\n"
+)
+
+PN22_QWEN3_5_MTP_REPLACEMENT = (
+    "    def compute_logits(\n"
+    "        self,\n"
+    "        hidden_states: torch.Tensor,\n"
+    "        spec_step_idx: int = 0,\n"
+    "    ) -> torch.Tensor | None:\n"
+    "        return self.logits_processor(self.lm_head, hidden_states)\n"
+    "\n"
+    "    def get_top_tokens(\n"
+    "        self,\n"
+    "        hidden_states: torch.Tensor,\n"
+    "    ) -> torch.Tensor:\n"
+    "        # [Genesis PN22] vllm#39419 backport (MERGED upstream 2026-06-10\n"
+    "        # as LocalArgmaxMixin) — vocab-parallel argmax for the Qwen3_5MTP\n"
+    "        # drafter. Each TP rank takes a local argmax over its lm_head\n"
+    "        # shard; only (value, index) pairs are all-gathered:\n"
+    "        # O(batch * 2 * tp_size) vs O(batch * vocab_size) full-logits\n"
+    "        # all-gather per draft step. self.lm_head is the target model's\n"
+    "        # vocab-sharded ParallelLMHead (rebound by the proposer's\n"
+    "        # _maybe_share_lm_head for MTP models), so shard semantics match\n"
+    "        # compute_logits() exactly.\n"
+    "        top = self.logits_processor.get_top_tokens(self.lm_head, hidden_states)\n"
+    "        # D2T parity with upstream LocalArgmaxMixin: Qwen3_5MTP carries\n"
+    "        # no draft_id_to_target_id today; the guard keeps results correct\n"
+    "        # if a pruned-vocab drafter variant ever adds the remap table.\n"
+    "        d2t = getattr(self, \"draft_id_to_target_id\", None)\n"
+    "        if d2t is not None:\n"
+    "            top = top + d2t[top]\n"
+    "        return top\n"
+)
+
+
+def build_qwen3_5_mtp_patcher(target_file: str) -> TextPatcher:
+    """Build the qwen3_5_mtp.py TextPatcher (factored out for tests).
+
+    Drift markers are scoped to qwen3_5_mtp.py content only:
+    - "LocalArgmaxMixin": post-merge pins mix the method in via the class
+      bases (no literal method definition in the file) — self-skip so the
+      plain-method override never shadows the mixin's D2T handling.
+    - "def get_top_tokens(": guards a future upstream shape that defines
+      the method directly in the file.
+    """
+    return TextPatcher(
+        patch_name="PN22 qwen3_5_mtp.py — get_top_tokens (vllm#39419 merged)",
+        target_file=target_file,
+        marker=GENESIS_PN22_MARKER + " (qwen3_5_mtp)",
+        sub_patches=[
+            TextPatch(
+                name="pn22_qwen3_5_mtp_get_top_tokens",
+                anchor=PN22_QWEN3_5_MTP_ANCHOR,
+                replacement=PN22_QWEN3_5_MTP_REPLACEMENT,
+                required=True,
+            ),
+        ],
+        upstream_drift_markers=[
+            "LocalArgmaxMixin",
+            "def get_top_tokens(",
+        ],
+    )
+
 
 def apply() -> tuple[str, str]:
     """Apply PN22 — vocab-parallel argmax plumbing (vllm#39419)."""
@@ -159,6 +271,10 @@ def apply() -> tuple[str, str]:
         upstream_drift_markers=[
             "[Genesis PN22]",
             "def get_top_tokens(",
+            # Post-merge pins (vllm#39419 merged 2026-06-10) provide the
+            # method via LocalArgmaxMixin in the class bases — a plain
+            # method override would drop the mixin's D2T remap. Self-skip.
+            "LocalArgmaxMixin",
         ],
     )
     # Audit G-POST-03 fix 2026-05-05 (genesis_post_fix_rescan_audit):
@@ -202,10 +318,31 @@ def apply() -> tuple[str, str]:
         if r2 == TextPatchResult.FAILED:
             return "failed", f"qwen3_dflash.py: {f2.reason if f2 else 'unknown'}"
 
+    # Now qwen3_5_mtp.py (Qwen3_5MTP — the LIVE 35B MTP drafter; v2
+    # extension 2026-06-10). Older pins predate the Qwen3.5/3.6 family
+    # and lack the file — skip silently there.
+    mtp = resolve_vllm_file("model_executor/models/qwen3_5_mtp.py")
+    if mtp is not None and os.path.isfile(str(mtp)):
+        patcher_mtp = build_qwen3_5_mtp_patcher(str(mtp))
+        r3, f3 = patcher_mtp.apply()
+        if r3 == TextPatchResult.SKIPPED:
+            _r = f3.reason if f3 else "anchor drift / not eligible"
+            _d = f" ({f3.detail})" if (f3 and f3.detail) else ""
+            return "skipped", (
+                f"qwen3_5_mtp.py: {_r}{_d} (qwen3.py applied, but the "
+                "Qwen3_5MTP subpatch skipped — the 35B MTP drafter would "
+                "lack get_top_tokens(); do NOT enable "
+                "use_local_argmax_reduction until resolved)"
+            )
+        if r3 == TextPatchResult.FAILED:
+            return "failed", f"qwen3_5_mtp.py: {f3.reason if f3 else 'unknown'}"
+
     return "applied", (
         "PN22 applied: get_top_tokens() added to qwen3.py + qwen3_dflash.py "
-        "(vllm#39419 backport). Enables vocab-parallel argmax in spec-decode "
-        "draft path; +9-30% TPS on TP>=2 per PR author."
+        "+ qwen3_5_mtp.py (vllm#39419 backport, merged upstream 2026-06-10). "
+        "Enables vocab-parallel argmax in spec-decode draft path once "
+        "use_local_argmax_reduction is set in --speculative-config; "
+        "+9-30% TPS on TP>=2 per PR author."
     )
 
 
@@ -215,6 +352,18 @@ def is_applied() -> bool:
         return False
     try:
         with open(str(qwen3)) as f:
-            return GENESIS_PN22_MARKER in f.read()
+            if GENESIS_PN22_MARKER not in f.read():
+                return False
+    except OSError:
+        return False
+    # v2: when the pin ships qwen3_5_mtp.py, the Qwen3_5MTP subpatch
+    # marker must be present too — otherwise the 35B drafter binding is
+    # still dead and reporting "applied" would mask it.
+    mtp = resolve_vllm_file("model_executor/models/qwen3_5_mtp.py")
+    if mtp is None or not os.path.isfile(str(mtp)):
+        return True
+    try:
+        with open(str(mtp)) as f:
+            return (GENESIS_PN22_MARKER + " (qwen3_5_mtp)") in f.read()
     except OSError:
         return False

@@ -3384,14 +3384,25 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "default_on": False,
         "category": "spec_decode",
         "credit": (
-            "Backport of vllm#39419 (EanWang, OPEN 2026-05-01). Adds "
-            "get_top_tokens() plumbing to Qwen3 and Qwen3-DFlash model "
-            "classes, enabling vocab-parallel argmax on each TP rank "
-            "instead of all-gathering full logits. Wins +9.4-30.6% TPS "
-            "on TP>=2 + draft model per PR author. LogitsProcessor."
-            "get_top_tokens() callsite is already in our pin (PR #34049 "
-            "merged). Llama and Eagle3 parts of the upstream PR are not "
-            "backported — Genesis does not run those models in production."
+            "Backport of vllm#39419 (EanWang; MERGED upstream "
+            "2026-06-10T07:59Z as LocalArgmaxMixin — AFTER our pin "
+            "0.22.1rc1.dev259+g303916e93). Adds get_top_tokens() plumbing "
+            "to Qwen3, Qwen3-DFlash and Qwen3_5MTP model classes, enabling "
+            "vocab-parallel argmax on each TP rank instead of all-gathering "
+            "full logits. Wins +9.4-30.6% TPS on TP>=2 + draft model per "
+            "PR author. LogitsProcessor.get_top_tokens() callsite is "
+            "already in our pin (PR #34049 merged). "
+            "[v2 2026-06-10 dead-binding audit fix] Original backport "
+            "covered qwen3.py + qwen3_dflash.py only, but the live 35B MTP "
+            "drafter is Qwen3_5MTP in qwen3_5_mtp.py (imports from "
+            "qwen3_5.py, NOT qwen3.py) — the local-argmax path never "
+            "engaged on 35B PROD. v2 adds the qwen3_5_mtp.py subpatch per "
+            "the merged implementation (D2T remap parity included); the "
+            "merged PR's proposer delta is logging-only vs our pin. Drift "
+            "marker LocalArgmaxMixin self-skips all subpatches once a pin "
+            "bump includes the merge. Llama, Eagle3 and DeepSeek parts of "
+            "the upstream PR are not backported — Genesis does not run "
+            "those models in production."
         ),
         "upstream_pr": 39419,
         "upstream_pr_relationship": "backport",

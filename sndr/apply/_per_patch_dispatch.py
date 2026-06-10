@@ -4961,21 +4961,28 @@ def apply_patch_N21_dflash_swa_support() -> PatchResult:
 
 @register_patch("PN22 Local argmax for TP draft (vllm#39419 backport)")
 def apply_patch_N22_local_argmax_tp() -> PatchResult:
-    """Patch N22: backport of vllm#39419 (EanWang, OPEN).
+    """Patch N22: backport of vllm#39419 (EanWang; MERGED 2026-06-10
+    upstream as LocalArgmaxMixin — after pin dev259).
 
-    Adds get_top_tokens() plumbing to Qwen3 and Qwen3-DFlash model
-    classes — enables vocab-parallel argmax per TP rank instead of
+    Adds get_top_tokens() plumbing to Qwen3, Qwen3-DFlash and Qwen3_5MTP
+    model classes — enables vocab-parallel argmax per TP rank instead of
     all-gathering full logits. +9.4-30.6% TPS on TP>=2 + draft model
     per PR author measurement.
 
-    LogitsProcessor.get_top_tokens() callsite already in our pin
-    (PR #34049 merged). This patch is pure plumbing.
+    v2 (2026-06-10): adds the qwen3_5_mtp.py subpatch — the live 35B MTP
+    drafter class Qwen3_5MTP never had the method (dead binding), so the
+    local-argmax path never engaged on 35B PROD.
 
-    Llama and Eagle3 parts of upstream PR not backported — Genesis
-    does not run those models.
+    LogitsProcessor.get_top_tokens() callsite already in our pin
+    (PR #34049 merged). This patch is pure plumbing; activation also
+    requires use_local_argmax_reduction in --speculative-config.
+
+    Llama, Eagle3 and DeepSeek parts of upstream PR not backported —
+    Genesis does not run those models.
 
     Status: opt-in via GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP=1.
-    Default OFF. Auto-no-op once vllm#39419 merges.
+    Default OFF. Auto-no-op on post-merge pins (LocalArgmaxMixin drift
+    marker).
     """
     return _wiring_text_patch(
         "PN22 Local argmax for TP draft (vllm#39419 backport)",
