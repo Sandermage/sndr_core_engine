@@ -3821,11 +3821,36 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Cardinality = ~3 models × 4 buckets = 12 series per counter, "
             "well within Prometheus best-practice ceiling. The labeled "
             "data unlocks evidence-based PN288 trigger criteria (e.g. "
-            "'fire only on 35B-A3B + ctx≥15K') instead of a global flag."
+            "'fire only on 35B-A3B + ctx≥15K') instead of a global flag. "
+            "v2 2026-06-10 (call-site drift audit finding): PROD container "
+            "vllm-qwen3.6-35b-balanced-k3 (pin 0.22.1rc1.dev259+g303916e93) "
+            "runs --tool-call-parser qwen3_xml → Qwen3XMLToolParser with "
+            "its OWN extract_tool_calls_streaming; the v1 coder-only wrap "
+            "never fired there (Prometheus counters permanently zero, "
+            "~236ms+6.5MB APIServer boot cost for nothing). v2 wraps BOTH "
+            "Qwen3CoderToolParser AND Qwen3XMLToolParser — whichever "
+            "import; the inactive parser's wrap is inert since the serving "
+            "layer instantiates only the configured parser. XML parser "
+            "ACCUMULATES arguments incrementally per delta (+= fragment), "
+            "unlike the coder parser which writes complete JSON only at "
+            "function close — so the XML wrap gates json.loads validation "
+            "on tool-call completeness (count of </tool_call> end tokens "
+            "in current_text vs entry index) with a per-instance "
+            "validated-index set reset on new stream (empty previous_text, "
+            "same signal upstream uses). Avoids mid-stream partial-JSON "
+            "false positives. Scope: completed-call corruption (framing "
+            "intact, args corrupt — the #178 MTP mode); final-call "
+            "max_tokens truncation stays PN288's serving-layer surface. "
+            "Prometheus counters gain third label `parser` "
+            "(qwen3_coder|qwen3_xml) — cardinality 3 models × 4 buckets "
+            "× 2 parsers = 24 series per counter. Same env flag (live "
+            "launcher unchanged); v2 also fixes is_applied()/revert() to "
+            "resolve the new vllm.tool_parsers.* module layout (v1 only "
+            "tried the legacy entrypoints path there)."
         ),
         "upstream_pr": None,
         "applies_to": {
-            "tool_call_parser": "qwen3_coder",
+            "tool_call_parser": ["qwen3_coder", "qwen3_xml"],
         },
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn287_qwen3coder_args_validity_observer",
         "lifecycle": "experimental",
@@ -6925,6 +6950,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "stable",
         "stable_kind": "text-patch",
         "credit": (
+            "AUDIT NOTE 2026-06-10 (call-site drift sweep): the wrap "
+            "lands on grouped_topk_router.py correctly, but Qwen3.6-A3B "
+            "uses the NON-grouped FusedTopKRouter (qwen3_next.py FusedMoE "
+            "passes no use_grouped_topk) — the wrapped fn never runs for "
+            "this model. Harmless but the 'applied' status is misleading "
+            "on 35B; effective only on grouped-topk MoE models. "
+
             "Vendors vllm#40886 — AWQ MoE keys remap for Gemma 4 26B-A4B "
             "checkpoint compatibility. "
             "Cross-file supersession watchlist (PIN.R-DRIFT-MARKER-AUDIT "

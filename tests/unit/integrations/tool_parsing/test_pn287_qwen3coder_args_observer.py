@@ -245,11 +245,13 @@ def test_prometheus_counter_increments_alongside_dict() -> None:
     mod._setup_prometheus_counters()
 
     # The default-label tuple for a call without request kwargs.
+    # v2: third label `parser` distinguishes the coder wrap from the
+    # qwen3_xml wrap; the coder factory tags parser="qwen3_coder".
     extract_default = mod._prom_extract_total.labels(
-        model="unknown", ctx_bucket="0-5K",
+        model="unknown", ctx_bucket="0-5K", parser="qwen3_coder",
     )
     malformed_default = mod._prom_malformed_total.labels(
-        model="unknown", ctx_bucket="0-5K",
+        model="unknown", ctx_bucket="0-5K", parser="qwen3_coder",
     )
     before_extract = extract_default._value.get()
     before_malformed = malformed_default._value.get()
@@ -396,10 +398,10 @@ def test_labeled_counter_increments_with_correct_labels() -> None:
 
     # Per-label Counter must reflect this single event under the right tuple.
     labeled_extract = mod._prom_extract_total.labels(
-        model="qwen3.6-35b-a3b", ctx_bucket="15-30K",
+        model="qwen3.6-35b-a3b", ctx_bucket="15-30K", parser="qwen3_coder",
     )
     labeled_malformed = mod._prom_malformed_total.labels(
-        model="qwen3.6-35b-a3b", ctx_bucket="15-30K",
+        model="qwen3.6-35b-a3b", ctx_bucket="15-30K", parser="qwen3_coder",
     )
     assert labeled_extract._value.get() >= 1
     assert labeled_malformed._value.get() >= 1
@@ -445,13 +447,13 @@ def test_labeled_counter_segregates_models_and_buckets() -> None:
             _FakeRequest(model="qwen3.6-27b-int4"))
 
     v_35b_long = mod._prom_malformed_total.labels(
-        model="qwen3.6-35b-a3b", ctx_bucket="15-30K",
+        model="qwen3.6-35b-a3b", ctx_bucket="15-30K", parser="qwen3_coder",
     )._value.get()
     v_27b_short = mod._prom_malformed_total.labels(
-        model="qwen3.6-27b-int4", ctx_bucket="0-5K",
+        model="qwen3.6-27b-int4", ctx_bucket="0-5K", parser="qwen3_coder",
     )._value.get()
     v_35b_short = mod._prom_malformed_total.labels(
-        model="qwen3.6-35b-a3b", ctx_bucket="0-5K",
+        model="qwen3.6-35b-a3b", ctx_bucket="0-5K", parser="qwen3_coder",
     )._value.get()
 
     assert v_35b_long >= 1
@@ -461,21 +463,281 @@ def test_labeled_counter_segregates_models_and_buckets() -> None:
 
 
 def test_apply_skipped_when_parser_unimportable(monkeypatch) -> None:
+    """v2: apply() skips only when NEITHER Qwen3CoderToolParser NOR
+    Qwen3XMLToolParser is importable — block both import paths."""
     mod = _import_patch()
     monkeypatch.setenv("GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER", "1")
-    # Force ImportError on the parser path.
-    sys.modules.pop(
-        "vllm.entrypoints.openai.tool_parsers.qwen3coder_tool_parser", None
+    # Force ImportError on both parser paths.
+    for stale in (
+        "vllm.entrypoints.openai.tool_parsers.qwen3coder_tool_parser",
+        "vllm.entrypoints.openai.tool_parsers.qwen3xml_tool_parser",
+        "vllm.tool_parsers.qwen3coder_tool_parser",
+        "vllm.tool_parsers.qwen3xml_tool_parser",
+    ):
+        sys.modules.pop(stale, None)
+
+    import builtins
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if "qwen3coder_tool_parser" in name or "qwen3xml_tool_parser" in name:
+            raise ImportError("synthetic-test")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    status, reason = mod.apply()
+    assert status == "skipped"
+    assert "not importable" in reason
+
+
+# ─────────────────── v2 — Qwen3XMLToolParser wrap ────────────────────
+#
+# The XML parser (live PROD `--tool-call-parser qwen3_xml` on pin
+# 0.22.1rc1.dev259+g303916e93) ACCUMULATES `arguments` incrementally
+# per delta (`prev_tool_call_arr[i]["arguments"] += fragment`), unlike
+# the coder parser which writes complete JSON only at function close.
+# The v2 XML wrap therefore gates json.loads validation on tool-call
+# completeness (count of `</tool_call>` end tokens in current_text)
+# with per-index dedup — these tests lock that contract.
+
+
+class _FakeXmlInnerParser:
+    tool_call_end_token = "</tool_call>"
+    tool_call_start_token = "<tool_call>"
+
+
+class _FakeXmlParser:
+    """Mimics Qwen3XMLToolParser surface: .parser (inner streaming
+    parser with token attrs) + .prev_tool_call_arr accumulation."""
+
+    def __init__(self, arr):
+        self.parser = _FakeXmlInnerParser()
+        self.prev_tool_call_arr = arr
+
+    def extract_tool_calls_streaming(
+        self, previous_text, current_text, delta_text,
+        previous_token_ids, current_token_ids, delta_token_ids, request,
+    ):
+        return "xml_delta"
+
+
+def _call_xml(wrapped, parser, previous_text, current_text,
+              request=None, n_ctx=100):
+    """Invoke wrapped streaming with the real positional signature."""
+    return wrapped(
+        parser, previous_text, current_text, "d",
+        [0] * 10, [0] * n_ctx, [0] * 2, request,
     )
 
-    class _BrokenLoader:
-        def find_spec(self, name, *_a, **_kw):
-            if "qwen3coder_tool_parser" in name:
-                raise ImportError("synthetic")
-            return None
 
-    monkeypatch.syspath_prepend("")
-    # Easier: monkeypatch __import__ for the relevant path.
+def test_xml_wrap_skips_partial_args_mid_stream() -> None:
+    """Mid-stream, accumulated args are legitimately partial JSON —
+    no end token in current_text means NO validation (else every
+    streaming chunk would false-positive as malformed)."""
+    mod = _import_patch()
+    _reset_counters(mod)
+
+    parser = _FakeXmlParser([
+        {"name": "Read", "arguments": '{"file_path":"/a'},  # partial
+    ])
+    wrapped = mod._make_wrapped_streaming_xml(
+        _FakeXmlParser.extract_tool_calls_streaming
+    )
+    out = _call_xml(wrapped, parser, "", '<tool_call><function=Read>')
+    assert out == "xml_delta"
+    assert mod.counters["tool_calls_total"] == 0
+    assert mod.counters["tool_calls_malformed_args"] == 0
+
+
+def test_xml_wrap_validates_completed_call_once() -> None:
+    """Once `</tool_call>` appears in current_text, the completed
+    entry is validated exactly once (per-index dedup across the
+    remaining deltas of the same stream)."""
+    mod = _import_patch()
+    _reset_counters(mod)
+
+    parser = _FakeXmlParser([
+        {"name": "Read", "arguments": '{"file_path":"/a"}'},  # valid
+    ])
+    wrapped = mod._make_wrapped_streaming_xml(
+        _FakeXmlParser.extract_tool_calls_streaming
+    )
+    text = "x</tool_call>"
+    _call_xml(wrapped, parser, "", "x")           # mid-stream, no end yet
+    _call_xml(wrapped, parser, "x", text)          # end token arrives
+    _call_xml(wrapped, parser, text, text + "y")   # trailing content delta
+    assert mod.counters["tool_calls_total"] == 1   # counted ONCE
+    assert mod.counters["tool_calls_malformed_args"] == 0
+
+
+def test_xml_wrap_detects_corrupt_args_on_completed_call(caplog) -> None:
+    """Completed tool call whose accumulated args fail json.loads —
+    the club-3090 #178 corruption mode — increments malformed +
+    warning counters and logs a PN287 WARN naming qwen3_xml."""
+    mod = _import_patch()
+    _reset_counters(mod)
+
+    parser = _FakeXmlParser([
+        # Truncated mid-quoted-string despite closed XML framing.
+        {"name": "Edit", "arguments": '{"file_path":"/so'},
+    ])
+    wrapped = mod._make_wrapped_streaming_xml(
+        _FakeXmlParser.extract_tool_calls_streaming
+    )
+    with caplog.at_level("WARNING", logger="genesis.wiring."
+                         "pn287_qwen3coder_args_observer"):
+        _call_xml(wrapped, parser, "p", "p</tool_call>")
+    assert mod.counters["tool_calls_total"] == 1
+    assert mod.counters["tool_calls_malformed_args"] == 1
+    assert mod.counters["warnings_emitted"] == 1
+    assert any("PN287" in r.message for r in caplog.records)
+    assert any("qwen3_xml" in r.message for r in caplog.records)
+
+
+def test_xml_wrap_resets_dedup_on_new_stream() -> None:
+    """Upstream resets prev_tool_call_arr when previous_text is empty
+    (new streaming session). The validated-index dedup set must reset
+    too, or the second session's tool calls would never be counted."""
+    mod = _import_patch()
+    _reset_counters(mod)
+
+    wrapped = mod._make_wrapped_streaming_xml(
+        _FakeXmlParser.extract_tool_calls_streaming
+    )
+    parser = _FakeXmlParser([
+        {"name": "Read", "arguments": '{"f":"/a"}'},
+    ])
+    # Session 1: completed call observed.
+    _call_xml(wrapped, parser, "p", "p</tool_call>")
+    assert mod.counters["tool_calls_total"] == 1
+    # Session 2 on SAME parser instance: previous_text == "" resets.
+    parser.prev_tool_call_arr = [
+        {"name": "Bash", "arguments": '{"cmd":"ls"}'},
+    ]
+    _call_xml(wrapped, parser, "", "q</tool_call>")
+    assert mod.counters["tool_calls_total"] == 2
+
+
+def test_xml_wrap_survives_missing_attrs() -> None:
+    """Observer must never crash the request: parser instance without
+    .parser inner or .prev_tool_call_arr → pass-through, no counts."""
+    mod = _import_patch()
+    _reset_counters(mod)
+
+    class _Naked:
+        def extract_tool_calls_streaming(self, *args, **kwargs):
+            return "ok"
+
+    wrapped = mod._make_wrapped_streaming_xml(
+        _Naked.extract_tool_calls_streaming
+    )
+    out = wrapped(_Naked(), "p", "p</tool_call>")
+    assert out == "ok"
+    assert mod.counters["tool_calls_total"] == 0
+
+
+def test_xml_wrap_labels_parser_qwen3_xml() -> None:
+    """Prometheus events from the XML wrap must land under
+    parser="qwen3_xml" — distinct series from the coder wrap."""
+    try:
+        import prometheus_client  # noqa: F401
+    except ImportError:
+        pytest.skip("prometheus_client not installed")
+
+    mod = _import_patch()
+    _reset_counters(mod)
+    mod._setup_prometheus_counters()
+
+    parser = _FakeXmlParser([
+        {"name": "Read", "arguments": '{"file_path":"/so'},  # corrupt
+    ])
+    wrapped = mod._make_wrapped_streaming_xml(
+        _FakeXmlParser.extract_tool_calls_streaming
+    )
+    req = _FakeRequest(model="qwen3.6-35b-a3b")
+    _call_xml(wrapped, parser, "p", "p</tool_call>",
+              request=req, n_ctx=22_000)
+
+    labeled = mod._prom_malformed_total.labels(
+        model="qwen3.6-35b-a3b", ctx_bucket="15-30K", parser="qwen3_xml",
+    )
+    assert labeled._value.get() >= 1
+    # The coder-parser series must NOT have absorbed the event.
+    coder_series = mod._prom_malformed_total.labels(
+        model="qwen3.6-35b-a3b", ctx_bucket="15-30K", parser="qwen3_coder",
+    )
+    assert coder_series._value.get() == 0
+
+
+def test_apply_wraps_both_parsers_when_both_importable(monkeypatch) -> None:
+    """v2 apply(): when both Qwen3CoderToolParser and Qwen3XMLToolParser
+    are importable, BOTH get wrapped (the inactive one never fires —
+    cheap). revert() restores both."""
+    mod = _import_patch()
+    monkeypatch.setenv("GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER", "1")
+
+    class FakeCoder:
+        prev_tool_call_arr: list = []
+
+        def extract_tool_calls_streaming(self, *a, **kw):
+            return "coder"
+
+    class FakeXml:
+        prev_tool_call_arr: list = []
+
+        def extract_tool_calls_streaming(self, *a, **kw):
+            return "xml"
+
+    coder_mod = types.ModuleType("vllm.tool_parsers.qwen3coder_tool_parser")
+    coder_mod.Qwen3CoderToolParser = FakeCoder
+    xml_mod = types.ModuleType("vllm.tool_parsers.qwen3xml_tool_parser")
+    xml_mod.Qwen3XMLToolParser = FakeXml
+    monkeypatch.setitem(
+        sys.modules, "vllm.tool_parsers.qwen3coder_tool_parser", coder_mod)
+    monkeypatch.setitem(
+        sys.modules, "vllm.tool_parsers.qwen3xml_tool_parser", xml_mod)
+
+    coder_original = FakeCoder.extract_tool_calls_streaming
+    xml_original = FakeXml.extract_tool_calls_streaming
+
+    status, reason = mod.apply()
+    assert status == "applied"
+    assert "qwen3_coder" in reason and "qwen3_xml" in reason
+    assert FakeCoder.__dict__.get(mod._CLASS_MARKER) is True
+    assert FakeXml.__dict__.get(mod._CLASS_MARKER) is True
+    assert FakeCoder.extract_tool_calls_streaming is not coder_original
+    assert FakeXml.extract_tool_calls_streaming is not xml_original
+
+    # Idempotency: second apply() reports already-installed, no re-wrap.
+    wrapped_coder = FakeCoder.extract_tool_calls_streaming
+    status2, _ = mod.apply()
+    assert status2 == "applied"
+    assert FakeCoder.extract_tool_calls_streaming is wrapped_coder
+
+    # revert() restores BOTH originals.
+    assert mod.revert() is True
+    assert FakeCoder.extract_tool_calls_streaming is coder_original
+    assert FakeXml.extract_tool_calls_streaming is xml_original
+
+
+def test_apply_wraps_xml_when_only_xml_importable(monkeypatch) -> None:
+    """PROD reality on pin 0.22.1rc1.dev259: server runs
+    --tool-call-parser qwen3_xml. Even if the coder parser were
+    unimportable, the XML wrap alone must install."""
+    mod = _import_patch()
+    monkeypatch.setenv("GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER", "1")
+
+    class FakeXml:
+        prev_tool_call_arr: list = []
+
+        def extract_tool_calls_streaming(self, *a, **kw):
+            return "xml"
+
+    xml_mod = types.ModuleType("vllm.tool_parsers.qwen3xml_tool_parser")
+    xml_mod.Qwen3XMLToolParser = FakeXml
+    monkeypatch.setitem(
+        sys.modules, "vllm.tool_parsers.qwen3xml_tool_parser", xml_mod)
+
     import builtins
     real_import = builtins.__import__
 
@@ -485,6 +747,9 @@ def test_apply_skipped_when_parser_unimportable(monkeypatch) -> None:
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
+
     status, reason = mod.apply()
-    assert status == "skipped"
-    assert "not importable" in reason
+    assert status == "applied"
+    assert "qwen3_xml" in reason
+    assert FakeXml.__dict__.get(mod._CLASS_MARKER) is True
+    mod.revert()

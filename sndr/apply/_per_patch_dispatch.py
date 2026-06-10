@@ -5802,10 +5802,13 @@ def apply_patch_g4_62_tq_kernel_warmup() -> PatchResult:
 @register_patch("PN287 qwen3_coder × MTP arg-corruption frequency observer (club-3090 #178)")
 def apply_patch_N287_qwen3coder_args_observer() -> PatchResult:
     """Patch N287: read-only observer that wraps
-    ``Qwen3CoderToolParser.extract_tool_calls_streaming`` to log a
-    structured WARN + increment process counter when accumulated
-    ``arguments`` is non-empty and ``json.loads()`` fails. Surfaces the
-    club-3090 #178 frequency in production without behavioral changes.
+    ``extract_tool_calls_streaming`` to log a structured WARN +
+    increment process counter when accumulated ``arguments`` is
+    non-empty and ``json.loads()`` fails. Surfaces the club-3090 #178
+    frequency in production without behavioral changes. v2 (2026-06-10
+    drift audit): wraps BOTH ``Qwen3CoderToolParser`` and
+    ``Qwen3XMLToolParser`` (PROD runs --tool-call-parser qwen3_xml on
+    pin 0.22.1rc1.dev259); only the active parser's wrap ever fires.
     """
     name = "PN287 qwen3_coder args observer"
     if not _state._APPLY_MODE:
