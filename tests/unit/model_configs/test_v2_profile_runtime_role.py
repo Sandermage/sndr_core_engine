@@ -82,6 +82,14 @@ class TestExistingProfilesLoadUnchanged:
         # per-token acceptance on free-form prose; direction
         # identical (K=3 chat wins, K=4 structured wins).
         "gemma4-26b-mtp-chat-k3",           # role=structured, MTP K=3 chat-role (MoE A4B)
+        # 2026-06-11 — gemma4-31b-fp8e5m2-fallback: vllm#45040+#45038
+        # pair (roadmap chunk-3 Theme B). Role=dev (never booted —
+        # boot ladder + bench + tool-call gates pending), carries
+        # compression_plan (fp8_e5m2 uniform) + backend_plan
+        # (TRITON_ATTN — FA2 has no fp8 KV support on this pin) but
+        # NO spec_decode/routing/validation blocks. Escapes the 31B
+        # TQ block on pin 0.22.1 by halving KV toward full 256K ctx.
+        "gemma4-31b-fp8e5m2-fallback",      # role=dev, fp8_e5m2 KV fallback (G4_80)
     })
 
     def test_all_builtin_profiles_load_with_new_fields_default_none(self):

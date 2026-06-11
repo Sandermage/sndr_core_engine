@@ -9,15 +9,23 @@ Patches in this family:
     is multimodal (qwen3-VL, etc.) but the request contains zero image
     tokens, skip the ViT forward pass + vision-projection materialize.
     Saves ~150-300ms / request when 90%+ of traffic is text-only.
+  - pn371_encoder_cache_deferred_eviction — vendor of vllm#45199
+    (CLOSED unmerged 2026-06-11; fixes #38551). Ref-counted encoder
+    cache: scheduler frees of entries still referenced by in-flight
+    requests are deferred until the last referencing request finishes.
+    Kills the whole-engine-fatal "Encoder cache miss" on Gemma-4
+    vision + MTP K=3 + async scheduling. Opt-in; intended ON for the
+    gemma4 composes.
 
-Future patches expected here: vision token batching, mm cache eviction,
-audio-modal skipping (when whisper-style models added).
+Future patches expected here: vision token batching, audio-modal
+skipping (when whisper-style models added).
 """
 
 from __future__ import annotations
 
 __all__ = [
     "pn62_text_only_vit_skip",
+    "pn371_encoder_cache_deferred_eviction",
 ]
 
 def __getattr__(name: str):

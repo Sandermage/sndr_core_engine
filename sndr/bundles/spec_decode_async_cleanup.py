@@ -8,7 +8,8 @@ share a common root cause and should fail/succeed together.
 
   P79b — Async proposer sync (gpu_model_runner.py).
   P79c — Stale spec-token cleanup on preempt (scheduler.py).
-  P79d — Preempt async-discard (scheduler.py).
+  P79d — Preempt async-discard credit grant (scheduler.py +
+         async_scheduler.py; v2 2026-06-11 rewrite — two patchers).
 
 Cross-file (worker + scheduler) — atomic apply guarantees no boot
 state where (e.g.) scheduler-side cleanup is active but worker-side
@@ -19,6 +20,7 @@ Tier:    community
 Flag:    SNDR_ENABLE_BUNDLE_SPEC_DECODE_ASYNC_CLEANUP=1
 Targets: v1/worker/gpu_model_runner.py
          v1/core/sched/scheduler.py
+         v1/core/sched/async_scheduler.py
 """
 from __future__ import annotations
 
@@ -41,7 +43,10 @@ def apply() -> tuple[str, str]:
         patcher_factories=[
             _p79b._make_patcher,
             _p79c._make_patcher,
-            _p79d._make_patcher,
+            # P79d v2 (2026-06-11) is a two-file patch: credit grant in
+            # scheduler.py + token-denominated drain in async_scheduler.py.
+            _p79d._make_scheduler_patcher,
+            _p79d._make_async_scheduler_patcher,
         ],
     )
 

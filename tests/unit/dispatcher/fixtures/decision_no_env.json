@@ -700,6 +700,36 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN340=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN370",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN370_ASYNC_ACCEPT_RACE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN371",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN371_ENCODER_CACHE_EVICTION=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN372",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN372_EAGLE_ZERO_SEQLEN_GUARD=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN373",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN373_PARALLEL_TOOLCALLS_NULL=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN374",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN374_QWEN3XML_QUOTED_KEYS=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN375",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN375_GEMMA4_MULTIBOUNDARY_STREAMING=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN299E",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN299E=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
@@ -1328,6 +1358,11 @@
     "patch_id": "G4_79",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_G4_79_TQ_MM_PREFIX=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "G4_80",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_G4_80_FP8E5M2_KV=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "G4_70",

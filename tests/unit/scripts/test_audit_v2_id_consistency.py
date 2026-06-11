@@ -99,7 +99,10 @@ class TestLiveRepo:
         # (gemma4-31b-tq-mtp-chat-k3 + gemma4-26b-mtp-chat-k3 promotions
         # validated → 36. Current fleet: 10 model + 3 hardware + 23
         # profile = 36.
-        assert len(results) == 36
+        # 50-PR sweep wave 1 (2026-06-11): +1 profile YAML
+        # (gemma4-31b-fp8e5m2-fallback, G4_80 consumer) → 10 model +
+        # 3 hardware + 24 profile = 37.
+        assert len(results) == 37
 
 
 class TestScriptCLI:

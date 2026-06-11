@@ -153,6 +153,16 @@ def test_spec_only_truly_orphan_baseline():
       - PN353B, PN357: June 2026 vendor-wave patches registered
         spec-only from birth (no legacy hook by design — they ride
         the v12 spec-driven path).
+      - G4_80, PN371, PN373: 2026-06-11 50-PR sweep wave 1 patches
+        registered spec-only from birth (same class as PN353B/PN357;
+        their wave siblings PN370/PN372/PN374/PN375 DID get legacy
+        parking-lot hooks). All opt-in env-gated, absent from
+        production Qwen YAMLs today.
+
+    NOTE (2026-06-11): the audit script's `spec_only_truly_orphan_ids`
+    cap was raised 30 → 60 when this baseline crossed 30 entries —
+    the test compares the FULL set and a 30-cap silently truncated it
+    (first symptom: PN40-classifier "resolving" spuriously).
     """
     audit = _import_audit_module()
     from sndr.dispatcher.registry import PATCH_REGISTRY
@@ -172,6 +182,8 @@ def test_spec_only_truly_orphan_baseline():
         "PN262", "PN262B", "PN271",
         # June 2026 vendor wave — spec-only by design
         "PN353B", "PN357",
+        # 2026-06-11 50-PR sweep wave 1 — spec-only by design
+        "G4_80", "PN371", "PN373",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

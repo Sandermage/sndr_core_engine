@@ -1,13 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
-"""G4_T1 overlays — dict-key STRING_DELIM strip (upstream PR #44717).
+"""G4_T1 overlays — quoted-key STRING_DELIM handling (PRs #44717 + #44877).
 
 Upstream issue #44715: ``_parse_gemma4_args()`` strips ``<|"|>``
 (STRING_DELIM) from value positions but not from key positions, so any
 dict-keyed tool argument the model emits with quoted keys leaks the
 sentinel characters into the dict key string (e.g.
 ``{'<|"|>3<|"|>': 'new text'}`` instead of ``{'3': 'new text'}``).
-Upstream PR #44717 (OPEN at vendor time 2026-06-11) adds the same
-STRING_DELIM strip to the key position that values already get.
+
+Two upstream fixes exist (both OPEN at vendor time 2026-06-11):
+
+* PR #44717 — post-hoc strip of a fully-wrapped key after the bare-key
+  scan (landed in the overlays first, sweep 2026-06-11).
+* PR #44877 — full quoted-key branch that parses a STRING_DELIM-wrapped
+  key the same way string values are parsed (skip opening delimiter,
+  read to closing delimiter, advance to ``:``). Strictly stronger: it
+  also handles ``:`` inside a quoted key and withholds unterminated
+  quoted keys instead of emitting sentinel-polluted garbage.
+
+The overlays now vendor the #44877 branch (it supersedes the #44717
+post-hoc strip; #44717's strip is provably dead code once the branch is
+in — a key reaching the bare-key path can no longer start with
+STRING_DELIM).
 
 Both Genesis G4_T1 overlay variants vendor the buggy key scanner:
 
@@ -117,7 +130,55 @@ def test_top_level_string_delim_key_stripped(parse_args) -> None:
     assert result == {"weird key": "v"}
 
 
-def test_lone_delimiter_key_not_over_stripped(parse_args) -> None:
-    """A key of exactly one STRING_DELIM must not be sliced negatively."""
+def test_lone_delimiter_key_withheld(parse_args) -> None:
+    """A lone STRING_DELIM key is an unterminated key string.
+
+    Semantics changed by the PR #44877 branch: under #44717's post-hoc
+    strip this parsed as the literal key ``<|"|>`` (sentinel leak); the
+    #44877 quoted-key branch treats a STRING_DELIM with no closing
+    delimiter as an unterminated key — nothing parseable follows, so
+    the parser stops without emitting a polluted key.
+    """
     result = parse_args('<|"|>:42')
-    assert result == {'<|"|>': 42}
+    assert result == {}
+
+
+def test_mixed_quoted_and_bare_keys(parse_args) -> None:
+    """Bare keys keep working alongside string-quoted keys (PR #44877)."""
+    result = parse_args('name:<|"|>x<|"|>,<|"|>3<|"|>:<|"|>y<|"|>')
+    assert result == {"name": "x", "3": "y"}
+
+
+def test_quoted_key_containing_colon(parse_args) -> None:
+    """A ``:`` inside a quoted key must not terminate the key scan.
+
+    Only the PR #44877 inline branch handles this: the #44717 post-hoc
+    strip scans to the FIRST ``:`` and emits the sentinel-polluted
+    fragment ``<|"|>a`` as the key.
+    """
+    result = parse_args('<|"|>a:b<|"|>:1')
+    assert result == {"a:b": 1}
+
+
+def test_whitespace_between_quoted_key_and_colon(parse_args) -> None:
+    """Whitespace may precede the ``:`` after a quoted key (PR #44877)."""
+    result = parse_args('<|"|>k<|"|> :<|"|>v<|"|>')
+    assert result == {"k": "v"}
+
+
+def test_unterminated_quoted_key_withheld(parse_args) -> None:
+    """An unterminated quoted key emits nothing (PR #44877).
+
+    Pre-#44877 behavior leaked ``{'<|"|>oops': 1}``. During streaming
+    the closing delimiter may simply not have arrived yet, so
+    withholding is the only output that cannot corrupt the argument
+    diff.
+    """
+    result = parse_args('<|"|>oops:1')
+    assert result == {}
+
+
+def test_unterminated_quoted_key_withheld_partial(parse_args) -> None:
+    """Streaming (partial=True) withholds an incomplete quoted key too."""
+    result = parse_args('<|"|>par', partial=True)
+    assert result == {}

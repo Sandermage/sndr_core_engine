@@ -50,6 +50,8 @@ PATCHES = [
     ("sndr.engines.vllm.patches.attention.turboquant.g4_67_tq_spec_verify_routing", "G4_67"),
     ("sndr.engines.vllm.patches.attention.turboquant.g4_68_tq_spec_cg_downgrade_overlay", "G4_68"),
     ("sndr.engines.vllm.patches.attention.turboquant.g4_69_skip_layers_native_backend", "G4_69"),
+    # 2026-06-11 50-PR sweep wave 1:
+    ("sndr.engines.vllm.patches.attention.turboquant.g4_80_fp8e5m2_kv_weight_only", "G4_80"),
 ]
 
 

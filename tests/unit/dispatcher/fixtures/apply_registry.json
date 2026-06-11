@@ -92,6 +92,14 @@
     "wrapped_name": "apply_patch_N56_qwen3coder_xml_fallback"
   },
   {
+    "name": "PN374 qwen3xml quoted parameter-name strip (Gemma4 #44715 analog)",
+    "wrapped_name": "apply_patch_N374_qwen3xml_quoted_keys"
+  },
+  {
+    "name": "PN375 Gemma4 multi-boundary streaming deltas (vendor of OPEN vllm#44741)",
+    "wrapped_name": "apply_patch_N375_gemma4_multiboundary_streaming"
+  },
+  {
     "name": "PN57 TQ centroids disk-persistent cache (vllm#41418-inspired)",
     "wrapped_name": "apply_patch_N57_tq_centroids_disk_cache"
   },
@@ -660,6 +668,10 @@
     "wrapped_name": "apply_patch_N369_relaxed_acceptance"
   },
   {
+    "name": "PN372 eagle_step zero/negative-seqlen slot-mapping guard (vendor of OPEN vllm#45005)",
+    "wrapped_name": "apply_patch_N372_eagle_step_zero_seqlen_guard"
+  },
+  {
     "name": "PN346 Mamba/GDN cache hit boundary fix (vendor of OPEN vllm#43650)",
     "wrapped_name": "apply_patch_N346_mamba_mtp_apc_boundary"
   },
@@ -722,6 +734,10 @@
   {
     "name": "PN290 num_accepted_tokens D2H race fix (vllm Issue #41190)",
     "wrapped_name": "apply_patch_N290_num_accepted_tokens_race"
+  },
+  {
+    "name": "PN370 Async spec-decode accepted-counts race fix (vendor of OPEN vllm#45100)",
+    "wrapped_name": "apply_patch_N370_async_accepted_counts_race"
   },
   {
     "name": "G4_61 TurboQuant shared decode workspace (vllm#40798 cherry-pick)",

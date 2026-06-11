@@ -161,7 +161,10 @@ class TestLiveRepo:
         # earlier in the session added 2 profile YAMLs + 2 preset
         # aliases (gemma4-31b-tq-mtp-chat-k3 + gemma4-26b-mtp-chat-k3
         # promotions) → 10 + 3 + 23 + 23 = 59.
-        assert len(results) == 59
+        # 50-PR sweep wave 1 (2026-06-11): +1 profile YAML
+        # (gemma4-31b-fp8e5m2-fallback, G4_80 consumer; no preset
+        # alias) → 10 + 3 + 24 + 23 = 60.
+        assert len(results) == 60
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

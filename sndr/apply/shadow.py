@@ -111,6 +111,7 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     "G4_31",           # preserve TQ dtype
     "G4_32",           # TQ validation bypass
     "G4_79",           # TQ supports_mm_prefix (Gemma 4 MM 0.22.1 unblock)
+    "G4_80",           # fp8_e5m2 KV for weight-only checkpoints (vllm#45040)
     "G4_60A",          # TQ sliding-window spec
     "G4_60B",          # TQ overlay loader (turboquant_attn)
     "G4_60C",          # TQ overlay loader (triton_turboquant_decode)
@@ -164,6 +165,15 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # canonical path, no legacy entry by design
     "PN357",           # remapped greedy draft selection speedup
                        # (vendor of OPEN vllm#43349); same class
+    # ── 2026-06-11 50-PR sweep wave 1 — spec-driven from inception
+    # (PN370/PN372/PN374/PN375 got legacy parking-lot hooks; these
+    # two ride the registry-driven path only, same class as PN353B):
+    "PN371",           # deferred ref-pinned encoder-cache eviction
+                       # (vendor of CLOSED vllm#45199, Gemma-4 vision
+                       # + MTP + async 'Encoder cache miss' fix)
+    "PN373",           # parallel_tool_calls explicit null != false
+                       # (vendor of OPEN vllm#44955; serving-layer
+                       # text patch on tool_calls_utils.py)
 })
 
 

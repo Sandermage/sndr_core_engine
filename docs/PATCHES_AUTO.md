@@ -4,29 +4,29 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-11T02:28:42Z
-Total entries: **280**
+Generated: 2026-06-11T11:45:40Z
+Total entries: **287**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **280**
+- `tier=community`: **287**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **201**
+- `lifecycle=experimental`: **208**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **29**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **51** / 280
+### Default-on at boot: **51** / 287
 
 ### By family
 - `attention`: 1
 - `attention.flash`: 3
 - `attention.gdn`: 34
-- `attention.turboquant`: 57
+- `attention.turboquant`: 58
 - `compile_safety`: 15
 - `detection`: 3
 - `gemma4`: 18
@@ -38,17 +38,17 @@ Total entries: **280**
 - `middleware`: 3
 - `model_compat.gemma4`: 1
 - `moe`: 8
-- `multimodal`: 1
+- `multimodal`: 2
 - `observability`: 4
 - `offload`: 3
 - `quantization`: 5
 - `quantization.marlin`: 1
 - `reasoning`: 9
 - `scheduler`: 8
-- `serving`: 10
-- `spec_decode`: 41
+- `serving`: 11
+- `spec_decode`: 43
 - `streaming`: 4
-- `tool_parsing`: 8
+- `tool_parsing`: 10
 - `worker`: 13
 
 ## Patches by family
@@ -106,7 +106,7 @@ Total entries: **280**
 | **PN79_V2_MD5_CHUNK** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk.py scope) |
 | **PN79_V2_MD5_CHUNK_DELTA_H** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk_delta_h.py scope) |
 
-### `attention.turboquant` (57)
+### `attention.turboquant` (58)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -160,6 +160,7 @@ Total entries: **280**
 | **G4_70B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259B_FAIL_FAST` | — | PN259-B fail-fast guard on mixed-allocator KV layout mismatch |
 | **G4_70C** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259C_ROUTE_B` | — | PN259-C Route B split allocator for mixed TQ/native KV layout |
 | **G4_79** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_79_TQ_MM_PREFIX` | — | TQ backend supports_mm_prefix for Gemma 4 MM (0.22.1 validity-gate unblock, m... |
+| **G4_80** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_80_FP8E5M2_KV` | [#45040](https://github.com/vllm-project/vllm/pull/45040) | Allow fp8_e5m2 KV cache for weight-only quantized checkpoints (vllm#45040) |
 | **P18B_TEXT** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_P18B_TEXT` | — | TurboQuant decode stage1 kernel-literal tune (TEXT-PATCH) |
 | **P18b** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P18B` | — | TurboQuant decode stage1 tune |
 | **P67b** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL` | — | TurboQuant spec-verify forward() routing (FULL CG enable) |
@@ -301,11 +302,12 @@ Total entries: **280**
 | **PN368** | `community` | `experimental` | · | `GENESIS_ENABLE_PN368_MARLIN_MOE_ATOMIC_ADD` | — | Marlin MoE w13 reduce-mode wire (env-gated atomic-add, dense-path heuristic p... |
 | **PN96b** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN96B` | — | Persistent Marlin MoE workspace (Wave 9 dev209 perf-restore) |
 
-### `multimodal` (1)
+### `multimodal` (2)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **PN62** | `community` | `experimental` | · | `GENESIS_ENABLE_PN62` | — | Text-only ViT scratch skip via skip_mm_profiling flip (3-5 GiB save) |
+| **PN371** | `community` | `experimental` | · | `GENESIS_ENABLE_PN371_ENCODER_CACHE_EVICTION` | [#45199](https://github.com/vllm-project/vllm/pull/45199) | Deferred ref-pinned encoder-cache eviction (vendor of CLOSED vllm#45199) |
 
 ### `observability` (4)
 
@@ -365,9 +367,9 @@ Total entries: **280**
 | **P74** | `community` | `experimental` | · | `GENESIS_ENABLE_P74_CHUNK_CLAMP` | — | Auto chunk-clamp via long_prefill_token_threshold (P72 companion) |
 | **P84** | `community` | `retired` | · | `GENESIS_ENABLE_P84` | — | hash_block_size override (vllm#38182 actual root cause) — RETIRED 2026-06-11 |
 | **P79c** | `community` | `experimental` | · | `GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP` | [#37629](https://github.com/vllm-project/vllm/pull/37629) | Stale spec_token_ids cleanup for unscheduled requests (vllm#37629) |
-| **P79d** | `community` | `experimental` | · | `GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD` | [#38624](https://github.com/vllm-project/vllm/pull/38624) | Preempt async-discard backport (vllm#38624) |
+| **P79d** | `community` | `experimental` | · | `GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD` | [#38624](https://github.com/vllm-project/vllm/pull/38624) | Preempt async-discard credit grant (vllm#38624 v2 rewrite) |
 
-### `serving` (10)
+### `serving` (11)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -381,8 +383,9 @@ Total entries: **280**
 | **PN91** | `community` | `experimental` | · | `GENESIS_ENABLE_PN91_DEVELOPER_ROLE` | — | PN91 — `developer` role pre-render normalizer (OpenAI Responses API compat) |
 | **PN127** | `community` | `experimental` | · | `GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE` | — | Qwen 3.5/3.6 enhanced chat-template auto-install (closes club-3090#53/#72) |
 | **PN288** | `community` | `experimental` | · | `GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE` | — | qwen3_coder tool_call finish_reason override — Phase B+C with length-band saf... |
+| **PN373** | `community` | `experimental` | · | `GENESIS_ENABLE_PN373_PARALLEL_TOOLCALLS_NULL` | [#44955](https://github.com/vllm-project/vllm/pull/44955) | parallel_tool_calls explicit null != false (vendor of OPEN vllm#44955) |
 
-### `spec_decode` (41)
+### `spec_decode` (43)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -410,11 +413,13 @@ Total entries: **280**
 | **PN274** | `community` | `coordinator` | · | `SNDR_ALLOW_SPEC_DECODE_KV_ADAPTER` | — | Spec-decode KV-adapter safety opt-in (operator-facing control) |
 | **PN275** | `community` | `experimental` | · | `GENESIS_ENABLE_PN275_DFLASH_MAX_CGS_ALIGN` | — | DFlash drafter VllmConfig max_cgs alignment (dev371 compat) |
 | **PN290** | `community` | `experimental` | · | `GENESIS_ENABLE_PN290_NUM_ACCEPTED_TOKENS_RACE` | — | "num_accepted_tokens D2H race fix (vllm Issue |
-| **PN348** | `community` | `experimental` | · | `GENESIS_ENABLE_PN348` | [#44644](https://github.com/vllm-project/vllm/pull/44644) | Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644) — ~1 GiB/worker freed |
+| **PN348** | `community` | `experimental` | · | `GENESIS_ENABLE_PN348` | [#44644](https://github.com/vllm-project/vllm/pull/44644) | Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644) — ~1 GiB/rank peak... |
 | **PN357** | `community` | `experimental` | · | `GENESIS_ENABLE_PN357` | [#43349](https://github.com/vllm-project/vllm/pull/43349) | Optimize remapped greedy draft token selection (vendor of OPEN vllm#43349) |
 | **PN361** | `community` | `experimental` | · | `GENESIS_ENABLE_PN361` | [#44869](https://github.com/vllm-project/vllm/pull/44869) | Spec-decode fail-closed on missing draft probs (vendor of OPEN vllm#44869) |
 | **PN363** | `community` | `experimental` | · | `GENESIS_ENABLE_PN363` | [#43114](https://github.com/vllm-project/vllm/pull/43114) | force_max_spec_tokens for suffix decoding — FULL CG dispatch (vendor of OPEN ... |
 | **PN369** | `community` | `research` | · | `GENESIS_ENABLE_PN369_RELAXED_ACCEPTANCE` | — | Relaxed acceptance for MTP spec-decode (TRT-LLM-style top-K + delta window, B... |
+| **PN370** | `community` | `experimental` | · | `GENESIS_ENABLE_PN370_ASYNC_ACCEPT_RACE` | [#45100](https://github.com/vllm-project/vllm/pull/45100) | Async spec-decode accepted-counts race fix (vendor of OPEN vllm#45100) |
+| **PN372** | `community` | `experimental` | · | `GENESIS_ENABLE_PN372_EAGLE_ZERO_SEQLEN_GUARD` | [#45005](https://github.com/vllm-project/vllm/pull/45005) | eagle_step zero/negative-seqlen slot-mapping guard (vendor of OPEN vllm#45005) |
 | **G4_05** | `community` | `retired` | · | `GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT` | [#39930](https://github.com/vllm-project/vllm/pull/39930) | DFlash drafter backend autoselect (retired — superseded by vllm#39930) |
 | **G4_71** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND` | — | Force FlashAttn backend for Gemma 4 MTP drafter Attention layers |
 | **G4_71B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON` | — | Per-layer drafter backend force: route head_size=256 sliding to TRITON_ATTN (... |
@@ -437,7 +442,7 @@ Total entries: **280**
 | **PN202** | `community` | `experimental` | · | `GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT` | — | PN202 — per-layer KV tensor split (Tier 2.A enabler) |
 | **PN203** | `community` | `experimental` | · | `GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD` | — | PN203 — cold-prefix CPU offload manager (Tier 3.A) |
 
-### `tool_parsing` (8)
+### `tool_parsing` (10)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -446,6 +451,8 @@ Total entries: **280**
 | **P64** | `community` | `experimental` | · | `GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING` | [#39598](https://github.com/vllm-project/vllm/pull/39598) | qwen3coder MTP streaming early-return fix |
 | **PN56** | `community` | `experimental` | · | `GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK` | [#41466](https://github.com/vllm-project/vllm/pull/41466) | Qwen3Coder XML parse fallback (vllm#41466 backport) |
 | **PN287** | `community` | `experimental` | · | `GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER` | — | "qwen3_coder × MTP arg-corruption frequency observer (club-3090 |
+| **PN374** | `community` | `experimental` | · | `GENESIS_ENABLE_PN374_QWEN3XML_QUOTED_KEYS` | [#44877](https://github.com/vllm-project/vllm/pull/44877) | "qwen3xml quoted parameter-name strip (Gemma4 |
+| **PN375** | `community` | `experimental` | · | `GENESIS_ENABLE_PN375_GEMMA4_MULTIBOUNDARY_STREAMING` | [#44741](https://github.com/vllm-project/vllm/pull/44741) | Gemma4 multi-boundary streaming tool-call deltas under MTP (vllm#44741) |
 | **G4_T1** | `community` | `experimental` | · | `GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED` | [#42006](https://github.com/vllm-project/vllm/pull/42006) | "Gemma4 tool-parser PR |
 | **P29_HEAL** | `community` | `experimental` | · | `GENESIS_ENABLE_P29_QWEN3CODER_INDEX_HEAL` | — | qwen3coder tool parser index heal (P29 companion, fix-wire 2026-06-04) |
 | **P61c** | `community` | `experimental` | · | `GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT` | — | Qwen3Coder deferred-commit until <function= header (club-3090#72) |

@@ -110,6 +110,9 @@ gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit
 audit-upstream-watchlist: ## Etap 5.1: validate UPSTREAM_WATCHLIST.yaml + emit PORT_CANDIDATE/WATCH report
 	$(PYTHON) scripts/audit_upstream_watchlist.py
 
+watchlist-check: ## PR-sweep `sweep:` section of upstream_watchlist.yaml — schema + pr uniqueness (2026-06-11 roadmap)
+	$(PYTHON) tools/check_upstream_watchlist.py
+
 audit-upstream: audit-upstream-watchlist ## Audit PATCH_REGISTRY vs GitHub PR merge state (live)
 	$(PYTHON) scripts/audit_upstream_status.py
 

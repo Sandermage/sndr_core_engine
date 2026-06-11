@@ -118,20 +118,32 @@
 # from value positions but not key positions, leaking sentinel bytes into
 # dict keys for any dict-typed tool argument with string-quoted keys
 # (e.g. `{'<|"|>3<|"|>': 'v'}` instead of `{'3': 'v'}`). The 8-line
-# key-strip hunk is vendored verbatim into the key scanner below (and into
+# key-strip hunk was vendored verbatim into the key scanner below (and into
 # the v1 legacy overlay, keeping the rollback path safe). Confirmed buggy
 # in pin 0.22.1rc1.dev259+g303916e93 (`vllm/tool_parsers/
-# gemma4_tool_parser.py:124`). Track:
+# gemma4_tool_parser.py:124`).
+#
+# SUPERSEDED same sweep (2026-06-11) by upstream PR #44877 (OPEN, same
+# issue #44715) — full quoted-key branch vendored verbatim in place of the
+# #44717 post-hoc strip. The branch parses a STRING_DELIM-wrapped key the
+# same way string values are parsed (skip opening delimiter, read to
+# closing delimiter, advance past whitespace to ':'), which additionally
+# handles ':' inside a quoted key and withholds unterminated quoted keys
+# during streaming. The #44717 strip became provably dead once the branch
+# landed (the bare-key path can no longer see a key starting with
+# STRING_DELIM) and was removed. Track BOTH racing PRs:
 #
 #     gh pr view 44717 --repo vllm-project/vllm --json state,mergedAt
+#     gh pr view 44877 --repo vllm-project/vllm --json state,mergedAt
 #
-# When this overlay retires (PR #42237 merged + in pin), verify #44717 is
-# ALSO merged in that pin; if not, re-vendor the key-strip hunk as a
-# standalone text patch. Tests: tests/unit/integrations/tool_parsing/
-# test_g4_t1_dict_key_sentinel_strip.py (AST-extracts the shipped source).
+# When this overlay retires (PR #42237 merged + in pin), verify #44877 (or
+# #44717) is ALSO merged in that pin; if not, re-vendor the quoted-key
+# branch as a standalone text patch. Tests: tests/unit/integrations/
+# tool_parsing/test_g4_t1_dict_key_sentinel_strip.py (AST-extracts the
+# shipped source).
 #
 # ─────────────────────────────────────────────────────────────────────────
-# BEGIN VERBATIM PR #42237 SOURCE (+ PR #44717 key-strip hunk)
+# BEGIN VERBATIM PR #42237 SOURCE (+ PR #44877 quoted-key branch)
 # ─────────────────────────────────────────────────────────────────────────
 """
 Tool call parser for Google Gemma4 models.
@@ -246,23 +258,37 @@ def _parse_gemma4_args(args_str: str, *, partial: bool = False) -> dict:
         if i >= n:
             break
 
-        # Parse key (unquoted, ends at ':')
-        key_start = i
-        while i < n and args_str[i] != ":":
-            i += 1
-        if i >= n:
-            break
-        key = args_str[key_start:i].strip()
-
-        # String-quoted key: <|"|>...<|"|> — strip sentinels the same way
-        # value positions do (vendored upstream PR #44717, issue #44715).
-        if (
-            key.startswith(STRING_DELIM)
-            and key.endswith(STRING_DELIM)
-            and len(key) >= 2 * len(STRING_DELIM)
-        ):
-            key = key[len(STRING_DELIM) : -len(STRING_DELIM)]
-        i += 1  # skip ':'
+        # Parse key. Keys are usually bare identifiers terminated by ':', but
+        # the model may wrap a string-typed key in STRING_DELIM (e.g.
+        # <|"|>3<|"|>) to mark a numeric-looking key as a string. Handle that
+        # case the same way as string values below so the delimiter is
+        # stripped from the key rather than kept verbatim (vendored upstream
+        # PR #44877, issue #44715; supersedes the PR #44717 post-hoc strip —
+        # the inline branch additionally handles ':' inside a quoted key and
+        # withholds unterminated quoted keys during streaming).
+        if args_str[i:].startswith(STRING_DELIM):
+            i += len(STRING_DELIM)
+            key_start = i
+            end_pos = args_str.find(STRING_DELIM, i)
+            if end_pos == -1:
+                # Unterminated key string — nothing parseable follows.
+                break
+            key = args_str[key_start:end_pos]
+            i = end_pos + len(STRING_DELIM)
+            # Skip to the ':' separator (whitespace may precede it).
+            while i < n and args_str[i] != ":":
+                i += 1
+            if i >= n:
+                break
+            i += 1  # skip ':'
+        else:
+            key_start = i
+            while i < n and args_str[i] != ":":
+                i += 1
+            if i >= n:
+                break
+            key = args_str[key_start:i].strip()
+            i += 1  # skip ':'
 
         # Parse value
         if i >= n:

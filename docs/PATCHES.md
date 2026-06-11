@@ -16,8 +16,8 @@ env flag to toggle, upstream PR (if backported), and credit.
 
 ## Current state (v12.0.0, 2026-06-01)
 
-**Total PATCH_REGISTRY entries:** 280 — range covers `P1`–`P109` legacy +
-`PN8`–`PN275` modern + `G4_01`–`G4_78` Gemma 4 family + sub-patches
+**Total PATCH_REGISTRY entries:** 287 — range covers `P1`–`P109` legacy +
+`PN8`–`PN375` modern + `G4_01`–`G4_80` Gemma 4 family + sub-patches
 (P5b, P7b, P15B, P18b, P38B, P39a, P61c, P67b, P67c, P79d, PN26b,
 PN40-classifier) + library/diagnostic (P51, P102, P103) + the standalone
 `SNDR_WORKSPACE_001` entry. P56/P57 archived 2026-05-05; PN71 burned
@@ -32,19 +32,19 @@ added as a registry patch.
 
 | Metric | Count |
 |:-------|:------|
-| Total PATCH_REGISTRY entries | **280** |
+| Total PATCH_REGISTRY entries | **287** |
 | Tier=community (Apache 2.0, sndr) | **252** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
 | Default-on at boot | 51 |
-| Lifecycle=experimental | 201 |
+| Lifecycle=experimental | 208 |
 | Lifecycle=legacy (pre-dispatcher) | 28 |
 | Lifecycle=retired | 29 |
 | Lifecycle=research | 4 |
 | Lifecycle=stable | 14 (G4_01, G4_02, G4_03, G4_04, G4_05 [retired], G4_09, G4_11, G4_12, G4_13, G4_14, G4_16, G4_23, G4_25, PN33, PN35 — ratchet active with `stable_kind` declared; see [CONTRIBUTING.md § Promoting a patch to lifecycle=stable](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)) |
 | Lifecycle=coordinator | 4 (env-flag-only, no real binding) |
-| Implementation status=full | 220 |
+| Implementation status=full | 227 |
 | Implementation status=marker_only / placeholder / partial / retired | 34 (20 + 2 + 8 + 4) |
-| Apply-loop coverage (apply_module set) | 258 / 280 = 92.0% |
+| Apply-loop coverage (apply_module set) | 265 / 287 = 92.3% |
 | Spec-only (intentional, allow-listed) | 17 (P1, P17, P18b, P20, P23, P29, P32, P51, P102, PN60, PN63, PN64, PN256, PN261, G4_70, G4_70B, G4_70C) |
 
 ### Engine tier (the strict-AND boundary)
@@ -139,30 +139,51 @@ to community and ships in `vllm/sndr_core/integrations/<family>/` under Apache 2
 
 ### Native upstream features (no Genesis backport needed)
 
-The following capabilities are native to dev93 and require no Genesis
-patch — Genesis would only add a stub. Documented here so users know
-where to enable them.
+The following capabilities are native to the current pin
+(`0.22.1rc1.dev259+g303916e93`) and require no Genesis patch — Genesis
+would only add a stub. Documented here so users know where to enable
+them.
 
-- **CPU KV cache offloading** (vllm#37160, merged upstream) — exposed as
-  `SimpleCPUOffloadConnector` at
-  `vllm/distributed/kv_transfer/kv_connector/v1/simple_cpu_offload_connector.py`.
-  Enable with:
+- **CPU KV cache offloading** (vllm#37160 lineage, merged upstream) —
+  canonical knob in the current pin is `--kv-offloading-size <GiB>`
+  (`CacheConfig.kv_offloading_size`), which routes to the native
+  `OffloadingConnector` by default (`kv_offloading_backend: native`;
+  `VLLM_USE_SIMPLE_KV_OFFLOAD=1` selects the legacy
+  `SimpleCPUOffloadConnector` instead). The old explicit
+  `--kv-transfer-config '{"kv_connector": "SimpleCPUOffloadConnector", ...}'`
+  form still works but is no longer the documented path.
 
-  ```bash
-  --kv-transfer-config '{"kv_connector": "SimpleCPUOffloadConnector",
-    "kv_role": "kv_both",
-    "kv_connector_extra_config": {"cpu_bytes_to_use": 34359738368}}'
-  ```
-
-  Caveats for Genesis stack:
-  - **Hybrid GDN models (Qwen3.6-A3B family) are NOT compatible** —
-    Mamba SSM state lives outside the KV cache and can't be offloaded
-    via this path. Use only on dense attention models (e.g. Qwen3-7B).
-  - Frees +96K context worth of GPU VRAM at the cost of CPU↔GPU PCIe
-    traffic on miss; suits long-context dense workloads only.
-- **Other connectors in dev93:** `LMCacheConnector`,
-  `MooncakeConnector`, `NixlConnector`, `OffloadingConnector`,
-  `MultiConnector`. See vllm docs for matrix.
+  Caveats for Genesis stack (re-verified 2026-06-11 against the pin):
+  - **Hybrid GDN models (Qwen3.6-A3B family) ARE now schedulable** by
+    the native offload path — the earlier "Mamba state lives outside
+    the KV cache" caveat is stale. In the current pin Mamba/GDN state
+    is a `MambaSpec` KV-cache group; the `OffloadingConnector`
+    scheduler handles it explicitly (single-state group, see
+    `kv_connector/v1/offloading/scheduler.py`), and GDN conv-state
+    sub-projection transfer helpers exist
+    (`kv_connector/v1/ssm_conv_transfer_utils.py`, used by the NIXL
+    worker; handles GDN `[Q, K, V]` conv layout).
+  - **Hybrid models require `--enable-prefix-caching`** to align
+    per-group block sizes (`vllm/v1/kv_offload/base.py` asserts
+    `gpu_block_size % hash_block_size == 0`). Our 27B PROD profile
+    runs prefix caching OFF — offload stays blocked there until that
+    constraint is lifted or the profile changes.
+  - **MTP spec-decode + native offload is broken in this pin**: the
+    `OffloadingConnectorScheduler` wrongly includes EAGLE/MTP
+    draft-attention groups in load/store scheduling → out-of-bounds
+    GPU block index → `cuMemcpyBatchAsync` segfault. Fix is OPEN
+    upstream (vllm#44784, `is_eagle_group` skip + pre-DMA bounds
+    check) and NOT in the pin; Wave-2 vendor planned (see
+    `docs/superpowers/journal/2026-06-11-pr-sweep-50-roadmap.md`,
+    Theme 5). Until then, KV offload remains a no-go on our MTP K=3
+    PROD configs.
+  - Frees GPU VRAM worth ~tens of K context at the cost of CPU↔GPU
+    PCIe traffic on miss; payoff is prefix-reuse on agent loops
+    (second-pass TTFT restore instead of full prefill).
+- **Other connectors in the pin:** `LMCacheConnector`,
+  `LMCacheMPConnector`, `MooncakeConnector`, `NixlConnector`,
+  `OffloadingConnector`, `MultiConnector`, `FlexKVConnector`,
+  `DecodeBenchConnector`. See vllm docs for matrix.
 
 ---
 

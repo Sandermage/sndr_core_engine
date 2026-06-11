@@ -116,6 +116,12 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     "G4_70", "G4_70B", "G4_70C",
     # DFlash drafter rerouting + Triton kernels (G4_71..G4_78)
     "G4_71", "G4_71B", "G4_72", "G4_73", "G4_74", "G4_75", "G4_76", "G4_78",
+    # G4_79 (TQ supports_mm_prefix, 2026-06-11) + G4_80 (fp8_e5m2 KV for
+    # weight-only checkpoints, vllm#45040, 50-PR sweep wave 1) — same
+    # dispatcher overlay-loader pattern as the rest of the G4_* block
+    # (apply_module with own apply(); no apply_patch_* wiring by design).
+    # G4_79's absence here predated the sweep — backfilled 2026-06-11.
+    "G4_79", "G4_80",
     # ─── Spec-decode telemetry / safety opt-ins (R3 audit 2026-05-21) ─
     # PN256/PN261/PN262/PN262B/PN271/PN275 use overlay loader. PN274 is
     # coordinator-only (apply_module=None) for operator visibility.
@@ -170,6 +176,12 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # patches/<family>/<id>.py with its own apply()), same precedent as
     # the PN104+ block above. No apply_patch_* wiring by design.
     "PN353B", "PN357",
+    # PN371 (deferred ref-pinned encoder-cache eviction, vllm#45199) +
+    # PN373 (parallel_tool_calls explicit null != false, vllm#44955) —
+    # 2026-06-11 50-PR sweep wave 1, spec-driven from inception (same
+    # class as PN353B/PN357; wave siblings PN370/PN372/PN374/PN375 DID
+    # get @register_patch parking-lot hooks and are not listed here).
+    "PN371", "PN373",
     # G4_T1 (Gemma4 tool-parser PR #42006 vendor marker) — operator-
     # side bind-mount overlay; no apply_patch_* wiring by design
     # (registered only for `genesis explain` + audit visibility of the

@@ -421,7 +421,11 @@ def _diff_matrices(
         "spec_only_via_manual_count": len(spec_only_via_manual),
         "spec_only_via_manual_ids": spec_only_via_manual[:30],
         "spec_only_truly_orphan_count": len(spec_only_truly_orphan),
-        "spec_only_truly_orphan_ids": spec_only_truly_orphan[:30],
+        # Cap raised 30 → 60 (2026-06-11 registry-integration): the
+        # orphan baseline crossed 30 entries (33 after the 50-PR sweep
+        # wave 1 landed G4_80/PN371/PN373) and the baseline test
+        # compares the FULL set — a 30-cap silently truncated it.
+        "spec_only_truly_orphan_ids": spec_only_truly_orphan[:60],
         "order_divergent": order_divergent,
         "first_order_divergence": first_swap,
         # v12_0_safe: only DRIFT blocks the flip (intentional legacy

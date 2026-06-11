@@ -743,15 +743,23 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "P79d": {
-        "title": "Preempt async-discard backport (vllm#38624)",
+        "title": "Preempt async-discard credit grant (vllm#38624 v2 rewrite)",
         "tier": "community",
         "family": "scheduler",
         "env_flag": "GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD",
         "default_on": False,
         "category": "spec_decode",
-        "credit": "Backport of vllm#38624 (CodersAcademy006, OPEN). Adds discard_latest_async_tokens=True + num_output_placeholders=0 to _preempt_request() — fixes silent token duplication ('the the', 'of of') after preemption-resume on async + EAGLE/MTP/ngram_gpu paths. Additive (does NOT remove from reset_prefix_cache like upstream does — defensive). Idempotent. Genesis prod (sync ngram) gains nothing direct; protects async users.",
+        "credit": "v2 rewrite (2026-06-11) of the STALE v1 backport of vllm#38624 (CodersAcademy006, OPEN) — staleness surfaced by the #45146 study (pr-sweep-50 roadmap chunk 2). v1 wrote the dead boolean discard_latest_async_tokens (0 hits on pin 0.22.1rc1.dev259; upstream migrated to integer async_tokens_to_discard) and would have tripped 'assert request.num_output_placeholders >= 0' (async_scheduler.py:60) on the first preempt-resume. v2 grants TOKEN-denominated discard credit BEFORE zeroing placeholders on every preemption path ('+=' so undrained debt survives), neutralizes the reset_prefix_cache '=' credit wipe, drains a stale frame's rejected drafts from credit instead of live counters, and makes the async drain consume len(new_token_ids) per stale frame (upstream's 1-per-frame under-drains under MTP K=3, silently swallowing legitimate post-resume frames). Atomic 2-file transaction (scheduler.py + async_scheduler.py). Coexists with P58 in either apply order (narrow num_preemptions anchor). Genesis 35B PROD (async + MTP K=3, 280K agent ctx) is the exact profile where KV-pressure preemptions hit this path.",
         "upstream_pr": 38624,
         "upstream_pr_relationship": "backport",
+        "applies_to": {
+            # Anchor-tight lower bound = verification point (integer
+            # async_tokens_to_discard credit pattern byte-verified on the
+            # 0.22.1rc1.dev259 pristine tree; first-appearance dev not
+            # bisected — widen only after study). Older pins carry the
+            # boolean-era code this rewrite replaced.
+            "vllm_version_range": (">=0.22.1rc1.dev259", "<0.23.0"),
+        },
         "apply_module": "sndr.engines.vllm.patches.scheduler.p79d_preempt_async_discard",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -2316,6 +2324,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "byte-verified on pristine 0.22.1rc1.dev259, 2026-06-11"
         ),
         "lifecycle": "retired",
+        # Top-level mirror of the applies_to cap below (retired_provenance
+        # contract: superseded_by + vllm_version_range, P78 precedent).
+        # Anchor last byte-verified on nightly dcacdf9a (2026-05-14);
+        # supersession by P28 byte-verified on 0.22.1rc1.dev259.
+        "vllm_version_range": "<0.21.0",
         "category": "memory",
         "apply_module": "sndr.engines.vllm._archive.pn200_gdn_scratch_reuse",
         "source": "genesis_original",
@@ -4963,7 +4976,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "composes_with": ["PN77", "P81", "P91", "P91B", "P87"],
     },
     "PN348": {
-        "title": "Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644) — ~1 GiB/worker freed",
+        "title": "Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644) — ~1 GiB/rank peak load VRAM + 1-3s boot",
         "tier": "community",
         "family": "spec_decode",
         "env_flag": "GENESIS_ENABLE_PN348",
@@ -4982,9 +4995,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "PROD Qwen3.6-35B-A3B-FP8 config.json). At "
             "vocab=248320 × hidden=2048 × 2B BF16 = 1.0 GiB per tensor, "
             "duplicate per worker = ~1.0 GiB embed_tokens + lm_head "
-            "(TP-sharded). On 2× A5000 (24 GB ea) this is ~2 GiB freed "
-            "cluster-wide — non-trivial headroom on our perpetually-tight "
-            "Qwen3.6-35B + MTP K=3 stack. Three sub-patches text-patch "
+            "(TP-sharded). GAIN CLAIM CORRECTED 2026-06-11 (50-PR sweep "
+            "re-study of #44644): the pin's proposer already reclaims the "
+            "duplicate at steady-state, so the benefit is ~1 GiB/rank "
+            "lower PEAK load-time VRAM + 1-3s faster boot — steady-state "
+            "VRAM/TPS unchanged. ENABLED on the qwen3.6-35b-a3b-fp8 "
+            "profile 2026-06-11 (enable+measure; A/B peak VRAM + boot "
+            "time at next 35B restart). Three sub-patches text-patch "
             "qwen3_5_mtp.py: (1) embed_tokens predicate, "
             "(2) lm_head PPMissingLayer fallthrough, (3) weight-loader "
             "skip for embed_tokens/lm_head names when sharing. Required "
@@ -4997,7 +5014,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "FP8 lm_head (targets the TARGET model's lm_head dtype; "
             "this gates lm_head EXISTENCE on MTP backbone). Risk: low "
             "(getattr default preserves legacy path on models that "
-            "don't opt in; world_size==1 gate preserves legacy on PP>1)."
+            "don't opt in; world_size==1 gate preserves legacy on PP>1). "
+            "Watchlist: retire-on-merge row in tools/upstream_watchlist."
+            "yaml sweep section; vllm#44943 (pre-fused expert loader) "
+            "touches the same file — coordinate anchors if vendored."
         ),
         "upstream_pr": 44644,
         "upstream_pr_relationship": "backport",
@@ -5117,6 +5137,319 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
         "implementation_status": "full",
         "composes_with": ["PN125", "PN204", "PN286"],
+    },
+    # ─── 2026-06-11 50-PR sweep wave 1 (PN370-PN375) ──────────────────
+    # NOTE: PN370 must stay AFTER PN341 in this dict — the spec-driven
+    # loop iterates insertion order and PN370's post-PN341 anchor
+    # variant expects PN341's _prepare_inputs rewrite to land first
+    # (legacy parking-lot order already PN341 → PN370; parity here).
+    "PN370": {
+        "title": "Async spec-decode accepted-counts race fix (vendor of OPEN vllm#45100)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN370_ASYNC_ACCEPT_RACE",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn370_async_accepted_counts_race",
+        "lifecycle": "experimental",
+        "category": "spec_decode",
+        "credit": (
+            "Genesis vendor of OPEN PR vllm#45100 (2026-06-11). Fixes an "
+            "async speculative-decoding race for hybrid non-align "
+            "Mamba/GDN models — the EXACT 35B PROD config (Qwen3.6-35B-"
+            "A3B FP8 hybrid GDN+MoE, MTP K=3, async-scheduling ON). Two "
+            "sub-fixes: (1) gpu_model_runner._prepare_inputs skips the "
+            "racy CPU accepted-counts read under async + mamba_cache_mode "
+            "!= 'align' — the CPU mirror races with the in-flight "
+            "non-blocking D2H copy and with input-batch row moves "
+            "(swap_states/condense); at a prefill-to-first-spec-decode "
+            "transition GDN consumes another row's count and restores the "
+            "wrong recurrent-state slot (prompt-memory loss, garbled "
+            "early-EOS — upstream A/B: 16/20480 corrupted unpatched vs "
+            "0/20480 patched). Stays device-authoritative: counts default "
+            "to 1, the GPU correction kernel overwrites draft rows from "
+            "valid_sampled_token_count; align mode keeps the synchronized "
+            "CPU path. BONUS: deletes the per-step num_accepted_tokens_"
+            "event.synchronize() + NumPy gather + copy_to_gpu on that "
+            "path (~2-5% TPOT est. on 35B). (2) gdn_attn.py build() "
+            "sizes FULL-cudagraph per-request metadata (spec_state_"
+            "indices_tensor / spec_sequence_masks / spec_query_start_loc "
+            "/ num_accepted_tokens + non-spec decode views) by m.num_reqs "
+            "instead of token-padded m.num_actual_tokens. Anchors "
+            "byte-verified count=1 on pin g303916e93 (0.22.1rc1.dev259). "
+            "COMPOSITION: PN341 sub-patch 4 anchors the IDENTICAL "
+            "_prepare_inputs block — PN370 carries dual anchor variants "
+            "(pristine-shaped + post-PN341-shaped; the post anchor is "
+            "imported from PN341_PREPARE_NEW, required-at-least-one, "
+            "PN32/PN79 chain convention). ORDER: this entry must stay "
+            "AFTER PN341's in PATCH_REGISTRY (SNDR_APPLY_VIA_SPECS "
+            "parity) and the dispatch block already sits after PN341's "
+            "in the parking lot; the reverse order is ast-valid but "
+            "soft-skips PN341 sub-patch 4 (roadmap-sanctioned). PN290 "
+            "composes (producer vs consumer side); PN340 composes "
+            "(disjoint gdn_attn anchors). Drift markers self-skip when "
+            "vllm#45100 merges: needs_cpu_accepted_counts (runner) + "
+            "'token-padded for FULL graph replay' (gdn_attn). Opt-in "
+            "DEFAULT OFF pending per-model A/B on 35B PROD async profile "
+            "(adopt the PR's min-len/short-output distribution scoring "
+            "as the corruption detector per roadmap synergy note)."
+        ),
+        "upstream_pr": 45100,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN341", "PN340", "PN290"],
+    },
+    "PN371": {
+        "title": "Deferred ref-pinned encoder-cache eviction (vendor of CLOSED vllm#45199)",
+        "tier": "community",
+        "family": "multimodal",
+        "env_flag": "GENESIS_ENABLE_PN371_ENCODER_CACHE_EVICTION",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.multimodal.pn371_encoder_cache_deferred_eviction",
+        "lifecycle": "experimental",
+        "category": "stability",
+        "credit": (
+            "Genesis vendor of vllm PR #45199 (fixes #38551) — whole-engine-"
+            "fatal 'AssertionError: Encoder cache miss' when the scheduler "
+            "frees an encoder-cache entry an in-flight request can still "
+            "read: under async scheduling num_computed_tokens is advanced "
+            "speculatively and rolled back on draft-token rejection, and "
+            "entries are shared across requests with the same mm_hash — the "
+            "exact Gemma-4 vision + MTP K=3 + async-scheduling triple of "
+            "our gemma4 composes. Vendored at pin g303916e93 (11 anchors "
+            "byte-verified, count==1, 2026-06-11): ref-counted EncoderCache "
+            "(eager_eviction + caller-owned encoder_outputs dict + "
+            "update_request + deferred free) in gpu/mm/encoder_cache.py; "
+            "modular-runner eager_eviction=is_encoder_decoder; 5 legacy-"
+            "runner tracker points (tracker attr _g_pn371_ec_tracker — "
+            "renamed from upstream's encoder_cache_tracker for drift-marker "
+            "hygiene). GENESIS EXTEND: the fatal assert in "
+            "_gather_mm_embeddings is demoted to logger.warning_once + "
+            "feature skip in the DRAFTER path only (shift_computed_tokens "
+            "!= 0, sole non-zero caller is the MTP draft proposal); the "
+            "verifier path keeps the hard assert — the target model "
+            "verifies every draft token, so a skipped feature only degrades "
+            "draft quality. Zero impact on text-only Qwen PROD (no mm "
+            "features -> no refs -> eviction stays eager); memory overhead "
+            "bounded by in-flight requests' encoder outputs. UPSTREAM "
+            "STATUS: #45199 CLOSED unmerged 2026-06-11 (no comments), "
+            "#38551 still OPEN; WATCHLIST sibling #39544 (scheduler-side "
+            "alternative, OPEN) — if it merges instead, PN371's legacy "
+            "anchors drift and the patch skips loudly at the next pin "
+            "bump. Self-skips on #45199's merged form (eager_eviction "
+            "two-line signature / multi-line ctor / encoder_cache_tracker "
+            "call). Opt-in: intended ON for the gemma4 composes only."
+        ),
+        "upstream_pr": 45199,
+        "upstream_pr_relationship": "backport",
+        "related_upstream_prs": [39544, 39543, 38622],
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            "model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"],
+            # Registry-integration 2026-06-11: draft claimed >=0.21.0 but
+            # all 11 anchors were byte-verified ONLY on the 0.22.1 pin —
+            # pin-specific vendor range per the G4_79 checklist.
+            "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        },
+        "implementation_status": "full",
+        "composes_with": ["PN62"],
+    },
+    "PN372": {
+        "title": "eagle_step zero/negative-seqlen slot-mapping guard (vendor of OPEN vllm#45005)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN372_EAGLE_ZERO_SEQLEN_GUARD",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn372_eagle_step_zero_seqlen_guard",
+        "lifecycle": "experimental",
+        "category": "stability",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#45005 "
+            "(ashishpatel26, refs #40756/#39295), studied via gh pr "
+            "view/diff 2026-06-11. The fused EAGLE/MTP draft-step "
+            "slot-mapping kernel (eagle_step_slot_mapping_metadata_"
+            "kernel, v1/spec_decode/utils.py) advances inactive padding "
+            "rows with seq_lens == 0 whose block_table entries are -1 "
+            "-> invalid slot mapping -> CUDA illegal memory access / "
+            "device-side assert later in the draft loop. Exact crash "
+            "class of our 262-280K-token MTP K=3 agent sessions. "
+            "Guard: early-return writing PADDING_SLOT_ID + clamped "
+            "position 0, seq_lens untouched; seq_len load hoisted "
+            "(optional dedup sub-patch, parity with the PR). STRICTER "
+            "than upstream: guards seq_len <= 0, not == 0 — #40756-"
+            "class traces also showed NEGATIVE lens on corrupted rows; "
+            "identical kernel cost (one register compare on an already-"
+            "loaded value). Anchors byte-verified count==1 on pristine "
+            "pin g303916e93 (0.22.1rc1.dev259); drift markers are exact "
+            "substrings of #45005's form (absent at pin, lint-clean vs "
+            "own replacements). SUCCESS CRITERION for retiring P108 "
+            "(#42603 sync workaround for the same crash class): A/B on "
+            "35B PROD with PN372 ON + P108 OFF shows the IMA class "
+            "gone -> retire P108, recovering its 2-6% TPOT cost. A/B "
+            "planned; P108 untouched. Default OFF pending the "
+            "PN370+PN372 bench cycle (roadmap chunk-3 Theme A: land "
+            "both in the same cycle)."
+        ),
+        "upstream_pr": 45005,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["P58", "P108", "PN340", "PN341", "PN370"],
+    },
+    "PN373": {
+        "title": "parallel_tool_calls explicit null != false (vendor of OPEN vllm#44955)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN373_PARALLEL_TOOLCALLS_NULL",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.serving.pn373_parallel_toolcalls_null",
+        "lifecycle": "experimental",
+        "category": "stability",
+        "credit": (
+            "Genesis vendor of OPEN vllm PR #44955 (fixes #44948) — "
+            "parallel_tool_calls explicit JSON null treated as false. "
+            "ChatCompletionRequest.parallel_tool_calls is declared "
+            "bool | None = True (pristine chat_completion/protocol.py:233 "
+            "at pin g303916e93); clients that serialize the unset knob as "
+            "null (LiteLLM/n8n) arrive at maybe_filter_parallel_tool_calls "
+            "(entrypoints/serve/utils/tool_calls_utils.py:19) as None, and "
+            "the pristine truthiness check trims the response to a SINGLE "
+            "tool call on both the streaming path (delta.tool_calls "
+            "filtered to index==0, called from chat_completion/"
+            "serving.py:844) and the non-streaming path "
+            "(message.tool_calls[:1], serving.py:1277). The documented "
+            "default is true, so explicit null must keep all tool calls; "
+            "every recovered call saves a full agent round-trip (hundreds "
+            "of ms-s). Vendored: the 1-line semantic fix (is not False) "
+            "as one text sub-patch spanning the function docstring + "
+            "truthiness check (anchor count==1 byte-verified against "
+            "/private/tmp/candidate_pin_current 2026-06-11). ADDED beyond "
+            "upstream: the streaming-delta unit test the PR lacks "
+            "(explicit-null must NOT truncate multi-tool-call deltas) + "
+            "pristine bug reproduction (doubles as a retire trigger at "
+            "pin bump) + drift-marker hygiene suite — 19 tests in "
+            "tests/unit/integrations/serving/"
+            "test_pn373_parallel_toolcalls_null.py. No anchor overlap "
+            "with PN288/P107 (they patch chat_completion/serving.py; "
+            "PN373 patches the delegated helper module). Self-skips when "
+            "#44955 lands: drift marker is the PR post-image docstring "
+            "wording — the merged condition text cannot serve as marker "
+            "because the replacement necessarily emits it "
+            "(lint_drift_markers clean). Behavior change limited to "
+            "requests carrying explicit null; true/false semantics "
+            "preserved. Default OFF; candidate default-on after fleet "
+            "test."
+        ),
+        "upstream_pr": 44955,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        # Registry-integration 2026-06-11: draft claimed >=0.21.0 but the
+        # anchor was byte-verified ONLY on the 0.22.1 pin (and the
+        # entrypoints/serve/utils/ helper module is a recent layout) —
+        # pin-specific vendor range per the G4_79 checklist.
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["PN288", "P107", "PN70"],
+    },
+    "PN374": {
+        "title": "qwen3xml quoted parameter-name strip (Gemma4 #44715 key/value asymmetry analog)",
+        "tier": "community",
+        "family": "tool_parsing",
+        "env_flag": "GENESIS_ENABLE_PN374_QWEN3XML_QUOTED_KEYS",
+        "default_on": False,
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "genesis_original",
+        "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn374_qwen3xml_quoted_keys",
+        "lifecycle": "experimental",
+        "credit": (
+            "Genesis-original 2026-06-11 (50-PR sweep chunk-4 Theme 1 "
+            "audit mandate). qwen3xml has the same key/value asymmetry "
+            "as Gemma4 issue #44715: values are JSON-escaped but "
+            "parameter names are interpolated UNESCAPED into the "
+            "streamed arguments JSON, and the <parameter=([^>]+)> "
+            "preprocess regex captures quote chars verbatim - a "
+            "model-emitted quoted key like <parameter='3'> (or the "
+            "double-quoted form) becomes a malformed name attribute and "
+            "kills the expat parse of the element (parameter silently "
+            "dropped). Two-hunk text patch: strip whitespace + quote "
+            "wrappers from the captured name in _preprocess_xml_chunk "
+            "and in _extract_parameter_name's parameter=NAME fallback. "
+            "Anchors byte-verified count==1 vs pin "
+            "0.22.1rc1.dev259+g303916e93. No upstream PR fixes qwen3xml "
+            "keys as of 2026-06-11; upstream_pr points at the Gemma4 "
+            "sibling fix #44877 for bug-class tracking only. Tests: "
+            "tests/unit/integrations/tool_parsing/"
+            "test_pn374_qwen3xml_quoted_keys.py (15)."
+        ),
+        "upstream_pr": 44877,
+        "upstream_pr_relationship": "related_not_superseding",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "applies_to": {
+            "tool_call_parser": ["qwen3_xml"],
+            # Registry-integration 2026-06-11: pin-specific text-patch
+            # vendor — anchors byte-verified on the 0.22.1 pin only.
+            "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        },
+    },
+    "PN375": {
+        "title": "Gemma4 multi-boundary streaming tool-call deltas under MTP (vllm#44741)",
+        "tier": "community",
+        "family": "tool_parsing",
+        "env_flag": "GENESIS_ENABLE_PN375_GEMMA4_MULTIBOUNDARY_STREAMING",
+        "default_on": False,
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn375_gemma4_multiboundary_streaming",
+        "lifecycle": "experimental",
+        "credit": (
+            "Vendors upstream vllm PR #44741 (OPEN 2026-06-11, issue "
+            "#41967): under MTP a single streamed delta can cross "
+            "multiple tool-call boundaries; the pristine pin parser "
+            "selects one state-machine branch per delta and silently "
+            "drops argument fragments past the boundary (silent "
+            "first-tool-call argument loss in multi-tool streaming "
+            "turns). Runtime hook: attaches "
+            "_extract_streaming_delta_segments and rebinds "
+            "Gemma4ToolParser._extract_streaming to replay "
+            "delimiter-aligned segments through the saved original, "
+            "merging per-segment DeltaMessages. Genesis adaptations: "
+            "(1) CRITICAL - the G4_14 pad-token set is stripped from "
+            "current_text AND delta_text BEFORE the upstream endswith "
+            "consistency check (mutation-verified: without the strip "
+            "the fix silently degrades to single-pass whenever pads "
+            "appear); (2) binds at _extract_streaming so it composes "
+            "with the G4_14 wrapper in either apply order (both orders "
+            "test-verified); (3) self-skips on the G4_T1 v2 overlay "
+            "variant (accumulated-rescan, structurally immune) via "
+            "signature probe; (4) tolerates dict-or-object "
+            "DeltaToolCall.function shapes. Single-boundary deltas keep "
+            "the pristine path. Tests: tests/unit/integrations/"
+            "tool_parsing/test_pn375_gemma4_multiboundary_streaming.py "
+            "(14, incl. the combined multi-boundary + pad + "
+            "G4_14-active regression on MTP-sized chunks); the "
+            "pristine-bug reproduction test flips to FAILED when an "
+            "upstream fix lands in a pin - then deep-diff and retire "
+            "(iron-rule-#11). Racing cluster: #42006/#42237/#42300/"
+            "#43037/#44741/#45068. Enable on gemma4 profiles after "
+            "live docker-logs verification (insurance for "
+            "pristine-parser deployments; live profiles mount the v2 "
+            "overlay where PN375 self-skips)."
+        ),
+        "upstream_pr": 44741,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["G4_14", "G4_T1"],
+        "applies_to": {"tool_call_parser": "gemma4"},
     },
     "PN299E": {
         "title": "KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap (SM 8.6)",
@@ -8095,6 +8428,72 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "composes_with": ["G4_19", "G4_31", "G4_32"],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "G4_80": {
+        "title": "Allow fp8_e5m2 KV cache for weight-only quantized checkpoints (vllm#45040)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_G4_80_FP8E5M2_KV",
+        "default_on": False,
+        "category": "kernel",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_80_fp8e5m2_kv_weight_only",
+        "lifecycle": "experimental",
+        "credit": (
+            "PR-sweep wave 1 vendoring (2026-06-11, roadmap chunk-3 Theme B; "
+            "review fix same day). Upstream vllm#45040 (OPEN; closes #39137): "
+            "the pristine _init_kv_cache_quant gate (attention.py:167-168 on "
+            "pin 0.22.1rc1.dev259+g303916e93, byte-verified) rejects "
+            "--kv-cache-dtype fp8_e5m2 for EVERY compressed-tensors checkpoint "
+            "because CompressedTensorsConfig.get_quant_method returns "
+            "CompressedTensorsKVCacheMethod for all Attention layers "
+            "(compressed_tensors.py:205-206) regardless of kv_cache_scheme. "
+            "Weight-only AWQ/GPTQ carry no fp8 KV scales, so fp8 KV was "
+            "unreachable for Gemma-4-31B AWQ (CT checkpoint). TWO ARMS: arm 1 "
+            "= module-symbol rebind (NOT body copy) masking layer.kv_cache_dtype "
+            "around the original call when the upstream "
+            "_checkpoint_has_fp8_kv_scales predicate allows (gate is the sole "
+            "kv_cache_dtype read in the pristine body); arm 2 (Genesis extra, "
+            "no upstream fix exists — gh-searched 2026-06-11) = "
+            "Attention.__init__ wrap nulling query_quant for fp8_e5m2 layers: "
+            "TritonAttentionImpl sets supports_quant_query_input "
+            "unconditionally on CUDA (triton_attn.py:502), so the e4m3-only "
+            "QuantFP8 query quantizer is created and the FIRST forward (boot "
+            "memory profiling) dies on assert kv_cache_dtype in {fp8, "
+            "fp8_e4m3, nvfp4} (attention.py:467). Impl forwards handle "
+            "unquantized queries natively (q_descale dtype-gated, "
+            "triton_attn.py:607-614). Genesis extras: BOTH import sites "
+            "rebound (mla_attention.py:219 imports by value), install-time "
+            "drift guard refusing on gate-signature loss (retire trigger: "
+            "#45040 merge), GENESIS_G4_80_FORCE_ALLOW_WITH_KV_SCHEME escape "
+            "hatch (accuracy-unvalidated). Pairs with G4_31 arm 2 (vllm#45038 "
+            "sub-SM90 fp8-auto guard): guard protects the kv-auto interim "
+            "state, G4_80 is the escape. Consumed by profile "
+            "gemma4-31b-fp8e5m2-fallback on TRITON_ATTN — the ONLY viable "
+            "backend on this pin: FA2/FLEX have no fp8 KV (flash_attn.py:70-74, "
+            "flex_attention.py:86-90); FLASHINFER has true e5m2 + no query "
+            "quant sub-SM90 but fails the Gemma-4 mm-prefix validity gate "
+            "(supports_mm_prefix False, backend.py:301-303 — the G4_60L/G4_79 "
+            "gate class). KNOWN MASQUERADE (audited): TRITON_ATTN stores+loads "
+            "quantized KV as platform e4m3fn regardless of the e5m2 string "
+            "(triton_reshape_and_cache_flash.py:364-376, triton_attn.py:597-602) "
+            "— 1-byte KV with e4m3 numerics + unit scales; e5m2 selector still "
+            "correct vs plain fp8 because it keeps the query unquantized "
+            "(#44879 IMA surface). 31B KV halves (~9.4 -> ~4.7 GiB @200K) "
+            "toward full 256K ctx. Boot+bench validation pending (incl. Triton "
+            "emulated e4m3 cast compile on SM 8.6); 30 torch-less unit tests."
+        ),
+        "upstream_pr": 45040,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["G4_31", "G4_79"],
+        "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
+        # Registry-integration 2026-06-11: G4_79-template parity — the
+        # rebind anchors + drift guard target the 0.22.1 validity-gate
+        # generation (pin-specific vendor range per the G4_79 checklist).
         "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
     "G4_70": {

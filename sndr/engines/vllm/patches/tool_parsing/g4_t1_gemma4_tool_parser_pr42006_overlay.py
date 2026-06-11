@@ -39,7 +39,11 @@
 # #44715) — dict-key STRING_DELIM strip in `_parse_gemma4_args()`.
 # Vendored here too (this file is the operator rollback path for the
 # CURRENT v2 overlay) so a rollback does not reintroduce the key-leak
-# bug. See the v2 overlay header for full provenance and tracking.
+# bug. SUPERSEDED same sweep (2026-06-11) by the upstream PR #44877
+# quoted-key branch (same issue #44715), vendored verbatim in place of
+# the #44717 post-hoc strip — handles ':' inside quoted keys and
+# withholds unterminated quoted keys during streaming. See the v2
+# overlay header for full provenance and tracking.
 # Tests: tests/unit/integrations/tool_parsing/
 # test_g4_t1_dict_key_sentinel_strip.py.
 #
@@ -171,23 +175,37 @@ def _parse_gemma4_args(args_str: str, *, partial: bool = False) -> dict:
         if i >= n:
             break
 
-        # Parse key (unquoted, ends at ':')
-        key_start = i
-        while i < n and args_str[i] != ":":
-            i += 1
-        if i >= n:
-            break
-        key = args_str[key_start:i].strip()
-
-        # String-quoted key: <|"|>...<|"|> — strip sentinels the same way
-        # value positions do (vendored upstream PR #44717, issue #44715).
-        if (
-            key.startswith(STRING_DELIM)
-            and key.endswith(STRING_DELIM)
-            and len(key) >= 2 * len(STRING_DELIM)
-        ):
-            key = key[len(STRING_DELIM) : -len(STRING_DELIM)]
-        i += 1  # skip ':'
+        # Parse key. Keys are usually bare identifiers terminated by ':', but
+        # the model may wrap a string-typed key in STRING_DELIM (e.g.
+        # <|"|>3<|"|>) to mark a numeric-looking key as a string. Handle that
+        # case the same way as string values below so the delimiter is
+        # stripped from the key rather than kept verbatim (vendored upstream
+        # PR #44877, issue #44715; supersedes the PR #44717 post-hoc strip —
+        # the inline branch additionally handles ':' inside a quoted key and
+        # withholds unterminated quoted keys during streaming).
+        if args_str[i:].startswith(STRING_DELIM):
+            i += len(STRING_DELIM)
+            key_start = i
+            end_pos = args_str.find(STRING_DELIM, i)
+            if end_pos == -1:
+                # Unterminated key string — nothing parseable follows.
+                break
+            key = args_str[key_start:end_pos]
+            i = end_pos + len(STRING_DELIM)
+            # Skip to the ':' separator (whitespace may precede it).
+            while i < n and args_str[i] != ":":
+                i += 1
+            if i >= n:
+                break
+            i += 1  # skip ':'
+        else:
+            key_start = i
+            while i < n and args_str[i] != ":":
+                i += 1
+            if i >= n:
+                break
+            key = args_str[key_start:i].strip()
+            i += 1  # skip ':'
 
         # Parse value
         if i >= n:

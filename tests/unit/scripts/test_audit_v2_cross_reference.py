@@ -48,7 +48,10 @@ class TestLiveRepo:
         # chat-K3 promotion session (2026-06-01): +2 profiles
         # (gemma4-31b-tq-mtp-chat-k3 + gemma4-26b-mtp-chat-k3) + 2
         # preset aliases (23 profile + 23 preset×3 = 92).
-        assert len(results) == 92
+        # 50-PR sweep wave 1 (2026-06-11): +1 profile
+        # (gemma4-31b-fp8e5m2-fallback, G4_80 consumer; no preset
+        # alias) (24 profile + 23 preset×3 = 93).
+        assert len(results) == 93
 
 
 class TestScriptCLI:
@@ -73,7 +76,8 @@ class TestScriptCLI:
         # Phase 7.G4.26B-A4B.B0 (2026-05-23): +3 profiles + 3 presets = 80.
         # Phase 7.G4.26B-A4B.B4-PRE (2026-05-23): +1 profile + 1 preset = 84.
         # chat-K3 promotion session (2026-06-01): +2 profiles + 2 presets = 92.
-        assert payload["total"] == 92
+        # 50-PR sweep wave 1 (2026-06-11): +1 profile (no preset) = 93.
+        assert payload["total"] == 93
 
 
 class TestSyntheticBroken:

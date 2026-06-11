@@ -837,6 +837,64 @@ def apply_patch_N56_qwen3coder_xml_fallback() -> PatchResult:
     return _failed(name, reason)
 
 
+@register_patch("PN374 qwen3xml quoted parameter-name strip (Gemma4 #44715 analog)")
+def apply_patch_N374_qwen3xml_quoted_keys() -> PatchResult:
+    """PN374: Genesis-original — strip quote wrappers from qwen3xml
+    parameter names. Same key/value asymmetry class as Gemma4 issue
+    #44715 (fixed for gemma4 by the G4_T1 overlay #44877 hunk): values
+    are JSON-escaped downstream but parameter names are interpolated
+    verbatim, and the <parameter=NAME> preprocess regex captures quote
+    chars into the XML name attribute, killing the expat parse of the
+    element. Two-hunk text patch on tool_parsers/qwen3xml_tool_parser.py.
+    Opt-in via GENESIS_ENABLE_PN374_QWEN3XML_QUOTED_KEYS=1."""
+    name = "PN374 qwen3xml quoted parameter-name strip"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: text-patch ready")
+    try:
+        from sndr.engines.vllm.patches.tool_parsing import (
+            pn374_qwen3xml_quoted_keys,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = pn374_qwen3xml_quoted_keys.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
+@register_patch("PN375 Gemma4 multi-boundary streaming deltas (vendor of OPEN vllm#44741)")
+def apply_patch_N375_gemma4_multiboundary_streaming() -> PatchResult:
+    """PN375: vendors OPEN PR vllm#44741 (issue #41967). Under MTP a
+    single streamed delta can cross multiple tool-call boundaries; the
+    pristine pin parser picks one state-machine branch per delta and
+    silently drops argument fragments past the boundary. Runtime hook:
+    attaches _extract_streaming_delta_segments and rebinds
+    Gemma4ToolParser._extract_streaming to replay delimiter-aligned
+    segments through the saved original. CRITICAL Genesis adaptation:
+    the G4_14 pad-token set is stripped from current_text AND
+    delta_text BEFORE the upstream consistency check (without it the
+    fix silently degrades whenever pads appear). Self-skips on the
+    G4_T1 v2 overlay variant (structurally immune).
+    Opt-in via GENESIS_ENABLE_PN375_GEMMA4_MULTIBOUNDARY_STREAMING=1."""
+    name = "PN375 gemma4 multi-boundary streaming deltas"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: runtime hook ready")
+    try:
+        from sndr.engines.vllm.patches.tool_parsing import (
+            pn375_gemma4_multiboundary_streaming,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, reason = pn375_gemma4_multiboundary_streaming.apply()
+    if status == "applied":
+        return _applied(name, reason)
+    if status == "skipped":
+        return _skipped(name, reason)
+    return _failed(name, reason)
+
+
 @register_patch("PN57 TQ centroids disk-persistent cache (vllm#41418-inspired)")
 def apply_patch_N57_tq_centroids_disk_cache() -> PatchResult:
     """PN57: disk-persistent cache for TurboQuant Lloyd-Max centroids."""
@@ -5415,6 +5473,29 @@ def apply_patch_N369_relaxed_acceptance() -> PatchResult:
     return _skipped("PN369 relaxed acceptance (MTP spec-decode)", detail)
 
 
+@register_patch("PN372 eagle_step zero/negative-seqlen slot-mapping guard (vendor of OPEN vllm#45005)")
+def apply_patch_N372_eagle_step_zero_seqlen_guard() -> PatchResult:
+    """PN372: vendors OPEN PR vllm#45005. Guards the fused EAGLE/MTP
+    draft-step slot-mapping Triton kernel against inactive padding rows:
+    early-return with PADDING_SLOT_ID + clamped position 0, seq_lens
+    untouched. Without it those rows advance through a -1 block_table
+    row -> invalid slot -> CUDA IMA / device-side assert on long MTP
+    sessions (vllm#40756 class — our 262-280K agent profile). STRICTER
+    than upstream: guards seq_len <= 0 (negative lens observed in
+    #40756-class traces), not == 0. Success criterion for retiring
+    P108's draft-loop synchronize (A/B planned; P108 untouched here).
+    Opt-in via GENESIS_ENABLE_PN372_EAGLE_ZERO_SEQLEN_GUARD=1."""
+    from sndr.engines.vllm.patches.spec_decode import (
+        pn372_eagle_step_zero_seqlen_guard as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN372 eagle_step zero-seqlen guard", detail)
+    if status == "failed":
+        return _failed("PN372 eagle_step zero-seqlen guard", detail)
+    return _skipped("PN372 eagle_step zero-seqlen guard", detail)
+
+
 @register_patch("PN346 Mamba/GDN cache hit boundary fix (vendor of OPEN vllm#43650)")
 def apply_patch_N346_mamba_mtp_apc_boundary() -> PatchResult:
     """PN346: vendors OPEN PR vllm#43650 (6-LOC fix). Adds a boundary
@@ -5744,6 +5825,32 @@ def apply_patch_N290_num_accepted_tokens_race() -> PatchResult:
     if status == "failed":
         return _failed("PN290 num_accepted_tokens D2H race fix", detail)
     return _skipped("PN290 num_accepted_tokens D2H race fix", detail)
+
+
+@register_patch("PN370 Async spec-decode accepted-counts race fix (vendor of OPEN vllm#45100)")
+def apply_patch_N370_async_accepted_counts_race() -> PatchResult:
+    """PN370: vendors OPEN PR vllm#45100. Two sub-fixes: (1)
+    _prepare_inputs skips the racy CPU accepted-counts read under async
+    scheduling on the non-align mamba path (stays device-authoritative;
+    kills the wrong-row GDN recurrent-state restore => garbled
+    early-EOS corruption on hybrid + MTP + async — exact 35B PROD
+    config) and deletes the per-step num_accepted_tokens_event
+    .synchronize() (~2-5% TPOT); (2) gdn_attn.py sizes FULL-cudagraph
+    per-request metadata by m.num_reqs instead of the token-padded
+    m.num_actual_tokens. Carries a post-PN341 anchor variant (chain
+    convention) — this block MUST stay AFTER PN341's in the parking
+    lot so PN341 applies first. Opt-in via
+    GENESIS_ENABLE_PN370_ASYNC_ACCEPT_RACE=1. Composes with PN290
+    (producer vs consumer side) + PN340 + PN341."""
+    from sndr.engines.vllm.patches.spec_decode import (
+        pn370_async_accepted_counts_race as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN370 async accepted-counts race fix", detail)
+    if status == "failed":
+        return _failed("PN370 async accepted-counts race fix", detail)
+    return _skipped("PN370 async accepted-counts race fix", detail)
 
 
 @register_patch("G4_61 TurboQuant shared decode workspace (vllm#40798 cherry-pick)")

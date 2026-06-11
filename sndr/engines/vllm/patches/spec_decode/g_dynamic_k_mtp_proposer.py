@@ -71,6 +71,7 @@ flipping default_on in registry.
 """
 from __future__ import annotations
 
+import logging
 import os
 from collections import deque
 from collections.abc import Sequence
@@ -80,6 +81,8 @@ from typing import Any
 # `_install_dynamic_k_methods` (apply time, inside the container).
 # Top-level heavy imports would break torch-less collection on dev
 # machines and the registry apply_module importability gate.
+
+logger = logging.getLogger("genesis.spec_decode.g_dynamic_k_mtp_proposer")
 
 # Constants — verbatim from PR #26504
 MIN_SPEC_TOKENS = 1
@@ -116,6 +119,36 @@ def _env_enabled() -> bool:
     return str(raw).strip().lower() in ("1", "true", "yes", "on")
 
 
+def _env_initial_k(launcher_max: int) -> int:
+    """Operator-configurable initial K. Defaults to launcher's
+    `num_speculative_tokens` (= max K), but can be lowered via
+    `GENESIS_SNDR_MTP_DYNAMIC_K_INITIAL` to converge faster on
+    chat-heavy workloads where K=4 wastes cycles before adapting
+    down to K=3.
+
+    Returns the clamped initial K (clamped to [MIN_SPEC_TOKENS,
+    launcher_max]).
+    """
+    raw = os.environ.get("GENESIS_SNDR_MTP_DYNAMIC_K_INITIAL", "")
+    if not raw:
+        return launcher_max
+    try:
+        val = int(raw)
+    except (TypeError, ValueError):
+        return launcher_max
+    return max(MIN_SPEC_TOKENS, min(val, launcher_max))
+
+
+def _env_log_changes() -> bool:
+    """Operator-optional per-step K-change observability log.
+    Off by default to avoid log spam at conc>=2.
+
+    Enable via `GENESIS_SNDR_MTP_DYNAMIC_K_LOG_CHANGES=1`.
+    """
+    raw = os.environ.get("GENESIS_SNDR_MTP_DYNAMIC_K_LOG_CHANGES", "")
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
 def _install_dynamic_k_methods(target_cls: type) -> None:
     """Monkey-patch `target_cls` (DraftModelProposer) with adaptive K state
     + propose() override. Idempotent — re-running is a no-op when the
@@ -137,10 +170,19 @@ def _install_dynamic_k_methods(target_cls: type) -> None:
         self._sndr_last_proposed_k_per_seq: dict[str, int] = {}
         self._sndr_acceptance_rate_threshold = _env_acceptance_rate_threshold()
         self._sndr_max_spec_tokens = self.num_speculative_tokens
-        self._sndr_initial_spec_tokens = max(
-            MIN_SPEC_TOKENS,
-            min(self.num_speculative_tokens, self._sndr_max_spec_tokens),
+        # v1.4 (2026-05-31): operator-configurable initial K. Defaults to
+        # launcher's K (max); lower it via
+        # GENESIS_SNDR_MTP_DYNAMIC_K_INITIAL to converge faster on
+        # chat-heavy traffic where the algorithm would otherwise waste
+        # MIN_HISTORY_FOR_ADJUSTMENT=3 cycles at K=max before adapting
+        # down.
+        self._sndr_initial_spec_tokens = _env_initial_k(
+            self._sndr_max_spec_tokens
         )
+        self._sndr_log_changes = _env_log_changes()
+        # v1.4: per-instance change counter (rate-limited log; caps at
+        # 50 emissions per worker to avoid spamming at conc>=2).
+        self._sndr_change_log_count = 0
 
     def _get_or_create_state(self, req_id: str) -> SequenceState:
         state = self._sndr_seq_states.get(req_id)
@@ -205,6 +247,30 @@ def _install_dynamic_k_methods(target_cls: type) -> None:
                 new_k = max(old_k - 1, MIN_SPEC_TOKENS)
             if new_k != old_k:
                 state.num_spec_tokens = new_k
+                # v1.4: observability log (rate-limited per worker).
+                if (
+                    self._sndr_log_changes
+                    and self._sndr_change_log_count < 50
+                ):
+                    self._sndr_change_log_count += 1
+                    direction = "up" if new_k > old_k else "down"
+                    short_id = (
+                        req_id.split("-")[-1][:8]
+                        if "-" in req_id
+                        else req_id[:8]
+                    )
+                    logger.info(
+                        "[SNDR_MTP_DYNAMIC_K] req=%s adapt %s K=%d->%d "
+                        "(avg_acc=%.3f, threshold=%.2f±%.2f, max=%d)",
+                        short_id,
+                        direction,
+                        old_k,
+                        new_k,
+                        avg_acceptance_rate,
+                        self._sndr_acceptance_rate_threshold,
+                        ACCEPTANCE_RATE_HYSTERESIS,
+                        self._sndr_max_spec_tokens,
+                    )
             spec_tokens_for_batch.append(state.num_spec_tokens)
         return spec_tokens_for_batch
 
@@ -330,10 +396,17 @@ def apply() -> tuple[str, str]:
         return "failed", (
             f"SNDR_MTP_DYNAMIC_K_001 installation failed: {e!r}"
         )
+    # v1.4: surface initial_k + log_changes settings in the apply msg
+    # so operators can see what they enabled.
+    initial_k_env = os.environ.get(
+        "GENESIS_SNDR_MTP_DYNAMIC_K_INITIAL", ""
+    )
     return "applied", (
         f"{GENESIS_MARKER}; threshold={_env_acceptance_rate_threshold()}, "
-        f"hysteresis=±{ACCEPTANCE_RATE_HYSTERESIS}, history_len="
-        f"{ACCEPTANCE_HISTORY_LEN}, min_history={MIN_HISTORY_FOR_ADJUSTMENT}"
+        f"hysteresis=+/-{ACCEPTANCE_RATE_HYSTERESIS}, history_len="
+        f"{ACCEPTANCE_HISTORY_LEN}, min_history={MIN_HISTORY_FOR_ADJUSTMENT}, "
+        f"initial_k_env={initial_k_env or 'unset (use launcher max)'}, "
+        f"log_changes={_env_log_changes()}"
     )
 
 

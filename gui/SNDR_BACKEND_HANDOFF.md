@@ -56,7 +56,7 @@ held back from prod pending operator approval.
 1. Merge / cherry-pick the three commits above into the host's deployed branch
    (`dev`), or fast-forward `dev` to include them.
 2. Rebuild + restart the host `sndr-daemon` container (host-network bind-mount of
-   `/home/sander/genesis-vllm-patches/sndr`).
+   `/home/<operator>/genesis-vllm-patches/sndr`).
 3. Run the post-deploy smoke (section 3). Items 2–6 only become observable after
    this rebuild.
 
