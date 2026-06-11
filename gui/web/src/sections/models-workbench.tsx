@@ -28,7 +28,7 @@ const ModelManagementPanel = lazy(() => import("../Engine").then((m) => ({ defau
 function modelFamily(id: string): string {
   if (id.startsWith("qwen")) return "Qwen 3.6";
   if (id.startsWith("gemma")) return "Gemma 4";
-  const head = id.split("-")[0];
+  const head = id.split("-")[0] ?? id;
   return head.charAt(0).toUpperCase() + head.slice(1);
 }
 

@@ -1640,16 +1640,16 @@ export default function App() {
 }
 
 class SectionErrorBoundary extends Component<{ section: string; children: ReactNode }, { error: Error | null }> {
-  state: { error: Error | null } = { error: null };
+  override state: { error: Error | null } = { error: null };
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
-  componentDidUpdate(prev: { section: string }) {
+  override componentDidUpdate(prev: { section: string }) {
     if (prev.section !== this.props.section && this.state.error) {
       this.setState({ error: null });
     }
   }
-  render() {
+  override render() {
     if (this.state.error) {
       return (
         <section className="section-workspace">

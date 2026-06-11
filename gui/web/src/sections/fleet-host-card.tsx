@@ -221,7 +221,7 @@ export function FleetHostCard({
           <div className="fleet-live">
             {fleet.gpus.length > 0 && (
               <div className="fleet-live-sect">
-                <div className="fleet-live-t"><Cpu size={12} /> {fleet.gpus.length}× {sg(fleet.gpus[0].name)}
+                <div className="fleet-live-t"><Cpu size={12} /> {fleet.gpus.length}× {sg(fleet.gpus[0]!.name)}
                   {totalVram > 0 && <span className="fleet-live-vram">{Math.round(totalVram / 1024)} GB</span>}
                   {fleet.interconnect && <span className="fleet-live-ic"><Link2 size={10} /> {fleet.interconnect}</span>}
                 </div>

@@ -146,7 +146,7 @@ export function EngineMetricsPanel({ host }: { host?: string }) {
       </div>
       <div className="engine-kpis">
         {tiles.map((spec) => {
-          const value = kpis[spec.key];
+          const value = kpis[spec.key]!; // tiles are filtered to defined keys above
           const tone = spec.tone ? spec.tone(value) : "";
           return (
             <div className={`engine-kpi ${tone}`} key={spec.key}>
@@ -337,7 +337,7 @@ export function EnginePlayground({ host, models }: { host?: string; models?: str
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!model && models && models.length) setModel(models[0]);
+    if (!model && models && models.length) setModel(models[0]!);
   }, [models, model]);
 
   const send = async (event: FormEvent) => {
@@ -550,7 +550,7 @@ function inlineMd(text: string): ReactNode[] {
     if (tok.startsWith("**")) nodes.push(<strong key={key++}>{tok.slice(2, -2)}</strong>);
     else if (tok.startsWith("`")) nodes.push(<code className="md-inline" key={key++}>{tok.slice(1, -1)}</code>);
     else if (tok.startsWith("*")) nodes.push(<em key={key++}>{tok.slice(1, -1)}</em>);
-    else { const mm = tok.match(/\[([^\]]+)\]\(([^)]+)\)/); if (mm) { const url = mm[2].trim(); const safe = /^https?:\/\//i.test(url); nodes.push(safe ? <a key={key++} href={url} target="_blank" rel="noreferrer">{mm[1]}</a> : <span key={key++}>{mm[1]}</span>); } }
+    else { const mm = tok.match(/\[([^\]]+)\]\(([^)]+)\)/); if (mm) { const url = mm[2]!.trim(); const safe = /^https?:\/\//i.test(url); nodes.push(safe ? <a key={key++} href={url} target="_blank" rel="noreferrer">{mm[1]}</a> : <span key={key++}>{mm[1]}</span>); } }
     last = m.index + tok.length;
   }
   if (last < text.length) nodes.push(text.slice(last));
@@ -583,10 +583,10 @@ function MarkdownLite({ text }: { text: string }) {
           const bullet = line.match(/^\s*[-*]\s+(.*)/);
           const num = line.match(/^\s*\d+\.\s+(.*)/);
           const quote = line.match(/^>\s?(.*)/);
-          if (h) { flush(`fl${bi}-${i}`); out.push(<div className={`md-h md-h${h[1].length}`} key={`${bi}-${i}`}>{inlineMd(h[2])}</div>); }
-          else if (bullet) { list.push(bullet[1]); }
-          else if (num) { list.push(num[1]); }
-          else if (quote) { flush(`fl${bi}-${i}`); out.push(<blockquote className="md-quote" key={`${bi}-${i}`}>{inlineMd(quote[1])}</blockquote>); }
+          if (h) { flush(`fl${bi}-${i}`); out.push(<div className={`md-h md-h${h[1]!.length}`} key={`${bi}-${i}`}>{inlineMd(h[2]!)}</div>); }
+          else if (bullet) { list.push(bullet[1]!); }
+          else if (num) { list.push(num[1]!); }
+          else if (quote) { flush(`fl${bi}-${i}`); out.push(<blockquote className="md-quote" key={`${bi}-${i}`}>{inlineMd(quote[1]!)}</blockquote>); }
           else if (line.trim()) { flush(`fl${bi}-${i}`); out.push(<p className="md-p" key={`${bi}-${i}`}>{inlineMd(line)}</p>); }
         });
         flush(`fl${bi}-end`);
@@ -858,7 +858,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   }
   function startConversation() { const c = newConversation(); setConversations((prev) => [c, ...prev]); setActiveId(c.id); setError(null); }
   function deleteConversation(id: string) {
-    setConversations((prev) => { const next = prev.filter((c) => c.id !== id); if (!next.length) { const c = newConversation(); setActiveId(c.id); return [c]; } if (id === activeIdRef.current) setActiveId(next[0].id); return next; });
+    setConversations((prev) => { const next = prev.filter((c) => c.id !== id); if (!next.length) { const c = newConversation(); setActiveId(c.id); return [c]; } if (id === activeIdRef.current) setActiveId(next[0]!.id); return next; });
   }
   function exportConversation() {
     const md = messages.map((m) => `**${m.role === "user" ? "You" : "Assistant"}:**\n\n${m.content}`).join("\n\n---\n\n");

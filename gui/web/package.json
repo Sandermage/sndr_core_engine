@@ -3,6 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "description": "SNDR Control Center — operator console for the SNDR inference platform (vLLM engine ops, fleet, configs, benchmarks).",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "tsc -b && vite build",

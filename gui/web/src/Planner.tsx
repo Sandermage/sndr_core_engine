@@ -139,7 +139,7 @@ export function KvCalcPanel() {
             <strong>{rec.fits ? `${tr("Recommended:")} ${rec.kv_dtype} KV` : tr("Won't fit at this target")}</strong>
             <span>{rec.fits
               ? `${calc!.arch.name} ${tr("on")} ${tp}× ${Math.round(vram / 1024)}GB ${tr("at")} ${fmtCtx(ctx)} ctx · ${conc} ${tr("conc")} → ${tr("fits with")} ${fmtGb(rec.headroom_mib)} ${tr("headroom")} (${tr("max")} ${fmtCtx(rec.max_context)}).`
-              : `${tr("Even")} ${calc!.recommendation[calc!.recommendation.length - 1].kv_dtype} KV ${tr("is over budget at")} ${fmtCtx(ctx)} ctx · ${conc} ${tr("conc")}. ${tr("Lower context/concurrency, add a GPU (TP), or use a smaller model.")}`}</span>
+              : `${tr("Even")} ${calc!.recommendation[calc!.recommendation.length - 1]!.kv_dtype} KV ${tr("is over budget at")} ${fmtCtx(ctx)} ctx · ${conc} ${tr("conc")}. ${tr("Lower context/concurrency, add a GPU (TP), or use a smaller model.")}`}</span>
           </div>
           <div className="kvcalc-rec-opts">
             {calc!.recommendation.map((o) => (
@@ -204,7 +204,7 @@ function VramChart({ curve, budget, ctx, maxCtx }: { curve: KvCalcResult["curve"
   const xticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxX * f));
   const yticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxY * f));
   // Nearest sampled point to the cursor → exact values for the callout.
-  const cur = curve.reduce((a, b) => Math.abs(b.context - ctx) < Math.abs(a.context - ctx) ? b : a, curve[0]) || curve[0];
+  const cur = curve.reduce((a, b) => Math.abs(b.context - ctx) < Math.abs(a!.context - ctx) ? b : a, curve[0]) || curve[0];
   const over = cur ? cur.total_mib > budget : false;
   const cx = x(cur?.context ?? ctx);
   const calloutLeft = cx > W * 0.6;
@@ -285,7 +285,7 @@ function VramDonut({ r }: { r: KvEstimate }) {
 // Operating-envelope heatmap: concurrency × context, cell colour = headroom.
 function FitHeatmap({ env, ctx, conc, onPick }: { env: KvCalcResult["envelope"]; ctx: number; conc: number; onPick: (c: number, k: number) => void }) {
   const cellColor = (h: number) => h < 0 ? "over" : h < 2048 ? "tight" : h < 6144 ? "ok" : "good";
-  const nearestCtx = env.contexts.reduce((a, b) => Math.abs(b - ctx) < Math.abs(a - ctx) ? b : a, env.contexts[0]);
+  const nearestCtx = env.contexts.reduce((a, b) => Math.abs(b - ctx) < Math.abs(a! - ctx) ? b : a, env.contexts[0]);
   return (
     <div className="heatmap">
       <div className="kvcalc-label">{tr("Operating envelope — does it fit? (concurrency × context)")}</div>
@@ -293,7 +293,7 @@ function FitHeatmap({ env, ctx, conc, onPick }: { env: KvCalcResult["envelope"];
         <span className="heatmap-corner" />
         {env.contexts.map((c) => <span key={c} className="heatmap-xlabel">{fmtCtx(c)}</span>)}
         {[...env.grid].reverse().map((row, ri) => {
-          const k = [...env.concurrencies].reverse()[ri];
+          const k = [...env.concurrencies].reverse()[ri]!; // grid rows align with concurrencies
           return (
             <Fragment key={`row-${k}`}>
               <span className="heatmap-ylabel">{k}×</span>
@@ -375,7 +375,7 @@ function BaselineTrendChart({ reloadKey }: { reloadKey: number }) {
   const W = 100, H = 38, step = W / (pts.length - 1);
   const xy = (v: number, i: number) => ({ x: i * step, y: H - ((v - min) / span) * H });
   const line = pts.map((p, i) => { const c = xy(p.value, i); return `${c.x.toFixed(1)},${c.y.toFixed(1)}`; }).join(" ");
-  const first = vals[0], last = vals[vals.length - 1];
+  const first = vals[0]!, last = vals[vals.length - 1]!; // pts.length >= 2 guarded above
   const delta = first ? ((last - first) / first) * 100 : 0;
   const flat = Math.abs(delta) < 1;
   const better = data?.lower_is_better ? delta < 0 : delta > 0;
@@ -396,8 +396,8 @@ function BaselineTrendChart({ reloadKey }: { reloadKey: number }) {
         <polyline points={line} />
       </svg>
       <div className="baseline-trend-foot">
-        <span>{pts[0].label}: {first}</span>
-        <span>{pts[pts.length - 1].label}: {last}</span>
+        <span>{pts[0]!.label}: {first}</span>
+        <span>{pts[pts.length - 1]!.label}: {last}</span>
       </div>
     </div>
   );

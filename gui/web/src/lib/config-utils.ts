@@ -15,12 +15,12 @@ export function setIn(obj: any, path: string, value: any): any {
   const clone = Array.isArray(obj) ? [...obj] : { ...obj };
   let cursor = clone;
   for (let i = 0; i < keys.length - 1; i += 1) {
-    const key = keys[i];
+    const key = keys[i]!; // bounded loop index — split() yields no holes
     const next = cursor[key];
     cursor[key] = next && typeof next === "object" ? (Array.isArray(next) ? [...next] : { ...next }) : {};
     cursor = cursor[key];
   }
-  cursor[keys[keys.length - 1]] = value;
+  cursor[keys[keys.length - 1]!] = value; // split() always yields ≥1 segment
   return clone;
 }
 

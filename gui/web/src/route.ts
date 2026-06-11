@@ -20,7 +20,7 @@ export const SECTION_IDS = new Set<string>([
 // Tolerates a leading `#`/`#/` and an optional `?query` suffix.
 export function sectionFromHash(): string | null {
   if (typeof window === "undefined") return null;
-  const raw = window.location.hash.replace(/^#\/?/, "").split("?")[0];
+  const raw = window.location.hash.replace(/^#\/?/, "").split("?")[0] ?? "";
   return SECTION_IDS.has(raw) ? raw : null;
 }
 

@@ -40,7 +40,8 @@ export function TabbedSection({
     else if (event.key === "ArrowLeft") next = (activeIndex - 1 + tabs.length) % tabs.length;
     else if (event.key === "Home") next = 0;
     else if (event.key === "End") next = tabs.length - 1;
-    setActive(tabs[next].id);
+    const target = tabs[next];
+    if (target) setActive(target.id);
   };
   return (
     <div className="section-tabs-wrap">

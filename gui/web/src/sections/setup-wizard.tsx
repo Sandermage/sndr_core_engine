@@ -49,7 +49,7 @@ export function SetupWizard({
   ];
   const [active, setActive] = useState(0);
   const done = steps.filter((step) => step.status === "done").length;
-  const cur = steps[active];
+  const cur = steps[active]!; // active is clamped to [0, steps.length-1]
 
   const tone = (status: WizardStatus) =>
     status === "done" ? "ok" : status === "blocked" ? "danger" : status === "warning" ? "warn" : status === "active" ? "accent" : "muted";

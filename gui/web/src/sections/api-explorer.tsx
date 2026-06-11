@@ -17,7 +17,7 @@ const EXPLORER_ENDPOINTS = [
 ];
 
 export function EndpointExplorer() {
-  const [path, setPath] = useState(EXPLORER_ENDPOINTS[2]);
+  const [path, setPath] = useState(EXPLORER_ENDPOINTS[2] ?? "");
   const [result, setResult] = useState<string[] | null>(null);
   const [meta, setMeta] = useState<{ ok: boolean; ms: number } | null>(null);
   const [busy, setBusy] = useState(false);

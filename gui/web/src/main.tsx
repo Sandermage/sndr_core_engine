@@ -11,14 +11,14 @@ class RootBoundary extends React.Component<
   { children: React.ReactNode },
   { error: Error | null }
 > {
-  state: { error: Error | null } = { error: null };
+  override state: { error: Error | null } = { error: null };
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
-  componentDidCatch(error: Error) {
+  override componentDidCatch(error: Error) {
     console.error("[SNDR GUI] unrecovered error:", error);
   }
-  render() {
+  override render() {
     if (this.state.error) {
       return (
         <div

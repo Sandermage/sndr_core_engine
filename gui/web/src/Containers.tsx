@@ -103,7 +103,7 @@ function ansiToHtml(text: string): string {
   while ((m = re.exec(text)) !== null) {
     out += escapeHtml(text.slice(idx, m.index));
     idx = m.index + m[0].length;
-    const codes = m[1].split(";").filter(Boolean).map(Number);
+    const codes = (m[1] ?? "").split(";").filter(Boolean).map(Number);
     close();
     if (codes.length === 0 || codes.includes(0)) continue;
     let color = "", bold = false;
@@ -961,7 +961,7 @@ function OverviewTab({ source, name, inspect, online, ver, onNavigate }: { sourc
   const cfg = inspect.Config ?? {}, state = inspect.State ?? {}, net = inspect.NetworkSettings ?? {}, hostCfg = inspect.HostConfig ?? {};
   const cmd = [...(cfg.Entrypoint ?? []), ...(cfg.Cmd ?? [])].join(" ") || "—";
   const networks = Object.keys(net.Networks ?? {});
-  const ip = net.IPAddress || (networks.length ? net.Networks[networks[0]]?.IPAddress : "") || "—";
+  const ip = net.IPAddress || (networks.length ? net.Networks[networks[0]!]?.IPAddress : "") || "—";
   const cpu = s?.cpu_pct ?? 0, memPct = s?.mem_pct ?? 0;
   const isEngine = /vllm/i.test(`${name} ${cfg.Image ?? ""}`) && !/daemon/i.test(name);
   const health = state.Health?.Status as string | undefined;

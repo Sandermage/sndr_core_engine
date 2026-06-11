@@ -91,7 +91,7 @@ export function FleetPanel({ onOpenHost }: { onOpenHost: (id: string) => void })
                 return (
                   <div className="fleet-gpu">
                     <div className="fleet-gpu-head">
-                      <Cpu size={12} /> {h.gpus.length}× {shortGpu(h.gpus[0].name)}
+                      <Cpu size={12} /> {h.gpus.length}× {shortGpu(h.gpus[0]!.name)}
                       {totalVram > 0 && <span className="fleet-gpu-vram">{gpb(totalVram)} GB</span>}
                       {h.interconnect && <span className="fleet-gpu-ic"><Link2 size={10} /> {h.interconnect}</span>}
                     </div>
