@@ -596,13 +596,16 @@ function MarkdownLite({ text }: { text: string }) {
   );
 }
 
-type ChatStat = { tokens?: number; tps?: number; ttft_ms?: number; latency_ms?: number };
+type ChatStat = { tokens?: number; tps?: number; ttft_ms?: number; latency_ms?: number; reasoningEmpty?: boolean };
 type ChatMessage = { role: "user" | "assistant"; content: string; stat?: ChatStat; sources?: RagDoc[] };
 type Conversation = { id: string; title: string; messages: ChatMessage[]; createdAt: number; updatedAt: number };
 type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; presencePenalty: number; frequencyPenalty: number; stop: string; thinking: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
 
 const CHAT_KEY = "sndr.chat.v1";
-const DEFAULT_SETTINGS: ChatSettings = { host: "127.0.0.1", port: 8000, model: "", apiKey: "", hostId: "", system: "You are a helpful assistant.", temperature: 0.7, maxTokens: 512, topP: 1, presencePenalty: 0, frequencyPenalty: 0, stop: "", thinking: false, useProject: false, ragProject: true, ragVaults: [], workloadClass: "" };
+// maxTokens defaults high enough for reasoning models: with --reasoning-parser
+// active, the model spends tokens in reasoning_content before reaching the
+// answer; too small a budget truncates inside thinking → empty content.
+const DEFAULT_SETTINGS: ChatSettings = { host: "127.0.0.1", port: 8000, model: "", apiKey: "", hostId: "", system: "You are a helpful assistant.", temperature: 0.7, maxTokens: 2048, topP: 1, presencePenalty: 0, frequencyPenalty: 0, stop: "", thinking: false, useProject: false, ragProject: true, ragVaults: [], workloadClass: "" };
 
 // Build the grounding system message from retrieved project-knowledge docs.
 function buildRagContext(docs: RagDoc[]): string {
@@ -821,7 +824,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
         { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, chat_template_kwargs: settings.thinking ? { enable_thinking: true } : undefined },
         {
           onDelta: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, content: (last.content ?? "") + text }; return { ...c, messages: msgs }; }),
-          onDone: (meta) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; const secs = (meta.latency_ms ?? (Date.now() - started)) / 1000; msgs[msgs.length - 1] = { ...last, stat: { tokens: meta.tokens, ttft_ms: meta.ttft_ms, latency_ms: meta.latency_ms, tps: meta.tokens && secs ? Math.round((meta.tokens / secs) * 10) / 10 : undefined } }; return { ...c, messages: msgs, updatedAt: Date.now() }; }),
+          onDone: (meta) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; const secs = (meta.latency_ms ?? (Date.now() - started)) / 1000; const reasoningEmpty = !(last.content ?? "").trim() && (meta.tokens ?? 0) > 0; msgs[msgs.length - 1] = { ...last, stat: { tokens: meta.tokens, ttft_ms: meta.ttft_ms, latency_ms: meta.latency_ms, tps: meta.tokens && secs ? Math.round((meta.tokens / secs) * 10) / 10 : undefined, reasoningEmpty } }; return { ...c, messages: msgs, updatedAt: Date.now() }; }),
           onError: (msg) => setError(msg)
         },
         controller.signal
@@ -963,7 +966,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                 <div className="chat-bubble">
                   {retrieving && index === messages.length - 1 && msg.role === "assistant" && !msg.content
                     ? <span className="chat-retrieving"><Database size={13} /> {tr("Searching project knowledge…")}</span>
-                    : msg.content ? <MarkdownLite text={msg.content} /> : (streaming && index === messages.length - 1 ? <span className="chat-typing"><span /><span /><span /></span> : <em className="muted">{tr("(empty)")}</em>)}
+                    : msg.content ? <MarkdownLite text={msg.content} /> : (streaming && index === messages.length - 1 ? <span className="chat-typing"><span /><span /><span /></span> : msg.stat?.reasoningEmpty ? <div className="chat-advisory"><CircleAlert size={13} /> <span>{tr("The model used all its tokens thinking and never reached an answer.")}{msg.stat.tokens ? ` (${msg.stat.tokens} ${tr("reasoning tokens")})` : ""} {tr("Raise “Max tokens”, or enable web search for real-time questions.")}</span></div> : <em className="muted">{tr("(empty)")}</em>)}
                   {streaming && index === messages.length - 1 && msg.content && <span className="chat-cursor" />}
                 </div>
                 {msg.sources && msg.sources.length > 0 && <SourcesRow docs={msg.sources} />}
