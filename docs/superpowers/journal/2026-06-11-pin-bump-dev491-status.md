@@ -230,3 +230,62 @@ becomes the focus — but the "is the fix even active?" ambiguity is gone.
   risk is caught by the parity gate, not by ad-hoc analysis.
 - **PN374** re-target to `qwen3coder_tool_parser.py` (still pending,
   dormant on dev491).
+
+---
+
+## Update (2026-06-14, LIVE smoke — supplement validated, deeper blocker characterized)
+
+### ✅ Systemic supplement fix VALIDATED LIVE on dev491
+Synced the apply-loop fix (`1a84f632` supplement + `41dd46f1` parser) to the rig
+bind-mount, booted dev491 smoke (legacy boot + `GENESIS_ENABLE_PN392=1`, INFO).
+Boot log confirms PN392 now applies at boot via the supplement:
+```
+[Genesis spec-only] applied: PN392 ... [wrapped: qwen3_coder]. Drains the
+  single-emission core so a whole-XML-in-one-delta tool call ... emits
+  delta.tool_calls instead of being silently dropped.
+[Genesis spec-only supplement] 2 applied / 0 failed
+Genesis Results: 101 applied, 144 skipped, 0 failed, 3 partial-apply
+```
+The class wrap is live in the serving process BEFORE the first stream. The
+open-question-#1 ("is PN392 even active?") is closed: **yes, the supplement
+makes it apply**. This validates the whole spec-only-supplement mechanism live.
+
+### ❌ Streaming tool-call STILL broken — root cause is DEEPER than PN392
+Streaming test (`get_weather`, tool_choice=auto): the FULL tool XML leaks to
+`delta.content` piece-by-piece, ZERO `delta.tool_calls`, then a 500:
+```
+content":"\n\n<tool_call>  content":"\n<function=get  content":"_weather>...
+{"error":{"message":"MTP speculative decoding truncated tool call generation."}}
+```
+- The 500 is **Genesis P107** (`p107_mtp_truncation_detector.py`) — it detects
+  the leaked XML and **misdiagnoses it as MTP truncation**. The XML is COMPLETE
+  (not truncated), so this is a misattribution, not the root cause.
+- dev491 `parser/abstract_parser.py` routing (read from image):
+  `parse_delta` (L742, in tool phase) → `_extract_tool_calls_streaming` (L559,
+  step 5 for auto) → `self.extract_tool_calls_streaming` (L523) →
+  `self._tool_parser.extract_tool_calls_streaming` (L538, **PN392-wrapped**).
+  So PN392 IS in the auto call chain. The content-leak therefore means EITHER
+  (a) the tool phase isn't entered (reasoning→tool `reasoning_ended` boundary
+  timing in `parse_delta` L726-742), OR (b) PN392's wrap + Qwen3CoderToolParser
+  returns content for the piece-by-piece deltas under MTP K=3 (the coalescing
+  doesn't trigger / coder parser doesn't recognize the streamed format).
+- Content-leak is PIECE-BY-PIECE (many small content deltas), not one big delta
+  — so it's a streaming-recognition failure, not the single-emission case PN392
+  targets.
+
+### Fix options for the deeper blocker (next focused iteration)
+1. **Live-trace the parse_delta phase-transition under MTP** — instrument which
+   delta the tool phase fails to recognize; needs the smoke up + a trace patch.
+2. **Vendor-restore the dev259 `qwen3xml_tool_parser.py`** (multi-emission, the
+   one #45171 DELETED) as a Genesis patch + re-map `qwen3_xml` → restored XML
+   parser (not Qwen3CoderToolParser). Addresses the root (#45171 remap broke
+   streaming). Bigger but targets the real cause.
+3. **Check v0.23.0** — the newer stable release may have fixed the #45171-era
+   streaming regression; if so, targeting v0.23.0 sidesteps it entirely.
+
+### State
+PROD restored to dev259 (HEALTHY). dev491 promotion remains BLOCKED on the
+streaming tool-call fix — but the blocker is now precisely characterized
+(parse_delta/coder-parser streaming, NOT PN392, NOT the apply mechanism).
+The supplement fix + dual-anchors are validated; only this runtime adaptation
+remains for the bump.
