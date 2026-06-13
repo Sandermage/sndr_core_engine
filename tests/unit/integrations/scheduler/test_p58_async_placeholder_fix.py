@@ -45,6 +45,19 @@ ASYNC_SCHED_PY_OLD = (
     "            request.spec_token_ids = self._spec_token_placeholders"
 )
 
+# dev491 layout: the `num_output_placeholders` increment was reshaped to a
+# parenthesised multi-line expression adding the new
+# `num_sampled_tokens_per_step` term. The dev259 single-line anchor no longer
+# matches this; the P58 dual-anchor adds a dev491-shaped Variant B for it.
+ASYNC_SCHED_PY_OLD_DEV491 = (
+    "            request.num_output_placeholders += (\n"
+    "                self.num_sampled_tokens_per_step + cur_num_spec_tokens\n"
+    "            )\n"
+    "            # Add placeholders for the new draft/spec tokens.\n"
+    "            # We will update the actual spec token ids in the worker process.\n"
+    "            request.spec_token_ids = self._spec_token_placeholders"
+)
+
 SCHED_PY_OLD_SPEC_BLOCK = (
     "            # Speculative decode related.\n"
     "            if request.spec_token_ids:\n"
@@ -92,7 +105,7 @@ def fake_request_py(tmp_path):
 
 @pytest.fixture
 def fake_async_sched_py(tmp_path):
-    """Synthetic async_scheduler.py mimicking the buggy structure."""
+    """Synthetic async_scheduler.py mimicking the buggy dev259 structure."""
     p = tmp_path / "async_scheduler.py"
     p.write_text(
         "class AsyncScheduler(Scheduler):\n"
@@ -102,6 +115,30 @@ def fake_async_sched_py(tmp_path):
         "            request = self.requests[req_id]\n"
         "            cur_num_spec_tokens = len(spec_decode_tokens.get(req_id, ()))\n"
         + ASYNC_SCHED_PY_OLD + "\n"
+    )
+    return str(p)
+
+
+@pytest.fixture
+def fake_async_sched_py_dev491(tmp_path):
+    """Synthetic async_scheduler.py mimicking the dev491 structure.
+
+    dev491 reshaped the `num_output_placeholders` increment into a
+    parenthesised multi-line expression (adds the new
+    `num_sampled_tokens_per_step` term). The dev259 single-line anchor
+    cannot match this; only the P58 dev491 Variant B anchor can.
+    """
+    # Distinct filename so a test using BOTH fixtures does not have the
+    # dev491 write clobber the dev259 file under a shared tmp_path.
+    p = tmp_path / "async_scheduler_dev491.py"
+    p.write_text(
+        "class AsyncScheduler(Scheduler):\n"
+        "    def _update_after_schedule(self, scheduler_output):\n"
+        "        spec_decode_tokens = scheduler_output.scheduled_spec_decode_tokens\n"
+        "        for req_id in scheduler_output.num_scheduled_tokens:\n"
+        "            request = self.requests[req_id]\n"
+        "            cur_num_spec_tokens = len(spec_decode_tokens.get(req_id, ()))\n"
+        + ASYNC_SCHED_PY_OLD_DEV491 + "\n"
     )
     return str(p)
 
@@ -224,6 +261,94 @@ class TestP58AsyncSchedulerPyPatch:
         modified = Path(fake_async_sched_py).read_text()
         assert "request.spec_token_ids = self._spec_token_placeholders" not in modified
         assert "request.num_pending_async_spec_placeholders = self.num_spec_tokens" in modified
+
+    def test_dev491_anchor_present_only_in_dev491_layout(
+        self, fake_async_sched_py, fake_async_sched_py_dev491
+    ):
+        """Dual-anchor mutual exclusivity: each pin's layout contains exactly
+        ONE of the two variant anchors, never both."""
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
+            ASYNC_SCHED_OLD, ASYNC_SCHED_OLD_DEV491,
+        )
+        dev259 = Path(fake_async_sched_py).read_text()
+        dev491 = Path(fake_async_sched_py_dev491).read_text()
+        # dev259 layout: only Variant A matches.
+        assert ASYNC_SCHED_OLD in dev259
+        assert ASYNC_SCHED_OLD_DEV491 not in dev259
+        # dev491 layout: only Variant B matches.
+        assert ASYNC_SCHED_OLD_DEV491 in dev491
+        assert ASYNC_SCHED_OLD not in dev491
+
+    def test_dual_anchor_applies_dev491_variant_on_dev491_layout(
+        self, fake_async_sched_py_dev491
+    ):
+        """On the dev491 layout the dev259 Variant A soft-skips (required=False)
+        and the dev491 Variant B fires, producing the same counter-based fix.
+        This is the re-anchor case for the dev259→dev491 pin bump."""
+        from sndr.kernel.text_patch import (
+            TextPatcher, TextPatch, TextPatchResult,
+        )
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
+            ASYNC_SCHED_OLD, ASYNC_SCHED_NEW,
+            ASYNC_SCHED_OLD_DEV491, ASYNC_SCHED_NEW_DEV491,
+        )
+        patcher = TextPatcher(
+            patch_name="P58 async_sched dev491 test",
+            target_file=fake_async_sched_py_dev491,
+            marker="P58_TEST_ASYNC_SCHED_DEV491",
+            sub_patches=[
+                # Variant A — dev259 (will soft-skip on this layout).
+                TextPatch(
+                    name="p58_async_sched_assignment", anchor=ASYNC_SCHED_OLD,
+                    replacement=ASYNC_SCHED_NEW, required=False,
+                ),
+                # Variant B — dev491 (the one that must fire here).
+                TextPatch(
+                    name="p58_async_sched_assignment_dev491",
+                    anchor=ASYNC_SCHED_OLD_DEV491,
+                    replacement=ASYNC_SCHED_NEW_DEV491, required=False,
+                ),
+            ],
+        )
+        result, failure = patcher.apply()
+        assert result == TextPatchResult.APPLIED, failure
+        # Exactly the dev491 variant fired; Variant A soft-skipped.
+        assert patcher.applied_sub_patches == ["p58_async_sched_assignment_dev491"]
+        modified = Path(fake_async_sched_py_dev491).read_text()
+        # The -1 leak assignment is gone and the counter fix is present.
+        assert "request.spec_token_ids = self._spec_token_placeholders" not in modified
+        assert "request.num_pending_async_spec_placeholders = self.num_spec_tokens" in modified
+        # The dev491 increment shape was preserved verbatim.
+        assert (
+            "request.num_output_placeholders += (\n"
+            "                self.num_sampled_tokens_per_step + cur_num_spec_tokens\n"
+            "            )"
+        ) in modified
+
+    def test_dual_anchor_real_pristine_trees(self):
+        """Re-anchor verification against the ACTUAL pristine pin trees:
+        Variant A matches dev259 only, Variant B matches dev491 only, each
+        with count==1 in its own tree and count==0 in the other (iron rule
+        #11). Skips if the pristine trees are not present on this host."""
+        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
+            ASYNC_SCHED_OLD, ASYNC_SCHED_OLD_DEV491,
+        )
+        dev259_path = Path(
+            "/private/tmp/candidate_pin_current/vllm/v1/core/sched/async_scheduler.py"
+        )
+        dev491_path = Path(
+            "/tmp/candidate_pin_new/vllm/v1/core/sched/async_scheduler.py"
+        )
+        if not (dev259_path.is_file() and dev491_path.is_file()):
+            pytest.skip("pristine pin trees not present on this host")
+        dev259 = dev259_path.read_text()
+        dev491 = dev491_path.read_text()
+        # Variant A anchors uniquely in dev259, absent from dev491.
+        assert dev259.count(ASYNC_SCHED_OLD) == 1
+        assert dev491.count(ASYNC_SCHED_OLD) == 0
+        # Variant B anchors uniquely in dev491, absent from dev259.
+        assert dev491.count(ASYNC_SCHED_OLD_DEV491) == 1
+        assert dev259.count(ASYNC_SCHED_OLD_DEV491) == 0
 
 
 class TestP58SchedulerPyPatch:

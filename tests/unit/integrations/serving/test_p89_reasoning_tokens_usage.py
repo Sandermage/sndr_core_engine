@@ -50,6 +50,19 @@ Contract pinned here (TDD, written before the implementation):
 
   12. Anchors are unique and drift markers absent in the pristine pin
       tree (opportunistic — skipped when the pin tree is not present).
+
+  13. DUAL-ANCHOR (pin bump dev259 -> dev491): #45171 refactored
+      chat_completion/serving.py and moved three of the five serving
+      anchors (accumulator_decl lost its comment; the
+      prompt_tokens_details guard tightened to ``is not None`` for
+      stream-attach and was split across lines for full-attach). Each
+      moved site carries a dev259 + a dev491 anchor variant with
+      required-at-least-one semantics (PN32/P18B convention). The
+      variants are mutually exclusive — exactly one fires per pin
+      (count==1 in its target tree, count==0 in the other). The dev259
+      variants are retained for the whole validation window (PROD 35B
+      stays on dev259 until dev491 is validated). protocol.py and the
+      two non-moved serving sites stay byte-stable across both pins.
 """
 from __future__ import annotations
 
@@ -148,9 +161,28 @@ MERGED_PROTOCOL = PIN_PROTOCOL.replace(
     "    completion_tokens_details: CompletionTokenUsageInfo | None = None\n",
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
+# Pin bump dev259 -> dev491 (validation window): PROD 35B stays on
+# dev259 (CURRENT) until dev491 (CANDIDATE) is validated, so P89 carries
+# BOTH anchor variants. The pristine-tree invariants below run against
+# whichever tree(s) are present on this machine.
+PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")  # dev259 CURRENT
+PIN_TREE_DEV491 = Path("/tmp/candidate_pin_new/vllm")  # dev491 CANDIDATE
 PROTOCOL_REL = "entrypoints/openai/engine/protocol.py"
 SERVING_REL = "entrypoints/openai/chat_completion/serving.py"
+
+# Names of the serving sub-patches that #45171 MOVED in dev491, each of
+# which now carries a dev259 + a dev491 anchor variant (required-at-
+# least-one). The dev491 variant is the same name with a ``_dev491``
+# suffix. The two sites #45171 did NOT move keep a single anchor.
+_DUAL_ANCHOR_DEV259_NAMES = {
+    "p89_serving_accumulator_decl",
+    "p89_serving_stream_attach",
+    "p89_serving_full_attach",
+}
+_SHARED_SERVING_NAMES = {
+    "p89_serving_import",
+    "p89_serving_accumulator_extend",
+}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -389,18 +421,150 @@ class TestAnchorsAgainstPristinePin:
             assert dm not in src
 
     def test_serving_anchors_unique_and_markers_absent(self):
+        # dev259 (CURRENT) tree: the dev259 anchor variant of each moved
+        # site matches count==1, the dev491 variant matches count==0
+        # (mutual exclusivity), and the two non-moved sites match
+        # count==1. Exactly one variant fires per pair on this pin.
         src = (PIN_TREE / SERVING_REL).read_text(encoding="utf-8")
         for sp in m._serving_sub_patches():
-            assert src.count(sp.anchor) == 1, sp.name
+            count = src.count(sp.anchor)
+            if sp.name.endswith("_dev491"):
+                # dev491-shaped anchor is ABSENT in the dev259 tree.
+                assert count == 0, f"{sp.name} should be absent in dev259"
+            else:
+                assert count == 1, sp.name
             assert sp.replacement not in src
         for dm in m._SERVING_DRIFT_MARKERS:
             assert dm not in src
+
+    def test_exactly_one_serving_variant_matches_dev259(self):
+        """On the dev259 pristine tree, exactly one anchor of each moved
+        site's dual-anchor pair resolves (the dev259 variant), so the
+        TextPatcher applies it and soft-skips the dev491 variant."""
+        src = (PIN_TREE / SERVING_REL).read_text(encoding="utf-8")
+        for base in _DUAL_ANCHOR_DEV259_NAMES:
+            dev259 = next(
+                sp for sp in m._serving_sub_patches() if sp.name == base
+            )
+            dev491 = next(
+                sp for sp in m._serving_sub_patches()
+                if sp.name == base + "_dev491"
+            )
+            assert src.count(dev259.anchor) == 1, base
+            assert src.count(dev491.anchor) == 0, base + "_dev491"
 
     def test_count_reasoning_tokens_exists_in_pin(self):
         """The reasoning-token walk P89 relies on already exists on the
         abstract reasoning parser in this pin (zero new compute path)."""
         abs_parser = (
             PIN_TREE / "reasoning" / "abs_reasoning_parsers.py"
+        ).read_text(encoding="utf-8")
+        assert "def count_reasoning_tokens(" in abs_parser
+
+
+# ── dev491 CANDIDATE pin invariants (dual-anchor re-anchor) ──────────
+# Pin bump dev259 -> dev491: #45171 refactored chat_completion/serving.py
+# and moved three of the five serving anchors. These tests prove the
+# dev491 anchor VARIANTS re-anchor cleanly on the CANDIDATE tree while
+# protocol.py and the two non-moved serving sites stay byte-stable.
+@pytest.mark.skipif(
+    not (PIN_TREE_DEV491 / SERVING_REL).is_file(),
+    reason="dev491 candidate pin tree not present on this machine",
+)
+class TestAnchorsAgainstDev491CandidatePin:
+    def test_protocol_anchor_unchanged_on_dev491(self):
+        """#45171 left engine/protocol.py byte-stable — the single
+        protocol anchor still resolves count==1 (no re-anchor needed)."""
+        src = (PIN_TREE_DEV491 / PROTOCOL_REL).read_text(encoding="utf-8")
+        for sp in m._protocol_sub_patches():
+            assert src.count(sp.anchor) == 1, sp.name
+            assert sp.replacement not in src
+        for dm in m._PROTOCOL_DRIFT_MARKERS:
+            assert dm not in src
+
+    def test_serving_dev491_variants_unique_and_markers_absent(self):
+        # dev491 (CANDIDATE) tree: the dev491 anchor variant of each
+        # moved site matches count==1, the dev259 variant matches
+        # count==0 (mutual exclusivity), and the two non-moved sites
+        # match count==1. Exactly one variant fires per pair on this pin.
+        src = (PIN_TREE_DEV491 / SERVING_REL).read_text(encoding="utf-8")
+        for sp in m._serving_sub_patches():
+            count = src.count(sp.anchor)
+            if sp.name in _DUAL_ANCHOR_DEV259_NAMES:
+                # dev259-shaped anchor is ABSENT in the dev491 tree.
+                assert count == 0, f"{sp.name} should be absent in dev491"
+            else:
+                # dev491 variants + the two non-moved shared sites.
+                assert count == 1, sp.name
+            assert sp.replacement not in src
+        for dm in m._SERVING_DRIFT_MARKERS:
+            assert dm not in src
+
+    def test_exactly_one_serving_variant_matches_dev491(self):
+        """On the dev491 pristine tree, exactly the dev491 variant of
+        each moved site's dual-anchor pair resolves (the dev259 variant
+        is soft-skipped)."""
+        src = (PIN_TREE_DEV491 / SERVING_REL).read_text(encoding="utf-8")
+        for base in _DUAL_ANCHOR_DEV259_NAMES:
+            dev259 = next(
+                sp for sp in m._serving_sub_patches() if sp.name == base
+            )
+            dev491 = next(
+                sp for sp in m._serving_sub_patches()
+                if sp.name == base + "_dev491"
+            )
+            assert src.count(dev259.anchor) == 0, base
+            assert src.count(dev491.anchor) == 1, base + "_dev491"
+
+    def test_shared_serving_sites_byte_stable_across_pins(self):
+        """The import + accumulator-extend anchors are the two serving
+        sites #45171 did NOT move — single ``required=True`` anchor,
+        count==1 in BOTH pristine trees."""
+        cur = (PIN_TREE / SERVING_REL).read_text(encoding="utf-8")
+        new = (PIN_TREE_DEV491 / SERVING_REL).read_text(encoding="utf-8")
+        for sp in m._serving_sub_patches():
+            if sp.name in _SHARED_SERVING_NAMES:
+                assert cur.count(sp.anchor) == 1, f"{sp.name} dev259"
+                assert new.count(sp.anchor) == 1, f"{sp.name} dev491"
+
+    def test_apply_on_dev491_serving_tree_compiles(self, tmp_path, monkeypatch):
+        """Apply the serving + protocol patchers against COPIES of the
+        dev491 pristine tree and assert the spliced result compiles with
+        exactly the dev491 variant of each moved site applied."""
+        proto_src = (PIN_TREE_DEV491 / PROTOCOL_REL).read_text(encoding="utf-8")
+        serv_src = (PIN_TREE_DEV491 / SERVING_REL).read_text(encoding="utf-8")
+        proto, serv = _install_fakes(
+            tmp_path, monkeypatch, proto_src, serv_src
+        )
+        status, reason = m.apply()
+        assert status == "applied", reason
+
+        serv_out = serv.read_text(encoding="utf-8")
+        proto_out = proto.read_text(encoding="utf-8")
+        # Both spliced files still compile.
+        compile(serv_out, str(serv), "exec")
+        compile(proto_out, str(proto), "exec")
+        # dev491 variant of each moved site applied exactly once.
+        assert serv_out.count("per_choice_token_ids: list[list[int]]") == 1
+        assert "per_choice_token_ids[i].extend(output.token_ids)" in serv_out
+        assert serv_out.count(
+            "final_usage.completion_tokens_details = ("
+        ) == 1
+        assert serv_out.count(
+            "usage.completion_tokens_details = CompletionTokenUsageInfo("
+        ) == 1
+        # protocol model + field wired exactly once.
+        assert proto_out.count("class CompletionTokenUsageInfo") == 1
+        assert (
+            "completion_tokens_details: CompletionTokenUsageInfo | None = None"
+            in proto_out
+        )
+
+    def test_count_reasoning_tokens_exists_in_dev491(self):
+        """The zero-GPU reasoning-token walk still exists on the dev491
+        abstract reasoning parser (the patch's core dependency holds)."""
+        abs_parser = (
+            PIN_TREE_DEV491 / "reasoning" / "abs_reasoning_parsers.py"
         ).read_text(encoding="utf-8")
         assert "def count_reasoning_tokens(" in abs_parser
 

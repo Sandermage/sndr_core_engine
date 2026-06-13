@@ -91,6 +91,33 @@ Activation: opt-in via ``GENESIS_ENABLE_P89_REASONING_TOKENS_USAGE=1``
 (default OFF in the registry). Self-skips when #45471 lands upstream:
 drift markers below are exact substrings of the PR's form.
 
+DUAL-ANCHOR re-anchoring (pin bump dev259 -> dev491, validation window)
+— the dev491 candidate pin ``0.22.1rc1.dev491+g1033ffac2`` ships the
+#45171 ``chat_completion/serving.py`` refactor, which moved three of the
+five serving anchors while leaving ``engine/protocol.py`` byte-identical:
+
+  * accumulator_decl — #45171 deleted the
+    ``# Always track previous_texts for comprehensive output logging``
+    comment; the bare ``previous_texts`` line now stands alone before
+    the streaming ``try:`` block.
+  * stream_attach — the prompt_tokens_details guard tightened from
+    ``and num_cached_tokens:`` to ``and num_cached_tokens is not None:``.
+  * full_attach — the same guard was split across multiple lines
+    (``if (`` ... ``is not None`` ... ``):``).
+
+P89 (authored TODAY against dev259, default-OFF) now carries BOTH a
+dev259 and a dev491 anchor variant for each moved site, using the
+PN32/P18B required-at-least-one convention (each variant declared
+``required=False``; the TextPatcher kernel soft-skips the absent variant
+and SKIPs only when BOTH miss). Mutual exclusivity is byte-verified:
+each dev259 variant matches count==1 in the dev259 tree and count==0 in
+the dev491 tree, and vice versa, so exactly one variant per pair fires
+per pin. PROD 35B stays on dev259 until dev491 is validated, so the
+dev259 variants are retained for the whole validation window — they are
+NOT deleted. The two sites #45171 did not move (import, accumulator
+extend) keep their single ``required=True`` anchor (identical bytes in
+both pins). protocol.py needed no re-anchor (count==1 in both trees).
+
 Author backport: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 Vendor target: vllm-project/vllm#45471 (DRAFT/OPEN as of 2026-06-13).
 """
@@ -231,11 +258,23 @@ _SERVING_IMPORT_NEW = (
 # (2) Declare the per-choice token-id accumulator next to previous_texts.
 #     Faithful to the PR (its own unconditional accumulator), so the
 #     attach works on every streaming path including harmony/edge cases.
-_SERVING_ACCUM_DECL_OLD = (
+#
+# DUAL-ANCHOR (PN32/P18B pattern) — the dev491 pin (#45171 serving.py
+# refactor) deleted the "Always track previous_texts" comment that the
+# dev259 anchor relied on; the bare ``previous_texts`` line now stands
+# alone, immediately followed by a blank line and ``try:``. Both
+# variants are required-at-least-one (the sub-patches are declared with
+# ``required=False``): on dev259 only the *_DEV259 anchor matches, on
+# dev491 only the *_DEV491 anchor matches, and exactly one fires per pin
+# (count==1 byte-verified in each pristine tree — dev259 g303916e93,
+# dev491 g1033ffac2). Mutual exclusivity holds because the comment line
+# is present ONLY in dev259 and the ``\n\n        try:`` tail is the
+# unique dev491 shape (count==0 in dev259).
+_SERVING_ACCUM_DECL_DEV259_OLD = (
     "        # Always track previous_texts for comprehensive output logging\n"
     "        previous_texts = [\"\"] * num_choices\n"
 )
-_SERVING_ACCUM_DECL_NEW = (
+_SERVING_ACCUM_DECL_DEV259_NEW = (
     "        # Always track previous_texts for comprehensive output logging\n"
     "        previous_texts = [\"\"] * num_choices\n"
     "        # [Genesis P89 vendor of vllm#45471] per-choice generated\n"
@@ -243,6 +282,26 @@ _SERVING_ACCUM_DECL_NEW = (
     "        # completion_tokens_details.reasoning_tokens via the parser's\n"
     "        # existing count_reasoning_tokens (one O(n) walk, zero GPU).\n"
     "        per_choice_token_ids: list[list[int]] = [[] for _ in range(num_choices)]\n"
+)
+# dev491 variant: the comment was deleted by #45171; anchor on the bare
+# ``previous_texts`` line plus its unique ``\n\n        try:`` tail so the
+# accumulator is inserted before the streaming ``try`` block (same scope
+# as the dev259 site — declared inside chat_completion_stream_generator,
+# visible at the accumulator_extend and stream_attach sites below).
+_SERVING_ACCUM_DECL_DEV491_OLD = (
+    "        previous_texts = [\"\"] * num_choices\n"
+    "\n"
+    "        try:\n"
+)
+_SERVING_ACCUM_DECL_DEV491_NEW = (
+    "        previous_texts = [\"\"] * num_choices\n"
+    "        # [Genesis P89 vendor of vllm#45471] per-choice generated\n"
+    "        # token-ids, accumulated so the final usage chunk can report\n"
+    "        # completion_tokens_details.reasoning_tokens via the parser's\n"
+    "        # existing count_reasoning_tokens (one O(n) walk, zero GPU).\n"
+    "        per_choice_token_ids: list[list[int]] = [[] for _ in range(num_choices)]\n"
+    "\n"
+    "        try:\n"
 )
 
 # (3) Extend the accumulator each decode step, right where the running
@@ -264,20 +323,21 @@ _SERVING_ACCUM_EXT_NEW = (
 #     gated on the reasoning parser being configured. Inserted after the
 #     prompt_tokens_details block and before the final usage chunk is
 #     built (so it lands on the same UsageInfo object).
-_SERVING_STREAM_ATTACH_OLD = (
-    "                if self.enable_prompt_tokens_details and num_cached_tokens:\n"
-    "                    final_usage.prompt_tokens_details = PromptTokenUsageInfo(\n"
-    "                        cached_tokens=num_cached_tokens\n"
-    "                    )\n"
-    "\n"
-    "                final_usage_chunk = ChatCompletionStreamResponse(\n"
-)
-_SERVING_STREAM_ATTACH_NEW = (
-    "                if self.enable_prompt_tokens_details and num_cached_tokens:\n"
-    "                    final_usage.prompt_tokens_details = PromptTokenUsageInfo(\n"
-    "                        cached_tokens=num_cached_tokens\n"
-    "                    )\n"
-    "\n"
+#
+# DUAL-ANCHOR (PN32/P18B pattern) — dev491 (#45171) tightened the
+# prompt_tokens_details guard from ``and num_cached_tokens:`` to
+# ``and num_cached_tokens is not None:``; the surrounding block and the
+# ``final_usage_chunk = ChatCompletionStreamResponse(`` tail are
+# unchanged. Both variants are required-at-least-one (declared
+# ``required=False`` below); exactly one matches per pin (count==1
+# byte-verified in each pristine tree). The shared attach body is built
+# once (``_serving_stream_attach_body``) so the two variants stay in
+# lockstep — only the guard line differs.
+
+# Shared insertion body: the Genesis attach block, identical between the
+# two pins. Kept as a single source so the dev259/dev491 variants cannot
+# drift apart.
+_SERVING_STREAM_ATTACH_BODY = (
     "                # [Genesis P89 vendor of vllm#45471] surface\n"
     "                # completion_tokens_details.reasoning_tokens for\n"
     "                # reasoning models (qwen3 on all 4 PROD models). Sum\n"
@@ -302,25 +362,56 @@ _SERVING_STREAM_ATTACH_NEW = (
     "                        )\n"
     "                    )\n"
     "\n"
+)
+# dev259 guard: bare truthiness check on num_cached_tokens.
+_SERVING_STREAM_ATTACH_DEV259_HEAD = (
+    "                if self.enable_prompt_tokens_details and num_cached_tokens:\n"
+    "                    final_usage.prompt_tokens_details = PromptTokenUsageInfo(\n"
+    "                        cached_tokens=num_cached_tokens\n"
+    "                    )\n"
+    "\n"
+)
+_SERVING_STREAM_ATTACH_DEV491_HEAD = (
+    "                if self.enable_prompt_tokens_details and num_cached_tokens is not None:\n"
+    "                    final_usage.prompt_tokens_details = PromptTokenUsageInfo(\n"
+    "                        cached_tokens=num_cached_tokens\n"
+    "                    )\n"
+    "\n"
+)
+_SERVING_STREAM_ATTACH_TAIL = (
     "                final_usage_chunk = ChatCompletionStreamResponse(\n"
+)
+_SERVING_STREAM_ATTACH_DEV259_OLD = (
+    _SERVING_STREAM_ATTACH_DEV259_HEAD + _SERVING_STREAM_ATTACH_TAIL
+)
+_SERVING_STREAM_ATTACH_DEV259_NEW = (
+    _SERVING_STREAM_ATTACH_DEV259_HEAD
+    + _SERVING_STREAM_ATTACH_BODY
+    + _SERVING_STREAM_ATTACH_TAIL
+)
+_SERVING_STREAM_ATTACH_DEV491_OLD = (
+    _SERVING_STREAM_ATTACH_DEV491_HEAD + _SERVING_STREAM_ATTACH_TAIL
+)
+_SERVING_STREAM_ATTACH_DEV491_NEW = (
+    _SERVING_STREAM_ATTACH_DEV491_HEAD
+    + _SERVING_STREAM_ATTACH_BODY
+    + _SERVING_STREAM_ATTACH_TAIL
 )
 
 # (5) Attach completion_tokens_details to the non-streaming response
 #     usage, gated on the reasoning parser. Inserted after the
 #     prompt_tokens_details block and before final_usage_info is set.
-_SERVING_FULL_ATTACH_OLD = (
-    "        if self.enable_prompt_tokens_details and final_res.num_cached_tokens:\n"
-    "            usage.prompt_tokens_details = PromptTokenUsageInfo(\n"
-    "                cached_tokens=final_res.num_cached_tokens\n"
-    "            )\n"
-    "\n"
-    "        request_metadata.final_usage_info = usage\n"
-)
-_SERVING_FULL_ATTACH_NEW = (
-    "        if self.enable_prompt_tokens_details and final_res.num_cached_tokens:\n"
-    "            usage.prompt_tokens_details = PromptTokenUsageInfo(\n"
-    "                cached_tokens=final_res.num_cached_tokens\n"
-    "            )\n"
+#
+# DUAL-ANCHOR (PN32/P18B pattern) — dev491 (#45171) split the
+# prompt_tokens_details guard across multiple lines (``if (`` ...
+# ``and final_res.num_cached_tokens is not None`` ... ``):``); the
+# usage.prompt_tokens_details body and the
+# ``request_metadata.final_usage_info = usage`` tail are unchanged. Both
+# variants are required-at-least-one (declared ``required=False``
+# below); exactly one matches per pin (count==1 byte-verified in each
+# pristine tree). The shared attach body is built once
+# (``_serving_full_attach_body``) so the variants stay in lockstep.
+_SERVING_FULL_ATTACH_BODY = (
     "\n"
     "        # [Genesis P89 vendor of vllm#45471] non-streaming\n"
     "        # completion_tokens_details.reasoning_tokens (see streaming\n"
@@ -340,9 +431,53 @@ _SERVING_FULL_ATTACH_NEW = (
     "\n"
     "        request_metadata.final_usage_info = usage\n"
 )
+# dev259 guard: single-line ``and final_res.num_cached_tokens``.
+_SERVING_FULL_ATTACH_DEV259_HEAD = (
+    "        if self.enable_prompt_tokens_details and final_res.num_cached_tokens:\n"
+    "            usage.prompt_tokens_details = PromptTokenUsageInfo(\n"
+    "                cached_tokens=final_res.num_cached_tokens\n"
+    "            )\n"
+)
+# dev491 guard: split across lines with explicit ``is not None``.
+_SERVING_FULL_ATTACH_DEV491_HEAD = (
+    "        if (\n"
+    "            self.enable_prompt_tokens_details\n"
+    "            and final_res.num_cached_tokens is not None\n"
+    "        ):\n"
+    "            usage.prompt_tokens_details = PromptTokenUsageInfo(\n"
+    "                cached_tokens=final_res.num_cached_tokens\n"
+    "            )\n"
+)
+_SERVING_FULL_ATTACH_TAIL = (
+    "\n"
+    "        request_metadata.final_usage_info = usage\n"
+)
+_SERVING_FULL_ATTACH_DEV259_OLD = (
+    _SERVING_FULL_ATTACH_DEV259_HEAD + _SERVING_FULL_ATTACH_TAIL
+)
+_SERVING_FULL_ATTACH_DEV259_NEW = (
+    _SERVING_FULL_ATTACH_DEV259_HEAD + _SERVING_FULL_ATTACH_BODY
+)
+_SERVING_FULL_ATTACH_DEV491_OLD = (
+    _SERVING_FULL_ATTACH_DEV491_HEAD + _SERVING_FULL_ATTACH_TAIL
+)
+_SERVING_FULL_ATTACH_DEV491_NEW = (
+    _SERVING_FULL_ATTACH_DEV491_HEAD + _SERVING_FULL_ATTACH_BODY
+)
 
 
 def _serving_sub_patches() -> list[TextPatch]:
+    # Three sub-patches (decl / stream_attach / full_attach) carry a
+    # dev259 AND a dev491 variant with required-at-least-one semantics:
+    # both variants are declared ``required=False`` so the TextPatcher
+    # kernel soft-skips the variant whose anchor is absent and returns
+    # SKIPPED only when BOTH miss. The variants are mutually exclusive by
+    # construction (count==1 in exactly one pristine tree, count==0 in
+    # the other — byte-verified at dev259 g303916e93 / dev491 g1033ffac2),
+    # so exactly one of each pair fires per pin during the validation
+    # window. The two sites #45171 did NOT move (import, accumulator
+    # extend) keep their single ``required=True`` anchor (same bytes in
+    # both pins).
     return [
         TextPatch(
             name="p89_serving_import",
@@ -352,11 +487,18 @@ def _serving_sub_patches() -> list[TextPatch]:
             upstream_merged_markers=list(_SERVING_DRIFT_MARKERS),
             on_upstream_merge="abort_bundle",
         ),
+        # accumulator_decl — dev259 / dev491 variants (required-at-least-one).
         TextPatch(
             name="p89_serving_accumulator_decl",
-            anchor=_SERVING_ACCUM_DECL_OLD,
-            replacement=_SERVING_ACCUM_DECL_NEW,
-            required=True,
+            anchor=_SERVING_ACCUM_DECL_DEV259_OLD,
+            replacement=_SERVING_ACCUM_DECL_DEV259_NEW,
+            required=False,
+        ),
+        TextPatch(
+            name="p89_serving_accumulator_decl_dev491",
+            anchor=_SERVING_ACCUM_DECL_DEV491_OLD,
+            replacement=_SERVING_ACCUM_DECL_DEV491_NEW,
+            required=False,
         ),
         TextPatch(
             name="p89_serving_accumulator_extend",
@@ -364,17 +506,31 @@ def _serving_sub_patches() -> list[TextPatch]:
             replacement=_SERVING_ACCUM_EXT_NEW,
             required=True,
         ),
+        # stream_attach — dev259 / dev491 variants (required-at-least-one).
         TextPatch(
             name="p89_serving_stream_attach",
-            anchor=_SERVING_STREAM_ATTACH_OLD,
-            replacement=_SERVING_STREAM_ATTACH_NEW,
-            required=True,
+            anchor=_SERVING_STREAM_ATTACH_DEV259_OLD,
+            replacement=_SERVING_STREAM_ATTACH_DEV259_NEW,
+            required=False,
         ),
         TextPatch(
+            name="p89_serving_stream_attach_dev491",
+            anchor=_SERVING_STREAM_ATTACH_DEV491_OLD,
+            replacement=_SERVING_STREAM_ATTACH_DEV491_NEW,
+            required=False,
+        ),
+        # full_attach — dev259 / dev491 variants (required-at-least-one).
+        TextPatch(
             name="p89_serving_full_attach",
-            anchor=_SERVING_FULL_ATTACH_OLD,
-            replacement=_SERVING_FULL_ATTACH_NEW,
-            required=True,
+            anchor=_SERVING_FULL_ATTACH_DEV259_OLD,
+            replacement=_SERVING_FULL_ATTACH_DEV259_NEW,
+            required=False,
+        ),
+        TextPatch(
+            name="p89_serving_full_attach_dev491",
+            anchor=_SERVING_FULL_ATTACH_DEV491_OLD,
+            replacement=_SERVING_FULL_ATTACH_DEV491_NEW,
+            required=False,
         ),
     ]
 

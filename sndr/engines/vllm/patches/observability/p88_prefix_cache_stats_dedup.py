@@ -42,6 +42,16 @@ inside ``kv_cache_manager.py`` (P79d-style minimal-anchor convention):
     second allocate for the same request (running-loop growth) does
     not double-record.
 
+PIN COVERAGE (dual-anchor): the LOOKUP site is byte-identical on the
+current pin 0.22.1rc1.dev259 and the candidate 0.22.1rc1.dev491, so it
+is one required sub-patch. The COMMIT site (the available-blocks gate)
+MOVED in dev491 — it gained a ``watermark_blocks`` headroom term and a
+leading comment, so the predicate now reads
+``required_blocks > available_blocks``. Both gate shapes are carried as
+mutually-exclusive ``required=False`` commit variants (PN351 / PN32 /
+P18B convention); exactly one matches per pin and ``apply()`` enforces
+that at least one fired.
+
 This is also MORE faithful than upstream for our configs: stats record
 iff a real lookup happened, so ``enable_caching=False`` / no-lookup
 paths record nothing (upstream's scheduler-side record can fire even
@@ -72,7 +82,12 @@ import os
 import sys
 
 from sndr.engines.vllm.detection.guards import resolve_vllm_file
-from sndr.kernel import TextPatch, TextPatcher, result_to_wiring_status
+from sndr.kernel import (
+    TextPatch,
+    TextPatcher,
+    TextPatchResult,
+    result_to_wiring_status,
+)
 
 log = logging.getLogger("genesis.wiring.p88_prefix_cache_stats_dedup")
 
@@ -84,9 +99,25 @@ GENESIS_P88_MARKER = (
 _TARGET_REL = "v1/core/kv_cache_manager.py"
 
 
-# ─── Anchors (byte-exact vs pristine 0.22.1rc1.dev259 + the test fake) ────
+# ─── Anchors (byte-exact vs pristine 0.22.1rc1.dev259 / .dev491 + fake) ───
+#
+# DUAL-ANCHOR convention (PN351 / PN32 / P18B pattern). PROD 35B stays on
+# dev259 until dev491 is validated, so P88 MUST keep working on dev259 AND
+# start working on dev491. The LOOKUP site is byte-identical on both pins
+# (verified count==1 in each pristine tree) so it stays a single required
+# sub-patch. The ALLOC_COMMIT site MOVED in dev491 (vllm 0.22.1rc1.dev491
+# +g1033ffac2): the available-blocks gate gained a `watermark_blocks`
+# headroom term and a leading explanatory comment, and the predicate now
+# reads `required_blocks > available_blocks` instead of
+# `num_blocks_to_allocate > available_blocks`. We keep the dev259 anchor as
+# one variant AND add a dev491-shaped variant, both required=False, with
+# apply() enforcing that exactly one fired (required-at-least-one). On any
+# given pin EXACTLY ONE commit anchor is present (the shapes are mutually
+# exclusive — verified count==1 in its target tree, count==0 in the other)
+# so the non-matching variant soft-skips.
 
-# LOOKUP site — the record() call inside get_computed_blocks.
+# LOOKUP site — the record() call inside get_computed_blocks. Byte-identical
+# on dev259 and dev491 (count==1 in each pristine tree).
 P88_LOOKUP_ANCHOR = (
     "        if self.log_stats:\n"
     "            assert self.prefix_cache_stats is not None\n"
@@ -115,19 +146,12 @@ P88_LOOKUP_REPLACEMENT = (
 )
 
 # COMMIT site — the available-blocks gate (the LAST failure return in
-# allocate_slots; verified past the last `return None`).
-P88_ALLOC_COMMIT_ANCHOR = (
-    "        available_blocks = self.block_pool.get_num_free_blocks() - reserved_blocks\n"
-    "        if num_blocks_to_allocate > available_blocks:\n"
-    "            # Cannot allocate new blocks\n"
-    "            return None\n"
-)
-
-P88_ALLOC_COMMIT_REPLACEMENT = (
-    "        available_blocks = self.block_pool.get_num_free_blocks() - reserved_blocks\n"
-    "        if num_blocks_to_allocate > available_blocks:\n"
-    "            # Cannot allocate new blocks\n"
-    "            return None\n"
+# allocate_slots; verified past the last `return None` in BOTH pins).
+#
+# The commit body appended by each variant is identical; only the matched
+# gate shape differs between pins. Keeping the body in one helper avoids
+# the two variants drifting apart.
+_P88_COMMIT_BODY = (
     "\n"
     "        # [Genesis P88] commit the pending prefix-cache stats exactly\n"
     "        # once, now that the allocation is past its last failure\n"
@@ -144,6 +168,48 @@ P88_ALLOC_COMMIT_REPLACEMENT = (
     "                    preempted=_p88_pending[3],\n"
     "                )\n"
     "            self._genesis_p88_pending_stats = None\n"
+)
+
+# Variant A — CURRENT pin g303916e93 (0.22.1rc1.dev259, the tree PROD 35B
+# runs). The gate reads `num_blocks_to_allocate > available_blocks` and has
+# no watermark headroom term. count==1 in dev259, count==0 in dev491.
+P88_ALLOC_COMMIT_ANCHOR = (
+    "        available_blocks = self.block_pool.get_num_free_blocks() - reserved_blocks\n"
+    "        if num_blocks_to_allocate > available_blocks:\n"
+    "            # Cannot allocate new blocks\n"
+    "            return None\n"
+)
+
+P88_ALLOC_COMMIT_REPLACEMENT = P88_ALLOC_COMMIT_ANCHOR + _P88_COMMIT_BODY
+
+# Variant B — CANDIDATE pin g1033ffac2 (0.22.1rc1.dev491, 232 commits newer).
+# The available-blocks gate grew a leading two-line comment plus a
+# `required_blocks = num_blocks_to_allocate + watermark_blocks` headroom
+# term, and the predicate now reads `required_blocks > available_blocks`.
+# It is still the LAST `return None` in allocate_slots (verified: the later
+# allocation path has no further failure return), so the commit point stays
+# correct. count==1 in dev491, count==0 in dev259.
+P88_ALLOC_COMMIT_DEV491_ANCHOR = (
+    "        # Keep `reserved_blocks` free for other in-flight sequences, and an\n"
+    "        # additional watermark of headroom for waiting/preempted admissions.\n"
+    "        available_blocks = self.block_pool.get_num_free_blocks() - reserved_blocks\n"
+    "        required_blocks = num_blocks_to_allocate + watermark_blocks\n"
+    "        if required_blocks > available_blocks:\n"
+    "            # Cannot allocate new blocks\n"
+    "            return None\n"
+)
+
+P88_ALLOC_COMMIT_DEV491_REPLACEMENT = (
+    P88_ALLOC_COMMIT_DEV491_ANCHOR + _P88_COMMIT_BODY
+)
+
+# Names of the two mutually-exclusive commit-anchor variants. apply()
+# requires that AT LEAST ONE fired — a lookup-only half-apply is incoherent
+# (the lookup site becomes a pure stash that is then never committed, so the
+# stats silently stop recording entirely).
+_COMMIT_VARIANT_NAMES = (
+    "p88_alloc_commit",
+    "p88_alloc_commit_dev491",
 )
 
 
@@ -188,17 +254,34 @@ def _make_kv_cache_manager_patcher(
         target_file=target_file,
         marker=GENESIS_P88_MARKER,
         sub_patches=[
+            # LOOKUP site — byte-identical on dev259 and dev491, so a single
+            # required sub-patch covers both pins. If #45202 merges upstream
+            # it removes this record() call, the anchor vanishes, and the
+            # whole patch self-skips (the correct drift behavior).
             TextPatch(
                 name="p88_lookup_stash",
                 anchor=P88_LOOKUP_ANCHOR,
                 replacement=P88_LOOKUP_REPLACEMENT,
                 required=True,
             ),
+            # COMMIT site — DUAL-ANCHOR (required-at-least-one). Both
+            # variants required=False; the non-matching one soft-skips
+            # (siblings continue). apply() asserts at least one fired so a
+            # lookup-only half-apply fails loudly instead of silently
+            # zeroing the prefix-cache stats.
+            # Variant A — current pin dev259 (num_blocks_to_allocate gate).
             TextPatch(
                 name="p88_alloc_commit",
                 anchor=P88_ALLOC_COMMIT_ANCHOR,
                 replacement=P88_ALLOC_COMMIT_REPLACEMENT,
-                required=True,
+                required=False,
+            ),
+            # Variant B — candidate pin dev491 (required_blocks/watermark gate).
+            TextPatch(
+                name="p88_alloc_commit_dev491",
+                anchor=P88_ALLOC_COMMIT_DEV491_ANCHOR,
+                replacement=P88_ALLOC_COMMIT_DEV491_REPLACEMENT,
+                required=False,
             ),
         ],
         # No explicit upstream_drift_markers: if #45202 merges it removes
@@ -228,6 +311,26 @@ def apply() -> tuple[str, str]:
 
     patcher = _make_kv_cache_manager_patcher()
     result, failure = patcher.apply()
+
+    # At-least-one commit variant must have fired. Both commit variants are
+    # required=False, so a future drift that breaks BOTH gate shapes would
+    # let the required LOOKUP sub apply alone — turning the lookup site into
+    # a pure stash that is never committed, silently zeroing the
+    # prefix-cache stats. Detect that and FAIL loudly (PN351 convention).
+    if result == TextPatchResult.APPLIED:
+        if not set(patcher.applied_sub_patches).intersection(
+            _COMMIT_VARIANT_NAMES
+        ):
+            return "failed", (
+                "P88 FAILED — lookup-stash sub-patch applied but NEITHER "
+                "alloc-commit anchor variant matched (dev259 "
+                "num_blocks_to_allocate gate / dev491 required_blocks "
+                "watermark gate). The commit is the load-bearing half; a "
+                "lookup-only apply turns the record() into a never-committed "
+                "stash and zeroes the prefix-cache stats. Anchor drift past a "
+                "NEW pin shape — re-derive the allocate_slots commit anchor."
+            )
+
     return result_to_wiring_status(
         result,
         failure,

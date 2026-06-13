@@ -63,6 +63,19 @@ PRISTINE_SCHEDULER = os.path.join(
     PRISTINE_ROOT, "v1", "core", "sched", "scheduler.py"
 )
 
+# dev491 candidate pin (0.22.1rc1.dev491+g1033ffac2). The pin bump moved the
+# `p62_grammar_bitmask` anchor: dev491 inserted a diffusion-LLM `token_iter`
+# branch between `req_tokens = ...` and the bitmask loop. P62 now dual-anchors
+# the grammar_bitmask sub-patch (dev259 + dev491 variants, required-at-least-
+# one). These constants drive the dev491-anchor byte-verification.
+CANDIDATE_DEV491_ROOT = "/tmp/candidate_pin_new/vllm"
+CANDIDATE_DEV491_STRUCT_OUT = os.path.join(
+    CANDIDATE_DEV491_ROOT, "v1", "structured_output", "__init__.py"
+)
+CANDIDATE_DEV491_SCHEDULER = os.path.join(
+    CANDIDATE_DEV491_ROOT, "v1", "core", "sched", "scheduler.py"
+)
+
 requires_pristine = pytest.mark.skipif(
     not (
         os.path.isfile(PRISTINE_STRUCT_OUT)
@@ -70,6 +83,24 @@ requires_pristine = pytest.mark.skipif(
     ),
     reason="pristine candidate pin tree not extracted on this host",
 )
+
+requires_dev491 = pytest.mark.skipif(
+    not (
+        os.path.isfile(CANDIDATE_DEV491_STRUCT_OUT)
+        and os.path.isfile(CANDIDATE_DEV491_SCHEDULER)
+    ),
+    reason="dev491 candidate pin tree not extracted on this host",
+)
+
+
+def _dev491_struct_out_src() -> str:
+    with open(CANDIDATE_DEV491_STRUCT_OUT) as f:
+        return f.read()
+
+
+def _dev491_scheduler_src() -> str:
+    with open(CANDIDATE_DEV491_SCHEDULER) as f:
+        return f.read()
 
 # Reasoning-end marker token id used by upstream #44993's tests
 # (mirrors the real Qwen3 </think> detection: end token in the delta).
@@ -306,6 +337,118 @@ class TestAnchorsAgainstPristine:
         ):
             src = src.replace(old, new)
         ast.parse(src)
+
+    def test_dev259_grammar_bitmask_anchor_is_dev259_shape(self):
+        """The CURRENT-pin variant must NOT match dev491 (mutual exclusion):
+        dev491 inserted a diffusion `token_iter` branch the dev259 shape
+        lacks, so the dev259 anchor counts 0 on dev491."""
+        M = _p62()
+        if os.path.isfile(CANDIDATE_DEV491_STRUCT_OUT):
+            assert _dev491_struct_out_src().count(M.GRAMMAR_BITMASK_OLD) == 0
+
+
+# ── 1b. dev491 dual-anchor byte-verification (pin-bump re-anchor) ─────
+
+
+@requires_dev491
+class TestDev491GrammarBitmaskAnchor:
+    """Pin-bump re-anchor coverage for the moved `p62_grammar_bitmask`
+    site. dev491 (0.22.1rc1.dev491+g1033ffac2) inserted a diffusion-LLM
+    `token_iter` branch between `req_tokens = ...` and the bitmask loop,
+    shifting the anchor entirely. P62 dual-anchors the sub-patch under the
+    P18B/PN32/PN351 required-at-least-one convention: EXACTLY ONE variant
+    matches per pin, the other soft-skips."""
+
+    def test_dev491_anchor_count_exactly_one(self):
+        M = _p62()
+        src = _dev491_struct_out_src()
+        assert src.count(M.GRAMMAR_BITMASK_OLD_DEV491) == 1
+
+    def test_dev259_variant_absent_on_dev491(self):
+        """Mutual exclusion: the dev259 grammar_bitmask anchor must NOT
+        appear in the dev491 tree (otherwise both would fire / ambiguous)."""
+        M = _p62()
+        assert _dev491_struct_out_src().count(M.GRAMMAR_BITMASK_OLD) == 0
+
+    def test_dev491_variant_absent_on_dev259(self):
+        """Mutual exclusion, other direction: the dev491 variant must NOT
+        match the dev259 tree."""
+        M = _p62()
+        if os.path.isfile(PRISTINE_STRUCT_OUT):
+            assert (
+                _pristine_struct_out_src().count(M.GRAMMAR_BITMASK_OLD_DEV491)
+                == 0
+            )
+
+    def test_new_methods_anchor_stable_across_pins(self):
+        """Only the grammar_bitmask anchor moved; the new_methods anchor is
+        stable (count==1 on BOTH pins) so it stays required=True."""
+        M = _p62()
+        assert _dev491_struct_out_src().count(M.NEW_METHODS_OLD) == 1
+
+    def test_dev491_scheduler_anchors_unchanged(self):
+        """The scheduler.py half of P62 was not affected by the dev491
+        bump — its three anchors still count==1."""
+        M = _p62()
+        src = _dev491_scheduler_src()
+        assert src.count(M.SCHED_UPDATE_FROM_OUTPUT_OLD) == 1
+        assert src.count(M.SCHED_UDTI_OLD) == 1
+        assert src.count(M.SCHED_UDTIO_OLD) == 1
+
+    def test_dev491_variant_preserves_diffusion_branch(self):
+        """The dev491 replacement must KEEP upstream's diffusion `token_iter`
+        selection (deleting it would regress diffusion-LLM bitmasking) while
+        layering P62's reasoning-aware split on top."""
+        M = _p62()
+        assert "token_iter: Iterable[int] = req_tokens" in (
+            M.GRAMMAR_BITMASK_NEW_DEV491
+        )
+        assert "for tok_idx, token in enumerate(token_iter):" in (
+            M.GRAMMAR_BITMASK_NEW_DEV491
+        )
+        assert "reasoning_end_idx" in M.GRAMMAR_BITMASK_NEW_DEV491
+
+    def test_patched_dev491_struct_out_is_valid_python(self):
+        """Apply BOTH dev491 sub-patches to the dev491 pristine source and
+        confirm the result parses (the exact text TextPatcher writes)."""
+        M = _p62()
+        src = _dev491_struct_out_src()
+        assert src.count(M.GRAMMAR_BITMASK_OLD_DEV491) == 1
+        assert src.count(M.NEW_METHODS_OLD) == 1
+        src = src.replace(M.GRAMMAR_BITMASK_OLD_DEV491, M.GRAMMAR_BITMASK_NEW_DEV491)
+        src = src.replace(M.NEW_METHODS_OLD, M.NEW_METHODS_NEW)
+        ast.parse(src)
+
+    def test_apply_reports_dev491_variant(self, monkeypatch, tmp_path):
+        """End-to-end: apply() against a copy of the dev491 tree must report
+        the dev491 diffusion-aware variant fired, and write valid Python."""
+        import shutil
+        import sndr.engines.vllm.detection.guards as guards
+        import sndr.dispatcher as D
+
+        M = _p62()
+        vllm_root = tmp_path / "vllm"
+        so_dir = vllm_root / "v1" / "structured_output"
+        sch_dir = vllm_root / "v1" / "core" / "sched"
+        so_dir.mkdir(parents=True)
+        sch_dir.mkdir(parents=True)
+        shutil.copy(CANDIDATE_DEV491_STRUCT_OUT, so_dir / "__init__.py")
+        shutil.copy(CANDIDATE_DEV491_SCHEDULER, sch_dir / "scheduler.py")
+
+        def _resolve(rel):
+            p = vllm_root / rel
+            return str(p) if p.is_file() else None
+
+        monkeypatch.setattr(guards, "vllm_install_root", lambda: str(vllm_root))
+        monkeypatch.setattr(M, "vllm_install_root", lambda: str(vllm_root))
+        monkeypatch.setattr(M, "resolve_vllm_file", _resolve)
+        monkeypatch.setattr(D, "should_apply", lambda pid: (True, "forced"))
+        monkeypatch.setattr(D, "log_decision", lambda *a, **k: None)
+
+        status, reason = M.apply()
+        assert status == "applied", reason
+        assert "dev491 diffusion-aware anchor variant" in reason
+        ast.parse((so_dir / "__init__.py").read_text())
 
 
 # ── 2. Pristine bug reproduction (#43388 / Bug 1) ─────────────────────

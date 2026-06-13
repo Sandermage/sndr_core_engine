@@ -158,10 +158,54 @@ MERGED_SAMPLER = PIN_SAMPLER.replace(
     "(pin g303916e93 form)", "(post-vllm#45060 merged form)"
 )
 
+# dev491 MERGED form — what the candidate pin (0.22.1rc1.dev491+g1033ffac2)
+# ACTUALLY ships after vllm merged the kernel half of #45060. This differs
+# from MERGED_SAMPLER (which models the PR DIFF form, `-float("inf")`):
+# vllm spells the constant `float("-inf")`, reworded the comment, and added
+# a `recovered_id = tl.minimum(...)` clamp. Byte-faithful copy of the tail
+# block from /tmp/candidate_pin_new/vllm (verified 2026-06-13). PN378 must
+# self-skip on this form via the dev491 drift markers (Layer 3).
+DEV491_SAMPLER = PIN_SAMPLER.replace(
+    "        # Local tile reduction\n"
+    "        score = prob * inv_q\n"
+    "        local_max, local_id = tl.max(score, axis=0, return_indices=True)\n"
+    "\n"
+    "        if local_max > max_val:\n"
+    "            max_val = local_max\n"
+    "            recovered_id = v + local_id\n"
+    "\n"
+    "    tl.store(output_token_ids_ptr + token_idx, recovered_id)\n",
+    "        # Local tile reduction.\n"
+    "        # Mask out-of-vocabulary entries to -inf so they can never win\n"
+    "        # the argmax — prevents producing recovered_id >= vocab_size\n"
+    "        # when all valid entries in the last tile have zero probability.\n"
+    "        score = prob * inv_q\n"
+    '        score = tl.where(vocab_mask, score, float("-inf"))\n'
+    "        local_max, local_id = tl.max(score, axis=0, return_indices=True)\n"
+    "\n"
+    "        if local_max > max_val:\n"
+    "            max_val = local_max\n"
+    "            recovered_id = v + local_id\n"
+    "\n"
+    "    recovered_id = tl.minimum(recovered_id, vocab_size - 1)\n"
+    "    tl.store(output_token_ids_ptr + token_idx, recovered_id)\n",
+).replace(
+    "(pin g303916e93 form)", "(dev491 merged form, post-vllm#45060)"
+)
+
 PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/sample")
+# Candidate pin tree (dev491) — present during the pin-bump validation window.
+DEV491_TREE = Path("/tmp/candidate_pin_new/vllm/v1/sample")
 
 OUR_MASK_LINE = 'score = tl.where(vocab_mask, score, float("-inf"))'
 UPSTREAM_MASK_LINE = 'score = tl.where(vocab_mask, score, -float("inf"))'
+# dev491 merged-form drift markers — must fire Layer 3 on the candidate pin.
+DEV491_MARKER_COMMENT = (
+    "        # Mask out-of-vocabulary entries to -inf so they can never win\n"
+)
+DEV491_MARKER_CLAMP = (
+    "    recovered_id = tl.minimum(recovered_id, vocab_size - 1)\n"
+)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -270,6 +314,43 @@ class TestApply:
         # Self-skip must not modify the merged file.
         assert target.read_text(encoding="utf-8") == MERGED_SAMPLER
 
+    def test_self_skips_on_dev491_merged_form(self, tmp_path, monkeypatch):
+        """PIN BUMP dev259 -> dev491: vllm merged the #45060 kernel half
+        in a form that differs from the PR diff (constant spelled
+        ``float("-inf")``, reworded comment, added ``tl.minimum`` clamp).
+        The dev259 splice anchor is GONE on dev491; the patch must
+        self-skip via the dev491 merged-form drift markers (Layer 3),
+        not splice a second mask line into the already-fixed kernel."""
+        target = _install_fake(tmp_path, monkeypatch, DEV491_SAMPLER)
+        status, reason = m.apply()
+        assert status == "skipped"
+        assert "upstream_merged" in reason
+        # Self-skip must not modify the already-fixed dev491 file.
+        assert target.read_text(encoding="utf-8") == DEV491_SAMPLER
+
+    def test_dev491_form_lacks_dev259_anchor(self):
+        """The dev491 merged form must NOT contain the dev259 splice
+        anchor — proving the site moved and a splice would be incoherent
+        (the fix is already present), so Layer 3 self-skip is the only
+        correct path on the candidate pin."""
+        assert m.PN378_MASK_OLD not in DEV491_SAMPLER
+        # The merged form already carries our (and upstream's) mask line.
+        assert OUR_MASK_LINE in DEV491_SAMPLER
+
+    def test_dev491_markers_fire_on_dev491_form_only(self, tmp_path, monkeypatch):
+        """The two dev491 merged-form markers must match the dev491 form
+        AND be absent from the dev259 pin form — so exactly one pin path
+        fires: dev259 splices, dev491 self-skips."""
+        _install_fake(tmp_path, monkeypatch, PIN_SAMPLER)
+        patcher = m._make_patcher()
+        markers = patcher.upstream_drift_markers
+        assert DEV491_MARKER_COMMENT in markers
+        assert DEV491_MARKER_CLAMP in markers
+        # Fire on dev491, silent on dev259.
+        for dm in (DEV491_MARKER_COMMENT, DEV491_MARKER_CLAMP):
+            assert dm in DEV491_SAMPLER
+            assert dm not in PIN_SAMPLER
+
     def test_apply_skips_when_gate_closed(self, tmp_path, monkeypatch):
         """Opt-in patch (default_on=False): with the dispatcher gate
         closed (env flag unset / registry says no), apply() must skip
@@ -358,3 +439,53 @@ class TestAnchorsAgainstPristinePin:
         src = (PIN_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
         assert "BLOCK_SIZE = 8192" in src
         assert 151936 % 8192 != 0
+
+
+# ── Candidate pin (dev491) invariants — pin-bump dual-anchor ──────────
+
+
+@pytest.mark.skipif(
+    not (DEV491_TREE / "rejection_sampler.py").is_file(),
+    reason="candidate pin (dev491) tree not present on this machine",
+)
+class TestAnchorsAgainstDev491Pin:
+    def test_dev259_anchor_absent_on_dev491(self):
+        """The kernel half of #45060 LANDED in dev491, so the dev259
+        splice anchor must be GONE on the candidate pin (count 0). The
+        patch must NOT try to splice — Layer 3 self-skip takes over."""
+        src = (DEV491_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
+        assert src.count(m.PN378_MASK_OLD) == 0
+
+    def test_dev491_markers_fire_and_are_unique(self):
+        """Both dev491 merged-form drift markers must be present exactly
+        once in the dev491 tree (so Layer 3 self-skips) and absent from
+        the dev259 pin tree (so dev259 still splices)."""
+        d491 = (DEV491_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
+        assert d491.count(DEV491_MARKER_COMMENT) == 1
+        assert d491.count(DEV491_MARKER_CLAMP) == 1
+        # At least one dev491 marker is registered on the patcher.
+        assert DEV491_MARKER_COMMENT in m._DRIFT_MARKERS
+        assert DEV491_MARKER_CLAMP in m._DRIFT_MARKERS
+        if (PIN_TREE / "rejection_sampler.py").is_file():
+            d259 = (PIN_TREE / "rejection_sampler.py").read_text(
+                encoding="utf-8"
+            )
+            assert d259.count(DEV491_MARKER_COMMENT) == 0
+            assert d259.count(DEV491_MARKER_CLAMP) == 0
+
+    def test_dev491_already_carries_the_fix(self):
+        """dev491 already carries the masked-score line (vllm's own
+        merged form spells the same ``float("-inf")`` we emit) plus the
+        out-of-vocab clamp — confirming a splice would be incoherent."""
+        src = (DEV491_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
+        assert OUR_MASK_LINE in src
+        assert "tl.minimum(recovered_id, vocab_size - 1)" in src
+
+    def test_dev491_fixture_matches_pristine_tail(self):
+        """The DEV491_SAMPLER fixture must carry the EXACT merged tail
+        bytes from the candidate tree, so the self-skip apply-test
+        exercises the real dev491 form, not a hand-approximation."""
+        src = (DEV491_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
+        for marker in (DEV491_MARKER_COMMENT, DEV491_MARKER_CLAMP, OUR_MASK_LINE):
+            assert marker in src
+            assert marker in DEV491_SAMPLER

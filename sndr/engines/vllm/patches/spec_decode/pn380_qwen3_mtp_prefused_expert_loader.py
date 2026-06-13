@@ -45,14 +45,33 @@ Adaptation per iron rule #10 (adapt, don't blind-copy)
 
 The PR head targets a NEWER upstream shape where
 ``fused_expert_params_mapping`` is built in a loop and the fix appends
-an ``alt_ckpt_name`` variant per entry. Our pin
-(0.22.1rc1.dev259+g303916e93) carries the older STATIC two-entry list,
-so sub-patch 1 appends two static pre-fused entries instead — same
-semantics, pin-native shape. Because of that, ``alt_ckpt_name`` is a
-safe upstream drift marker: it appears in the file only if the merged
-form of vllm#44943 (or its loop-built successor) lands, and never in
-our own emitted text (asserted in tests; tools/lint_drift_markers.py
-contract).
+an ``alt_ckpt_name`` variant per entry. Because the construction site
+MOVED between our two live pins, sub-patch 1 is DUAL-ANCHOR
+(PN351/PN32/P18B "required-at-least-one" convention):
+
+  * Variant A — CURRENT PROD pin 0.22.1rc1.dev259+g303916e93 carries the
+    older STATIC two-entry list (built off a local ``base_layer``
+    string), so we append two static pre-fused entries.
+  * Variant B — CANDIDATE pin 0.22.1rc1.dev491+g1033ffac2 rebuilt the
+    mapping in a LOOP over ``fused_moe_make_expert_params_mapping`` (the
+    ``base_layer`` local was removed; the loop derives the target prefix
+    ``experts.routed_experts.{base_layer}w13_weight`` internally). We
+    append a post-loop block that derives pre-fused SOURCE aliases from
+    the loop's OWN output, keeping the target param names byte-exact to
+    whatever prefix the loop produced — no hardcoded ``routed_experts``
+    / ``base_layer``, robust to further prefix drift.
+
+Both variants are ``required=False``; exactly one matches per pin and
+the other soft-skips. apply() asserts at least one mapping variant
+fired (a mapping-less apply is incoherent — the detection/guard subs
+would route nothing). Same semantics either way: same target param,
+alternative pre-fused checkpoint source name.
+
+Because our adaptation emits no ``alt_ckpt_name`` in EITHER variant,
+that token stays a safe upstream drift marker: it appears in the file
+only if the merged form of vllm#44943 (or its loop-built successor)
+lands, and never in our own emitted text (asserted in tests;
+tools/lint_drift_markers.py contract).
 
 Three vendored sub-patches (faithful #44943 semantics):
 
@@ -106,8 +125,9 @@ Composition + safety
   * **PN348 (vendor of vllm#44644) patches the SAME FILE** — its three
     anchors (embed_tokens predicate, lm_head fallthrough,
     remap_weight_names skip) all live OUTSIDE
-    ``Qwen3_5MultiTokenPredictor.load_weights``; PN380's six anchors
-    all live INSIDE it. Disjointness and both co-apply orders are
+    ``Qwen3_5MultiTokenPredictor.load_weights``; PN380's anchors (five
+    shared + one of two mutually-exclusive mapping variants) all live
+    INSIDE it. Disjointness and both co-apply orders are
     asserted in
     tests/unit/integrations/spec_decode/test_pn380_qwen3_mtp_prefused_expert_loader.py.
     Cross-module drift-marker hygiene is also asserted: PN380's
@@ -116,19 +136,29 @@ Composition + safety
     neither patch can Layer-3 false-skip the other.
   * Composes with PN108 + PN133 + PN290 + PN340 + PN341 + PN370 (MTP
     runtime patches in different files; no anchor overlap).
-  * All six sub-patches ``required=True`` — partial application would
-    count skips without reporting them (or detect pre-fused names
-    without the KeyError guard). On any anchor miss the patcher SKIPs
-    cleanly with no file mutation (TextPatcher semantics; PN286/PN290
-    half-apply lesson).
+  * Five shared sub-patches ``required=True`` + two mutually-exclusive
+    mapping variants ``required=False`` (required-at-least-one). Partial
+    application would count skips without reporting them (or detect
+    pre-fused names without the KeyError guard), so on any REQUIRED
+    anchor miss the patcher SKIPs cleanly with no file mutation
+    (TextPatcher semantics; PN286/PN290 half-apply lesson). apply()
+    additionally fails loudly if NEITHER mapping variant fired (the
+    mapping is the load-bearing half).
   * Behavior on split-form checkpoints (both PROD SKUs today): the new
     mapping entries and detection branches never match, the coverage
     guard sees zero skips and full coverage — patched file is
     behavior-identical to pristine, plus one set() comparison per load
     (load-time only, zero hot-path cost).
 
-Anchors byte-verified count==1 on the pristine tree at
-/private/tmp/candidate_pin_current/vllm (pin g303916e93, 2026-06-11).
+Anchors byte-verified count==1 on BOTH pristine trees (dual-anchor pin
+bump, 2026-06-13):
+  * /private/tmp/candidate_pin_current/vllm (CURRENT PROD pin
+    g303916e93, 0.22.1rc1.dev259) — mapping Variant A + the five shared
+    anchors all count==1.
+  * /tmp/candidate_pin_new/vllm (CANDIDATE pin g1033ffac2,
+    0.22.1rc1.dev491) — mapping Variant B + the five shared anchors all
+    count==1. (The five non-mapping anchors are byte-identical across
+    both pins; only the mapping construction site moved.)
 
 Runtime verification (post-restart, pre-fused trial checkpoint)
 ===============================================================
@@ -172,9 +202,35 @@ _DRIFT_MARKERS = (
 
 
 # ── Sub-1: pre-fused checkpoint source names in the fused mapping ───────
-# Anchor: the static two-entry list (pin g303916e93 lines 215-218).
-# The PR head builds this list in a loop — adaptation note in the
-# module docstring.
+#
+# DUAL-ANCHOR (pin-bump protection, 2026-06-13; PN351/PN32/P18B
+# "required-at-least-one" convention). The mapping-construction site
+# changed shape between our two live pins, so this sub-patch ships TWO
+# mutually-exclusive variants — exactly one matches per pin, the other
+# soft-skips (required=False). apply() enforces that one fired.
+#
+#   * Variant A — CURRENT PROD pin g303916e93 (0.22.1rc1.dev259): the
+#     mapping is a STATIC two-entry list built off the local
+#     ``base_layer`` string (lines 215-218). We append two static
+#     pre-fused entries.
+#   * Variant B — CANDIDATE pin g1033ffac2 (0.22.1rc1.dev491): upstream
+#     rebuilt the mapping in a LOOP over
+#     ``fused_moe_make_expert_params_mapping`` (the ``base_layer`` local
+#     was removed; the loop derives the target prefix —
+#     ``experts.routed_experts.{base_layer}w13_weight`` — internally).
+#     We append a SMALL post-loop block that derives pre-fused SOURCE
+#     aliases from the loop's OWN output, so the target param names stay
+#     byte-exact to whatever prefix the loop produced (no hardcoded
+#     ``routed_experts``/``base_layer`` — robust to further prefix
+#     drift). Same semantics as Variant A: same target param,
+#     alternative pre-fused checkpoint source name.
+#
+# The PR head of vllm#44943 builds this list in a loop AND appends an
+# ``alt_ckpt_name`` variant per entry; our adaptation emits no
+# ``alt_ckpt_name``, so that token remains a safe patcher-level drift
+# marker (module docstring + tests/lint_drift_markers.py contract).
+
+# Variant A — dev259 static two-entry list (pin g303916e93).
 PN380_MAPPING_OLD = (
     "        fused_expert_params_mapping = [\n"
     '            (f"experts.{base_layer}w13_weight", "experts.gate_up_proj", 0, "w1"),\n'
@@ -192,6 +248,74 @@ PN380_MAPPING_NEW = (
     '            (f"experts.{base_layer}w13_weight", "experts.w13_weight", 0, "w1"),\n'
     '            (f"experts.{base_layer}w2_weight", "experts.w2_weight", 0, "w2"),\n'
     "        ]\n"
+)
+
+# Variant B — dev491 loop-built mapping (pin g1033ffac2). Anchor is the
+# whole loop + the trailing ``num_experts`` block (byte-verified count==1
+# on the dev491 pristine tree, absent on dev259). The replacement keeps
+# the loop verbatim and appends pre-fused SOURCE aliases derived from the
+# loop's own output, preserving the loop-produced target param names.
+PN380_MAPPING_DEV491_OLD = (
+    "        fused_expert_params_mapping: list[tuple[str, str, int, str]] = []\n"
+    "        for param_name, ckpt_name, _, shard_id in "
+    "fused_moe_make_expert_params_mapping(\n"
+    "            self,\n"
+    '            ckpt_gate_proj_name="gate_up_proj",\n'
+    '            ckpt_down_proj_name="down_proj",\n'
+    '            ckpt_up_proj_name="gate_up_proj",\n'
+    "            num_experts=1,\n"
+    "        ):\n"
+    '            if shard_id == "w3":\n'
+    "                continue\n"
+    '            parts = ckpt_name.split(".")\n'
+    "            fused_expert_params_mapping.append(\n"
+    '                (f"{param_name}weight", f"{parts[0]}.{parts[2]}", 0, shard_id)\n'
+    "            )\n"
+    "        num_experts = (\n"
+    '            self.config.num_experts if hasattr(self.config, "num_experts") else 0\n'
+    "        )\n"
+)
+PN380_MAPPING_DEV491_NEW = (
+    "        fused_expert_params_mapping: list[tuple[str, str, int, str]] = []\n"
+    "        for param_name, ckpt_name, _, shard_id in "
+    "fused_moe_make_expert_params_mapping(\n"
+    "            self,\n"
+    '            ckpt_gate_proj_name="gate_up_proj",\n'
+    '            ckpt_down_proj_name="down_proj",\n'
+    '            ckpt_up_proj_name="gate_up_proj",\n'
+    "            num_experts=1,\n"
+    "        ):\n"
+    '            if shard_id == "w3":\n'
+    "                continue\n"
+    '            parts = ckpt_name.split(".")\n'
+    "            fused_expert_params_mapping.append(\n"
+    '                (f"{param_name}weight", f"{parts[0]}.{parts[2]}", 0, shard_id)\n'
+    "            )\n"
+    "        # [Genesis PN380 vendor of vllm#44943] pre-fused checkpoints\n"
+    "        # (community AutoRound/GPTQ quants of Qwen3.5/3.6 MoE) store\n"
+    "        # expert tensors under the bare fused names directly. Derive a\n"
+    "        # pre-fused SOURCE alias for each loop-built entry — same TARGET\n"
+    "        # param name (keeps whatever prefix the loop produced, e.g.\n"
+    "        # experts.routed_experts.<base_layer>w13_weight), alternative\n"
+    "        # checkpoint source name. Mirrors the dev259 static-list variant.\n"
+    "        _pn380_prefused_aliases: list[tuple[str, str, int, str]] = []\n"
+    "        for _pn380_pname, _pn380_src, _pn380_eid, _pn380_sid in (\n"
+    "            fused_expert_params_mapping\n"
+    "        ):\n"
+    '            if _pn380_src.endswith("gate_up_proj"):\n'
+    "                _pn380_prefused_aliases.append(\n"
+    '                    (_pn380_pname, "experts.w13_weight", _pn380_eid, _pn380_sid)\n'
+    "                )\n"
+    '            elif _pn380_src.endswith("down_proj"):\n'
+    "                _pn380_prefused_aliases.append(\n"
+    '                    (_pn380_pname, "experts.w2_weight", _pn380_eid, _pn380_sid)\n'
+    "                )\n"
+    "        fused_expert_params_mapping = (\n"
+    "            fused_expert_params_mapping + _pn380_prefused_aliases\n"
+    "        )\n"
+    "        num_experts = (\n"
+    '            self.config.num_experts if hasattr(self.config, "num_experts") else 0\n'
+    "        )\n"
 )
 
 
@@ -341,20 +465,44 @@ PN380_COVERAGE_REPORT_NEW = (
 )
 
 
+# The two mutually-exclusive mapping-variant sub-patch names. apply()
+# requires that EXACTLY ONE fired (the mapping is the load-bearing half —
+# without a pre-fused source name the detection/guard subs see nothing to
+# route, so a mapping-less apply is an incoherent no-op regression).
+_MAPPING_VARIANT_NAMES = (
+    "pn380_prefused_mapping",          # Variant A — dev259 static list.
+    "pn380_prefused_mapping_dev491",   # Variant B — dev491 loop build.
+)
+
+
 def build_sub_patches() -> list[TextPatch]:
-    """All six sub-patches, all ``required=True``.
+    """Seven sub-patches: two mutually-exclusive mapping variants
+    (``required=False``, required-at-least-one) + five ``required=True``.
 
     Partial application would be worse than none: counting skips
     without the report (or detecting pre-fused names without the
-    KeyError guard) ships an inconsistent loader. On any anchor miss
-    the whole patcher SKIPs with no file mutation.
+    KeyError guard) ships an inconsistent loader. The two mapping
+    variants are ``required=False`` because the construction site moved
+    between pins (dev259 static list vs dev491 loop) — EXACTLY ONE
+    matches per pin and the other soft-skips; apply() asserts one fired.
+    The remaining five anchors are byte-identical on both pins, so they
+    stay ``required=True``. On any required-anchor miss the whole patcher
+    SKIPs with no file mutation.
     """
     return [
+        # Mapping — Variant A (dev259 static list). required=False.
         TextPatch(
             name="pn380_prefused_mapping",
             anchor=PN380_MAPPING_OLD,
             replacement=PN380_MAPPING_NEW,
-            required=True,
+            required=False,
+        ),
+        # Mapping — Variant B (dev491 loop build). required=False.
+        TextPatch(
+            name="pn380_prefused_mapping_dev491",
+            anchor=PN380_MAPPING_DEV491_OLD,
+            replacement=PN380_MAPPING_DEV491_NEW,
+            required=False,
         ),
         TextPatch(
             name="pn380_prefused_detection",
@@ -450,18 +598,44 @@ def apply() -> tuple[str, str]:
             "draft-weight load-coverage guard live on qwen3_5_mtp.py."
         )
 
+    # At-least-one mapping variant must have fired. Both mapping variants
+    # are required=False (the construction site moved between dev259 and
+    # dev491), so a future drift breaking BOTH shapes would let the five
+    # required subs apply WITHOUT a pre-fused source name in the mapping —
+    # an incoherent half-patch (detection/guard subs route nothing).
+    # Detect it and FAIL loudly rather than report a misleading "applied".
+    applied = set(patcher.applied_sub_patches)
+    mapping_applied = applied.intersection(_MAPPING_VARIANT_NAMES)
+    if not mapping_applied:
+        return "failed", (
+            "PN380 FAILED — coverage/detection sub-patches applied but NEITHER "
+            "mapping variant matched (dev259 static-list / dev491 loop-build). "
+            "The pre-fused SOURCE-name mapping is the load-bearing half; "
+            "without it the detection + KeyError-guard subs route nothing. "
+            "Anchor drift past a NEW pin shape — re-derive the "
+            "fused_expert_params_mapping construction anchor."
+        )
+
+    variant = next(iter(mapping_applied))
+    variant_note = (
+        "dev491 loop-build anchor variant"
+        if variant.endswith("dev491")
+        else "dev259 static-list anchor variant"
+    )
     n = len(patcher.applied_sub_patches)
     return "applied", (
-        f"PN380 applied: {n}/6 sub-patches on qwen3_5_mtp.py — (1-3) vendor "
-        f"of OPEN PR vllm#44943: experts.w13_weight/w2_weight pre-fused "
-        f"checkpoint names mapped + detected + KeyError-guarded (prevents "
-        f"silent -23pp accept-rate collapse on quantized MTP and startup "
-        f"TypeError on unquantized MTP for AutoRound/GPTQ community "
-        f"checkpoints); (4-6) Genesis draft-weight load-coverage guard — "
-        f"one log.error on any checkpoint/param coverage gap (the engine's "
-        f"strict check is disabled for quantized models). Split-form "
-        f"checkpoints (both PROD SKUs) are behavior-identical. Composes "
-        f"with PN348 (same file, disjoint anchors, both orders verified)."
+        f"PN380 applied: {n}/6 sub-patches on qwen3_5_mtp.py "
+        f"({variant_note}) — (1-3) vendor of OPEN PR vllm#44943: "
+        f"experts.w13_weight/w2_weight pre-fused checkpoint names mapped + "
+        f"detected + KeyError-guarded (prevents silent -23pp accept-rate "
+        f"collapse on quantized MTP and startup TypeError on unquantized MTP "
+        f"for AutoRound/GPTQ community checkpoints); (4-6) Genesis "
+        f"draft-weight load-coverage guard — one log.error on any "
+        f"checkpoint/param coverage gap (the engine's strict check is "
+        f"disabled for quantized models). Split-form checkpoints (both PROD "
+        f"SKUs) are behavior-identical. Multi-anchor mapping survives the "
+        f"dev259->dev491 loop refactor. Composes with PN348 (same file, "
+        f"disjoint anchors, both orders verified)."
     )
 
 

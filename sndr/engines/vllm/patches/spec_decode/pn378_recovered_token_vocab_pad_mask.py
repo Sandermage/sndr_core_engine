@@ -64,8 +64,34 @@ Activation: opt-in via ``GENESIS_ENABLE_PN378_VOCAB_PAD_MASK=1``
 failure chain). Self-skips when #45060 lands upstream: drift markers
 below are exact substrings of the PR's form.
 
+PIN-BUMP DUAL-ANCHOR (dev259 → dev491, 2026-06-13): the kernel half of
+#45060 LANDED UPSTREAM between our current pin
+(0.22.1rc1.dev259+g303916e93, PROD 35B) and the candidate
+(0.22.1rc1.dev491+g1033ffac2). On dev259 the splice anchor
+``PN378_MASK_OLD`` is still present (count==1, byte-verified) and the
+fix is absent, so the patch applies normally. On dev491 the equivalent
+insertion point is ALREADY filled by the merged form — the kernel now
+carries ``score = tl.where(vocab_mask, score, float("-inf"))`` plus a
+``recovered_id = tl.minimum(recovered_id, vocab_size - 1)`` clamp — so
+there is no insertion point left to splice; the correct behavior is a
+self-skip. The merged form vllm shipped differs from the pre-merge PR
+diff this patch was authored against (vllm spells the constant
+``float("-inf")`` where the PR diff wrote ``-float("inf")``, reworded
+the comment, and added the clamp), so the original PR-form drift markers
+do NOT fire on the real dev491 tree. We therefore ADD two dev491
+merged-form drift markers (the reworded comment head and the clamp line,
+both count==1 in dev491 / count==0 in dev259, byte-verified) WITHOUT
+removing the dev259 splice variant or the PR-form markers. Net effect:
+exactly one path fires per pin — dev259 splices via ``PN378_MASK_OLD``;
+dev491 self-skips at Layer 3 with reason ``upstream_merged`` before the
+anchor is ever checked. Both dev491 markers are deliberately spelled to
+NOT be substrings of our own emitted replacement text or of the sibling
+PN390 patch on this same file (lint_drift_markers self-collision
+contract — verified count 0 in both module sources).
+
 Author backport: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
-Vendor target: vllm-project/vllm#45060 (OPEN as of 2026-06-11).
+Vendor target: vllm-project/vllm#45060 (MERGED in dev491; OPEN as of
+2026-06-11 authoring, still OPEN against our PROD dev259 pin).
 """
 from __future__ import annotations
 
@@ -83,18 +109,42 @@ GENESIS_PN378_MARKER = (
 
 _TARGET_REL = "v1/sample/rejection_sampler.py"
 
-# Drift markers — exact substrings of #45060's form, taken from
-# `gh pr diff 45060` on 2026-06-11. Absent in the pristine pin tree
-# (g303916e93: both count 0, byte-verified) and deliberately NOT
-# substrings of our own replacement text: our mask line spells
-# `float("-inf")` (never `-float("inf")`) and our comment block is
-# original wording (lint_drift_markers self-collision contract).
+# Drift markers — exact substrings of #45060's form. Two cohorts:
+#
+#   (1) PR-DIFF FORM (authored 2026-06-11, `gh pr diff 45060`): the form
+#       the PR proposed before merge. Absent in the dev259 pin tree
+#       (g303916e93: both count 0, byte-verified) and deliberately NOT
+#       substrings of our own replacement text — our mask line spells
+#       `float("-inf")` (never the PR's `-float("inf")`) and our comment
+#       block is original wording (lint_drift_markers self-collision
+#       contract). These fire on the test's MERGED_SAMPLER fixture, which
+#       models the PR-diff form.
+#
+#   (2) DEV491 MERGED FORM (pin bump dev259 → dev491, 2026-06-13): the
+#       form vllm ACTUALLY shipped, which differs from the PR diff — vllm
+#       spells the constant `float("-inf")`, reworded the comment, and
+#       added a `recovered_id = tl.minimum(...)` clamp. The PR-diff markers
+#       above therefore do NOT match the real dev491 tree, so we add two
+#       markers taken byte-exact from the dev491 pristine tree
+#       (/tmp/candidate_pin_new/vllm: each count==1 in dev491, count==0 in
+#       dev259, byte-verified). Both are upstream code/comment lines that
+#       are NOT substrings of our emitted replacement text nor of the
+#       sibling PN390 patch on this same file (self-collision contract).
+#       We do NOT reuse the dev491 mask line itself as a marker — it is
+#       byte-identical to our own emitted `float("-inf")` line and would
+#       self-collide.
 _DRIFT_MARKERS = (
-    # The PR's structural mask line (upstream constant spelling).
+    # (1) The PR's structural mask line (PR-diff constant spelling).
     '        score = tl.where(vocab_mask, score, -float("inf"))\n',
-    # The PR's extended tile-reduction comment head.
+    # (1) The PR's extended tile-reduction comment head.
     "        # Local tile reduction. Mask padding (``vocab_offset >= "
     "vocab_size``,\n",
+    # (2) dev491 merged-form comment head (vllm's exact wording).
+    "        # Mask out-of-vocabulary entries to -inf so they can never "
+    "win\n",
+    # (2) dev491 merged-form out-of-vocab clamp (upstream code, the
+    #     second half of the merged fix; strongest functional signal).
+    "    recovered_id = tl.minimum(recovered_id, vocab_size - 1)\n",
 )
 
 # ── Sub-patch (required): the padding mask ───────────────────────────

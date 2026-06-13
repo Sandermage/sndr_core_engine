@@ -153,6 +153,85 @@ GRAMMAR_BITMASK_NEW = (
     "                    cumulative_index += 1"
 )
 
+# ── Sub-patch 1a dev491 variant (DUAL-ANCHOR, P18B/PN32/PN351 convention) ──
+# vllm 0.22.1rc1.dev491+g1033ffac2 inserted a diffusion-LLM branch between
+# `req_tokens = ...` and the bitmask loop: the loop no longer iterates the
+# inline `itertools.chain(req_tokens, (-1,))` but a precomputed `token_iter`
+# that omits the -1 padding for diffusion models (which don't sample a bonus
+# token after the scheduled positions). This shifts the `p62_grammar_bitmask`
+# anchor entirely — the dev259 GRAMMAR_BITMASK_OLD no longer matches.
+#
+# DUAL-ANCHOR semantics: GRAMMAR_BITMASK_OLD targets dev259 (count==1 on the
+# current PROD pin, count==0 on dev491); GRAMMAR_BITMASK_OLD_DEV491 targets
+# dev491 (count==0 on dev259, count==1 on dev491). Both sub-patches are
+# `required=False`; apply() enforces exactly one fired (at-least-one) so a
+# tile/new-methods-only half-apply can never pass silently. The dev491
+# replacement PRESERVES the upstream diffusion `token_iter` selection while
+# layering P62's reasoning-aware bitmask split on top of it.
+GRAMMAR_BITMASK_OLD_DEV491 = (
+    "                state_advancements = 0\n"
+    "                req_tokens = scheduled_spec_decode_tokens.get(req_id, ())\n"
+    "                if self.vllm_config.model_config.is_diffusion and req_tokens:\n"
+    "                    # Diffusion LLMs don't sample a bonus token after the\n"
+    "                    # scheduled positions, so don't append the -1 placeholder.\n"
+    "                    token_iter: Iterable[int] = req_tokens\n"
+    "                else:\n"
+    "                    token_iter = itertools.chain(req_tokens, (-1,))\n"
+    "                for token in token_iter:\n"
+    "                    self._fill_bitmasks(((grammar, cumulative_index, apply_bitmask),))\n"
+    "                    if token == -1:\n"
+    "                        # Stop advancing the grammar once we hit a padding token.\n"
+    "                        apply_bitmask = False\n"
+    "                    if apply_bitmask and not grammar.is_terminated():\n"
+    "                        accepted = grammar.accept_tokens(req_id, [token])\n"
+    "                        assert accepted, (token, req_id, scheduled_spec_decode_tokens)\n"
+    "                        state_advancements += 1\n"
+    "                    cumulative_index += 1"
+)
+
+GRAMMAR_BITMASK_NEW_DEV491 = (
+    "                # [Genesis P62 vllm#36138, dev491 diffusion-aware] reasoning-aware bitmask + advance\n"
+    "                req_tokens = scheduled_spec_decode_tokens.get(req_id, ())\n"
+    "                reasoning_end_idx = None\n"
+    "                if req_tokens and not apply_bitmask:\n"
+    "                    # When reasoning hasn't ended yet, only positions AFTER\n"
+    "                    # reasoning_end inside this spec batch must be constrained.\n"
+    "                    # PR #41199 made reasoner per-request via _get_reasoner;\n"
+    "                    # grammar_bitmask() has `requests` dict in scope, use it.\n"
+    "                    _p62_req = requests.get(req_id)\n"
+    "                    _p62_reasoner = (\n"
+    "                        self._get_reasoner(_p62_req) if _p62_req is not None else None\n"
+    "                    )\n"
+    "                    reasoning_end_idx = self._find_reasoning_end_in_tokens(\n"
+    "                        _p62_reasoner, list(req_tokens)\n"
+    "                    )\n"
+    "                if self.vllm_config.model_config.is_diffusion and req_tokens:\n"
+    "                    # Diffusion LLMs don't sample a bonus token after the\n"
+    "                    # scheduled positions, so don't append the -1 placeholder.\n"
+    "                    token_iter: Iterable[int] = req_tokens\n"
+    "                else:\n"
+    "                    token_iter = itertools.chain(req_tokens, (-1,))\n"
+    "                state_advancements = 0\n"
+    "                for tok_idx, token in enumerate(token_iter):\n"
+    "                    if reasoning_end_idx is not None:\n"
+    "                        pos_apply_bitmask = tok_idx > reasoning_end_idx\n"
+    "                    else:\n"
+    "                        pos_apply_bitmask = apply_bitmask\n"
+    "                    self._fill_bitmasks(\n"
+    "                        ((grammar, cumulative_index, pos_apply_bitmask),)\n"
+    "                    )\n"
+    "                    if token == -1:\n"
+    "                        # Stop advancing the grammar once we hit a padding token.\n"
+    "                        pos_apply_bitmask = False\n"
+    "                    if pos_apply_bitmask and not grammar.is_terminated():\n"
+    "                        accepted = grammar.accept_tokens(req_id, [token])\n"
+    "                        assert accepted, (\n"
+    "                            token, req_id, scheduled_spec_decode_tokens,\n"
+    "                        )\n"
+    "                        state_advancements += 1\n"
+    "                    cumulative_index += 1"
+)
+
 # Sub-patch 1b: Add new helper methods AFTER should_advance (keep should_advance!)
 # Anchor: end of should_advance method body (just before `def clear_backend`)
 NEW_METHODS_OLD = (
@@ -302,6 +381,19 @@ P62_SCHEDULER_DRIFT_MARKERS = [
 ]
 
 
+# DUAL-ANCHOR variant names for the grammar_bitmask sub-patch (P18B/PN32/
+# PN351 "required-at-least-one" convention). EXACTLY ONE of these matches on
+# any given pin (the shapes are mutually exclusive — dev491 inserted a
+# diffusion `token_iter` branch the dev259 shape lacks); the other soft-skips.
+# apply() enforces that at least one fired so a new_methods-only half-apply
+# (helpers added but the bitmask loop never made reasoning-aware) cannot pass
+# silently as "applied".
+P62_GRAMMAR_BITMASK_VARIANT_NAMES = (
+    "p62_grammar_bitmask",          # dev259 (CURRENT PROD pin)
+    "p62_grammar_bitmask_dev491",   # dev491 (candidate pin, diffusion-aware)
+)
+
+
 def _make_struct_out_patcher() -> TextPatcher | None:
     target = resolve_vllm_file("v1/structured_output/__init__.py")
     if target is None:
@@ -311,8 +403,14 @@ def _make_struct_out_patcher() -> TextPatcher | None:
         target_file=str(target),
         marker=GENESIS_P62_MARKER + " :: structured_output",
         sub_patches=[
+            # Dual-anchor grammar_bitmask (required-at-least-one). Both
+            # variants required=False; exactly one matches per pin, the other
+            # soft-skips. apply() asserts at least one fired.
             TextPatch(name="p62_grammar_bitmask", anchor=GRAMMAR_BITMASK_OLD,
-                      replacement=GRAMMAR_BITMASK_NEW, required=True),
+                      replacement=GRAMMAR_BITMASK_NEW, required=False),
+            TextPatch(name="p62_grammar_bitmask_dev491",
+                      anchor=GRAMMAR_BITMASK_OLD_DEV491,
+                      replacement=GRAMMAR_BITMASK_NEW_DEV491, required=False),
             TextPatch(name="p62_new_methods", anchor=NEW_METHODS_OLD,
                       replacement=NEW_METHODS_NEW, required=True),
         ],
@@ -483,7 +581,27 @@ def apply() -> tuple[str, str]:
                     f"required anchor for {sp.name!r} not found in "
                     f"{p.target_file} — anchor drifted, P62 cannot apply.",
                 )
+        # At-least-one pre-flight for the dual-anchor grammar_bitmask group.
+        # Both variants are required=False so a drift past BOTH pins would
+        # slip past the per-sub required check above and let p62_new_methods
+        # apply alone (helpers added, but the bitmask loop never made
+        # reasoning-aware — an incoherent half-patch). Detect it here and
+        # SKIP with the exact reason instead of writing a half-patch.
+        grammar_variants = [
+            sp for sp in p.sub_patches
+            if sp.name in P62_GRAMMAR_BITMASK_VARIANT_NAMES
+        ]
+        if grammar_variants and not any(
+            sp.anchor in content for sp in grammar_variants
+        ):
+            return (
+                "skipped",
+                "no grammar_bitmask anchor variant (dev259 / dev491) found "
+                f"in {p.target_file} — anchor drifted past BOTH known pins; "
+                "re-derive the p62_grammar_bitmask anchor for the new shape.",
+            )
 
+    struct_out_patcher = patchers[0]
     results = []
     for p in patchers:
         result, failure = p.apply()
@@ -503,8 +621,35 @@ def apply() -> tuple[str, str]:
             f"{applied} applied + {idempotent} idempotent."
         )
 
+    # At-least-one enforcement for the dual-anchor grammar_bitmask group:
+    # when the struct_out patcher freshly applied (not idempotent), exactly
+    # one variant must have fired. A new_methods-only apply is a no-op
+    # regression (reasoning-aware bitmask split never installed) — FAIL
+    # loudly rather than report a misleading "applied".
+    grammar_variant = ""
+    struct_out_result = results[0][1]
+    if struct_out_result == TextPatchResult.APPLIED:
+        grammar_applied = [
+            name for name in struct_out_patcher.applied_sub_patches
+            if name in P62_GRAMMAR_BITMASK_VARIANT_NAMES
+        ]
+        if not grammar_applied:
+            return "failed", (
+                "P62 FAILED — new_methods sub-patch applied but NEITHER "
+                "grammar_bitmask anchor variant (dev259 / dev491) matched. "
+                "The reasoning-aware bitmask loop is the load-bearing half; "
+                "a new_methods-only apply is a no-op regression. Anchor drift "
+                "past a NEW pin shape — re-derive the p62_grammar_bitmask anchor."
+            )
+        grammar_variant = (
+            " (dev491 diffusion-aware anchor variant)"
+            if "p62_grammar_bitmask_dev491" in grammar_applied
+            else " (dev259 anchor variant)"
+        )
+
     return "applied", (
-        f"P62 applied: {applied} files modified, {idempotent} idempotent. "
+        f"P62 applied: {applied} files modified, {idempotent} idempotent"
+        f"{grammar_variant}. "
         "Reasoning-aware grammar acceptance + spec-token validation now active. "
         "Should reduce residual broken tool-call rate when </think> arrives "
         "in spec batch."

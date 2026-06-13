@@ -123,6 +123,35 @@ P87_LOGGER_NEW = (
 
 
 # ─── Sub-patch 3: can_implement uses padded_n ────────────────────────────
+#
+# DUAL-ANCHOR (pin-bump dev259 -> dev491, PN351/PN32/P18B convention).
+#
+# On pin 0.22.1rc1.dev259+g303916e93 (CURRENT PROD) the upstream
+# `can_implement` ends with a single strict `check_marlin_supports_shape`
+# call — P87_CAN_IMPLEMENT_OLD matches that pristine form (count==1 in
+# dev259, count==0 in dev491). The dev259 replacement wraps out_features
+# with round_up so sub-tile shards report supported.
+#
+# On pin 0.22.1rc1.dev491+g1033ffac2 (CANDIDATE) upstream MERGED the
+# equivalent of #40361 natively: `can_implement` grew a `has_g_idx`
+# branch + a group-straddle guard and now returns `True, None` for
+# tile-misaligned non-act-order shapes (the padding itself happens in
+# `process_weights_after_loading` via `marlin_padded_nk`/`marlin_pad_*`).
+# So the dev259 anchor no longer exists in dev491. P87_CAN_IMPLEMENT_DEV491
+# matches that merged form (count==1 in dev491, count==0 in dev259) and
+# its replacement is behavior-identical — it only stamps a `[Genesis P87`
+# breadcrumb so on-disk forensics record that the sub-tile-pad decision
+# is now upstream-native. (On dev491 the whole patcher additionally
+# short-circuits via the dev491 upstream_drift_marker below, so the
+# pwa/apply sub-patches never double-pad on top of upstream; this dev491
+# can_implement variant is the surviving anchor if the drift-skip is
+# ever disabled.)
+#
+# Both variants are required=False with required-at-least-one semantics:
+# the TextPatcher soft-skips the variant whose anchor is absent and
+# returns SKIPPED `no_applicable_sub_patches` only if BOTH miss. The two
+# anchors are mutually exclusive (one matches dev259, the other dev491),
+# so exactly one fires per pin.
 
 P87_CAN_IMPLEMENT_OLD = (
     "        return check_marlin_supports_shape(\n"
@@ -148,6 +177,51 @@ P87_CAN_IMPLEMENT_NEW = (
     "            c.full_weight_shape[0],  # in_features\n"
     "            c.group_size,\n"
     "        )\n"
+)
+
+# dev491 variant — upstream-merged can_implement form (group-straddle
+# guard + `return True, None`). Anchored on the merged tail so it is
+# unique in dev491 (count==1) and absent in dev259 (count==0). The
+# replacement is behaviorally identical: it keeps the exact upstream
+# control flow and only annotates the final return with a `[Genesis P87`
+# breadcrumb. NOTE: the anchor/replacement MUST NOT contain the
+# `marlin_padded_nk` drift-marker string used at patcher level, or the
+# self-collision lint would flag a false upstream-merged skip.
+P87_CAN_IMPLEMENT_DEV491_OLD = (
+    "        # A group straddling TP ranks cannot be fixed by padding.\n"
+    "        if (\n"
+    "            c.group_size != -1\n"
+    "            and c.group_size < c.full_weight_shape[0]\n"
+    "            and c.partition_weight_shape[0] % c.group_size != 0\n"
+    "        ):\n"
+    "            return False, (\n"
+    "                f\"in_features per partition {c.partition_weight_shape[0]} is \"\n"
+    "                f\"not divisible by group_size = {c.group_size}.\"\n"
+    "            )\n"
+    "\n"
+    "        # Tile misalignment is fixed by zero-padding at weight prep.\n"
+    "        return True, None\n"
+)
+
+P87_CAN_IMPLEMENT_DEV491_NEW = (
+    "        # A group straddling TP ranks cannot be fixed by padding.\n"
+    "        if (\n"
+    "            c.group_size != -1\n"
+    "            and c.group_size < c.full_weight_shape[0]\n"
+    "            and c.partition_weight_shape[0] % c.group_size != 0\n"
+    "        ):\n"
+    "            return False, (\n"
+    "                f\"in_features per partition {c.partition_weight_shape[0]} is \"\n"
+    "                f\"not divisible by group_size = {c.group_size}.\"\n"
+    "            )\n"
+    "\n"
+    "        # Tile misalignment is fixed by zero-padding at weight prep.\n"
+    "        # [Genesis P87 vllm#40361 backport] sub-tile output dim padding is\n"
+    "        # upstream-native on this pin; can_implement already reports the\n"
+    "        # misaligned shape as supported. Behavior unchanged — breadcrumb\n"
+    "        # only. The pwa/apply sub-patches are suppressed by the dev491\n"
+    "        # upstream_drift_marker so no double-padding occurs.\n"
+    "        return True, None\n"
 )
 
 
@@ -300,11 +374,26 @@ def _make_patcher() -> TextPatcher | None:
                 replacement=P87_LOGGER_NEW,
                 required=True,
             ),
+            # can_implement DUAL-ANCHOR — exactly one of these two fires
+            # per pin (required-at-least-one; both required=False). The
+            # dev259 variant targets the pristine single-call form on
+            # 0.22.1rc1.dev259; the dev491 variant targets the
+            # upstream-merged group-straddle-guard form on
+            # 0.22.1rc1.dev491. They are mutually exclusive (one matches
+            # count==1, the other count==0 in each tree), so the
+            # `no_applicable_sub_patches` skip can only trigger if BOTH
+            # genuinely drifted on a future pin.
             TextPatch(
-                name="p87_can_implement_padded",
+                name="p87_can_implement_padded_dev259",
                 anchor=P87_CAN_IMPLEMENT_OLD,
                 replacement=P87_CAN_IMPLEMENT_NEW,
-                required=True,
+                required=False,
+            ),
+            TextPatch(
+                name="p87_can_implement_padded_dev491",
+                anchor=P87_CAN_IMPLEMENT_DEV491_OLD,
+                replacement=P87_CAN_IMPLEMENT_DEV491_NEW,
+                required=False,
             ),
             TextPatch(
                 name="p87_pwa_with_maybe_pad_n",
@@ -329,6 +418,23 @@ def _make_patcher() -> TextPatcher | None:
             # "upstream_merged" skip on residue. Residue coverage stays
             # with the "[Genesis P87" banner; a real #40361 merge is
             # caught by required-anchor mismatch + preflight deep-diff.
+            #
+            # dev491 upstream-merge marker (pin bump dev259 -> dev491).
+            # Pin 0.22.1rc1.dev491+g1033ffac2 merged the equivalent of
+            # #40361: process_weights_after_loading now zero-pads the
+            # output dim natively via marlin_padded_nk + marlin_pad_qweight
+            # /marlin_pad_scales/marlin_pad_dim. This exact call is ABSENT
+            # in dev259 (count==0) and PRESENT in dev491 (count==1), so it
+            # is a clean upstream-side marker — NOT a self-collision (our
+            # replacement text never emits `marlin_padded_nk`). When it
+            # fires, the whole P87 patcher skips (apply() returns skipped),
+            # which is REQUIRED for correctness: our _maybe_pad_n /
+            # apply-slice sub-patches would otherwise zero-pad on top of
+            # upstream's already-padded weights and corrupt the output.
+            # This is the iron-rule-#11 outcome (a) boundary: upstream
+            # absorbed the feature; we yield to it on dev491+ while the
+            # dev259 PROD pin keeps the active backport.
+            "padded_n, padded_k = marlin_padded_nk(size_n, size_k, c.group_size)",
         ],
     )
 

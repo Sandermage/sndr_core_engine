@@ -21,6 +21,8 @@ from sndr.engines.vllm.patches.kernels.p87_marlin_pad_sub_tile import (
     GENESIS_P87_MARKER,
     P87_APPLY_NEW,
     P87_APPLY_OLD,
+    P87_CAN_IMPLEMENT_DEV491_NEW,
+    P87_CAN_IMPLEMENT_DEV491_OLD,
     P87_CAN_IMPLEMENT_NEW,
     P87_CAN_IMPLEMENT_OLD,
     P87_IMPORTS_NEW,
@@ -85,21 +87,45 @@ def test_p87_uses_text_patcher_not_class_rebind():
 # ─── Sub-patch structure ─────────────────────────────────────────────────
 
 
-def test_p87_has_five_required_sub_patches():
-    """v7.62.10 specifies exactly 5 sub-patches, all required."""
+def test_p87_has_six_sub_patches_with_dual_can_implement_anchor():
+    """Post dev259->dev491 pin bump: 6 sub-patches. The four structural
+    edits (imports, logger, pwa, apply) stay required=True. can_implement
+    is a DUAL-ANCHOR pair (dev259 + dev491), both required=False with
+    required-at-least-one semantics so exactly one fires per pin.
+    """
     patcher = _make_patcher()
     if patcher is None:
         pytest.skip("vllm not installed")
-    assert len(patcher.sub_patches) == 5, (
-        f"Expected 5 sub-patches, got {len(patcher.sub_patches)}"
+    assert len(patcher.sub_patches) == 6, (
+        f"Expected 6 sub-patches (4 structural + 2 can_implement variants), "
+        f"got {len(patcher.sub_patches)}"
     )
-    for sp in patcher.sub_patches:
-        assert sp.required, f"sub-patch {sp.name!r} must be required"
+    by_name = {sp.name: sp for sp in patcher.sub_patches}
+    # The four structural edits must remain required.
+    for name in (
+        "p87_imports",
+        "p87_logger_round_up_imports",
+        "p87_pwa_with_maybe_pad_n",
+        "p87_apply_weights_slice",
+    ):
+        assert by_name[name].required, (
+            f"structural sub-patch {name!r} must stay required=True"
+        )
+    # The two can_implement variants are required-at-least-one (both False).
+    for name in (
+        "p87_can_implement_padded_dev259",
+        "p87_can_implement_padded_dev491",
+    ):
+        assert not by_name[name].required, (
+            f"can_implement variant {name!r} must be required=False "
+            "(required-at-least-one dual-anchor semantics)"
+        )
 
 
 def test_p87_sub_patch_names_complete():
-    """Sub-patches must cover: imports, logger+round_up, can_implement,
-    process_weights_after_loading prelude, apply_weights output slice.
+    """Sub-patches must cover: imports, logger+round_up, can_implement
+    (dev259 + dev491 dual-anchor), process_weights_after_loading prelude,
+    apply_weights output slice.
     """
     patcher = _make_patcher()
     if patcher is None:
@@ -108,7 +134,8 @@ def test_p87_sub_patch_names_complete():
     expected = {
         "p87_imports",
         "p87_logger_round_up_imports",
-        "p87_can_implement_padded",
+        "p87_can_implement_padded_dev259",
+        "p87_can_implement_padded_dev491",
         "p87_pwa_with_maybe_pad_n",
         "p87_apply_weights_slice",
     }
@@ -123,7 +150,9 @@ def test_p87_sub_patch_names_complete():
 @pytest.mark.parametrize("old,new,label", [
     (P87_IMPORTS_OLD, P87_IMPORTS_NEW, "imports"),
     (P87_LOGGER_OLD, P87_LOGGER_NEW, "logger_round_up"),
-    (P87_CAN_IMPLEMENT_OLD, P87_CAN_IMPLEMENT_NEW, "can_implement"),
+    (P87_CAN_IMPLEMENT_OLD, P87_CAN_IMPLEMENT_NEW, "can_implement_dev259"),
+    (P87_CAN_IMPLEMENT_DEV491_OLD, P87_CAN_IMPLEMENT_DEV491_NEW,
+     "can_implement_dev491"),
     (P87_PWA_OLD, P87_PWA_NEW, "pwa_maybe_pad_n"),
     (P87_APPLY_OLD, P87_APPLY_NEW, "apply_slice"),
 ])
@@ -140,7 +169,8 @@ def test_p87_anchors_nonempty_and_replacements_differ(old, new, label):
 @pytest.mark.parametrize("new,label", [
     (P87_IMPORTS_NEW, "imports"),
     (P87_LOGGER_NEW, "logger_round_up"),
-    (P87_CAN_IMPLEMENT_NEW, "can_implement"),
+    (P87_CAN_IMPLEMENT_NEW, "can_implement_dev259"),
+    (P87_CAN_IMPLEMENT_DEV491_NEW, "can_implement_dev491"),
     (P87_PWA_NEW, "pwa_maybe_pad_n"),
     (P87_APPLY_NEW, "apply_slice"),
 ])
@@ -250,7 +280,8 @@ def test_p87_anchors_have_enough_context():
     for label, anchor in [
         ("imports", P87_IMPORTS_OLD),
         ("logger", P87_LOGGER_OLD),
-        ("can_implement", P87_CAN_IMPLEMENT_OLD),
+        ("can_implement_dev259", P87_CAN_IMPLEMENT_OLD),
+        ("can_implement_dev491", P87_CAN_IMPLEMENT_DEV491_OLD),
         ("pwa", P87_PWA_OLD),
         ("apply", P87_APPLY_OLD),
     ]:
@@ -258,3 +289,138 @@ def test_p87_anchors_have_enough_context():
             f"{label}: anchor too short ({len(anchor)} chars). Risk of "
             "matching multiple sites in marlin.py."
         )
+
+
+# ─── dev491 dual-anchor (pin bump dev259 -> dev491) ──────────────────────
+#
+# On pin 0.22.1rc1.dev491+g1033ffac2 upstream merged the equivalent of
+# #40361 natively. The dev259 can_implement anchor no longer exists; a
+# dev491-shaped variant matches the upstream-merged form instead. These
+# tests pin the dual-anchor contract: mutual exclusivity, behavior
+# preservation of the dev491 variant, breadcrumb presence, and the
+# patcher-level drift marker that suppresses the pwa/apply sub-patches on
+# dev491 so they never double-pad over upstream's native padding.
+
+import os  # noqa: E402 — local to the dev491 anchor block below
+
+_PRISTINE_REL = (
+    "model_executor/kernels/linear/mixed_precision/marlin.py"
+)
+_DEV259_TREE = "/private/tmp/candidate_pin_current/vllm"
+_DEV491_TREE = "/tmp/candidate_pin_new/vllm"
+
+
+def _read_pristine(tree_root: str) -> str | None:
+    path = os.path.join(tree_root, _PRISTINE_REL)
+    if not os.path.isfile(path):
+        return None
+    with open(path) as f:
+        return f.read()
+
+
+def test_p87_can_implement_dev491_variant_differs_from_dev259():
+    """The dev491 variant must be a genuinely different anchor from the
+    dev259 variant — otherwise the dual-anchor is a no-op duplicate.
+    """
+    assert P87_CAN_IMPLEMENT_DEV491_OLD != P87_CAN_IMPLEMENT_OLD, (
+        "dev491 can_implement anchor must differ from the dev259 anchor"
+    )
+    # The dev491 anchor must NOT contain the dev259-specific single-call
+    # form, and vice versa (mutual exclusivity at the string level).
+    assert P87_CAN_IMPLEMENT_OLD not in P87_CAN_IMPLEMENT_DEV491_OLD
+    assert P87_CAN_IMPLEMENT_DEV491_OLD not in P87_CAN_IMPLEMENT_OLD
+
+
+def test_p87_can_implement_dev491_is_behavior_preserving():
+    """On dev491 upstream already reports misaligned shapes as supported
+    (`return True, None`). Our dev491 variant must preserve that exact
+    control flow — it only adds a breadcrumb, never changes the return.
+    """
+    # The merged decision must be retained verbatim.
+    assert "return True, None" in P87_CAN_IMPLEMENT_DEV491_OLD
+    assert "return True, None" in P87_CAN_IMPLEMENT_DEV491_NEW
+    # The group-straddle guard must survive untouched in the replacement.
+    assert (
+        "# A group straddling TP ranks cannot be fixed by padding."
+        in P87_CAN_IMPLEMENT_DEV491_NEW
+    )
+    # The replacement must carry the Genesis breadcrumb.
+    assert "[Genesis P87" in P87_CAN_IMPLEMENT_DEV491_NEW
+    # Guard against the self-collision the patcher-level drift marker
+    # would otherwise hit: the dev491 can_implement text must NOT emit the
+    # `marlin_padded_nk` call string used as the upstream-merge marker.
+    assert "marlin_padded_nk" not in P87_CAN_IMPLEMENT_DEV491_OLD
+    assert "marlin_padded_nk" not in P87_CAN_IMPLEMENT_DEV491_NEW
+
+
+def test_p87_patcher_carries_dev491_upstream_drift_marker():
+    """The patcher must carry the dev491-only upstream-merge marker so the
+    whole P87 patch skips on dev491 (preventing a double-pad over
+    upstream's native padding). The marker must not be a `[Genesis`
+    self-marker.
+    """
+    patcher = _make_patcher()
+    if patcher is None:
+        pytest.skip("vllm not installed")
+    marker = "padded_n, padded_k = marlin_padded_nk(size_n, size_k, c.group_size)"
+    assert marker in patcher.upstream_drift_markers, (
+        "patcher must carry the dev491 upstream-merge marker so P87 skips "
+        "on dev491 and never double-pads"
+    )
+    assert not marker.startswith("[Genesis"), (
+        "the dev491 drift marker must be an upstream-side string, not a "
+        "Genesis self-marker"
+    )
+
+
+def test_p87_can_implement_dev259_anchor_matches_only_dev259_tree():
+    """Byte-exact: the dev259 can_implement anchor must match count==1 in
+    the dev259 pristine tree and count==0 in the dev491 pristine tree.
+    Skips if the pristine trees are not present (e.g. CI runner).
+    """
+    dev259 = _read_pristine(_DEV259_TREE)
+    dev491 = _read_pristine(_DEV491_TREE)
+    if dev259 is None or dev491 is None:
+        pytest.skip("pristine pin trees not present on this host")
+    assert dev259.count(P87_CAN_IMPLEMENT_OLD) == 1, (
+        "dev259 can_implement anchor must match exactly once in dev259 tree"
+    )
+    assert dev491.count(P87_CAN_IMPLEMENT_OLD) == 0, (
+        "dev259 can_implement anchor must be ABSENT in dev491 tree "
+        "(upstream refactored can_implement)"
+    )
+
+
+def test_p87_can_implement_dev491_anchor_matches_only_dev491_tree():
+    """Byte-exact: the dev491 can_implement anchor must match count==1 in
+    the dev491 pristine tree and count==0 in the dev259 pristine tree —
+    proving exactly one variant fires per pin.
+    """
+    dev259 = _read_pristine(_DEV259_TREE)
+    dev491 = _read_pristine(_DEV491_TREE)
+    if dev259 is None or dev491 is None:
+        pytest.skip("pristine pin trees not present on this host")
+    assert dev491.count(P87_CAN_IMPLEMENT_DEV491_OLD) == 1, (
+        "dev491 can_implement anchor must match exactly once in dev491 tree"
+    )
+    assert dev259.count(P87_CAN_IMPLEMENT_DEV491_OLD) == 0, (
+        "dev491 can_implement anchor must be ABSENT in dev259 tree"
+    )
+
+
+def test_p87_dev491_drift_marker_present_only_in_dev491_tree():
+    """The patcher-level dev491 upstream-merge marker must be present in
+    the dev491 tree (so the patch skips) and absent in dev259 (so the
+    patch applies). This is what guarantees no double-padding on dev491.
+    """
+    dev259 = _read_pristine(_DEV259_TREE)
+    dev491 = _read_pristine(_DEV491_TREE)
+    if dev259 is None or dev491 is None:
+        pytest.skip("pristine pin trees not present on this host")
+    marker = "padded_n, padded_k = marlin_padded_nk(size_n, size_k, c.group_size)"
+    assert dev491.count(marker) == 1, (
+        "dev491 upstream-merge marker must be present in dev491 tree"
+    )
+    assert dev259.count(marker) == 0, (
+        "dev491 upstream-merge marker must be ABSENT in dev259 tree"
+    )

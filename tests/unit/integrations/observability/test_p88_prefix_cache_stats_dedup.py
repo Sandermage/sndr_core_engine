@@ -45,12 +45,19 @@ from sndr.engines.vllm.patches.observability.p88_prefix_cache_stats_dedup import
     P88_LOOKUP_ANCHOR,
     P88_LOOKUP_REPLACEMENT,
     P88_ALLOC_COMMIT_ANCHOR,
+    P88_ALLOC_COMMIT_DEV491_ANCHOR,
     P88_ALLOC_COMMIT_REPLACEMENT,
+    P88_ALLOC_COMMIT_DEV491_REPLACEMENT,
+    _COMMIT_VARIANT_NAMES,
     _connector_configured,
     _make_kv_cache_manager_patcher,
 )
 
+# Current pin PROD 35B runs (0.22.1rc1.dev259) and the candidate it is being
+# bumped to (0.22.1rc1.dev491). P88 must keep working on dev259 AND start
+# working on dev491, so the anchor contract is asserted against BOTH trees.
 PRISTINE_ROOT = Path("/private/tmp/candidate_pin_current/vllm")
+PRISTINE_DEV491_ROOT = Path("/tmp/candidate_pin_new/vllm")
 
 
 # ─── synthetic-but-compilable fake carrying the byte-exact anchors ───────
@@ -167,10 +174,63 @@ class FakeRequest:
         self.block_hashes = []
 
 
+# dev491-shaped fake — identical to the dev259 fake EXCEPT the
+# allocate_slots available-blocks gate carries the dev491 shape (leading
+# two-line comment + `required_blocks = num_blocks_to_allocate +
+# watermark_blocks` headroom term + `required_blocks > available_blocks`
+# predicate). This lets the dev491 commit-anchor variant splice and the
+# de-dup semantics run end-to-end exactly as on the candidate pin. With
+# watermark_blocks=0 the gate is numerically equivalent to the dev259 fake,
+# so every semantic assertion holds on both shapes.
+_DEV491_GATE_OLD = (
+    "        available_blocks = self.block_pool.get_num_free_blocks() - reserved_blocks\n"
+    "        if num_blocks_to_allocate > available_blocks:\n"
+    "            # Cannot allocate new blocks\n"
+    "            return None\n"
+)
+_DEV491_GATE_NEW = (
+    "        # Keep `reserved_blocks` free for other in-flight sequences, and an\n"
+    "        # additional watermark of headroom for waiting/preempted admissions.\n"
+    "        available_blocks = self.block_pool.get_num_free_blocks() - reserved_blocks\n"
+    "        required_blocks = num_blocks_to_allocate + watermark_blocks\n"
+    "        if required_blocks > available_blocks:\n"
+    "            # Cannot allocate new blocks\n"
+    "            return None\n"
+)
+assert FAKE_KV_CACHE_MANAGER_PY.count(_DEV491_GATE_OLD) == 1
+FAKE_KV_CACHE_MANAGER_DEV491_PY = (
+    FAKE_KV_CACHE_MANAGER_PY.replace(_DEV491_GATE_OLD, _DEV491_GATE_NEW, 1)
+    # Define `watermark_blocks` so the dev491 gate compiles (0 -> the gate
+    # stays numerically equivalent to the dev259 fake).
+    .replace(
+        "    def allocate_slots(self, request, num_new_tokens,\n"
+        "                       num_new_computed_tokens=0, reserved_blocks=0):\n"
+        "        num_blocks_to_allocate = self.coordinator.get_num_blocks_to_allocate(\n"
+        "            request.request_id\n"
+        "        )\n",
+        "    def allocate_slots(self, request, num_new_tokens,\n"
+        "                       num_new_computed_tokens=0, reserved_blocks=0):\n"
+        "        watermark_blocks = 0\n"
+        "        num_blocks_to_allocate = self.coordinator.get_num_blocks_to_allocate(\n"
+        "            request.request_id\n"
+        "        )\n",
+        1,
+    )
+)
+
+
 @pytest.fixture
 def fake_kv_cache_manager_py(tmp_path):
     p = tmp_path / "kv_cache_manager.py"
     p.write_text(FAKE_KV_CACHE_MANAGER_PY)
+    return str(p)
+
+
+@pytest.fixture
+def fake_kv_cache_manager_dev491_py(tmp_path):
+    """The dev491-shaped fake (candidate pin commit-gate shape)."""
+    p = tmp_path / "kv_cache_manager_dev491.py"
+    p.write_text(FAKE_KV_CACHE_MANAGER_DEV491_PY)
     return str(p)
 
 
@@ -199,35 +259,68 @@ def _patched_manager(fake_kv_cache_manager_py, **kwargs):
 
 @pytest.mark.skipif(
     not (PRISTINE_ROOT / "v1/core/kv_cache_manager.py").is_file(),
-    reason="pristine candidate pin tree not present on this machine",
+    reason="pristine dev259 pin tree not present on this machine",
 )
-def test_pristine_anchors_present_exactly_once():
+def test_pristine_dev259_anchors_present_exactly_once():
+    """Current pin: LOOKUP + the dev259 commit variant match exactly once;
+    the dev491 commit variant must NOT match (mutually exclusive shapes)."""
     kvm = (PRISTINE_ROOT / "v1/core/kv_cache_manager.py").read_text()
     assert kvm.count(P88_LOOKUP_ANCHOR) == 1
     assert kvm.count(P88_ALLOC_COMMIT_ANCHOR) == 1
+    assert kvm.count(P88_ALLOC_COMMIT_DEV491_ANCHOR) == 0
 
 
 @pytest.mark.skipif(
-    not (PRISTINE_ROOT / "v1/core/kv_cache_manager.py").is_file(),
-    reason="pristine candidate pin tree not present on this machine",
+    not (PRISTINE_DEV491_ROOT / "v1/core/kv_cache_manager.py").is_file(),
+    reason="pristine dev491 candidate pin tree not present on this machine",
 )
-def test_pristine_commit_point_is_past_last_failure_return():
+def test_pristine_dev491_anchors_present_exactly_once():
+    """Candidate pin: LOOKUP is byte-identical (still count==1) and the
+    dev491 commit variant matches exactly once; the dev259 commit variant
+    must NOT match (the available-blocks gate moved under the watermark
+    headroom term)."""
+    kvm = (PRISTINE_DEV491_ROOT / "v1/core/kv_cache_manager.py").read_text()
+    assert kvm.count(P88_LOOKUP_ANCHOR) == 1
+    assert kvm.count(P88_ALLOC_COMMIT_DEV491_ANCHOR) == 1
+    assert kvm.count(P88_ALLOC_COMMIT_ANCHOR) == 0
+
+
+def _assert_commit_is_last_failure_return(kvm: str, gate_predicate: str):
     """The commit anchor (available-blocks gate) must be the LAST
-    `return None` in allocate_slots — recording after it is recording
-    on success. If upstream adds a later failure return, the commit
-    point must move."""
-    kvm = (PRISTINE_ROOT / "v1/core/kv_cache_manager.py").read_text()
+    `return None` in allocate_slots — recording after it is recording on
+    success. If a pin adds a later failure return, the commit point must
+    move."""
     body = kvm.split("def allocate_slots(")[1].split("\n    def ")[0]
-    anchor_pos = body.find(
-        "if num_blocks_to_allocate > available_blocks:"
-    )
-    assert anchor_pos != -1
+    anchor_pos = body.find(gate_predicate)
+    assert anchor_pos != -1, f"gate predicate {gate_predicate!r} not in body"
     after_anchor = body[anchor_pos:]
     # Skip the anchor's own `return None`.
     remainder = after_anchor.split("return None", 1)[1]
     assert "return None" not in remainder, (
         "a failure return exists AFTER the P88 commit point — "
         "re-derive the anchor before applying"
+    )
+
+
+@pytest.mark.skipif(
+    not (PRISTINE_ROOT / "v1/core/kv_cache_manager.py").is_file(),
+    reason="pristine dev259 pin tree not present on this machine",
+)
+def test_pristine_dev259_commit_point_is_past_last_failure_return():
+    kvm = (PRISTINE_ROOT / "v1/core/kv_cache_manager.py").read_text()
+    _assert_commit_is_last_failure_return(
+        kvm, "if num_blocks_to_allocate > available_blocks:"
+    )
+
+
+@pytest.mark.skipif(
+    not (PRISTINE_DEV491_ROOT / "v1/core/kv_cache_manager.py").is_file(),
+    reason="pristine dev491 candidate pin tree not present on this machine",
+)
+def test_pristine_dev491_commit_point_is_past_last_failure_return():
+    kvm = (PRISTINE_DEV491_ROOT / "v1/core/kv_cache_manager.py").read_text()
+    _assert_commit_is_last_failure_return(
+        kvm, "if required_blocks > available_blocks:"
     )
 
 
@@ -240,12 +333,34 @@ def test_lookup_replacement_does_not_record():
     assert "_genesis_p88_pending_stats" in P88_LOOKUP_REPLACEMENT
 
 
-def test_commit_replacement_records_once_and_clears():
-    assert "prefix_cache_stats.record(" in P88_ALLOC_COMMIT_REPLACEMENT
-    assert (
-        P88_ALLOC_COMMIT_REPLACEMENT.count("self._genesis_p88_pending_stats = None")
-        == 1
-    )
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    [
+        (P88_ALLOC_COMMIT_ANCHOR, P88_ALLOC_COMMIT_REPLACEMENT),
+        (P88_ALLOC_COMMIT_DEV491_ANCHOR, P88_ALLOC_COMMIT_DEV491_REPLACEMENT),
+    ],
+    ids=["dev259", "dev491"],
+)
+def test_commit_replacement_records_once_and_clears(anchor, replacement):
+    # Each variant's replacement re-emits its own anchor verbatim (so the
+    # gate is preserved) and appends exactly one record()+clear commit body.
+    assert replacement.startswith(anchor)
+    assert "prefix_cache_stats.record(" in replacement
+    assert replacement.count("self._genesis_p88_pending_stats = None") == 1
+
+
+def test_commit_variant_names_match_sub_patches():
+    """_COMMIT_VARIANT_NAMES (the at-least-one enforcement set in apply())
+    must stay in sync with the actual commit sub-patch names."""
+    patcher = _make_kv_cache_manager_patcher(target_file="/nonexistent")
+    sub_names = {sp.name for sp in patcher.sub_patches}
+    assert set(_COMMIT_VARIANT_NAMES) <= sub_names
+    # Both commit variants are required=False (soft-skip the non-matching
+    # pin shape); the lookup sub stays required=True.
+    by_name = {sp.name: sp for sp in patcher.sub_patches}
+    for name in _COMMIT_VARIANT_NAMES:
+        assert by_name[name].required is False
+    assert by_name["p88_lookup_stash"].required is True
 
 
 def test_drift_markers_have_no_self_collision():
@@ -376,6 +491,93 @@ def test_double_success_same_request_records_once(fake_kv_cache_manager_py):
     assert mgr.allocate_slots(req, 8) is not None
     assert mgr.allocate_slots(req, 8) is not None
     assert mgr.prefix_cache_stats.requests == 1
+
+
+# ═══ 3b. dev491 commit-variant — anchor fires + de-dup holds on candidate ═
+
+
+def test_dev491_fake_applies_dev491_commit_variant_only(
+    fake_kv_cache_manager_dev491_py,
+):
+    """On the candidate-pin (dev491) gate shape, the dev491 commit variant
+    splices and the dev259 variant soft-skips — exactly one fires."""
+    patcher = _make_kv_cache_manager_patcher(
+        target_file=fake_kv_cache_manager_dev491_py
+    )
+    result, failure = patcher.apply()
+    assert result == TextPatchResult.APPLIED, failure
+    applied = set(patcher.applied_sub_patches)
+    assert "p88_lookup_stash" in applied
+    assert "p88_alloc_commit_dev491" in applied
+    assert "p88_alloc_commit" not in applied  # dev259 shape absent here
+    # Exactly one commit variant fired (the at-least-one invariant apply()
+    # enforces).
+    assert len(applied.intersection(_COMMIT_VARIANT_NAMES)) == 1
+
+
+def test_dev491_lookup_then_success_records_exactly_once(
+    fake_kv_cache_manager_dev491_py,
+):
+    mgr = _patched_manager(fake_kv_cache_manager_dev491_py, hit_tokens=16)
+    req = FakeRequest(num_tokens=64)
+    _, hits = mgr.get_computed_blocks(req)
+    assert hits == 16
+    assert mgr.prefix_cache_stats.requests == 0  # lookup alone records nothing
+    assert mgr.allocate_slots(req, 8, num_new_computed_tokens=hits) is not None
+    assert mgr.prefix_cache_stats.requests == 1
+    assert mgr.prefix_cache_stats.queries == 64
+    assert mgr.prefix_cache_stats.hits == 16
+
+
+def test_dev491_failed_allocation_not_counted_then_retry_counts_once(
+    fake_kv_cache_manager_dev491_py,
+):
+    """THE regression case (#43736) on the dev491 commit-gate shape: N
+    failed attempts contribute zero; the eventual success records once."""
+    mgr = _patched_manager(
+        fake_kv_cache_manager_dev491_py, hit_tokens=16, free_blocks=0
+    )
+    req = FakeRequest(num_tokens=64)
+    for _ in range(3):
+        mgr.get_computed_blocks(req)
+        assert mgr.allocate_slots(req, 8) is None
+    assert mgr.prefix_cache_stats.requests == 0
+    assert mgr.prefix_cache_stats.queries == 0
+
+    mgr.block_pool.free_blocks = 10
+    mgr.get_computed_blocks(req)
+    assert mgr.allocate_slots(req, 8) is not None
+    assert mgr.prefix_cache_stats.requests == 1
+    assert mgr.prefix_cache_stats.queries == 64
+    assert mgr.prefix_cache_stats.hits == 16
+
+
+def test_dev491_double_success_same_request_records_once(
+    fake_kv_cache_manager_dev491_py,
+):
+    """Slot-clear semantics hold on the dev491 gate shape too."""
+    mgr = _patched_manager(fake_kv_cache_manager_dev491_py, hit_tokens=4)
+    req = FakeRequest(num_tokens=64)
+    mgr.get_computed_blocks(req)
+    assert mgr.allocate_slots(req, 8) is not None
+    assert mgr.allocate_slots(req, 8) is not None
+    assert mgr.prefix_cache_stats.requests == 1
+
+
+def test_dev259_fake_applies_dev259_commit_variant_only(
+    fake_kv_cache_manager_py,
+):
+    """Mirror check on the dev259 fake: the dev259 variant fires, the
+    dev491 variant soft-skips."""
+    patcher = _make_kv_cache_manager_patcher(
+        target_file=fake_kv_cache_manager_py
+    )
+    result, failure = patcher.apply()
+    assert result == TextPatchResult.APPLIED, failure
+    applied = set(patcher.applied_sub_patches)
+    assert "p88_alloc_commit" in applied
+    assert "p88_alloc_commit_dev491" not in applied
+    assert len(applied.intersection(_COMMIT_VARIANT_NAMES)) == 1
 
 
 # ═══ 4. Connector fallback-disable probe ══════════════════════════════════

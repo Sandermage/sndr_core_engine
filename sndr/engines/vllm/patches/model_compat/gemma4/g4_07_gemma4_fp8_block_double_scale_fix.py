@@ -35,8 +35,13 @@ This patch installs a custom ``LinearMethod`` that:
      in practice we use the unambiguous signal that the checkpoint
      has format == "float-quantized" + strategy == "block" + no
      separate input_scale parameter).
-  2. Skips the second activation quantization at inference — passes
-     raw activations to the FP8 GEMM kernel.
+  2. Skips the SECOND activation quantization at inference. The
+     pre-absorbed ``weight_scale`` is fed to the FP8 block GEMM
+     untouched; the activation is quantized exactly once (never twice).
+     The GEMM symbol is resolved across pins via a dual-anchor probe
+     (``w8a8_triton_block_scaled_mm`` on the post-refactor pins, with the
+     legacy ``apply_fp8_block_linear`` wrapper as a pre-refactor
+     fallback) — see :func:`_resolve_fp8_block_gemm`.
   3. Validates output norm stays sane (sanity check at first forward;
      log warning + soft-disable if hidden state norm exceeds threshold).
 
@@ -96,6 +101,88 @@ _APPLIED = False
 
 def _env_enabled() -> bool:
     return env_truthy(_ENV_ENABLE)
+
+
+# ─── FP8 block-scaled GEMM binding (DUAL-ANCHOR pin-bump protection) ──
+#
+# The vllm FP8 kernel-selection refactor REMOVED the high-level
+# ``apply_fp8_block_linear`` wrapper this patch was originally written
+# against. The block-scaled FP8 linear path was consolidated into the
+# surviving Triton kernel ``w8a8_triton_block_scaled_mm`` (and the
+# ``Fp8BlockScaledMMLinearKernel.apply_weights`` orchestration that calls
+# it). The bare ``from ...fp8_utils import apply_fp8_block_linear`` import
+# therefore resolves on NEITHER the current PROD pin
+# (0.22.1rc1.dev259+g303916e93) NOR the candidate
+# (0.22.1rc1.dev491+g1033ffac2) — pin_preflight flags it as a
+# RUNTIME_BINDING / BINDING_SYMBOL_MISSING failure.
+#
+# Fix (PN351/PN32/P18B dual-anchor convention): import the fp8_utils
+# MODULE (a module-level binding that resolves on BOTH pins so the static
+# preflight passes) and resolve the GEMM symbol at runtime by probing,
+# in order:
+#
+#   Variant DEV491 (canonical, post-refactor): the surviving Triton block
+#     GEMM ``w8a8_triton_block_scaled_mm``. Present in BOTH pristine trees
+#     (verified byte-identical fp8_utils.py: dev259 line 836, dev491 line
+#     836) — this is the forward-looking anchor that keeps working on the
+#     candidate pin and every descendant of the kernel-selection refactor.
+#
+#   Variant DEV259 (legacy fallback): the original
+#     ``apply_fp8_block_linear`` name. Retained as the fallback probe so
+#     that if the patch is ever applied to an OLDER pre-refactor pin that
+#     still exposes the wrapper, the historical contract still binds. Kept
+#     deliberately (the dual-anchor convention forbids deleting the
+#     existing anchor) even though the symbol is absent from the two
+#     current pristine trees.
+#
+# Required-at-least-one semantics: exactly one of these resolves on any
+# given pin (dev491 wins on dev259+dev491; the legacy name would win only
+# on a pre-refactor ancestor). If NEITHER resolves we fail loud with a
+# RuntimeError rather than silently producing a double-scaled forward —
+# G4_07 is a correctness guard, so a missing GEMM symbol must abort.
+_FP8_UTILS_MODULE = (
+    "vllm.model_executor.layers.quantization.utils.fp8_utils"
+)
+# dev491 canonical symbol first, dev259 legacy fallback second.
+_FP8_BLOCK_GEMM_CANDIDATES = (
+    "w8a8_triton_block_scaled_mm",  # DEV491 anchor (post-refactor; both pins)
+    "apply_fp8_block_linear",       # DEV259 legacy anchor (pre-refactor)
+)
+
+
+def _resolve_fp8_block_gemm() -> tuple[str, "Any"]:
+    """Resolve the FP8 block-scaled GEMM callable across pins.
+
+    Imports the fp8_utils module (binding resolves on both the dev259 and
+    dev491 pins) and probes the candidate symbol names in order. Returns
+    ``(symbol_name, callable)``. Fails loud (RuntimeError) if NONE of the
+    candidates exist — a silent fallthrough would let a double-scaled
+    activation reach the GEMM, defeating the entire point of G4_07.
+    """
+    import importlib
+
+    try:
+        fp8_utils = importlib.import_module(_FP8_UTILS_MODULE)
+    except ImportError as e:  # noqa: BLE001
+        raise RuntimeError(
+            f"[Genesis G4_07] cannot import {_FP8_UTILS_MODULE} — the FP8 "
+            f"block-scaled GEMM module is missing from this vllm pin: {e!r}"
+        ) from e
+
+    for name in _FP8_BLOCK_GEMM_CANDIDATES:
+        fn = getattr(fp8_utils, name, None)
+        if fn is not None:
+            log.debug("[G4_07] resolved FP8 block GEMM symbol: %s", name)
+            return name, fn
+
+    raise RuntimeError(
+        "[Genesis G4_07] no FP8 block-scaled GEMM symbol resolved in "
+        f"{_FP8_UTILS_MODULE}. Probed (dev491→dev259): "
+        f"{_FP8_BLOCK_GEMM_CANDIDATES}. The kernel-selection refactor likely "
+        "renamed the block GEMM again — re-anchor G4_07 against the new "
+        "symbol. Refusing to run an un-anchored FP8 forward (would risk the "
+        "double-scale bug this patch guards against)."
+    )
 
 
 # ─── Custom QuantizationConfig + LinearMethod ────────────────────────
@@ -233,28 +320,58 @@ class Gemma4Fp8BlockFixLinearMethod:
         x: "torch.Tensor",
         bias: "torch.Tensor" | None = None,
     ) -> "torch.Tensor":
-        """Run FP8 block GEMM with raw activations (no second quant).
+        """Run FP8 block GEMM honouring the pre-absorbed weight scale.
 
         Math: out = (x @ weight.T) * weight_scale (broadcast per-block).
+
+        The whole point of G4_07 is to NOT apply a *second* activation
+        quantization on top of the calibration scale already baked into
+        ``weight_scale``. The vllm FP8 kernel-selection refactor removed
+        the high-level ``apply_fp8_block_linear`` wrapper, so we resolve
+        the surviving block GEMM via :func:`_resolve_fp8_block_gemm`
+        (dev491 ``w8a8_triton_block_scaled_mm`` → dev259 legacy
+        ``apply_fp8_block_linear``) and adapt to whichever signature the
+        pin exposes.
         """
-        # Lazy-import GEMM primitive. We use the same scaled MM kernel as
-        # the stock path but feed it raw activations.
-        from vllm.model_executor.layers.quantization.utils.fp8_utils import (
-            apply_fp8_block_linear,
-        )
-        # apply_fp8_block_linear contract:
-        #   input_2d: [M, K] in original dtype
-        #   weight:   [N, K] FP8 e4m3
-        #   weight_scale: per-block scale
-        #   input_scale: optional; we pass None to skip the activation-quant step
-        out = apply_fp8_block_linear(
-            input_2d=x,
-            weight=layer.weight,
-            weight_scale=layer.weight_scale,
-            input_scale=None,                     # KEY DIFFERENCE
-            output_dtype=layer.orig_dtype,
-            block_size=layer.weight_block_size,
-        )
+        sym_name, gemm = _resolve_fp8_block_gemm()
+
+        if sym_name == "w8a8_triton_block_scaled_mm":
+            # DEV491 path: the surviving Triton kernel expects an activation
+            # that is ALREADY FP8-quantized with a per-token-group scale.
+            # We perform EXACTLY ONE activation quant here (never a second
+            # one) and leave the pre-absorbed ``weight_scale`` untouched, so
+            # the double-scale bug cannot recur.
+            from vllm.model_executor.layers.quantization.utils.fp8_utils import (
+                per_token_group_quant_fp8,
+            )
+            input_2d = x.view(-1, x.shape[-1])
+            block_n, block_k = layer.weight_block_size
+            q_input, input_scale = per_token_group_quant_fp8(input_2d, block_k)
+            out = gemm(
+                q_input,                 # A: FP8 activation
+                layer.weight,            # B: FP8 e4m3 weight [N, K]
+                input_scale,             # As: per-token-group activation scale
+                layer.weight_scale,      # Bs: pre-absorbed per-block weight scale
+                list(layer.weight_block_size),
+                output_dtype=layer.orig_dtype,
+            )
+            out = out.view(*x.shape[:-1], layer.weight.shape[0])
+        else:
+            # DEV259 legacy path: the old wrapper took raw activations and an
+            # optional ``input_scale``; we pass None to skip the second quant.
+            #   input_2d: [M, K] in original dtype
+            #   weight:   [N, K] FP8 e4m3
+            #   weight_scale: per-block scale
+            #   input_scale: None → skip the activation-quant step (KEY)
+            out = gemm(
+                input_2d=x,
+                weight=layer.weight,
+                weight_scale=layer.weight_scale,
+                input_scale=None,                 # KEY DIFFERENCE
+                output_dtype=layer.orig_dtype,
+                block_size=layer.weight_block_size,
+            )
+
         if bias is not None:
             out = out + bias
         return out

@@ -190,7 +190,48 @@ def _make_request_patcher() -> TextPatcher | None:
 # the counter-based intent tracking. Leave the (now dead) field declaration
 # alone — removing it cleanly is harder via TextPatcher and the harm of
 # leaving it is just a few bytes of unused state per scheduler instance.
+#
+# DUAL-ANCHOR pin-bump protection (P18B/PN32/PN351 convention, batch
+# 2026-06-13 dev259→dev491 bump). The `request.spec_token_ids =
+# self._spec_token_placeholders` assignment we replace is preceded by a
+# `request.num_output_placeholders += ...` increment whose SHAPE moved
+# between pins. The two variants are mutually exclusive — exactly one
+# matches on any given pin (byte-verified count==1 in the matching tree,
+# count==0 in the other on 2026-06-13):
+#
+#   Variant A — CURRENT PROD pin g303916e93 (0.22.1rc1.dev259). The
+#     increment is a single line ``+= 1 + cur_num_spec_tokens``:
+#
+#         request.num_output_placeholders += 1 + cur_num_spec_tokens
+#         # Add placeholders for the new draft/spec tokens.
+#         # We will update the actual spec token ids in the worker process.
+#         request.spec_token_ids = self._spec_token_placeholders
+#
+#   Variant B — CANDIDATE pin g1033ffac2 (0.22.1rc1.dev491). The
+#     increment was reshaped to a multi-line parenthesised expression that
+#     adds the new ``num_sampled_tokens_per_step`` (diffusion AR-bonus)
+#     term instead of the literal ``1``:
+#
+#         request.num_output_placeholders += (
+#             self.num_sampled_tokens_per_step + cur_num_spec_tokens
+#         )
+#         # Add placeholders for the new draft/spec tokens.
+#         # We will update the actual spec token ids in the worker process.
+#         request.spec_token_ids = self._spec_token_placeholders
+#
+# Both variants are ``required=False`` under the "required-at-least-one"
+# convention; the others soft-skip on a miss (TextPatcher continues
+# siblings on a False miss). apply() asserts at least one fired (an
+# async_scheduler patcher that touched ZERO assignments would leave the
+# shared ``_spec_token_placeholders`` list reference shipping -1s — the
+# exact bug P58 exists to fix — so a zero-match is a hard FAIL, not a
+# silent no-op). The replacement preserves each pin's own increment block
+# verbatim and only rewrites the placeholder assignment, so the emitted
+# fix tail is byte-identical across both variants.
 
+# Variant A — CURRENT pin g303916e93 (0.22.1rc1.dev259). Single-line
+# `+= 1 + cur_num_spec_tokens` increment. Byte-verified count==1 in the
+# dev259 tree, count==0 in the dev491 tree (2026-06-13).
 ASYNC_SCHED_OLD = (
     "            request.num_output_placeholders += 1 + cur_num_spec_tokens\n"
     "            # Add placeholders for the new draft/spec tokens.\n"
@@ -213,6 +254,48 @@ ASYNC_SCHED_NEW = (
     "                request.num_pending_async_spec_placeholders = 0"
 )
 
+# Variant B — CANDIDATE pin g1033ffac2 (0.22.1rc1.dev491). The increment
+# was reshaped to a parenthesised multi-line expression adding the new
+# `num_sampled_tokens_per_step` term. We preserve that increment block
+# verbatim and rewrite ONLY the trailing placeholder assignment, so the
+# emitted fix tail is byte-identical to variant A. Byte-verified count==1
+# in the dev491 tree, count==0 in the dev259 tree (2026-06-13).
+ASYNC_SCHED_OLD_DEV491 = (
+    "            request.num_output_placeholders += (\n"
+    "                self.num_sampled_tokens_per_step + cur_num_spec_tokens\n"
+    "            )\n"
+    "            # Add placeholders for the new draft/spec tokens.\n"
+    "            # We will update the actual spec token ids in the worker process.\n"
+    "            request.spec_token_ids = self._spec_token_placeholders"
+)
+
+ASYNC_SCHED_NEW_DEV491 = (
+    "            request.num_output_placeholders += (\n"
+    "                self.num_sampled_tokens_per_step + cur_num_spec_tokens\n"
+    "            )\n"
+    "            # [Genesis P58] Backport vllm#40768: track placeholder intent as\n"
+    "            # count, not list-reference. Materialized to [-1, ...] only by\n"
+    "            # Scheduler._consume_spec_decode_tokens_for_step and only when\n"
+    "            # request is in prev_step_scheduled_req_ids — guaranteeing that\n"
+    "            # worker-side _prepare_input_ids will overwrite the -1s on GPU.\n"
+    "            # Without this gate, -1s leak through embedding lookup → token\n"
+    "            # corruption (#40831) or vectorized_gather IMA (#37159, #40756).\n"
+    "            if self.num_spec_tokens > 0:\n"
+    "                request.num_pending_async_spec_placeholders = self.num_spec_tokens\n"
+    "            else:\n"
+    "                request.num_pending_async_spec_placeholders = 0"
+)
+
+# Names of the two mutually-exclusive async_scheduler assignment variants.
+# apply() requires AT LEAST ONE fired: an async_scheduler patcher that
+# matched zero assignments would leave the shared `_spec_token_placeholders`
+# list-reference shipping -1s to the worker — the exact leak P58 fixes — so
+# a zero-match is a hard FAIL rather than a misleading "applied".
+_ASYNC_SCHED_VARIANT_NAMES = (
+    "p58_async_sched_assignment",
+    "p58_async_sched_assignment_dev491",
+)
+
 
 def _make_async_sched_patcher() -> TextPatcher | None:
     target = resolve_vllm_file("v1/core/sched/async_scheduler.py")
@@ -223,11 +306,23 @@ def _make_async_sched_patcher() -> TextPatcher | None:
         target_file=str(target),
         marker=GENESIS_P58_MARKER + " :: async_scheduler.py",
         sub_patches=[
+            # Dual-anchor (required-at-least-one): both variants required=False
+            # so a miss soft-skips. apply()'s async_scheduler preflight asserts
+            # exactly one variant's anchor is present (mutually exclusive on
+            # any given pin) and the group's apply asserts one actually fired.
+            # Variant A — CURRENT pin g303916e93 (dev259).
             TextPatch(
                 name="p58_async_sched_assignment",
                 anchor=ASYNC_SCHED_OLD,
                 replacement=ASYNC_SCHED_NEW,
-                required=True,
+                required=False,
+            ),
+            # Variant B — CANDIDATE pin g1033ffac2 (dev491).
+            TextPatch(
+                name="p58_async_sched_assignment_dev491",
+                anchor=ASYNC_SCHED_OLD_DEV491,
+                replacement=ASYNC_SCHED_NEW_DEV491,
+                required=False,
             ),
         ],
         # Self-collision lint (triage plan §6 2026-06-11): former entry
@@ -511,7 +606,7 @@ def apply() -> tuple[str, str]:
                     "vllm#40768 likely already merged or backported; nothing "
                     "to do.",
                 )
-        # Anchor presence check.
+        # Anchor presence check (required sub-patches).
         for sp in p.sub_patches:
             if sp.required and sp.anchor not in content:
                 return (
@@ -520,6 +615,28 @@ def apply() -> tuple[str, str]:
                     f"{p.target_file} — upstream code likely drifted; "
                     "P58 cannot apply safely without re-anchoring.",
                 )
+
+        # Dual-anchor "required-at-least-one" check (P18B/PN32/PN351
+        # convention). The async_scheduler patcher carries the dev259 and
+        # dev491 assignment variants as required=False sub-patches so a miss
+        # soft-skips instead of aborting the group. But if NEITHER variant
+        # anchor is present (drift past BOTH pins), the patcher would apply
+        # zero edits and leave the shared `_spec_token_placeholders` list
+        # shipping -1s to the worker — the exact bug P58 exists to fix. That
+        # must abort the whole group, not silently half-patch the scheduler.
+        async_variant_subs = [
+            sp for sp in p.sub_patches if sp.name in _ASYNC_SCHED_VARIANT_NAMES
+        ]
+        if async_variant_subs and not any(
+            sp.anchor in content for sp in async_variant_subs
+        ):
+            return (
+                "skipped",
+                "no async_scheduler assignment anchor (dev259 nor dev491 "
+                f"variant) found in {p.target_file} — upstream code likely "
+                "drifted past BOTH known pin shapes; P58 cannot apply safely "
+                "without re-anchoring the async_scheduler placeholder fix.",
+            )
 
     # All anchors look healthy. Apply each patcher.
     results = []
