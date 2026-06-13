@@ -119,3 +119,114 @@ ONLY remaining promotion blocker is the streaming-tool-call fix, which
 needs ONE live INFO-logged iteration to either confirm PN392 works or
 locate the deeper streaming-dispatch layer. NOT a rollback — the
 adaptation is 95% done; this is the last 5%.
+
+---
+
+## Update (2026-06-14, SYSTEMIC root cause of "PN392 inert" — FIXED)
+
+Open question #1 above ("did PN392 actually apply? — re-smoke with INFO")
+is now **definitively answered, and it was NOT a logging-mask artifact.**
+PN392 never applied at boot — and neither does ANY new patch added since
+the PR38 migration — for an architectural reason that affects the whole
+pin-transition story.
+
+### The finding (apply-loop architecture)
+The orchestrator has TWO apply loops (`sndr/apply/orchestrator.py`):
+- **legacy loop** — iterates `_state.PATCH_REGISTRY`, applies only the
+  238 patches that have a hand-written `@register_patch` hook.
+- **spec-driven loop** (`_run_via_specs`) — iterates
+  `iter_patch_specs()`, applies via `spec.apply_module`. Gated behind
+  `SNDR_APPLY_VIA_SPECS=1`, **default OFF**.
+
+PROD boots in the **default = legacy** mode. **59 patches declare an
+`apply_module` but have NO legacy hook** (the KNOWN_SPEC_ONLY set —
+relocated to canonical technical-area homes as PR38 migrated away from
+the parking lot). Among them: PN288, PN371–392, G4_79/80/81, P88, P89 —
+i.e. essentially **every patch authored in the last several sessions,
+including PN392.** Under legacy boot these are simply never invoked: an
+operator can set `GENESIS_ENABLE_<X>=1`, `should_apply` returns True, the
+module imports, a direct `apply()` wraps the class — but the BOOT apply
+cycle iterates the legacy table, which doesn't contain them. That is
+exactly why the dev491+PN392=1 smoke showed the streaming regression
+unchanged: the fix was present on disk and import-valid, but inert at
+boot. The earlier summary's "PN288 applies while PN392 doesn't" was
+wrong — both are spec-only; neither applied. No contradiction.
+
+### Why we could NOT just flip `SNDR_APPLY_VIA_SPECS=1` (the trap avoided)
+A naive "switch the default to the spec loop" would have **silently
+dropped 3 default_on bundled legacy patches on PROD**:
+- **P1/P2** FP8 kernel dispatcher (`apply_patch_1_2_fp8_dispatcher`)
+- **P17/P18** Marlin MoE per-SM tuning (`apply_patch_17_18_marlin_tuning`)
+- **P32/P33** TurboQuant cu_2 + synth_seq_lens preallocs
+  (`apply_patch_32_33_tq_bundled_preallocs`)
+
+Each is a *bundled* hook (one `@register_patch` applies a pair of patch
+ids) and therefore has **no `apply_module`** — the spec loop skips
+`apply_module is None` with "informational entry", so `_run_via_specs`
+alone would NOT apply them. Critically, **`shadow --strict` does NOT
+catch this**: its `legacy_only` check compares against ALL spec ids, not
+only those with an `apply_module`. The safety check that DID catch it was
+an explicit `legacy_hooked ∩ specs_without_apply_module` intersection
+(P1/P17/P32, all `default_on=True, lifecycle=legacy`; plus P20 retired/
+off → harmless).
+
+### The fix (two commits, local-verified)
+1. **`41dd46f1` shadow parser → CLEAN.** `_patch_id_from_legacy_name`
+   could not lift underscore-suffix ids (`P23_WIRE`, `P29_HEAL`,
+   `P18B_TEXT`, `PN118_V2_MD5_*`, `PN79_V2_MD5_*`) or `SNDR_`-prefix ids
+   (`SNDR_EAGLE3_AUX_HIDDEN_001`) — `\b` finds no boundary before `_`.
+   Extended the regex with a `(?:_[A-Za-z0-9]+)*` tail + `SNDR_`
+   alternative + token-boundary lookahead, added an `SNDR_` verbatim
+   normalization branch. Provably regression-free (old `\b` already
+   returned None for any name with `_` after the id → none of the 230
+   parsing names carry an underscore tail). Before/after over all 238
+   names: 0 regressions, exact 8 newly parsed, 0 still None.
+   `shadow --strict`: DIVERGENT → **CLEAN**.
+2. **`1a84f632` spec-only supplement.** New `_run_spec_only_supplement`,
+   called from `run()` after the legacy loop, applies the ENABLED
+   spec-only patches (apply_module set AND patch id absent from the live
+   legacy register table) and skips disabled ones **silently** (no stats
+   row, no import, no log). All 59 spec-only patches are `default_off`,
+   so a clean default boot adds **zero** rows and is byte-identical to
+   pre-supplement behavior; work happens only once an operator opts a
+   patch in. P1/P17/P32 stay on their legacy hooks — nothing dropped.
+   Refactor: the per-spec gate→import→apply→classify sequence was
+   extracted into `_apply_spec_module`, shared by `_run_via_specs` and
+   the supplement so the two paths can never drift (proven byte-identical
+   — `_run_via_specs` dry-run = same 313 tuples before/after).
+
+### Local verification (torch-less dry-run)
+- `should_apply("PN392")` = True with the env flag (no hardware gate);
+  PN392's `apply_module` imports torch-less → deterministic test.
+- LEGACY boot + `GENESIS_ENABLE_PN392…=1` (dry-run): boot log emits
+  `[Genesis spec-only] applied: PN392 … — dry-run: apply_module ready`
+  + `[Genesis spec-only supplement] 1 applied / 0 failed`. PN392 present.
+- LEGACY boot, clean env: PN392 rows = 0, spec-only applied = 0 → no-op.
+- Gates: `shadow --strict` CLEAN, 19/19 spec-loop tests (8 new),
+  344 dispatcher+apply tests. The pre-existing `failed:1` (PN364
+  torch-less import gap) is present before AND after (git-stash proven),
+  unrelated.
+
+### What this changes for the dev491 promotion
+The remaining live step is unchanged in goal but now has the actual
+mechanism in place: re-smoke dev491 with `GENESIS_ENABLE_PN392…=1` —
+the supplement now applies PN392 at boot (look for the
+`[Genesis spec-only] applied: PN392` line), so the parser wrap is live
+in the serving process BEFORE the first stream. If streaming tool-calls
+then emit `delta.tool_calls`, the blocker is cleared and promotion
+proceeds (YAML pins / EXPECTED_PINS / ALLOWED_MODELDEF_PINS / anchor
+manifest → dev491; fold 137 env vars into launcher; retire/version-cap
+P87+PN378+P26; tag rotation). If the symptom persists even with PN392
+provably applied, open question #2 (deeper streaming-dispatch layer)
+becomes the focus — but the "is the fix even active?" ambiguity is gone.
+
+### Follow-ups surfaced
+- **Migrate the 3 bundled legacy patches to `apply_module`** (P1/P2,
+  P17/P18, P32/P33) so `_run_via_specs` can eventually become the single
+  default boot path and the supplement can retire. Until then the
+  legacy-loop + supplement combination is the correct, safe boot.
+- **Extend `shadow --strict`** with a `would_be_dropped_under_spec_boot`
+  check (`legacy_hooked ∩ no_apply_module`) so this class of silent-drop
+  risk is caught by the parity gate, not by ad-hoc analysis.
+- **PN374** re-target to `qwen3coder_tool_parser.py` (still pending,
+  dormant on dev491).
