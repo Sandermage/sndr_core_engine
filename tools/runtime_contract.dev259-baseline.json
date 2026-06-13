@@ -1,0 +1,14 @@
+{
+  "pin": "0.22.1rc1.dev259+g303916e93",
+  "components": {
+    "tool_call_parser": {
+      "qwen3_xml": "vllm.tool_parsers.qwen3xml_tool_parser.Qwen3XMLToolParser",
+      "qwen3_coder": "vllm.tool_parsers.qwen3coder_tool_parser.Qwen3CoderToolParser",
+      "gemma4": "vllm.tool_parsers.gemma4_tool_parser.Gemma4ToolParser",
+      "hermes": "vllm.tool_parsers.hermes_tool_parser.Hermes2ProToolParser"
+    },
+    "reasoning_parser": {
+      "qwen3": "vllm.reasoning.qwen3_reasoning_parser.Qwen3ReasoningParser"
+    }
+  }
+}
