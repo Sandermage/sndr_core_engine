@@ -518,6 +518,10 @@ class Flags:
     PN287_QWEN3CODER_ARGS_OBSERVER = "PN287_QWEN3CODER_ARGS_OBSERVER"
     PN288_TOOL_FINISH_REASON_OVERRIDE = "PN288_TOOL_FINISH_REASON_OVERRIDE"
     PN289_PROCESS_INFO = "PN289_PROCESS_INFO"
+    # PN392: qwen3_coder streaming tool-call within-call coalescing — fixes
+    # the dev491 regression where the whole tool XML fed in one delta at the
+    # parse_delta reasoning->tool boundary drops delta.tool_calls.
+    PN392_QWEN3CODER_STREAMING_COALESCE = "PN392_QWEN3CODER_STREAMING_COALESCE"
 
     # ── Meta flags (apply behavior, not patch enable) ──────────────────
     NO_PATCH_CACHE = "NO_PATCH_CACHE"           # disable file_cache fast-path

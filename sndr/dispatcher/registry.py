@@ -2915,6 +2915,66 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
         "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
+    "PN392": {
+        "title": "qwen3_coder streaming tool-call within-call coalescing (dev491 regression fix)",
+        "tier": "community",
+        "family": "tool_parsing",
+        "env_flag": "GENESIS_ENABLE_PN392_QWEN3CODER_STREAMING_COALESCE",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "tool_parsing",
+        "implementation_status": "full",
+        "source": "genesis_original",
+        "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn392_qwen3coder_streaming_coalesce",
+        "credit": (
+            "Genesis-original 2026-06-13 (dev491 pin-bump promotion blocker). "
+            "Fixes the streaming tool-call regression introduced by the "
+            "dev259->dev491 (0.22.1rc1.dev259+g303916e93 -> "
+            "0.22.1rc1.dev491+g1033ffac2) upstream refactor: vllm#45171-era "
+            "deleted tool_parsers/qwen3xml_tool_parser.py and remapped the "
+            "qwen3_xml registry key from the dedicated Qwen3XMLToolParser to "
+            "Qwen3CoderToolParser (tool_parsers/__init__.py). The coder "
+            "parser's extract_tool_calls_streaming is single-emission "
+            "(one structural delta per call, returns None to advance) and "
+            "assumes token-by-token feeding. But parser/abstract_parser.py "
+            "parse_delta feeds the WHOLE accumulated tool XML as ONE "
+            "delta_text at the reasoning->tool boundary (sets "
+            "tool_call_text_started, delta_text=current_text). On that single "
+            "call the coder parser flips is_tool_call_started and returns "
+            "None, emitting ZERO delta.tool_calls — the tool call is silently "
+            "dropped (finish_reason=stop, no tool_calls). NON-streaming is "
+            "unaffected. The dev259 Qwen3XMLToolParser coalesced multiple "
+            "deltas per call via _merge_new_deltas_to_single_response and did "
+            "NOT have this defect. PN392 restores that semantics: a runtime "
+            "monkey-patch wraps extract_tool_calls_streaming on BOTH "
+            "Qwen3CoderToolParser AND Qwen3XMLToolParser (dual-target so it "
+            "works on dev259 PROD and dev491 candidate regardless of which "
+            "class qwen3_xml/qwen3_coder resolves to), calling the original "
+            "core once then draining it while pending tool structure remains "
+            "(in_function open / unprocessed <tool_call> starts / "
+            "closed-but-not-advanced tool), merging every emitted "
+            "DeltaToolCall into ONE DeltaMessage. Token-by-token happy path, "
+            "pure-content passthrough, and multi-tool-in-one-delta all "
+            "preserved (TDD: 7 streaming-coalescing scenarios + lifecycle). "
+            "Pure control-flow wrap, no text anchor -> no drift markers; "
+            "opaque to dynamo (API-server process, not compiled forward "
+            "path); idempotent class-marker; self-retires per class on "
+            "upstream _within_call_coalescing drift. Composes with PN287 "
+            "(same method, read-only observer; order-robust) and P107 (which "
+            "becomes the inert safety net once PN392 makes tools_streamed[i] "
+            "True). default_on=False (runtime monkey-patch convention); "
+            "STRONGLY recommended ON for streaming tool-call workloads on "
+            "dev491. No upstream PR coalesces the coder parser's streaming "
+            "within a single call as of 2026-06-13."
+        ),
+        "upstream_pr": None,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN287", "P107", "PN288"],
+        "applies_to": {
+            "tool_call_parser": ["qwen3_coder", "qwen3_xml"],
+        },
+    },
     "P89": {
         "title": "completion_tokens_details.reasoning_tokens in chat usage (vendor of vllm#45471)",
         "tier": "community",

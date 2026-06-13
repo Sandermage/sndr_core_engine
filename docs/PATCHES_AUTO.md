@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-13T19:19:50Z
-Total entries: **307**
+Generated: 2026-06-13T20:47:09Z
+Total entries: **308**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **307**
+- `tier=community`: **308**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **228**
+- `lifecycle=experimental`: **229**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **29**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **52** / 307
+### Default-on at boot: **52** / 308
 
 ### By family
 - `attention`: 1
@@ -48,7 +48,7 @@ Total entries: **307**
 - `serving`: 14
 - `spec_decode`: 47
 - `streaming`: 4
-- `tool_parsing`: 12
+- `tool_parsing`: 13
 - `worker`: 13
 
 ## Patches by family
@@ -460,7 +460,7 @@ Total entries: **307**
 | **PN202** | `community` | `experimental` | · | `GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT` | — | PN202 — per-layer KV tensor split (Tier 2.A enabler) |
 | **PN203** | `community` | `experimental` | · | `GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD` | — | PN203 — cold-prefix CPU offload manager (Tier 3.A) |
 
-### `tool_parsing` (12)
+### `tool_parsing` (13)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -473,6 +473,7 @@ Total entries: **307**
 | **PN375** | `community` | `experimental` | · | `GENESIS_ENABLE_PN375_GEMMA4_MULTIBOUNDARY_STREAMING` | [#44741](https://github.com/vllm-project/vllm/pull/44741) | Gemma4 multi-boundary streaming tool-call deltas under MTP (vllm#44741) |
 | **PN385** | `community` | `experimental` | · | `GENESIS_ENABLE_PN385_FORCED_NAMED_EMPTY_PARAMS` | [#45290](https://github.com/vllm-project/vllm/pull/45290) | Forced-named empty-params tool schema -> JSON object (vendor of vllm#45290) |
 | **PN386** | `community` | `experimental` | · | `GENESIS_ENABLE_PN386_REQUIRED_STREAMING_STRING_AWARE` | — | Required-tool streaming brace JSON-string-awareness (vendor of vllm#45389) |
+| **PN392** | `community` | `experimental` | · | `GENESIS_ENABLE_PN392_QWEN3CODER_STREAMING_COALESCE` | — | qwen3_coder streaming tool-call within-call coalescing (dev491 regression fix) |
 | **G4_T1** | `community` | `experimental` | · | `GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED` | [#42006](https://github.com/vllm-project/vllm/pull/42006) | "Gemma4 tool-parser PR |
 | **P29_HEAL** | `community` | `experimental` | · | `GENESIS_ENABLE_P29_QWEN3CODER_INDEX_HEAL` | — | qwen3coder tool parser index heal (P29 companion, fix-wire 2026-06-04) |
 | **P61c** | `community` | `experimental` | · | `GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT` | — | Qwen3Coder deferred-commit until <function= header (club-3090#72) |

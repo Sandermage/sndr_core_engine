@@ -1020,6 +1020,18 @@
     "apply_module": "sndr.engines.vllm.patches.observability.pn391_health_decode_watchdog"
   },
   {
+    "patch_id": "PN392",
+    "family": "tool_parsing",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN392_QWEN3CODER_STREAMING_COALESCE",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn392_qwen3coder_streaming_coalesce"
+  },
+  {
     "patch_id": "P89",
     "family": "serving",
     "lifecycle": "experimental",

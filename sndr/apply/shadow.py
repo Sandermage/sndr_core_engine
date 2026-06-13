@@ -223,6 +223,9 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # of OPEN vllm#45453; observability, 6-file overlay)
     "P89",             # reasoning_tokens in chat usage object (vendor of
                        # OPEN vllm#45471; serving, 2-file overlay)
+    "PN392",           # qwen3_coder streaming tool-call coalescing
+                       # (dev491 #45171 qwen3_xml->coder remap fix; runtime
+                       # class-wrap, no legacy hook)
 })
 
 

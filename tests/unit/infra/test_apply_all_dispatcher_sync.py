@@ -212,6 +212,7 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     "PN390",   # streaming-LSE rejection sampler (vllm#45369)
     "PN391",   # /health/decode forward-progress watchdog (vllm#45453)
     "P89",     # reasoning_tokens in chat usage object (vllm#45471)
+    "PN392",   # qwen3_coder streaming tool-call coalescing (dev491 fix)
     # G4_T1 (Gemma4 tool-parser PR #42006 vendor marker) — operator-
     # side bind-mount overlay; no apply_patch_* wiring by design
     # (registered only for `genesis explain` + audit visibility of the
