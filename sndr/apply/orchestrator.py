@@ -512,6 +512,16 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
             )
             log.exception("[Genesis] EXCEPTION in %s", patch_name)
 
+    # [Genesis 2026-06-14] Spec-only supplement. The legacy loop above only
+    # applies patches with a @register_patch hook; 59 patches declare an
+    # apply_module but no legacy hook (KNOWN_SPEC_ONLY) and were previously
+    # unreachable at boot under the default mode even when an operator set
+    # GENESIS_ENABLE_<X>=1. This pass applies the ENABLED ones. No-op until
+    # a spec-only patch is explicitly opted in (all 59 are default_off), so
+    # the default boot's apply summary is unchanged. See
+    # _run_spec_only_supplement for the full safety rationale.
+    _run_spec_only_supplement(stats)
+
     log.info("Genesis %s", stats)
 
     # [Genesis v7.65 / Cliff 8 hardening] Surface partial-apply warnings.
@@ -684,10 +694,8 @@ def _run_via_specs(stats: PatchStats) -> None:
     Failures during import / call surface as `_failed(...)` with the
     exception in the reason; same contract as the legacy loop.
     """
-    import importlib
     import os as _os_for_topo
     from sndr.dispatcher.spec import iter_patch_specs
-    from sndr.dispatcher.decision import should_apply
 
     # v11.3.0 BUG #11: opt-in topological sort by `requires_patches`.
     # Default OFF — keeps current behavior (registry-insertion order).
@@ -707,116 +715,16 @@ def _run_via_specs(stats: PatchStats) -> None:
     n_skipped = 0
     n_failed = 0
     for spec in iter_patch_specs(topo_sort=_topo):
-        # Use the spec.title as the displayed name (matches what
-        # the legacy `@register_patch("...")` decorator passed in).
-        display = f"{spec.patch_id} {spec.title}".strip()
-        if spec.apply_module is None:
-            stats.results.append(_skipped(
-                display, "no apply_module declared (informational entry)"
-            ))
-            n_skipped += 1
-            continue
-
-        # P0-2: gate decision FIRST. If the patch is disabled the import
-        # of `spec.apply_module` (which may be torch-heavy) is avoided —
-        # critical for torch-less dry-run on Mac dev / CI / preflight.
-        decision, reason = should_apply(spec.patch_id)
-        if not decision:
-            stats.results.append(_skipped(display, reason))
-            n_skipped += 1
-            continue
-
-        try:
-            mod = importlib.import_module(spec.apply_module)
-        except ImportError as e:
-            # P0-2: distinguish missing-runtime (torch absent on host)
-            # from real wiring import errors. The former is a clean skip
-            # with a structured reason; only structurally-broken imports
-            # surface as failures. Heuristic: ModuleNotFoundError naming
-            # `torch` / `triton` / `vllm` / `flashinfer` ⇒ runtime gap.
-            msg = str(e).lower()
-            runtime_gap_markers = ("torch", "triton", "flashinfer", "vllm")
-            if any(m in msg for m in runtime_gap_markers):
-                stats.results.append(_skipped(
-                    display,
-                    f"runtime not present on this host ({e}) — patch "
-                    "would apply on a vllm-equipped server",
-                ))
-                n_skipped += 1
-                continue
-            stats.results.append(_failed(
-                display, f"apply_module import failed: {e}"
-            ))
-            log.error("[Genesis spec-loop] FAILED import %s: %s",
-                      spec.apply_module, e)
-            n_failed += 1
-            continue
-        except Exception as e:
-            stats.results.append(_failed(
-                display, f"apply_module import raised: {type(e).__name__}: {e}"
-            ))
-            log.error("[Genesis spec-loop] FAILED import %s: %s",
-                      spec.apply_module, e)
-            n_failed += 1
-            continue
-        if not hasattr(mod, "apply"):
-            stats.results.append(_failed(
-                display, f"{spec.apply_module} missing apply() function"
-            ))
-            n_failed += 1
-            continue
-        if not _state._APPLY_MODE:
-            stats.results.append(_applied(
-                display, "dry-run: apply_module ready"
-            ))
-            n_applied += 1
-            continue
-        # v11.4.0 (Phase 6 P3.4 observability parity): wrap mod.apply()
-        # in measure_patch_apply() context so PatchMetrics + observability
-        # spans fire for the spec-driven path identically to the legacy
-        # @register_patch-instrumented path. Without this wrap,
-        # GENESIS_OBSERVABILITY=1 boots that use SNDR_APPLY_VIA_SPECS=1
-        # would lose per-patch elapsed_ms + rss_delta_kb telemetry.
-        # The context manager is a no-op when observability is off.
-        try:
-            from sndr.observability.patch_metrics import (
-                measure_patch_apply,
-            )
-            _patch_metric_cm = measure_patch_apply(display)
-        except ImportError:
-            # Observability stack absent — fall back to a no-op context.
-            from contextlib import nullcontext
-            _patch_metric_cm = nullcontext()
-
-        try:
-            with _patch_metric_cm as _metric:
-                status, reason = mod.apply()
-                # Mirror the legacy instrumentation behavior — populate
-                # metric fields with the result for observability emit.
-                if _metric is not None:
-                    try:
-                        _metric.status = status
-                        _metric.reason = reason or ""
-                    except Exception:
-                        # Best-effort: older metric implementations may
-                        # not expose these attributes.
-                        pass
-        except Exception as e:
-            stats.results.append(_failed(
-                display, f"apply() raised: {type(e).__name__}: {e}"
-            ))
-            log.exception("[Genesis spec-loop] EXCEPTION in %s",
-                          spec.patch_id)
-            n_failed += 1
-            continue
+        # Per-spec gate→import→apply→classify is centralized in
+        # `_apply_spec_module` so the spec-only supplement (legacy-boot
+        # bridge) shares byte-identical behavior — see that helper's
+        # docstring for why a single code path matters here.
+        status = _apply_spec_module(spec, stats)
         if status == "applied":
-            stats.results.append(_applied(display, reason))
             n_applied += 1
         elif status == "skipped":
-            stats.results.append(_skipped(display, reason))
             n_skipped += 1
         else:
-            stats.results.append(_failed(display, reason))
             n_failed += 1
 
     log.info(
@@ -824,6 +732,210 @@ def _run_via_specs(stats: PatchStats) -> None:
         "(SNDR_APPLY_VIA_SPECS=1)",
         n_applied, n_skipped, n_failed,
     )
+
+
+def _apply_spec_module(spec, stats: PatchStats) -> str:
+    """Gate, import, and apply a single PatchSpec via its `apply_module`.
+
+    Appends exactly one PatchResult to `stats` and returns its status
+    string — one of ``"applied"`` / ``"skipped"`` / ``"failed"``.
+
+    Extracted from `_run_via_specs` (2026-06-14) so the full spec-driven
+    boot loop AND the spec-only supplement (`_run_spec_only_supplement`)
+    drive patches through one identical sequence. A behavioral drift
+    between the two callers would mean a patch applies differently
+    depending on which boot mode reached it — precisely the class of bug
+    PR38's `shadow --strict` parity gate exists to prevent — so the logic
+    lives here once.
+
+    P0-2 contract preserved: the dispatcher decision (`should_apply`) is
+    consulted BEFORE importing the (potentially torch-heavy) apply_module,
+    so disabled patches record as 'skipped' on a torch-less host without
+    importing anything. Import failures naming torch/triton/vllm/flashinfer
+    are classified as a clean runtime-gap skip; only structurally-broken
+    wiring surfaces as 'failed'.
+    """
+    import importlib
+    from sndr.dispatcher.decision import should_apply
+
+    # Use the spec.title as the displayed name (matches what the legacy
+    # `@register_patch("...")` decorator passed in).
+    display = f"{spec.patch_id} {spec.title}".strip()
+    if spec.apply_module is None:
+        stats.results.append(_skipped(
+            display, "no apply_module declared (informational entry)"
+        ))
+        return "skipped"
+
+    # P0-2: gate decision FIRST. If the patch is disabled the import of
+    # `spec.apply_module` (which may be torch-heavy) is avoided — critical
+    # for torch-less dry-run on Mac dev / CI / preflight.
+    decision, reason = should_apply(spec.patch_id)
+    if not decision:
+        stats.results.append(_skipped(display, reason))
+        return "skipped"
+
+    try:
+        mod = importlib.import_module(spec.apply_module)
+    except ImportError as e:
+        # P0-2: distinguish missing-runtime (torch absent on host) from
+        # real wiring import errors. The former is a clean skip with a
+        # structured reason; only structurally-broken imports surface as
+        # failures. Heuristic: ModuleNotFoundError naming
+        # `torch` / `triton` / `vllm` / `flashinfer` ⇒ runtime gap.
+        msg = str(e).lower()
+        runtime_gap_markers = ("torch", "triton", "flashinfer", "vllm")
+        if any(m in msg for m in runtime_gap_markers):
+            stats.results.append(_skipped(
+                display,
+                f"runtime not present on this host ({e}) — patch "
+                "would apply on a vllm-equipped server",
+            ))
+            return "skipped"
+        stats.results.append(_failed(
+            display, f"apply_module import failed: {e}"
+        ))
+        log.error("[Genesis spec-loop] FAILED import %s: %s",
+                  spec.apply_module, e)
+        return "failed"
+    except Exception as e:
+        stats.results.append(_failed(
+            display, f"apply_module import raised: {type(e).__name__}: {e}"
+        ))
+        log.error("[Genesis spec-loop] FAILED import %s: %s",
+                  spec.apply_module, e)
+        return "failed"
+    if not hasattr(mod, "apply"):
+        stats.results.append(_failed(
+            display, f"{spec.apply_module} missing apply() function"
+        ))
+        return "failed"
+    if not _state._APPLY_MODE:
+        stats.results.append(_applied(
+            display, "dry-run: apply_module ready"
+        ))
+        return "applied"
+    # v11.4.0 (Phase 6 P3.4 observability parity): wrap mod.apply() in
+    # measure_patch_apply() context so PatchMetrics + observability spans
+    # fire for the spec-driven path identically to the legacy
+    # @register_patch-instrumented path. Without this wrap,
+    # GENESIS_OBSERVABILITY=1 boots that use SNDR_APPLY_VIA_SPECS=1 would
+    # lose per-patch elapsed_ms + rss_delta_kb telemetry. The context
+    # manager is a no-op when observability is off.
+    try:
+        from sndr.observability.patch_metrics import (
+            measure_patch_apply,
+        )
+        _patch_metric_cm = measure_patch_apply(display)
+    except ImportError:
+        # Observability stack absent — fall back to a no-op context.
+        from contextlib import nullcontext
+        _patch_metric_cm = nullcontext()
+
+    try:
+        with _patch_metric_cm as _metric:
+            status, reason = mod.apply()
+            # Mirror the legacy instrumentation behavior — populate metric
+            # fields with the result for observability emit.
+            if _metric is not None:
+                try:
+                    _metric.status = status
+                    _metric.reason = reason or ""
+                except Exception:
+                    # Best-effort: older metric implementations may not
+                    # expose these attributes.
+                    pass
+    except Exception as e:
+        stats.results.append(_failed(
+            display, f"apply() raised: {type(e).__name__}: {e}"
+        ))
+        log.exception("[Genesis spec-loop] EXCEPTION in %s",
+                      spec.patch_id)
+        return "failed"
+    if status == "applied":
+        stats.results.append(_applied(display, reason))
+        return "applied"
+    elif status == "skipped":
+        stats.results.append(_skipped(display, reason))
+        return "skipped"
+    stats.results.append(_failed(display, reason))
+    return "failed"
+
+
+def _run_spec_only_supplement(stats: PatchStats) -> None:
+    """Legacy-boot bridge: apply ENABLED spec-only patches the legacy
+    `@register_patch` table doesn't cover.
+
+    Why this exists (root-caused 2026-06-14): the default boot path
+    (`SNDR_APPLY_VIA_SPECS` unset) runs the legacy loop over
+    `_state.PATCH_REGISTRY` — only patches carrying a hand-written
+    `@register_patch` hook apply. 59 patches declare an `apply_module` but
+    have NO legacy hook (the KNOWN_SPEC_ONLY set — relocated to their
+    canonical technical-area home as part of PR38's migration away from the
+    parking lot). Before this supplement they were unreachable at boot in
+    the default mode: an operator could set `GENESIS_ENABLE_<X>=1` and the
+    patch would silently never apply. That is exactly how the dev491 pin
+    bump's streaming-tool-call fix (PN392) appeared inert in live smoke.
+
+    Why not simply switch the default to `_run_via_specs`: it cannot be the
+    default yet because three default_on bundled legacy patches — P1/P2
+    (FP8 dispatcher), P17/P18 (Marlin MoE tuning), P32/P33 (TurboQuant
+    preallocs) — have no `apply_module` and apply only via their bundled
+    `@register_patch` hooks. Running the spec loop alone would silently DROP
+    them on PROD. This supplement instead augments the legacy loop.
+
+    Safety (no-op by default, no double-apply):
+      * Processes ONLY spec-only patch ids — `apply_module` set AND patch id
+        absent from the legacy register table — so nothing the legacy loop
+        already applied is touched again.
+      * Gates each candidate through `should_apply` and skips disabled ones
+        SILENTLY (no stats row, no import, no log). All 59 spec-only patches
+        are default_off, so a clean default boot adds zero rows and stays
+        byte-identical to pre-supplement behavior. The pass only does work
+        once an operator explicitly opts a spec-only patch in.
+    """
+    from sndr.dispatcher.spec import iter_patch_specs
+    from sndr.dispatcher.decision import should_apply
+    from sndr.apply.shadow import _patch_id_from_legacy_name
+
+    # Patch ids already covered by the legacy @register_patch loop. Built
+    # from the live register table (not a static list) so it tracks future
+    # legacy additions automatically — exclude them to prevent double-apply.
+    legacy_pids: set[str] = set()
+    for name, _fn in _state.PATCH_REGISTRY:
+        pid = _patch_id_from_legacy_name(name)
+        if pid:
+            legacy_pids.add(pid)
+
+    n_applied = 0
+    n_failed = 0
+    for spec in iter_patch_specs():
+        if spec.apply_module is None or spec.patch_id in legacy_pids:
+            continue
+        # Gate FIRST and skip disabled spec-only patches silently — this is
+        # what keeps the default boot's apply summary unchanged (no extra
+        # rows for the 59 opt-in patches when none are enabled).
+        decision, _reason = should_apply(spec.patch_id)
+        if not decision:
+            continue
+        status = _apply_spec_module(spec, stats)
+        last = stats.results[-1]
+        if status == "applied":
+            n_applied += 1
+            log.info("[Genesis spec-only] applied: %s — %s",
+                     last.name, last.reason)
+        elif status == "failed":
+            n_failed += 1
+            log.error("[Genesis spec-only] FAILED: %s — %s",
+                      last.name, last.reason)
+        # 'skipped' here means a runtime-gap on a torch-less host — left at
+        # debug-silence; it would apply on the vllm-equipped server.
+    if n_applied or n_failed:
+        log.info(
+            "[Genesis spec-only supplement] %d applied / %d failed — "
+            "enabled spec-only patches not in the legacy register table",
+            n_applied, n_failed,
+        )
 
 
 def _run_bundles(stats: PatchStats) -> None:
