@@ -924,6 +924,66 @@
     "apply_module": "sndr.engines.vllm.patches.offload.pn383_offload_mtp_eagle_gate"
   },
   {
+    "patch_id": "PN384",
+    "family": "kv_cache",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN384_EAGLE_PREFIX_CACHE_PREFILL",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.kv_cache.pn384_eagle_prefix_cache_prefill"
+  },
+  {
+    "patch_id": "PN385",
+    "family": "tool_parsing",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN385_FORCED_NAMED_EMPTY_PARAMS",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn385_forced_named_empty_params"
+  },
+  {
+    "patch_id": "PN386",
+    "family": "tool_parsing",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN386_REQUIRED_STREAMING_STRING_AWARE",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn386_required_streaming_brace_string_aware"
+  },
+  {
+    "patch_id": "PN387",
+    "family": "serving",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.serving.pn387_reject_degenerate_structured_outputs"
+  },
+  {
+    "patch_id": "PN388",
+    "family": "scheduler",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN388_MAMBA_BLOCK_ALIGNED_SPLIT",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.scheduler.pn388_mamba_block_aligned_prefill_split"
+  },
+  {
     "patch_id": "PN97",
     "family": "kv_cache",
     "lifecycle": "experimental",

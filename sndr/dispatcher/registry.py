@@ -2500,6 +2500,259 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "implementation_status": "full",
     },
+    # ── 2026-06-13 50-PR sweep WAVE 1 (batch 2) — five LIVE-bug vendors
+    # of OPEN upstream PRs, all opt-in (default_on=False) pending the
+    # server A/B. Spec-driven from inception (apply_module + own apply(),
+    # no legacy @register_patch hook) — same class as PN371/PN373/PN383.
+    # See journal docs/superpowers/journal/2026-06-11-pr-sweep-62-batch2-
+    # roadmap.md. PN384 + PN388 both touch KV/scheduler split paths and
+    # are designed to coexist (see their credit notes).
+    "PN384": {
+        "title": (
+            "PN384 — Eagle/MTP prefix-cache prefill fix "
+            "(vendor of vllm#44986); thread skip_eagle_pop=is_prefill_phase"
+        ),
+        "tier": "community",
+        "family": "kv_cache",
+        "env_flag": "GENESIS_ENABLE_PN384_EAGLE_PREFIX_CACHE_PREFILL",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "kv_cache",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.kv_cache.pn384_eagle_prefix_cache_prefill",
+        # category=kv_cache (family default; VALID_CATEGORIES has no
+        # 'performance' — this is a prefix-cache TTFT correctness win).
+        "credit": (
+            "PR-sweep batch-2 wave-1 (2026-06-13). Vendor of OPEN "
+            "vllm#44986 (closes #44858): when EAGLE/MTP + "
+            "--enable-prefix-caching, get_computed_blocks drops the last "
+            "matched prefix-cache block so the drafter can recompute "
+            "hidden states. Correct in decode, WRONG in prefill — no draft "
+            "tokens exist yet (num_output_tokens == 0) so the dropped block "
+            "is pure loss. Filed on Qwen3.6-27B block_size=1536 — our exact "
+            "27B int4 PROD shape. Fix: thread skip_eagle_pop=is_prefill_phase "
+            "through find_longest_cache_hit (Unitary + Hybrid coordinators + "
+            "the manager caller) so the drop is suppressed in prefill only. "
+            "Recovers 1 prefix-cache block per prefill on every MTP request; "
+            "on short prompts (block_size > prompt) recovers the ENTIRE hit "
+            "(0% -> full). Direct TTFT win, ZERO decode cost (decode path "
+            "byte-unchanged). SUPERSEDES retired P83/P84: it skips only in "
+            "prefill, preserving the convergence invariant P83 flagged. "
+            "COORDINATION: PN346 (#43650) touches the sibling file "
+            "single_type_kv_cache_manager.py (MambaManager) — PN384 patches "
+            "the coordinator/manager one level up; zero anchor overlap, the "
+            "two compose (in prefill skip_eagle_pop=True makes PN346's "
+            "drop_eagle_block guard a clean no-op). Genesis spelling "
+            "divergence keeps the PR's exact lines as merged-form drift "
+            "markers. STRONG RECOMMENDATION: enable on 27B int4 "
+            "(block_size=1536) + 35B FP8 MTP-K=3 after the server A/B "
+            "confirms the TTFT recovery. COEXISTS with PN388 (scheduler "
+            "split): disjoint files/functions (find_longest_cache_hit vs "
+            "_mamba_block_aligned_split), no anchor overlap."
+        ),
+        "upstream_pr": 44986,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN346"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN385": {
+        "title": "Forced-named empty-params tool schema -> JSON object (vendor of vllm#45290)",
+        "tier": "community",
+        "family": "tool_parsing",
+        "env_flag": "GENESIS_ENABLE_PN385_FORCED_NAMED_EMPTY_PARAMS",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "structured_output",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn385_forced_named_empty_params",
+        "credit": (
+            "PR-sweep batch-2 wave-1 (2026-06-13). Vendor of OPEN "
+            "vllm#45290: the public get_json_schema_from_tools returns a "
+            "forced-named tool's parameters verbatim on both the Responses "
+            "and ChatCompletion branches. For a no-arg tool (end_turn / "
+            "noop / handoff) that is None (free-form text) or {} "
+            "(unconstrained), so the model can emit a bare string/number "
+            "as arguments instead of {} -> agent-loop parse-500 on "
+            "parameterless tools for qwen3_xml (35B/27B) and gemma4 "
+            "(26B/31B); qwen3coder shielded. Fix: normalize both "
+            "forced-named branches to {\"type\": \"object\", "
+            "\"properties\": {}} exactly like the in-pin `required` path "
+            "(_get_tool_schema_from_tool). Genesis divergence: inline the "
+            "in-pin idiom instead of the PR's _params_or_empty_object "
+            "helper (no 3rd anchor; the helper name stays a clean upstream "
+            "drift marker). Disjoint from PN70 (internal "
+            "_get_json_schema_from_tools required path) and P68 "
+            "(auto->required gate) — verified no anchor collision. "
+            "Anchors byte-verified count==1 vs pristine pin g303916e93. "
+            "Candidate default-ON after fleet test on the three exposed "
+            "families."
+        ),
+        "upstream_pr": 45290,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN70", "P68"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN386": {
+        "title": "Required-tool streaming brace JSON-string-awareness (vendor of vllm#45389)",
+        "tier": "community",
+        "family": "tool_parsing",
+        "env_flag": "GENESIS_ENABLE_PN386_REQUIRED_STREAMING_STRING_AWARE",
+        "default_on": False,
+        "lifecycle": "experimental",
+        # category=structured_output (the tool_parsing-sibling convention;
+        # VALID_CATEGORIES has no 'tool_calling'). PN385 uses the same.
+        "category": "structured_output",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn386_required_streaming_brace_string_aware",
+        "credit": (
+            "PR-sweep batch-2 wave-1 (2026-06-13). Vendor of OPEN "
+            "vllm#45389 (Sunt-ing; related #41111). In tool_choice="
+            "'required' STREAMING, vLLM trims the streamed tool-call JSON "
+            "by counting the wrapper's bracket level in "
+            "tool_parsers/streaming.py. _bracket_level and "
+            "filter_delta_text treat { } , as structural even inside a "
+            "JSON string VALUE, so a valid argument like {\"city\": "
+            "\"a } b\"} is mis-trimmed into malformed function.arguments "
+            "(client JSONDecodeError) for any string carrying { } \\\" \\\\ "
+            "(file paths, regex, shell, nested JSON). Fix: "
+            "_bracket_level_state tracks in_string/escaped and skips "
+            "brace counting inside strings; filter_delta_text carries "
+            "that state across deltas and only breaks on a top-level "
+            "comma when not in_string; the parameter body is trimmed "
+            "against its own prefix (current_text[:param_match.start(1)]) "
+            "instead of previous_text (greedy .*\"parameters\" match kept "
+            "for multi-tool streaming). PREREQUISITE for safely enabling "
+            "Genesis P68 (long-ctx auto-force-required funnels agent "
+            "traffic into this exact helper). Sibling #45310 (Hermes "
+            "</tool_call> boundary, same string-awareness bug class one "
+            "layer up) is the wave-2 pairing. Genesis divergence: spells "
+            "the prefix slice without the space after [: and the thin "
+            "wrapper unpacks named throwaways, so the PR's exact lines "
+            "stay usable as merge drift markers without self-collision. "
+            "Anchors byte-verified count==1 on pristine pin g303916e93."
+        ),
+        "upstream_pr": 45389,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P68"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN387": {
+        "title": "Reject degenerate structured_outputs (DoS guard, vendor of vllm#45346)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.serving.pn387_reject_degenerate_structured_outputs",
+        "credit": (
+            "PR-sweep batch-2 wave-1 (2026-06-13). Vendor of OPEN vllm#45346 "
+            "(Sunt-ing) — CONFIRMED instance-wide DoS on single-instance PROD. "
+            "A single request with structured_outputs={'json_object': false} "
+            "or {'json': ''} crashes EngineCore (EngineDeadError) and bricks "
+            "the instance for everyone: both inputs pass "
+            "StructuredOutputsParams.__post_init__'s `is not None` exclusivity "
+            "check but have no key in get_structured_output_key, so they raise "
+            "inside the per-request-isolation-free EngineCore step loop. "
+            "Two layers, one flag: (1) SOURCE OVERLAY (verbatim PR backport) "
+            "adds two guards in SamplingParams._validate_structured_outputs "
+            "after the pin's empty-grammar guard (line 888) — json='' and "
+            "json_object=False -> ValueError (frontend 400). (2) GENESIS EDGE "
+            "GUARD injects a request-validation hook at the top of "
+            "_create_chat_completion that returns a clean 400 BadRequestError "
+            "BEFORE the request reaches the engine loop (defence-in-depth; "
+            "composes with P68/P69 + PN16 on the same anchor pair). The single "
+            "PN387 apply() drives both files atomically via "
+            "MultiFilePatchTransaction. default_on=False — pure safety reject, "
+            "gated so the rejection criteria can be A/B'd first; STRONG "
+            "RECOMMENDATION to enable on every single-instance PROD. "
+            "Self-skips when #45346 merges (drift markers = the PR's exact "
+            "guard comment lines). Bit-identical for valid inputs."
+        ),
+        "upstream_pr": 45346,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P68", "P69", "PN16", "P109"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
+    "PN388": {
+        "title": "Mamba-block-aligned intermediate prefill split (vendor of vllm#45477)",
+        "tier": "community",
+        "family": "scheduler",
+        "env_flag": "GENESIS_ENABLE_PN388_MAMBA_BLOCK_ALIGNED_SPLIT",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "correctness",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.scheduler.pn388_mamba_block_aligned_prefill_split",
+        "credit": (
+            "PR-sweep batch-2 wave-1 (2026-06-13), HIGHEST value LIVE bug. "
+            "Vendor of OPEN vllm#45477 (FIX #43559, root cause of the "
+            "Qwen3.5/3.6 + MTP + --enable-prefix-caching accuracy collapse). "
+            "Scheduler._mamba_block_aligned_split keeps prefill chunk ends on "
+            "mamba block boundaries (align cache mode). With spec decode "
+            "(use_eagle) the eagle prune zeroes last_cache_position for prompts "
+            "< 2*block_size (mamba block 1600; a 2002-tok prompt qualifies), so "
+            "the old else:pass fall-through accepts an unaligned chunk end the "
+            "moment the per-step budget fragments concurrent prefills. The GDN "
+            "kernel writes that mid-block state into the position-0 mamba slot "
+            "and cache_blocks hashes it as the boundary snapshot — poisoning "
+            "the prefix cache (garbled output / stray </think> / malformed tool "
+            "calls / runaway gens) for every request that resumes from it; "
+            "persists until restart. Single requests are accidentally safe so "
+            "it only shows under concurrent unequal prefixes — our exact PROD "
+            "multiconc shape (Qwen3.6 35B FP8 + 27B int4, GDN+Mamba, MTP K=3, "
+            "APC). Fix: round the chunk END position (not the LENGTH) so every "
+            "non-final chunk ends on a block boundary; a budget-collapsed first "
+            "chunk defers via num_new_tokens==0 (scheduler-handled). Verified: "
+            "unpatched pin+P34 yields unaligned non-final ends [364,1064]; "
+            "patched yields [1600,2002] (poison-free). Genesis divergences "
+            "(iron rule #10): the PR's Marconi common-prefix admission tail is "
+            "OMITTED (its param is absent from our pin's signature — would "
+            "NameError); round_down is inlined as (x//block_size)*block_size "
+            "(single anchor site; gives drift-marker spelling divergence). P34 "
+            "COEXISTENCE: P34 (effectively always-on) rewrites the exact "
+            "first-branch lines PN388 deletes, so PN388 carries a DUAL ANCHOR "
+            "(pristine-shaped + post-P34-shaped, required-at-least-one, "
+            "apply()-pre-gated; P85-on-PN346 convention) and requires_patches "
+            "P34 so P34 dispatches first; PN388's deferral subsumes P34's "
+            "zero-collapse guard. Composes with PN346 (#43650) + P85 "
+            "(hit-side, complementary per the PR author — PN346 alone does not "
+            "cover non-final-block poisoning under unequal concurrent "
+            "prefixes; we were CURRENTLY EXPOSED). Disjoint from PN384/#44986 "
+            "(find_longest_cache_hit, different file+function) — PN384 + PN388 "
+            "COEXIST cleanly. ASYNC CAVEAT: the PR validated "
+            "--no-async-scheduling; our PROD runs async overlap ON — enable "
+            "only after a server A/B confirms boundary-timing parity vs GDN "
+            "state-write (10-way 2002-tok tool-call fanout replay + bench). "
+            "default_on=False until that A/B."
+        ),
+        "upstream_pr": 45477,
+        "upstream_pr_relationship": "backport",
+        "upstream_issue": 43559,
+        "requires_patches": ["P34"],
+        "conflicts_with": [],
+        "composes_with": ["PN346", "P85"],
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
     "PN97": {
         "title": "PN97 — physical-cap on KV tensor allocation (Phase 7 PoC)",
         "tier": "community",

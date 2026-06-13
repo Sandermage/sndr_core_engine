@@ -15,6 +15,10 @@ __all__ = [
     "p62_structured_output_spec_decode_timing",
     "p68_69_long_ctx_tool_adherence",
     "pn70_tool_schema_subset_filter",
+    # PN387 — single registry entrypoint; its apply() drives BOTH the
+    # source overlay (this file) and the gateway-edge wiring companion
+    # (middleware/edge_guard_*) atomically via MultiFilePatchTransaction.
+    "pn387_reject_degenerate_structured_outputs",
 ]
 
 def __getattr__(name: str):

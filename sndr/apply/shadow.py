@@ -199,6 +199,19 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # blueprint; runtime monkey-patch, no TextPatcher)
     "PN383",           # KV-offload + MTP segfault gate (vendor of OPEN
                        # vllm#44784; multi-file text patch, no legacy hook)
+    # ── 2026-06-13 50-PR sweep BATCH-2 WAVE 1 — five LIVE-bug vendors,
+    # spec-driven from inception (apply_module + own apply(), no legacy
+    # @register_patch hook; same class as PN383). All opt-in.
+    "PN384",           # Eagle/MTP prefix-cache prefill fix (vendor of
+                       # OPEN vllm#44986; kv_cache coordinator+manager)
+    "PN385",           # forced-named empty-params tool schema ->
+                       # JSON object (vendor of OPEN vllm#45290)
+    "PN386",           # required-tool streaming brace string-awareness
+                       # (vendor of OPEN vllm#45389; tool_parsers/streaming)
+    "PN387",           # reject degenerate structured_outputs DoS guard
+                       # (vendor of OPEN vllm#45346; serving + edge guard)
+    "PN388",           # mamba-block-aligned intermediate prefill split
+                       # (vendor of OPEN vllm#45477; scheduler, requires P34)
 })
 
 

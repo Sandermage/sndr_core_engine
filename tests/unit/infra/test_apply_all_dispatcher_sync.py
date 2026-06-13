@@ -197,6 +197,14 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     "PN382",   # DecodeBenchConnector hybrid per-block fill (vllm#45080)
     "G4_81",   # TQ multi-query DIRECT decode routing (vllm#45144 blueprint)
     "PN383",   # KV-offload + MTP segfault gate (vllm#44784)
+    # 2026-06-13 50-PR sweep BATCH-2 WAVE 1 — five spec-driven-from-
+    # inception LIVE-bug vendors (apply_module with own apply(), no
+    # apply_patch_* hook; same class as PN371/PN373/PN383). All opt-in.
+    "PN384",   # Eagle/MTP prefix-cache prefill fix (vllm#44986)
+    "PN385",   # forced-named empty-params tool schema -> object (vllm#45290)
+    "PN386",   # required-tool streaming brace string-awareness (vllm#45389)
+    "PN387",   # reject degenerate structured_outputs DoS guard (vllm#45346)
+    "PN388",   # mamba-block-aligned intermediate prefill split (vllm#45477)
     # G4_T1 (Gemma4 tool-parser PR #42006 vendor marker) — operator-
     # side bind-mount overlay; no apply_patch_* wiring by design
     # (registered only for `genesis explain` + audit visibility of the

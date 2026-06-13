@@ -13,6 +13,11 @@ from __future__ import annotations
 __all__ = [
     "pn16_lazy_reasoner",
     "pn65_access_log",
+    # PN387 gateway-edge wiring companion. Deliberately NOT named
+    # ``pn387_*`` so the apply_module derivation does not collide with the
+    # serving-family ``pn387_*`` source overlay (which is the single PN387
+    # registry entrypoint — it drives this wiring via MultiFilePatchTransaction).
+    "edge_guard_reject_degenerate_structured_outputs",
 ]
 
 def __getattr__(name: str):

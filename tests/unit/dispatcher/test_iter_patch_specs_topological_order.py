@@ -100,6 +100,14 @@ def test_default_order_baseline_violations():
         # boot order is owned by _per_patch_dispatch (P27 applies
         # before PN71 there) and the topo_sort path handles the edge.
         ("PN71", "P27"),
+        # 2026-06-13 (50-PR sweep batch-2 wave 1): PN388 declares
+        # requires_patches=["P34"] — its DUAL ANCHOR includes a
+        # post-P34-shaped variant, so P34 must dispatch first. PN388
+        # sits in the PN38x cohort near the top of registry insertion
+        # order while P34 is in the legacy section far below; live boot
+        # order is owned by _per_patch_dispatch and the topo_sort path
+        # handles the edge.
+        ("PN388", "P34"),
     }
     actual = {(pid, req) for pid, req, _, _ in violations}
     new_violations = sorted(actual - baseline)
