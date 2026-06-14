@@ -120,6 +120,18 @@ system_env:
   # ── Genesis kernel patches enabled by default on Ampere SM 8.6 ──
   # Both are session-validated kernel-level wins for the Ampere stack:
   GENESIS_ENABLE_P18B_TEXT: '1'                  # text-patches triton_turboquant_decode.py launcher literals at boot (closes the "P18b is dead-code" finding 2026-06-08; without this the env vars above are read but never applied to the kernel). Confirmed +1-2 TPS warm + better TPOT at all conc>=1. Disable via GENESIS_DISABLE_P18B_TEXT=1.
+  # ── PN296 KEYSTONE — REQUIRED for the PN299B/C/D/E warp-caps below to fire ──
+  # perf-opt #1 (2026-06-14): PN296 is the SOLE writer of
+  # GENESIS_TRITON_AUTOTUNE_MAX_WARPS=4 / MAX_STAGES=2 on SM8.6. Without it the
+  # already-enabled PN299C/D/E read the upstream '8'/'16' fallbacks and are
+  # RUNTIME NO-OPS — un-capped num_warps=8/16 configs spill on the 100KB/SM A5000
+  # (notably the per-token-per-layer KV writer triton_reshape_and_cache_flash and
+  # the per-LN layernorm_guard). Config-only, correctness-neutral (pure autotune
+  # pruning, bit-identical output), +2-4% wall_TPS + -5..-10ms TTFT. Apply-order
+  # PN296->298->299 enforced in _per_patch_dispatch.py. Disable via GENESIS_DISABLE_PN296*=1.
+  GENESIS_ENABLE_PN296_ARCH_PROFILE_INIT: '1'
+  GENESIS_ENABLE_PN298_FLA_CHUNK_O_ARCH_WARPS: '1'
+  GENESIS_ENABLE_PN299_FLA_MULTI_ARCH_WARPS: '1'
   GENESIS_ENABLE_PN299B: '1'                     # extends PN299 arch-aware NUM_WARPS prune to cumsum/kda/solve_tril FLA ops (10 sub-patches). kda.py is the Qwen3.6 KDA hot path; pruning 8-warp configs there saves 5-7ms TTFT per cold-start. Composes with PN296+PN298+PN299. Disable via GENESIS_DISABLE_PN299B=1.
   GENESIS_ENABLE_PN299C: '1'                     # caps the runtime num_warps heuristic in fla/ops/layernorm_guard.py — closes the LAST num_warps=8 site in FLA on SM 8.6. For Qwen3.6-A3B (hidden 5120 → BLOCK_N 8192) upstream picks num_warps=8 every LN call; PN299C reads GENESIS_TRITON_AUTOTUNE_MAX_WARPS (PN296 auto-sets =4 on Ampere). Composes with PN296+PN298+PN299+PN299B. Disable via GENESIS_DISABLE_PN299C=1.
   GENESIS_ENABLE_PN299D: '1'                     # defensive cap on Mamba2 selective_state_update FALLBACK heuristic (mamba/ops/mamba_ssm.py). Fires only when tuned JSON config for (headdim, dstate, cache_dtype, device) is missing. dstate>128 + not-Blackwell branch would leave num_warps=8 — spills on SM 8.6. Reads same env as PN299C. No-op when tuned config is present. Composes with PN296+PN298+PN299+PN299B+PN299C. Disable via GENESIS_DISABLE_PN299D=1.
