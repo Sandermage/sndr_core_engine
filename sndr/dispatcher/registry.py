@@ -3497,6 +3497,41 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",  # 2026-05-15 reactivated after retired-audit (gap confirmed in upstream parser)
         "implementation_status": "full",
     },
+    "PN252": {
+        "title": "M-RoPE prompt_embeds-only DoS fix (vllm#45252 / GHSA-33cg-gxv8-3p8g)",
+        "tier": "community",
+        "family": "worker",
+        "env_flag": "GENESIS_ENABLE_PN252_MROPE_PROMPT_EMBEDS_DOS",
+        "default_on": True,
+        "category": "stability",
+        "credit": (
+            "Backport of vllm#45252 (security advisory GHSA-33cg-gxv8-3p8g). "
+            "GpuModelRunner._init_mrope_positions asserted "
+            "`req_state.prompt_token_ids is not None`; on any M-RoPE model a "
+            "single /v1/completions request with prompt_embeds set and "
+            "prompt=None tripped the assert and crashed EngineCore — an "
+            "unprivileged remote DoS. The fix drops the fatal assert and "
+            "derives a non-None token sequence at the call site (real "
+            "prompt_token_ids when present, else dummy positional IDs sized "
+            "from prompt_embeds — M-RoPE only needs the LENGTH for a "
+            "passthrough modality without grid_thw; clean ValueError when "
+            "BOTH are absent). Directly relevant on the PROD fleet: Gemma-4 "
+            "26B-A4B / 31B-AWQ are M-RoPE and accept prompt_embeds. Host-side "
+            "Python assertion — identical on Ampere A5000 / Ada / Hopper / "
+            "Blackwell 5090, so NOT arch-gated (recipe E, universal "
+            "correctness/security guard). Verified byte-identical anchor on "
+            "dev259 (PROD) + dev491 (candidate); self-skips when upstream "
+            "merges the fix (anchor stops matching). default_on=True "
+            "(informational under strict-opt-in) — engage via "
+            "GENESIS_ENABLE_PN252_MROPE_PROMPT_EMBEDS_DOS=1."
+        ),
+        "upstream_pr": 45252,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {},
+        "apply_module": "sndr.engines.vllm.patches.worker.pn252_mrope_prompt_embeds_dos",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+    },
     "PN35": {
         "title": "Skip inputs_embeds buffer for text-only models (vllm#35975 backport)",
         "tier": "community",

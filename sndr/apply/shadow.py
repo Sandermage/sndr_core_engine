@@ -226,6 +226,13 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
     "PN392",           # qwen3_coder streaming tool-call coalescing
                        # (dev491 #45171 qwen3_xml->coder remap fix; runtime
                        # class-wrap, no legacy hook)
+    # ── 2026-06-14 PR-sweep wave-1 implementation — spec-driven from
+    # inception (apply_module + own apply(), no legacy @register_patch
+    # hook; applied at legacy boot via _run_spec_only_supplement):
+    "PN252",           # M-RoPE prompt_embeds-only DoS fix (vendor of
+                       # vllm#45252 / GHSA-33cg-gxv8-3p8g; worker text
+                       # patch on gpu_model_runner._init_mrope_positions,
+                       # byte-verified dev259+dev491, security default_on)
 })
 
 

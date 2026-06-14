@@ -198,6 +198,10 @@ def test_spec_only_truly_orphan_baseline():
         # vendors (apply_module set, own apply(), no legacy hook; same
         # class as PN383-PN388).
         "PN389", "PN390", "PN391", "P89", "PN392",
+        # 2026-06-14 PR-sweep wave-1 implementation — spec-driven from
+        # inception (apply_module + own apply(), no legacy hook; applied
+        # at legacy boot via _run_spec_only_supplement).
+        "PN252",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)
