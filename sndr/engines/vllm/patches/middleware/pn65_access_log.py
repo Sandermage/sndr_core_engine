@@ -300,8 +300,16 @@ def install_into_app(app) -> bool:
     """
     if getattr(app, "__pn65_installed__", False):
         return False
-    _suppress_uvicorn_access_logger()
+    # Reformatter MUST install before the suppressor. Both are filters on the
+    # uvicorn.access logger, applied in install order, and the first to return
+    # False drops the record before later filters run. The suppressor drops
+    # every INFO access record, so installing it first starved the reformatter
+    # and ZERO [Genesis-API] lines were emitted for 2xx (deep-audit #5). With
+    # the reformatter first, it emits the structured line then returns False to
+    # drop the bare uvicorn line; the suppressor still catches anything the
+    # reformatter passes through (WARNING/ERROR/malformed).
     _install_reformatter()
+    _suppress_uvicorn_access_logger()
     setattr(app, "__pn65_installed__", True)
     return True
 
@@ -326,8 +334,11 @@ def apply() -> tuple[str, str]:
         return "skipped", reason
 
     try:
-        _suppress_uvicorn_access_logger()
+        # Reformatter first — see install_into_app (deep-audit #5): the
+        # suppressor drops every INFO access record, so installing it ahead of
+        # the reformatter starved it and zero [Genesis-API] lines were emitted.
         _install_reformatter()
+        _suppress_uvicorn_access_logger()
     except Exception as exc:
         return (
             "failed",

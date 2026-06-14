@@ -443,3 +443,84 @@ class TestSuppressUvicornAccessLogger:
         ]
         assert info_records == []
         assert len(warn_records) == 1
+
+
+# ─── deep-audit #5: filter install ORDER (reformatter before suppressor) ───
+
+
+class TestFilterInstallOrder:
+    """Regression for deep-audit #5: the reformatter must install BEFORE the
+    suppressor. Both are filters on the uvicorn.access logger, applied in
+    install order; the first to return False drops the record before later
+    filters run. The suppressor drops every INFO access record, so installing
+    it first starved the reformatter and ZERO [Genesis-API] lines were emitted
+    for 2xx requests — the patch's entire purpose was dead.
+    """
+
+    def _fresh_install(self, monkeypatch):
+        from sndr.engines.vllm.patches.middleware import pn65_access_log as p
+
+        monkeypatch.setenv("GENESIS_ENABLE_PN65", "1")
+        monkeypatch.delenv("GENESIS_PN65_KEEP_UVICORN_ACCESS", raising=False)
+        p._PN65_REFORMATTER_INSTALLED = False
+        p._PN65_FILTER_INSTALLED = False
+        uv = logging.getLogger("uvicorn.access")
+        for f in list(uv.filters):
+            if isinstance(f, (p.GenesisAccessLogReformatter,
+                              p._DropUvicornAccessInfo)):
+                uv.removeFilter(f)
+        for f in list(logging.getLogger().filters):
+            if isinstance(f, p._DropUvicornAccessInfo):
+                logging.getLogger().removeFilter(f)
+        status, _ = p.apply()
+        assert status == "applied"
+        return p, uv
+
+    def test_reformatter_precedes_suppressor(self, monkeypatch):
+        p, uv = self._fresh_install(monkeypatch)
+        ri = next(i for i, f in enumerate(uv.filters)
+                  if isinstance(f, p.GenesisAccessLogReformatter))
+        si = next(i for i, f in enumerate(uv.filters)
+                  if isinstance(f, p._DropUvicornAccessInfo))
+        kinds = [type(f).__name__ for f in uv.filters]
+        assert ri < si, f"reformatter must precede suppressor; got {kinds}"
+
+    def test_2xx_record_emits_genesis_api_line(self, monkeypatch):
+        p, uv = self._fresh_install(monkeypatch)
+        captured: list[str] = []
+
+        class _Cap(logging.Handler):
+            def emit(self, r):
+                captured.append(r.getMessage())
+
+        gl = logging.getLogger("genesis.api")
+        h = _Cap()
+        gl.addHandler(h)
+        old_level = gl.level
+        gl.setLevel(logging.INFO)
+        try:
+            rec = logging.LogRecord(
+                name="uvicorn.access", level=logging.INFO,
+                pathname=__file__, lineno=1,
+                msg='%s - "%s %s HTTP/%s" %d',
+                args=("127.0.0.1:5050", "GET", "/v1/chat/completions",
+                      "1.1", 200),
+                exc_info=None,
+            )
+            # Replicate Python's Logger.filter() chain: stop at first False.
+            allowed = True
+            for f in uv.filters:
+                if not f.filter(rec):
+                    allowed = False
+                    break
+        finally:
+            gl.removeHandler(h)
+            gl.setLevel(old_level)
+
+        # Reformatter ran first, emitted the structured line, then dropped the
+        # bare uvicorn record.
+        assert allowed is False, "bare uvicorn 2xx line should be dropped"
+        assert any("/v1/chat/completions" in m for m in captured), (
+            "reformatter must emit a [Genesis-API] line for 2xx — it did not, "
+            "the suppressor starved it"
+        )
