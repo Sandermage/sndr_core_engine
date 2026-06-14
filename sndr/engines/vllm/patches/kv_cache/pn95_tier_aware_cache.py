@@ -705,12 +705,13 @@ def _make_patcher_worker_proactive_demote() -> TextPatcher | None:
     the flag get a clean skip with the retired reason logged.
     """
     # Retired: PN96 Phase 6 superseded the Phase 4.2 logic. Always None.
-    log.info(
+    # No longer invoked by apply() (deep-audit 2026-06-14 #4). Kept for
+    # one-block re-enable if PN96 regresses; log at DEBUG so a manual
+    # re-invocation does not spam the boot log.
+    log.debug(
         "[PN95] anchor #13 worker_proactive_demote RETIRED on dev259+ — "
         "PN96 Phase 6 emergency-demote at block_pool.py:385-411 superseded "
-        "the Phase 4.2 pressure-driven preservation loop. Setting "
-        "GENESIS_PN95_ANCHOR13_ENABLE=1 is now a no-op; remove the env "
-        "flag from launcher to silence this log."
+        "the Phase 4.2 pressure-driven preservation loop."
     )
     return None
     # Original implementation preserved below for archaeology — kept dead
@@ -955,18 +956,18 @@ def apply() -> tuple[str, str]:
     # Phase 5 Session 3 — get_new_blocks materialization (Anchor #12)
     s11, r11 = _apply_one(_make_patcher_phase5_get_new_blocks(),
                           "PN95-phase5-get-new-blocks")
-    # Phase 4.2 Anchor #13 — worker-side proactive demote.
-    # Closes the multiproc gap: this anchor lives in get_new_blocks
-    # which runs in the Worker process that owns the BlockPool, so
-    # pressure-driven preserve actually fires (the scheduler_tick
-    # version runs in EngineCore where the pool refs are missing).
-    s12, r12 = _apply_one(_make_patcher_worker_proactive_demote(),
-                          "PN95-worker-proactive-demote")
+    # Phase 4.2 Anchor #13 (worker-side proactive demote) is RETIRED on
+    # dev259+ — PN96 Phase 6 emergency-demote at block_pool.py:385-411
+    # superseded it. The builder is no longer invoked here: it only logged a
+    # per-boot RETIRED banner and returned None, so calling it added a dead
+    # "skipped" to the apply matrix and noise to every operator's boot log.
+    # The archived implementation stays in _make_patcher_worker_proactive_demote
+    # for one-block re-enable if PN96 ever regresses. deep-audit 2026-06-14 (#4).
 
     # Worst status wins: failed > skipped > applied
     rank = {"failed": 2, "skipped": 1, "applied": 0}
     overall = max(
-        (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12),
+        (s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11),
         key=lambda s: rank.get(s, 0),
     )
     return overall, (
@@ -974,6 +975,5 @@ def apply() -> tuple[str, str]:
         f"register-kv-caches: {r4} | scheduler-tick: {r5} | "
         f"blockpool-register: {r6} | demote-on-evict: {r7} | "
         f"promote-on-miss: {r8} | phase5-boot-check: {r9} | "
-        f"phase5-bp-init: {r10} | phase5-get-new-blocks: {r11} | "
-        f"worker-proactive-demote: {r12}"
+        f"phase5-bp-init: {r10} | phase5-get-new-blocks: {r11}"
     )
