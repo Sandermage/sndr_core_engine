@@ -420,6 +420,84 @@ def _resolve_strict_opt_in(
     )
 
 
+# ─── Version-only gate (deep-audit 2026-06-14 #1) ──────────────────────────
+
+# The version keys whose constraints depend ONLY on the running engine /
+# toolchain (vLLM, torch, triton, CUDA, driver, python, GPU compute
+# capability) — NOT on the model. These can and must be evaluated at patch-
+# apply time, when the model profile is still unresolved.
+_VERSION_GATE_KEYS = (
+    "vllm_version_range", "torch_version_min", "triton_version_min",
+    "cuda_runtime_min", "nvidia_driver_min", "python_version_min",
+    "compute_capability_min", "compute_capability_max",
+)
+
+
+def _version_enforcement_on() -> bool:
+    """``GENESIS_ENFORCE_VERSION_RANGE=1`` turns the version-only gate on.
+
+    Default OFF: the gate ships without changing behavior. The registry's
+    ``vllm_version_range`` data must be audited
+    (``scripts/audit_stale_vllm_version_ranges.py``) before an operator
+    enables enforcement, because a stale upper bound would over-skip a
+    still-load-bearing patch (the failure mode that forced the c0d56b89
+    revert of an earlier, always-on enforcement attempt).
+    """
+    return os.environ.get(
+        "GENESIS_ENFORCE_VERSION_RANGE", ""
+    ).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _check_version_gate(
+    patch_id: str, meta: dict[str, Any],
+) -> Optional[tuple[bool, str]]:
+    """Enforce a patch's engine/toolchain version constraints UNCONDITIONALLY.
+
+    deep-audit #1: ``_check_applies_to`` checks ``vllm_version_range`` in its
+    Path B, but only AFTER an early-return that fires whenever the model
+    profile is unresolved — which is ALWAYS the case at plugin-register apply
+    time (the model is not loaded yet). So the version range was never
+    enforced at the moment it matters. This gate restores it by evaluating the
+    version constraints directly, with no dependency on the model profile.
+
+    Gated behind ``GENESIS_ENFORCE_VERSION_RANGE=1`` (default OFF) so it does
+    not change default behavior until the registry version-range data is
+    audited. Returns ``(False, reason)`` on a violated constraint; ``None``
+    when the gate is off, no version constraints are declared, the engine
+    version is undetectable, or all constraints pass.
+    """
+    if not _version_enforcement_on():
+        return None
+    applies_to = meta.get("applies_to")
+    if not isinstance(applies_to, dict):
+        return None
+    constraints = {
+        k: v for k, v in applies_to.items() if k in _VERSION_GATE_KEYS
+    }
+    if not constraints:
+        return None
+    try:
+        from sndr.compat.version_check import check_version_constraints
+        v_ok, v_results = check_version_constraints(constraints)
+    except Exception as e:
+        # Undetectable toolchain (e.g. torch-less host) — never block on a
+        # probe failure; conservative apply, same as _check_applies_to.
+        log.debug(
+            "[Genesis dispatcher] %s: version gate probe failed (%s) — "
+            "not enforcing", patch_id, e,
+        )
+        return None
+    if not v_ok:
+        failed = [r for r in v_results if r.matched is False]
+        reason = failed[0].reason if failed else "version constraint violation"
+        return False, (
+            f"VERSION-GATE: {reason} "
+            "(GENESIS_ENFORCE_VERSION_RANGE=1 — version range excludes the "
+            "running engine; this patch is for a different pin window)"
+        )
+    return None
+
+
 def should_apply(patch_id: str) -> tuple[bool, str]:
     """Unified gate: returns (apply_decision, reason).
 
@@ -474,6 +552,15 @@ def should_apply(patch_id: str) -> tuple[bool, str]:
     )
     if disable_decision is not None:
         return disable_decision
+
+    # Version-only gate (deep-audit #1) — fires regardless of env-enable: a
+    # patch whose vllm_version_range excludes the running engine must skip
+    # even when the operator set its ENABLE flag. Default OFF
+    # (GENESIS_ENFORCE_VERSION_RANGE); returns None and is a no-op until an
+    # operator opts in after auditing the registry's version-range data.
+    version_decision = _check_version_gate(patch_id, meta)
+    if version_decision is not None:
+        return version_decision
 
     if env_truthy:
         return _resolve_env_override(patch_id, meta, env_flag)
