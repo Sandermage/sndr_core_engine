@@ -5293,6 +5293,28 @@ def apply_patch_N396_gdn_spec_decode_num_warps() -> PatchResult:
     return _skipped("PN396 GDN spec-decode num_warps", detail)
 
 
+@register_patch("PN352B Marlin MoE topk=8 reduce via Genesis Triton kernel (right call-site)")
+def apply_patch_N352B_marlin_moe_sum() -> PatchResult:
+    """PN352B: monkey-patches MarlinExpertsBase.moe_sum (the live FP8 Marlin
+    decode reduce, marlin_moe.py:996) to route topk∉{2,3,4} through the verified
+    moe_sum_topk Triton kernel instead of the generic at::sum_out (_moe_C.moe_sum
+    fast-paths only topk 2/3/4; Qwen3.6-A3B routes 8). Fixes the parked PN352's
+    wrong call-site (Marlin never runs fused_moe.py's reduce) + its stream race
+    (the override runs inside apply() on the FULL-capture stream; pre-warmed at
+    install so no capture-time JIT). Non-regressing (removes a serial fixed-
+    latency reduction). Opt-in GENESIS_ENABLE_PN352B_MARLIN_MOE_SUM=1, default
+    OFF; falls back to ops.moe_sum on any kernel failure."""
+    from sndr.engines.vllm.patches.moe import (
+        pn352b_marlin_moe_sum as _wiring,
+    )
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied("PN352B Marlin MoE topk reduce", detail)
+    if status == "failed":
+        return _failed("PN352B Marlin MoE topk reduce", detail)
+    return _skipped("PN352B Marlin MoE topk reduce", detail)
+
+
 @register_patch("PN367 CUDA graph memory estimate clamp (vendor of OPEN vllm#44745, ex-vllm#45076)")
 def apply_patch_N367_cudagraph_mem_clamp() -> PatchResult:
     """PN367: clamps the decoder cudagraph memory profiling deltas to

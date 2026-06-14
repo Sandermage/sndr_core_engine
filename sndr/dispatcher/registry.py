@@ -5132,6 +5132,59 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "composes_with": ["P24", "PN96b", "P31"],
     },
+    "PN352B": {
+        "title": "Marlin MoE topk=8 reduce via Genesis Triton kernel (right call-site for the FP8 Marlin path)",
+        "tier": "community",
+        "family": "moe",
+        "env_flag": "GENESIS_ENABLE_PN352B_MARLIN_MOE_SUM",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.moe.pn352b_marlin_moe_sum",
+        "lifecycle": "experimental",
+        "category": "kernel_perf",
+        "credit": (
+            "A/B 2026-06-15 on dev491 (PROD 35B): BUILT + VALIDATED but NOT a "
+            "significant single-stream win — keep default OFF. Numeric gate: "
+            "BIT-IDENTICAL to ops.moe_sum (max_abs_diff=0.0 at M=4/8/16). "
+            "Stability: 3-gen crash-test PASSED + kernel fires (moe_sum_topk "
+            "tokens=4 topk=8 hidden=2048) — DEFEATS the parked-PN352 stream race "
+            "(the Marlin-site override runs inside the FULL-capture apply). "
+            "Perf: clean decode-TPOT n=125 baseline 4.776ms vs on 4.725ms = "
+            "-1.07%, Welch p=0.38 NOT SIGNIFICANT (the at::sum_out is fast for "
+            "the tiny M=8 decode; the reduce is not the latency-bound bottleneck "
+            "— consistent with the regression-rootcause model). Candidate for a "
+            "MULTI-CONC A/B (M=64 at conc=8 makes the reduce bigger and the "
+            "generic at::sum_out relatively slower). Supersedes the broken "
+            "parked PN352 (wrong call-site + stream race) regardless of the "
+            "single-stream null result. Original design follows.\n"
+            "Genesis-original (sibling of PN352 / counterpart of OPEN "
+            "vllm#44557). The parked PN352 text-patched "
+            "fused_moe.py::fused_experts_impl, but the live FP8 Marlin MoE "
+            "decode NEVER executes that site — MarlinExpertsBase returns "
+            "TopKWeightAndReduceNoOP for the modular finalize and reduces via "
+            "self.moe_sum (marlin_moe.py:487/959 -> :996 ops.moe_sum). "
+            "_moe_C.moe_sum has fast paths only for topk 2/3/4; Qwen3.6-A3B "
+            "routes 8 experts/token so it falls through to the generic "
+            "at::sum_out reduce fired 40x/forward on the decode critical path. "
+            "PN352B monkey-patches MarlinExpertsBase.moe_sum (PN96b style, the "
+            "RIGHT site) to route topk not in (2,3,4) through the verified "
+            "moe_sum_topk Triton kernel, falling back to ops.moe_sum on any "
+            "failure. Avoids the parked-PN352 stream race because the override "
+            "runs inside apply() on the FULL_AND_PIECEWISE capture/replay "
+            "stream (the Triton launch is captured on the correct stream) + "
+            "pre-warms the kernel at install for the decode shapes so it never "
+            "JITs during capture. Non-regressing by construction (removes a "
+            "serial fixed-latency reduction; does NOT touch parallelism/"
+            "occupancy/batch). Est -1..3% decode TPOT, helps ALL variants incl. "
+            "temp=0. fp32 accumulate (same tolerance class as topk 2/3/4 CUDA "
+            "kernels, not bit-identical). A/B + numeric-gate + crash-watch "
+            "pending. Supersedes the parked PN352 on this model."
+        ),
+        "upstream_pr": 44557,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "implementation_status": "full",
+        "composes_with": ["P24", "PN96b", "P31", "PN368"],
+    },
     "PN368": {
         "title": "Marlin MoE w13 reduce-mode wire (env-gated atomic-add, dense-path heuristic parity)",
         "tier": "community",
