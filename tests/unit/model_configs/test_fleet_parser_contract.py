@@ -79,16 +79,20 @@ def test_preset_parsers_match_parent_modeldef(alias):
 
 @pytest.mark.parametrize("model_id", sorted(list_models()))
 def test_modeldef_parser_values_match_fleet_contract(model_id):
-    """Validated fleet contract (2026-06-11):
-    - Qwen 3.6 family → tool_call_parser=qwen3_coder + reasoning_parser=qwen3
+    """Validated fleet contract (2026-06-11; xml allowance 2026-06-14):
+    - Qwen 3.6 family → tool_call_parser ∈ {qwen3_coder, qwen3_xml} +
+      reasoning_parser=qwen3. Both are valid XML parsers for Qwen3.6's
+      tool-call output; qwen3_xml is the engine-native streaming-robust
+      variant (no Genesis-wrap dependency) adopted on the 35B 2026-06-14.
     - Gemma 4 family  → tool_call_parser=gemma4 (no reasoning parser)
     """
     model = load_model(model_id)
     caps = model.capabilities
     if model_id.startswith("qwen3.6"):
-        assert caps.tool_call_parser == "qwen3_coder", (
+        assert caps.tool_call_parser in ("qwen3_coder", "qwen3_xml"), (
             f"{model_id}: Qwen 3.6 fleet contract requires "
-            f"tool_call_parser=qwen3_coder, got {caps.tool_call_parser!r}"
+            f"tool_call_parser ∈ {{qwen3_coder, qwen3_xml}}, "
+            f"got {caps.tool_call_parser!r}"
         )
         assert caps.reasoning_parser == "qwen3", (
             f"{model_id}: Qwen 3.6 fleet contract requires "

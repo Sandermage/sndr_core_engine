@@ -954,11 +954,11 @@ class TestValidateBackendPlanConsistency:
 
 class TestToolCallAndCompatMountEmission:
     def test_serve_command_emits_tool_call_flags(self):
-        # qwen3.6-35b-balanced inherits qwen3_coder / qwen3 / auto-tool from
-        # its parent model capabilities.
+        # qwen3.6-35b-balanced inherits qwen3_xml / qwen3 / auto-tool from
+        # its parent model capabilities (switched coder->xml 2026-06-14).
         script = render_profile_launcher("qwen3.6-35b-balanced")
         assert "--enable-auto-tool-choice" in script
-        assert "--tool-call-parser qwen3_coder" in script
+        assert "--tool-call-parser qwen3_xml" in script
         assert "--reasoning-parser qwen3" in script
 
     def test_tool_call_flags_precede_host_port(self):
