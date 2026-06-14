@@ -407,3 +407,45 @@ The dev491 streaming promotion blocker is **CLEARED**. The fix was: adapt to the
 self-sufficient upstream parser (retire/version-cap our obsolete dev259-era
 wraps) + repair the version-gate so the cap is enforced at boot. PROD can now
 promote to dev491.
+
+---
+
+## Update (2026-06-14, DEFINITIVE — dev491 has NO perf regression; "low speed" was methodology + an optimization target)
+
+### Authoritative pin_preflight (clean, with provenance) — patches are HEALTHY on dev491
+Ran pin_preflight against the dev491 pristine tree (extracted from the image) +
+a PROVENANCE.json with internal_version=0.22.1rc1.dev491. Result over 223 modules:
+- **244 OK + BINDING_OK** — apply cleanly on dev491.
+- 94 RUNTIME_BINDING/UNRESOLVED — runtime-binding patches (bind at runtime, not anchor-drift).
+- 6 CHAINED_ANCHOR — apply via the dev491 dual/alternate anchor (working).
+- **3 UPSTREAM_MERGED** — P87 (marlin pad sub-tile), PN378 (vocab-pad mask) are now
+  native in dev491 → self-skip (anchor replaced by merged code); should be marked
+  upstream-merged. NO functionality loss.
+- actionable=7, and NONE is a broken anchor-drift. My earlier "~10 anchor-drift
+  patches kill the speed" conclusion was WRONG — the static check shows the
+  feat/v12 patch set's anchors match dev491.
+
+### DEFINITIVE canonical bench — dev491 == dev259 (no regression)
+Same canonical tool (genesis_bench_suite.py, 5×5×1024, n=25), same model/config,
+both warm:
+- **dev259 PROD: wall_TPS 217.67** (decode_TPOT 4.46ms, TTFT 153ms, CV 5.0%)
+- **dev491:       wall_TPS 213.29** (decode_TPOT 4.54ms, TTFT 169ms, CV 6.0%)
+- Delta −2.0%, well inside CV (~6%). **dev491 ≈ dev259 — no meaningful regression.**
+
+### What the "low speed" actually was
+1. My quick single-stream bench (256-tok, temp 0.7) underestimates ~15-25% vs the
+   canonical tool (iron-rule #9). My 207-219 my-method ≈ 217 canonical.
+2. The user's target (35B 228-246 / 27B 138-156) is ABOVE what BOTH pins currently
+   achieve (~213-218 canonical for 35B — matching the journals' historical 206-219).
+   So 228-246 is an OPTIMIZATION GOAL, not a dev491 regression.
+
+### Honest correction of my own thrash this session
+- Blamed version-cap for perf → WRONG (revert changed nothing).
+- Blamed "10 anchor-drift patches" → WRONG (preflight: 244 OK, 0 real drift).
+- Treated my underestimating bench as a dev491 regression → WRONG (calibration on
+  dev259 PROD gave the same low numbers; dev491 == dev259).
+
+### Net
+dev491 is FULLY VALIDATED: patches healthy (244 OK), streaming fixed, perf == dev259.
+**Promotion-safe.** Reaching 228-246 is a SEPARATE optimization task (tuned kernels
+for sm_86, MoE config #45379, tuned tiles #45126, etc.) applicable to BOTH pins.
