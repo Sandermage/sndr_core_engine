@@ -1022,7 +1022,7 @@
   {
     "patch_id": "PN392",
     "family": "tool_parsing",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN392_QWEN3CODER_STREAMING_COALESCE",

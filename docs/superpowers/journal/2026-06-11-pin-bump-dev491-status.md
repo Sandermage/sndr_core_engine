@@ -335,3 +335,33 @@ The precise branch that mis-emits needs ONE live-traced smoke (instrument the
 coder parser to log per-delta state: is_tool_call_started, delta_text,
 delta_token_ids, the start-token check result). Then the targeted detection fix
 is small and verifiable. PROD remains on dev259.
+
+---
+
+## Update (2026-06-14, BREAKTHROUGH — the streaming bug was OUR patches, not upstream)
+
+Offline + live isolation proved it definitively:
+- **Offline harness** (`tools/_trace_qwen3_stream_repro.py`): the RAW dev491
+  parse_delta chain (Qwen3CoderToolParser + qwen3 reasoning), fed the tool XML
+  token-by-token AND in MTP-K=3 chunks, EMITS delta.tool_calls correctly. Even
+  with PN392's wrap applied, offline parse_delta works. So the NEW upstream
+  parser is self-sufficient.
+- **Live raw smoke**: dev491 with the dev259-era qwen3coder tool-call wraps
+  DISABLED (P64, P61B, P61C, PN56, PN392, P107=off) → streaming tool-calls
+  **WORK**: 5 delta.tool_calls chunks, finish_reason=tool_calls, ZERO content
+  leak, ZERO 500s. (Same model, same MTP K=3, same --tool-call-parser qwen3_xml.)
+
+**Conclusion**: the dev259->dev491 streaming regression was caused by Genesis's
+OWN dev259-era qwen3coder streaming wraps fighting the NEW self-sufficient
+Qwen3CoderToolParser — NOT an upstream break. #45171 didn't break streaming; it
+made our wraps obsolete and harmful. PN392 (built to "fix" the streaming) was a
+misdiagnosis — the parser was never broken; our patches broke it.
+
+**Correct fix (adapt to the replacement, per user direction):**
+- RETIRE PN392 (misdiagnosis, unneeded, harmful on dev491).
+- version-cap P64 / PN56 / P61B / P61C to `<0.22.1rc1.dev491` (obsolete once the
+  native parser is self-sufficient; kept for dev259 and earlier).
+- keep P107 (defensive detector, range already `<0.23.0`) — re-validate it does
+  NOT false-fire on dev491 with the wraps removed.
+- This is exactly the runtime-contract drift the new `pin_runtime_contract.py`
+  flags: qwen3_xml remapped to a parser whose streaming our wraps mishandled.

@@ -160,7 +160,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "different sub-blocks. Default OFF until live verify on 27B PROD."
         ),
         "upstream_pr": None,  # club-3090 issue, not yet upstream PR
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
+        # version-capped 2026-06-14: dev491 changed Qwen3CoderToolParser; this
+        # deferred-commit wrap mishandles the new streaming state machine and
+        # leaks the tool XML to content. Obsolete on dev491 (native parser is
+        # self-sufficient). Apply only on pins < dev491.
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.22.1rc1.dev491")},
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
@@ -211,7 +215,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "kotori-yan (vllm#39598)",
         "upstream_pr": 39598,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
+        # version-capped 2026-06-14: dev491's native Qwen3CoderToolParser is
+        # self-sufficient for streaming; this dev259-era wrap fights the new
+        # parser and breaks streamed tool-calls on dev491 (proven by live raw
+        # smoke — disabling the qwen3coder wraps restores 5 delta.tool_calls,
+        # finish=tool_calls, zero content leak). Apply only on pins < dev491.
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.22.1rc1.dev491")},
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.p64_qwen3coder_mtp_streaming",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -1323,7 +1332,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 41466,
         "upstream_pr_relationship": "backport",
-        "applies_to": {},
+        # version-capped 2026-06-14: obsolete on dev491 — the native
+        # Qwen3CoderToolParser handles streaming + the XML-fallback case
+        # itself; this dev259-era wrap is harmful on the new parser. Apply
+        # only on pins < dev491.
+        "applies_to": {"vllm_version_range": (">=0.20.0", "<0.22.1rc1.dev491")},
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn56_qwen3coder_xml_fallback",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -2921,7 +2934,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "tool_parsing",
         "env_flag": "GENESIS_ENABLE_PN392_QWEN3CODER_STREAMING_COALESCE",
         "default_on": False,
-        "lifecycle": "experimental",
+        # RETIRED 2026-06-14: misdiagnosis. PN392 was built to "fix" the
+        # dev491 streaming tool-call regression by coalescing the coder
+        # parser's single-emission. But live raw smoke proved the dev491
+        # native Qwen3CoderToolParser is self-sufficient — the regression was
+        # caused by Genesis's OWN dev259-era qwen3coder wraps (P64/P61c/PN56),
+        # not a parser bug. PN392 is unnecessary and was itself part of the
+        # active wrap stack. Retired; version-capped so it never engages.
+        "lifecycle": "retired",
+        "retired_reason": "misdiagnosis — dev491 native parser self-sufficient; regression was Genesis dev259-era wraps (P64/P61c/PN56), not the parser",
+        "superseded_by": "dev491 upstream native Qwen3CoderToolParser (self-sufficient for streaming; #45171). PN392 was a misdiagnosis — the regression was Genesis's own dev259-era qwen3coder wraps, not the parser. Proven by live raw smoke 2026-06-14.",
+        "vllm_version_range": (">=0.20.0", "<0.22.1rc1.dev491"),
         "category": "tool_parsing",
         "implementation_status": "full",
         "source": "genesis_original",
