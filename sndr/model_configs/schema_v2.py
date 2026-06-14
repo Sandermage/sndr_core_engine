@@ -114,6 +114,9 @@ ALLOWED_ATTENTION_ARCH = (
 ALLOWED_TOOL_CALL_PARSERS = (
     None,
     "qwen3_coder",
+    "qwen3_xml",   # engine-native XML parser — streaming-robust, no Genesis-wrap
+                   # dependency (35B PROD switched to this 2026-06-14; see
+                   # model YAML note re: vllm#45171 qwen3_xml->Coder remap on dev491+)
     "gemma4",
 )
 ALLOWED_REASONING_PARSERS = (

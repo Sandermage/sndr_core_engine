@@ -50,7 +50,7 @@ override_generation_config:
 # from hardware/profile layers (ownership rule, see roadmap §4.2).
 capabilities:
   attention_arch: hybrid_gdn_moe                 # Qwen 3.6 architecture: hybrid GDN (gated delta net) + MoE; drives PN59/P98/PN11 enablement
-  tool_call_parser: qwen3_coder                  # qwen3_coder tool-call parser (XML+JSON fallback via PN56)
+  tool_call_parser: qwen3_xml                    # engine-native XML parser — streaming-robust with NO Genesis-wrap dependency. (Switched from qwen3_coder 2026-06-14: qwen3_coder streaming leaks the tool-call XML to the content channel once PN392's within-call coalesce wrap is retired; qwen3_xml emits clean tool_calls deltas on dev259. NOTE: vllm#45171 remaps qwen3_xml->Qwen3CoderToolParser on dev491+, so revisit this on a dev491 promotion — pin_runtime_contract.py guards the remap.)
   reasoning_parser: qwen3                        # qwen3 reasoning_content parser (</think> boundaries)
   enable_auto_tool_choice: true                  # auto-set tool_choice=required when prompt mentions tools (P68 dependency)
   spec_decode:
