@@ -313,9 +313,25 @@ def _resolve_env_override(
     override; ``config_detect`` is consulted for the reason string but
     cannot block the apply.
     """
-    # Layer 2 applies_to is informational under env-override
+    # Layer 2 applies_to is informational under env-override — EXCEPT
+    # version/pin constraints, which are a HARD gate the env flag CANNOT
+    # override. A patch that declares it is incompatible with the running
+    # vLLM pin (e.g. version-capped because a newer pin made it obsolete or
+    # harmful) must NOT apply even when explicitly enabled: applying it
+    # breaks the engine on that pin. This is the exact dev491 regression
+    # (2026-06-14) — the dev259-era qwen3coder wraps (P64/P61c/PN56) were
+    # env-enabled and version-capped to <dev491, yet applied on dev491 and
+    # broke streamed tool-calls, because env-override silently bypassed the
+    # version gate. Model-compat (model_class / architectures) mismatches
+    # stay advisory under override — those are operator-judgment calls; a
+    # pin-version incompatibility is a hard fact, not a preference.
     compat, compat_reason = _check_applies_to(patch_id, meta)
     if not compat:
+        if compat_reason.startswith("VERSION:"):
+            return False, (
+                "VERSION HARD-SKIP — env override cannot force a pin-"
+                f"incompatible patch: {compat_reason}"
+            )
         log.warning(
             "[Genesis dispatcher] %s: env OVERRIDE applies_to mismatch — "
             "%s. Proceeding because operator set %s=1.",
