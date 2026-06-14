@@ -117,7 +117,7 @@ patches:
   # ── TQ kernel + MoE optimisation ──
   GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL: '1'      # Genesis-original Triton multi-query kernel for spec-decode K+1 verify (+32% TPS on 35B PROD)
   GENESIS_P67_USE_UPSTREAM: '1'                      # P67 routing flag: '1'=upstream Genesis kernel, '0'=Genesis fork (DEFAULT 1; fork was quality mirage 2026-04-28)
-  GENESIS_P67_NUM_KV_SPLITS: '48'                    # P67 split-K factor. Sprint 1 sweep on 35B PROD: 48 optimal at 320K context (+3.85% wall_TPS, -6.4% TTFT vs 32). 32 was optimum at 256K — longer context shifts optimum to 48.                    # P67 split-K factor. Sprint 1 sweep on 35B PROD: 48 optimal at 320K context (+3.85% wall_TPS, -6.4% TTFT vs 32). 32 was optimum at 256K — longer context shifts optimum to 48.
+  GENESIS_P67_NUM_KV_SPLITS: '48'                    # P67 split-K factor. A/B 2026-06-14 (dev491 opt-cycle A1): tested 24 vs 48 on the canonical chat-matrix — 24 was FLAT on decode-bound variants (code 217.6 vs 218.1, long_gen 190.9 vs 187.9 within CV) and -3..4% on long_ctx 8k/32k. Kept 48 (long-ctx-safe, the Sprint 1 320K optimum). Split-KV is not the 35B decode bottleneck.
   GENESIS_ENABLE_P81_FP8_BLOCK_SCALED_M_LE_8: '1'    # Genesis-original — FP8 block-scaled MM optimization for M≤8 (spec-decode K+1 batch shape)
   GENESIS_ENABLE_P95: '1'                            # vllm#40385 backport — Marlin TP cudagraph cap on Ampere (TP=2 + Marlin defensive)
   # ── Tool-call safety net ──
