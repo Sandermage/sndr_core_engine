@@ -75,36 +75,6 @@ def _check_applies_to(
     if not applies_to:
         return True, "no applies_to declared (model-class agnostic)"
 
-    # ─── Version/pin constraints FIRST, unconditionally ──────────────────
-    # These depend only on the running vLLM/torch/CUDA/driver versions, NOT
-    # on the model profile — which is UNRESOLVED at boot apply time (patches
-    # apply during plugin register(), before the model loads). The old code
-    # checked versions only in Path B, AFTER the "profile unresolved →
-    # conservative apply" early-return below, so vllm_version_range was
-    # silently skipped at apply time. That is the dev491 version-cap bug
-    # (2026-06-14): version-capped patches (P64/P61c/PN56 capped to <dev491)
-    # still applied on dev491 because the version gate was never reached.
-    # Running it first makes the cap a real, profile-independent hard gate.
-    _version_keys = (
-        "vllm_version_range", "torch_version_min", "triton_version_min",
-        "cuda_runtime_min", "nvidia_driver_min", "python_version_min",
-        "compute_capability_min", "compute_capability_max",
-    )
-    _version_constraints = {k: v for k, v in applies_to.items() if k in _version_keys}
-    if _version_constraints:
-        try:
-            from sndr.compat.version_check import check_version_constraints
-            _v_ok, _v_results = check_version_constraints(_version_constraints)
-            if not _v_ok:
-                _failed = [r for r in _v_results if r.matched is False]
-                return False, (
-                    f"VERSION: {_failed[0].reason}" if _failed
-                    else "VERSION: constraint violation"
-                )
-        except Exception as e:
-            log.debug("[Genesis dispatcher] %s: version_check failed (%s) — "
-                      "conservative apply", patch_id, e)
-
     try:
         from sndr.engines.vllm.detection.model_detect import get_model_profile
         profile = get_model_profile()
@@ -343,25 +313,9 @@ def _resolve_env_override(
     override; ``config_detect`` is consulted for the reason string but
     cannot block the apply.
     """
-    # Layer 2 applies_to is informational under env-override — EXCEPT
-    # version/pin constraints, which are a HARD gate the env flag CANNOT
-    # override. A patch that declares it is incompatible with the running
-    # vLLM pin (e.g. version-capped because a newer pin made it obsolete or
-    # harmful) must NOT apply even when explicitly enabled: applying it
-    # breaks the engine on that pin. This is the exact dev491 regression
-    # (2026-06-14) — the dev259-era qwen3coder wraps (P64/P61c/PN56) were
-    # env-enabled and version-capped to <dev491, yet applied on dev491 and
-    # broke streamed tool-calls, because env-override silently bypassed the
-    # version gate. Model-compat (model_class / architectures) mismatches
-    # stay advisory under override — those are operator-judgment calls; a
-    # pin-version incompatibility is a hard fact, not a preference.
+    # Layer 2 applies_to is informational under env-override
     compat, compat_reason = _check_applies_to(patch_id, meta)
     if not compat:
-        if compat_reason.startswith("VERSION:"):
-            return False, (
-                "VERSION HARD-SKIP — env override cannot force a pin-"
-                f"incompatible patch: {compat_reason}"
-            )
         log.warning(
             "[Genesis dispatcher] %s: env OVERRIDE applies_to mismatch — "
             "%s. Proceeding because operator set %s=1.",
