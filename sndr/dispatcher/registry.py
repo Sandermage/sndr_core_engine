@@ -3532,6 +3532,40 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
+    "PN517": {
+        "title": "Take init MemorySnapshot before NCCL — asymmetric TP+PP OOM guard + startup_free observability (vllm#45517)",
+        "tier": "community",
+        "family": "worker",
+        "env_flag": "GENESIS_ENABLE_PN517_INIT_SNAPSHOT_BEFORE_NCCL",
+        "default_on": False,
+        "category": "memory",
+        "credit": (
+            "Backport of vllm#45517 (RFC #34303). Worker.init_device took "
+            "its baseline MemorySnapshot AFTER init_worker_distributed_"
+            "environment (NCCL), so on an asymmetric TP+PP topology — where "
+            "a PP-terminal rank carries far more NCCL workspace than rank 0 "
+            "— gpu_memory_utilization was budgeted against post-NCCL free "
+            "memory and OOMed the heaviest rank on init. The opt-in env "
+            "VLLM_INIT_SNAPSHOT_BEFORE_NCCL snapshots before NCCL and reuses "
+            "it; pre-NCCL free bytes are stashed in self._startup_free_bytes "
+            "for observability. Genesis-installed code reads the env via "
+            "os.environ (no dependency on a vllm.envs entry the pin may "
+            "lack). On our TP=2 PP=1 PROD the VRAM guard is dormant — the "
+            "live value is startup observability; the guard future-proofs "
+            "any PP>1 config. Host-side accounting — NOT arch-gated (recipe "
+            "E/G). default_on=False; engage via "
+            "GENESIS_ENABLE_PN517_INIT_SNAPSHOT_BEFORE_NCCL=1 AND set "
+            "VLLM_INIT_SNAPSHOT_BEFORE_NCCL=1 to fire the pre-NCCL branch. "
+            "Byte-verified identical on dev259 (PROD) + dev491 (candidate); "
+            "self-skips when upstream merges."
+        ),
+        "upstream_pr": 45517,
+        "upstream_pr_relationship": "backport",
+        "applies_to": {},
+        "apply_module": "sndr.engines.vllm.patches.worker.pn517_init_snapshot_before_nccl",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+    },
     "PN35": {
         "title": "Skip inputs_embeds buffer for text-only models (vllm#35975 backport)",
         "tier": "community",

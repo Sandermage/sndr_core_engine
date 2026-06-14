@@ -233,6 +233,10 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # vllm#45252 / GHSA-33cg-gxv8-3p8g; worker text
                        # patch on gpu_model_runner._init_mrope_positions,
                        # byte-verified dev259+dev491, security default_on)
+    "PN517",           # init MemorySnapshot before NCCL (vendor of
+                       # vllm#45517; worker text patch on
+                       # gpu_worker.init_device, env default-off
+                       # observability + asymmetric TP+PP OOM guard)
 })
 
 

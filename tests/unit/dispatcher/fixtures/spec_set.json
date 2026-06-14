@@ -1188,6 +1188,18 @@
     "apply_module": "sndr.engines.vllm.patches.worker.pn252_mrope_prompt_embeds_dos"
   },
   {
+    "patch_id": "PN517",
+    "family": "worker",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN517_INIT_SNAPSHOT_BEFORE_NCCL",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.worker.pn517_init_snapshot_before_nccl"
+  },
+  {
     "patch_id": "PN35",
     "family": "worker",
     "lifecycle": "stable",

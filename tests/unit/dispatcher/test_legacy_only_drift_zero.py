@@ -201,7 +201,7 @@ def test_spec_only_truly_orphan_baseline():
         # 2026-06-14 PR-sweep wave-1 implementation — spec-driven from
         # inception (apply_module + own apply(), no legacy hook; applied
         # at legacy boot via _run_spec_only_supplement).
-        "PN252",
+        "PN252", "PN517",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)
