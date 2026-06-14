@@ -589,6 +589,37 @@ class Flags:
     # worker family
     PN292_REVERT_FUSED_MAMBA_POSTPROCESS = "PN292_REVERT_FUSED_MAMBA_POSTPROCESS"  # PN292: Revert PR#40172 fused Triton Mamba postprocess
     PN294_UNSPLIT_MTP_ATTN_GROUPS = "PN294_UNSPLIT_MTP_ATTN_GROUPS"  # PN294: Unsplit MTP draft+target attention groups
+    # ── 2026-06-14 deep-audit env-flag coverage closure ──────────────────
+    # 24 registry env_flags from prior vendor waves (PN358/PN370-391, P88/P89,
+    # G4_79-81) were never enumerated here, leaving the registry<->Flags 1:1
+    # contract (test_registry_flag_coverage) red. The dispatcher reads env vars
+    # by bare name and works without these, but the missing constants defeated
+    # the typo-guard the contract exists to provide. Names match each entry's
+    # env_flag verbatim (prefix-stripped).
+    G4_79_TQ_MM_PREFIX = "G4_79_TQ_MM_PREFIX"  # G4_79: TQ supports_mm_prefix (Gemma-4 MM)
+    G4_80_FP8E5M2_KV = "G4_80_FP8E5M2_KV"  # G4_80: fp8_e5m2 KV for weight-only ckpts (vllm#45040)
+    G4_81_TQ_MQ_DIRECT_ROUTE = "G4_81_TQ_MQ_DIRECT_ROUTE"  # G4_81: TQ multi-query DIRECT decode route
+    PN358_FULL_CG_CONTEXT_REFRESH = "PN358_FULL_CG_CONTEXT_REFRESH"  # PN358: FULL cudagraph forward-context refresh
+    PN382_DECODE_BENCH_HYBRID_FILL = "PN382_DECODE_BENCH_HYBRID_FILL"  # PN382: DecodeBench hybrid per-block KV fill
+    PN384_EAGLE_PREFIX_CACHE_PREFILL = "PN384_EAGLE_PREFIX_CACHE_PREFILL"  # PN384: Eagle/MTP prefix-cache prefill fix
+    PN379_LOAD_CONFIG_FAIL_FAST = "PN379_LOAD_CONFIG_FAIL_FAST"  # PN379: LoadConfig/DefaultModelLoader fail-fast
+    PN371_ENCODER_CACHE_EVICTION = "PN371_ENCODER_CACHE_EVICTION"  # PN371: deferred ref-pinned encoder-cache eviction
+    P88_PREFIX_CACHE_STATS_DEDUP = "P88_PREFIX_CACHE_STATS_DEDUP"  # P88: prefix-cache stats retry de-dup
+    PN391_HEALTH_DECODE_WATCHDOG = "PN391_HEALTH_DECODE_WATCHDOG"  # PN391: /health/decode forward-progress watchdog
+    PN383_OFFLOAD_MTP_EAGLE_GATE = "PN383_OFFLOAD_MTP_EAGLE_GATE"  # PN383: KV-offload + MTP segfault gate
+    PN388_MAMBA_BLOCK_ALIGNED_SPLIT = "PN388_MAMBA_BLOCK_ALIGNED_SPLIT"  # PN388: mamba-block-aligned prefill split
+    P89_REASONING_TOKENS_USAGE = "P89_REASONING_TOKENS_USAGE"  # P89: reasoning_tokens in chat usage
+    PN373_PARALLEL_TOOLCALLS_NULL = "PN373_PARALLEL_TOOLCALLS_NULL"  # PN373: parallel_tool_calls explicit null != false
+    PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS = "PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS"  # PN387: reject degenerate structured_outputs DoS
+    PN389_GRAMMAR_TIMEOUTS = "PN389_GRAMMAR_TIMEOUTS"  # PN389: XGrammar grammar-compilation timeouts
+    PN370_ASYNC_ACCEPT_RACE = "PN370_ASYNC_ACCEPT_RACE"  # PN370: async accept race
+    PN372_EAGLE_ZERO_SEQLEN_GUARD = "PN372_EAGLE_ZERO_SEQLEN_GUARD"  # PN372: Eagle zero-seqlen guard
+    PN378_VOCAB_PAD_MASK = "PN378_VOCAB_PAD_MASK"  # PN378: recovered-token vocab-pad -inf mask
+    PN380_MTP_PREFUSED_LOADER = "PN380_MTP_PREFUSED_LOADER"  # PN380: Qwen3.5/3.6 MTP pre-fused expert loader
+    PN381_ALLOWED_TOKEN_IDS_METADATA = "PN381_ALLOWED_TOKEN_IDS_METADATA"  # PN381: allowed_token_ids spec-decode metadata
+    PN390_STREAMING_LSE_SAMPLER = "PN390_STREAMING_LSE_SAMPLER"  # PN390: streaming-LSE rejection sampler
+    PN385_FORCED_NAMED_EMPTY_PARAMS = "PN385_FORCED_NAMED_EMPTY_PARAMS"  # PN385: forced-named empty-params tool schema
+    PN386_REQUIRED_STREAMING_STRING_AWARE = "PN386_REQUIRED_STREAMING_STRING_AWARE"  # PN386: required-tool streaming brace string-awareness
 
 
 # ── Public API ──────────────────────────────────────────────────────────
