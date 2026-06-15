@@ -58,7 +58,8 @@ ALLOWED_CAPABILITIES: dict[str, frozenset] = {
         "dense", "hybrid_gdn_moe",
         "gemma4_dense", "gemma4_moe",
     }),
-    "tool_call_parser":       frozenset({"qwen3_coder", "gemma4"}),
+    # `qwen3_xml`: dev491 #45171 remapped qwen3_xml -> Qwen3CoderToolParser; valid parser.
+    "tool_call_parser":       frozenset({"qwen3_coder", "qwen3_xml", "gemma4"}),
     # `None` is the canonical value for ModelDefs without a thinking-tag
     # parser (gemma-4 does not emit `</think>`-style traces). The
     # docstring's "None is always allowed" promise is not auto-applied

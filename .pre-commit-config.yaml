@@ -43,49 +43,49 @@ repos:
         entry: python3 -m pytest tests/unit/dispatcher/test_pin_gate.py -q
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/(dispatcher/registry|detection/guards)\.py|tests/unit/dispatcher/test_pin_gate\.py)$'
+        files: '(sndr/dispatcher/registry\.py|sndr/engines/vllm/detection/guards\.py|tests/unit/dispatcher/test_pin_gate\.py)$'
 
       - id: genesis-iron-rule-11
         name: Genesis iron rule #11 enforcement (retire provenance)
         entry: python3 -m pytest tests/unit/dispatcher/test_iron_rule_11_enforcement.py -q
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/dispatcher/registry\.py|tests/unit/dispatcher/test_iron_rule_11_enforcement\.py)$'
+        files: '(sndr/dispatcher/registry\.py|tests/unit/dispatcher/test_iron_rule_11_enforcement\.py)$'
 
       - id: genesis-doc-sync
         name: Genesis doc-sync (patch count consistency)
         entry: python3 scripts/check_doc_sync.py --strict
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/dispatcher/registry\.py|README\.md|docs/(PATCHES|INSTALL|MODELS|BENCHMARKS)\.md)$'
+        files: '(sndr/dispatcher/registry\.py|README\.md|docs/(PATCHES|INSTALL|MODELS|BENCHMARKS)\.md)$'
 
       - id: genesis-patches-md-sync
         name: Genesis docs/PATCHES_AUTO.md in sync with registry
         entry: python3 scripts/generate_patches_md.py --check
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/dispatcher/registry\.py|docs/PATCHES_AUTO\.md)$'
+        files: '(sndr/dispatcher/registry\.py|docs/PATCHES_AUTO\.md)$'
 
       - id: genesis-configs-md-sync
         name: Genesis docs/CONFIGS_AUTO.md in sync with builtin YAMLs
         entry: python3 scripts/generate_configs_md.py --check
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/model_configs/builtin/.*\.yaml|docs/CONFIGS_AUTO\.md)$'
+        files: '(sndr/model_configs/builtin/.*\.yaml|docs/CONFIGS_AUTO\.md)$'
 
       - id: genesis-upstream-audit-offline
         name: Genesis upstream-status audit (offline registry sanity)
         entry: python3 scripts/audit_upstream_status.py --skip-network
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/dispatcher/registry\.py|scripts/audit_upstream_status\.py)$'
+        files: '(sndr/dispatcher/registry\.py|scripts/audit_upstream_status\.py)$'
 
       - id: genesis-family-contracts-touched
         name: Genesis family contracts (when integrations/ touched)
         entry: python3 -m pytest tests/unit/integrations/ -q --tb=short
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/integrations/.*\.py|tests/unit/integrations/.*\.py)$'
+        files: '(sndr/engines/vllm/patches/.*\.py|tests/unit/integrations/.*\.py)$'
 
       - id: genesis-audit-phase3-relocation
         name: Genesis Phase 3 relocation audit (R1/R2/R3/R4)
@@ -100,7 +100,7 @@ repos:
         entry: python3 scripts/audit_phase3_relocation.py
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/integrations/.*|vllm/sndr_core/dispatcher/registry\.py|vllm/sndr_core/model_configs/builtin/profile/.*\.yaml|scripts/audit_phase3_relocation\.py|tests/unit/scripts/test_audit_phase3_relocation\.py)$'
+        files: '(sndr/engines/vllm/patches/.*|sndr/dispatcher/registry\.py|sndr/model_configs/builtin/profile/.*\.yaml|scripts/audit_phase3_relocation\.py|tests/unit/scripts/test_audit_phase3_relocation\.py)$'
 
       - id: genesis-audit-shim-window
         name: Genesis shim-window integrity audit (E.1/E.2/E.3/E.4/E.5)
@@ -117,7 +117,7 @@ repos:
         entry: python3 scripts/audit_shim_window.py
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/integrations/gemma4/.*|vllm/sndr_core/integrations/attention/turboquant/overlays/pr42637/.*|scripts/audit_shim_window\.py|tests/unit/scripts/test_audit_shim_window\.py)$'
+        files: '(sndr/engines/vllm/patches/gemma4/.*|sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/.*|scripts/audit_shim_window\.py|tests/unit/scripts/test_audit_shim_window\.py)$'
 
       - id: genesis-audit-private-namespace
         name: Genesis private namespace boundary (hard rule #27)
@@ -131,7 +131,7 @@ repos:
         entry: python3 scripts/audit_private_namespace.py
         language: system
         pass_filenames: false
-        files: '(vllm/.*\.py|scripts/audit_private_namespace\.py|tests/unit/test_wheel_contents\.py|\.gitignore)$'
+        files: '(sndr/.*\.py|vllm/.*\.py|scripts/audit_private_namespace\.py|tests/unit/test_wheel_contents\.py|\.gitignore)$'
 
       - id: genesis-audit-config-catalog
         name: Genesis preset card catalog (CONFIG-UX.audit Stage 1)
@@ -144,7 +144,7 @@ repos:
         entry: python3 scripts/audit_config_catalog.py
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/model_configs/builtin/presets/.*\.yaml|vllm/sndr_core/model_configs/preset_schema\.py|scripts/audit_config_catalog\.py|tests/unit/scripts/test_audit_config_catalog\.py)$'
+        files: '(sndr/model_configs/builtin/presets/.*\.yaml|sndr/model_configs/preset_schema\.py|scripts/audit_config_catalog\.py|tests/unit/scripts/test_audit_config_catalog\.py)$'
 
       - id: genesis-audit-override-policy
         name: Genesis profile OverridePolicy presence + Class-4 hard-enforcement (CONFIG-UX.4)
@@ -162,7 +162,7 @@ repos:
         entry: python3 scripts/audit_override_policy.py --strict
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/model_configs/builtin/profile/.*\.yaml|vllm/sndr_core/model_configs/community/profile/.*\.yaml|vllm/sndr_core/model_configs/schema_v2\.py|scripts/audit_override_policy\.py|tests/unit/scripts/test_audit_override_policy(_class4)?\.py)$'
+        files: '(sndr/model_configs/builtin/profile/.*\.yaml|sndr/model_configs/community/profile/.*\.yaml|sndr/model_configs/schema_v2\.py|scripts/audit_override_policy\.py|tests/unit/scripts/test_audit_override_policy(_class4)?\.py)$'
 
       - id: genesis-audit-v2-runtime-pins
         name: Genesis V2 runtime + ModelDef pin harmonization (R-PIN-1..4)
@@ -179,7 +179,7 @@ repos:
         entry: python3 scripts/audit_v2_runtime_pins.py
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/model_configs/builtin/hardware/.*\.yaml|vllm/sndr_core/model_configs/builtin/model/.*\.yaml|vllm/sndr_core/cli/profile\.py|vllm/sndr_core/model_configs/compose\.py|scripts/audit_v2_runtime_pins\.py|tests/unit/scripts/test_audit_v2_runtime_pins\.py)$'
+        files: '(sndr/model_configs/builtin/hardware/.*\.yaml|sndr/model_configs/builtin/model/.*\.yaml|sndr/cli/legacy/profile\.py|sndr/model_configs/compose\.py|scripts/audit_v2_runtime_pins\.py|tests/unit/scripts/test_audit_v2_runtime_pins\.py)$'
 
       - id: genesis-audit-v2-modeldef-vs-hardware-pin
         name: Genesis V2 ModelDef ↔ hardware canonical-pin drift (R-MD-HW-1/2)
@@ -197,7 +197,7 @@ repos:
         entry: python3 scripts/audit_v2_modeldef_vs_hardware_pin.py
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/model_configs/builtin/hardware/.*\.yaml|vllm/sndr_core/model_configs/builtin/model/.*\.yaml|vllm/sndr_core/model_configs/schema_v2\.py|scripts/audit_v2_modeldef_vs_hardware_pin\.py|tests/unit/scripts/test_audit_v2_modeldef_vs_hardware_pin\.py)$'
+        files: '(sndr/model_configs/builtin/hardware/.*\.yaml|sndr/model_configs/builtin/model/.*\.yaml|sndr/model_configs/schema_v2\.py|scripts/audit_v2_modeldef_vs_hardware_pin\.py|tests/unit/scripts/test_audit_v2_modeldef_vs_hardware_pin\.py)$'
 
       - id: genesis-audit-repo-garbage
         name: Genesis preventive repo-garbage audit (§9.A.2)
@@ -213,7 +213,7 @@ repos:
 
       - id: genesis-audit-external-findings
         name: Genesis external findings tracker validation (§9.A.7)
-        # Thin wrapper around vllm.sndr_core.findings.validator —
+        # Thin wrapper around sndr.findings.validator —
         # validates every YAML in the tracker dir against the schema
         # + cross-finding rules (F-1 id uniqueness, F-2 transition
         # legality, F-3 acceptance non-empty, F-4 staleness — warning
@@ -224,7 +224,7 @@ repos:
         entry: python3 scripts/audit_external_findings.py
         language: system
         pass_filenames: false
-        files: '(sndr_private/planning/external_findings/.*\.yaml|docs/_internal/external_findings/.*\.yaml|vllm/sndr_core/findings/.*\.py|vllm/sndr_core/cli/findings\.py|scripts/audit_external_findings\.py|tests/unit/scripts/test_audit_external_findings\.py|tests/unit/findings/.*\.py)$'
+        files: '(sndr_private/planning/external_findings/.*\.yaml|docs/_internal/external_findings/.*\.yaml|sndr/findings/.*\.py|sndr/cli/legacy/findings\.py|scripts/audit_external_findings\.py|tests/unit/scripts/test_audit_external_findings\.py|tests/unit/findings/.*\.py)$'
 
       - id: genesis-audit-generated-links
         name: Genesis generated-doc link integrity (§9.A.4)
@@ -237,7 +237,7 @@ repos:
         entry: python3 scripts/audit_generated_links.py
         language: system
         pass_filenames: false
-        files: '(docs/PATCHES_AUTO\.md|docs/CONFIGS_AUTO\.md|vllm/sndr_core/dispatcher/registry\.py|vllm/sndr_core/model_configs/builtin/.*\.yaml|scripts/generate_(patches|configs)_md\.py|scripts/audit_generated_links\.py|tests/unit/scripts/test_audit_generated_links\.py)$'
+        files: '(docs/PATCHES_AUTO\.md|docs/CONFIGS_AUTO\.md|sndr/dispatcher/registry\.py|sndr/model_configs/builtin/.*\.yaml|scripts/generate_(patches|configs)_md\.py|scripts/audit_generated_links\.py|tests/unit/scripts/test_audit_generated_links\.py)$'
 
       - id: genesis-audit-links
         name: Genesis markdown link integrity (§9.A.3)
@@ -266,7 +266,7 @@ repos:
         entry: python3 scripts/audit_yaml_status_enum.py --strict
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/model_configs/builtin/model/.*\.yaml|scripts/audit_yaml_status_enum\.py)$'
+        files: '(sndr/model_configs/builtin/model/.*\.yaml|scripts/audit_yaml_status_enum\.py)$'
 
       - id: genesis-audit-pn59-cliff2b
         name: Genesis PN59 Cliff 2b marker guard (v7.72.5+ — club-3090 #22/#182)
@@ -281,7 +281,7 @@ repos:
         entry: python3 scripts/audit_pn59_cliff2b_markers.py --strict
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/kernels/streaming_gdn_driver\.py|scripts/audit_pn59_cliff2b_markers\.py)$'
+        files: '(sndr/engines/vllm/kernels_legacy/streaming_gdn_driver\.py|scripts/audit_pn59_cliff2b_markers\.py)$'
 
       - id: genesis-audit-english-only
         name: Genesis english-only-in-code (CLAUDE.md user rule)
@@ -296,7 +296,7 @@ repos:
         entry: python3 scripts/audit_english_only.py --check
         language: system
         pass_filenames: false
-        files: '(vllm/sndr_core/.*\.py|scripts/.*\.py|tools/.*\.(py|sh)|tests/.*\.py|scripts/audit_english_only(\.py|\.baseline\.json))$'
+        files: '(sndr/.*\.py|scripts/.*\.py|tools/.*\.(py|sh)|tests/.*\.py|scripts/audit_english_only(\.py|\.baseline\.json))$'
 
       - id: genesis-audit-ai-attribution
         name: Genesis attribution-label policy (§9.A.6)

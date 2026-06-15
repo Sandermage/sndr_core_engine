@@ -83,6 +83,23 @@ def _load_registry_index() -> dict[str, str]:
     return out
 
 
+def _load_registry_lifecycles() -> dict[str, str]:
+    """Return mapping {patch_id → lifecycle} from PATCH_REGISTRY."""
+    sys.path.insert(0, str(REPO_ROOT))
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    return {
+        pid: str(meta.get("lifecycle", ""))
+        for pid, meta in PATCH_REGISTRY.items()
+    }
+
+
+# Lifecycles that exempt a patch from the AT-2 presence assertion: a
+# retired/deprecated patch is no longer wired into any model's active
+# `patches` block, so an attribution that explains its history must NOT
+# be expected to have a matching live env_flag.
+_AT2_EXEMPT_LIFECYCLES = {"retired", "deprecated"}
+
+
 def _load_yaml(path: Path) -> dict:
     import yaml
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -91,6 +108,7 @@ def _load_yaml(path: Path) -> dict:
 def _check_one(
     path: Path,
     registry_flags: dict[str, str],
+    registry_lifecycles: dict[str, str] | None = None,
 ) -> AttributionCheck:
     try:
         data = _load_yaml(path)
@@ -125,8 +143,14 @@ def _check_one(
     # are exempt — they intentionally document patches kept out of this
     # model's active set.
     _ASSERTS_PRESENCE = {"load_bearing", "defensive", "optional_perf"}
+    lifecycles = registry_lifecycles or {}
     for pid, attr in attributions.items():
         if not isinstance(attr, dict):
+            continue
+        # Retired/deprecated patches are exempt — they are no longer in
+        # any model's active patches block, so the presence assertion
+        # does not apply (the attribution is a historical record).
+        if lifecycles.get(pid, "") in _AT2_EXEMPT_LIFECYCLES:
             continue
         role = attr.get("role")
         if role not in _ASSERTS_PRESENCE:
@@ -140,10 +164,13 @@ def _check_one(
 
 def audit_patch_attribution() -> tuple[dict[str, str], list[AttributionCheck]]:
     registry_flags = _load_registry_index()
+    registry_lifecycles = _load_registry_lifecycles()
     results: list[AttributionCheck] = []
     if MODEL_DIR.is_dir():
         for yp in sorted(MODEL_DIR.glob("*.yaml")):
-            results.append(_check_one(yp, registry_flags))
+            results.append(
+                _check_one(yp, registry_flags, registry_lifecycles)
+            )
     return registry_flags, results
 
 

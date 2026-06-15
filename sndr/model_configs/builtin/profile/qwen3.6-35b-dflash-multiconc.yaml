@@ -40,7 +40,6 @@ sizing_override:                                 # V2 canonical key (NOT sizing_
   enable_chunked_prefill: true                   # Required for spec-decode + long ctx (avoids degenerate single-token chunks).
   enforce_eager: false                           # cudagraph capture enabled (production).
   disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe — no NVLink).
-  scheduler_reserve_full_isl: false              # Sprint 1 flag — allows scheduler to pack more sequences (helps multi-conc throughput).
 
 # ─── Patches delta — Wave 10 additions vs canonical model.patches ──────
 # Wave 10 patches (PN51, PN96b, PN125, PN126-130, PN132, PN133) already in

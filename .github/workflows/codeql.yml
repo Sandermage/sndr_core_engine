@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: ["main"]
     paths:
-      - "vllm/sndr_core/**/*.py"
+      - "sndr/**/*.py"
       - "scripts/**/*.py"
       - "tools/**/*.py"
       - ".github/workflows/codeql.yml"

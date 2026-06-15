@@ -173,6 +173,26 @@ _POLICY_KEYS: dict[str, dict[str, str]] = {
             "validated path), 1 = drafter uses logical/separate KV."
         ),
     },
+    "GENESIS_P67_NUM_WARPS": {
+        "source": "policy",
+        "owner_module": "sndr.engines.vllm.kernels_legacy.p67_multi_query_kernel",
+        "description": (
+            "Caps the P67 TQ multi-query stage-2 decode kernel num_warps "
+            "(default 8 for SM>=8, else 4). The a5000-2x hardware YAML caps "
+            "it to 4 to avoid SMEM spill-to-local on A5000 (SM8.6) where "
+            "8 warps + the split-M accumulator can exceed the 100KB/SM "
+            "budget. Unset = upstream default."
+        ),
+    },
+    "GENESIS_ENFORCE_VERSION_RANGE": {
+        "source": "policy",
+        "owner_module": "sndr.dispatcher.decision",
+        "description": (
+            "Gates per-patch vllm_version_range enforcement at apply time "
+            "(default OFF). Set to 1 on dev491 so out-of-range wraps "
+            "correctly SKIP instead of corrupting the engine-native parser."
+        ),
+    },
 }
 
 

@@ -29,7 +29,6 @@ sizing_override:
   enable_chunked_prefill: true                   # Required for spec-decode + long ctx.
   enforce_eager: false                           # cudagraph capture enabled.
   disable_custom_all_reduce: true                # NCCL fallback (consumer Ampere PCIe).
-  scheduler_reserve_full_isl: false              # Sprint 1 flag — allow scheduler to pack more sequences (helps multi-conc).
 
 # ─── Patches delta — Wave 10 additions vs canonical model.patches ──────
 # Note: Wave 10 patches (PN51, PN96b, PN125-130, PN132/133) already in

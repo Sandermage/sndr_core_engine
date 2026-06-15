@@ -79,8 +79,11 @@ _MODEL_PIN_HOLD_RE = re.compile(
     re.MULTILINE,
 )
 
-# SHA fragment in a hardware image tag: `:nightly-<sha40>`
-_IMAGE_SHA_RE = re.compile(r"nightly-(?P<sha>[0-9a-f]{40})")
+# SHA fragment in a hardware image tag: `:nightly-<sha>`. Accepts the
+# short-sha convention (e.g. `nightly-1033ffac2`) as well as the full
+# 40-char form; the immutable `image_digest` is the real pin and the
+# tag SHA is only a human-readable fragment. Mirrors `_PIN_SHA_RE`.
+_IMAGE_SHA_RE = re.compile(r"nightly-(?P<sha>[0-9a-f]{6,40})")
 # SHA fragment in a ModelDef pin: `+g<sha10>`
 _PIN_SHA_RE = re.compile(r"\+g(?P<sha>[0-9a-f]{6,40})")
 
