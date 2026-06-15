@@ -92,6 +92,13 @@ ALLOWED_MODELDEF_PINS = frozenset({
     # 2026-06-11-fleet-validation-on-pin-303916e93.md.
     "0.22.1rc1.dev259+g303916e93",
     "0.21.1rc0+g626fa9bba566",
+    # PROD pin PROMOTION dev491 — ratified 2026-06-14 (guards.py:581).
+    # Image vllm/vllm-openai:nightly-1033ffac2 (0.22.1rc1.dev491+g1033ffac2).
+    # Live-validated 2026-06-15: 35B PROD boots mount-free on the migrated
+    # v12 rig (sndr.plugin:register), 112 patches applied / 0 failed, smoke
+    # 200; 27B full stack at gmu 0.82 passes all chat-matrix variants.
+    "0.22.1rc1.dev491+g1033ffac2",
+    "0.22.1rc1.dev491+g1033ffac2d66",
 })
 
 # Gemma family ModelDefs are expected to be on dev371 (validated path).
