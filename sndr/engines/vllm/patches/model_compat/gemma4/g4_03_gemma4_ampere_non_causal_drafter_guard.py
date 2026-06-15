@@ -11,22 +11,32 @@ for full-attention layers. The EAGLE-3 and DFlash drafter families
 both use **non-causal block-parallel attention** to draft K tokens
 in a single pass.
 
-On Ampere consumer GPUs (RTX 3090 / A5000, SM 8.6) every available
-attention backend rejects one or the other of those constraints
-(vllm#40382):
+On Ampere consumer GPUs (RTX 3090 / A5000, SM 8.6) the backend matrix
+historically rejected one or the other of those constraints (vllm#40382):
 
   | Backend           | head_dim=256 | non-causal       | Verdict     |
   |---|---|---|---|
   | FA2               | sometimes    | causal-only      | unusable    |
   | FA2_DIFFKV        | unsupported  | causal-only      | unusable    |
   | FLASHINFER        | supported    | causal-only      | unusable    |
-  | TRITON_ATTN       | supported    | causal-only      | unusable    |
   | FLEX_ATTENTION    | supported    | supported (slow) | net loss    |
   | TREE_ATTN         | unsupported  | causal-only      | unusable    |
 
-FLEX_ATTENTION is technically functional but its overhead exceeds the
-draft-acceptance benefit, so EAGLE-3 / DFlash on Ampere produces a
-**negative** TPS result vs no spec-decode.
+** UPDATE 2026-06-16 (dev491 ground-truth) — the matrix wall is CLOSED for
+TRITON_ATTN.** On pin 0.22.1rc1.dev491+g1033ffac2, stock TRITON_ATTN supports
+BOTH constraints: ``supports_non_causal() -> True`` (triton_attn.py:277-279)
+and ``supports_head_size(h) -> h >= 32`` covers head_dim 256 AND 512
+(triton_attn.py:347-348). Non-causal is a runtime metadata flag, not a kernel
+(``context_attention_fwd(is_causal=False)`` is already exercised). So an
+EAGLE-3 / DFlash drafter routed onto TRITON_ATTN (via g4_71b head=256 +
+g4_75 head=512) runs correctly on Ampere — no FLEX_ATTENTION, no bespoke
+Genesis kernel. ``GENESIS_ENABLE_G4_10=1`` is the enablement that lifts this
+guard's refusal and relies on that TRITON_ATTN path (G4_10's old bespoke
+kernel was retired 2026-06-16). Also note: EAGLE-3 drafts CAUSALLY on dev491
+(llm_base_proposer.py:1084,1195); only DFlash sets use_non_causal=True.
+
+FLEX_ATTENTION remains technically functional but its overhead exceeds the
+draft-acceptance benefit; it is no longer the only option (TRITON_ATTN is).
 
 ================================================================
 THE FIX (this patch — short term)
