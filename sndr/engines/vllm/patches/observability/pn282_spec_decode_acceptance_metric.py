@@ -88,32 +88,27 @@ def apply() -> tuple[str, str]:
 
     placeholder = _placeholder_token_id()
 
-    def wrapped(
-        draft_token_ids,
-        num_draft_tokens,
-        max_spec_len,
-        cu_num_draft_tokens,
-        draft_probs,
-        target_logits,
-        bonus_token_ids,
-        sampling_metadata,
-        synthetic_mode=False,
-        synthetic_conditional_rates=None,
-    ):
-        result = original(
-            draft_token_ids,
-            num_draft_tokens,
-            max_spec_len,
-            cu_num_draft_tokens,
-            draft_probs,
-            target_logits,
-            bonus_token_ids,
-            sampling_metadata,
-            synthetic_mode=synthetic_mode,
-            synthetic_conditional_rates=synthetic_conditional_rates,
-        )
+    import inspect as _inspect
+    try:
+        _orig_sig = _inspect.signature(original)
+    except (ValueError, TypeError):
+        _orig_sig = None
+
+    def wrapped(*args, **kwargs):
+        # Forward TRANSPARENTLY. rejection_sample's signature drifts across
+        # pins (dev491 added use_fp64_gumbel after synthetic_conditional_rates
+        # per vllm#43150; more kwargs may follow). Passing *args/**kwargs
+        # verbatim is forward-proof — this metric is a pure side-channel and
+        # must NEVER alter the forwarded call. max_spec_len is read back via
+        # signature binding only. 2026-06-16 dev491 drift fix.
+        result = original(*args, **kwargs)
 
         try:
+            if _orig_sig is None:
+                return result
+            _bound = _orig_sig.bind(*args, **kwargs)
+            _bound.apply_defaults()
+            max_spec_len = _bound.arguments["max_spec_len"]
             # result shape: [B, max_spec_len + 1]
             # row[0] = bonus / recovered token
             # row[1:] = accepted draft IDs or PLACEHOLDER for rejected

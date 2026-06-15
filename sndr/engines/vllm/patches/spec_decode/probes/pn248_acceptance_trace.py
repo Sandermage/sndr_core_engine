@@ -48,23 +48,38 @@ def apply() -> tuple[str, str]:
         return "applied", "PN248 already wrapped (idempotent)"
     _ORIGINAL_REJECTION_SAMPLE = original
 
-    def wrapped(
-        draft_token_ids,
-        num_draft_tokens,
-        max_spec_len,
-        cu_num_draft_tokens,
-        draft_probs,
-        target_logits,
-        bonus_token_ids,
-        sampling_metadata,
-        synthetic_mode=False,
-        synthetic_conditional_rates=None,
-    ):
+    import inspect as _inspect
+    try:
+        _orig_sig = _inspect.signature(original)
+    except (ValueError, TypeError):
+        _orig_sig = None
+
+    def wrapped(*args, **kwargs):
+        # Forward TRANSPARENTLY (forward-proof against rejection_sample
+        # signature drift — dev491 added use_fp64_gumbel after
+        # synthetic_conditional_rates, vllm#43150; more may follow). This
+        # trace is a pure side-channel; named inputs are read back via
+        # signature binding only, never altering the forwarded call.
+        # 2026-06-16 dev491 drift fix.
         _CALL_IDX[0] += 1
         call_idx = _CALL_IDX[0]
 
+        _a = {}
+        if _orig_sig is not None:
+            try:
+                _b = _orig_sig.bind(*args, **kwargs)
+                _b.apply_defaults()
+                _a = _b.arguments
+            except Exception:  # noqa: BLE001
+                _a = {}
+
         # Capture INPUT state (safe — outside compile, no cudagraph)
         try:
+            draft_token_ids = _a["draft_token_ids"]
+            num_draft_tokens = _a["num_draft_tokens"]
+            max_spec_len = _a["max_spec_len"]
+            target_logits = _a["target_logits"]
+            bonus_token_ids = _a["bonus_token_ids"]
             draft_ids_list = draft_token_ids.detach().cpu().tolist()
             target_argmax = target_logits.argmax(dim=-1).detach().cpu().tolist()
             bonus_list = bonus_token_ids.detach().cpu().tolist()
@@ -86,19 +101,8 @@ def apply() -> tuple[str, str]:
             except Exception:
                 pass
 
-        # Call original
-        result = original(
-            draft_token_ids,
-            num_draft_tokens,
-            max_spec_len,
-            cu_num_draft_tokens,
-            draft_probs,
-            target_logits,
-            bonus_token_ids,
-            sampling_metadata,
-            synthetic_mode=synthetic_mode,
-            synthetic_conditional_rates=synthetic_conditional_rates,
-        )
+        # Call original — transparent forward (forward-proof)
+        result = original(*args, **kwargs)
 
         # Capture OUTPUT state
         try:
