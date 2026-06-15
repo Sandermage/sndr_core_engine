@@ -599,13 +599,24 @@ function MarkdownLite({ text }: { text: string }) {
 type ChatStat = { tokens?: number; tps?: number; ttft_ms?: number; latency_ms?: number; reasoningEmpty?: boolean; finishReason?: string };
 type ChatMessage = { role: "user" | "assistant"; content: string; reasoning?: string; stat?: ChatStat; sources?: RagDoc[] };
 type Conversation = { id: string; title: string; messages: ChatMessage[]; createdAt: number; updatedAt: number };
-type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; presencePenalty: number; frequencyPenalty: number; stop: string; thinking: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
+type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; presencePenalty: number; frequencyPenalty: number; stop: string; thinking: boolean; webSearch: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
+
+// Selectable system-prompt templates for search & analysis tasks. The system
+// value is the model instruction (English); only the label is localized. The
+// analysis templates also steer the copilot toward the right tools.
+const PROMPT_TEMPLATES: Array<{ label: string; system: string }> = [
+  { label: "General assistant", system: "You are a helpful assistant." },
+  { label: "Web research", system: "You are a research assistant. For any real-time or factual claim, rely on web search results in context and cite the source URLs. Be concise, structured, and flag uncertainty." },
+  { label: "Crypto / market analysis", system: "You are a market analyst. For market questions use the market analysis, signals and web tools; cite data with timestamps and sources. State assumptions and a confidence level; never invent prices or figures." },
+  { label: "News briefing", system: "You are a news analyst. Gather current items from web search, then synthesize a dated, sourced briefing: the key developments, why they matter, and what to watch — with citation URLs." },
+  { label: "Code analysis", system: "You are a senior engineer. Review code for correctness, security and clarity. Cite specific lines, explain the risk, and propose the smallest correct fix." },
+];
 
 const CHAT_KEY = "sndr.chat.v1";
 // maxTokens defaults high enough for reasoning models: with --reasoning-parser
 // active, the model spends tokens in reasoning_content before reaching the
 // answer; too small a budget truncates inside thinking → empty content.
-const DEFAULT_SETTINGS: ChatSettings = { host: "127.0.0.1", port: 8000, model: "", apiKey: "", hostId: "", system: "You are a helpful assistant.", temperature: 0.7, maxTokens: 2048, topP: 1, presencePenalty: 0, frequencyPenalty: 0, stop: "", thinking: false, useProject: false, ragProject: true, ragVaults: [], workloadClass: "" };
+const DEFAULT_SETTINGS: ChatSettings = { host: "127.0.0.1", port: 8000, model: "", apiKey: "", hostId: "", system: "You are a helpful assistant.", temperature: 0.7, maxTokens: 2048, topP: 1, presencePenalty: 0, frequencyPenalty: 0, stop: "", thinking: false, webSearch: false, useProject: false, ragProject: true, ragVaults: [], workloadClass: "" };
 
 // Build the grounding system message from retrieved project-knowledge docs.
 function buildRagContext(docs: RagDoc[]): string {
@@ -654,10 +665,11 @@ const PROJECT_SUGGESTIONS = [
 // Citation chips for RAG-grounded answers; click a chip to expand its snippet.
 function SourcesRow({ docs }: { docs: RagDoc[] }) {
   const [open, setOpen] = useState<string | null>(null);
-  const kindClass = (k: string) => (k === "patch" ? "src-patch" : k === "preset" ? "src-preset" : k === "note" ? "src-note" : "src-config");
+  const kindClass = (k: string) => (k === "patch" ? "src-patch" : k === "preset" ? "src-preset" : k === "note" ? "src-note" : k === "web" ? "src-web" : "src-config");
+  const anyWeb = docs.some((d) => d.kind === "web");
   return (
     <div className="chat-sources">
-      <span className="chat-sources-label"><BookText size={12} /> {tr("Grounded in")} {docs.length} {docs.length > 1 ? tr("project sources") : tr("project source")}</span>
+      <span className="chat-sources-label"><BookText size={12} /> {tr("Grounded in")} {docs.length} {anyWeb ? (docs.length > 1 ? tr("web sources") : tr("web source")) : (docs.length > 1 ? tr("project sources") : tr("project source"))}</span>
       <div className="chat-sources-chips">
         {docs.map((d, i) => (
           <button key={d.ref + i} className={`chat-src ${kindClass(d.kind)} ${open === d.ref ? "open" : ""}`} onClick={() => setOpen(open === d.ref ? null : d.ref)} title={d.title}>
@@ -825,10 +837,11 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     const started = Date.now();
     try {
       await api.engineChatStream(
-        { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, chat_template_kwargs: { enable_thinking: settings.thinking } },
+        { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, web_search: settings.webSearch || undefined, chat_template_kwargs: { enable_thinking: settings.thinking } },
         {
           onDelta: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, content: (last.content ?? "") + text }; return { ...c, messages: msgs }; }),
           onReasoning: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, reasoning: (last.reasoning ?? "") + text }; return { ...c, messages: msgs }; }),
+          onSources: (docs) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, sources: [...(last.sources ?? []), ...docs] }; return { ...c, messages: msgs }; }),
           onDone: (meta) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; const secs = (meta.latency_ms ?? (Date.now() - started)) / 1000; const reasoningEmpty = !(last.content ?? "").trim() && !(last.reasoning ?? "").trim() && (meta.tokens ?? 0) > 0; msgs[msgs.length - 1] = { ...last, stat: { tokens: meta.tokens, ttft_ms: meta.ttft_ms, latency_ms: meta.latency_ms, tps: meta.tokens && secs ? Math.round((meta.tokens / secs) * 10) / 10 : undefined, reasoningEmpty, finishReason: meta.finish_reason } }; return { ...c, messages: msgs, updatedAt: Date.now() }; }),
           onError: (msg) => setError(msg)
         },
@@ -911,6 +924,13 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
         <div className="chat-bar">
           <label className="chat-field"><span>{tr("Host")}</span><input value={settings.host} onChange={(e) => set({ host: e.target.value })} spellCheck={false} /></label>
           <label className="chat-field chat-field-port"><span>{tr("Port")}</span><input type="number" value={settings.port} onChange={(e) => set({ port: Number(e.target.value) || 8000 })} /></label>
+          <label className="chat-field chat-field-endpoint"><span>{tr("Endpoint")}</span>
+            <select value={settings.port === 8318 ? "proxy" : settings.port === 8000 ? "engine" : ""} onChange={(e) => { const v = e.target.value; if (v === "proxy") set({ port: 8318 }); else if (v === "engine") set({ port: 8000 }); }} title={tr("Route through the Genesis proxy (smart-router + failover) or talk to the local engine directly")}>
+              <option value="">{tr("custom")}</option>
+              <option value="engine">{tr("Local engine")} :8000</option>
+              <option value="proxy">{tr("Genesis proxy")} :8318</option>
+            </select>
+          </label>
           <label className="chat-field chat-field-model"><span>{tr("Model")}</span>
             <select value={settings.model} onChange={(e) => set({ model: e.target.value })}>
               {status?.models?.length ? status.models.map((m) => <option key={m} value={m}>{m}</option>) : <option value="">{reachable ? tr("default") : "—"}</option>}
@@ -919,6 +939,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
           <label className="chat-field chat-field-key"><span>{tr("API key")}</span><input type="password" value={settings.apiKey} onChange={(e) => set({ apiKey: e.target.value })} placeholder={tr("if engine requires one")} autoComplete="off" spellCheck={false} /></label>
           <span className={`chat-status ${reachable ? (status && !status.models?.length ? "warn" : "ok") : "down"}`}><span className="chat-dot" />{reachable ? `${tr("up")}${status?.version ? ` · v${status.version}` : ""}${status && !status.models?.length ? ` · ${tr("no models (API key?)")}` : ""}` : tr("down")}</span>
           <span className="chat-bar-spacer" />
+          <button className={`chat-rag-toggle ${settings.webSearch ? "on" : ""}`} onClick={() => set({ webSearch: !settings.webSearch })} title={tr("Search the live web (no external API) and ground the answer with cited sources.")}><Search size={14} /> {tr("Web search")}</button>
           <button className={`chat-rag-toggle ${settings.useProject ? "on" : ""}`} onClick={() => set({ useProject: !settings.useProject })} title={tr("Ground answers in your knowledge sources (project patches/presets/configs + connected Obsidian/notes folders). Configure sources in Params.")}><Database size={14} /> {tr("Project RAG")}{settings.useProject && settings.ragVaults.length ? ` · ${settings.ragVaults.length}` : ""}</button>
           <button className="ghost-button" onClick={() => void refreshStatus()} title={tr("Reconnect")}><RefreshCw size={14} /></button>
           <button className={`ghost-button ${showSettings ? "active" : ""}`} onClick={() => setShowSettings((v) => !v)}><SlidersHorizontal size={14} /> {tr("Params")}</button>
@@ -928,6 +949,12 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
         {showSettings && (
           <div className="chat-settings">
             <label className="chat-field chat-field-wide"><span>{tr("System prompt")}</span><textarea value={settings.system} onChange={(e) => set({ system: e.target.value })} rows={2} /></label>
+            <label className="chat-field"><span>{tr("Prompt template")}</span>
+              <select value="" onChange={(e) => { const t = PROMPT_TEMPLATES.find((x) => x.label === e.target.value); if (t) set({ system: t.system }); }} title={tr("Load a search/analysis system prompt")}>
+                <option value="">{tr("choose…")}</option>
+                {PROMPT_TEMPLATES.map((t) => <option key={t.label} value={t.label}>{tr(t.label)}</option>)}
+              </select>
+            </label>
             <label className="chat-field"><span>{tr("Temperature")}</span><input type="number" min={0} max={2} step={0.1} value={settings.temperature} onChange={(e) => set({ temperature: Number(e.target.value) })} /></label>
             <label className="chat-field"><span>{tr("Max tokens")}</span><input type="number" min={1} max={4096} value={settings.maxTokens} onChange={(e) => set({ maxTokens: Number(e.target.value) || 512 })} /></label>
             <label className="chat-field"><span>{tr("Top P")}</span><input type="number" min={0} max={1} step={0.05} value={settings.topP} onChange={(e) => set({ topP: Number(e.target.value) })} /></label>

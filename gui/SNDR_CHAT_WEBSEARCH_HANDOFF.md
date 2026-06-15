@@ -15,8 +15,27 @@ SearXNG**, **trigger = manual 🌐 toggle + auto native tool-calling (model-awar
 > returns `reasoning` too. Unit-tested (`test_engine_client.py`, 2 new tests) and
 > live on the local daemon. **For prod it needs the host `sndr-daemon` rebuild**
 > (same as the hardening in `SNDR_BACKEND_HANDOFF.md`). The GUI side (reasoning
-> trace render, truncation note, history trim) is also shipped. **Only §2 (web
-> search / SearXNG) remains for the backend agent.**
+> trace render, truncation note, history trim) is also shipped.
+>
+> **UPDATE 2 — §2 also implemented.** The operator chose to reuse the
+> **aggregator's** existing `POST /v1/search` (self-hosted SearXNG, no external
+> API) with a direct-SearXNG fallback. New `sndr/product_api/legacy/external_clients.py`
+> wraps the aggregator (search / aggregate / signals / patterns / anomalies) and
+> the proxy (models-detail / cost / health); 8 read-only copilot tools were added
+> (`web_search`, `market_analysis`, `recent_signals`, `market_patterns`,
+> `recent_anomalies`, `proxy_routing`, `proxy_cost`, `proxy_health`); the chat
+> stream route gained a `web_search` toggle that injects results as context and
+> emits `sources`. GUI: prompt-template library, a 🌐 web-search toggle, a proxy
+> quick-connect endpoint, and source citations. Tests in `test_external_clients.py`
+> (+ `test_copilot.py` updated for the new read-only categories).
+>
+> **What remains is purely operational (no code):** point the host daemon at the
+> real services — `GENESIS_AGG_URL` (default `http://127.0.0.1:8330`),
+> `GENESIS_AGG_API_KEY`, `GENESIS_PROXY_URL` (default `http://127.0.0.1:8318`),
+> optional `SNDR_SEARXNG_URL` fallback — and ensure they're reachable from where
+> `sndr-daemon` runs. Then rebuild the host daemon (as with the other backend
+> changes). The original §2 SearXNG-from-scratch plan below is superseded by the
+> aggregator path but kept for reference.
 
 ## 1. BUG — chat returns `(empty)` with a non-zero token count
 
@@ -94,7 +113,7 @@ but does **not** recover the dropped reasoning — that needs the backend fix be
 
 ### Topology
 
-```
+```text
 GUI chat ──► daemon /api/v1/engine/chat/stream (+ web_search flag / tool)
                  │
                  ├─ manual toggle: search(query) → inject context → generate

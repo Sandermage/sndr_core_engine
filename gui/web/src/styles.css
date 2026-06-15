@@ -3253,6 +3253,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .chat-field input, .chat-field select, .chat-field textarea { padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text); font-size: 0.85rem; font-family: inherit; }
 .chat-field input { width: 150px; }
 .chat-field-port input { width: 72px; }
+.chat-field-endpoint select { max-width: 168px; }
 .chat-field-model { flex: 1; min-width: 180px; }
 .chat-field-model select { width: 100%; font-family: var(--mono); font-size: 12px; }
 .chat-field-wide { flex: 1; min-width: 240px; }
@@ -3395,6 +3396,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .chat-src.src-preset .chat-src-n { background: var(--ok); }
 .chat-src.src-config .chat-src-n { background: var(--warn); }
 .chat-src.src-note .chat-src-n { background: var(--accent); }
+.chat-src.src-web .chat-src-n { background: var(--info); }
 
 /* Knowledge sources (project + Obsidian/notes vaults) in the params panel */
 .chat-knowledge { flex: 1 1 100%; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding: 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-inset); }

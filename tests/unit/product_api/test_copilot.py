@@ -25,8 +25,9 @@ def _scripted_chat(*responses):
 def test_tool_specs_are_openai_shaped_and_read_only():
     specs = copilot.tool_specs()
     assert specs and all(s["type"] == "function" and "name" in s["function"] for s in specs)
-    # Every registered tool is read-only or a dry-run planner — nothing mutating.
-    assert {t["category"] for t in copilot.tool_catalog()} <= {"read", "plan"}
+    # Every registered tool is read-only, a dry-run planner, or a read-only
+    # external query (search / analysis / observability) — nothing mutating.
+    assert {t["category"] for t in copilot.tool_catalog()} <= {"read", "plan", "search", "analysis", "observability"}
 
 
 def test_execute_unknown_tool_returns_error_not_raise():
@@ -123,7 +124,7 @@ def test_copilot_endpoints(monkeypatch, tmp_path):
     # tool catalog is read-only / dry-run only.
     tools = client.get("/api/v1/copilot/tools").json()["tools"]
     assert any(t["name"] == "get_overview" for t in tools)
-    assert {t["category"] for t in tools} <= {"read", "plan"}
+    assert {t["category"] for t in tools} <= {"read", "plan", "search", "analysis", "observability"}
 
     # the loop runs the tool then answers.
     r = client.post("/api/v1/copilot/chat", json={"messages": [{"role": "user", "content": "summary?"}]})

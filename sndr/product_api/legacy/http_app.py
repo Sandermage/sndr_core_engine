@@ -2451,6 +2451,32 @@ def create_app(
         api_key = _engine_key_for(payload.get("host_id"), x_engine_api_key)
 
         def generate():
+            # Optional web-search grounding: when the GUI toggles it on, search the
+            # live web (aggregator SearXNG, no external API; direct-SearXNG fallback)
+            # and prepend the results as context so the streamed answer is grounded
+            # and cites sources. Best-effort — chat proceeds ungrounded on failure.
+            if payload.get("web_search"):
+                try:
+                    from . import external_clients
+                    from urllib.parse import urlparse
+
+                    msgs = payload.get("messages") or []
+                    last_user = next((m.get("content", "") for m in reversed(msgs)
+                                      if isinstance(m, dict) and m.get("role") == "user"), "")
+                    res = external_clients.web_search(last_user, limit=int(payload.get("web_k") or 6))
+                    hits = res.get("results") or []
+                    if hits:
+                        block = "Live web search results — ground your answer in these and cite the URLs:\n" + "\n".join(
+                            f"[{i + 1}] ({h.get('url')}) {h.get('title')}: {h.get('snippet')}"
+                            for i, h in enumerate(hits))
+                        payload["messages"] = [{"role": "system", "content": block}, *msgs]
+                    yield _json.dumps({"sources": [
+                        {"id": h.get("url"), "kind": "web", "title": h.get("title") or h.get("url"),
+                         "ref": (urlparse(h.get("url") or "").hostname or h.get("url") or ""),
+                         "snippet": h.get("snippet") or ""}
+                        for h in hits]}) + "\n"
+                except Exception as exc:  # noqa: BLE001 - search is best-effort
+                    yield _json.dumps({"search_error": str(exc)}) + "\n"
             try:
                 for chunk in engine_client.stream_chat(payload, host=host, port=port, api_key=api_key):
                     yield chunk + "\n"

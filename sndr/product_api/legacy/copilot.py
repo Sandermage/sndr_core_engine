@@ -160,6 +160,61 @@ def _h_plan_install(args: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
+# ── search / analysis / observability handlers (live, read-only, external) ───
+# These reach the operator's adjacent services (aggregator, proxy) via
+# external_clients. They fetch live data but change nothing, so they stay inside
+# the copilot's read-only posture. A ServiceError (service down) is caught by
+# execute_tool and fed back to the model as a tool error.
+
+
+def _h_web_search(args: dict[str, Any]) -> dict[str, Any]:
+    from . import external_clients as ext
+
+    return ext.web_search(str(args.get("query") or ""), limit=int(args.get("limit") or 8))
+
+
+def _h_market_analysis(args: dict[str, Any]) -> dict[str, Any]:
+    from . import external_clients as ext
+
+    return ext.market_analysis(str(args.get("prompt") or ""), mode=str(args.get("mode") or "aggregate"))
+
+
+def _h_recent_signals(args: dict[str, Any]) -> dict[str, Any]:
+    from . import external_clients as ext
+
+    return ext.recent_signals(limit=int(args.get("limit") or 15))
+
+
+def _h_market_patterns(_args: dict[str, Any]) -> dict[str, Any]:
+    from . import external_clients as ext
+
+    return ext.market_patterns()
+
+
+def _h_recent_anomalies(args: dict[str, Any]) -> dict[str, Any]:
+    from . import external_clients as ext
+
+    return ext.recent_anomalies(hours=int(args.get("hours") or 24))
+
+
+def _h_proxy_routing(_args: dict[str, Any]) -> dict[str, Any]:
+    from . import external_clients as ext
+
+    return ext.proxy_routing()
+
+
+def _h_proxy_cost(_args: dict[str, Any]) -> dict[str, Any]:
+    from . import external_clients as ext
+
+    return ext.proxy_cost()
+
+
+def _h_proxy_health(_args: dict[str, Any]) -> dict[str, Any]:
+    from . import external_clients as ext
+
+    return ext.proxy_health()
+
+
 # Registry — add a tool by appending one entry (the single extension point).
 _TOOLS: tuple[Tool, ...] = (
     Tool("get_overview", "Catalog + capability snapshot: model/preset/profile counts, preset status "
@@ -188,6 +243,34 @@ _TOOLS: tuple[Tool, ...] = (
          "Installer — it does not apply anything.", _schema({
              "preset_id": {"type": "string"}, "target": {"type": "string"}, "host_id": {"type": "string"},
          }, ["preset_id"]), _h_plan_install, category="plan"),
+    # ── search ──────────────────────────────────────────────────────────────
+    Tool("web_search", "Search the live web for real-time facts, news, prices — anything recent or after "
+         "your training cutoff. No external paid API: uses the operator's self-hosted SearXNG (via the "
+         "aggregator, with a direct-SearXNG fallback). Returns titles, URLs and snippets to cite.",
+         _schema({"query": {"type": "string"}, "limit": {"type": "integer", "description": "max results, default 8"}},
+                 ["query"]), _h_web_search, category="search"),
+    # ── analysis (Genesis aggregator) ───────────────────────────────────────
+    Tool("market_analysis", "Run a multi-model consensus market analysis via the Genesis aggregator "
+         "(auto-pulls live market data + RAG context). Returns a synthesised answer with agreement and "
+         "confidence scores. Use for crypto/markets questions. mode: aggregate (default) | compare | debate.",
+         _schema({"prompt": {"type": "string"}, "mode": {"type": "string"}}, ["prompt"]),
+         _h_market_analysis, category="analysis"),
+    Tool("recent_signals", "Latest trading signals from the aggregator: asset, direction, entry/TP/SL, "
+         "confidence and quality grade.", _schema({"limit": {"type": "integer"}}),
+         _h_recent_signals, category="analysis"),
+    Tool("market_patterns", "Mined market patterns from the aggregator with win-rate and average PnL.",
+         _schema({}), _h_market_patterns, category="analysis"),
+    Tool("recent_anomalies", "Recently detected market anomalies / reversals from the aggregator.",
+         _schema({"hours": {"type": "integer", "description": "lookback window, default 24"}}),
+         _h_recent_anomalies, category="analysis"),
+    # ── observability (Genesis proxy) ───────────────────────────────────────
+    Tool("proxy_routing", "How the Genesis proxy routes models: provider, equivalence group, fallback "
+         "chain and ban status per model. Use to answer 'which model / provider handled this'.",
+         _schema({}), _h_proxy_routing, category="observability"),
+    Tool("proxy_cost", "Cost metrics from the Genesis proxy (spend per model/provider).",
+         _schema({}), _h_proxy_cost, category="observability"),
+    Tool("proxy_health", "Per-provider health / circuit-breaker state from the Genesis proxy "
+         "(which providers are up or circuit-open).", _schema({}), _h_proxy_health, category="observability"),
 )
 
 _TOOLS_BY_NAME = {t.name: t for t in _TOOLS}
@@ -203,7 +286,12 @@ SYSTEM_PROMPT = (
     "For changes, use plan_install (dry-run) and tell the operator to review & apply it in the UI.\n"
     "3. Be concise and operator-focused. Cite concrete numbers from tool results. If a tool errors or "
     "the data is missing, say so plainly rather than guessing.\n"
-    "4. Prefer the smallest set of tool calls that answers the question."
+    "4. Prefer the smallest set of tool calls that answers the question.\n"
+    "5. For real-time facts (news, prices, anything recent or after your cutoff), call web_search and "
+    "cite the URLs — never guess current data. For crypto/markets questions use market_analysis (or "
+    "recent_signals / market_patterns / recent_anomalies). For 'which model/provider handled this, what "
+    "did it cost, is provider X down', use the proxy_* tools. These fetch live external data but change "
+    "nothing."
 )
 
 
