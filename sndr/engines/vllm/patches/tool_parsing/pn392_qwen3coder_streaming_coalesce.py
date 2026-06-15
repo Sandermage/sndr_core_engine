@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN392 — qwen3_coder streaming tool-call within-call coalescing.
 
+RETIRED (dev491): superseded by the engine-native Qwen3CoderToolParser after
+vllm#45171 remapped ``qwen3_xml`` -> ``Qwen3CoderToolParser`` and made it handle
+streaming directly. registry lifecycle=retired; this module is kept for audit
+provenance. See the root-cause note below.
+
 Root cause (dev491 pin bump 0.22.1rc1.dev491+g1033ffac2)
 --------------------------------------------------------
 The upstream vllm#45171-era refactor (232-commit window dev259→dev491)
