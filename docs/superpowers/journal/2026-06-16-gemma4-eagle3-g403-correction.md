@@ -110,3 +110,47 @@ is already in dev491. **Plan: WATCH #45703; retire G4_08 (+ re-decide G4_02) on 
 ## PROD status
 35B `vllm-qwen3.6-35b-balanced-k3` healthy on :8102 (canonical port for start_qwen3.6-35b-balanced.sh;
 :8101 idle is expected). Verified end-to-end with an authenticated completion, not just /health.
+
+## CORRECTION (2026-06-16, deeper re-study after operator pushback "поверхностно изучал")
+
+Two claims above were superficial and are corrected here. The body above is left intact as the
+record; this section supersedes it where they conflict.
+
+### 1. "EAGLE-3 is a dead path on Ampere" — WRONG framing. It is gated on G4_10, which is UNFINISHED.
+EAGLE-3 is not fundamentally impossible on Ampere+Gemma-4. The project ships a purpose-built unblock:
+**G4_10** (`g4_10_gemma4_ampere_non_causal_attn_backend.py`), a Genesis non-causal head_dim=256 Triton
+attention backend. G4_03 explicitly defers to it: with `GENESIS_ENABLE_G4_10=1`, G4_03 logs "G4_10
+enabled, letting drafter through" and does NOT raise (g4_03...py:215-225). The EAGLE-3 boots failed only
+because the profiles never set `G4_10=1`. So the accurate reason EAGLE-3 doesn't work today is **G4_10
+is unfinished research-track**, not a hardware wall:
+- The Triton kernel (`kernels/g4_non_causal_attn_triton.py`) is REAL FA-2 code (online softmax, two-pass
+  D-loop) but **numerically unvalidated** — the test file the docstring cites
+  (`tests/unit/integrations/gemma4/test_g4_10_non_causal_attn.py`) **does not exist**.
+- The backend class `G4AmperetNonCausalAttentionBackend` is a **non-conformant skeleton**: it has
+  get_name/supports_non_causal/forward(q,k,v,sm_scale) but NONE of vLLM's real `AttentionBackend`
+  interface (get_impl_cls/get_metadata_cls/get_builder_cls/get_kv_cache_shape), and its class_path still
+  points at the old `vllm.sndr_core.*` layout.
+- Its **registration is drifted on dev491** (G4_08-class): apply() does `getattr(AttentionBackendEnum,
+  "register_backend")` expecting a classmethod, but dev491's `register_backend` is a module-level
+  decorator taking an existing enum member (`AttentionBackendEnum.CUSTOM`, registry.py:217) → getattr→None
+  → returns "skipped" (with a log.warning). So even `G4_10=1` does not register the backend on dev491.
+**Consequence**: EAGLE-3 could in principle beat MTP (club-3090 cites +15-25% on the same SM 8.6), but
+realizing it is **multi-day work** (conformant backend + kernel validation + dev491-API registration +
+drafter wiring), NOT a quick test. MTP (assistant drafter, causal) remains the only *currently-viable*
+Gemma-4 spec-decode path. Reverting the EAGLE-3 profiles was correct in OUTCOME (they boot-fail without a
+finished G4_10) but the stated reason ("hardware wall") was wrong.
+
+### 2. "26B MTP +65% (198 TPS) on dev491" — WRONG pin + conflated number.
+The persisted bench artifact (`spec_decode/artifacts/gemma4-26b-mtp-chat-k3.json`) is on pin
+**`0.21.1rc1.dev354+g626fa9bba`** — a third pin, neither dev491 (current image) nor dev259 (the 26B's
+pin-hold). Its actual numbers are `free_chat 150.94 / summarization 139.85 / geomean 188` (NOT 198), and
+its decision is **`validated_conditional`**: MTP-K3 only wins free_chat+summarization vs the K=4 sibling;
+it is *denied* for code_gen/structured/tool. Acceptance was **not recorded** (calls:0). So "26B MTP +65%
+on dev491, make it the default" was an unverified overstatement. A clean same-context (32K) dev491 A/B
+(no-mtp vs mtp, acceptance scraped from /metrics) is running now to replace it with real numbers.
+
+### 3. G4_10 is itself a dev491 silent-no-op the 36-flag audit missed.
+Because G4_10 is `default_on=False` and not in any enabled YAML, it was outside the audit's "enabled set",
+so its registration-API drift went uncatalogued. It belongs on the same retire/fix list as G4_08 (fix the
+registration to dev491's `register_backend(AttentionBackendEnum.CUSTOM, class_path)` API IF G4_10 is ever
+finished; otherwise leave it research-track and loud).
