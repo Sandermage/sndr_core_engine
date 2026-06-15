@@ -74,8 +74,14 @@ patches:
   # re-validation. On dev259 (the held pin, see versions.pin_hold) the model boots.
   GENESIS_ENABLE_G4_02_GEMMA4_MARLIN_KDIM_GUARD: '0'  # disabled — see 2026-06-16 note above
 
-  # ── G4_13 disabled because G4_18 supersedes it (per-layer KV instead of refusal) ──
-  GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD: '0'   # disabled — G4_18 handles asymmetric KV
+  # ── G4_13 disabled on the premise G4_18 supersedes it (per-layer KV vs refusal) ──
+  # NOTE 2026-06-16 audit: that premise holds on dev259 (the held pin) but NOT on
+  # dev491 — get_num_kv_heads(self, parallel_config) lost its layer_idx kwarg on
+  # vLLM >=0.22, so G4_18 can no longer deliver per-layer KV and falls through. On a
+  # dev491 bump, re-decide this pair (likely G4_13='1' / G4_18='0', but they
+  # conflict so flip atomically + re-validate on the rig — flipping now would break
+  # the working dev259 config). Flags left unchanged.
+  GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD: '0'   # disabled — see 2026-06-16 note above
 
   # ── Gemma 4 family fixes (default-on) ──
   GENESIS_ENABLE_G4_04_GEMMA4_AWQ_MOE_KEYS_REMAP: '1'      # vendors vllm#40886 (AWQ MoE keys for 26B-A4B)

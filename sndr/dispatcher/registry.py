@@ -8729,7 +8729,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "source": "vendor_backport",
         "apply_module": "sndr.engines.vllm.patches.kv_cache.g4_18_per_layer_kv_page_size",
         "lifecycle": "experimental",
-        "credit": "Hooks ModelConfig.get_num_kv_heads to return per-layer-type KV-head counts for asymmetric 26B-A4B. Closes vllm#40388 root cause (not just guard).",
+        "credit": "Hooks ModelConfig.get_num_kv_heads to return per-layer-type KV-head counts for asymmetric 26B-A4B. Closes vllm#40388 root cause (not just guard). CAVEAT (2026-06-16 dev491 audit): on vLLM >=0.22 (dev491) get_num_kv_heads(self, parallel_config) has NO layer_idx kwarg, so the per-layer branch cannot fire — G4_18 falls through to the original and does NOT supersede G4_13 there. Keep default_on=False and rely on G4_13 until #40391 lands; the 26B YAML disabling G4_13 'because G4_18 supersedes it' does not hold on dev491.",
         "upstream_pr": "https://github.com/vllm-project/vllm/pull/40391",
         "requires_patches": [],
         "conflicts_with": ["G4_13"],
