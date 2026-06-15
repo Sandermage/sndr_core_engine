@@ -35,6 +35,8 @@ from typing import Any, Optional
 _URL_RE = re.compile(r"^https?://[A-Za-z0-9._-]{1,253}(:\d{1,5})?$")
 _DEFAULT_AGG = "http://127.0.0.1:8330"
 _DEFAULT_PROXY = "http://127.0.0.1:8318"
+# Direct SearXNG fallback, default matching the operator's published instance.
+_DEFAULT_SEARXNG = "http://127.0.0.1:8888"
 
 
 class ServiceError(RuntimeError):
@@ -99,11 +101,16 @@ def _call(env_name: str, default_base: str, path: str, *, method: str = "GET",
 
 
 def _searxng_direct(query: str, *, limit: int, language: str, timeout: float) -> list[dict[str, Any]]:
-    base = (os.environ.get("SNDR_SEARXNG_URL") or "").strip().rstrip("/")
-    if not base or not _URL_RE.match(base):
-        raise ServiceError("aggregator search unreachable and no SNDR_SEARXNG_URL fallback configured")
+    base = (os.environ.get("SNDR_SEARXNG_URL") or _DEFAULT_SEARXNG).strip().rstrip("/")
+    if not _URL_RE.match(base):
+        raise ServiceError("no valid SearXNG fallback configured (SNDR_SEARXNG_URL)")
     qs = urllib.parse.urlencode({"q": query, "format": "json", "language": language, "safesearch": 1})
-    status, text = _request(f"{base}/search?{qs}", timeout=timeout)
+    try:
+        status, text = _request(f"{base}/search?{qs}", timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        status, text = exc.code, exc.read().decode("utf-8", "replace")
+    except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        raise ServiceError(f"SearXNG unreachable at {base}: {getattr(exc, 'reason', exc)}") from exc
     data, err = _json_or_error(status, text)
     if err:
         raise ServiceError(f"SearXNG error: {err}")
@@ -114,18 +121,23 @@ def web_search(query: str, *, limit: int = 8, categories: str = "general",
                language: str = "en", timeout: float = 12.0) -> dict[str, Any]:
     """Live web search with no external paid API: the aggregator's self-hosted
     SearXNG (``POST /v1/search``), falling back to a direct SearXNG instance
-    (``SNDR_SEARXNG_URL``) if the aggregator is unreachable."""
+    (``SNDR_SEARXNG_URL``, default ``:8888``) if the aggregator is unreachable
+    **or returns nothing** — its wrapper can come back empty even when SearXNG
+    itself has hits."""
     q = str(query or "").strip()
     if not q:
         raise ServiceError("query is required")
     limit = max(1, min(20, int(limit)))
+    results: list[Any] = []
+    source = "aggregator"
     try:
         data = _call("GENESIS_AGG_URL", _DEFAULT_AGG, "/v1/search", method="POST",
                      payload={"query": q, "limit": limit, "categories": categories, "language": language},
                      headers=_agg_headers(), timeout=timeout, service="aggregator")
         results = (data.get("results") or []) if isinstance(data, dict) else []
-        source = "aggregator"
     except ServiceError:
+        results = []
+    if not results:  # aggregator down OR empty → direct SearXNG (raises if it too fails)
         results = _searxng_direct(q, limit=limit, language=language, timeout=timeout)
         source = "searxng"
     return {

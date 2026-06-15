@@ -48,9 +48,24 @@ def test_web_search_falls_back_to_direct_searxng(monkeypatch):
     assert out["source"] == "searxng" and out["results"][0]["url"] == "http://y"
 
 
-def test_web_search_no_fallback_raises(monkeypatch):
-    monkeypatch.delenv("SNDR_SEARXNG_URL", raising=False)
-    monkeypatch.setattr(ext, "_request", _fake_request({"/v1/search": urllib.error.URLError("down")}))
+def test_web_search_falls_back_on_empty_aggregator_results(monkeypatch):
+    # Live finding: the aggregator's /v1/search wrapper can return 0 results while
+    # SearXNG itself has hits — so fall back on EMPTY, not just on a connection error.
+    monkeypatch.setenv("SNDR_SEARXNG_URL", "http://searx.local:8888")
+    monkeypatch.setattr(ext, "_request", _fake_request({
+        "/v1/search": (200, {"results": []}),  # aggregator returns nothing
+        "searx.local": (200, {"results": [{"title": "T", "url": "http://z", "content": "c"}]}),
+    }))
+    out = ext.web_search("q")
+    assert out["source"] == "searxng" and out["count"] == 1 and out["results"][0]["url"] == "http://z"
+
+
+def test_web_search_all_paths_down_raises(monkeypatch):
+    # Aggregator down AND the SearXNG fallback down -> a single clean ServiceError.
+    monkeypatch.setattr(ext, "_request", _fake_request({
+        "/v1/search": urllib.error.URLError("aggregator down"),
+        "/search": urllib.error.URLError("searxng down"),  # default 127.0.0.1:8888
+    }))
     with pytest.raises(ext.ServiceError):
         ext.web_search("q")
 
