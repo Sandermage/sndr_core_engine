@@ -67,8 +67,12 @@ patches:
   GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD: '1'
   GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD: '1'
 
-  # ── G4_02 disabled because G4_08 supersedes it (Triton K-pad unblocks K=352) ──
-  GENESIS_ENABLE_G4_02_GEMMA4_MARLIN_KDIM_GUARD: '0'  # disabled — G4_08 handles K=352 instead
+  # ── G4_02 disabled on the (now-questioned) premise that G4_08 supersedes it ──
+  # NOTE 2026-06-16 audit: G4_08 does NOT actually guard K=352 on the AWQ path
+  # (see the G4_08 audit block below), so on a dev491 bump neither G4_02 nor G4_08
+  # would guard it. Revisit this pair when upstream PR#45703 lands / at dev491
+  # re-validation. On dev259 (the held pin, see versions.pin_hold) the model boots.
+  GENESIS_ENABLE_G4_02_GEMMA4_MARLIN_KDIM_GUARD: '0'  # disabled — see 2026-06-16 note above
 
   # ── G4_13 disabled because G4_18 supersedes it (per-layer KV instead of refusal) ──
   GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD: '0'   # disabled — G4_18 handles asymmetric KV
@@ -84,7 +88,15 @@ patches:
   GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD: '1'
 
   # ── Deep fixes (this model needs them!) ──
-  GENESIS_ENABLE_G4_08_MARLIN_KDIM_PAD: '1'                # Triton K-pad MoE GEMM — unblocks K=352 (704/2 at TP=2)
+  # 2026-06-16 AUDIT: G4_08 does NOT actually unblock K=352 for this AWQ checkpoint.
+  # It monkey-patches CompressedTensorsMoEWNA16MarlinMethod, but AWQ-int4 dispatches
+  # to AWQMarlinMoEMethod (a different class); on dev491 that class is also renamed
+  # (-> CompressedTensorsWNA16MarlinMoEMethod) so apply() is now a LOUD no-op; and
+  # its int4 branch is a nibble-unpack stub. Model is pin-held on dev259 (boots there).
+  # Native fix = upstream PR#45703 (MoE Marlin K-pad incl. AWQ-int4) — retire G4_08 +
+  # re-decide the G4_02 story on its merge. Flag left at '1' (no behaviour change on
+  # dev259); DO NOT trust it as a K=352 guard on a dev491 bump until rig re-validated.
+  GENESIS_ENABLE_G4_08_MARLIN_KDIM_PAD: '1'                # K-pad MoE GEMM — see 2026-06-16 audit above (no-op on dev491 AWQ path)
   GENESIS_ENABLE_G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE: '1'  # per-layer KV-head counts (sliding=8, full=2)
 
   # ── Perf kernels (opt-in; bench-gate) ──

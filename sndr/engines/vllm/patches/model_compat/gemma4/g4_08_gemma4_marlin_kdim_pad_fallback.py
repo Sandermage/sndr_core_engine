@@ -223,8 +223,30 @@ def apply() -> tuple[str, str]:
         )
         target_cls = getattr(mod, "CompressedTensorsMoEWNA16MarlinMethod", None)
         if target_cls is None:
+            # dev491+ renamed this class (...MoEWNA16Marlin... ->
+            # CompressedTensorsWNA16MarlinMoEMethod) AND its method (.apply_weights
+            # -> .apply). G4_08 deliberately does NOT auto-repair to the new name:
+            # on the AWQ path the 26B-A4B model dispatches to AWQMarlinMoEMethod (a
+            # DIFFERENT class), and G4_08's int4 branch is a nibble-unpack STUB
+            # (kernels/g4_kpad_moe_gemm_triton.py:375 — no _unpack_int4), so
+            # re-pointing it would route AWQ-int4 MoE through a correctness-broken
+            # kernel. Native fix: upstream PR#45703 (MoE Marlin K-pad incl. AWQ-int4)
+            # — retire G4_08 on its merge. Until then surface a LOUD no-op so the
+            # operator is not misled into believing K%64!=0 is guarded. 2026-06-16.
+            renamed = getattr(mod, "CompressedTensorsWNA16MarlinMoEMethod", None)
+            log.warning(
+                "[G4_08] ENABLED but NO-OP on this vLLM pin: target class "
+                "'CompressedTensorsMoEWNA16MarlinMethod' not found%s. K%%64!=0 MoE "
+                "GEMMs (e.g. Gemma-4 26B-A4B K=352 at TP=2) are UNGUARDED here and "
+                "fall back to the slow MoeWNA16 path. Do NOT assume G4_08 is active. "
+                "Native fix: upstream PR#45703 (retire G4_08 on merge); until then "
+                "keep this model's dev259 pin_hold.",
+                " (renamed to 'CompressedTensorsWNA16MarlinMoEMethod' on this pin)"
+                if renamed is not None else "",
+            )
             return "skipped", (
-                "CompressedTensorsMoEWNA16MarlinMethod not found in this vLLM pin"
+                "G4_08 NO-OP: CompressedTensorsMoEWNA16MarlinMethod not found in "
+                "this vLLM pin (renamed on dev491+). K=352 UNGUARDED — see PR#45703."
             )
         original = target_cls.apply_weights
         if getattr(original, "_genesis_g4_08_wrapped", False):
