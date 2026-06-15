@@ -1,7 +1,16 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
 import "./styles.css";
+
+// Shared server-state cache (TanStack Query). Operator-console defaults: a short
+// stale window so panels share a deduped cache without surprise refetches, one
+// retry, and no refetch-on-focus (an operator tabbing back shouldn't re-hit the
+// daemon). Individual queries override as needed (e.g. polled metrics).
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 10_000, retry: 1, refetchOnWindowFocus: false } },
+});
 
 // Last-resort boundary around the whole app. The section workspace has its own
 // SectionErrorBoundary, but a throw in the shell (sidebar, connection bar,
@@ -81,8 +90,10 @@ class RootBoundary extends React.Component<
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RootBoundary>
-      <App />
-    </RootBoundary>
+    <QueryClientProvider client={queryClient}>
+      <RootBoundary>
+        <App />
+      </RootBoundary>
+    </QueryClientProvider>
   </React.StrictMode>
 );

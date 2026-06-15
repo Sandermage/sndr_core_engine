@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Bot, BookText, Brain, ChevronDown, CircleAlert, Copy, Database, Download, Heart, Loader2, Pencil, Plus, RefreshCw, Route, Search, Send, SlidersHorizontal, Sparkles, Square, TimerReset, Trash2, User, X, Zap } from "lucide-react";
 import type { ReactNode } from "react";
-import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, type Prompt, type RoutingActive, type RoutingClassify, type RoutingSignals, api } from "./api";
+import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, type RoutingActive, type RoutingClassify, type RoutingSignals, api } from "./api";
 import { LibraryManager } from "./sections/library-manager";
+import { usePrompts } from "./hooks/useLibrary";
 import { SkeletonMetrics } from "./Skeleton";
 import { tr } from "./i18n";
 
@@ -733,10 +734,8 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   const [error, setError] = useState<string | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const { data: prompts = [] } = usePrompts(); // shared cache; mutations in the library auto-update this
   const [libOpen, setLibOpen] = useState(false);
-  const loadPrompts = () => api.listPrompts().then((r) => setPrompts(r.prompts)).catch(() => {});
-  useEffect(() => { loadPrompts(); }, []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
@@ -1047,7 +1046,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
           </div>
         </div>
       </div>
-      {libOpen && <LibraryManager onClose={() => setLibOpen(false)} onChanged={loadPrompts} />}
+      {libOpen && <LibraryManager onClose={() => setLibOpen(false)} />}
     </div>
   );
 }

@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 // Prompts & Tools manager — OpenWebUI-style: add/edit/delete named prompt
-// templates and declarative (SSRF-safe) HTTP tools that the copilot can call.
+// templates and declarative (SSRF-safe) HTTP tools the copilot can call. Data
+// flows through TanStack Query (useLibrary): a mutation invalidates the shared
+// cache, so the chat's prompt selector updates without any manual refetch.
 import { useEffect, useState } from "react";
 import { X, Plus, Trash2, Pencil, BookText, Wrench, Save } from "lucide-react";
-import { api, type Prompt, type ManagedTool, type ManagedToolParam } from "../api";
+import { type ManagedToolParam } from "../api";
+import { usePrompts, usePromptMutations, useManagedTools, useToolMutations } from "../hooks/useLibrary";
 import { tr } from "../i18n";
 
 type PromptForm = { id?: string; name: string; title: string; content: string };
 type ToolForm = { id?: string; existing?: boolean; name: string; title: string; description: string; method: "GET" | "POST"; url: string; params: ManagedToolParam[]; enabled: boolean };
 
-export function LibraryManager({ onClose, onChanged }: { onClose: () => void; onChanged?: () => void }) {
+export function LibraryManager({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<"prompts" | "tools">("prompts");
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
+  useEscapeToClose(onClose);
   return (
     <div className="dialog-backdrop" role="presentation" onClick={onClose}>
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- stops backdrop-close on inside clicks; Escape closes via the keydown listener */}
@@ -27,27 +26,33 @@ export function LibraryManager({ onClose, onChanged }: { onClose: () => void; on
           </div>
           <button className="icon-only" onClick={onClose} title={tr("Close")}><X size={16} /></button>
         </div>
-        {tab === "prompts" ? <PromptManager onChanged={onChanged} /> : <ToolManager />}
+        {tab === "prompts" ? <PromptManager /> : <ToolManager />}
       </section>
     </div>
   );
 }
 
-function PromptManager({ onChanged }: { onChanged?: () => void }) {
-  const [items, setItems] = useState<Prompt[]>([]);
+function useEscapeToClose(onClose: () => void) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+}
+
+function PromptManager() {
+  const { data: items = [] } = usePrompts();
+  const { create, update, remove } = usePromptMutations();
   const [edit, setEdit] = useState<PromptForm | null>(null);
   const [err, setErr] = useState("");
-  const load = () => api.listPrompts().then((r) => setItems(r.prompts)).catch(() => {});
-  useEffect(() => { load(); }, []);
   async function save() {
     if (!edit) return;
     try {
-      if (edit.id) await api.updatePrompt(edit.id, { name: edit.name, title: edit.title, content: edit.content });
-      else await api.createPrompt({ name: edit.name, title: edit.title, content: edit.content });
-      setEdit(null); setErr(""); load(); onChanged?.();
+      if (edit.id) await update.mutateAsync({ id: edit.id, name: edit.name, title: edit.title, content: edit.content });
+      else await create.mutateAsync({ name: edit.name, title: edit.title, content: edit.content });
+      setEdit(null); setErr("");
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   }
-  async function del(id: string) { await api.deletePrompt(id); load(); onChanged?.(); }
   return (
     <div className="library-body">
       <div className="library-list">
@@ -56,7 +61,7 @@ function PromptManager({ onChanged }: { onChanged?: () => void }) {
           <div key={p.id} className="library-row">
             <div className="library-row-main"><strong>{p.name}</strong><span className="muted">{p.title || p.id}</span></div>
             {!p.builtin && <button className="icon-only" title={tr("Edit")} onClick={() => setEdit({ id: p.id, name: p.name, title: p.title, content: p.content })}><Pencil size={13} /></button>}
-            {p.builtin ? <span className="library-badge">{tr("built-in")}</span> : <button className="icon-only" title={tr("Delete")} onClick={() => void del(p.id)}><Trash2 size={13} /></button>}
+            {p.builtin ? <span className="library-badge">{tr("built-in")}</span> : <button className="icon-only" title={tr("Delete")} onClick={() => remove.mutate(p.id)}><Trash2 size={13} /></button>}
           </div>
         ))}
       </div>
@@ -68,7 +73,7 @@ function PromptManager({ onChanged }: { onChanged?: () => void }) {
           {err && <div className="library-err">{err}</div>}
           <div className="library-form-actions">
             <button className="ghost-button" onClick={() => { setEdit(null); setErr(""); }}>{tr("Cancel")}</button>
-            <button className="primary-action" onClick={() => void save()}><Save size={14} /> {tr("Save")}</button>
+            <button className="primary-action" onClick={() => void save()} disabled={create.isPending || update.isPending}><Save size={14} /> {tr("Save")}</button>
           </div>
         </div>
       )}
@@ -77,22 +82,19 @@ function PromptManager({ onChanged }: { onChanged?: () => void }) {
 }
 
 function ToolManager() {
-  const [items, setItems] = useState<ManagedTool[]>([]);
+  const { data: items = [] } = useManagedTools();
+  const { create, update, remove } = useToolMutations();
   const [edit, setEdit] = useState<ToolForm | null>(null);
   const [err, setErr] = useState("");
-  const load = () => api.listManagedTools().then((r) => setItems(r.tools)).catch(() => {});
-  useEffect(() => { load(); }, []);
   async function save() {
     if (!edit) return;
     const body = { name: edit.name, title: edit.title, description: edit.description, method: edit.method, url: edit.url, params: edit.params, enabled: edit.enabled };
     try {
-      if (edit.existing && edit.id) await api.updateManagedTool(edit.id, body);
-      else await api.createManagedTool(body);
-      setEdit(null); setErr(""); load();
+      if (edit.existing && edit.id) await update.mutateAsync({ id: edit.id, ...body });
+      else await create.mutateAsync(body);
+      setEdit(null); setErr("");
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   }
-  async function toggle(t: ManagedTool) { await api.updateManagedTool(t.id, { enabled: !t.enabled }); load(); }
-  async function del(id: string) { await api.deleteManagedTool(id); load(); }
   function setParam(i: number, patch: Partial<ManagedToolParam>) {
     if (!edit) return;
     const ps = edit.params.slice();
@@ -106,9 +108,9 @@ function ToolManager() {
         {items.map((t) => (
           <div key={t.id} className="library-row">
             <div className="library-row-main"><strong>{t.name}</strong><span className="muted">{t.method} {t.url}</span></div>
-            <input type="checkbox" className="library-toggle" title={tr("Enabled")} aria-label={tr("Enabled")} checked={t.enabled} onChange={() => void toggle(t)} />
+            <input type="checkbox" className="library-toggle" title={tr("Enabled")} aria-label={tr("Enabled")} checked={t.enabled} onChange={() => update.mutate({ id: t.id, enabled: !t.enabled })} />
             <button className="icon-only" title={tr("Edit")} onClick={() => setEdit({ id: t.id, existing: true, name: t.name, title: t.title, description: t.description, method: t.method, url: t.url, params: t.params.map((p) => ({ ...p })), enabled: t.enabled })}><Pencil size={13} /></button>
-            <button className="icon-only" title={tr("Delete")} onClick={() => void del(t.id)}><Trash2 size={13} /></button>
+            <button className="icon-only" title={tr("Delete")} onClick={() => remove.mutate(t.id)}><Trash2 size={13} /></button>
           </div>
         ))}
       </div>
@@ -134,7 +136,7 @@ function ToolManager() {
           {err && <div className="library-err">{err}</div>}
           <div className="library-form-actions">
             <button className="ghost-button" onClick={() => { setEdit(null); setErr(""); }}>{tr("Cancel")}</button>
-            <button className="primary-action" onClick={() => void save()}><Save size={14} /> {tr("Save")}</button>
+            <button className="primary-action" onClick={() => void save()} disabled={create.isPending || update.isPending}><Save size={14} /> {tr("Save")}</button>
           </div>
         </div>
       )}
