@@ -94,8 +94,8 @@ patches:
   GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW: '1'   # vision tower → BF16 to avoid FP16 overflow (closes #40124)
   GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD: '1'   # diagnoses dual-RoPE config; warns on single-table collapse
   # ── Gemma 4 family perf (opt-in; bench-gate before promoting) ──
-  GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM: '0'          # +5-10% TPS (route Q/K/V + residual norms through Triton)
-  GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP: '0'          # +3-5% TPS (fuse div+tanh+mul for softcap)
+  GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM: '0'          # ~0% under torch.compile (no-op: apply() falls through to original — the +5-10% needs a non-existent G4_15b anchor; profiles run enforce_eager=false so Inductor already fuses the norms). 2026-06-15 audit.
+  GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP: '0'          # <0.5% (fuses only the final-logits softcap; the attention-logits softcap is already kernel-fused in-pin. Advertised +3-5% is fictional under torch.compile). 2026-06-15 audit.
   GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0: '0'             # vendor #41944 — ~3% memory savings on V slot
   # ── Vision tower management (operator choice) ──
   GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP: '0'            # set + GENESIS_GEMMA4_TEXT_ONLY=1 to save ~2.3 GB VRAM
