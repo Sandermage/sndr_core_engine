@@ -12,13 +12,14 @@ import type { ViewportTier } from "../hooks/useViewport";
 import type { GuiSettings } from "../settings";
 import type { Gate, RuntimeMode, SectionId } from "../nav";
 import { api, AuthUser, BundleSpec, DiffUpstreamReport, DoctorReport, EnvironmentReport, HostProfile, PatchDoctorReport, PatchListResult, PresetExplainResult, PresetListResult, PresetRecord, ProductCapability, ProductOverview, ProofStatusReport, UserPresetList, V2ConfigCatalog, V2ConfigPreview } from "../api";
-import { asNumber, asRecord, asText, countRecord } from "../lib/coerce";
+import { asNumber, asRecord, asText } from "../lib/coerce";
 import { targetTitle } from "../lib/format";
 import { runtimeHost } from "../lib/overview-presenters";
 import { sectionSpec } from "../lib/section-spec";
 import { AdvancedSection } from "./advanced-section";
+import { PresetsSection } from "./presets-section";
 import { CapabilityTable } from "../components/capability-table";
-import { BarList, OvKpi, PercentBar } from "../components/charts";
+import { OvKpi, PercentBar } from "../components/charts";
 import { CodeBlock } from "../components/code-block";
 import { ModuleCard, ModuleGrid } from "../components/layout";
 import { CompactList, InfoRows, KpiGrid, type GateStatus } from "../components/primitives";
@@ -36,17 +37,11 @@ import { DoctorFindings, DoctorSummary } from "./doctor";
 import { EnvironmentPanel } from "./environment";
 import { GateRow } from "./gate-row";
 import { QueueJobButton } from "./jobs";
-import { LayerEditor } from "./layer-editor";
 import { ModelsWorkbench } from "./models-workbench";
 import { EventLog } from "./operational-console";
 import { OperationsConsole } from "./operations";
 import { DoctorCoveragePanel } from "./patch-doctor";
 import { PatchLifecycleGraph, PatchModelSupport, PatchRegistryInsight, PatchSummaryPanel } from "./patch-overview";
-import { PresetCatalogTable } from "./preset-catalog";
-import { PresetPolicyGraph } from "./preset-insight";
-import { PresetQuickPanel } from "./preset-quick";
-import { PresetRecommendPanel } from "./preset-recommend";
-import { PresetSelectedView, PresetSummaryStrip } from "./preset-views";
 import { ProofStatusPanel } from "./proof";
 import { EndpointRows } from "./rail-cards";
 import { BundlesPanel, UpstreamDiffPanel } from "./registry";
@@ -161,9 +156,6 @@ export function SectionWorkspace({
   // Stable host option list — recompute only when profiles change, so the lazy
   // Containers/Hardware panels don't see a fresh array prop on every render.
   const hostOptions = useMemo(() => hostProfiles.map((h) => ({ id: h.id, label: h.label })), [hostProfiles]);
-  // Controlled tab for the Presets section so catalog action buttons can jump
-  // straight to Selected / Edit / Policy.
-  const [presetTab, setPresetTab] = useState("catalog");
   // Setup tabs are controlled so "Set up as node" can jump to the Install tab,
   // while Deploy / Guided stay clickable (the bug was a controlled tab with no
   // change handler — it got stuck).
@@ -522,159 +514,20 @@ export function SectionWorkspace({
       )}
 
       {sectionId === "presets" && (
-        <TabbedSection
-          id="presets"
-          activeTab={presetTab}
-          onTabChange={setPresetTab}
-          tabs={[
-            {
-              id: "catalog",
-              label: tr("Catalog"),
-              icon: <Database size={15} />,
-              render: () => (
-                <div className="preset-catalog-view">
-                  {presets?.load_errors && presets.load_errors.length > 0 && (
-                    <div className="preset-load-errors">
-                      <AlertTriangle size={15} />
-                      <div>
-                        <strong>{presets.load_errors.length} {presets.load_errors.length > 1 ? tr("presets failed to load") : tr("preset failed to load")}</strong>
-                        {presets.load_errors.slice(0, 6).map((e, i) => (
-                          <div key={i} className="preset-load-error"><code>{e.preset ?? e.id ?? e.file ?? "?"}</code> — {e.error ?? e.message ?? JSON.stringify(e)}</div>
-                        ))}
-                        {presets.load_errors.length > 6 && <div className="muted">+{presets.load_errors.length - 6} {tr("more")}</div>}
-                      </div>
-                    </div>
-                  )}
-                  <PresetSummaryStrip presets={filteredPresets} selectedPreset={selectedPreset} />
-                  <div className="preset-catalog-split">
-                    <ModuleCard
-                      title={tr("Preset Catalog")}
-                      icon={<Database size={18} />}
-                      desc={tr("Pick a preset to inspect its runtime, edit a local copy, or launch it.")}
-                    >
-                      <PresetCatalogTable
-                        presets={filteredPresets}
-                        selectedPreset={selectedPreset}
-                        onPreset={onPreset}
-                        onEdit={(id) => { onPreset(id); setPresetTab("edit"); }}
-                      />
-                    </ModuleCard>
-                    <PresetQuickPanel
-                      selectedPreset={selectedPreset}
-                      record={selectedPresetRecord}
-                      card={card}
-                      composed={composed}
-                      onOpenCard={() => setPresetTab("selected")}
-                      onEdit={() => setPresetTab("edit")}
-                      onPolicy={() => setPresetTab("recommend")}
-                      onLaunch={() => onSection("launch-plan")}
-                    />
-                  </div>
-                </div>
-              )
-            },
-            {
-              id: "recommend",
-              label: tr("Recommend & analytics"),
-              icon: <Rocket size={15} />,
-              render: () => {
-                const allPresets = presets?.presets ?? [];
-                const annotated = allPresets.filter((p) => p.has_card).length;
-                const benchProven = allPresets.filter((p) => asNumber(asRecord(p.card?.primary_metric).value) > 0).length;
-                const statusDist = countRecord(allPresets.map((p) => asText(p.card?.status, p.has_card ? "annotated" : "unannotated")));
-                const visibilityDist = countRecord(allPresets.filter((p) => p.has_card).map((p) => asText(p.card?.evidence_visibility, "unknown")));
-                const fallbacks = allPresets.filter((p) => p.card?.fallback_preset);
-                const bar = (counts: Record<string, number>): Array<[string, number, string]> => {
-                  const max = Math.max(1, ...Object.values(counts));
-                  return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Math.round((v / max) * 100), String(v)]);
-                };
-                const kpis: Array<[string, number]> = [
-                  [tr("Presets"), allPresets.length], [tr("Annotated"), annotated], [tr("Bench-proven"), benchProven],
-                  [tr("Fallbacks"), fallbacks.length], [tr("Families"), Object.keys(familyCounts).length], [tr("Workloads"), Object.keys(workloadCounts).length]
-                ];
-                return (
-                <>
-                  <ModuleGrid>
-                    <ModuleCard title={tr("Recommend a preset")} icon={<Rocket size={18} />} desc={tr("Rank presets for a workload + rig + concurrency target, then inspect the winner.")} wide>
-                      <PresetRecommendPanel
-                        hardwareOptions={Array.from(new Set((presets?.presets ?? []).map((preset) => preset.hardware))).filter(Boolean)}
-                        workloadCounts={overview?.catalog.workload_counts ?? {}}
-                        onSelect={(id) => { onPreset(id); setPresetTab("selected"); }}
-                      />
-                    </ModuleCard>
-                  </ModuleGrid>
-                  <div className="preset-analytics-heading"><BarChart3 size={15} /> {tr("Catalog analytics")} <span>{tr("policy, coverage and annotation across")} {allPresets.length} {tr("presets")}</span></div>
-                  <div className="preset-analytics-kpis">
-                    {kpis.map(([label, value]) => (
-                      <div className="preset-stat" key={label}><span className="preset-stat-value">{value}</span><span className="preset-stat-label">{label}</span></div>
-                    ))}
-                  </div>
-                  <ModuleGrid className="preset-analytics-grid">
-                    <ModuleCard title={tr("Workload Policy")} icon={<SlidersHorizontal size={18} />} desc={`${tr("Allow/deny for")} ${selectedPreset}.`}>
-                      <PresetPolicyGraph card={card} />
-                    </ModuleCard>
-                    <ModuleCard title={tr("Status Distribution")} icon={<ShieldCheck size={18} />} desc={`${annotated} ${tr("annotated")} · ${Object.keys(statusDist).length} ${tr("statuses")}`}>
-                      <BarList rows={bar(statusDist)} />
-                    </ModuleCard>
-                    <ModuleCard title={tr("Evidence Visibility")} icon={<FileText size={18} />} desc={`${Object.keys(visibilityDist).length} ${Object.keys(visibilityDist).length === 1 ? tr("visibility level") : tr("visibility levels")}`}>
-                      {Object.keys(visibilityDist).length ? <BarList rows={bar(visibilityDist)} /> : <p className="muted">{tr("No annotated presets.")}</p>}
-                    </ModuleCard>
-                    <ModuleCard title={tr("Workload Coverage")} icon={<Layers3 size={18} />} desc={`${Object.keys(workloadCounts).length} ${tr("workload classes")}`}>
-                      <BarList rows={bar(workloadCounts)} />
-                    </ModuleCard>
-                    <ModuleCard title={tr("Family Coverage")} icon={<Box size={18} />} desc={`${Object.keys(familyCounts).length} ${tr("routing families")}`}>
-                      <BarList rows={bar(familyCounts)} />
-                    </ModuleCard>
-                    <ModuleCard title={tr("Fallback Chains")} icon={<GitBranch size={18} />} desc={`${fallbacks.length} ${tr("of")} ${allPresets.length} ${tr("presets")}`}>
-                      {fallbacks.length ? (
-                        <CompactList rows={fallbacks.map((p) => [p.id, `→ ${asText(p.card?.fallback_preset, "-")}`] as [string, string])} />
-                      ) : (
-                        <p className="muted">{tr("No fallback chains declared.")}</p>
-                      )}
-                    </ModuleCard>
-                  </ModuleGrid>
-                </>
-                );
-              }
-            },
-            {
-              id: "selected",
-              label: tr("Selected"),
-              icon: <FileText size={15} />,
-              render: () => (
-                <PresetSelectedView
-                  selectedPreset={selectedPreset}
-                  record={selectedPresetRecord}
-                  card={card}
-                  composed={composed}
-                  explain={explain}
-                  runtimeTargets={runtimeTargets}
-                  runtimeTarget={runtimeTarget}
-                  patchPolicy={patchPolicy}
-                  onEdit={() => setPresetTab("edit")}
-                  onLaunch={() => onSection("launch-plan")}
-                  onConfigs={() => onSection("configs")}
-                />
-              )
-            },
-            {
-              id: "edit",
-              label: tr("Edit"),
-              icon: <SlidersHorizontal size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard
-                    title={`${tr("Visual Editor")} — ${selectedPreset}`}
-                    icon={<Wrench size={18} />}
-                    desc={tr("Full preset editing: pointers, card metadata and any other fields the preset defines. Saves an operator-local copy.")}
-                    wide
-                  >
-                    <LayerEditor kind="preset" layerId={selectedPreset} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            }
-          ]}
+        <PresetsSection
+          overview={overview}
+          presets={presets}
+          filteredPresets={filteredPresets}
+          selectedPreset={selectedPreset}
+          selectedPresetRecord={selectedPresetRecord}
+          explain={explain}
+          runtimeTargets={runtimeTargets}
+          runtimeTarget={runtimeTarget}
+          patchPolicy={patchPolicy}
+          card={card}
+          composed={composed}
+          onPreset={onPreset}
+          onSection={onSection}
         />
       )}
 
