@@ -666,6 +666,18 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
                 type(e2).__name__, e2,
             )
 
+    # boot-opt §4.1 (2026-06-17): persist the patch-file cache to disk ONCE
+    # here, after the whole apply loop + spec-only supplement, instead of
+    # ~170 per-patch fsyncs inside record_apply_result (O(N^2)->O(N)). Only on
+    # a real apply boot (dry-run never mutates the cache). Failure is swallowed
+    # inside flush_file_cache() — never breaks boot.
+    if apply:
+        try:
+            from sndr.engines.vllm.wiring.file_cache import flush_file_cache
+            flush_file_cache()
+        except Exception as e:  # noqa: BLE001
+            log.warning("[Genesis] end-of-boot file_cache flush skipped: %s", e)
+
     return stats
 
 

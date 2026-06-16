@@ -256,6 +256,24 @@ def _md5_bytes(data: bytes) -> str:
 # ─────────────────────────────────────────────────────────────────────────
 
 
+def flush_file_cache() -> None:
+    """Persist the in-memory patch-file cache to disk ONCE.
+
+    record_apply_result() mutates the module-level ``_CACHE`` singleton in
+    memory but (since 2026-06-17, boot-opt §4.1) no longer fsyncs on every
+    call — a cold / pin-invalidated boot would otherwise do ~170 full-cache
+    ``json.dumps`` + 2x ``os.fsync`` (O(N^2) serialization over the growing
+    cache). The orchestrator calls this exactly ONCE after the apply loop.
+    Crash-before-flush is safe: the cache is an accelerator, not a source of
+    truth — the next boot simply re-scans the (still-correct) target files.
+    ``clear_cache`` / ``invalidate_file`` keep their own immediate saves.
+    """
+    try:
+        _save_cache_atomic(_ensure_loaded())
+    except Exception as e:  # noqa: BLE001 — never break boot on a cache flush
+        log.warning("file_cache: flush_file_cache exception: %s", e)
+
+
 def get_cache_entry(target_file: str) -> Optional[dict]:
     """Lookup cache entry by absolute file path. None if not present."""
     cache = _ensure_loaded()
@@ -388,7 +406,12 @@ def record_apply_result(
                 ]
             entry["markers"] = existing_markers
 
-        _save_cache_atomic(cache)
+        # boot-opt §4.1 (2026-06-17): the in-memory _CACHE singleton is now
+        # mutated above but NOT fsynced per-call — the orchestrator persists
+        # the whole cache ONCE via flush_file_cache() after the apply loop,
+        # collapsing ~170 O(N) full-cache writes into one. (cache IS the
+        # _ensure_loaded() singleton, so in-process readers see the mutation
+        # immediately; only the disk write is deferred.)
     except Exception as e:
         # Cache write failure must NEVER bubble up to apply()
         log.warning(

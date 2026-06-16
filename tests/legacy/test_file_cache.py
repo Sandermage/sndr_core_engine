@@ -271,6 +271,10 @@ class TestRecordApplyResult:
         target.write_text("hi")
         file_cache.record_apply_result(str(target), "M",
                                        post_apply_content="hi")
+        # boot-opt §4.1 (2026-06-17): record_apply_result now defers disk
+        # persistence to flush_file_cache() (the orchestrator calls it once
+        # at end-of-boot). Flush here to exercise the restart-equivalent path.
+        file_cache.flush_file_cache()
         # Simulate restart — reset in-memory state, force reload
         file_cache._reset_for_tests()
         entry = file_cache.get_cache_entry(str(target))
@@ -358,6 +362,7 @@ class TestAtomicWrite:
         target.write_text("x")
         file_cache.record_apply_result(str(target), "M",
                                        post_apply_content="x")
+        file_cache.flush_file_cache()  # §4.1: persist is deferred to flush
         # Verify .tmp file cleaned up
         cache_path = _isolated_cache
         assert cache_path.exists()
@@ -374,6 +379,7 @@ class TestAtomicWrite:
         target.write_text("v2")
         file_cache.record_apply_result(str(target), "M",
                                        post_apply_content="v2")
+        file_cache.flush_file_cache()  # §4.1: persist is deferred to flush
         with open(_isolated_cache) as f:
             payload = json.load(f)  # raises if invalid
         assert payload["cache_version"] == 1
