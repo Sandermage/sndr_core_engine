@@ -11,6 +11,8 @@ import {
 import { api, type V2ConfigItem, type V2ConfigCatalog, type PresetRecord } from "../api";
 import { tr } from "../i18n";
 import { useApiQuery } from "../hooks/useApiQuery";
+import { useEngineModel } from "../hooks/useEngineModel";
+import { isModelLive } from "../lib/live-model";
 import { asRecord } from "../lib/coerce";
 import { formatVram } from "../lib/format";
 import { InfoRows, StatusBadge } from "../components/primitives";
@@ -137,6 +139,7 @@ export function ModelsWorkbench({
   const models = catalog?.models ?? [];
   const [filter, setFilter] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
+  const { data: liveModel } = useEngineModel();
   const activeId = picked ?? selectedModel ?? models[0]?.id ?? "";
   const active = models.find((model) => model.id === activeId) ?? null;
   const visible = models.filter((model) => {
@@ -227,7 +230,7 @@ export function ModelsWorkbench({
                   icon={<Box size={16} />}
                   id={model.id}
                   title={[model.fields?.attention_arch, model.fields?.dtype].filter(Boolean).map(String).join(" · ") || model.title}
-                  badges={itemBadges(model)}
+                  badges={[...(isModelLive(liveModel, model.id) ? [{ label: tr("running now"), tone: "ok" as const }] : []), ...itemBadges(model)]}
                   active={model.id === activeId}
                   onClick={() => setPicked(model.id)}
                 />

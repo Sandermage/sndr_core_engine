@@ -25,6 +25,8 @@ import { CompactList, InfoRows, KpiGrid, type GateStatus } from "../components/p
 import { CapabilityTable } from "../components/capability-table";
 import { ConnectionMap } from "./connection-bar";
 import { EnvironmentPanel } from "./environment";
+import { useEngineModel } from "../hooks/useEngineModel";
+import { firstModel, fmtCtx } from "../lib/live-model";
 
 export function OverviewSection({
   overview,
@@ -71,6 +73,9 @@ export function OverviewSection({
   const familyCounts = overview?.catalog.family_counts ?? {};
   const workloadCounts = overview?.catalog.workload_counts ?? {};
   const patchRows = patches?.patches ?? [];
+  const { data: liveModel } = useEngineModel();
+  const live = firstModel(liveModel);
+  const liveCtx = fmtCtx(live?.max_model_len);
   return (
             <TabbedSection
           id="overview"
@@ -84,6 +89,7 @@ export function OverviewSection({
                 <div className="ov-hero">
                   <OvKpi icon={<Database size={15} />} label={tr("Presets")} value={overview?.catalog.presets_count ?? "—"} sub={`${benchProven} ${tr("bench-proven")}`} onClick={() => onSection("presets")} />
                   <OvKpi icon={<Box size={15} />} label={tr("Models")} value={overview?.catalog.models_count ?? "—"} sub={`${Object.keys(familyCounts).length} ${tr("families")}`} onClick={() => onSection("models")} />
+                  <OvKpi icon={<Cpu size={15} />} label={tr("Live model")} value={live ? (live.catalog?.model_id ?? live.id) : "—"} sub={live ? (liveCtx ? `${tr("ctx")} ${liveCtx}` : tr("running")) : tr("offline")} tone={live ? "ok" : undefined} onClick={() => onSection("clients")} />
                   <OvKpi icon={<Wrench size={15} />} label={tr("Patches")} value={patchRows.length || patches?.total || "—"} sub={`${patchRows.filter((p) => p.default_on).length} ${tr("default-on")}`} onClick={() => onSection("patches")} />
                   <OvKpi icon={<Server size={15} />} label={tr("Hosts")} value={hostProfiles.length} sub={runtimeMode === "remote" ? tr("remote + local") : tr("local fleet")} onClick={() => onSection("hosts")} />
                   <OvKpi icon={<ShieldCheck size={15} />} label={tr("Doctor")} value={doctorReport ? (doctorReport.findings.length ? `${doctorReport.findings.length} ${tr("findings")}` : tr("clean")) : "—"} sub={doctorReport && doctorReport.findings.length ? `${doctorReport.findings.filter((f) => f.severity === "blocked").length} ${tr("blocked")} · ${doctorReport.findings.filter((f) => f.severity === "warning").length} ${tr("warn")}` : undefined} tone={doctorReport?.findings?.some((f) => f.severity === "blocked") ? "warn" : "ok"} onClick={() => onSection("doctor")} />

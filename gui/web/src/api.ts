@@ -859,6 +859,42 @@ export type EngineStatus = {
   error: string | null;
 };
 
+// A live served model bridged to the SNDR V2 catalog (capabilities + requirements
+// + pin + the presets that run it). `catalog` is null when the served id matches
+// nothing in the V2 registry (e.g. a hand-launched, off-catalog engine).
+export type EngineModelCatalog = {
+  model_id: string;
+  title: string;
+  served_model_name: string | null;
+  match_kind: "served_model_name" | "model_path" | "id";
+  quantization: string | null;
+  dtype: string;
+  capabilities: {
+    attention_arch: string;
+    tool_call_parser: string | null;
+    reasoning_parser: string | null;
+    spec_decode: boolean;
+    kv_cache_dtype: string | null;
+  };
+  requires: { min_total_vram_mib: number; min_gpu_count: number };
+  vllm_pin_required: string | null;
+  presets: Array<{ id: string; hardware: string }>;
+};
+export type EngineModelInfo = {
+  id: string;
+  max_model_len: number | null;
+  root: string | null;
+  catalog: EngineModelCatalog | null;
+};
+export type EngineModelDetail = {
+  reachable: boolean;
+  host: string | null;
+  base_url: string | null;
+  version: string | null;
+  error: string | null;
+  models: EngineModelInfo[];
+};
+
 export type EngineMetricSample = {
   ts: number;
   throughput: number | null;
@@ -1347,6 +1383,8 @@ export const api = {
   oauthLoginUrl: (provider: string) => `${getApiBase()}/api/v1/auth/oauth/${provider}/login`,
   engineStatus: (host?: string, port?: number, apiKey?: string, hostId?: string) =>
     request<EngineStatus>(`/api/v1/engine/status${query({ host, port, host_id: hostId })}`, apiKey ? { headers: { "X-Engine-Api-Key": apiKey } } : undefined),
+  engineModel: (host?: string, port?: number, apiKey?: string, hostId?: string) =>
+    request<EngineModelDetail>(`/api/v1/engine/model${query({ host, port, host_id: hostId })}`, apiKey ? { headers: { "X-Engine-Api-Key": apiKey } } : undefined),
   engineMetrics: (host?: string, port?: number) => request<EngineMetrics>(`/api/v1/engine/metrics${query({ host, port })}`),
   chatRetrieve: (queryText: string, k = 5, sources?: { project?: boolean; vaults?: string[] }) =>
     postJson<RagResult>("/api/v1/chat/retrieve", { query: queryText, k, project: sources?.project ?? true, vaults: sources?.vaults ?? [] }),

@@ -15,6 +15,7 @@ import { ModuleCard, ModuleGrid } from "../components/layout";
 import { CompactList, InfoRows } from "../components/primitives";
 import { CodeTabs } from "../components/shell-bits";
 import { EngineStatusCard, EnginePlayground } from "../lazy-panels";
+import { LiveModelInline } from "../components/live-model";
 import { EndpointRows } from "./rail-cards";
 
 export function ClientsSection({
@@ -38,6 +39,7 @@ export function ClientsSection({
         return (
         <ModuleGrid>
           <ModuleCard title={tr("Live Engine")} icon={<Activity size={18} />} desc={tr("Is the runtime up? Loaded model and version from the running server.")} wide>
+            <LiveModelInline host={clientHost} port={8000} />
             <EngineStatusCard />
           </ModuleCard>
           <ModuleCard title={tr("Playground")} icon={<MessageSquare size={18} />} desc={tr("Send a real prompt to the running engine — a one-click smoke test.")} wide>

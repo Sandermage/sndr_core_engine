@@ -2419,6 +2419,15 @@ def create_app(
                             x_engine_api_key: Optional[str] = Header(default=None)) -> dict[str, Any]:
         return engine_client.engine_status(host, port=port, api_key=_engine_key_for(host_id, x_engine_api_key))
 
+    @app.get("/api/v1/engine/model")
+    def engine_model_route(host: Optional[str] = None, port: Optional[int] = None,
+                           host_id: Optional[str] = None,
+                           x_engine_api_key: Optional[str] = Header(default=None)) -> dict[str, Any]:
+        """Detect the running engine's served model(s) and bridge each to the V2
+        catalog (capabilities, requirements, pin, presets that run it)."""
+        from . import engine_model
+        return engine_model.engine_model_detail(host, port=port, api_key=_engine_key_for(host_id, x_engine_api_key))
+
     @app.get("/api/v1/engine/metrics")
     def engine_metrics_route(host: Optional[str] = None, port: Optional[int] = None) -> dict[str, Any]:
         return engine_client.engine_metrics(host, port=port)

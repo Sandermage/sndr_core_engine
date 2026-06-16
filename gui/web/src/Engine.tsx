@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { EngineBenchResult, EngineChatResult, EngineMetrics, EngineStatus, HubModel, Job, ModelCacheReport, RagDoc, type RoutingActive, type RoutingClassify, type RoutingSignals, api } from "./api";
 import { LibraryManager } from "./sections/library-manager";
 import { usePrompts } from "./hooks/useLibrary";
+import { LiveModelInline } from "./components/live-model";
 import { SkeletonMetrics } from "./Skeleton";
 import { tr } from "./i18n";
 
@@ -931,6 +932,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
           </label>
           <label className="chat-field chat-field-key"><span>{tr("API key")}</span><input type="password" value={settings.apiKey} onChange={(e) => set({ apiKey: e.target.value })} placeholder={tr("if engine requires one")} autoComplete="off" spellCheck={false} /></label>
           <span className={`chat-status ${reachable ? (status && !status.models?.length ? "warn" : "ok") : "down"}`}><span className="chat-dot" />{reachable ? `${tr("up")}${status?.version ? ` · v${status.version}` : ""}${status && !status.models?.length ? ` · ${tr("no models (API key?)")}` : ""}` : tr("down")}</span>
+          <LiveModelInline host={settings.host} port={settings.port} apiKey={settings.apiKey || undefined} hostId={settings.hostId || undefined} />
           <span className="chat-bar-spacer" />
           <button className={`chat-rag-toggle ${settings.webSearch ? "on" : ""}`} onClick={() => set({ webSearch: !settings.webSearch })} title={tr("Search the live web (no external API) and ground the answer with cited sources.")}><Search size={14} /> {tr("Web search")}</button>
           <button className={`chat-rag-toggle ${settings.useProject ? "on" : ""}`} onClick={() => set({ useProject: !settings.useProject })} title={tr("Ground answers in your knowledge sources (project patches/presets/configs + connected Obsidian/notes folders). Configure sources in Params.")}><Database size={14} /> {tr("Project RAG")}{settings.useProject && settings.ragVaults.length ? ` · ${settings.ragVaults.length}` : ""}</button>

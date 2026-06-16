@@ -5239,3 +5239,24 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
   .fm-head, .fm-row { grid-template-columns: 2fr 0.8fr 0.9fr; }
   .fm-head span:nth-child(4), .fm-head span:nth-child(5), .fm-default, .fm-livecell { display: none; }
 }
+
+/* Live running-model indicator — top-bar chip + Chat/Clients inline detail. */
+.live-model-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: var(--r-pill);
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-size: 12px; line-height: 1.4; cursor: pointer;
+}
+.live-model-chip:hover { border-color: var(--accent); }
+.live-model-name { font-weight: 600; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-model-ctx { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.live-model-inline {
+  display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--text);
+}
+.live-model-inline strong { font-weight: 600; }
+.live-model-tag {
+  padding: 1px 8px; border-radius: var(--r-pill);
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-muted); font-size: 11px; white-space: nowrap;
+}
+.live-model-tag.muted { opacity: 0.65; }

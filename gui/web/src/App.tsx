@@ -8,6 +8,7 @@ import { formatTokens, targetTitle } from "./lib/format";
 import { lsSet } from "./lib/safe-storage";
 import { buildReadinessGates, countGates } from "./lib/readiness-gates";
 import { useLiveEvents } from "./hooks/useLiveEvents";
+import { LiveModelChip } from "./components/live-model";
 import { SectionWorkspace } from "./sections/section-workspace";
 import { buildEvents, buildCliMirror, runtimeHost } from "./lib/overview-presenters";
 import { type FetchState } from "./hooks/useApiQuery";
@@ -818,6 +819,7 @@ export default function App() {
           </div>
 
           <div className="topbar-actions">
+            <LiveModelChip onOpen={() => setActiveSection("clients")} />
             <AlertsBell onOpenHardware={() => setActiveSection("hardware")} />
             <ServerSwitcher apiBase={apiBase} connectionTone={connectionTone} onSwitch={(url) => void switchServerGuarded(url)} hostProfiles={hostProfiles} onManageHosts={() => setActiveSection("hosts")} onOpenHost={(id) => { setFocusHostId(id); setActiveSection("hosts"); }} />
             <button className="tool-button" onClick={() => void loadAll()}>
