@@ -4,7 +4,7 @@
 // and the per-section tabbed panels. Extracted verbatim from App.tsx so the app
 // shell keeps only state/routing/composition and renders <SectionWorkspace/>
 // inside one Suspense boundary. Pure presentation — no App-local coupling.
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo } from "react";
 import { Activity, AlertTriangle, Boxes, Clock3, Command, Cpu, FileText, Gauge, GitCompare, LayoutGrid, Link2, MessageSquare, Network, PackageCheck, Rocket, Route, Server, ShieldCheck, SlidersHorizontal, Sparkles, Stethoscope, Table2 } from "lucide-react";
 import { tr } from "../i18n";
 import type { ChatTarget } from "../Engine";
@@ -23,15 +23,15 @@ import { ClientsSection } from "./clients-section";
 import { PatchesSection } from "./patches-section";
 import { BenchmarksSection } from "./benchmarks-section";
 import { EvidenceSection } from "./evidence-section";
+import { SetupSection } from "./setup-section";
 import { CapabilityTable } from "../components/capability-table";
 import { ModuleCard, ModuleGrid } from "../components/layout";
 import { CompactList, InfoRows, type GateStatus } from "../components/primitives";
-import { TabIntro } from "../components/shell-bits";
 import { TabbedSection } from "../components/tabbed-section";
 import { toast } from "../components/toast";
 import { FleetPanel } from "../Fleet";
 import { SkeletonCards } from "../Skeleton";
-import { ChatConsole, EngineMetricsPanel, EngineStatusCard, ConfigsSection, HostsSection, DeploymentConsole, ServiceLifecyclePlanner, KvCalcPanel, BaselinePanel, InstallWizard, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
+import { ChatConsole, EngineMetricsPanel, EngineStatusCard, ConfigsSection, HostsSection, ServiceLifecyclePlanner, KvCalcPanel, BaselinePanel, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
 import { ReportGenerator } from "./api-explorer";
 import { CaveatsPanel } from "./diagnostics";
 import { DoctorFindings, DoctorSummary } from "./doctor";
@@ -41,7 +41,6 @@ import { ModelsWorkbench } from "./models-workbench";
 import { EventLog } from "./operational-console";
 import { OperationsConsole } from "./operations";
 import { DoctorCoveragePanel } from "./patch-doctor";
-import { SetupWizard } from "./setup-wizard";
 
 export function SectionWorkspace({
   sectionId,
@@ -152,14 +151,6 @@ export function SectionWorkspace({
   // Stable host option list — recompute only when profiles change, so the lazy
   // Containers/Hardware panels don't see a fresh array prop on every render.
   const hostOptions = useMemo(() => hostProfiles.map((h) => ({ id: h.id, label: h.label })), [hostProfiles]);
-  // Setup tabs are controlled so "Set up as node" can jump to the Install tab,
-  // while Deploy / Guided stay clickable (the bug was a controlled tab with no
-  // change handler — it got stuck).
-  // Setup flows in a logical order: orient (Guided) → install the daemon on a
-  // server (Install) → render deploy artifacts for a model (Deploy). Default to
-  // the guided entry point; jump to Install when a node-setup intent arrives.
-  const [setupTab, setSetupTab] = useState("guided");
-  useEffect(() => { if (installIntent) setSetupTab("install"); }, [installIntent]);
   const card = (explain?.card ?? selectedPresetRecord?.card ?? {}) as Record<string, unknown>;
   const composed = (explain?.composed ?? {}) as Record<string, unknown>;
   const patchRows = patches?.patches ?? [];
@@ -224,64 +215,18 @@ export function SectionWorkspace({
       )}
 
       {sectionId === "setup" && (
-        <TabbedSection
-          id="setup"
-          activeTab={setupTab}
-          onTabChange={setSetupTab}
-          tabs={[
-            // 1) Orient: where you are + what to do next (read-only, safe).
-            {
-              id: "guided",
-              label: `1 · ${tr("Guided setup")}`,
-              icon: <ShieldCheck size={15} />,
-              render: () => (
-                <>
-                  <TabIntro icon={<ShieldCheck size={16} />} title={tr("Start here — guided setup")}
-                    text={tr("A read-only checklist of where you stand: environment, engine, dependencies and launch gates, with a clear next step. Nothing is changed here — it just tells you what to do.")} />
-                  <SetupWizard
-                    environment={environment}
-                    overview={overview}
-                    doctorReport={doctorReport}
-                    gateCounts={gateCounts}
-                    selectedPreset={selectedPreset}
-                    runtimeMode={runtimeMode}
-                    apiBase={apiBase}
-                    onSection={onSection}
-                  />
-                </>
-              )
-            },
-            // 2) Install the SNDR daemon / engine onto a GPU server over SSH.
-            {
-              id: "install",
-              label: `2 · ${tr("Install onto host")}`,
-              icon: <Server size={15} />,
-              render: () => (
-                <>
-                  <TabIntro icon={<Server size={16} />} title={tr("Install onto a GPU host (over SSH)")}
-                    text={tr("Pick a registered host and a preset, preview the exact install plan, then apply it over SSH — it ships the daemon/engine onto that server so the GUI can manage it. Gated: review the plan before it runs.")} />
-                  <InstallWizard initial={installIntent || undefined} />
-                </>
-              )
-            },
-            // 3) Render deploy artifacts (compose/systemd/run) for a chosen model.
-            {
-              id: "deploy",
-              label: `3 · ${tr("Deploy a model")}`,
-              icon: <Rocket size={15} />,
-              render: () => (
-                <>
-                  <TabIntro icon={<Rocket size={16} />} title={tr("Deploy a model preset")}
-                    text={tr("Turn a preset into ready-to-run artifacts — docker-compose, systemd unit or a docker run line, with the right image, GPUs, ports and patch env baked in. Copy them to the host, or use Install above to push over SSH.")} />
-                  <DeploymentConsole
-                    presets={presets}
-                    selectedPreset={selectedPreset}
-                    onSelectPreset={onPreset}
-                  />
-                </>
-              )
-            }
-          ]}
+        <SetupSection
+          environment={environment}
+          overview={overview}
+          doctorReport={doctorReport}
+          gateCounts={gateCounts}
+          selectedPreset={selectedPreset}
+          runtimeMode={runtimeMode}
+          apiBase={apiBase}
+          installIntent={installIntent}
+          presets={presets}
+          onSection={onSection}
+          onPreset={onPreset}
         />
       )}
 
