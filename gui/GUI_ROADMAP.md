@@ -5,6 +5,7 @@ shadcn/ui, Tremor, Grafana, Portainer, Proxmox, Coolify, OpenWebUI). Goal: a GUI
 that is structurally + adaptively compatible with the SNDR backend and bug-free.
 
 ## What's already excellent (keep)
+
 Clean `lib/`/`hooks/`/`components/`/`sections/` layering · aggressive code-splitting
 (~25 `lazy()`) · strict TS with **zero** `as any`/`@ts-ignore`/TODO · real ultrawide
 adaptivity (`useViewport` + `[data-viewport]`) · unified overlay/toast/a11y system ·
@@ -24,12 +25,19 @@ daemon-down self-recovery.
     selector now share `["prompts"]` — a mutation invalidates one key and every
     consumer updates, no manual refetch. This is the pattern to extend.
 
+- [x] **Iteration 3 — section data layer on Query**
+  - `hooks/useApiQuery.ts`: a `useFetch`-compatible read hook backed by TanStack
+    Query (shared/deduped cache, retry, AbortSignal) but with an EXPLICIT queryKey
+    (backing `useFetch` transparently was unsafe — two fetchers with the same deps
+    would collide). Migrated all 7 `useFetch` call sites (models-workbench,
+    diagnostics, catalog-cards) and retired the now-dead `useFetch.ts`.
+
 ## Next (prioritized)
 
-1. **Extend TanStack Query** to the App-level loads + per-section fetches (replace
-   the hand-rolled `useFetch`/`usePoll` + the ~45-`useState` orchestration in
-   App.tsx incrementally). Biggest reliability win: dedup across panels + built-in
-   error/retry (kills the swallowed-`catch{}` gaps).
+1. **Extend Query to the App-level loads** — replace the hand-rolled `usePoll` +
+   the ~45-`useState` orchestration in App.tsx. Higher value but entangled with the
+   god file, so best done WITH breaking App.tsx up (step 3). Kills the
+   swallowed-`catch{}` gaps via Query's built-in error/retry.
 2. **Typed contract codegen — BLOCKED on the backend.** Survey + measurement: the
    daemon's OpenAPI is **0% typed** (185 routes, 0 with a real 200 response schema;
    they return `dict[str, Any]`). `openapi-typescript` would emit `unknown`

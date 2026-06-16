@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Self-contained diagnostic section panels (no props; fetch their own data via
-// useFetch + api). Surface the CLI caveats / config-keys / trace registries.
+// useApiQuery + api). Surface the CLI caveats / config-keys / trace registries.
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { api } from "../api";
-import { useFetch } from "../hooks/useFetch";
+import { useApiQuery } from "../hooks/useApiQuery";
 import { SkeletonLines } from "../Skeleton";
 import { tr } from "../i18n";
 
@@ -12,7 +12,7 @@ import { tr } from "../i18n";
 // daemon host (kernel/virtualization/GPU/pin). Surfaces the CLI `sndr
 // caveats` registry the GUI never exposed.
 export function CaveatsPanel() {
-  const { data, state, error } = useFetch(() => api.caveats(), []);
+  const { data, state, error } = useApiQuery(["caveats"], () => api.caveats());
   if (state === "loading") return <SkeletonLines count={4} />;
   if (state === "error") return <p className="muted">{tr("Caveats unavailable:")} {error}</p>;
   if (!data) return null;
@@ -48,7 +48,7 @@ export function CaveatsPanel() {
 // Config-key glossary — every GENESIS_ENABLE_* / V1 / V2 / policy key with
 // provenance, filterable. Surfaces the CLI `sndr config-keys` registry.
 export function ConfigKeysPanel() {
-  const { data, state, error } = useFetch(() => api.configKeys(), []);
+  const { data, state, error } = useApiQuery(["config-keys"], () => api.configKeys());
   const [q, setQ] = useState("");
   const [src, setSrc] = useState("all");
   if (state === "loading") return <SkeletonLines count={6} />;
@@ -87,7 +87,7 @@ export function ConfigKeysPanel() {
 // Diagnostic trace catalog — per-patch debug traces, where they land on the
 // container FS, and the env var that enables each. Surfaces `sndr trace list`.
 export function TracesPanel() {
-  const { data, state, error } = useFetch(() => api.traces(), []);
+  const { data, state, error } = useApiQuery(["traces"], () => api.traces());
   const [cat, setCat] = useState("all");
   if (state === "loading") return <SkeletonLines count={5} />;
   if (state === "error") return <p className="muted">{tr("Traces unavailable:")} {error}</p>;

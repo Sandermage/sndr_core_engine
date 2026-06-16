@@ -5,7 +5,7 @@ import { useState, useEffect, Fragment, type ReactNode } from "react";
 import { CheckCircle2, CircleAlert, RefreshCw } from "lucide-react";
 import { api, type FitCheck, type MemoryFitReport } from "../api";
 import { tr } from "../i18n";
-import { useFetch } from "../hooks/useFetch";
+import { useApiQuery } from "../hooks/useApiQuery";
 import { PercentBar } from "../components/charts";
 import { formatVram } from "../lib/format";
 
@@ -67,9 +67,9 @@ export function ModelFitCard({
     }
   }, [hardwareOptions, initial, hardware]);
 
-  const { data: report, state, reload } = useFetch(
+  const { data: report, state, reload } = useApiQuery(
+    ["memory-fit", modelId, hardware],
     (signal) => api.memoryFit({ model_id: modelId, hardware_id: hardware }, signal),
-    [modelId, hardware],
     { enabled: Boolean(modelId && hardware) }
   );
 

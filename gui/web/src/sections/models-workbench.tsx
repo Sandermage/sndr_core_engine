@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { api, type V2ConfigItem, type V2ConfigCatalog, type PresetRecord } from "../api";
 import { tr } from "../i18n";
-import { useFetch } from "../hooks/useFetch";
+import { useApiQuery } from "../hooks/useApiQuery";
 import { asRecord } from "../lib/coerce";
 import { formatVram } from "../lib/format";
 import { InfoRows, StatusBadge } from "../components/primitives";
@@ -156,12 +156,12 @@ export function ModelsWorkbench({
     return Array.from(map.entries());
   }, [visible]);
   const modelPresets = presets.filter((preset) => preset.model === activeId);
-  const { data: cacheReport } = useFetch((signal) => api.modelsCache(signal), []);
+  const { data: cacheReport } = useApiQuery(["models-cache"], (signal) => api.modelsCache(signal));
   // Real transformer dims (layers / KV heads / head_dim / params / quant) — used
   // for KV+VRAM math; surfaced here so the catalog isn't just curated metadata.
   // calcModels keys by family ("qwen3.6-27b-int4"), the catalog by full variant;
   // match on the "<family>-<size>" base (e.g. qwen3.6-27b, gemma-4-31b).
-  const { data: archMeta } = useFetch(() => api.calcModels(), []);
+  const { data: archMeta } = useApiQuery(["calc-models"], () => api.calcModels());
   const archEntry = (() => {
     if (!archMeta || !activeId) return null;
     if (archMeta.models[activeId]) return { key: activeId, arch: archMeta.models[activeId] };
@@ -172,9 +172,9 @@ export function ModelsWorkbench({
   })();
   const arch = archEntry?.arch ?? null;
   const archKey = archEntry?.key ?? null;
-  const { data: fullDef, state: defState } = useFetch(
+  const { data: fullDef, state: defState } = useApiQuery(
+    ["v2-layer", "model", activeId],
     (signal) => api.v2Layer("model", activeId, signal),
-    [activeId],
     { enabled: Boolean(activeId) }
   );
 
