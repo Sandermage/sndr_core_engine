@@ -24,11 +24,16 @@ production.
 | Terminal | **@xterm/xterm** + addon-fit | lazy-loaded into its own chunk |
 | Styling | one hand-written **`src/styles.css`** | CSS custom properties, dark/light themes; fonts are `Inter` / system mono (no web-font dependency) |
 | i18n | **custom flat dictionary** (`src/i18n.ts`) | EN + RU, no runtime framework |
-| State / data | plain hooks + `fetch` | no Redux/Zustand/React-Query — the app is HTTP-decoupled from the daemon |
+| Server cache | **TanStack Query v5** | shared/deduped read cache + mutations (`hooks/useApiQuery.ts`, `hooks/useLibrary.ts`) with explicit query keys |
+| UI state | plain React hooks | component-local; no Redux/Zustand, no router library |
 
-No global state library, router library, or data-fetching library is used: the
-app routes by URL hash, fetches with a thin `src/api.ts` client, and keeps state
-in component hooks. This keeps the bundle small and the dependency surface tiny.
+No global UI-state or router library is used: the app routes by URL hash and keeps
+view state in component hooks. Server reads go through a thin `src/api.ts` client
+wrapped in **TanStack Query**, so one endpoint shares a single deduped, retrying
+cache across screens and a mutation invalidates it in one place — e.g. the
+prompt/tool library and the chat prompt selector share the `["prompts"]` key, so
+editing a prompt updates both with no manual refetch. This keeps the bundle small
+and the dependency surface tiny while removing hand-rolled refetch/`catch {}` gaps.
 
 ---
 
@@ -42,22 +47,32 @@ gui/web/
   eslint.config.js        # flat ESLint config (react-hooks + jsx-a11y)
   package.json            # dev/build/preview/typecheck/lint only
   src/
-    main.tsx              # React root
-    App.tsx               # shell: sidebar nav, topbar, section workspace, lazy panels
+    main.tsx              # React root + QueryClientProvider
+    App.tsx               # shell only: sidebar nav, topbar, routing, modals, lazy boundary
     api.ts                # typed Product API client (fetch + auth headers)
     i18n.ts               # EN/RU dictionary + t()/tr() + useLang()
     styles.css            # the entire stylesheet
-    nav.ts                # section ids + nav metadata
-    hooks/                # useViewport, useFetch, …
-    lib/                  # pure helpers (coerce, format, swr-cache, runtime-draft, …)
+    nav.ts                # single-source section registry (ids + nav metadata)
+    lazy-panels.ts        # the React.lazy() panel registry (shared by shell + renderer)
+    hooks/                # useViewport, useApiQuery, useLibrary, useLiveEvents
+    lib/                  # pure helpers (coerce, format, readiness-gates, section-spec, …)
     components/           # shared primitives (dialogs, code-block, toast, tables, …)
-    sections/             # one module per panel (virtualization, models, configs, …)
+    sections/             # one module per panel; section-workspace.tsx dispatches to
+                          #   the per-section *-section.tsx components
     <Panel>.tsx           # large panels at the root (Containers, Engine, Routing, …)
 ```
 
-~90 source modules, ~18k LOC. Heavy panels are `React.lazy`-loaded behind
-`Suspense`, so the initial chunk only carries the shell + the Overview path; the
-xterm terminal and each section load on demand.
+~110 source modules. The shell (`App.tsx`) owns only state/routing/layout/modals;
+`sections/section-workspace.tsx` is a thin dispatcher that renders the active
+`<XSection/>` component. Heavy panels are `React.lazy`-loaded (from
+`lazy-panels.ts`) behind one `Suspense` boundary, so the initial chunk carries
+only the shell + the Overview path; the xterm terminal and each section load on
+demand.
+
+> **History:** `App.tsx` and `section-workspace.tsx` were each broken out of a
+> ~3.3k / ~1.4k-line god file into a shell + focused modules (see the GUI roadmap
+> in `sndr_private/planning/gui/GUI_ROADMAP.md`). Behaviour-neutral, verified by
+> `tsc -b` + `vite build` + `eslint` at every step.
 
 ---
 
