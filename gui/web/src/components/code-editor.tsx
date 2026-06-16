@@ -90,8 +90,13 @@ export function CodeEditor({
       const start = ta.selectionStart;
       const end = ta.selectionEnd;
       onChange(value.slice(0, start) + "  " + value.slice(end));
-      // Controlled re-render resets the caret to the end; restore it next frame.
-      requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = start + 2; });
+      // Controlled re-render resets the caret to the end; restore it next frame,
+      // and re-sync the highlight mirror (selection changes don't fire onScroll, so
+      // a Tab that auto-scrolls the textarea would otherwise desync the overlay).
+      requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = start + 2;
+        if (preRef.current) { preRef.current.scrollTop = ta.scrollTop; preRef.current.scrollLeft = ta.scrollLeft; }
+      });
     }
   };
 

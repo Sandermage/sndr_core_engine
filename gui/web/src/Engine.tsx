@@ -600,7 +600,10 @@ function MarkdownLite({ text }: { text: string }) {
 }
 
 type ChatStat = { tokens?: number; tps?: number; ttft_ms?: number; latency_ms?: number; reasoningEmpty?: boolean; finishReason?: string };
-type ChatMessage = { role: "user" | "assistant"; content: string; reasoning?: string; stat?: ChatStat; sources?: RagDoc[] };
+type ChatMessage = { id?: string; role: "user" | "assistant"; content: string; reasoning?: string; stat?: ChatStat; sources?: RagDoc[] };
+// Stable per-message id so React keys survive edit/delete/regenerate (index keys
+// bleed the <details>/sources open-state onto whatever message shifts into the slot).
+const chatMsgId = (): string => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `m${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
 type Conversation = { id: string; title: string; messages: ChatMessage[]; createdAt: number; updatedAt: number };
 type ChatSettings = { host: string; port: number; model: string; apiKey: string; hostId: string; system: string; temperature: number; maxTokens: number; topP: number; minP: number; presencePenalty: number; frequencyPenalty: number; repetitionPenalty: number; seed: string; stop: string; thinking: boolean; webSearch: boolean; useProject: boolean; ragProject: boolean; ragVaults: string[]; workloadClass: string };
 
@@ -735,6 +738,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   const [error, setError] = useState<string | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
+  const streamingConvoRef = useRef<string | null>(null);
   const { data: prompts = [] } = usePrompts(); // shared cache; mutations in the library auto-update this
   const [libOpen, setLibOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -763,7 +767,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
       // server-side; a manually typed key (no hostId) still wins via header.
       const result = await api.engineStatus(host, port, key || undefined, hostId || undefined);
       setStatus(result);
-      if (result.models.length && !result.models.includes(settings.model)) set({ model: result.models[0] });
+      setSettings((prev) => result.models.length && !result.models.includes(prev.model) ? { ...prev, model: result.models[0] ?? prev.model } : prev);
     } catch { setStatus(null); }
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- re-probe on settings change; refreshStatus reads the latest settings via closure
@@ -791,13 +795,20 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
   }, [target?.nonce]);
   useEffect(() => { const el = scrollRef.current; if (el && atBottom) el.scrollTop = el.scrollHeight; }, [messages, atBottom]);
 
+  // Pinned to a specific conversation id — streaming callbacks must keep writing
+  // to the conversation the turn STARTED on, even if the user switches chats.
+  function patchConvo(convoId: string, updater: (c: Conversation) => Conversation) {
+    setConversations((prev) => prev.map((c) => (c.id === convoId ? updater(c) : c)));
+  }
   function patchActive(updater: (c: Conversation) => Conversation) {
-    setConversations((prev) => prev.map((c) => (c.id === activeIdRef.current ? updater(c) : c)));
+    patchConvo(activeIdRef.current, updater);
   }
 
   async function runTurn(convo: ChatMessage[]) {
+    const convoId = activeIdRef.current;
+    streamingConvoRef.current = convoId;
     const titled = convo.find((m) => m.role === "user");
-    patchActive((c) => ({ ...c, title: c.title === "New chat" && titled ? titled.content.slice(0, 40) : c.title, messages: [...convo, { role: "assistant", content: "" }], updatedAt: Date.now() }));
+    patchConvo(convoId, (c) => ({ ...c, title: c.title === "New chat" && titled ? titled.content.slice(0, 40) : c.title, messages: [...convo, { id: chatMsgId(), role: "assistant", content: "" }], updatedAt: Date.now() }));
     setStreaming(true);
     setError(null);
     setAtBottom(true);
@@ -813,7 +824,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
           const docs = result.docs ?? [];
           if (docs.length) {
             ragMessages = [{ role: "system", content: buildRagContext(docs) }];
-            patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (last?.role === "assistant") msgs[msgs.length - 1] = { ...last, sources: docs }; return { ...c, messages: msgs }; });
+            patchConvo(convoId, (c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (last?.role === "assistant") msgs[msgs.length - 1] = { ...last, sources: docs }; return { ...c, messages: msgs }; });
           }
         } catch { /* retrieval is best-effort — fall back to ungrounded chat */ }
         setRetrieving(false);
@@ -833,10 +844,10 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
       await api.engineChatStream(
         { messages: payloadMessages, model: settings.model || undefined, max_tokens: settings.maxTokens, temperature: settings.temperature, top_p: settings.topP, min_p: settings.minP || undefined, presence_penalty: settings.presencePenalty, frequency_penalty: settings.frequencyPenalty, repetition_penalty: settings.repetitionPenalty !== 1 ? settings.repetitionPenalty : undefined, seed: settings.seed ? Number(settings.seed) : undefined, stop: stopSeqs.length ? stopSeqs : undefined, host: settings.host, port: settings.port, apiKey: settings.apiKey || undefined, hostId: settings.hostId || undefined, web_search: settings.webSearch || undefined, chat_template_kwargs: { enable_thinking: settings.thinking } },
         {
-          onDelta: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, content: (last.content ?? "") + text }; return { ...c, messages: msgs }; }),
-          onReasoning: (text) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, reasoning: (last.reasoning ?? "") + text }; return { ...c, messages: msgs }; }),
-          onSources: (docs) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, sources: [...(last.sources ?? []), ...docs] }; return { ...c, messages: msgs }; }),
-          onDone: (meta) => patchActive((c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; const secs = (meta.latency_ms ?? (Date.now() - started)) / 1000; const reasoningEmpty = !(last.content ?? "").trim() && !(last.reasoning ?? "").trim() && (meta.tokens ?? 0) > 0; msgs[msgs.length - 1] = { ...last, stat: { tokens: meta.tokens, ttft_ms: meta.ttft_ms, latency_ms: meta.latency_ms, tps: meta.tokens && secs ? Math.round((meta.tokens / secs) * 10) / 10 : undefined, reasoningEmpty, finishReason: meta.finish_reason } }; return { ...c, messages: msgs, updatedAt: Date.now() }; }),
+          onDelta: (text) => patchConvo(convoId, (c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, content: (last.content ?? "") + text }; return { ...c, messages: msgs }; }),
+          onReasoning: (text) => patchConvo(convoId, (c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, reasoning: (last.reasoning ?? "") + text }; return { ...c, messages: msgs }; }),
+          onSources: (docs) => patchConvo(convoId, (c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; msgs[msgs.length - 1] = { ...last, sources: [...(last.sources ?? []), ...docs] }; return { ...c, messages: msgs }; }),
+          onDone: (meta) => patchConvo(convoId, (c) => { const msgs = c.messages.slice(); const last = msgs[msgs.length - 1]; if (!last) return c; const secs = (meta.latency_ms ?? (Date.now() - started)) / 1000; const reasoningEmpty = !(last.content ?? "").trim() && !(last.reasoning ?? "").trim() && (meta.tokens ?? 0) > 0; msgs[msgs.length - 1] = { ...last, stat: { tokens: meta.tokens, ttft_ms: meta.ttft_ms, latency_ms: meta.latency_ms, tps: meta.tokens && secs ? Math.round((meta.tokens / secs) * 10) / 10 : undefined, reasoningEmpty, finishReason: meta.finish_reason } }; return { ...c, messages: msgs, updatedAt: Date.now() }; }),
           onError: (msg) => setError(msg)
         },
         controller.signal
@@ -847,6 +858,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
       setStreaming(false);
       setRetrieving(false);
       abortRef.current = null;
+      streamingConvoRef.current = null;
     }
   }
 
@@ -854,7 +866,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     const value = (text ?? input).trim();
     if (!value || streaming) return;
     setInput("");
-    void runTurn([...messages, { role: "user", content: value }]);
+    void runTurn([...messages, { id: chatMsgId(), role: "user", content: value }]);
   }
   function stop() { abortRef.current?.abort(); setStreaming(false); }
   function regenerate() {
@@ -869,10 +881,11 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     patchActive((c) => ({ ...c, messages: c.messages.slice(0, index) }));
   }
   function deleteTurn(index: number) {
-    patchActive((c) => { const msgs = c.messages.slice(); msgs.splice(index, messages[index]?.role === "user" && msgs[index + 1]?.role === "assistant" ? 2 : 1); return { ...c, messages: msgs }; });
+    patchActive((c) => { const msgs = c.messages.slice(); const pair = msgs[index]?.role === "user" && msgs[index + 1]?.role === "assistant"; msgs.splice(index, pair ? 2 : 1); return { ...c, messages: msgs }; });
   }
   function startConversation() { const c = newConversation(); setConversations((prev) => [c, ...prev]); setActiveId(c.id); setError(null); }
   function deleteConversation(id: string) {
+    if (id === streamingConvoRef.current) { abortRef.current?.abort(); setStreaming(false); }
     setConversations((prev) => { const next = prev.filter((c) => c.id !== id); if (!next.length) { const c = newConversation(); setActiveId(c.id); return [c]; } if (id === activeIdRef.current) setActiveId(next[0]!.id); return next; });
   }
   function exportConversation() {
@@ -1020,7 +1033,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
               <div className="chat-suggest">{(settings.useProject ? PROJECT_SUGGESTIONS : SUGGESTIONS).map((s) => <button key={s} onClick={() => send(s)}>{tr(s)}</button>)}</div>
             </div>
           ) : messages.map((msg, index) => (
-            <div className={`chat-msg ${msg.role}`} key={index}>
+            <div className={`chat-msg ${msg.role}`} key={msg.id ?? index}>
               <span className="chat-avatar">{msg.role === "user" ? <User size={15} /> : <Bot size={15} />}</span>
               <div className="chat-col">
                 {msg.reasoning && (

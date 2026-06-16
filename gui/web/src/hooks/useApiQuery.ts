@@ -5,13 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 export type FetchState = "idle" | "loading" | "ready" | "error";
 
 /**
- * `useFetch`-compatible read hook, backed by TanStack Query: a shared, deduped
- * cache (navigating back to a panel doesn't re-hit the daemon), built-in retry,
- * and AbortSignal cancellation. Unlike `useFetch`, the caller passes an EXPLICIT
- * `queryKey` so two different fetchers can never collide on the same cache slot
- * (the hazard that blocks backing `useFetch` transparently). The returned shape
- * matches `useFetch` (`{ data, state, error, reload }`) so call sites migrate by
- * swapping the hook + adding a key — no consumer changes.
+ * Read hook backed by TanStack Query: a shared, deduped cache (navigating back to
+ * a panel doesn't re-hit the daemon), built-in retry, and AbortSignal
+ * cancellation. The caller passes an EXPLICIT `queryKey` so two different fetchers
+ * can never collide on the same cache slot. Returns `{ data, state, error, reload }`.
  */
 export function useApiQuery<T>(
   queryKey: readonly unknown[],

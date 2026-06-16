@@ -40,12 +40,3 @@ export function cacheSet<T>(key: string, value: T): void {
 }
 
 // Drop everything, or just the keys under a prefix (e.g. one host's data).
-export function cacheClear(prefix?: string): void {
-  if (!prefix) {
-    store.clear();
-    return;
-  }
-  for (const key of Array.from(store.keys())) {
-    if (key.startsWith(prefix)) store.delete(key);
-  }
-}

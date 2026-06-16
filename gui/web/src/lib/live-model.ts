@@ -10,11 +10,6 @@ export function firstModel(detail?: EngineModelDetail | null): EngineModelInfo |
   return detail.models?.[0] ?? null;
 }
 
-/** The served-model id of the running engine, or null. */
-export function liveModelName(detail?: EngineModelDetail | null): string | null {
-  return firstModel(detail)?.id ?? null;
-}
-
 /** Human context-window label from a max_model_len: 131072 → "128K", 8192 → "8K". */
 export function fmtCtx(maxLen?: number | null): string | null {
   if (!maxLen || maxLen <= 0) return null;

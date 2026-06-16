@@ -3,7 +3,7 @@
 // at any host's daemon, health-pinged) + the small connection map.
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Database, Link2, Monitor, PackageCheck, PlugZap, Plus, Server } from "lucide-react";
-import { type HostProfile, getApiToken, normalizeBaseUrl, hostLabel } from "../api";
+import { type HostProfile, normalizeBaseUrl, hostLabel } from "../api";
 import { type RuntimeMode } from "../nav";
 import { tr } from "../i18n";
 
@@ -46,7 +46,9 @@ export function ServerSwitcher({
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 3000);
     try {
-      const res = await fetch(`${t.baseUrl}/api/v1/health`, { signal: controller.signal, headers: { ...(getApiToken() ? { Authorization: `Bearer ${getApiToken()}` } : {}) } });
+      // /api/v1/health is auth-exempt — sending Authorization would add a CORS
+      // preflight that can make a reachable daemon look down (matches App.tsx).
+      const res = await fetch(`${t.baseUrl}/api/v1/health`, { signal: controller.signal });
       setHealth((h) => ({ ...h, [t.id]: res.ok ? "ok" : "down" }));
     } catch {
       setHealth((h) => ({ ...h, [t.id]: "down" }));
