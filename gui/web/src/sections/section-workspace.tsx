@@ -5,29 +5,18 @@
 // shell keeps only state/routing/composition and renders <SectionWorkspace/>
 // inside one Suspense boundary. Pure presentation — no App-local coupling.
 import { Suspense, useEffect, useMemo, useState } from "react";
-import {
-  Activity, AlertTriangle, BadgeCheck, BarChart3, Bell, Box, Boxes, Clock3, Code2,
-  Command, Cpu, Database, DownloadCloud, FileText, Gauge, GitBranch, GitCompare,
-  KeyRound, Layers3, LayoutGrid, Link2, ListChecks, MessageSquare, Monitor, Network,
-  PackageCheck, Palette, Play, Rocket, Route, Server, Settings, ShieldCheck,
-  SlidersHorizontal, Sparkles, SquareTerminal, Stethoscope, Table2, Terminal,
-  TimerReset, Wrench
-} from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Box, Boxes, Clock3, Code2, Command, Cpu, Database, FileText, Gauge, GitBranch, GitCompare, KeyRound, Layers3, LayoutGrid, Link2, ListChecks, MessageSquare, Monitor, Network, PackageCheck, Play, Rocket, Route, Server, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Stethoscope, Table2, TimerReset, Wrench } from "lucide-react";
 import { tr } from "../i18n";
 import type { ChatTarget } from "../Engine";
 import type { ViewportTier } from "../hooks/useViewport";
 import type { GuiSettings } from "../settings";
 import type { Gate, RuntimeMode, SectionId } from "../nav";
-import {
-  api, AuthUser, BundleSpec, DiffUpstreamReport, DoctorReport, EnvironmentReport,
-  HostProfile, PatchDoctorReport, PatchListResult, PresetExplainResult,
-  PresetListResult, PresetRecord, ProductCapability, ProductOverview,
-  ProofStatusReport, UserPresetList, V2ConfigCatalog, V2ConfigPreview
-} from "../api";
+import { api, AuthUser, BundleSpec, DiffUpstreamReport, DoctorReport, EnvironmentReport, HostProfile, PatchDoctorReport, PatchListResult, PresetExplainResult, PresetListResult, PresetRecord, ProductCapability, ProductOverview, ProofStatusReport, UserPresetList, V2ConfigCatalog, V2ConfigPreview } from "../api";
 import { asNumber, asRecord, asText, countRecord } from "../lib/coerce";
 import { targetTitle } from "../lib/format";
 import { runtimeHost } from "../lib/overview-presenters";
 import { sectionSpec } from "../lib/section-spec";
+import { AdvancedSection } from "./advanced-section";
 import { CapabilityTable } from "../components/capability-table";
 import { BarList, OvKpi, PercentBar } from "../components/charts";
 import { CodeBlock } from "../components/code-block";
@@ -36,23 +25,13 @@ import { CompactList, InfoRows, KpiGrid, type GateStatus } from "../components/p
 import { CodeTabs, TabIntro, WorkflowSteps } from "../components/shell-bits";
 import { TabbedSection } from "../components/tabbed-section";
 import { toast } from "../components/toast";
-import { SecurityPanel, UserAdminPanel } from "../Auth";
 import { FleetPanel } from "../Fleet";
 import { SkeletonCards } from "../Skeleton";
-import { UpdatesPanel } from "../Updates";
-import {
-  ChatConsole, EngineBenchPanel, EngineMetricsPanel, EnginePlayground, EngineStatusCard,
-  ConfigsSection, HostsSection, DeploymentConsole, ServiceLifecyclePlanner,
-  PatchInventoryControl, ApiTokenManager, NotificationSettings, AppearanceSettings,
-  ApiTokenField, KvCalcPanel, BaselinePanel, InstallWizard, CopilotPanel,
-  ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel, LicensePanel
-} from "../lazy-panels";
-import { EndpointExplorer, ReportGenerator } from "./api-explorer";
-import { AuditLogPanel } from "./audit-log";
+import { ChatConsole, EngineBenchPanel, EngineMetricsPanel, EnginePlayground, EngineStatusCard, ConfigsSection, HostsSection, DeploymentConsole, ServiceLifecyclePlanner, PatchInventoryControl, KvCalcPanel, BaselinePanel, InstallWizard, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
+import { ReportGenerator } from "./api-explorer";
 import { BenchmarkBaselinePanel, EvidenceRows } from "./bench";
-import { ConfigDraftEditor } from "./config-draft-editor";
 import { ConnectionMap } from "./connection-bar";
-import { CaveatsPanel, ConfigKeysPanel, TracesPanel } from "./diagnostics";
+import { CaveatsPanel } from "./diagnostics";
 import { DoctorFindings, DoctorSummary } from "./doctor";
 import { EnvironmentPanel } from "./environment";
 import { GateRow } from "./gate-row";
@@ -61,7 +40,7 @@ import { LayerEditor } from "./layer-editor";
 import { ModelsWorkbench } from "./models-workbench";
 import { EventLog } from "./operational-console";
 import { OperationsConsole } from "./operations";
-import { AdminSurfaceMatrix, DoctorCoveragePanel } from "./patch-doctor";
+import { DoctorCoveragePanel } from "./patch-doctor";
 import { PatchLifecycleGraph, PatchModelSupport, PatchRegistryInsight, PatchSummaryPanel } from "./patch-overview";
 import { PresetCatalogTable } from "./preset-catalog";
 import { PresetPolicyGraph } from "./preset-insight";
@@ -1221,178 +1200,22 @@ export function SectionWorkspace({
       )}
 
       {sectionId === "advanced" && (
-        <TabbedSection
-          id="advanced"
-          tabs={[
-            {
-              id: "operations",
-              label: tr("Operations"),
-              icon: <Terminal size={15} />,
-              render: () => <OperationsConsole onMonitor={onMonitorJob} />
-            },
-            {
-              id: "config-keys",
-              label: tr("Config keys"),
-              icon: <SlidersHorizontal size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Config-key glossary")} icon={<SlidersHorizontal size={18} />} desc={tr("Every GENESIS_ENABLE_* flag, V1/V2 config key and policy key with provenance — searchable operator reference (mirrors `sndr config-keys`).")} wide>
-                    <ConfigKeysPanel />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "traces",
-              label: tr("Traces"),
-              icon: <Activity size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Diagnostic trace catalog")} icon={<Activity size={18} />} desc={tr("Per-patch debug traces — the container path each lands at and the env var that enables it. Operator reference (mirrors `sndr trace list`).")} wide>
-                    <TracesPanel />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "appearance",
-              label: tr("Appearance"),
-              icon: <Palette size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Appearance and Operator Mode")} icon={<Palette size={18} />} wide>
-                    <AppearanceSettings settings={settings} onSettings={onSettings} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "license",
-              label: tr("License & modules"),
-              icon: <BadgeCheck size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("License & SNDR Engine")} icon={<BadgeCheck size={18} />} desc={tr("Active tier (community vs commercial SNDR Engine), the signed license token (subject / expiry / signature), whether the vllm.sndr_engine overlay is installed, and how many engine-tier patches it unlocks.")} wide>
-                    <Suspense fallback={<SkeletonCards count={1} />}>
-                      <LicensePanel />
-                    </Suspense>
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "notifications",
-              label: tr("Notifications"),
-              icon: <Bell size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Alerts & notifications")} icon={<Bell size={18} />} desc={tr("Get a Telegram push when a managed engine container goes DOWN (crash / OOM / stop) or recovers. The daemon watches over the docker socket; gated behind apply.")} wide>
-                    <NotificationSettings />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "api",
-              label: tr("API & Schema"),
-              icon: <Settings size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Daemon & Access")} icon={<Settings size={18} />} desc={tr("Daemon endpoint, OpenAPI and the optional access token for remote/tunnel use.")}>
-                    <InfoRows rows={[
-                      [tr("API Base"), apiBase],
-                      ["OpenAPI", `${apiBase}/openapi.json`],
-                      [tr("Mode"), tr("Read-only Product API")],
-                      ["SNDR Core", environment?.sndr_core_version ?? "-"],
-                      [tr("Frontend"), tr("Vite/React, served by daemon")]
-                    ]} />
-                    <ApiTokenField />
-                  </ModuleCard>
-                  <ModuleCard title={tr("API Tokens")} icon={<KeyRound size={18} />} desc={tr("Named, revocable Bearer tokens for programmatic / CI access (auth required). Plaintext shown once.")} wide>
-                    <ApiTokenManager enabled={!!authUser} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Endpoint Explorer")} icon={<Code2 size={18} />} desc={tr("Send a live GET to any read-only Product API endpoint and inspect the JSON.")} wide>
-                    <EndpointExplorer />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "audit",
-              label: tr("Audit log"),
-              icon: <FileText size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Audit log")} icon={<FileText size={18} />} desc={tr("Tamper-evident record of daemon events — auth, jobs, operations and system actions. Live.")} wide>
-                    <AuditLogPanel />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "updates",
-              label: tr("Updates"),
-              icon: <DownloadCloud size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Updates")} icon={<DownloadCloud size={18} />} desc={tr("Pin-gated self-update for the GUI + sndr_core patcher. The vLLM pin only moves to a patcher-supported value; the server docker step stays manual. Apply is gated + confirmed.")} wide>
-                    <UpdatesPanel />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "admin",
-              label: tr("Admin"),
-              icon: <KeyRound size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Admin Surface Matrix")} icon={<KeyRound size={18} />} desc={tr("Product API write/read surfaces and their status.")} wide>
-                    <AdminSurfaceMatrix featureRows={featureRows} patchDoctor={patchDoctor} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Engine & Dependencies")} icon={<Cpu size={18} />} desc={tr("Versions and runtime tools on the daemon host.")}>
-                    <EnvironmentPanel env={environment} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Feature Contracts")} icon={<ShieldCheck size={18} />} desc={tr("Capability inventory with live statuses.")}>
-                    <CapabilityTable rows={featureRows} />
-                  </ModuleCard>
-                  {authUser && (
-                    <ModuleCard title={tr("Account & Security")} icon={<ShieldCheck size={18} />} desc={tr("Your password and two-factor settings.")} wide>
-                      <SecurityPanel user={authUser} onChanged={onAuthRefresh} />
-                    </ModuleCard>
-                  )}
-                  {authUser?.role === "admin" && (
-                    <ModuleCard title={tr("User Management")} icon={<KeyRound size={18} />} desc={tr("Create, list and remove accounts (admin).")} wide>
-                      <UserAdminPanel currentUser={authUser} />
-                    </ModuleCard>
-                  )}
-                </ModuleGrid>
-              )
-            },
-            {
-              id: "developer",
-              label: tr("Developer"),
-              icon: <SlidersHorizontal size={15} />,
-              render: () => (
-                <ModuleGrid>
-                  <ModuleCard title={tr("Config Draft and Diff")} icon={<SlidersHorizontal size={18} />} desc={`${tr("Local runtime draft for")} ${selectedPreset}.`} wide>
-                    <ConfigDraftEditor
-                      selectedPreset={selectedPreset}
-                      composed={composed}
-                      runtimeTarget={runtimeTarget}
-                      patchPolicy={patchPolicy}
-                    />
-                  </ModuleCard>
-                  <ModuleCard title={tr("CLI Mirror")} icon={<SquareTerminal size={18} />} desc={tr("Equivalent CLI for the current operator context.")}>
-                    <CodeBlock lines={cliLines} />
-                  </ModuleCard>
-                  <ModuleCard title={tr("Live Events")} icon={<Activity size={18} />} desc={tr("Daemon event feed (jobs, lifecycle, reports).")}>
-                    <EventLog events={events} />
-                  </ModuleCard>
-                </ModuleGrid>
-              )
-            }
-          ]}
+        <AdvancedSection
+          apiBase={apiBase}
+          settings={settings}
+          environment={environment}
+          authUser={authUser}
+          featureRows={featureRows}
+          patchDoctor={patchDoctor}
+          selectedPreset={selectedPreset}
+          runtimeTarget={runtimeTarget}
+          patchPolicy={patchPolicy}
+          composed={composed}
+          cliLines={cliLines}
+          events={events}
+          onMonitorJob={onMonitorJob}
+          onSettings={onSettings}
+          onAuthRefresh={onAuthRefresh}
         />
       )}
     </section>
