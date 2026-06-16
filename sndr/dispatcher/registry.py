@@ -5757,7 +5757,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "composes_with": ["PN340", "PN341", "PN345", "P85"],  # P85: Site 2 dual variants, PN346 first
     },
     "PN347": {
-        "title": "MarlinFP8 N==K silent corruption correctness fix (vendor of OPEN vllm#44113)",
+        "title": "MarlinFP8 N==K silent corruption correctness fix (vendor of CLOSED vllm#44113; superseded by MERGED vllm#44735 on dev491+ — active only on <dev491 rollback pins, version-gated)",
         "tier": "community",
         "family": "quantization.marlin",
         "env_flag": "GENESIS_ENABLE_PN347",
