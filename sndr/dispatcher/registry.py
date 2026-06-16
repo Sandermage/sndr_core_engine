@@ -9038,6 +9038,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "credit": "PN265 architectural fix per user 2026-05-19. After G4_71/G4_72/G4_73/G4_74-cap/G4_75 unblocked K=2 first prompt, multi-prompt H8-0 probe found CUDA illegal memory access on 14-token prompt. Root cause: contradictory state — G4_74 broke physical kv_cache alias to give drafter independent HND tensor capped at 256 blocks, but Gemma4Proposer._setup_gemma4_kv_sharing still set attn.kv_sharing_target_layer_name=target_layer on drafter Attention. vllm then uses target's slot_mapping (block ids up to 24987) for drafter writes — drafter has only 256 blocks → OOB → CUDA illegal access. G4_76 wraps Gemma4Proposer._setup_gemma4_kv_sharing to be a no-op. Drafter then has kv_sharing_target_layer_name=None and is treated as fully independent: own kv_cache_groups entry (via G4_72 native spec), own block_table from kv_cache_manager, own slot_mapping referencing drafter's own block range. Writes stay in bounds. Trade-off: drafter has cold kv_cache at request start (no inherited target context); acceptance will be 0% until G4_77 warm-up is added. Companion to G4_71/G4_72/G4_73/G4_74/G4_75; precedes G4_77 (warm-up restoration of drafter context).",
         "upstream_pr": None,
+        # NOTE 2026-06-16 (dev491): tried relaxing requires to [] to run G4_76
+        # STANDALONE on a pure-TQ (memory-safe) drafter, since the no-op of
+        # _setup_gemma4_kv_sharing is backend-independent. It boot-FAILED in
+        # _reshape_kv_cache_tensors: "shape '[78104,32,8,262]' invalid for input
+        # of size 10237247488" (= 512 bytes/slot bf16 buffer vs 262 TQ slot) —
+        # disabling kv_sharing without G4_72's native spec leaves a TQ sliding
+        # layer with a bf16-sized buffer. So the dependency is REAL: G4_76 needs
+        # the native-drafter spec companions. On dev491 those (G4_71/G4_72) make
+        # the drafter bf16 -> +9.27GiB OOM at 64K ctx. MTP-on-31B-tq is thus a
+        # 3-way bind (kv_sharing OOB / native OOM / pure-TQ reshape-mismatch);
+        # see journal 2026-06-16-g4_82-native-tq-headdim512-fix.md. Requires kept.
         "requires_patches": ["G4_71", "G4_72"],
         "conflicts_with": [],
         "composes_with": ["G4_71", "G4_72", "G4_73", "G4_74", "G4_75", "PN262"],

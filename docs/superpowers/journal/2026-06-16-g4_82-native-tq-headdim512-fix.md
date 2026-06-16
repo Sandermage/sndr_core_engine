@@ -134,6 +134,44 @@ suspect at kv_cache_utils.py:1044-1066). **Next step:** CUDA_LAUNCH_BLOCKING=1 b
 get the exact kernel+line, then an offline store→decode pytest at head_dim=512 / num_kv=2
 with B·K1 rows vs a PyTorch dequant+SDPA reference to isolate kernel-vs-allocation.
 
+### RESOLVED root cause + the 3-way bind (2026-06-16, deep-dive)
+The offline store→decode pytest (`/tmp/test_tq_verify_oob.py`, run in the PROD
+container) **exonerated the decode kernel**: every verify shape (pure B=2/8, verify
+B=1/2 K1=4, the exact native stride-0 `expand` block_table + GPU arange seq_lens, at
+head_dim 512 AND 256) runs clean, finite output. The OOB is in the runner plumbing.
+
+Instrumented probes on both decode call sites (continuation :677 + pure :905) **never
+fired** before the crash → the OOB is upstream of attention, in the **store**
+(`do_kv_cache_update`). This is exactly the documented **G4_76 / PN265** bug: the
+drafter's `kv_sharing_target_layer_name` makes it use the **target's slot_mapping**
+(block ids up to ~24987) to write into its **own small cache** → **OOB write** →
+cudaErrorIllegalAddress (surfaces async at the next `createEvent`).
+
+The fix is G4_76 (no-op `_setup_gemma4_kv_sharing`). But on dev491 it is a **3-way bind**:
+
+| Drafter cache approach | Patches | dev491 result |
+|---|---|---|
+| Shared with target (default) | none | **OOB write** (PN265: target slot_mapping vs small cache) |
+| Native bf16 independent | G4_71+G4_72(+74/75) | **CUDA OOM** (+9.27 GiB drafter bf16 cache at 64K ctx) |
+| TQ-compressed independent | G4_76 standalone (requires relaxed) | **boot reshape-mismatch** |
+
+The E6 reshape error is precise: `_reshape_kv_cache_tensors` →
+`shape '[78104,32,8,262]' invalid for input of size 10237247488`. Note
+`10237247488 / (78104*32*8) = 512` exactly = **bf16 slot (256×2)**, but the reshape
+wants **262 = TQ slot**. So disabling kv_sharing without G4_72's native spec leaves a
+TQ sliding layer (head_dim=256, num_kv=8) with a **bf16-sized buffer**. The drafter
+independence genuinely needs the spec companion — confirming `requires=[G4_71,G4_72]`
+(reverted the relaxation).
+
+**Verdict:** MTP on the 31B-tq is blocked on dev491 by drafter KV-cache allocation, not
+by the TQ kernels or G4_82. The actionable follow-up has a precise entry point: make the
+**TQ-compressed independent drafter** allocate a 262-byte (TQ) slot for its sliding
+layers — i.e. propagate the TQ spec to the drafter's own cache group when kv_sharing is
+off — so G4_76 can run standalone (memory-safe), sidestepping the native-bf16 OOM. That
+is a `kv_cache_utils` / `gpu_model_runner._reshape_kv_cache_tensors` spec-propagation
+fix, scoped but separate. **G4_82 + the no-MTP native 31B-tq remains the shipped
+baseline.**
+
 ## 4. Verdict & next steps
 
 - **Ship:** G4_82 (committed) + the **no-MTP native 31B-tq** as the validated dev491
