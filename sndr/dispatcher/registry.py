@@ -9793,6 +9793,57 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
         "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
+    "G4_82": {
+        "title": "TQ prefill SDPA fallback for head_dim>256 (Ampere FA2 256-cap, vllm#38887)",
+        "tier": "community",
+        "family": "attention.turboquant",
+        "env_flag": "GENESIS_ENABLE_G4_82_TQ_PREFILL_SDPA_HEADDIM",
+        "default_on": False,
+        "category": "kernel",
+        "implementation_status": "full",
+        "source": "genesis_original",
+        "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_82_tq_prefill_sdpa_headdim",
+        "lifecycle": "experimental",
+        "credit": (
+            "dev491 31B-tq bring-up (2026-06-16). Native vllm "
+            "TurboQuantAttentionImpl routes ALL non-decode-kernel attention "
+            "compute through _flash_attn_varlen, which calls FA2's "
+            "flash_attn_varlen_func unconditionally (turboquant_attn.py:311/"
+            "322). FA2 caps head_dim at 256 on SM 8.x (no Ampere/Ada 512 "
+            "kernel, vllm#38887) -> the Gemma-4-31B GLOBAL layers "
+            "(head_dim=512) crash the worker on first-request prefill "
+            "('FlashAttention forward only supports head dimension at most "
+            "256'); async-scheduling masks it as a scheduler KeyError "
+            "(core.py:578 batch-queue desync), --no-async-scheduling "
+            "unmasks it. The pr42637 overlay had this fallback "
+            "(_can_use_flash_prefill + _sdpa_causal_prefill) but is now "
+            "stale on dev491 (sibling overlays lack get_kv_cache_capacity / "
+            "register_all_kvcache_specs). This patch ports ONLY the "
+            "head_dim>256 fallback onto the native backend: runtime "
+            "monkey-patch of _flash_attn_varlen dispatching on "
+            "self.head_size -> per-sequence torch SDPA for >256 (math/"
+            "efficient backend, any head_dim), original FA2 fast path "
+            "byte-unchanged for <=256. Provably FA2-equivalent (iron rule "
+            "#11): same q/k/v inputs, FA2's exact causal mask reproduced "
+            "(is_causal for q_len==k_len; bottom-right offset mask for "
+            "q_len<k_len continuation); GQA via enable_gqa. Cost: one "
+            "cu_seqlens.tolist() sync per call, only on the head_dim>256 "
+            "prefill path (eager, off the decode hot path); zero sync for "
+            "<=256. Complementary to G4_81 (which wraps .forward for the "
+            "decode verify path and explicitly leaves first-chunk prefill "
+            "to the flash path G4_82 repairs). No-op for every head_dim<=256 "
+            "model. Required by the Gemma-4-31B TQ profile."
+        ),
+        "upstream_pr": 38887,
+        # #38887 documents the Ampere FA2 256 head_dim cap (the constraint),
+        # not a fix to port; G4_82 is the Genesis runtime workaround for it.
+        "upstream_pr_relationship": "related_not_superseding",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["G4_81", "G4_79", "G4_80", "G4_31", "G4_69", "G4_60A"],
+        "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+    },
     "G4_70": {
         "title": "PN259-B mixed-allocator path for TQ skip-list layers (PR42637 overlay control)",
         "tier": "community",

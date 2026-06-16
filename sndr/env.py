@@ -599,6 +599,7 @@ class Flags:
     G4_79_TQ_MM_PREFIX = "G4_79_TQ_MM_PREFIX"  # G4_79: TQ supports_mm_prefix (Gemma-4 MM)
     G4_80_FP8E5M2_KV = "G4_80_FP8E5M2_KV"  # G4_80: fp8_e5m2 KV for weight-only ckpts (vllm#45040)
     G4_81_TQ_MQ_DIRECT_ROUTE = "G4_81_TQ_MQ_DIRECT_ROUTE"  # G4_81: TQ multi-query DIRECT decode route
+    G4_82_TQ_PREFILL_SDPA_HEADDIM = "G4_82_TQ_PREFILL_SDPA_HEADDIM"  # G4_82: TQ prefill SDPA fallback for head_dim>256 (Ampere FA2 cap)
     PN358_FULL_CG_CONTEXT_REFRESH = "PN358_FULL_CG_CONTEXT_REFRESH"  # PN358: FULL cudagraph forward-context refresh
     PN382_DECODE_BENCH_HYBRID_FILL = "PN382_DECODE_BENCH_HYBRID_FILL"  # PN382: DecodeBench hybrid per-block KV fill
     PN384_EAGLE_PREFIX_CACHE_PREFILL = "PN384_EAGLE_PREFIX_CACHE_PREFILL"  # PN384: Eagle/MTP prefix-cache prefill fix
