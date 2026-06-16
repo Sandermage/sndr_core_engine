@@ -37,13 +37,14 @@ export default tseslint.config(
       "no-empty": ["warn", { allowEmptyCatch: true }],
       // Pre-existing a11y interaction patterns (click handlers on non-interactive
       // elements, autofocus in modals) are surfaced as warnings to fix
-      // incrementally rather than blocking the build on the whole existing
-      // codebase. New genuinely-broken markup still shows up in lint output.
-      "jsx-a11y/click-events-have-key-events": "warn",
-      "jsx-a11y/no-static-element-interactions": "warn",
-      "jsx-a11y/no-noninteractive-element-interactions": "warn",
-      "jsx-a11y/interactive-supports-focus": "warn",
-      "jsx-a11y/label-has-associated-control": "warn",
+      // incrementally. The codebase is now clean of these, so they're promoted to
+      // "error" (enforced by `make gui-lint`) — a ratchet against new broken
+      // markup. Deliberate exceptions carry an inline eslint-disable + reason.
+      "jsx-a11y/click-events-have-key-events": "error",
+      "jsx-a11y/no-static-element-interactions": "error",
+      "jsx-a11y/no-noninteractive-element-interactions": "error",
+      "jsx-a11y/interactive-supports-focus": "error",
+      "jsx-a11y/label-has-associated-control": "error",
       // autoFocus is used deliberately and only inside modals / the login form
       // (focus the first field on open) — a recognised good-UX exception to the
       // generic rule, and awkward to disable per-attribute on multi-line inputs.

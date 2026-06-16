@@ -15,7 +15,7 @@
         audit-upstream audit-yaml preflight lint-drift-markers \
         tokenizer-fingerprint \
         docs-check docs-write doctor \
-        evidence evidence-release evidence-json gui-build
+        evidence evidence-release evidence-json gui-build gui-lint test-gui-contract
 
 # Default target — show help.
 .DEFAULT_GOAL := help
@@ -43,6 +43,9 @@ test-iron-rule: ## Iron-rule-#11 retire provenance meta-test
 
 test-family: ## All 23 family contracts (~2300 tests, covers 20/20 families)
 	$(PYTEST) tests/unit/integrations/ -q
+
+test-gui-contract: ## GUI↔backend route contract — every api.ts path has a daemon route (structural-compat drift gate)
+	$(PYTEST) tests/unit/product_api/test_gui_contract.py -q
 
 test-doc-sync: ## Doc-sync (patch counts consistent across 10 docs)
 	$(PYTHON) scripts/check_doc_sync.py --strict
@@ -104,7 +107,7 @@ audit-english-only: ## English-only-in-code rule (CLAUDE.md) — ratchet-down ga
 audit-lifecycle-docstring-sync: ## Registry `lifecycle` vs docstring RETIRED/TOMBSTONED markers drift (catches PN108-class drift)
 	$(PYTHON) scripts/audit_lifecycle_docstring_sync.py --strict
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only audit-override-policy-strict audit-lifecycle-docstring-sync ## Run all 19 CI gates fast-fail
+gates: test-pin-gate test-iron-rule test-family test-doc-sync test-gui-contract audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only audit-override-policy-strict audit-lifecycle-docstring-sync ## Run all 20 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 
@@ -468,6 +471,9 @@ gui-build: ## Build the web UI and bundle it into the package for the daemon to 
 	cp -R gui/web/dist sndr/product_api/legacy/web_static
 	@echo "✓ GUI built and copied to sndr/product_api/legacy/web_static (the path the daemon serves from)"
 	@echo "  Run: $(PYTHON) -m sndr.cli gui-api  → serves UI + API on one port"
+
+gui-lint: ## Typecheck + lint the GUI (tsc strict + eslint with a11y enforced as errors)
+	cd gui/web && npx tsc -b && npx eslint .
 
 gui-build-carbon: ## Build the new Carbon Control Center and bundle it for the modular API server (:8800)
 	cd gui/web && npm ci --legacy-peer-deps && npm run build:carbon
