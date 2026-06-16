@@ -4,29 +4,29 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-14T21:52:18Z
-Total entries: **312**
+Generated: 2026-06-16T14:04:15Z
+Total entries: **313**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **312**
+- `tier=community`: **313**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **232**
+- `lifecycle=experimental`: **233**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **30**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **53** / 312
+### Default-on at boot: **53** / 313
 
 ### By family
 - `attention`: 1
 - `attention.flash`: 3
 - `attention.gdn`: 35
-- `attention.turboquant`: 59
+- `attention.turboquant`: 60
 - `compile_safety`: 16
 - `detection`: 3
 - `gemma4`: 18
@@ -107,7 +107,7 @@ Total entries: **312**
 | **PN79_V2_MD5_CHUNK** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk.py scope) |
 | **PN79_V2_MD5_CHUNK_DELTA_H** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk_delta_h.py scope) |
 
-### `attention.turboquant` (59)
+### `attention.turboquant` (60)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -163,6 +163,7 @@ Total entries: **312**
 | **G4_79** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_79_TQ_MM_PREFIX` | — | TQ backend supports_mm_prefix for Gemma 4 MM (0.22.1 validity-gate unblock, m... |
 | **G4_80** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_80_FP8E5M2_KV` | [#45040](https://github.com/vllm-project/vllm/pull/45040) | Allow fp8_e5m2 KV cache for weight-only quantized checkpoints (vllm#45040) |
 | **G4_81** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_81_TQ_MQ_DIRECT_ROUTE` | [#45144](https://github.com/vllm-project/vllm/pull/45144) | TQ multi-query DIRECT decode routing for Gemma-4-31B MTP (vllm#45144 blueprint) |
+| **G4_82** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_82_TQ_PREFILL_SDPA_HEADDIM` | [#38887](https://github.com/vllm-project/vllm/pull/38887) | TQ prefill SDPA fallback for head_dim>256 (Ampere FA2 256-cap, vllm#38887) |
 | **P18B_TEXT** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_P18B_TEXT` | — | TurboQuant decode stage1 kernel-literal tune (TEXT-PATCH) |
 | **P18b** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P18B` | — | TurboQuant decode stage1 tune |
 | **P67b** | `community` | `experimental` | · | `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL` | — | TurboQuant spec-verify forward() routing (FULL CG enable) |
@@ -211,7 +212,7 @@ Total entries: **312**
 | **G4_07** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_07_GEMMA4_FP8_BLOCK_FIX` | [#39407](https://github.com/vllm-project/vllm/issues/39407) | FP8_BLOCK double-scale fix — custom quant config (closes vllm#39407) |
 | **G4_08** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_08_MARLIN_KDIM_PAD` | [#40354](https://github.com/vllm-project/vllm/issues/40354) | Marlin K-pad Triton MoE fallback (closes vllm#40354) |
 | **G4_09** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER` | [#39914](https://github.com/vllm-project/vllm/issues/39914) | SWA→global prefill chunker (workaround vllm#39914 engine hang) |
-| **G4_10** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_10_GEMMA4_AMPERE_NON_CAUSAL_BACKEND` | [#40382](https://github.com/vllm-project/vllm/issues/40382) | Ampere non-causal head_dim=256 Triton attention backend (deep fix for vllm#40... |
+| **G4_10** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_10_GEMMA4_AMPERE_NON_CAUSAL_BACKEND` | [#40382](https://github.com/vllm-project/vllm/issues/40382) | Gemma-4 non-causal drafter enablement on Ampere (stock TRITON_ATTN; vllm#4038... |
 | **G4_11** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL` | — | Gemma 4 enhanced chat template install |
 | **G4_12** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD` | [#41014](https://github.com/vllm-project/vllm/issues/41014) | Refuse FP8 e4nv on Ampere SM 8.6 (closes vllm#41014) |
 | **G4_13** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD` | [#40388](https://github.com/vllm-project/vllm/issues/40388) | Refuse asymmetric per-layer KV-head config (closes vllm#40388 silent corruption) |
@@ -352,7 +353,7 @@ Total entries: **312**
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
-| **PN347** | `community` | `experimental` | · | `GENESIS_ENABLE_PN347` | [#44113](https://github.com/vllm-project/vllm/pull/44113) | MarlinFP8 N==K silent corruption correctness fix (vendor of OPEN vllm#44113) |
+| **PN347** | `community` | `experimental` | · | `GENESIS_ENABLE_PN347` | [#44113](https://github.com/vllm-project/vllm/pull/44113) | MarlinFP8 N==K silent corruption correctness fix (vendor of CLOSED vllm#44113... |
 
 ### `reasoning` (9)
 

@@ -197,6 +197,9 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # (vendor of OPEN vllm#45080; bench infra)
     "G4_81",           # TQ multi-query DIRECT decode routing (vllm#45144
                        # blueprint; runtime monkey-patch, no TextPatcher)
+    "G4_82",           # TQ prefill SDPA fallback for head_dim>256 (Ampere
+                       # FA2 256-cap, vllm#38887; runtime monkey-patch, no
+                       # legacy hook — same class as G4_81)
     "PN383",           # KV-offload + MTP segfault gate (vendor of OPEN
                        # vllm#44784; multi-file text patch, no legacy hook)
     # ── 2026-06-13 50-PR sweep BATCH-2 WAVE 1 — five LIVE-bug vendors,

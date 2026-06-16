@@ -35,7 +35,7 @@ draft backend explicitly via ``speculative_config.attention_backend: TRITON_ATTN
 if the proposer does not already inherit it.
 
 ================================================================
-WHY THE OLD BESPOKE BACKEND/KERNEL WAS RETIRED
+WHY THE OLD BESPOKE BACKEND/KERNEL WAS REPLACED
 ================================================================
 
 The previous G4_10 registered a custom ``G4AmperetNonCausalAttentionBackend``

@@ -82,7 +82,7 @@ from sndr.kernel import (
 )
 from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
-log = logging.getLogger("genesis.wiring.pn287_num_accepted_tokens_race")
+log = logging.getLogger("genesis.wiring.pn290_num_accepted_tokens_race")
 
 GENESIS_PN290_MARKER = (
     "Genesis PN290 num_accepted_tokens D2H race fix (vllm#41190) v1"
@@ -159,7 +159,7 @@ def _make_patcher() -> TextPatcher | None:
             # Watch for any upstream form that eliminates the race —
             # e.g. an explicit synchronize, a wait_event before NCCL,
             # or a switch to blocking copy upstream.
-            "GENESIS_PN290_FORCE_NONBLOCKING",
+            "GENESIS_PN290_SYNC_MODE",
         ],
     )
 
@@ -195,7 +195,7 @@ def apply() -> tuple[str, str]:
     return "applied", (
         f"PN290 installed: D2H copy of num_accepted_tokens.gpu forced blocking "
         f"to eliminate TP>1+MTP race (vllm#41190). Sub-patches: {', '.join(applied)}. "
-        f"Operator override: GENESIS_PN290_FORCE_NONBLOCKING=1 to revert."
+        f"Operator override: GENESIS_PN290_SYNC_MODE=none to revert."
     )
 
 
