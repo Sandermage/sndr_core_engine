@@ -315,6 +315,13 @@ _LEGACY_NAME_TO_PATCH_ID: dict[str, str] = {
     # MTP — closes shadow --strict's spec_only_unexpected +
     # legacy_unparseable warnings for this entry.
     "SNDR_MTP_DYNAMIC_K_001 adaptive K MTP proposer (vllm#26504 port to DraftModelProposer)": "SNDR_MTP_DYNAMIC_K_001",
+    # PN-FP8MOE-KPAD — hyphenated patch id (FP8-core backport of vllm#45703).
+    # The leading-token regex above only lifts `P[Nn]\d+...` / `G4_...` /
+    # `SNDR_...` shapes; `PN-FP8MOE-KPAD` has a hyphen instead of a digit
+    # after `PN`, so it needs an explicit map to bind the @register_patch
+    # hook to its registry key (otherwise it shows as legacy_unparseable +
+    # spec_only_unexpected in `shadow --strict`).
+    "PN-FP8MOE-KPAD FP8 MoE intermediate thread-tile pad (FP8-core backport of OPEN vllm#45703)": "PN-FP8MOE-KPAD",
 }
 
 

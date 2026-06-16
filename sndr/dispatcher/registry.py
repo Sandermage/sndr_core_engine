@@ -5875,6 +5875,68 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # not exist (correct prefixes are P, not PN).
         "composes_with": ["PN77", "P81", "P91", "P91B", "P87"],
     },
+    "PN-FP8MOE-KPAD": {
+        "title": "FP8 MoE intermediate thread-tile pad (FP8-core backport of OPEN vllm#45703)",
+        "tier": "community",
+        "family": "quantization.marlin",
+        "env_flag": "GENESIS_ENABLE_PN_FP8MOE_KPAD",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.quantization.marlin.pn_fp8moe_kpad_marlin_moe",
+        "lifecycle": "experimental",
+        "category": "kernel",
+        "credit": (
+            "FP8-core backport of OPEN upstream PR vllm#45703 ('[Kernel] "
+            "Extend Marlin thread-tile padding to MoE (WNA16 + FP8/MXFP8)'). "
+            "The fused Marlin MoE kernel needs gate-up 2*intermediate % 128 "
+            "== 0 and down intermediate % 64 == 0 (i.e. intermediate % 64 == "
+            "0). A tile-misaligned MoE *intermediate* dim crashes with "
+            "'Invalid thread config ... MKN=[16384,352,2816] num_bits=8 "
+            "group_size=-1' — the DiffusionGemma N=352 case (352 % 64 == 32) "
+            "on the dev491 pin (vllm/vllm-openai:nightly-1033ffac2). PN-FP8MOE-"
+            "KPAD adds marlin_moe_padded_intermediate(intermediate, group) = "
+            "round_up(intermediate, lcm(64, max(group,1))) and pads the "
+            "intermediate at WEIGHT PREP: w13 gate/up shard-rows + w2 last-dim "
+            "+ the CONVERTED FP8 scales (incl. the block-FP8 scale-row padding "
+            "club-3090 punts on), then widens check_moe_marlin_supports_layer "
+            "with allow_tile_padding so the misaligned FP8 layer USES fast "
+            "Marlin instead of the slow WNA16 fallback. The pad is "
+            "intrinsically SHAPE-gated (padded_n == n -> no-op): an "
+            "already-tile-aligned intermediate (e.g. the PROD 35B's, dense "
+            "FP8 routed through Marlin on Ampere) passes through UNCHANGED at "
+            "ZERO cost -> NO 35B regression even when enabled. Padded region "
+            "self-cancels (FP8 zero decodes to 0.0; scales zero-padded). Pad "
+            "multiple is %64 (lcm(64,group)), NOT %128 — does NOT double-pad "
+            "on top of the PR45295 round_up dense base dev491 already carries "
+            "(P87/#40361 dense sibling). FP8-CORE SCOPE: exactly 3 vLLM files "
+            "(marlin_utils.py, marlin_utils_fp8.py, compressed_tensors_moe.py); "
+            "the mxfp8 hunk + INT-WNA16 oracle module of the current #45703 "
+            "HEAD are out of scope. NOT yet rig-validated (DiffusionGemma boot "
+            "+ 35B regression bench are operator-gated) -> default OFF, opt-in "
+            "via GENESIS_ENABLE_PN_FP8MOE_KPAD=1, committing is zero-risk."
+        ),
+        "upstream_pr": 45703,
+        "upstream_pr_relationship": "backport",
+        # Lower bound: the PR45295 dense round_up base (round_up, math,
+        # marlin_padded_nk) that this patch builds on appeared by the dev491
+        # pin. VERIFIED present on 0.22.1rc1.dev491+g1033ffac2; the
+        # marlin_moe_padded_intermediate func is ABSENT there (the delta we
+        # add). No upper bound yet — the marlin_utils patcher's
+        # `def marlin_moe_padded_intermediate` upstream-merge drift marker
+        # self-skips the patch once #45703 lands (iron-rule-#11 outcome (a)).
+        "applies_to": {
+            "vllm_version_range": (">=0.22.1rc1.dev491", "<1.0.0"),
+            "quant_format": [
+                "fp8", "fp8_block", "compressed_tensors",
+            ],
+        },
+        "implementation_status": "full",
+        # Composes with the dense Marlin pad siblings (different code paths):
+        # P87 (Marlin INT4 sub-tile output-dim pad — dense #40361), PN347
+        # (MarlinFP8 N==K correctness — weight transpose, different hook).
+        # On #45703 merge: retire PN-FP8MOE-KPAD + re-decide G4_08 / G4_02
+        # per the retirement note.
+        "composes_with": ["P87", "PN347"],
+    },
     "PN348": {
         "title": "Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644) — ~1 GiB/rank peak load VRAM + 1-3s boot",
         "tier": "community",

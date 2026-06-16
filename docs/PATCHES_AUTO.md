@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-16T14:04:15Z
-Total entries: **313**
+Generated: 2026-06-16T23:34:10Z
+Total entries: **315**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **313**
+- `tier=community`: **315**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **233**
+- `lifecycle=experimental`: **235**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
 - `lifecycle=retired`: **30**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **53** / 313
+### Default-on at boot: **54** / 315
 
 ### By family
 - `attention`: 1
@@ -31,7 +31,7 @@ Total entries: **313**
 - `detection`: 3
 - `gemma4`: 18
 - `kernels`: 9
-- `kv_cache`: 15
+- `kv_cache`: 16
 - `loader`: 3
 - `lora`: 1
 - `memory`: 5
@@ -42,7 +42,7 @@ Total entries: **313**
 - `observability`: 6
 - `offload`: 4
 - `quantization`: 6
-- `quantization.marlin`: 1
+- `quantization.marlin`: 2
 - `reasoning`: 9
 - `scheduler`: 9
 - `serving`: 14
@@ -238,7 +238,7 @@ Total entries: **313**
 | **PN362** | `community` | `experimental` | · | `GENESIS_ENABLE_PN362` | [#42425](https://github.com/vllm-project/vllm/pull/42425) | Triton autotune determinism — VLLM_TRITON_FORCE_FIRST_CONFIG (vendor of vllm#... |
 | **P23_WIRE** | `community` | `experimental` | · | `GENESIS_ENABLE_P23_MARLIN_FP32_REDUCE_WIRE` | — | Marlin FP32_REDUCE env wire (P23 companion, fix-wire 2026-06-04) |
 
-### `kv_cache` (15)
+### `kv_cache` (16)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -253,6 +253,7 @@ Total entries: **313**
 | **PN106** | `community` | `experimental` | · | `GENESIS_ENABLE_PN106_GDN_H_POOL` | — | PN106 — GDN scratch tensor pool (architectural memory mgr) |
 | **PN110** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN110` | [#42615](https://github.com/vllm-project/vllm/pull/42615) | BlockPool.free_blocks deduplication (vllm#42615) |
 | **PN346** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN346` | [#43650](https://github.com/vllm-project/vllm/pull/43650) | Mamba/GDN cache hit boundary fix for MTP + prefix caching (vendor of OPEN vll... |
+| **PN346B** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN346B` | [#45614](https://github.com/vllm-project/vllm/pull/45614) | Mamba/GDN + EAGLE/MTP + APC coordinator curr_hit_length clamp (coordinator ha... |
 | **PN382** | `community` | `experimental` | · | `GENESIS_ENABLE_PN382_DECODE_BENCH_HYBRID_FILL` | [#45080](https://github.com/vllm-project/vllm/pull/45080) | DecodeBenchConnector hybrid per-block KV fill (vendor of vllm#45080) |
 | **PN384** | `community` | `experimental` | · | `GENESIS_ENABLE_PN384_EAGLE_PREFIX_CACHE_PREFILL` | [#44986](https://github.com/vllm-project/vllm/pull/44986) | ( |
 | **G4_06** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0` | [#41944](https://github.com/vllm-project/vllm/pull/41944) | v_head_size=0 for k_eq_v attention layers (vendors vllm#41944) |
@@ -349,11 +350,12 @@ Total entries: **313**
 | **PN77** | `community` | `experimental` | · | `GENESIS_ENABLE_PN77_FP8_LM_HEAD` | — | FP8 lm_head compression (BF16→FP8 e4m3 + per-channel scale) |
 | **PN376** | `community` | `experimental` | · | `GENESIS_ENABLE_PN376_FP8_IGNORE_SUBSTRING` | [#44628](https://github.com/vllm-project/vllm/pull/44628) | FP8 modules_to_not_convert substring match (vendor of vllm#44628) |
 
-### `quantization.marlin` (1)
+### `quantization.marlin` (2)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **PN347** | `community` | `experimental` | · | `GENESIS_ENABLE_PN347` | [#44113](https://github.com/vllm-project/vllm/pull/44113) | MarlinFP8 N==K silent corruption correctness fix (vendor of CLOSED vllm#44113... |
+| **PN-FP8MOE-KPAD** | `community` | `experimental` | · | `GENESIS_ENABLE_PN_FP8MOE_KPAD` | [#45703](https://github.com/vllm-project/vllm/pull/45703) | FP8 MoE intermediate thread-tile pad (FP8-core backport of OPEN vllm#45703) |
 
 ### `reasoning` (9)
 

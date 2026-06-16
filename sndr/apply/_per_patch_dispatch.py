@@ -5622,6 +5622,34 @@ def apply_patch_N347_marlin_fp8_nk_correctness() -> PatchResult:
     return _skipped("PN347 MarlinFP8 N==K correctness", detail)
 
 
+@register_patch("PN-FP8MOE-KPAD FP8 MoE intermediate thread-tile pad (FP8-core backport of OPEN vllm#45703)")
+def apply_patch_pn_fp8moe_kpad_marlin_moe() -> PatchResult:
+    """PN-FP8MOE-KPAD: FP8-core backport of OPEN PR vllm#45703. Pads a
+    tile-misaligned MoE *intermediate* dim to the next valid Marlin thread
+    tile at weight prep across 3 vLLM files (marlin_utils.py,
+    marlin_utils_fp8.py, compressed_tensors_moe.py), so a misaligned FP8 MoE
+    layer (e.g. DiffusionGemma N=352->384, 352 % 64 == 32) USES fast Marlin
+    instead of crashing / falling back to slow WNA16. Intrinsically
+    shape-gated: an already-aligned intermediate (e.g. PROD 35B) passes
+    through unchanged at zero cost — NO 35B regression. Opt-in via
+    GENESIS_ENABLE_PN_FP8MOE_KPAD=1. Default OFF (not yet rig-validated)."""
+    name = "PN-FP8MOE-KPAD FP8 MoE intermediate thread-tile pad (vllm#45703 backport)"
+    if not _state._APPLY_MODE:
+        return _applied(name, "dry-run: 3-file TextPatcher ready")
+    try:
+        from sndr.engines.vllm.patches.quantization.marlin import (
+            pn_fp8moe_kpad_marlin_moe as _wiring,
+        )
+    except Exception as e:
+        return _failed(name, f"wiring import failed: {e}")
+    status, detail = _wiring.apply()
+    if status == "applied":
+        return _applied(name, detail)
+    if status == "failed":
+        return _failed(name, detail)
+    return _skipped(name, detail)
+
+
 @register_patch("PN348 Qwen3.5/3.6 MTP backbone dedup (vendor of OPEN vllm#44644)")
 def apply_patch_N348_qwen3_mtp_backbone_dedup() -> PatchResult:
     """PN348: vendors OPEN PR vllm#44644 (Qwen3.5/3.6 MTP backbone dedup).

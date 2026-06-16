@@ -580,6 +580,7 @@ class Flags:
     PN377_MOE_WNA16_BSK_CLAMP = "PN377_MOE_WNA16_BSK_CLAMP"  # PN377: moe_wna16 BLOCK_SIZE_K legality clamp (vendor of vllm#44563)
     # quantization.marlin family
     PN347 = "PN347"  # PN347: MarlinFP8 N==K silent corruption correctness fix
+    PN_FP8MOE_KPAD = "PN_FP8MOE_KPAD"  # PN-FP8MOE-KPAD: FP8 MoE intermediate thread-tile pad (vllm#45703 backport)
     # spec_decode family
     PN290_NUM_ACCEPTED_TOKENS_RACE = "PN290_NUM_ACCEPTED_TOKENS_RACE"  # PN290: num_accepted_tokens D2H race fix
     PN348 = "PN348"  # PN348: Qwen3.5/3.6 MTP backbone dedup
