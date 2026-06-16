@@ -172,6 +172,31 @@ is a `kv_cache_utils` / `gpu_model_runner._reshape_kv_cache_tensors` spec-propag
 fix, scoped but separate. **G4_82 + the no-MTP native 31B-tq remains the shipped
 baseline.**
 
+### Upstream research sweep (2026-06-16, 5-searcher workflow) — DECISION: bank MTP
+A parallel sweep of vLLM github + a re-audit of our kernels settled it:
+
+- **No clean upstream path exists.** Independent quantized-KV draft cache groups are an
+  OPEN, unsolved upstream area: RFC #44276, issue #43626, PRs #45207 / #45181 / #43887 open.
+- **G4_82 is the right Ampere call (confirmed).** FA3 still caps head_dim at 256 on SM 8.x,
+  FA4 is Hopper+ only, no triton varlen PREFILL kernel exists, TURBOQUANT relies on FA
+  upstream. #38891 (per-layer dispatch) would let the *sliding* layers use FA natively but
+  is unmerged. Our SDPA fallback is the pragmatic, validated choice.
+- **The MTP bind is THREE blockers, not one** (the sweep caught two I missed):
+  1. **Allocation** — `g4_72_drafter_native_kv_cache_spec.py:232-249` always returns a
+     *native bf16* spec; **and** G4_76's own sub-parts **G4_76b** (g4_76:194-265) + **G4_76c**
+     (g4_76:267-324) coerce the drafter dtype → `'auto'` (bf16), *contradicting* a TQ slot.
+     **This is the real source of E6's 512-vs-262 reshape** (bf16 buffer vs TQ-262 expectation).
+     TQ route = revert G4_76b/c **and** gate g4_72 on `turboquant_*` (return
+     `TQSlidingWindowSpec/TQFullAttentionSpec` w/ `tq_slot_size` from
+     `TurboQuantConfig.from_cache_dtype`, per G4_60g). The reshape consumer already exists
+     (g4_60e:405-481) but never fires — drafter group has no `page_size_padded` set.
+  2. **Warmup** — **G4_77 does not exist** (no file). Acceptance is 0% by design without it.
+  3. **Verify-route** — K+1 verify still needs a cudagraph-safe route (G4_67 garbage / G4_81 OOB).
+- **DECISION: BANK MTP on the 31B-tq.** Multi-day, three-blocker effort with a structural
+  0%-acceptance gate; no upstream fix imminent. Ship **G4_82 + no-MTP native 31B-tq** as the
+  validated dev491 baseline. Cheaper alt (if ever): reduce `max_model_len` so the native-bf16
+  drafter (E2) fits — still needs the warmup. Revisit on an upstream draft-cache fix or Hopper HW.
+
 ## 4. Verdict & next steps
 
 - **Ship:** G4_82 (committed) + the **no-MTP native 31B-tq** as the validated dev491
