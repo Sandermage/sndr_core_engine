@@ -5319,3 +5319,5 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .chat-set-note { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 11.5px; color: var(--text-muted); }
 .chat-set-row { display: flex; align-items: end; gap: 10px; flex-wrap: wrap; }
 .chat-set-section .chat-field-wide, .chat-set-section .chat-field-wide textarea { width: 100%; }
+/* System prompt: tall + readable by default (was a 3-row sliver) — still resizable. */
+.chat-set-prompt { min-height: 230px; line-height: 1.55; font-size: 12.5px; resize: vertical; }

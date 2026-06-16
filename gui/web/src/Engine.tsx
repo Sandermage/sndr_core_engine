@@ -978,7 +978,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
 
             <section className="chat-set-section">
               <div className="chat-set-head"><BookText size={14} /> {tr("System prompt")}</div>
-              <label className="chat-field chat-field-wide"><textarea value={settings.system} onChange={(e) => set({ system: e.target.value })} rows={3} aria-label={tr("System prompt")} /></label>
+              <label className="chat-field chat-field-wide"><textarea className="chat-set-prompt" value={settings.system} onChange={(e) => set({ system: e.target.value })} rows={12} aria-label={tr("System prompt")} placeholder={tr("Instructions that steer every reply (role, tone, constraints). Load a saved template below, or write your own.")} /></label>
               <div className="chat-set-row">
                 <label className="chat-field"><span>{tr("Prompt template")}</span>
                   <select value="" onChange={(e) => { const p = prompts.find((x) => x.id === e.target.value); if (p) set({ system: p.content }); }} title={tr("Load a saved prompt as the system prompt")}>

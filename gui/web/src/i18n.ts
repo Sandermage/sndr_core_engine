@@ -1497,6 +1497,7 @@ const RU_BY_EN: Record<string, string> = {
   "Models": "Модели",
   "Chat panel": "Панель чата",
   "Connection": "Подключение",
+  "Instructions that steer every reply (role, tone, constraints). Load a saved template below, or write your own.": "Инструкции, направляющие каждый ответ (роль, тон, ограничения). Загрузите готовый шаблон ниже или напишите свой.",
   "Model & sampling": "Модель и семплинг",
   "Export conversation": "Экспорт диалога",
   "Web": "Веб",
