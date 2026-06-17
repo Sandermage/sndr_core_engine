@@ -4014,6 +4014,23 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Genesis A5000 PROD doesn't have --structured-outputs-config so
             # may not exercise this path; community single-3090 + structured
             # CoT does.
+            #
+            # 2026-06-17 (0.23.1 pin-bump, iron-rule #11 outcome-a — verified
+            # by reading BOTH our part1 anchor AND live 0.23.1 source):
+            # upstream REWROTE get_conv_copy_spec. The NotImplementedError
+            # this patch worked around ("DS conv state layout does not yet
+            # support speculative decoding ... num_accepted_tokens > 1") is
+            # GONE — replaced by `assert offset == 0, "...must be handled by
+            # the fused postprocess kernel, not get_conv_copy_spec"`. Upstream
+            # now handles DS conv state + num_accepted_tokens > 1 natively via
+            # a fused postprocess kernel (a superset of our memcpy workaround).
+            # Confirmed live in 0.23.1rc1.dev101+g4c6266331
+            # (mamba_utils.get_conv_copy_spec). The cap retires PN30's whole
+            # 3-part apply() on >=0.23.0 via should_apply (all-or-nothing — a
+            # part1-only drift-skip would leave the half-patched state the
+            # apply() docstring forbids). PN30 stays ACTIVE on <0.23.0 (dev491
+            # still raises NotImplementedError on the DS+align path).
+            "vllm_version_range": (">=0.20.0", "<0.23.0"),
         },
         "conflicts_with": [],
         "requires_patches": [],
