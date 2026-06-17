@@ -16,7 +16,13 @@ memory budgets.
 This patch is the missing text-patch half. It rewrites the two launch-
 parameter blocks of ``vllm/v1/attention/ops/triton_turboquant_decode.py``
 in place at boot using the values from ``resolve_decode_tune()``. The
-SM-8.6-validated default is ``num_warps=8, num_stages=3``.
+SM-8.6-validated tune is ``num_warps=8, num_stages=3``, but that is a
+RECOMMENDED OVERRIDE, not the shipped default: ``resolve_decode_tune()``
+returns the upstream values (``num_warps=4, num_stages=2`` GQA /
+``1, 1`` MHA) unless ``VLLM_TQ_DECODE_NUM_WARPS=8`` /
+``VLLM_TQ_DECODE_NUM_STAGES=3`` are set in the environment. Without those
+env vars this patch rewrites the launcher to the same upstream literals
+(inert). Set the env to actually realise the SM-8.6 tune.
 
 Expected impact (HIGH confidence on the fix actually applying, MEDIUM
 on the TPS number): +3-8 % on 35B-A3B-FP8 + TQ k8v4 + MTP K=3. Bench
