@@ -95,25 +95,62 @@ role: structured
 # Runtime sizing — chat-role uses larger context budget than structured
 # K=4 (which intentionally caps at 4K to fit β'-A bench) because
 # free-form chat / summarization frequently exceeds 4K input tokens.
-# Values match the prior `gemma4-31b-tq-default` envelope:
 #
-#   max_model_len:        200000  — well below 256K hard ceiling
-#   gpu_memory_utilization: 0.90  — same as default; leaves headroom
-#                                    for P38 TQ workspace (Bug Class 14)
-#   max_num_seqs:           2     — accept concurrency up to 2
-#   max_num_batched_tokens: 4096  — hardware default
+# ── MM-BUDGET FIX (2026-06-17): max_num_batched_tokens 4096 → 8192 ──────
+# Boot failure this addresses:
+#   ValueError: Chunked MM input disabled but max_tokens_per_mm_item (2496)
+#   is larger than max_num_batched_tokens (2048).
+# Root cause: Gemma 4 is multimodal-bidirectional → vLLM forces
+# disable_chunked_mm_input=True → the image MM item (2496 tokens) must fit
+# in ONE schedule step. The encoder-budget check (vllm
+# v1/core/encoder_cache_manager.py:296-307, verified on the live dev491
+# container nightly-1033ffac2) compares max_tokens_per_mm_item(2496)
+# against scheduler_config.max_num_batched_tokens. The reported budget of
+# 2048 (= a halved 4096) was the value on the pin this profile was
+# validated on (626fa9bba), where the MTP slot reservation reduced the
+# effective batched budget.
 #
-# Diff vs structured-k4 sizing:
-#   max_model_len:        4096    →  200000  (chat tolerates long ctx)
-#   gpu_memory_utilization: 0.92  →  0.90    (back off slightly; K=3
-#                                              uses less VRAM than K=4)
-#   max_num_seqs:           1     →  2       (chat is concurrency-friendly)
-#   max_num_batched_tokens: 8192  →  4096    (chat uses smaller chunks)
+# Verified MTP slot math (dev491 vllm/config/speculative.py:
+# max_num_new_slots_for_drafting):
+#   slots_per_req = 0
+#   if parallel_drafting: slots_per_req = K-1   # parallel_drafting is set
+#                                               # ONLY for method=="dflash"
+#   if uses_draft_model(): slots_per_req += 1   # only method=="draft_model"
+#   → for MTP (method=="mtp"), parallel_drafting=False AND
+#     uses_draft_model()=False ⇒ max_num_new_slots_for_drafting == 0
+#   ⇒ on dev491 MTP does NOT reduce the batched budget at all (the
+#     reduction in vllm/config/vllm.py:_set_max_num_scheduled_tokens is
+#     scheduled_token_delta = 0 * max_num_seqs = 0).
+#
+# Fix chosen to hold on BOTH pins while keeping MTP K=3 and max_num_seqs=2:
+#   reduced_budget = max_num_batched_tokens - (slots * max_num_seqs)
+#   • dev491 (slots=0):            8192 - 0          = 8192 ≥ 2496 ✓ (+5696)
+#   • old 626fa9bba (worst-case
+#     halving observed in the error): 8192 / 2       = 4096 ≥ 2496 ✓ (+1600)
+# Either way the MM item (2496) fits in one step with comfortable margin.
+# max_num_seqs stays 2 (chat concurrency) and MTP K=3 is untouched.
+#
+# Why 8192 (not 6144): the structured-k4 sibling already runs
+# max_num_batched_tokens=8192 successfully on this exact model+hardware, so
+# 8192 is the proven-safe value for the Gemma-4-31B TQ stack. The skill's
+# "batched=8192 needs GENESIS_PROFILE_RUN_CAP_M=8192" P72/P74 anti-pattern
+# does NOT apply here — those are Qwen GDN patches; the composed genesis_env
+# for this Gemma dense profile carries no P72/P74/PROFILE_RUN_CAP envs
+# (verified by rendering this profile 2026-06-17). text-chat does not need
+# image MM, but limit-mm does NOT skip the encoder-budget check on dev491,
+# so the token budget is the actual fix.
+#
+# Values:
+#   max_model_len:        65536  — see per-field note (64K empirical ceiling)
+#   gpu_memory_utilization: 0.90 — leaves headroom for P38 TQ workspace
+#   max_num_seqs:           2    — chat concurrency (UNCHANGED by the fix)
+#   max_num_batched_tokens: 8192 — MM-budget fix (was 4096); matches the
+#                                  structured-k4 sibling's proven value
 sizing_override:
   max_model_len: 65536                            # 64K — empirical ceiling on pin `626fa9bba` 2026-05-31. 200K (original) deadlocks at PN126 prefill warmup due to CUDA OOM (model+TQ-KV reaches 21.92 GiB of 23.55 GiB total, leaves 136 MB; PN126 wants 168 MB → fail; engine never starts API server). 64K boots clean with all G4_60* TQ infra patches enabled. Re-raise toward 200K only after gpu_memory_utilization tuning + progressive ladder validation on current pin.
   gpu_memory_utilization: 0.90
-  max_num_seqs: 2
-  max_num_batched_tokens: 4096
+  max_num_seqs: 2                                 # chat concurrency — UNCHANGED by the MM-budget fix
+  max_num_batched_tokens: 8192                    # MM-budget fix 2026-06-17 (was 4096): keeps max_tokens_per_mm_item(2496) ≤ effective batched budget on both dev491 (8192) and the old halving pin (8192/2=4096), while keeping MTP K=3 + max_num_seqs=2. Matches the structured-k4 sibling's proven 8192.
   enable_chunked_prefill: true
   enforce_eager: false
   disable_custom_all_reduce: true

@@ -1,0 +1,160 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — diffusiongemma-tp2
+# Role: bench — the single rig-validated TP=2 runtime for
+# diffusiongemma-26b-a4b-fp8 (block-diffusion text, 2× A5000, dev491).
+# (role=bench, not default: it carries a backend_plan for the
+# --attention-backend flag, which the default-clean validator forbids on
+# role=default; see the Runtime role block below.)
+#
+# ═══════════════════════════════════════════════════════════════════════
+# RENDER NOTES — what the rendered launcher gets right, and the FOUR things
+# it does NOT (operator must hand-add). Verified against the render source
+# (sndr/cli/legacy/profile.py:render_profile_launcher) 2026-06-17.
+# ═══════════════════════════════════════════════════════════════════════
+# Render command:
+#   python3 -m sndr.cli profile render-launchers diffusiongemma-tp2 \
+#     --hardware a5000-2x-24gbvram-16cpu-128gbram --dry-run
+#
+# RENDERED CORRECTLY (matches the validated hand-launcher):
+#   --tensor-parallel-size 2          (from hardware.n_gpus=2)
+#   --dtype bfloat16                  (model.dtype)
+#   --max-model-len 4096              (sizing_override)
+#   --max-num-seqs 2                  (sizing_override)
+#   --gpu-memory-utilization 0.8      (sizing_override; "0.80" renders as 0.8)
+#   --attention-backend TRITON_ATTN   (backend_plan.target_default below)
+#   --served-model-name diffusiongemma
+#   --enable-auto-tool-choice --tool-call-parser gemma4
+#   --api-key genesis-local
+#   -e GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB=1
+#   -e GENESIS_ENABLE_PN_FP8MOE_KPAD=1
+#   mounts: /nfs/genesis/models:/models:ro
+#           ${GENESIS_REPO}/sndr:.../dist-packages/sndr:ro   (plugin path)
+#
+# NOT RENDERED — operator MUST hand-add to the rendered launcher (the
+# render path has no field/branch for these; see the ModelDef header for
+# the full why):
+#   1. EXPLICIT GENESIS APPLY STEP (load-bearing). Insert BEFORE
+#      `exec vllm serve` inside the inner run.sh:
+#          python3 -c "from sndr.plugin import register; register()" 2>&1 | tail -20
+#      The V2 model runner does not fire the vllm.general_plugins entry-point
+#      reliably (entry-point ordering vs model-executor import). Without this
+#      explicit apply, G4_26 + PN-FP8MOE-KPAD never patch the live
+#      diffusion_gemma.py module → init crash. (Equivalent canonical form:
+#      `python3 -m sndr.apply 2>&1 | tail -20`.)
+#   2. --enforce-eager   (render path never emits it; enforce_eager: true
+#                          below is self-documentation only)
+#   3. --generation-config vllm   (no schema field for this flag)
+#   4. model-specific system_env (VLLM_USE_V2_MODEL_RUNNER=1,
+#      VLLM_LOGGING_LEVEL=INFO, VLLM_ALLOW_LONG_MAX_MODEL_LEN=1,
+#      PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True). system_env is
+#      hardware-scoped and the shared a5000-2x hardware keeps the V2 runner
+#      OFF — do NOT edit it; add these per-container by hand.
+#
+# Back-compat sndr mount: the render path bind-mounts ${GENESIS_REPO}/sndr
+# into .../dist-packages/sndr:ro. The plugin path (sndr.plugin.register)
+# resolves through that mount. If the operator runs against an image where
+# Genesis lives under .../vllm/sndr_core, ALSO add the legacy mirror mount
+#   ${GENESIS_REPO}/sndr:.../vllm/sndr_core:ro
+# — it is REQUIRED for the plugin path on those images.
+#
+# NO MTP / spec-decode (block diffusion has its own sampler) → no
+# spec_decode_override, no drafter, no --speculative-config in the render.
+
+schema_version: 2
+kind: profile
+id: diffusiongemma-tp2
+parent_model: diffusiongemma-26b-a4b-fp8
+maintainer: sandermage
+status: experimental                              # TP=2 coherent-serve validated 2026-06-17; speed bench pending → experimental, not validated
+created: '2026-06-17'
+# Pin the rig: this is a 2× A5000 TP=2 config. Without target_hardware the
+# renderer auto-picks the largest-VRAM satisfying hardware (also a5000-2x
+# here), but declaring it makes the TP=2 intent explicit and stable.
+target_hardware: a5000-2x-24gbvram-16cpu-128gbram
+
+# ─── Runtime role ──────────────────────────────────────────────────────
+# role=bench: this is the TP=2 bring-up / bench profile. It carries a
+# backend_plan (target_default TRITON_ATTN, to emit the --attention-backend
+# CLI flag) but NO spec_decode / compression / routing / validation. It
+# CANNOT be role=default because the [10_default_clean] validator forbids a
+# default-role profile from setting ANY runtime-role block — and that check
+# DOES include backend_plan. It is NOT role=structured either: structured
+# requires a spec-decode validation artifact + non-empty routing
+# intersection (checks 06/09), which a no-spec-decode block-diffusion model
+# has none of. role=bench carries backend_plan cleanly (checks 09/10 do not
+# apply to it) and matches the experimental status. Renders on port 8102.
+role: bench
+
+# ─── Runtime sizing — verbatim from the rig-validated launcher ─────────
+# sizing_override is full-replacement (compose uses profile.sizing_override
+# wholesale when set), so all fields are present even when only some differ
+# from the a5000-2x hardware defaults.
+#   max_model_len:            4096   (validated; small block-diffusion ctx)
+#   gpu_memory_utilization:   0.80   (validated; lower than the 0.90 default
+#                                     — leaves headroom for the FP8 MoE +
+#                                     vocab all-gather working set at TP=2)
+#   max_num_seqs:             2      (validated)
+#   max_num_batched_tokens:   4096   (= max_model_len; chunked prefill on)
+#   enforce_eager:            true   (validated; block-diffusion sampler is
+#                                     not cudagraph-safe. NOTE: render path
+#                                     does NOT emit --enforce-eager — operator
+#                                     must hand-add it, see header note 2.)
+#   enable_chunked_prefill:   true
+#   disable_custom_all_reduce:true   (render path emits it unconditionally
+#                                     anyway; benign at TP=2)
+sizing_override:
+  max_model_len: 4096
+  gpu_memory_utilization: 0.80
+  max_num_seqs: 2
+  max_num_batched_tokens: 4096
+  enable_chunked_prefill: true
+  enforce_eager: true
+  disable_custom_all_reduce: true
+
+# ─── Backend plan — drives the --attention-backend CLI flag ────────────
+# Only target_default is set: ("target_default", "TRITON_ATTN") maps to
+# None in BACKEND_PLAN_EMISSION_MAP (no env, CLI-flag-only), and compose.py
+# step 4d emits `--attention-backend TRITON_ATTN`. The render path's
+# attn_backend_arg branch then writes it into the launcher. No drafter
+# backend fields (no MTP).
+backend_plan:
+  target_default: TRITON_ATTN
+
+# ─── Patches delta — none ──────────────────────────────────────────────
+# The two load-bearing flags (G4_26, PN-FP8MOE-KPAD) live in the parent
+# ModelDef.patches because they are inherent to serving THIS checkpoint at
+# TP=2, not workload-conditional. The profile adds nothing.
+patches_delta:
+  enable: {}
+  disable: []
+  override: {}
+
+# ─── Override policy (CONFIG-UX.1) ─────────────────────────────────────
+# sizing_override reaches below hardware defaults (max_model_len 280000 →
+# 4096, gpu_memory_utilization 0.90 → 0.80). Class `bench` — this is the
+# experimental TP=2 bring-up profile; not production traffic until the
+# block-diffusion speed bench lands and status promotes to validated.
+override_policy:
+  override_class: bench
+  reason: "DiffusionGemma 26B-A4B FP8 block-diffusion TP=2 bring-up; rig-validated coherent serve 2026-06-17 on 2× A5000 / dev491; small 4K ctx + lowered gpu_mem for the FP8 MoE + vocab all-gather working set; speed bench pending block-diffusion-aware harness"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-09-17'
+  allowed_to_exceed_hardware_default: false
+
+# ─── Promotion contract ────────────────────────────────────────────────
+promotion:
+  promote_to: null            # flags stay model-side; profile is the TP=2 runtime variant
+  validation_required:
+    - "TP=2 coherent serve PASS (smoke: model returns coherent text, no init crash)"
+    - "G4_26 + PN-FP8MOE-KPAD both confirmed APPLIED at boot (explicit register() apply step ran)"
+    - "block-diffusion end-to-end throughput bench captured (per-block, not AR-TPOT)"
+    - "tool-call smoke via native gemma4 parser"
+  notes: |
+    Promotion to `validated` is blocked on the block-diffusion speed bench
+    (the AR decode-TPOT metric is N/A). Coherent serve is already proven
+    (2026-06-17). Before any production promotion the render path should
+    gain first-class support for the four hand-added items (apply-step,
+    --enforce-eager, --generation-config, model-scoped system_env) so the
+    rendered launcher is self-sufficient — until then this profile requires
+    the operator post-edit documented in the header.

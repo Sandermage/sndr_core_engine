@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: Apache-2.0
+# Status: 🧪 Experimental
+# Caveats: TP=2 COHERENT serve validated on the rig 2026-06-17 (2× A5000,
+#   dev491 pin). Speed is PENDING — proper block-diffusion end-to-end
+#   measurement is required; the autoregressive decode-TPOT metric is N/A
+#   for a block-diffusion sampler (no per-token AR loop). Both Genesis
+#   flags below are still default-OFF in the registry (experimental,
+#   not yet bench-gated); this ModelDef opts them in explicitly because
+#   the model does NOT boot / serve coherently at TP=2 without them.
+#
+# Genesis V2 model definition — DiffusionGemma 26B-A4B-it FP8-dynamic.
+# Block-diffusion text model (NOT autoregressive). 128-expert MoE,
+# A≈4B active params. HF arch DiffusionGemmaForBlockDiffusion; runtime
+# class DiffusionGemmaForConditionalGeneration. compressed-tensors
+# FP8-dynamic quantization.
+#
+# ═══════════════════════════════════════════════════════════════════════
+# ⚠️  RENDER-PATH GAPS — READ BEFORE LAUNCHING (operator action required)
+# ═══════════════════════════════════════════════════════════════════════
+# `sndr profile render-launchers diffusiongemma-tp2` reproduces MOST of the
+# rig-validated launcher, but the current V2 render path (sndr/cli/legacy/
+# profile.py:render_profile_launcher) CANNOT express four things this model
+# requires. Verified against the render source 2026-06-17. The operator MUST
+# hand-add them to the rendered launcher (or they must be added to the
+# render path before this profile is production-promoted):
+#
+#   1. EXPLICIT GENESIS APPLY STEP (the load-bearing one).
+#      The V2 model runner (VLLM_USE_V2_MODEL_RUNNER=1) does NOT fire the
+#      `vllm.general_plugins` entry-point reliably — entry-point ordering
+#      under the V2 runner means the Genesis register() can run AFTER the
+#      model executor has already imported diffusion_gemma.py, so the
+#      G4_26 / PN-FP8MOE-KPAD TextPatchers never patch the live module.
+#      The render path only does `pip install -e ${GENESIS_REPO} --no-deps`
+#      and trusts the entry-point. This model needs an EXPLICIT pre-serve
+#      apply step inside the container, BEFORE `exec vllm serve`:
+#          python3 -c "from sndr.plugin import register; register()" 2>&1 | tail -20
+#      (equivalently `python3 -m sndr.apply 2>&1 | tail -20`, the canonical
+#      apply entrypoint used by emitters/docker_cmd.py — same effect.)
+#      Without this step the TP=2 vocab-shard all-gather (G4_26) and the
+#      FP8 MoE N=352 tile-pad (PN-FP8MOE-KPAD) are never installed and the
+#      engine crashes at init (reduction-dim mismatch / Invalid thread
+#      config MKN=[16384,352,2816]).
+#
+#   2. --enforce-eager. The render path NEVER emits --enforce-eager (it
+#      reads cfg.enforce_eager nowhere in inner_run, even though the
+#      sizing field exists). The profile sets enforce_eager: true for
+#      self-documentation, but the operator must add `--enforce-eager`
+#      by hand. Block-diffusion needs eager (its sampler is not
+#      cudagraph-capture-safe on this pin).
+#
+#   3. --generation-config vllm. There is NO schema field for the
+#      `--generation-config` flag (only --override-generation-config via
+#      override_generation_config, a DIFFERENT flag). The operator must
+#      hand-add `--generation-config vllm` so vLLM uses its own
+#      generation defaults rather than the checkpoint's generation_config.
+#
+#   4. Model-specific system_env. `system_env` is HARDWARE-scoped, and the
+#      shared a5000-2x hardware deliberately keeps VLLM_USE_V2_MODEL_RUNNER
+#      OFF (default 0). These env vars are DiffusionGemma-specific and must
+#      be added to the container env by hand (do NOT edit the shared
+#      hardware YAML — it would flip the V2 runner on for Qwen/Gemma too):
+#          VLLM_USE_V2_MODEL_RUNNER=1
+#          VLLM_LOGGING_LEVEL=INFO
+#          VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
+#          PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+#
+# Also note: the render path UNCONDITIONALLY emits --disable-custom-all-reduce
+# (benign extra flag at TP=2; the validated hand-launcher omits it but it
+# does not change behaviour) and a back-compat sndr mount. The sndr mount
+# at .../vllm/sndr_core is REQUIRED for the plugin path — see the profile's
+# render-notes block.
+# ═══════════════════════════════════════════════════════════════════════
+
+schema_version: 2
+kind: model
+id: diffusiongemma-26b-a4b-fp8
+title: DiffusionGemma 26B-A4B-it FP8-dynamic (block-diffusion text)
+maintainer: sandermage
+last_validated: '2026-06-17'
+license: gemma-license
+
+# ─── Identity ──────────────────────────────────────────────────────────
+model_path: /models/diffusiongemma-26B-A4B-it-FP8-dynamic   # rig checkpoint (/nfs/genesis/models mount → /models:ro)
+served_model_name: diffusiongemma                           # OpenAI-API model name (matches validated launcher)
+quantization: null                                          # let vLLM detect compressed-tensors FP8-dynamic from checkpoint metadata
+dtype: bfloat16                                             # compute dtype; FP8 weights, bf16 activations on SM 8.6 Ampere
+trust_remote_code: false                                   # DiffusionGemma is a native vLLM model_executor model on dev491
+
+# ─── Capabilities ──────────────────────────────────────────────────────
+capabilities:
+  attention_arch: gemma4_moe                               # 128-expert MoE, A≈4B active (shares Gemma 4 MoE block shape)
+  tool_call_parser: gemma4                                 # native gemma4 tool-call parser
+  reasoning_parser: null
+  enable_auto_tool_choice: true
+  # NO MTP / spec-decode. Block diffusion has its OWN sampler (parallel
+  # denoising over a block, not an autoregressive draft+verify loop).
+  # vLLM treats diffusion models specially (model_config.is_diffusion →
+  # num_sampled_tokens_per_step=0 in the scheduler). A speculative drafter
+  # would be semantically meaningless here. Leave spec_decode null.
+  spec_decode: null
+  kv_cache_dtype: auto                                     # let the engine pick (validated launcher passes no --kv-cache-dtype)
+
+# ─── Hardware preconditions ────────────────────────────────────────────
+requires:
+  min_total_vram_mib: 28000                                # 26B-A4B FP8 weights ~13 GB + KV at 4K ctx; needs 2× 24 GB at TP=2
+  min_gpu_count: 2                                         # validated config is TP=2 (vocab-shard all-gather + FP8 MoE on two cards)
+  min_cuda_capability: [8, 6]                              # Ampere SM 8.6
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v12.0.0
+  vllm_pin_required: 0.22.1rc1.dev491+g1033ffac2   # dev491 (nightly-1033ffac2): G4_26 applies_to.vllm_version_range is >=0.22.1rc1.dev491; the DiffusionGemma block-diffusion model_executor + the N=352 FP8 MoE crash both live on this pin.
+  reference_metrics_ref: null  # no canonical baseline JSON yet — see reference_metrics block below (coherent-serve receipt only; speed pending).
+
+# ─── Canonical patches matrix ──────────────────────────────────────────
+# Only the two DiffusionGemma-load-bearing flags. Both are default_on=False
+# in the registry (experimental); enabling them here is intentional — the
+# model does not serve coherently at TP=2 without them.
+patches:
+  # G4_26 — backport of OPEN vllm PR #45774 (TP-correctness half only).
+  # DiffusionGemmaForBlockDiffusion self-conditioning computes
+  # probs @ embed_weight over the FULL vocab (262144). At TP=2 the
+  # VocabParallelEmbedding weight is vocab-sharded to [131072, 2816] →
+  # RuntimeError "a and b must have same reduction dim". G4_26 all-gathers
+  # the full embed weight before the matmul. Intrinsically TP-gated
+  # (no-op at TP=1). Self-skips once #45774 merges.
+  GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB: '1'
+  # PN-FP8MOE-KPAD — FP8-core backport of OPEN vllm#45703. The fused
+  # Marlin MoE kernel needs the intermediate dim % 64 == 0; DiffusionGemma's
+  # N=352 (352 % 64 == 32) crashes with "Invalid thread config ...
+  # MKN=[16384,352,2816] num_bits=8". PN-FP8MOE-KPAD pads the intermediate
+  # (and the converted FP8 scales) so the misaligned FP8 layer USES fast
+  # Marlin. Shape-gated: already-aligned intermediates pass through at zero
+  # cost (no 35B regression even when on). Padded region self-cancels.
+  GENESIS_ENABLE_PN_FP8MOE_KPAD: '1'
+
+# ─── Reference metrics (coherent-serve receipt; speed pending) ─────────
+# Not a formal canonical baseline JSON (versions.reference_metrics_ref is
+# null). This is the qualitative validation receipt for the TP=2 config.
+reference_metrics:
+  validated_on: '2026-06-17'
+  hardware: a5000-2x-24gbvram-16cpu-128gbram
+  vllm_pin: 0.22.1rc1.dev491+g1033ffac2
+  config: TP=2, enforce_eager, max_model_len=4096, max_num_seqs=2, gpu_mem=0.80
+  result: >-
+    TP=2 coherent serve validated 2026-06-17 (model produces coherent text
+    at tensor-parallel-size 2 on 2× A5000 with G4_26 + PN-FP8MOE-KPAD).
+    Speed pending proper block-diffusion end-to-end measurement
+    (AR decode-TPOT N/A — block diffusion has no autoregressive per-token
+    decode loop; throughput must be measured per generated block, not per
+    AR step). wall_TPS / TPOT / accept_rate intentionally omitted until a
+    block-diffusion-aware bench harness is wired.
+
+# ─── Composition hints ─────────────────────────────────────────────────
+compose_hints:
+  family: gemma4
+  attention_arch: gemma4_moe
+  drafter_method: null      # NO drafter — block diffusion, not spec-decode
+  drafter_id: null

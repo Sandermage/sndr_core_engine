@@ -73,11 +73,21 @@ role: structured
 #   max_num_seqs:           2     →  1       (β'-A bench at concurrency=1)
 #   max_num_batched_tokens: 4096  →  8192    (β'-A bench used 8K chunk)
 #   (others unchanged)
+#
+# MM-BUDGET NOTE (2026-06-17): this sibling is ALREADY SAFE against the
+# Gemma-4 multimodal-bidirectional encoder-budget check that the chat-k3
+# sibling tripped (max_tokens_per_mm_item(2496) ≤ max_num_batched_tokens).
+# Here max_num_batched_tokens=8192 and max_num_seqs=1, and MTP K=4 has
+# max_num_new_slots_for_drafting==0 (verified dev491:
+# parallel_drafting is set only for method=="dflash", and mtp is not
+# draft_model), so the effective batched budget is the full 8192 on
+# dev491 and ≥4096 even on the old halving 626fa9bba pin — both ≫ 2496.
+# NO sizing change needed; documented for parity with the chat-k3 fix.
 sizing_override:
   max_model_len: 4096
   gpu_memory_utilization: 0.92
   max_num_seqs: 1
-  max_num_batched_tokens: 8192
+  max_num_batched_tokens: 8192                    # already ≥ MM item 2496 with large margin; see MM-BUDGET NOTE above (no change 2026-06-17)
   enable_chunked_prefill: true
   enforce_eager: false
   disable_custom_all_reduce: true
