@@ -794,7 +794,7 @@
   {
     "patch_id": "PN90",
     "family": "spec_decode",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT",
@@ -1406,7 +1406,7 @@
   {
     "patch_id": "PN22",
     "family": "spec_decode",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP",
