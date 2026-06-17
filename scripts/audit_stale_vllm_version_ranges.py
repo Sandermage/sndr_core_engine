@@ -55,7 +55,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # canonical pin so torch-less audit runs (CI / collection envs) evaluate
 # ranges against the version actually deployed — the 0.21.1 default
 # false-flagged every correct `>=0.22.0` range as stale.
-DEFAULT_PIN = "0.22.1rc1.dev259+g303916e93"
+DEFAULT_PIN = "0.23.1rc1.dev101+g4c6266331"  # pin-bump candidate 2026-06-17 (was dev259)
 
 
 # v11.3.0 BUG #14 baseline allowlist — known patches with stale

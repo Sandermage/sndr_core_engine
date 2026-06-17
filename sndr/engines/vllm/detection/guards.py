@@ -651,7 +651,7 @@ def is_genesis_pin_validated(pin: Optional[str]) -> bool:
 
 
 def assert_vllm_pin_allowed(
-    allowlist: tuple[str, ...] = KNOWN_GOOD_VLLM_PINS,
+    allowlist: tuple[str, ...] = KNOWN_GOOD_VLLM_PINS + PROMOTION_PENDING_VLLM_PINS,
     policy: Optional[str] = None,
 ) -> tuple[str, str]:
     """Loud check that the running vllm pin is on the allowlist.
@@ -689,8 +689,9 @@ def assert_vllm_pin_allowed(
     msg = (
         f"vllm pin {pin!r} is NOT on the Genesis known-good list "
         f"({len(allowlist)} entries). Allowed pins: {list(allowlist)}. "
-        f"To accept this pin, add it to KNOWN_GOOD_VLLM_PINS in "
-        f"vllm/sndr_core/detection/guards.py and document the validation in CHANGELOG."
+        f"To accept this pin, add it to KNOWN_GOOD_VLLM_PINS (or "
+        f"PROMOTION_PENDING_VLLM_PINS for a not-yet-validated candidate) in "
+        f"sndr/engines/vllm/detection/guards.py and document the validation in CHANGELOG."
     )
     if policy == "strict":
         print(f"[Genesis pin-gate] STRICT FAIL: {msg}", flush=True)

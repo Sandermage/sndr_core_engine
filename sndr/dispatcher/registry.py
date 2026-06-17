@@ -585,7 +585,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # [Genesis pin-gate 2026-05-11] PROD-active patch (35B +32% TPS).
             # Validated dev16 → dev93. Broad range; drift detector handles
             # anchor-line breakage on bumps.
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            # 2026-06-17 pin-bump 0.23.1: cap <0.23.0 -> <0.24.0. ROOT CAUSE
+            # of the 0.23.1 MTP degenerate-loop: P67 (the TurboQuant
+            # multi-query kernel for the spec-decode K+1 verify batch) was
+            # version-gated OFF on 0.23.1 despite GENESIS_ENABLE_P67=1 in the
+            # 35B config -> the native multi-query TQ spec-decode path ran ->
+            # garbage drafts rubber-stamped (93% accept) -> constant-token
+            # loop. MTP-off was unaffected (P67 only fires for spec-decode).
+            # P67b (spec-verify forward routing) requires P67, so this unblocks
+            # both. Drift detector confirmed P67 anchors still resolve on 0.23.1.
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
         "conflicts_with": ["P65", "G4_67"],
         "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p67_tq_multi_query_kernel",
@@ -610,6 +619,36 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": ["P67"],
         "conflicts_with": ["P65", "G4_67"],
         "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p67b_spec_verify_routing",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+    },
+    "PN398": {
+        "title": "Async spec-decode accepted-counts race fix (vllm#45100 backport)",
+        "tier": "community",
+        "family": "spec_decode",
+        "env_flag": "GENESIS_ENABLE_PN398_ASYNC_ACCEPTED_RACE",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": (
+            "Backport of vllm#45100 (OPEN, verified+approved tdoublep/ZJY0516) "
+            "— fixes the 0.23.x async spec-decode num_accepted_tokens race for "
+            "hybrid GDN/Mamba + MTP (Qwen3.5/3.6). Async scheduling became "
+            "default-on for MTP via #27614/#31998 (2025-12/2026-01), exercising "
+            "a racy stale-CPU-copy path -> GDN recurrence restored from the "
+            "wrong slot -> prompt-memory-loss constant-token loop (93% accept, "
+            "K=1 too). MTP-off unaffected. Diagnosed 2026-06-17 via structural "
+            "research + confirmed live (--no-async-scheduling A/B). Keeps async "
+            "scheduling ON. Auto-no-ops on upstream merge (drift marker "
+            "'needs_cpu_accepted_counts')."
+        ),
+        "upstream_pr": 45100,
+        "applies_to": {
+            "is_hybrid": [True],
+            # 0.23.x regression only (async became MTP-default on 0.23.0).
+            # dev491/0.22.1 never hit it -> gate >=0.23.0.
+            "vllm_version_range": (">=0.23.0", "<0.24.0"),
+        },
+        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn398_async_accepted_counts_race",
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
