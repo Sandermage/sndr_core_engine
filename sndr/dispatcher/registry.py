@@ -8140,7 +8140,18 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "happy-path semantics change."
         ),
         "upstream_pr": None,
-        "applies_to": {},
+        # 2026-06-17 (0.23.1 pin-bump): P29_HEAL heals raw index sites in the
+        # OLD qwen3coder_tool_parser.py (lines 287/442). That file was DELETED
+        # by the #45588 parser reorg — the new vllm/tool_parsers/
+        # qwen3_engine_tool_parser.py is a different module with its own bounds
+        # guards. The heal premise is gone on >=0.23.0, and streaming multi-
+        # tool deltas were verified clean (no IndexError/500) on 0.23.1 live.
+        # Cap with the same window as its sibling qwen3coder parser patches
+        # (PN56/P64/P61c, all "<0.22.1rc1.dev491") so it stays active only on
+        # the older parser layout.
+        "applies_to": {
+            "vllm_version_range": (">=0.20.0", "<0.22.1rc1.dev491"),
+        },
         "implementation_status": "full",
         "composes_with": ["P29"],
     },
