@@ -155,6 +155,17 @@ _POLICY_KEYS: dict[str, dict[str, str]] = {
             "profile.compression_plan.native_source_layers."
         ),
     },
+    "GENESIS_G4_09_CHUNK_SIZE": {
+        "source": "policy",
+        "owner_module": "vllm.sndr_core.integrations.model_compat.gemma4",
+        "description": (
+            "Tunable SWA->global prefill chunk size for G4_09 (gemma4 "
+            "sliding-window global-prefill chunker). Integer; read by "
+            "g4_09_gemma4_swa_global_prefill_chunker._chunk_size() and "
+            "clamped to a safe range. Optional override — the patch bakes "
+            "a default when unset (audit P0 follow-up tunable)."
+        ),
+    },
     "SNDR_G4_TQ_FORCE_SKIP_LAYERS": {
         "source": "policy",
         "owner_module": "vllm.sndr_core.integrations.model_compat.gemma4",

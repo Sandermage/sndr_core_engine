@@ -99,6 +99,15 @@ ALLOWED_MODELDEF_PINS = frozenset({
     # 200; 27B full stack at gmu 0.82 passes all chat-matrix variants.
     "0.22.1rc1.dev491+g1033ffac2",
     "0.22.1rc1.dev491+g1033ffac2d66",
+    # ── Canonical PROD pin 0.23.1 (PROMOTED 2026-06-17) ──────────────────
+    # Image vllm/vllm-openai:nightly-4c626633159887b0f2c962058c17c78f1434556d
+    # (0.23.1rc1.dev101+g4c6266331). Full-fleet validated 2026-06-17: 35B
+    # (210.7 TPS = 101% of dev491, MTP K=3, streaming tool-calls), 27B
+    # (gen + MTP + qwen3_xml tool-calls), Gemma4-31B, DiffusionGemma — all
+    # apply failed=0, smoke + tool-call PASS. See guards.py KNOWN_GOOD +
+    # tests/unit/dispatcher/test_pin_gate EXPECTED_PINS.
+    "0.23.1rc1.dev101+g4c6266331",
+    "0.23.1rc1.dev101+g4c626633159",
 })
 
 # Gemma family ModelDefs are expected to be on dev371 (validated path).

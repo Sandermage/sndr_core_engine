@@ -244,6 +244,11 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # vllm#45517; worker text patch on
                        # gpu_worker.init_device, env default-off
                        # observability + asymmetric TP+PP OOM guard)
+    # ── 2026-06-17 0.23.1 pin-bump: spec-driven from inception ──────────
+    "PN398",           # async spec-decode accepted-counts race (backport of
+                       # OPEN vllm#45100; gpu_model_runner + gdn_attn text
+                       # patches, is_hybrid + >=0.23.0 gated, default-off
+                       # defensive overlay, no legacy @register_patch hook)
 })
 
 

@@ -136,6 +136,28 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
               # occur and the anchor is correctly absent; the dev259 image
               # still has the guard at marlin.py:87. vllm#44113 CLOSED-unmerged
               # (upstream solved it structurally). Skip dev491, apply dev259.
+    # ── 0.23.1 reverify 2026-06-17 (Workflow + adversarial verify) ──────
+    # Intentionally capped <0.23.0 on the 0.23.1 pin — each verified live.
+    # (a) Upstream supersedes on 0.23.x (the fix shipped / the bug is gone):
+    "PN30",   # DS conv spec-decode — upstream fused-postprocess kernel rewrote
+              # get_conv_copy_spec (iron-rule #11a). Skip 0.23.1, apply <0.23.0.
+    "PN133",  # MTP scheduler empty-output — pre-fix anchor gone on 0.23.1.
+    "PN362",  # VLLM_TRITON_FORCE_FIRST_CONFIG — merged into 0.23.x.
+    "PN370",  # async accepted-counts race — superseded by our 0.23.1-native PN398.
+    "PN373",  # parallel_tool_calls null — vllm#44955 merged into 0.23.x.
+    "PN378",  # recovered-token vocab mask — complete vllm#45060 ships in 0.23.1.
+    "PN383",  # offload MTP/EAGLE gate — vllm#44784 merged 2026-06-16 (0.23.x).
+    "PN51",   # qwen3 enable_thinking routing — merged into 0.23.x.
+    "PN125",  # FULL_AND_PIECEWISE redundant (v1 default engages it on hybrid).
+    "P29_HEAL",            # heals the qwen3coder parser DELETED by #45588.
+    "SNDR_MTP_DYNAMIC_K_001",  # #26504 DynamicProposer — bench NOT_SIGNIFICANT.
+    # (b) Bug still live on 0.23.1 but the anchor target was refactored away —
+    # capped pending a redesign (cannot byte-exact re-anchor; see registry):
+    "PN71",   # </thinking> mis-lex — qwen3_reasoning_parser.py deleted by #45588.
+    "PN374",  # qwen3xml quoted-keys — bug fixed upstream; anchors gone.
+    "PN388",  # mamba block-aligned split — _mamba_block_aligned_split restructured.
+    "PN389",  # grammar compile timeout — 3-file transaction needs redesign.
+    "P89",    # reasoning-tokens usage — anchors drifted; would half-apply.
 })
 
 

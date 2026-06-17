@@ -58,6 +58,20 @@ DISALLOWED_LIFECYCLES: frozenset[str] = frozenset({"retired"})
 # Operator-known retired patches that are still enabled by design at
 # E30 freeze. Each entry records why. Add a comment when expanding.
 ALLOWED_RETIRED_PATCHES: dict[str, str] = {
+    "PN22": (
+        "0.23.1 reverify 2026-06-17 — vllm#39419 (LocalArgmaxMixin) merged at "
+        "bd2d83ff, ancestor of 0.23.1rc1.dev101; mixin native on the deployed "
+        "pin (live-verified). Retired + capped <0.23.1rc1.dev101. Env flag "
+        "still set in 27B/35B prod YAMLs; the wiring self-skips (default_off + "
+        "drift marker), harmless. Cleaned at next config audit cycle."
+    ),
+    "PN90": (
+        "0.23.1 reverify 2026-06-17 — vllm#40269 merged at f51f6844 (present on "
+        "both dev491 and 0.23.1), proposer symbols native. Retired; range "
+        "already <0.22.0 so it self-skips on the deployed pin. Env flag still "
+        "set in prod YAMLs; harmless (does NOT enable upstream probabilistic "
+        "draft — that path is the -5.9% TPS regression, intentionally left off)."
+    ),
     "PN19": "carry-over from W-A; replacement is part of PN-series consolidation work",
     "PN52": "still actively consumed by 27B INT4 / 35B FP8 prod path",
     "P94":  "enabled in 27B INT4 TQ + 35B FP8 prod — operator review pending",
