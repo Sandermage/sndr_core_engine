@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-17T06:34:26Z
-Total entries: **316**
+Generated: 2026-06-17T18:50:30Z
+Total entries: **317**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **316**
+- `tier=community`: **317**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **236**
+- `lifecycle=experimental`: **235**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
-- `lifecycle=retired`: **30**
+- `lifecycle=retired`: **32**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **54** / 316
+### Default-on at boot: **54** / 317
 
 ### By family
 - `attention`: 1
@@ -46,7 +46,7 @@ Total entries: **316**
 - `reasoning`: 9
 - `scheduler`: 9
 - `serving`: 14
-- `spec_decode`: 47
+- `spec_decode`: 48
 - `streaming`: 4
 - `tool_parsing`: 13
 - `worker`: 15
@@ -405,7 +405,7 @@ Total entries: **316**
 | **PN387** | `community` | `experimental` | · | `GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS` | [#45346](https://github.com/vllm-project/vllm/pull/45346) | Reject degenerate structured_outputs (DoS guard, vendor of vllm#45346) |
 | **PN389** | `community` | `experimental` | · | `GENESIS_ENABLE_PN389_GRAMMAR_TIMEOUTS` | [#45390](https://github.com/vllm-project/vllm/pull/45390) | XGrammar input-validation + grammar-compilation timeouts (vendor of vllm#45390) |
 
-### `spec_decode` (47)
+### `spec_decode` (48)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -419,12 +419,12 @@ Total entries: **316**
 | **P108** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_P108` | [#42603](https://github.com/vllm-project/vllm/pull/42603) | MTP draft-loop stream synchronization (vllm#42603) |
 | **PN9** | `community` | `retired` | · | `GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN` | [#39930](https://github.com/vllm-project/vllm/pull/39930) | Independent drafter attention backend (vllm#39930) |
 | **PN21** | `community` | `experimental` | · | `GENESIS_ENABLE_PN21_DFLASH_SWA` | [#40898](https://github.com/vllm-project/vllm/pull/40898) | DFlash SWA support partial backport (vllm#40898) |
-| **PN22** | `community` | `experimental` | · | `GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP` | [#39419](https://github.com/vllm-project/vllm/pull/39419) | Local argmax for TP draft (vllm#39419 backport) |
+| **PN22** | `community` | `retired` | · | `GENESIS_ENABLE_PN22_LOCAL_ARGMAX_TP` | [#39419](https://github.com/vllm-project/vllm/pull/39419) | Local argmax for TP draft (vllm#39419 backport) |
 | **PN23** | `community` | `experimental` | · | `GENESIS_ENABLE_PN23_DFLASH_DTYPE_FIX` | [#40334](https://github.com/vllm-project/vllm/pull/40334) | DFlash combine_hidden_states dtype cast (vllm#40334) |
 | **PN38** | `community` | `experimental` | · | `GENESIS_ENABLE_PN38_DFLASH_QUANT_DRAFTER` | [#40425](https://github.com/vllm-project/vllm/pull/40425) | "DFlash drafter quantization support (PR |
 | **PN40** | `community` | `experimental` | · | `GENESIS_ENABLE_PN40_DFLASH_OMNIBUS` | — | Spec-decode omnibus (A DFlash K-norm + B pool + C adaptive K + D sentinel) |
 | **PN72** | `community` | `experimental` | · | `GENESIS_ENABLE_PN72_FREQUENCY_NGRAM_DRAFTER` | — | Frequency-based ngram draft post-filter (llama.cpp-style) |
-| **PN90** | `community` | `experimental` | · | `GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT` | [#40269](https://github.com/vllm-project/vllm/pull/40269) | Probabilistic draft rejection (vllm#40269 backport) — propagate draft_probs t... |
+| **PN90** | `community` | `retired` | · | `GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT` | [#40269](https://github.com/vllm-project/vllm/pull/40269) | Probabilistic draft rejection (vllm#40269 backport) — propagate draft_probs t... |
 | **PN133** | `community` | `experimental` | · | `GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX` | [#42722](https://github.com/vllm-project/vllm/pull/42722) | MTP scheduler empty-output accounting fix (backport vllm#42722) |
 | **PN256** | `community` | `experimental` | · | `GENESIS_ENABLE_PN256_KPLUS1_RAW_KV` | — | K+1 spec-verify routing through raw-K/V continuation prefill (PR42637 overlay... |
 | **PN262** | `community` | `experimental` | · | `GENESIS_ENABLE_PN262_FLASH_ATTN_DRAFTER_TRACE` | — | FlashAttn drafter KV cache shape/stride trace + fail-fast (PN261-D D-3 locali... |
@@ -444,6 +444,7 @@ Total entries: **316**
 | **PN380** | `community` | `experimental` | · | `GENESIS_ENABLE_PN380_MTP_PREFUSED_LOADER` | [#44943](https://github.com/vllm-project/vllm/pull/44943) | Qwen3.5/3.6 MTP pre-fused expert loader + load-coverage guard (vendor of vllm... |
 | **PN381** | `community` | `experimental` | · | `GENESIS_ENABLE_PN381_ALLOWED_TOKEN_IDS_METADATA` | [#44742](https://github.com/vllm-project/vllm/pull/44742) | allowed_token_ids spec-decode metadata hardening (vendor of vllm#44742) |
 | **PN390** | `community` | `experimental` | · | `GENESIS_ENABLE_PN390_STREAMING_LSE_SAMPLER` | [#45369](https://github.com/vllm-project/vllm/pull/45369) | Streaming-LSE rejection sampler — no full-vocab target_probs materialize (ven... |
+| **PN398** | `community` | `experimental` | · | `GENESIS_ENABLE_PN398_ASYNC_ACCEPTED_RACE` | [#45100](https://github.com/vllm-project/vllm/pull/45100) | Async spec-decode accepted-counts race fix (vllm#45100 backport) |
 | **G4_05** | `community` | `retired` | · | `GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT` | [#39930](https://github.com/vllm-project/vllm/pull/39930) | DFlash drafter backend autoselect (retired — superseded by vllm#39930) |
 | **G4_71** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND` | — | Force FlashAttn backend for Gemma 4 MTP drafter Attention layers |
 | **G4_71B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71B_DRAFTER_SLIDING_TRITON` | — | Per-layer drafter backend force: route head_size=256 sliding to TRITON_ATTN (... |
