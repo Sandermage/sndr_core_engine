@@ -2829,11 +2829,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "composes_with": ["PN346", "P85"],
         # 2026-06-17 (0.23.1 reverify): kept capped <0.23.0. Bug still live
-        # (#45477 OPEN) but _mamba_block_aligned_split was restructured on
-        # 0.23.1 (num_uncached_common_prefix_tokens) -> anchor needs a
-        # re-indent redesign, not a byte-exact swap. Follow-up: batch-2.
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        # (#45477 OPEN). REDESIGNED 2026-06-17: anchor narrowed to the live
+        # 0.23.1 POST-P34 inner branch (verified byte-exact, count==1);
+        # cap bumped <0.24.0.
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     # ── 2026-06-13 50-PR sweep BATCH-3 — four more vendors of OPEN
     # upstream PRs (PN389/PN390/PN391 + P89), spec-driven from inception
@@ -2901,11 +2901,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "composes_with": ["PN386", "P62", "P109", "PN387"],
         # 2026-06-17 (0.23.1 reverify): kept capped <0.23.0. Bug live
-        # (#45390 OPEN, now [Security] DoS bounds) but the 3-file grammar
-        # transaction hard-fails on the drifted anchor -> needs a redesign
-        # composing with upstream compile_regex_with_timeout. Follow-up.
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        # (#45390 OPEN). REDESIGNED 2026-06-17: collapsed to the live
+        # backend_xgrammar.compile_grammar arm (composes with upstream
+        # compile_regex_with_timeout); cap bumped <0.24.0. Tests: follow-up.
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN390": {
         "title": "Streaming-LSE rejection sampler — no full-vocab target_probs materialize (vendor of vllm#45369)",
@@ -3129,11 +3129,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "composes_with": [],
         # 2026-06-17 (0.23.1 reverify): kept capped <0.23.0. Bug live
-        # (#45471 OPEN) but reasoning-tokens-usage anchors drifted on 0.23.1;
-        # bumping would partial-match into a runtime-broken state. Needs
-        # re-anchor redesign before 0.23.x use. Follow-up: batch-2.
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
-        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        # (#45471 OPEN). REDESIGNED 2026-06-17: new dev101 stream+full attach
+        # variants on serving.py (_make_prompt_tokens_details), verified
+        # byte-exact count==1 on live; cap bumped <0.24.0.
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
+        "vllm_version_range": (">=0.22.0", "<0.24.0"),
     },
     "PN97": {
         "title": "PN97 — physical-cap on KV tensor allocation (Phase 7 PoC)",
@@ -3244,10 +3244,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # 2026-06-17 (0.23.1 reverify): kept capped <0.23.0. Target file
         # reasoning/qwen3_reasoning_parser.py was DELETED by the #45588
         # parser reorg (now parser/qwen3.py token state-machine). Bug is
-        # still live on 0.23.1 (</thinking> mis-lexed) but the partition()
-        # anchor has no byte-exact 0.23.1 equivalent -> needs a redesigned
-        # patch (delta_text.replace at feed entry). Follow-up: batch-2.
-            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.23.0"),
+        # REDESIGNED 2026-06-17 for 0.23.1 (verified byte-exact on live): the
+        # fix now targets parser/qwen3.py via a Qwen3Parser._preprocess_feed
+        # override (</thinking>-></think> normalize). Cap bumped <0.24.0.
+            "vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0"),
         },
         # [Preflight triage 2026-06-11 §2] PN71's anchor literally
         # contains P27's injected comments — it only matches the

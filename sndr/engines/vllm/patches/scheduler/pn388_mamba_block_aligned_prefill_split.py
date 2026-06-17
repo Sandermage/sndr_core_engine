@@ -50,7 +50,7 @@ the mid-block snapshot is never written; it composes with PN346 + P85
 (different files / different layers, zero anchor overlap) and costs nothing
 on the hit path.
 
-Fix (verbatim port of vllm#45477's core arithmetic, Marconi tail omitted)
+Fix (verbatim port of vllm#45477's core arithmetic; Marconi tail preserved)
 --------------------------------------------------------------------------
 Replace the four-way branch with the single invariant all branches were
 enforcing — a prefill chunk's end must lie on a block boundary and must not
@@ -74,18 +74,29 @@ rounding the end position recovers boundary alignment on the first chunk.
 A budget-fragmented first chunk now defers (``num_new_tokens == 0``, which
 the scheduler already handles) instead of ending mid-block.
 
-Genesis divergences (documented per iron rule #10)
---------------------------------------------------
-  * MARCONI TAIL OMITTED. The PR's new form ends with a Marconi
-    ``num_uncached_common_prefix_tokens`` admission block, but that
-    parameter does NOT exist in our pin's ``_mamba_block_aligned_split``
-    signature (``def _mamba_block_aligned_split(self, request,
-    num_new_tokens, num_new_local_computed_tokens=0,
-    num_external_computed_tokens=0)`` — verified zero references in the
-    whole pin file). Including it would raise ``NameError`` at runtime.
-    The Marconi block is a pure-throughput cache-admission optimization,
-    not part of the poison fix, so dropping it is correctness-neutral.
-  * INLINE ROUND-DOWN. The PR imports ``round_down`` from
+0.23.1 anchor redesign (2026-06-17 — drift correction)
+------------------------------------------------------
+On 0.23.1 the live ``_mamba_block_aligned_split`` was RESTRUCTURED: the
+signature gained ``num_uncached_common_prefix_tokens``; ``num_computed_tokens``
+is now computed at the top; the four-way alignment branch is now NESTED
+inside ``if num_computed_tokens < max(request.num_prompt_tokens,
+request.num_tokens - 1):``; and a NEW Marconi common-prefix admission tail
+follows the branch. The OLD full-function anchor (leading comment block
+through ``else: pass``) matched 0 times. The anchor was therefore NARROWED
+to the only byte-stable region — the inner four-way branch itself
+(``num_computed_tokens_after_sched = ...`` through ``else: pass``). The
+replacement is re-indented to 12 spaces and carries no setup/return lines.
+Consequences for the two earlier divergences:
+  * MARCONI TAIL NOW PRESERVED (not omitted). It lives OUTSIDE the narrowed
+    anchor and is left untouched by the scheduler. It re-aligns to
+    ``block_size``, so it can only shrink ``num_new_tokens`` to a block
+    multiple — the alignment invariant still holds. ``prefill_end`` in the
+    replacement equals the outer guard's RHS exactly, and
+    ``block_size`` / ``last_cache_position`` / the eagle prune are already
+    defined above the splice, so there is no NameError and no duplicate
+    definition. The decode early-return of the old flat form is now the
+    outer ``if`` wrapper, so it is preserved structurally.
+  * INLINE ROUND-DOWN (unchanged). The PR imports ``round_down`` from
     ``vllm.utils.math_utils`` and adds an import line. We inline
     ``(x // block_size) * block_size`` (the exact body of ``round_down``)
     so the patch stays a SINGLE anchor site — no separate, fragile import
@@ -98,11 +109,12 @@ OLD form (``num_new_tokens // block_size * block_size`` → a zero-collapse
 guard ``aligned = ...; if aligned > 0:``). P34's anchor lines are EXACTLY
 the lines PN388 deletes, so the two cannot anchor on the same text. PN388
 therefore carries a DUAL ANCHOR (required-at-least-one, both
-``required=False`` — the P85-on-PN346 convention): a pristine-shaped
-variant and a post-P34-shaped variant assembled from P34's own documented
-transform. The registry entry sets ``requires_patches: ["P34"]`` so P34
-boot-dispatches FIRST and the post-P34 variant is the one that fires on a
-real hybrid boot. PN388's new form SUBSUMES P34's zero-collapse intent: a
+``required=False`` — the P85-on-PN346 convention): the canonical
+post-P34-shaped variant (the live 0.23.1 form, byte-equal to the redesign's
+new_anchor) and a pristine-shaped fallback derived from it by the INVERSE of
+P34's documented transform. The registry entry sets
+``requires_patches: ["P34"]`` so P34 boot-dispatches FIRST and the post-P34
+variant is the one that fires on a real hybrid boot. PN388's new form SUBSUMES P34's zero-collapse intent: a
 budget-collapsed chunk now defers via ``num_new_tokens == 0`` (scheduler
 handles it) rather than spinning — so the deadlock P34 guarded against
 cannot reoccur through this path. The reverse apply order also composes
@@ -169,80 +181,74 @@ _DRIFT_MARKERS = (
 )
 
 
-# ── Shared replacement body (PR #45477 flat form, Marconi tail omitted) ──
+# ── Shared replacement body (PR #45477 flat form, Marconi tail preserved) ─
+# 0.23.1 REDESIGN (2026-06-17): the live function was restructured — the
+# outer ``if num_computed_tokens < max(...)`` guard, the ``block_size`` /
+# ``last_cache_position`` / eagle-prune setup, and a NEW Marconi
+# common-prefix admission tail all now live OUTSIDE the four-way branch.
+# The anchor was therefore narrowed to ONLY the inner four-way branch
+# (``num_computed_tokens_after_sched = ...`` through ``else: pass``); this
+# replacement is re-indented to 12 spaces (the branch's nesting level) and
+# carries no setup/return lines — those are preserved verbatim by the
+# scheduler above the splice, and the Marconi tail below is preserved too
+# (it realigns to ``block_size``, so the alignment invariant still holds).
 # Rounds the chunk END position (not the chunk LENGTH). Inlined round-down
 # arithmetic ``(x // block_size) * block_size`` keeps this a single anchor
-# site (no separate import anchor). The trailing ``return num_new_tokens``
-# stays OUTSIDE the anchor (preserved verbatim by the scheduler).
+# site (no separate import anchor).
 _PN388_NEW_BODY = (
-    "        # [Genesis PN388 vendor of vllm#45477] Mamba-block-aligned\n"
-    "        # intermediate prefill split. Every NON-FINAL prefill chunk\n"
-    "        # must end on a block boundary: the GDN kernel snapshots the\n"
-    "        # recurrent state at the chunk end into an aligned block-table\n"
-    "        # slot, and cache_blocks later hashes that slot as the\n"
-    "        # boundary's state, so an unaligned chunk end poisons the\n"
-    "        # prefix cache for every request that resumes from it (#43559).\n"
-    "        # A chunk reaching last_cache_position must stop exactly there:\n"
-    "        # with Eagle, FullAttn prunes the last matching block, so the\n"
-    "        # final chunk must be not smaller than block_size to avoid a\n"
-    "        # Mamba cache miss. Only the FINAL chunk may end unaligned (its\n"
-    "        # mid-block state can never be hashed as a boundary snapshot).\n"
-    "        # Rounding the chunk END (not LENGTH) also re-aligns an\n"
-    "        # unaligned external-KV start. A budget-collapsed first chunk\n"
-    "        # defers via num_new_tokens == 0 (scheduler handles it) — which\n"
-    "        # subsumes the Genesis P34 zero-collapse deadlock guard.\n"
-    "        # Genesis divergence (iron rule #10): the PR's Marconi\n"
-    "        # common-prefix admission tail is omitted (its param is absent\n"
-    "        # from our pin's signature); round_down is inlined.\n"
-    "        prefill_end = max(request.num_prompt_tokens, request.num_tokens - 1)\n"
-    "        if num_computed_tokens >= prefill_end:\n"
-    "            # Decode phase: no splitting.\n"
-    "            return num_new_tokens\n"
-    "        block_size = self.cache_config.block_size\n"
-    "        last_cache_position = (request.num_tokens // block_size) * block_size\n"
-    "        # eagle prune\n"
-    "        if self.use_eagle:\n"
-    "            last_cache_position = max(last_cache_position - block_size, 0)\n"
-    "        chunk_end = num_computed_tokens + num_new_tokens\n"
-    "        if num_computed_tokens < last_cache_position:\n"
-    "            chunk_end = min(\n"
-    "                (chunk_end // block_size) * block_size, last_cache_position\n"
-    "            )\n"
-    "        elif chunk_end < prefill_end:\n"
-    "            chunk_end = (chunk_end // block_size) * block_size\n"
-    "        num_new_tokens = max(chunk_end - num_computed_tokens, 0)\n"
+    "            # [Genesis PN388 vendor of vllm#45477] Mamba-block-aligned\n"
+    "            # intermediate prefill split. Every NON-FINAL prefill chunk must\n"
+    "            # end on a block boundary: the GDN kernel snapshots the recurrent\n"
+    "            # state at the chunk end into an aligned block-table slot, and\n"
+    "            # cache_blocks later hashes that slot as the boundary's state, so\n"
+    "            # an unaligned chunk end poisons the prefix cache for every\n"
+    "            # request that resumes from it (#43559). A chunk reaching\n"
+    "            # last_cache_position must stop exactly there. Only the FINAL\n"
+    "            # chunk may end unaligned (its mid-block state can never be hashed\n"
+    "            # as a boundary snapshot). Rounding the chunk END (not LENGTH)\n"
+    "            # also re-aligns an unaligned external-KV start. A budget-collapsed\n"
+    "            # first chunk defers via num_new_tokens == 0 (both call sites\n"
+    "            # already break/skip on 0) — which subsumes the Genesis P34\n"
+    "            # zero-collapse deadlock guard. The Marconi common-prefix tail\n"
+    "            # below is preserved (it realigns to block_size).\n"
+    "            chunk_end = num_computed_tokens + num_new_tokens\n"
+    "            prefill_end = max(request.num_prompt_tokens, request.num_tokens - 1)\n"
+    "            if num_computed_tokens < last_cache_position:\n"
+    "                chunk_end = min(\n"
+    "                    (chunk_end // block_size) * block_size, last_cache_position\n"
+    "                )\n"
+    "            elif chunk_end < prefill_end:\n"
+    "                chunk_end = (chunk_end // block_size) * block_size\n"
+    "            num_new_tokens = max(chunk_end - num_computed_tokens, 0)\n"
 )
 
 
-# ── Anchor variant 1: PRISTINE pin form (P34 disabled) ───────────────
-# Byte-exact copy of the pin g303916e93 _mamba_block_aligned_split body
-# (lines 305-337: the leading comment block + the four-way branch through
-# `else: pass`). The trailing `return num_new_tokens` is the splice
-# boundary and is NOT part of the anchor.
-PN388_PRISTINE_OLD = (
-    "        # Perform block-aligned splitting at prefill phase, including:\n"
-    "        # * non-resumed requests: num_computed_tokens < num_prompt_tokens + 0\n"
-    "        # * resumed requests: num_computed_tokens < (\n"
-    "        #                       num_prompt_tokens + num_output_tokens\n"
-    "        #                     )\n"
-    "        # NOTE: Use `request.num_tokens - 1` to bypass normal decoding.\n"
-    "        if num_computed_tokens < max(request.num_prompt_tokens, request.num_tokens - 1):\n"
-    "            # To enable block-aligned caching of the Mamba state, `num_new_tokens`\n"
-    "            # must be a multiple of `block_size`.\n"
-    "            # As an exception, if `num_new_tokens` is less than `block_size`, the\n"
-    "            # state is simply not cached, requiring no special handling.\n"
-    "            # Additionally, when Eagle mode is enabled, FullAttn prunes the last\n"
-    "            # matching block. To prevent this from causing a Mamba cache miss, the\n"
-    "            # last chunk must be not smaller than `block_size`.\n"
-    "            block_size = self.cache_config.block_size\n"
-    "            last_cache_position = request.num_tokens - request.num_tokens % block_size\n"
-    "            # eagle prune\n"
-    "            if self.use_eagle:\n"
-    "                last_cache_position = max(last_cache_position - block_size, 0)\n"
+# ── Anchor variant 2 (CANONICAL on 0.23.1): POST-P34 inner branch ────
+# 0.23.1 REDESIGN (2026-06-17): on the live container the surrounding
+# function was restructured (the outer ``if num_computed_tokens < max(...)``
+# guard, the ``block_size`` / ``last_cache_position`` / eagle-prune setup,
+# and a new Marconi common-prefix admission tail). Only the inner four-way
+# branch (``num_computed_tokens_after_sched = ...`` through ``else: pass``)
+# survived byte-for-byte, so the anchor was NARROWED to exactly that branch.
+# This is the POST-P34 shape: P34 has already expanded the first branch into
+# its zero-collapse guard (the live file is post-P34 because the registry
+# sets requires_patches=["P34"], so P34 dispatches first). This is the
+# variant that resolves on a real hybrid boot — it is the JSON
+# new_anchor byte-for-byte (verified count==1 on the live container).
+PN388_POST_P34_OLD = (
     "            num_computed_tokens_after_sched = num_computed_tokens + num_new_tokens\n"
     "            if num_computed_tokens_after_sched < last_cache_position:\n"
     "                # align to block_size\n"
-    "                num_new_tokens = num_new_tokens // block_size * block_size\n"
+    "                # [Genesis P34] Zero-collapse deadlock guard (upstream PR #40757).\n"
+    "                # When two adjacent multimodal inputs can't fit in the encoder\n"
+    "                # cache simultaneously, the gap can be < block_size; aligning\n"
+    "                # down then collapses to 0 and the scheduler spins forever.\n"
+    "                # Keep the sub-block value when alignment would zero-out —\n"
+    "                # Mamba state is still maintained by preprocess_mamba via\n"
+    "                # mamba_state_idx (\"simply not cached\" exception applies).\n"
+    "                aligned = num_new_tokens // block_size * block_size\n"
+    "                if aligned > 0:\n"
+    "                    num_new_tokens = aligned\n"
     "            elif (\n"
     "                num_computed_tokens\n"
     "                < last_cache_position\n"
@@ -254,13 +260,17 @@ PN388_PRISTINE_OLD = (
     "                # prefill the last few tokens\n"
     "                pass\n"
 )
-PN388_PRISTINE_NEW = _PN388_NEW_BODY
+PN388_POST_P34_NEW = _PN388_NEW_BODY
 
-# ── Anchor variant 2: POST-P34 form (P34 already applied) ────────────
-# Identical to the pristine anchor except P34 has expanded the first
-# branch into its zero-collapse guard. Assembled from P34's own documented
-# anchor/replacement constants so it byte-matches a real hybrid boot file
-# after P34 has run (P34 dispatches first via requires_patches=["P34"]).
+# ── Anchor variant 1 (fallback): PRISTINE inner branch (P34 disabled) ─
+# Same narrowed inner-branch window as the post-P34 variant, but with P34's
+# zero-collapse guard reversed back to the single pristine alignment line.
+# Derived from the post-P34 anchor by the inverse of P34's documented
+# transform (``_P34_NEW`` → ``_P34_OLD``) so it stays byte-consistent with
+# the canonical variant. Only matters on the reverse apply order (PN388
+# before P34, P34 absent); on a real hybrid boot P34 runs first and the
+# post-P34 variant above is the one that fires. Kept present-but-optional
+# (required=False, see build_sub_patches) per the at-least-one convention.
 _P34_OLD = (
     "            if num_computed_tokens_after_sched < last_cache_position:\n"
     "                # align to block_size\n"
@@ -280,8 +290,8 @@ _P34_NEW = (
     "                if aligned > 0:\n"
     "                    num_new_tokens = aligned"
 )
-PN388_POST_P34_OLD = PN388_PRISTINE_OLD.replace(_P34_OLD, _P34_NEW)
-PN388_POST_P34_NEW = _PN388_NEW_BODY
+PN388_PRISTINE_OLD = PN388_POST_P34_OLD.replace(_P34_NEW, _P34_OLD)
+PN388_PRISTINE_NEW = _PN388_NEW_BODY
 
 
 def build_sub_patches() -> list[TextPatch]:

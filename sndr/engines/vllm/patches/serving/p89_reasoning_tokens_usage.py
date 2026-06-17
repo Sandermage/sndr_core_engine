@@ -398,6 +398,67 @@ _SERVING_STREAM_ATTACH_DEV491_NEW = (
     + _SERVING_STREAM_ATTACH_TAIL
 )
 
+# 0.23.1 (pin 0.23.1rc1.dev101+g4c6266331) variant — REDESIGN. The #45171
+# parser-unification refactor replaced the inline prompt_tokens_details
+# guard block (the dev259/dev491 anchors above) with a
+# ``_make_prompt_tokens_details(...)`` helper call, and removed the
+# ``self.reasoning_parser_cls`` gate the dev259/dev491 bodies relied on
+# (verified live: that attribute no longer exists). Reasoning/tool parsing
+# is now folded into a single per-choice ``Parser`` (built earlier in the
+# same ``chat_completion_stream_generator`` method as ``parsers:
+# list[Parser | None]``) whose ``.reasoning_parser`` property exposes the
+# unchanged ``count_reasoning_tokens`` walk. ``parsers`` is guaranteed
+# bound at the ``include_usage`` block because the parser-creation
+# ``except`` RETURNs before reaching it. Anchor + replacement are
+# byte-exact, count==1 verified on the live 0.23.1 container; the new
+# attach variant is ``required=True`` so a future silent drift SKIPs
+# loudly. Non-reasoning models stay byte-inert (every parser's
+# ``.reasoning_parser`` is None). The PR's bare
+# ``reasoning_parser.count_reasoning_tokens(ids)`` form still never
+# appears in our emitted text (we walk ``p89_reasoning_parsers[i]``), so
+# the lint self-collision contract holds.
+_SERVING_STREAM_ATTACH_DEV101_OLD = (
+    "                final_usage.prompt_tokens_details = _make_prompt_tokens_details(\n"
+    "                    self.enable_prompt_tokens_details,\n"
+    "                    num_cached_tokens,\n"
+    "                    mm_token_counts,\n"
+    "                )\n"
+    "\n"
+    "                final_usage_chunk = ChatCompletionStreamResponse(\n"
+)
+_SERVING_STREAM_ATTACH_DEV101_NEW = (
+    "                final_usage.prompt_tokens_details = _make_prompt_tokens_details(\n"
+    "                    self.enable_prompt_tokens_details,\n"
+    "                    num_cached_tokens,\n"
+    "                    mm_token_counts,\n"
+    "                )\n"
+    "\n"
+    "                # [Genesis P89 vendor of vllm#45471] surface\n"
+    "                # completion_tokens_details.reasoning_tokens for reasoning\n"
+    "                # models (qwen3 on all 4 PROD models). The pin's #45171\n"
+    "                # refactor replaced self.reasoning_parser_cls with a\n"
+    "                # per-choice Parser whose .reasoning_parser exposes the\n"
+    "                # existing count_reasoning_tokens walk (one O(n) pass, zero\n"
+    "                # GPU). Non-reasoning models are byte-inert (every parser's\n"
+    "                # .reasoning_parser is None).\n"
+    "                p89_reasoning_parsers = [\n"
+    "                    p.reasoning_parser if p is not None else None for p in parsers\n"
+    "                ]\n"
+    "                if any(p89_reasoning_parsers) and any(per_choice_token_ids):\n"
+    "                    p89_reasoning_count = sum(\n"
+    "                        p89_reasoning_parsers[i].count_reasoning_tokens(ids)\n"
+    "                        for i, ids in enumerate(per_choice_token_ids)\n"
+    "                        if ids and p89_reasoning_parsers[i] is not None\n"
+    "                    )\n"
+    "                    final_usage.completion_tokens_details = (\n"
+    "                        CompletionTokenUsageInfo(\n"
+    "                            reasoning_tokens=p89_reasoning_count,\n"
+    "                        )\n"
+    "                    )\n"
+    "\n"
+    "                final_usage_chunk = ChatCompletionStreamResponse(\n"
+)
+
 # (5) Attach completion_tokens_details to the non-streaming response
 #     usage, gated on the reasoning parser. Inserted after the
 #     prompt_tokens_details block and before final_usage_info is set.
@@ -465,6 +526,49 @@ _SERVING_FULL_ATTACH_DEV491_NEW = (
     _SERVING_FULL_ATTACH_DEV491_HEAD + _SERVING_FULL_ATTACH_BODY
 )
 
+# 0.23.1 (pin 0.23.1rc1.dev101+g4c6266331) variant — REDESIGN, companion
+# of the stream attach above. Same #45171 refactor: the inline guard
+# became a ``_make_prompt_tokens_details(...)`` helper call and the
+# reasoning parser is now reached via the in-scope ``parser: Parser |
+# None`` param of ``chat_completion_full_generator`` (``parser is None``
+# => byte-inert for non-reasoning models). Anchor + replacement are
+# byte-exact, count==1 verified on the live 0.23.1 container; the variant
+# is ``required=True`` so silent drift SKIPs loudly.
+_SERVING_FULL_ATTACH_DEV101_OLD = (
+    "        usage.prompt_tokens_details = _make_prompt_tokens_details(\n"
+    "            self.enable_prompt_tokens_details,\n"
+    "            final_res.num_cached_tokens,\n"
+    "            mm_token_counts,\n"
+    "        )\n"
+    "\n"
+    "        request_metadata.final_usage_info = usage\n"
+)
+_SERVING_FULL_ATTACH_DEV101_NEW = (
+    "        usage.prompt_tokens_details = _make_prompt_tokens_details(\n"
+    "            self.enable_prompt_tokens_details,\n"
+    "            final_res.num_cached_tokens,\n"
+    "            mm_token_counts,\n"
+    "        )\n"
+    "\n"
+    "        # [Genesis P89 vendor of vllm#45471] non-streaming\n"
+    "        # completion_tokens_details.reasoning_tokens (see streaming attach\n"
+    "        # above). The pin's #45171 refactor exposes the reasoning parser as\n"
+    "        # parser.reasoning_parser; None => byte-inert for non-reasoning\n"
+    "        # models.\n"
+    "        if parser is not None and parser.reasoning_parser is not None:\n"
+    "            p89_reasoning_count = sum(\n"
+    "                parser.reasoning_parser.count_reasoning_tokens(\n"
+    "                    list(output.token_ids)\n"
+    "                )\n"
+    "                for output in final_res.outputs\n"
+    "            )\n"
+    "            usage.completion_tokens_details = CompletionTokenUsageInfo(\n"
+    "                reasoning_tokens=p89_reasoning_count,\n"
+    "            )\n"
+    "\n"
+    "        request_metadata.final_usage_info = usage\n"
+)
+
 
 def _serving_sub_patches() -> list[TextPatch]:
     # Three sub-patches (decl / stream_attach / full_attach) carry a
@@ -506,7 +610,18 @@ def _serving_sub_patches() -> list[TextPatch]:
             replacement=_SERVING_ACCUM_EXT_NEW,
             required=True,
         ),
-        # stream_attach — dev259 / dev491 variants (required-at-least-one).
+        # stream_attach — dev259 / dev491 / dev101 variants.
+        #
+        # The #45171 refactor in 0.23.1 (pin dev101) replaced the inline
+        # prompt_tokens_details guard block both legacy anchors relied on
+        # with a ``_make_prompt_tokens_details(...)`` helper and removed
+        # the ``self.reasoning_parser_cls`` gate, so the dev259 AND dev491
+        # anchors are now count==0 on 0.23.1 (byte-verified live). They are
+        # kept ``required=False`` so they soft-skip on 0.23.1 (harmless;
+        # retained for the dev259/dev491 validation window). The dev101
+        # variant is the live 0.23.1 anchor and is ``required=True`` so a
+        # future silent drift on the active pin SKIPs loudly rather than
+        # passing with the reasoning count quietly dropped.
         TextPatch(
             name="p89_serving_stream_attach",
             anchor=_SERVING_STREAM_ATTACH_DEV259_OLD,
@@ -519,7 +634,16 @@ def _serving_sub_patches() -> list[TextPatch]:
             replacement=_SERVING_STREAM_ATTACH_DEV491_NEW,
             required=False,
         ),
-        # full_attach — dev259 / dev491 variants (required-at-least-one).
+        TextPatch(
+            name="p89_serving_stream_attach_dev101",
+            anchor=_SERVING_STREAM_ATTACH_DEV101_OLD,
+            replacement=_SERVING_STREAM_ATTACH_DEV101_NEW,
+            required=True,
+        ),
+        # full_attach — dev259 / dev491 / dev101 variants (same rationale
+        # as stream_attach: dev259/dev491 are count==0 on 0.23.1 and kept
+        # ``required=False`` for soft-skip; dev101 is the live 0.23.1
+        # anchor, ``required=True``).
         TextPatch(
             name="p89_serving_full_attach",
             anchor=_SERVING_FULL_ATTACH_DEV259_OLD,
@@ -531,6 +655,12 @@ def _serving_sub_patches() -> list[TextPatch]:
             anchor=_SERVING_FULL_ATTACH_DEV491_OLD,
             replacement=_SERVING_FULL_ATTACH_DEV491_NEW,
             required=False,
+        ),
+        TextPatch(
+            name="p89_serving_full_attach_dev101",
+            anchor=_SERVING_FULL_ATTACH_DEV101_OLD,
+            replacement=_SERVING_FULL_ATTACH_DEV101_NEW,
+            required=True,
         ),
     ]
 

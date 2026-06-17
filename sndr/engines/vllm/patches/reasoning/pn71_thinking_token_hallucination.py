@@ -50,32 +50,52 @@ def _enabled() -> bool:
     ).strip().lower() in ("1", "true", "yes", "on")
 
 
-# Anchor 1: extract_reasoning function entry. Normalize on model_output.
-# The `partition(self.start_token)` line is the first read of model_output.
+# Anchor: Qwen3Parser.extract_reasoning method (state-machine parser at
+# vllm/parser/qwen3.py, post upstream #45588 which deleted the old
+# reasoning/qwen3_reasoning_parser.py). The new design inserts a
+# `_preprocess_feed` override BEFORE this method — the universal text-feed
+# chokepoint that covers both non-streaming (whole output in one feed) and
+# streaming (per-delta) paths — and re-emits extract_reasoning verbatim.
 PN71_OLD_NON_STREAMING = (
-    "        # Strip <think> if present in the generated output.\n"
-    "        # [Genesis P27] Capture BEFORE-THINK text so it can be prepended\n"
-    "        # to content instead of being silently dropped (issue #40699-class).\n"
-    "        model_output_parts = model_output.partition(self.start_token)\n"
+    "    def extract_reasoning(\n"
+    "        self,\n"
+    "        model_output: str,\n"
+    "        request: ChatCompletionRequest | ResponsesRequest,\n"
+    "    ) -> tuple[str | None, str | None]:\n"
+    "        if not self.thinking_enabled:\n"
+    "            return None, model_output\n"
+    "        return super().extract_reasoning(model_output, request)\n"
 )
 PN71_NEW_NON_STREAMING = (
-    "        # Strip <think> if present in the generated output.\n"
-    "        # [Genesis PN71] Normalize hallucinated </thinking> → </think>\n"
-    "        # before any tag-based parsing. Qwen 3.6 occasionally emits\n"
-    "        # the full word instead of the canonical token; this would\n"
-    "        # cause all output to be routed to reasoning with empty content.\n"
-    "        if \"</thinking>\" in model_output:\n"
-    "            model_output = model_output.replace(\"</thinking>\", \"</think>\")\n"
-    "        # [Genesis P27] Capture BEFORE-THINK text so it can be prepended\n"
-    "        # to content instead of being silently dropped (issue #40699-class).\n"
-    "        model_output_parts = model_output.partition(self.start_token)\n"
+    "    # [Genesis PN71] Normalize hallucinated </thinking> -> </think> at\n"
+    "    # feed entry. Qwen 3.6 occasionally emits the full word instead of\n"
+    "    # the canonical </think> token; </thinking> tokenizes to ordinary\n"
+    "    # sub-word pieces (no </think> special-token id) so the state machine\n"
+    "    # never sees the THINK_END terminal, leaving the parser stuck in\n"
+    "    # REASONING and routing all output to reasoning with empty content.\n"
+    "    # Overriding _preprocess_feed covers every path (non-streaming\n"
+    "    # extract_reasoning/parse feed the whole output in one call; streaming\n"
+    "    # parse_delta/extract_*_streaming feed each delta).\n"
+    "    def _preprocess_feed(self, delta_text, delta_token_ids):\n"
+    "        if delta_text and \"</thinking>\" in delta_text:\n"
+    "            delta_text = delta_text.replace(\"</thinking>\", \"</think>\")\n"
+    "        return super()._preprocess_feed(delta_text, delta_token_ids)\n"
+    "\n"
+    "    def extract_reasoning(\n"
+    "        self,\n"
+    "        model_output: str,\n"
+    "        request: ChatCompletionRequest | ResponsesRequest,\n"
+    "    ) -> tuple[str | None, str | None]:\n"
+    "        if not self.thinking_enabled:\n"
+    "            return None, model_output\n"
+    "        return super().extract_reasoning(model_output, request)\n"
 )
 
 
 def _make_patcher() -> TextPatcher | None:
     if not _enabled():
         return None
-    target = resolve_vllm_file("reasoning/qwen3_reasoning_parser.py")
+    target = resolve_vllm_file("parser/qwen3.py")
     if target is None:
         return None
     return TextPatcher(
@@ -105,7 +125,7 @@ def apply() -> tuple[str, str]:
         return "skipped", "vllm install root not discoverable"
     patcher = _make_patcher()
     if patcher is None:
-        return "skipped", "target file qwen3_reasoning_parser.py not resolvable"
+        return "skipped", "target file parser/qwen3.py not resolvable"
     if not os.path.isfile(patcher.target_file):
         return "skipped", f"target disappeared: {patcher.target_file}"
     with open(patcher.target_file) as fh:

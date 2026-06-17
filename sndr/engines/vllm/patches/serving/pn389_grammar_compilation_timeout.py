@@ -8,6 +8,37 @@ DoS-hardening bundle, scoped to the XGrammar grammar-compilation hot
 path that EVERY Genesis tool-call traverses.
 
 ================================================================
+0.23.1 REDESIGN (dev491 -> 0.23.1 migration; pin
+0.23.1rc1.dev101+g4c6266331)
+================================================================
+
+The prose below describes the ORIGINAL 3-file design (introduce our own
+``run_with_timeout`` + ``_check_regex_complexity`` in utils.py, a new
+``VLLM_GRAMMAR_COMPILATION_TIMEOUT_SECONDS`` env in envs.py, and a
+``compile_grammar -> _compile_ctx -> _compile_ctx_inner`` refactor in
+backend_xgrammar.py). On the 0.23.1 pin that design no longer composes:
+upstream ALREADY landed a first-generation helper
+``compile_regex_with_timeout`` (utils.py; ThreadPoolExecutor +
+``future.result(timeout)``, bounded by the env
+``VLLM_REGEX_COMPILATION_TIMEOUT_S``, default 5s), already imported it
+into backend_xgrammar.py, and already wraps the REGEX arm of
+``compile_grammar`` with it. The original utils.py / envs.py anchors are
+therefore gone (count==0) or redundant, and re-adding our own helper/env
+would collide with the upstream ones.
+
+The ACTIVE patch (see the patcher builders + ``_all_patchers`` + the
+constants ``PN389_XGR_COMPILE_GRAMMAR_OLD`` / ``..._NEW`` below) is a
+single byte-exact edit on backend_xgrammar.py ``compile_grammar`` that
+REUSES the already-present ``compile_regex_with_timeout`` to wall-clock-
+bound the four arms upstream still leaves unbounded (JSON / JSON_OBJECT /
+GRAMMAR / STRUCTURAL_TAG), leaving the REGEX arm exactly as upstream
+wrote it. The utils.py / envs.py / frontend-validate sub-patches are
+retained as non-required, inert no-ops (NOT wired into the transaction)
+for historical reference. Effective budget is now the existing
+``VLLM_REGEX_COMPILATION_TIMEOUT_S`` (default 5s), not the original 2s
+intent — operator-tunable via that env.
+
+================================================================
 UPSTREAM BUG CLASS (7 GHSA, CWE-400 uncontrolled resource consumption)
 ================================================================
 
@@ -348,28 +379,48 @@ PN389_XGR_IMPORTS_NEW = (
 
 # (b) compile_grammar — the EngineCore DFA-build path (THE wedge surface).
 #
-# This is the core fix: the actual `self.compiler.compile_*` calls run on
-# the single EngineCore CPU loop with NO wall-clock bound in the pin. The
-# frontend validation pre-flight below (validate_xgrammar_grammar) only
-# wraps the schema-PARSE (`xgr.Grammar.from_*`); a schema that PARSES fast
-# but COMPILES catastrophically (vocab-dependent DFA explosion against the
-# 152K-vocab compiler) sails through validation and then wedges decode
-# here. So we mirror the PR's refactor of compile_grammar into:
-#   compile_grammar     -> builds XgrammarGrammar from a ctx
-#   _compile_ctx        -> run_with_timeout(_compile_ctx_inner, ...)
-#   _compile_ctx_inner  -> the original compile_* dispatch, byte-identical
-# Now EVERY type (JSON / JSON_OBJECT / GRAMMAR / REGEX / STRUCTURAL_TAG)
-# has its DFA build bounded by VLLM_GRAMMAR_COMPILATION_TIMEOUT_SECONDS,
-# and a pathological compile bounces as a ValueError instead of wedging
-# the engine. The REGEX arm additionally keeps the cheap O(n)
-# _check_regex_complexity pre-filter so an obviously-adversarial pattern
-# is rejected before a compilation thread is even spawned.
+# REDESIGN for 0.23.1 (pin 0.23.1rc1.dev101+g4c6266331): the original
+# anchor — a compile_grammar whose REGEX arm read
+# `ctx = self.compiler.compile_regex(grammar_spec)` with NO timeout on ANY
+# arm — was refactored away upstream. The live 0.23.1 tree already ships
+# the first-generation helper `compile_regex_with_timeout` (utils.py;
+# ThreadPoolExecutor + future.result(timeout), bounded by the existing
+# env VLLM_REGEX_COMPILATION_TIMEOUT_S, default 5s) and already wires it
+# into the REGEX arm of compile_grammar. It is also already imported in
+# this file's `from vllm.v1.structured_output.utils import (...)` block.
 #
-# Anchor = the whole pin compile_grammar method (count==1, byte-verified
-# against /private/tmp/candidate_pin_current/vllm). _compile_ctx_inner's
-# body reproduces the pin's compile_* dispatch verbatim (only `ctx = ...`
-# becomes `return ...`), so a compile within budget is bit-identical.
-PN389_XGR_COMPILE_REGEX_OLD = (
+# So the original 3-file design (introduce our own run_with_timeout +
+# _check_regex_complexity in utils.py, + a new
+# VLLM_GRAMMAR_COMPILATION_TIMEOUT_SECONDS env in envs.py, + a
+# compile_grammar -> _compile_ctx -> _compile_ctx_inner refactor) no
+# longer composes: its utils.py / envs.py anchors are gone (count==0 on
+# live), and re-adding our own helper/env would collide with the
+# already-present upstream ones.
+#
+# Per the task directive, we COMPOSE with upstream instead: a single
+# byte-exact anchor on compile_grammar that reuses the already-imported
+# `compile_regex_with_timeout(fn, spec)` for the four arms upstream still
+# leaves UNbounded (JSON / JSON_OBJECT / GRAMMAR / STRUCTURAL_TAG),
+# leaving the REGEX arm exactly as upstream already wrote it. Now EVERY
+# type's vocab-dependent DFA build is wall-clock-bounded by the existing
+# VLLM_REGEX_COMPILATION_TIMEOUT_S (default 5s, operator-tunable), and a
+# pathological compile bounces as a ValueError instead of wedging the
+# single CPU EngineCore loop. Bit-identical for any compile within budget.
+#
+# JSON / JSON_OBJECT carry the any_whitespace kwarg, so they are wrapped
+# in a `lambda spec: ...` (single-str-arg callable, as the helper
+# expects). GRAMMAR and the STRUCTURAL_TAG else-branch take a single
+# positional str, so the bound method is passed directly. The
+# STRUCTURAL_TAG structures-branch takes (tags, triggers), so it is
+# wrapped in `lambda _spec: ...` with grammar_spec passed as the str
+# pattern. The lambdas are invoked synchronously inside the helper with
+# no enclosing loop, so there is no late-binding/loop-capture footgun.
+#
+# Anchor = the whole pin compile_grammar dispatch (count==1, byte-verified
+# against the live 0.23.1 container backend_xgrammar.py). The trailing
+# `return XgrammarGrammar(...)` block follows the anchor and is preserved
+# untouched.
+PN389_XGR_COMPILE_GRAMMAR_OLD = (
     "    def compile_grammar(\n"
     "        self, request_type: StructuredOutputOptions, grammar_spec: str\n"
     "    ) -> StructuredOutputGrammar:\n"
@@ -384,117 +435,101 @@ PN389_XGR_COMPILE_REGEX_OLD = (
     "        elif request_type == StructuredOutputOptions.GRAMMAR:\n"
     "            ctx = self.compiler.compile_grammar(grammar_spec)\n"
     "        elif request_type == StructuredOutputOptions.REGEX:\n"
-    "            ctx = self.compiler.compile_regex(grammar_spec)\n"
+    "            ctx = compile_regex_with_timeout(\n"
+    "                self.compiler.compile_regex,\n"
+    "                grammar_spec,\n"
+    "            )\n"
     "        elif request_type == StructuredOutputOptions.STRUCTURAL_TAG:\n"
     "            s_tag = json.loads(grammar_spec)\n"
-    '            if "structures" in s_tag:\n'
+    "            if \"structures\" in s_tag:\n"
     "                # Falling back to deprecated method of compiling structural tag\n"
     "                tags = [\n"
     "                    xgr.StructuralTagItem(\n"
-    '                        begin=s["begin"],\n'
-    '                        schema=json.dumps(s["schema"]),\n'
-    '                        end=s["end"],\n'
+    "                        begin=s[\"begin\"],\n"
+    "                        schema=json.dumps(s[\"schema\"]),\n"
+    "                        end=s[\"end\"],\n"
     "                    )\n"
-    '                    for s in s_tag["structures"]\n'
+    "                    for s in s_tag[\"structures\"]\n"
     "                ]\n"
-    '                ctx = self.compiler.compile_structural_tag(tags, s_tag["triggers"])\n'
+    "                ctx = self.compiler.compile_structural_tag(tags, s_tag[\"triggers\"])\n"
     "            else:\n"
     "                ctx = self.compiler.compile_structural_tag(grammar_spec)\n"
     "        else:\n"
     "            logger.error(\n"
-    '                "Validation should have already occurred. Please file an issue."\n'
+    "                \"Validation should have already occurred. Please file an issue.\"\n"
     "            )\n"
     "            raise ValueError(\n"
-    '                f"grammar is not of valid supported types. ({request_type!s})"\n'
+    "                f\"grammar is not of valid supported types. ({request_type!s})\"\n"
     "            )\n"
-    "\n"
-    "        return XgrammarGrammar(\n"
-    "            matcher=xgr.GrammarMatcher(\n"
-    "                ctx,\n"
-    "                max_rollback_tokens=self.num_speculative_tokens,\n"
-    "            ),\n"
-    "            vocab_size=self.vocab_size,\n"
-    "            ctx=ctx,\n"
-    "        )\n"
 )
 
-PN389_XGR_COMPILE_REGEX_NEW = (
+PN389_XGR_COMPILE_GRAMMAR_NEW = (
     "    def compile_grammar(\n"
     "        self, request_type: StructuredOutputOptions, grammar_spec: str\n"
     "    ) -> StructuredOutputGrammar:\n"
-    "        # [Genesis PN389 vendor of vllm#45390] wall-clock-bound the\n"
-    "        # EngineCore DFA build. compile_grammar runs on the single\n"
-    "        # CPU EngineCore loop; without a bound a pathological grammar\n"
-    "        # compile wedges ALL decode. _compile_ctx runs the actual\n"
-    "        # compile_* dispatch through run_with_timeout so every type is\n"
-    "        # bounded, not just the frontend from_* parse pre-flight.\n"
-    "        ctx = self._compile_ctx(\n"
-    "            request_type,\n"
-    "            grammar_spec,\n"
-    "            vllm.envs.VLLM_GRAMMAR_COMPILATION_TIMEOUT_SECONDS,\n"
-    "        )\n"
-    "        return XgrammarGrammar(\n"
-    "            matcher=xgr.GrammarMatcher(\n"
-    "                ctx,\n"
-    "                max_rollback_tokens=self.num_speculative_tokens,\n"
-    "            ),\n"
-    "            vocab_size=self.vocab_size,\n"
-    "            ctx=ctx,\n"
-    "        )\n"
-    "\n"
-    "    def _compile_ctx(self, request_type, grammar_spec, timeout):\n"
-    "        # [Genesis PN389 vendor of vllm#45390] run the real DFA build on\n"
-    "        # a daemon thread under the configured wall-clock timeout. On a\n"
-    "        # hang this returns (raises ValueError) in ~timeout seconds\n"
-    "        # instead of blocking the EngineCore loop for the full compile.\n"
-    "        return run_with_timeout(\n"
-    "            self._compile_ctx_inner,\n"
-    "            request_type,\n"
-    "            grammar_spec,\n"
-    "            timeout=timeout,\n"
-    '            label="Grammar compilation",\n'
-    "        )\n"
-    "\n"
-    "    def _compile_ctx_inner(self, request_type, grammar_spec):\n"
-    "        # [Genesis PN389 vendor of vllm#45390] the pin's original\n"
-    "        # compile_* dispatch, unchanged except `ctx = ...` -> `return\n"
-    "        # ...` so a compile within budget is bit-identical to the pin.\n"
+    "        # [Genesis PN389 vendor of vllm#45390] wall-clock-bound EVERY\n"
+    "        # EngineCore DFA build, not just REGEX. compile_grammar runs on\n"
+    "        # the single CPU EngineCore loop; upstream 0.23.1 only wraps the\n"
+    "        # REGEX arm in compile_regex_with_timeout, so a pathological\n"
+    "        # JSON-schema / EBNF grammar / structural-tag still compiles\n"
+    "        # unbounded and wedges ALL decode. We compose with the existing\n"
+    "        # compile_regex_with_timeout helper (single-arg callable + spec\n"
+    "        # string, bounded by VLLM_REGEX_COMPILATION_TIMEOUT_S) for the\n"
+    "        # remaining arms so every type bounces as a ValueError instead\n"
+    "        # of wedging the engine. Bit-identical for compiles within budget.\n"
     "        if request_type == StructuredOutputOptions.JSON:\n"
-    "            return self.compiler.compile_json_schema(\n"
-    "                grammar_spec, any_whitespace=not self.disable_any_whitespace\n"
+    "            ctx = compile_regex_with_timeout(\n"
+    "                lambda spec: self.compiler.compile_json_schema(\n"
+    "                    spec, any_whitespace=not self.disable_any_whitespace\n"
+    "                ),\n"
+    "                grammar_spec,\n"
     "            )\n"
     "        elif request_type == StructuredOutputOptions.JSON_OBJECT:\n"
-    "            return self.compiler.compile_json_schema(\n"
-    "                '{\"type\": \"object\"}', any_whitespace=not self.disable_any_whitespace\n"
+    "            ctx = compile_regex_with_timeout(\n"
+    "                lambda spec: self.compiler.compile_json_schema(\n"
+    "                    spec, any_whitespace=not self.disable_any_whitespace\n"
+    "                ),\n"
+    "                '{\"type\": \"object\"}',\n"
     "            )\n"
     "        elif request_type == StructuredOutputOptions.GRAMMAR:\n"
-    "            return self.compiler.compile_grammar(grammar_spec)\n"
+    "            ctx = compile_regex_with_timeout(\n"
+    "                self.compiler.compile_grammar,\n"
+    "                grammar_spec,\n"
+    "            )\n"
     "        elif request_type == StructuredOutputOptions.REGEX:\n"
-    "            # [Genesis PN389] reject adversarial regex before the DFA\n"
-    "            # builder runs (cheap O(n) pre-filter inside the timeout).\n"
-    "            _check_regex_complexity(grammar_spec)\n"
-    "            return self.compiler.compile_regex(grammar_spec)\n"
+    "            ctx = compile_regex_with_timeout(\n"
+    "                self.compiler.compile_regex,\n"
+    "                grammar_spec,\n"
+    "            )\n"
     "        elif request_type == StructuredOutputOptions.STRUCTURAL_TAG:\n"
     "            s_tag = json.loads(grammar_spec)\n"
-    '            if "structures" in s_tag:\n'
+    "            if \"structures\" in s_tag:\n"
     "                # Falling back to deprecated method of compiling structural tag\n"
     "                tags = [\n"
     "                    xgr.StructuralTagItem(\n"
-    '                        begin=s["begin"],\n'
-    '                        schema=json.dumps(s["schema"]),\n'
-    '                        end=s["end"],\n'
+    "                        begin=s[\"begin\"],\n"
+    "                        schema=json.dumps(s[\"schema\"]),\n"
+    "                        end=s[\"end\"],\n"
     "                    )\n"
-    '                    for s in s_tag["structures"]\n'
+    "                    for s in s_tag[\"structures\"]\n"
     "                ]\n"
-    '                return self.compiler.compile_structural_tag(tags, s_tag["triggers"])\n'
+    "                ctx = compile_regex_with_timeout(\n"
+    "                    lambda _spec: self.compiler.compile_structural_tag(\n"
+    "                        tags, s_tag[\"triggers\"]\n"
+    "                    ),\n"
+    "                    grammar_spec,\n"
+    "                )\n"
     "            else:\n"
-    "                return self.compiler.compile_structural_tag(grammar_spec)\n"
+    "                ctx = compile_regex_with_timeout(\n"
+    "                    self.compiler.compile_structural_tag,\n"
+    "                    grammar_spec,\n"
+    "                )\n"
     "        else:\n"
     "            logger.error(\n"
-    '                "Validation should have already occurred. Please file an issue."\n'
+    "                \"Validation should have already occurred. Please file an issue.\"\n"
     "            )\n"
     "            raise ValueError(\n"
-    '                f"grammar is not of valid supported types. ({request_type!s})"\n'
+    "                f\"grammar is not of valid supported types. ({request_type!s})\"\n"
     "            )\n"
 )
 
@@ -664,17 +699,25 @@ def _make_utils_patcher() -> TextPatcher | None:
         target_file=str(target),
         marker=GENESIS_PN389_MARKER,
         sub_patches=[
+            # REDESIGN (0.23.1): both anchors are GONE (count==0 on live).
+            # 0.23.1 already ships compile_regex_with_timeout in utils.py;
+            # the import block and the `CACHE = None` helper-insertion
+            # point our anchors keyed on were refactored away, and the
+            # redesigned compile_grammar reuses the upstream helper rather
+            # than introducing run_with_timeout. Non-required so each soft-
+            # skips; this whole patcher is no longer wired into apply()'s
+            # transaction (see _all_patchers / _make_xgrammar_patcher).
             TextPatch(
                 name="pn389_utils_imports",
                 anchor=PN389_UTILS_IMPORTS_OLD,
                 replacement=PN389_UTILS_IMPORTS_NEW,
-                required=True,
+                required=False,
             ),
             TextPatch(
                 name="pn389_utils_helpers",
                 anchor=PN389_UTILS_HELPERS_OLD,
                 replacement=PN389_UTILS_HELPERS_NEW,
-                required=True,
+                required=False,
             ),
         ],
         upstream_drift_markers=list(_DRIFT_MARKERS),
@@ -694,47 +737,67 @@ def _make_xgrammar_patcher() -> TextPatcher | None:
         target_file=str(target),
         marker=GENESIS_PN389_MARKER,
         sub_patches=[
+            # REDESIGN (0.23.1): the EngineCore compile_grammar arm is the
+            # only REQUIRED edit — it is the documented wedge surface and
+            # its new anchor is byte-verified count==1 on live 0.23.1.
+            TextPatch(
+                name="pn389_xgr_compile_grammar",
+                anchor=PN389_XGR_COMPILE_GRAMMAR_OLD,
+                replacement=PN389_XGR_COMPILE_GRAMMAR_NEW,
+                required=True,
+            ),
+            # The remaining backend_xgrammar sub-patches target pin forms
+            # that 0.23.1 already absorbed or refactored:
+            #   - pn389_xgr_imports: upstream already imports
+            #     compile_regex_with_timeout (the import block our anchor
+            #     keyed on no longer exists; count==0 on live), and the
+            #     redesigned compile_grammar above reuses that already-
+            #     present import, so no import edit is needed.
+            #   - the five validate_xgrammar_grammar arms key on pin forms
+            #     that drifted on 0.23.1 (e.g. the REGEX validate arm now
+            #     itself wraps compile_regex_with_timeout). They are a
+            #     frontend-only residual, NOT the documented engine wedge.
+            # All are made non-required so a missing/absorbed anchor soft-
+            # skips instead of aborting the patcher. (They also reference
+            # run_with_timeout / VLLM_GRAMMAR_COMPILATION_TIMEOUT_SECONDS,
+            # which the collapsed single-file design no longer provides;
+            # left here, non-required, as inert no-ops on 0.23.1 so the
+            # historical anchors remain documented but cannot land.)
             TextPatch(
                 name="pn389_xgr_imports",
                 anchor=PN389_XGR_IMPORTS_OLD,
                 replacement=PN389_XGR_IMPORTS_NEW,
-                required=True,
-            ),
-            TextPatch(
-                name="pn389_xgr_compile_grammar",
-                anchor=PN389_XGR_COMPILE_REGEX_OLD,
-                replacement=PN389_XGR_COMPILE_REGEX_NEW,
-                required=True,
+                required=False,
             ),
             TextPatch(
                 name="pn389_xgr_validate_regex",
                 anchor=PN389_XGR_VALIDATE_REGEX_OLD,
                 replacement=PN389_XGR_VALIDATE_REGEX_NEW,
-                required=True,
+                required=False,
             ),
             TextPatch(
                 name="pn389_xgr_validate_choice",
                 anchor=PN389_XGR_VALIDATE_CHOICE_OLD,
                 replacement=PN389_XGR_VALIDATE_CHOICE_NEW,
-                required=True,
+                required=False,
             ),
             TextPatch(
                 name="pn389_xgr_validate_json",
                 anchor=PN389_XGR_VALIDATE_JSON_OLD,
                 replacement=PN389_XGR_VALIDATE_JSON_NEW,
-                required=True,
+                required=False,
             ),
             TextPatch(
                 name="pn389_xgr_validate_ebnf",
                 anchor=PN389_XGR_VALIDATE_EBNF_OLD,
                 replacement=PN389_XGR_VALIDATE_EBNF_NEW,
-                required=True,
+                required=False,
             ),
             TextPatch(
                 name="pn389_xgr_validate_structural_tag",
                 anchor=PN389_XGR_VALIDATE_STAG_OLD,
                 replacement=PN389_XGR_VALIDATE_STAG_NEW,
-                required=True,
+                required=False,
             ),
         ],
         upstream_drift_markers=list(_DRIFT_MARKERS),
@@ -753,17 +816,25 @@ def _make_envs_patcher() -> TextPatcher | None:
         target_file=str(target),
         marker=GENESIS_PN389_MARKER,
         sub_patches=[
+            # REDESIGN (0.23.1): although these two anchors still resolve
+            # (count==1 on live), the env they add
+            # (VLLM_GRAMMAR_COMPILATION_TIMEOUT_SECONDS) is now redundant:
+            # the redesigned compile_grammar reuses the already-present
+            # upstream env VLLM_REGEX_COMPILATION_TIMEOUT_S (default 5s)
+            # and references no new env. Non-required so neither lands a
+            # dead env nobody reads; this patcher is also no longer wired
+            # into apply()'s transaction (see _all_patchers).
             TextPatch(
                 name="pn389_envs_decl",
                 anchor=PN389_ENVS_DECL_OLD,
                 replacement=PN389_ENVS_DECL_NEW,
-                required=True,
+                required=False,
             ),
             TextPatch(
                 name="pn389_envs_lambda",
                 anchor=PN389_ENVS_LAMBDA_OLD,
                 replacement=PN389_ENVS_LAMBDA_NEW,
-                required=True,
+                required=False,
             ),
         ],
         upstream_drift_markers=list(_DRIFT_MARKERS),
@@ -771,13 +842,25 @@ def _make_envs_patcher() -> TextPatcher | None:
 
 
 def _all_patchers() -> list[TextPatcher]:
-    """Build every PN389 target patcher; drop unresolvable ones."""
+    """Build the PN389 target patcher(s); drop unresolvable ones.
+
+    REDESIGN (0.23.1): collapsed from the original 3-file transaction
+    (utils.py + backend_xgrammar.py + envs.py) to a SINGLE file. On pin
+    0.23.1rc1.dev101+g4c6266331 upstream already ships
+    ``compile_regex_with_timeout`` (utils.py) and
+    ``VLLM_REGEX_COMPILATION_TIMEOUT_S`` (envs.py) and already imports the
+    helper into backend_xgrammar.py, so the utils/envs arms have nothing
+    to add (their anchors are gone or their env is redundant) — including
+    them in the transaction would hard-fail it (a patcher with zero
+    applicable sub-patches returns SKIPPED, which rolls the transaction
+    back). The redesigned compile_grammar edit reuses the already-present
+    upstream helper, so only ``backend_xgrammar.py`` is driven. The
+    ``_make_utils_patcher`` / ``_make_envs_patcher`` builders and their
+    constants are retained for historical reference and for a future pin
+    where the upstream helper might be absent, but are NOT wired here.
+    """
     out: list[TextPatcher] = []
-    for builder in (
-        _make_utils_patcher,
-        _make_xgrammar_patcher,
-        _make_envs_patcher,
-    ):
+    for builder in (_make_xgrammar_patcher,):
         p = builder()
         if p is not None:
             out.append(p)
@@ -787,18 +870,25 @@ def _all_patchers() -> list[TextPatcher]:
 def apply() -> tuple[str, str]:
     """Apply PN389 — XGrammar grammar-compilation timeouts. Never raises.
 
-    Drives all three target files (utils.py, backend_xgrammar.py, envs.py)
-    in ONE ``MultiFilePatchTransaction`` (validate-all-then-write-all),
-    so the helpers, their call sites, and the env that times them out
-    either all land together or none do — never a half-patched tree where
-    ``backend_xgrammar`` references a ``run_with_timeout`` that ``utils``
-    does not yet define.
+    REDESIGN (0.23.1): drives a SINGLE target file
+    (``v1/structured_output/backend_xgrammar.py``) in ONE
+    ``MultiFilePatchTransaction`` (validate-all-then-write-all). On pin
+    0.23.1rc1.dev101+g4c6266331 upstream already ships
+    ``compile_regex_with_timeout`` (utils.py) + ``VLLM_REGEX_COMPILATION``
+    ``_TIMEOUT_S`` (envs.py) and imports the helper here, so the patch
+    collapses from the original 3-file transaction to a single
+    ``compile_grammar`` edit that REUSES the upstream helper for the four
+    arms upstream still leaves unbounded (JSON / JSON_OBJECT / GRAMMAR /
+    STRUCTURAL_TAG). No utils.py / envs.py edits are wired (see
+    ``_all_patchers``).
 
     Opt-in: gated through the dispatcher on
     ``GENESIS_ENABLE_PN389_GRAMMAR_TIMEOUTS`` (default_on=False in the
     registry — the timeout reject is a new failure mode for legitimate
-    slow grammars; gated until a server A/B confirms the 2s budget never
-    trips a real tool-schema compile).
+    slow grammars; gated until a server A/B confirms the budget never
+    trips a real tool-schema compile). NOTE: the effective budget is now
+    the existing ``VLLM_REGEX_COMPILATION_TIMEOUT_S`` (default 5s), not
+    the patch's original 2s intent; operator-tunable via that env.
     """
     from sndr.dispatcher import log_decision, should_apply
 
@@ -811,18 +901,18 @@ def apply() -> tuple[str, str]:
         return "skipped", "vllm install root not discoverable"
 
     patchers = _all_patchers()
-    if len(patchers) != 3:
+    if len(patchers) != 1:
         return (
             "skipped",
-            "PN389: not all targets resolvable "
-            f"({len(patchers)}/3 of utils/backend_xgrammar/envs found)",
+            "PN389: target not resolvable "
+            f"({len(patchers)}/1 of backend_xgrammar found)",
         )
 
-    # All three files must be unpatched and free of the upstream-merged
+    # The single target must be unpatched and free of the upstream-merged
     # form before we commit. The transaction's dry-run re-checks anchors;
     # here we additionally (a) report a clean idempotent skip when the
-    # marker is already on every target, and (b) self-skip if #45390 has
-    # landed upstream.
+    # marker is already present, and (b) self-skip if #45390 has landed
+    # upstream.
     markers_present = 0
     for p in patchers:
         if not os.path.isfile(p.target_file):
@@ -850,7 +940,7 @@ def apply() -> tuple[str, str]:
     # clean idempotent skip rather than letting the transaction re-report
     # an all-IDEMPOTENT commit as "applied".
     if markers_present == len(patchers):
-        return "skipped", "PN389: already applied (marker present on all 3 targets)"
+        return "skipped", "PN389: already applied (marker present on target)"
 
     from sndr.kernel import MultiFilePatchTransaction
 
@@ -860,28 +950,27 @@ def apply() -> tuple[str, str]:
         return status, f"PN389: {txn_reason}"
     return (
         "applied",
-        "PN389 applied (3 files): run_with_timeout (daemon-thread + Queue "
-        "+ Semaphore(4)) now bounds BOTH XGrammar surfaces — the EngineCore "
-        "DFA build (compile_grammar refactored to _compile_ctx -> "
-        "run_with_timeout(_compile_ctx_inner) over every type: "
-        "JSON/JSON_OBJECT/GRAMMAR/REGEX/STRUCTURAL_TAG) AND the frontend "
-        "validate_xgrammar_grammar parse pre-flight (every xgr.Grammar."
-        "from_* call), plus _check_regex_complexity on the REGEX arm. All "
-        "bounded by VLLM_GRAMMAR_COMPILATION_TIMEOUT_SECONDS (Genesis "
-        "default 2s, not the PR's 10s, to protect the 70-160ms TTFT SLO). "
-        "A pathological tool schema that compiles catastrophically now "
-        "bounces as a ValueError (400) instead of wedging the "
-        "single-instance EngineCore loop (vllm#45390, 7-GHSA DoS). "
-        "Bit-identical for compiles within budget.",
+        "PN389 applied (1 file, 0.23.1 redesign): backend_xgrammar.py "
+        "compile_grammar now wraps EVERY EngineCore DFA-build arm "
+        "(JSON / JSON_OBJECT / GRAMMAR / STRUCTURAL_TAG) in the already-"
+        "present upstream compile_regex_with_timeout helper, in addition "
+        "to the REGEX arm upstream already wrapped. Bounded by the "
+        "existing VLLM_REGEX_COMPILATION_TIMEOUT_S (default 5s, operator-"
+        "tunable). A pathological tool schema that compiles "
+        "catastrophically now bounces as a ValueError instead of wedging "
+        "the single-instance EngineCore loop (vllm#45390 DoS). "
+        "Bit-identical for compiles within budget. "
+        "(utils.py / envs.py arms collapsed — upstream 0.23.1 already "
+        "ships the helper + VLLM_REGEX_COMPILATION_TIMEOUT_S.)",
     )
 
 
 def is_applied() -> bool:
-    """Return True iff the PN389 marker is present in ALL three targets."""
+    """Return True iff the PN389 marker is present in the target file."""
     if vllm_install_root() is None:
         return False
     patchers = _all_patchers()
-    if len(patchers) != 3:
+    if len(patchers) != 1:
         return False
     for p in patchers:
         try:

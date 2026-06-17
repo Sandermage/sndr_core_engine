@@ -153,11 +153,7 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     "SNDR_MTP_DYNAMIC_K_001",  # #26504 DynamicProposer — bench NOT_SIGNIFICANT.
     # (b) Bug still live on 0.23.1 but the anchor target was refactored away —
     # capped pending a redesign (cannot byte-exact re-anchor; see registry):
-    "PN71",   # </thinking> mis-lex — qwen3_reasoning_parser.py deleted by #45588.
     "PN374",  # qwen3xml quoted-keys — bug fixed upstream; anchors gone.
-    "PN388",  # mamba block-aligned split — _mamba_block_aligned_split restructured.
-    "PN389",  # grammar compile timeout — 3-file transaction needs redesign.
-    "P89",    # reasoning-tokens usage — anchors drifted; would half-apply.
 })
 
 
