@@ -172,12 +172,12 @@ PN95_SITE4_NEW = (
 # instead of before the comment. Functionally identical — the step
 # counter fires per call regardless of when we tick.
 PN95_SITE5_OLD = (
-    "    def schedule(self) -> SchedulerOutput:\n"
+    "    def schedule(self, throttle_prefills: bool = False) -> SchedulerOutput:\n"
     "        self.current_step += 1\n"
     "        # NOTE(woosuk) on the scheduling algorithm:\n"
 )
 PN95_SITE5_NEW = (
-    "    def schedule(self) -> SchedulerOutput:\n"
+    "    def schedule(self, throttle_prefills: bool = False) -> SchedulerOutput:\n"
     "        self.current_step += 1\n"
     "        # [Genesis PN95 v2 — hot-path optimized] periodic tier maintenance.\n"
     "        # schedule() fires per scheduler step (~50/sec at sustained TPS).\n"

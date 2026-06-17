@@ -2447,7 +2447,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Cooldown (default 50 ticks ~= 5s) prevents hot-path stall. "
             "No text-patch — runtime hook in existing scheduler_tick path."
         ),
-        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.23.0")},
+        "applies_to": {"vllm_version_range": (">=0.20.2rc1.dev9", "<0.24.0")},
         "requires_patches": [],
         "conflicts_with": [],
         "implementation_status": "full",
@@ -2828,6 +2828,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": ["P34"],
         "conflicts_with": [],
         "composes_with": ["PN346", "P85"],
+        # 2026-06-17 (0.23.1 reverify): kept capped <0.23.0. Bug still live
+        # (#45477 OPEN) but _mamba_block_aligned_split was restructured on
+        # 0.23.1 (num_uncached_common_prefix_tokens) -> anchor needs a
+        # re-indent redesign, not a byte-exact swap. Follow-up: batch-2.
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
         "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
@@ -2896,6 +2900,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["PN386", "P62", "P109", "PN387"],
+        # 2026-06-17 (0.23.1 reverify): kept capped <0.23.0. Bug live
+        # (#45390 OPEN, now [Security] DoS bounds) but the 3-file grammar
+        # transaction hard-fails on the drifted anchor -> needs a redesign
+        # composing with upstream compile_regex_with_timeout. Follow-up.
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
         "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
@@ -3120,6 +3128,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": [],
+        # 2026-06-17 (0.23.1 reverify): kept capped <0.23.0. Bug live
+        # (#45471 OPEN) but reasoning-tokens-usage anchors drifted on 0.23.1;
+        # bumping would partial-match into a runtime-broken state. Needs
+        # re-anchor redesign before 0.23.x use. Follow-up: batch-2.
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
         "vllm_version_range": (">=0.22.0", "<0.23.0"),
     },
@@ -3229,6 +3241,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "the prompt side); PN71 handles the live-generation side."
         ),
         "applies_to": {
+        # 2026-06-17 (0.23.1 reverify): kept capped <0.23.0. Target file
+        # reasoning/qwen3_reasoning_parser.py was DELETED by the #45588
+        # parser reorg (now parser/qwen3.py token state-machine). Bug is
+        # still live on 0.23.1 (</thinking> mis-lexed) but the partition()
+        # anchor has no byte-exact 0.23.1 equivalent -> needs a redesigned
+        # patch (delta_text.replace at feed entry). Follow-up: batch-2.
             "vllm_version_range": (">=0.20.2rc1.dev9", "<0.23.0"),
         },
         # [Preflight triage 2026-06-11 §2] PN71's anchor literally
@@ -6448,6 +6466,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "tool_call_parser": ["qwen3_xml"],
             # Registry-integration 2026-06-11: pin-specific text-patch
             # vendor — anchors byte-verified on the 0.22.1 pin only.
+        # 2026-06-17 (0.23.1 reverify): kept capped <0.23.0. The qwen3xml
+        # quoted-keys bug is GONE on 0.23.x (fixed upstream); anchors no
+        # longer exist. Do NOT bump (would re-arm a superseded patch).
+        # Patch + 15 tests retained for rollback contingency.
             "vllm_version_range": (">=0.22.0", "<0.23.0"),
         },
     },
@@ -7078,7 +7100,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # [Genesis pin-gate 2026-05-11] Defensive on Ampere; load-
             # bearing on planned Blackwell upgrade. Validated dev9 → dev93.
             # Self-retires via marker when #40074 merges.
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
         "apply_module": "sndr.engines.vllm.patches.attention.turboquant.pn14_tq_decode_oob_clamp",
         "lifecycle": "experimental",
