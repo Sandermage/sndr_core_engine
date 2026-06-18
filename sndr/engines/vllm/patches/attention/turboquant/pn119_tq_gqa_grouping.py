@@ -9,9 +9,14 @@ WHAT THIS PATCH DOES
 ================================================================
 
 Adds the GQA-grouped variant of TurboQuant decode stage-1 kernel
-``_tq_grouped_decode_stage1`` (~195 lines of new Triton code) and
+``_tq_grouped_decode_stage1`` (~260 lines of new Triton code) and
 updates the dispatch in ``triton_turboquant_decode_attention`` to
-select the grouped kernel when GQA is active (k8v4 FP8 keys path).
+select the grouped kernel when GQA is active. The grouped kernel
+handles BOTH FP8 keys (k8v4) and MSE-quantized keys (FIX 2 — the
+Gemma ``turboquant_4bit_nc`` preset, ``key_fp8=False``); both route
+through ``tl.dot`` tensor cores. The gate is
+``kv_group_size > 1 and value_quant_bits == 4`` (3-bit-value presets
+still fall back to the scalar kernel).
 
 The upstream PR measured **+16.5% – 27.2% TPS** on A100 / H100 with
 GQA-ratio ∈ {4, 8, 24}. Our 27B and 35B both run **GQA-ratio 8**
@@ -24,8 +29,12 @@ The grouped kernel:
     the same K vectors).
   - Uses ``tl.dot`` instead of element-wise products → routes through
     tensor cores instead of CUDA cores → 4-8× FLOPS density.
-  - Falls back to the legacy ``_tq_decode_stage1`` kernel for MSE-tier
-    presets that store quantized K but not FP8 K (k8v4 path only).
+  - For MSE-quantized keys (``key_fp8=False``), reconstructs the same
+    ``k_float = vec_norms * centroids`` tile the scalar kernel implies
+    (FIX 2), so the dot product is numerically equivalent to the
+    scalar ``scores = vec_norms * sum(q_rot * c) * scale``.
+  - Falls back to the legacy ``_tq_decode_stage1`` kernel only for
+    presets the grouped V-path cannot handle (3-bit values).
 
 ================================================================
 IMPLEMENTATION APPROACH
@@ -140,17 +149,25 @@ def apply() -> tuple[str, str]:
 
     current_md5 = _file_md5(target)
     if current_md5 != PN119_PRE_PATCH_MD5:
-        # File has drifted from the version the diff was authored
-        # against. Either upstream merged the PR (or a competing PR),
-        # or a pin bump changed unrelated code in the same file. Safe
-        # default: skip and let the operator revisit on next pin bump.
-        return (
-            "skipped",
-            f"drift: file md5 {current_md5} != expected "
-            f"{PN119_PRE_PATCH_MD5}. Diff was authored against the dev338+"
-            "gbf0d2dc6d pin; upstream may have merged #40792 or another "
-            "PR has touched the same file. Genesis PN119 self-retires; "
-            "regenerate diff + md5 on next pin bump.",
+        # 2026-06-18 root-cause fix: whole-file md5 drift is most often
+        # caused by a SIBLING TQ patch (P18b launch tune, PN14 clamp, a
+        # G4_* overlay) editing an UNRELATED region of the same file
+        # BEFORE us in an unordered apply pass — NOT by our own hunk
+        # regions changing or a real pin bump (the pristine kernel md5 is
+        # unchanged across dev101/dev148). A strict whole-file md5
+        # hard-skip therefore made PN119 silently inert on whichever
+        # models happened to apply a kernel-editing sibling first (e.g.
+        # Gemma), reverting their TQ decode to the scalar path. We now
+        # DEFER to the `patch --dry-run` below as the real guard: if our
+        # hunks still apply, the sibling edit was independent and we
+        # proceed; only if the dry-run rejects our hunks do we skip
+        # gracefully. Logged, never silent.
+        log.warning(
+            "[PN119] whole-file md5 %s != pristine %s — deferring to "
+            "patch --dry-run as the real guard (a sibling TQ patch likely "
+            "edited an unrelated region of the file before us).",
+            current_md5,
+            PN119_PRE_PATCH_MD5,
         )
 
     # Apply the diff via `patch`. Rewrite the unified-diff filename
@@ -177,10 +194,15 @@ def apply() -> tuple[str, str]:
             capture_output=True,
         )
         if dry.returncode != 0:
+            # Our hunks genuinely don't fit — a sibling edited OUR region,
+            # or a real pin bump moved the grouped-kernel anchor. Skip
+            # GRACEFULLY (do not fail the boot); the dry-run is the guard
+            # that keeps a non-fitting diff from ever being applied.
             return (
-                "failed",
-                f"patch dry-run failed: rc={dry.returncode} "
-                f"stderr={dry.stderr[:200]} stdout={dry.stdout[:200]}",
+                "skipped",
+                f"drift: patch dry-run rejected our hunks (rc={dry.returncode}) "
+                f"— our grouped-kernel region changed, not a sibling-unrelated "
+                f"edit. stderr={dry.stderr[:160]}",
             )
 
         # Apply for real.
