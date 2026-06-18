@@ -650,3 +650,37 @@ PN119 applied, health=200**. The regression I introduced (P18b re-anchor d2b9fd5
 on PROD; 27B/35B run tensor-core TQ decode again. NET: no loss vs pre-session (~120 restored);
 the only NEW genuine win remaining is FIX 2 (Gemma MSE-key tensor-core decode, 39→~14-18ms — Gemma
 is the one model PN119's FP8-key gate doesn't cover, so its scalar penalty is real and unaddressed).
+
+## 14. FIX 2 (Gemma MSE tensor-core) — implemented + parity-proven + SAFE, but blocked by PN119 apply-order
+
+Implementer extended PN119's grouped tl.dot kernel with an MSE-key branch (centroid-gather into a
+[BLOCK_KV, BLOCK_D] tile, vec_norms fold, reusing the existing tl.dot), relaxed the gate to
+`kv_group_size > 1 and value_quant_bits == 4`, recomputed hunk headers. **Parity test: 25 passed**
+(head_dim 64/128/256, group 2/4/8, norm on/off — bit-exact index unpack + centroid gather + the
+`vec_norms*sum(q*c) == sum(q*(vec_norms*c))` fold identity). **Dry-run against the pristine dev148
+kernel (md5 e93d6f9): applies (rc=0, fuzz 1), patched kernel py-syntax OK.**
+
+Rig validation on Gemma-31B-TQ (dev101, reverted P18b + FIX 2):
+- ✅ Boots (health=200, no compile crash at BLOCK_D=256), **output COHERENT** ("The ocean covers
+  more than seventy percent of the Earth's surface"), **tool-call works** (`get_weather{"city":"Odessa"}`).
+  So FIX 2 does NOT break anything (no garbage, no crash) — the parity proof held.
+- ⚠️ BUT `tl.dot = 0` in the live kernel → the grouped MSE kernel did NOT engage. KEY_FP8=6 is the
+  pre-existing SCALAR kernel's constexpr, not FIX 2's grouped kernel. So Gemma still ran scalar.
+- TPOT 21ms / 42.7 TPS (vs the earlier 39ms/35.5 measured under my BROKEN P18b) — improvement is from
+  reverting P18b (pristine BLOCK_KV/num_warps) + variance (CV 0.19), NOT from FIX 2 (which didn't engage).
+
+**Why tl.dot=0:** the SAME PN119 apply-ORDER issue. On the 27B boot PN119 applied (tl.dot=5); on the
+Gemma boot a sibling kernel-modifier (a G4_* / PN14 / PN130 patch) edited triton_turboquant_decode.py
+BEFORE PN119, drifting its whole-file md5 → PN119 self-skipped → FIX 2's grouped kernel never landed.
+The apply order is model-dependent (different patch sets per launcher), so PN119 applies on some
+models and not others — a fragile whole-file-md5 + unordered-apply interaction.
+
+**ROOT FIX (next, careful — touches PROD):** make PN119 robust to apply-order. Two options:
+(a) downgrade PN119's whole-file md5 HARD-SKIP to a warning + let its own `patch --dry-run` be the
+   guard (apply if the hunks still fit despite an unrelated sibling edit; skip gracefully if they
+   genuinely conflict) — contained change to pn119_tq_gqa_grouping.py apply(); OR
+(b) enable the built-in opt-in topo sort `SNDR_TOPO_SORT_SPECS=1` + ensure every kernel-modifier
+   declares `requires_patches:[PN119]` so PN119 always applies first on the pristine file.
+Either makes PN119 (FP8 decode for 27B/35B) AND FIX 2 (MSE decode for Gemma) apply RELIABLY on every
+model. Then re-validate FIX 2 on Gemma: expect tl.dot>0 + TPOT toward 14-18ms + coherent output.
+FIX 2 itself is DONE + parity-proven + safe; it is gated only on PN119 reliably applying.
