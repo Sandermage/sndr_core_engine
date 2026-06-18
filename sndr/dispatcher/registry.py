@@ -7235,7 +7235,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 42615,
         "upstream_pr_relationship": "backport",
-        "applies_to": {},  # generic defensive guard; always applicable
+        # 2026-06-18 (dev148 full-patch audit): #42615 (OPEN) dedups
+        # gpu_block_ids in the SimpleCPUOffload eager-store path — our PROD
+        # models run NO KV offloading, so PN110 is dormant; its block_pool.py
+        # anchor also drifted on 0.23.x (DRIFT skip). Capped <0.23.0 for an
+        # honest registry (not silently drift-skipped); re-anchor only if
+        # KV-offloading is ever adopted.
+        "applies_to": {"vllm_version_range": (">=0.20.0", "<0.23.0")},
         "implementation_status": "full",
         "apply_module": "sndr.engines.vllm.patches.kv_cache.pn110_block_pool_free_dedup",
         "source": "vllm_pr_backport",
@@ -8482,7 +8488,15 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport of vllm#41696 (panpan0000, OPEN as of 2026-05-05). Removes the buggy `prompt_reasoning_checked` short-circuit in `vllm.parser.abstract_parser.DelegatingParser.parse_delta` that walked the FULL prompt looking for `</think>` and prematurely set `reasoning_ended=True` from a previous turn's `</think>`. Defensive backport for multi-turn DSML/Hermes/Qwen3 chat clients sending full history. Original report: DeepSeek V3.2 reasoning users.",
         "upstream_pr": 41696,
         "upstream_pr_relationship": "backport",
-        "applies_to": {},
+        # 2026-06-18 (dev148 full-patch audit): #45588 reorganized the parser
+        # into vllm/parser/abstract_parser.py — PN66's DelegatingParser anchor
+        # is gone (DRIFT skip on 0.23.x). A LIVE multiturn-reasoning probe on
+        # dev148 showed NO </think> leak (the new engine parser handles the
+        # reasoning+tool compose), and #41696 is CLOSED-unmerged. Capped
+        # <0.23.0 so the registry is honest (correctly inert, not silently
+        # drift-skipped). Re-anchor to the new parser only if a </think> leak
+        # is ever observed live on 0.23.x+.
+        "applies_to": {"vllm_version_range": (">=0.20.0", "<0.23.0")},
         "apply_module": "sndr.engines.vllm.patches.reasoning.pn66_multiturn_think_leak",
         "lifecycle": "experimental",
         "implementation_status": "full",

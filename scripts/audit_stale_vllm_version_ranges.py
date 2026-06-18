@@ -159,6 +159,12 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     # (b) Bug still live on 0.23.1 but the anchor target was refactored away —
     # capped pending a redesign (cannot byte-exact re-anchor; see registry):
     "PN374",  # qwen3xml quoted-keys — bug fixed upstream; anchors gone.
+    # ── 0.23.1 dev148 full-patch audit 2026-06-18 ──────────────────────
+    "PN66",   # multiturn </think> leak fix — #45588 reorganized the parser
+              # (DelegatingParser gone); live dev148 probe showed NO leak;
+              # #41696 CLOSED-unmerged. Skip 0.23.x, apply <0.23.0.
+    "PN110",  # BlockPool dedup (#42615 OPEN) — SimpleCPUOffload-only path,
+              # dormant on our non-offload PROD; anchor drifted on 0.23.x.
 })
 
 
