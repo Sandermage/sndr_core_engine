@@ -17,14 +17,24 @@ SMs that can schedule more warps per tile.
 Design
 ------
 Default behaviour = upstream (env-unset → same 4/1/1 literals). Opt-in A/B
-tuning via:
+tuning of the launch config via:
 
-    VLLM_TQ_DECODE_BLOCK_KV     (int, 1..64 — kernel block size along KV dim)
     VLLM_TQ_DECODE_NUM_WARPS    (int, 1/2/4/8)
     VLLM_TQ_DECODE_NUM_STAGES   (int, 1..8)
 
 Invalid values fall back to the upstream default (NEVER raise — Genesis
 guards).
+
+BLOCK_KV is intentionally NOT a wired tunable
+---------------------------------------------
+The active kernel text-patch (P18B_TEXT) emits ONLY num_warps and
+num_stages into the Triton launcher — it does NOT override BLOCK_KV.
+An A/B on the A5000 measured BLOCK_KV=32 at -5.2% TPS vs the upstream
+BLOCK_KV=4, so the silent drop is deliberate. The `VLLM_TQ_DECODE_BLOCK_KV`
+parser + `UPSTREAM_BLOCK_KV` constant below are KEPT for the resolver/log
+tuple and for any future re-tune, but a value set there does NOT reach the
+kernel today. Do not re-advertise BLOCK_KV as an effective override until
+P18B_TEXT is extended to patch it.
 
 Platform compatibility
 ----------------------
@@ -63,6 +73,11 @@ def get_block_kv_override() -> Optional[int]:
     """Parse VLLM_TQ_DECODE_BLOCK_KV. Returns None if unset/invalid.
 
     Whitelisted: {1, 2, 4, 8, 16, 32, 64}. Other values ignored silently.
+
+    NOTE: the resolved BLOCK_KV is NOT emitted to the Triton kernel — the
+    active text-patch (P18B_TEXT) wires only num_warps/num_stages (BLOCK_KV=32
+    measured -5.2% TPS on A5000, so the drop is intentional). Kept for the
+    resolver/log tuple and future re-tune; see the module docstring.
     """
     env = os.environ.get("VLLM_TQ_DECODE_BLOCK_KV", "").strip()
     if not env:

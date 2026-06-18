@@ -1,6 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """G4_24 — route Gemma 4 FINAL-LOGITS softcap through fused Triton kernel.
 
+RETIRED 2026-06-19 (dev148 TIER-1 audit): superseded by vLLM's native
+softcap LogitsProcessor (on-device softcap, no host round-trip). The
+fused-softcap route had a per-token GPU->CPU sync stall (the wrapper read
+a scalar back to host each decode step) that negated the fusion win on the
+A5000 decode hot path. lifecycle=retired, default_on stays False, and the
+route is de-wired. The Triton kernel file (kernels/g4_softcap_triton.py) is
+KEPT as a library for future re-use — only this route is retired.
+
 STATUS (audit 2026-05-17): implementation_status=partial.
 This patch currently fuses ONLY the final-logits softcap site. The
 attention-logits softcap (every layer × forward) is NOT yet fused —

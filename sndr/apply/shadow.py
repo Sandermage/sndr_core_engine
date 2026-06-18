@@ -249,6 +249,11 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # OPEN vllm#45100; gpu_model_runner + gdn_attn text
                        # patches, is_hybrid + >=0.23.0 gated, default-off
                        # defensive overlay, no legacy @register_patch hook)
+    # ── 2026-06-19 dev148 TIER-1 audit: spec-driven from inception ──────
+    "PN394",           # qwen3 partial-param value `<` truncation fix
+                       # (backport of MERGED vllm#46047; single-line text
+                       # patch on parser/qwen3.py, >=0.23.0 gated, default-on
+                       # correctness fix, no legacy @register_patch hook)
 })
 
 

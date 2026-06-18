@@ -151,7 +151,7 @@ patches:
   GENESIS_ENABLE_PN119: '1'  # TQ k8v4 GQA head grouping (vllm#40792)
   GENESIS_ENABLE_P109: '1'  # sampling_params vocab-range validators (vllm#42614)
   GENESIS_ENABLE_PN110: '1'  # BlockPool.free_blocks dedup (vllm#42615)
-  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '1'       # vllm#40269 — propagate draft_probs; min(1, target/draft) accept. Bench 27B INT4+TQ: TPS 124.63 vs 116.01 (+7.4%), accept 0.788 vs 0.697 (+13.1% rel), tool 7/7
+  GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT: '0'       # DISABLED 2026-06-19 (dev148 TIER-1 audit) — aligned to the 35B YAML. PN90 is RETIRED + a measured regressor: the old "+7.4% TPS" bench was on dev93/dev209 pre-#40269-merge state; on dev371+/dev491+ probabilistic draft REGRESSES (-5.9% TPS, -10% accept) and PROD runs GREEDY draft. #40269 is native in-pin, so the Genesis patch self-skips; setting =1 was inert BUT a landmine — re-activation regresses and unmasks the latent P71⊥PN390 target_probs NameError. Keep 0.
   GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR: '1'   # vllm#41467 — defensive at think→tool_call boundary
   # ── Compatibility shims ──
   GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE: '1'        # Cliff 1B closure (Inductor opaque-op pool for SiluAndMul); NULL impact on 2×A5000, win for 24GB community

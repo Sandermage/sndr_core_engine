@@ -142,6 +142,16 @@ _RUNNER_DRIFT_MARKERS = (
     # `_pn370_read_cpu_accepted_counts` ("read", not "needs") so the
     # marker never matches our own output.
     "needs_cpu_accepted_counts",
+    # NOTE (2026-06-19 dev148 TIER-1 audit): we deliberately do NOT add a
+    # `condense() reordered indices` / `prev_positions` drift marker here.
+    # That #42347 remap is ALREADY present in dev259 (g303916e93) — PN370's
+    # own vendored target — and PN370 is DESIGNED to compose with it (the
+    # accepted-counts block is byte-identical dev259<->dev148; the
+    # TestEndToEndApply fixtures carry the condense block and assert valid
+    # AST). PN370 is version-gated `<0.23.0`, so it never runs on dev148
+    # anyway; the dev148 self-skip belongs to PN398 (the >=0.23.0 sibling),
+    # not here. Adding the marker would false-skip PN370 on its valid
+    # 0.22.x target.
 )
 _GDN_DRIFT_MARKERS = (
     "[Genesis PN370",

@@ -214,6 +214,11 @@ def test_spec_only_truly_orphan_baseline():
         # spec-decode accepted-counts race) — spec-driven from inception
         # (apply_module + own apply(), no legacy hook), default-off defensive.
         "PN398",
+        # 2026-06-19 (dev148 TIER-1 audit): PN394 backport of MERGED vllm#46047
+        # (qwen3 partial-param value `<` truncation) — spec-driven from
+        # inception (apply_module + own apply(), no legacy hook), default-on
+        # correctness fix.
+        "PN394",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

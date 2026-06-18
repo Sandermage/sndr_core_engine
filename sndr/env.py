@@ -66,6 +66,8 @@ class Flags:
     P61C_QWEN3CODER_DEFERRED_COMMIT = "P61C_QWEN3CODER_DEFERRED_COMMIT"
     P64_QWEN3CODER_MTP_STREAMING = "P64_QWEN3CODER_MTP_STREAMING"
     PN56_QWEN3CODER_XML_FALLBACK = "PN56_QWEN3CODER_XML_FALLBACK"
+    # PN394: qwen3 partial-param value group `<` truncation fix (vllm#46047)
+    PN394_QWEN3_PARTIAL_PARAM_LT_FIX = "PN394_QWEN3_PARTIAL_PARAM_LT_FIX"
     # PN374: qwen3xml quoted parameter-name strip (Gemma4 #44715 analog)
     PN374_QWEN3XML_QUOTED_KEYS = "PN374_QWEN3XML_QUOTED_KEYS"
     # PN375: Gemma4 multi-boundary streaming delta segments (vllm#44741)
@@ -624,6 +626,7 @@ class Flags:
     PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS = "PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS"  # PN387: reject degenerate structured_outputs DoS
     PN389_GRAMMAR_TIMEOUTS = "PN389_GRAMMAR_TIMEOUTS"  # PN389: XGrammar grammar-compilation timeouts
     PN370_ASYNC_ACCEPT_RACE = "PN370_ASYNC_ACCEPT_RACE"  # PN370: async accept race
+    PN398_ASYNC_ACCEPTED_RACE = "PN398_ASYNC_ACCEPTED_RACE"  # PN398: 0.23.x async spec-decode accepted-counts race (vllm#45100); pre-existing registry<->Flags gap closed 2026-06-19
     PN372_EAGLE_ZERO_SEQLEN_GUARD = "PN372_EAGLE_ZERO_SEQLEN_GUARD"  # PN372: Eagle zero-seqlen guard
     PN378_VOCAB_PAD_MASK = "PN378_VOCAB_PAD_MASK"  # PN378: recovered-token vocab-pad -inf mask
     PN380_MTP_PREFUSED_LOADER = "PN380_MTP_PREFUSED_LOADER"  # PN380: Qwen3.5/3.6 MTP pre-fused expert loader

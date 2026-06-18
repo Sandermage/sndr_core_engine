@@ -67,7 +67,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "ZenoAFfectionate (vllm#39055)",
         "upstream_pr": 39055,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
+        # 2026-06-19 (dev148 TIER-1 audit): capped <0.23.0 — the parser reorg
+        # #45413/#45588 (MERGED in dev148) deleted/restructured the qwen3
+        # reasoning+tool target; the native engine parser handles embedded
+        # tool_call recovery. Honest cap (correctly inert on 0.23.x, not
+        # silently file-missing-skipped); re-anchor only if a leak resurfaces.
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
         "apply_module": "sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -160,11 +165,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "different sub-blocks. Default OFF until live verify on 27B PROD."
         ),
         "upstream_pr": None,  # club-3090 issue, not yet upstream PR
-        # version-capped 2026-06-14: dev491 changed Qwen3CoderToolParser; this
-        # deferred-commit wrap mishandles the new streaming state machine and
-        # leaks the tool XML to content. Obsolete on dev491 (native parser is
-        # self-sufficient). Apply only on pins < dev491.
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.22.1rc1.dev491")},
+        # version-capped 2026-06-14, widened to <0.23.0 2026-06-19 (dev148
+        # TIER-1 audit): tool_parsers/qwen3coder_tool_parser.py + gemma4 parser
+        # DELETED by #45588; engine state machine supersedes. The prior
+        # <0.22.1rc1.dev491 bound did NOT exclude the 0.23.1 dev148 pin
+        # (version-semantics gap) — this deferred-commit wrap leaks the tool
+        # XML to content on the native parser, so it MUST skip on 0.23.x.
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
@@ -178,7 +185,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "ExtReMLapin (vllm#40783)",
         "upstream_pr": 40783,
         "upstream_pr_relationship": "backport",
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"]},
+        # 2026-06-19 (dev148 TIER-1 audit): capped <0.23.0 — the parser reorg
+        # #45413/#45588 (MERGED in dev148) restructured the qwen3 streaming
+        # tag-overlap target; the native engine parser handles partial-tag
+        # overlap. Honest cap (correctly inert on 0.23.x, not file-missing-skip).
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
         "apply_module": "sndr.engines.vllm.patches.reasoning.p61b_qwen3_streaming_overlap_guard",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -215,12 +226,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "kotori-yan (vllm#39598)",
         "upstream_pr": 39598,
         "upstream_pr_relationship": "backport",
-        # version-capped 2026-06-14: dev491's native Qwen3CoderToolParser is
-        # self-sufficient for streaming; this dev259-era wrap fights the new
-        # parser and breaks streamed tool-calls on dev491 (proven by live raw
-        # smoke — disabling the qwen3coder wraps restores 5 delta.tool_calls,
-        # finish=tool_calls, zero content leak). Apply only on pins < dev491.
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.22.1rc1.dev491")},
+        # version-capped 2026-06-14, widened to <0.23.0 2026-06-19 (dev148
+        # TIER-1 audit): tool_parsers/qwen3coder_tool_parser.py + gemma4 parser
+        # DELETED by #45588; engine state machine supersedes. The prior
+        # <0.22.1rc1.dev491 bound did NOT exclude the 0.23.1 dev148 pin
+        # (version-semantics gap) — this dev259-era wrap fights the native
+        # parser and breaks streamed tool-calls, so it MUST skip on 0.23.x.
+        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.p64_qwen3coder_mtp_streaming",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -1382,11 +1394,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 41466,
         "upstream_pr_relationship": "backport",
-        # version-capped 2026-06-14: obsolete on dev491 — the native
-        # Qwen3CoderToolParser handles streaming + the XML-fallback case
-        # itself; this dev259-era wrap is harmful on the new parser. Apply
-        # only on pins < dev491.
-        "applies_to": {"vllm_version_range": (">=0.20.0", "<0.22.1rc1.dev491")},
+        # version-capped 2026-06-14, widened to <0.23.0 2026-06-19 (dev148
+        # TIER-1 audit): tool_parsers/qwen3coder_tool_parser.py + gemma4 parser
+        # DELETED by #45588; engine state machine supersedes. The prior
+        # <0.22.1rc1.dev491 bound did NOT exclude the 0.23.1 dev148 pin
+        # (version-semantics gap) — the native parser handles the XML-fallback
+        # case, so this dev259-era wrap MUST skip on 0.23.x.
+        "applies_to": {"vllm_version_range": (">=0.20.0", "<0.23.0")},
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn56_qwen3coder_xml_fallback",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -2169,7 +2183,23 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "spec_decode",
         "env_flag": "GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001",
         "default_on": False,
-        "lifecycle": "experimental",
+        # RETIRED 2026-06-19 (dev148 TIER-1 audit): superseded by native
+        # vllm#32374 "[V1][Spec Decode] Add Dynamic SD" (MERGED 2026-06-14,
+        # in-pin on dev148). The engine now provides dynamic speculative
+        # decoding natively, so the #26504 DraftModelProposer monkey-patch
+        # port is redundant. Three independent benches (single-stream, dual
+        # 35B/27B, multi-turn) measured the K_001 effect as indistinguishable
+        # from noise on the qwen3.6 stack, so retiring loses nothing. default_on
+        # stays False; the monkey-patch code remains in the registry for the
+        # audit trail.
+        "lifecycle": "retired",
+        "superseded_by": ["vllm#32374"],
+        "retired_reason": (
+            "native vllm#32374 (Dynamic SD, MERGED 2026-06-14, in-pin on "
+            "dev148) provides dynamic speculative decoding in-engine; the "
+            "#26504 DraftModelProposer port is redundant. K_001 effect was "
+            "bench-measured NOT_SIGNIFICANT across all qwen3.6 workloads."
+        ),
         "category": "perf_hotfix",
         "apply_module": "sndr.engines.vllm.patches.spec_decode.g_dynamic_k_mtp_proposer",
         "source": "genesis_original",
@@ -2258,7 +2288,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "upstream_pr": 26504,
         "upstream_pr_relationship": "backport",
-        "implementation_status": "experimental",
+        "implementation_status": "retired",
     },
     "SNDR_EAGLE3_AUX_HIDDEN_001": {
         "title": "SNDR-EAGLE3-AUX-HIDDEN-001 — model-side prep for EAGLE-3 (arXiv 2503.01840)",
@@ -3035,7 +3065,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "retired",
         "retired_reason": "misdiagnosis — dev491 native parser self-sufficient; regression was Genesis dev259-era wraps (P64/P61c/PN56), not the parser",
         "superseded_by": "dev491 upstream native Qwen3CoderToolParser (self-sufficient for streaming; #45171). PN392 was a misdiagnosis — the regression was Genesis's own dev259-era qwen3coder wraps, not the parser. Proven by live raw smoke 2026-06-14.",
-        "vllm_version_range": (">=0.20.0", "<0.22.1rc1.dev491"),
+        # widened to <0.23.0 2026-06-19 (dev148 TIER-1 audit): tool_parsers/
+        # qwen3coder_tool_parser.py + gemma4 parser DELETED by #45588; engine
+        # state machine supersedes. The prior <0.22.1rc1.dev491 bound did NOT
+        # exclude the 0.23.1 dev148 pin (version-semantics gap).
+        "vllm_version_range": (">=0.20.0", "<0.23.0"),
         "category": "tool_parsing",
         "implementation_status": "full",
         "source": "genesis_original",
@@ -3088,6 +3122,48 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {
             "tool_call_parser": ["qwen3_coder", "qwen3_xml"],
         },
+    },
+    "PN394": {
+        "title": "qwen3 partial-param value `<` truncation fix (vllm#46047)",
+        "tier": "community",
+        "family": "tool_parsing",
+        "env_flag": "GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX",
+        "default_on": True,
+        "category": "stability",
+        "credit": (
+            "Backport of vllm#46047 (MERGED 2026-06-18, AFTER our "
+            "0.23.1rc1.dev148+gb4c80ec0f pin — so NOT in the deployed "
+            "engine). On dev148 the engine-native qwen3 parser "
+            "vllm/parser/qwen3.py builds the streaming partial-parameter "
+            "regex with the value group `([^<]*)$`, which stops at the "
+            "first `<`. A still-open (partial=True) tool-call argument "
+            "value containing a literal `<` (code `if a < b`, HTML "
+            "`<div>`, generics `List<T>`) is SILENTLY TRUNCATED at that "
+            "`<` — the model emits `{\"expr\": \"a < b\"}` but the client "
+            "receives `{\"expr\": \"a \"}`. Real tool-call correctness "
+            "bug on the hot streaming path: our 27B/35B presets run "
+            "--tool-call-parser qwen3_xml which resolves to this engine "
+            "parser on 0.23.x. PN394 is a byte-exact text-patch of the "
+            "single line, widening the value group to `(.*)$` (re.DOTALL "
+            "already spans newlines) — verbatim the #46047 fix. "
+            "required=True (anchor present on dev148, byte-verified "
+            "count==1 against vllm/parser/qwen3.py@b4c80ec0f); a missing "
+            "anchor means parser drift and the patch SKIPs loudly. "
+            "Self-skips once a future pin carries #46047: the post-fix "
+            "spelling `>(.*)$` is the upstream_drift_marker (checked AFTER "
+            "the idempotency marker, so it never trips on PN394's own "
+            "output). Default ON — a pure correctness widening with no "
+            "behavior change on values that contain no `<`."
+        ),
+        "upstream_pr": 46047,
+        "upstream_pr_relationship": "backport",
+        # 0.23.x engine-parser bug only; #46047 merged 2026-06-18 into a
+        # post-dev148 build, so cap at <0.24.0 and self-skip via the
+        # drift marker on any pin that already carries the fix.
+        "applies_to": {"vllm_version_range": (">=0.23.0", "<0.24.0")},
+        "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn394_qwen3_partial_param_lt_fix",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
     },
     "P89": {
         "title": "completion_tokens_details.reasoning_tokens in chat usage (vendor of vllm#45471)",
@@ -4766,8 +4842,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "tried the legacy entrypoints path there)."
         ),
         "upstream_pr": None,
+        # version-capped <0.23.0 2026-06-19 (dev148 TIER-1 audit): tool_parsers/
+        # qwen3coder_tool_parser.py + gemma4 parser DELETED by #45588; engine
+        # state machine supersedes. The observer wraps the deleted/restructured
+        # Qwen3CoderToolParser/Qwen3XMLToolParser classes, so it correctly skips
+        # on 0.23.x rather than file-missing-skip.
         "applies_to": {
             "tool_call_parser": ["qwen3_coder", "qwen3_xml"],
+            "vllm_version_range": (">=0.20.0", "<0.23.0"),
         },
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn287_qwen3coder_args_validity_observer",
         "lifecycle": "experimental",
@@ -6523,7 +6605,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["G4_14", "G4_T1"],
-        "applies_to": {"tool_call_parser": "gemma4"},
+        # version-capped <0.23.0 2026-06-19 (dev148 TIER-1 audit): tool_parsers/
+        # qwen3coder_tool_parser.py + gemma4 parser DELETED by #45588; engine
+        # state machine supersedes. PN375 rebinds Gemma4ToolParser._extract_
+        # streaming, which #45588 replaced with Gemma4EngineToolParser, so it
+        # correctly skips on 0.23.x rather than file-missing-skip.
+        "applies_to": {"tool_call_parser": "gemma4", "vllm_version_range": (">=0.20.0", "<0.23.0")},
     },
     "PN299E": {
         "title": "KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap (SM 8.6)",
@@ -7921,6 +8008,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # </think> case natively (different impl but same outcome).
         # Lifecycle stays "legacy" (architectural — pre-dispatcher
         # auto-apply pattern); skip is correct + safe.
+        # 2026-06-19 (dev148 TIER-1 audit): capped <0.23.0 — the parser
+        # reorg #45413/#45588 (MERGED in dev148) deleted/restructured P12's
+        # qwen3 reasoning target; the native engine parser handles the
+        # implicit </think>-before-tool_call case. Honest cap.
+        "applies_to": {"vllm_version_range": (">=0.20.0", "<0.23.0")},
         "implementation_status": "full",
     },
     "P14": {
@@ -8150,6 +8242,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "legacy",
         "category": "structured_output",
         "credit": "Pre-dispatcher legacy patch. Falls back to BEFORE-THINK parsing path when Qwen3 model emits tool_call before <think>.",
+        # 2026-06-19 (dev148 TIER-1 audit): capped <0.23.0 — the parser reorg
+        # #45413/#45588 (MERGED in dev148) deleted/restructured P27's qwen3
+        # BEFORE-THINK fallback target; the native engine parser handles the
+        # tool_call-before-<think> ordering. Honest cap.
+        "applies_to": {"vllm_version_range": (">=0.20.0", "<0.23.0")},
         "implementation_status": "full",
     },
     "P28": {
@@ -9056,16 +9153,35 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP",
         "default_on": False,
         "category": "kernel",
-        "implementation_status": "partial",
+        # RETIRED 2026-06-19 (dev148 TIER-1 audit): vLLM's native softcap
+        # LogitsProcessor supersedes the fused-softcap route. The Genesis
+        # fused-softcap kernel introduced a per-token GPU->CPU sync stall on
+        # the final-logit path (the wrapper read a scalar back to host each
+        # decode step) that negated the kernel-fusion win on the A5000 decode
+        # hot path. The native LogitsProcessor does the softcap on-device with
+        # no host round-trip. default_on stays False. The Triton kernel file
+        # (kernels/g4_softcap_triton.py) is KEPT as a library — it is not
+        # deleted, only de-wired from the active route.
+        "implementation_status": "retired",
         "source": "genesis_original",
         "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_24_gemma4_fused_softcap_route",
-        "lifecycle": "experimental",
+        "lifecycle": "retired",
+        "superseded_by": "vLLM native softcap LogitsProcessor (on-device softcap, no per-token GPU->CPU sync; the Genesis fused-softcap route's host scalar read-back stalled the A5000 decode hot path)",
+        "retired_reason": (
+            "native softcap LogitsProcessor supersedes; the fused-softcap "
+            "kernel route had a per-token GPU->CPU sync stall that negated "
+            "the fusion win. Kernel file kept as a library, de-wired only."
+        ),
         "credit": "Triton kernel fuses div+tanh+mul for softcap calls. Routes final-logit softcap via wrapper. Expected +3-5% TPS on decode at low batch.",
         "upstream_pr": None,
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["G4_15"],
-        "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
+        # iron-rule-#11 pin-gate for the retire: the native softcap
+        # LogitsProcessor supersedes on the current support window; cap at
+        # <0.23.0 so the fused-softcap route only ever decides on pre-0.23.0
+        # pins (where it was active). De-wired, kernel file kept as a library.
+        "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
     },
     "G4_19": {
         "title": "Genesis G4-TurboQuant KV cache for Gemma 4 (3/4-bit VQ, unlocks 256K context on 2× A5000)",

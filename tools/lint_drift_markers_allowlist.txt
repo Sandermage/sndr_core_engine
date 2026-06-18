@@ -20,5 +20,18 @@
 # # queued in <journal entry>. Owner: <name>, expires <date>.
 # some_exact_marker_string
 #
-# No active entries yet — the 2026-06-11 baseline backlog is tracked in
+# No baseline-backlog entries — the 2026-06-11 backlog is tracked in
 # the §6 plan and intentionally NOT allowlisted wholesale.
+#
+# PN394 (vllm#46047 qwen3 partial-param `<` fix): the upstream fix IS the
+# one-character widening of the value group to `(.*)`, so the only spelling
+# that signals "pin already carries #46047" — `>(.*)$` — is necessarily a
+# substring of PN394's own post-fix replacement. The self-collision is
+# benign by construction: TextPatcher checks the idempotency marker
+# (Layer 2) BEFORE the drift markers (Layer 3), so on every re-boot PN394's
+# `[Genesis PN394 ...]` marker short-circuits to IDEMPOTENT and the drift
+# scan never reads its own output. The marker only matters on a PRISTINE
+# (no-Genesis-marker) pin that already merged #46047, where it correctly
+# skips. There is no `[Genesis`-prefixed alternative because the signal is
+# upstream's own text. Owner: Sander.
+>(.*)$

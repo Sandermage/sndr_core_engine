@@ -881,3 +881,43 @@ prefix-cache TTFT recovery); 26B K=3-default + prefix-cache-OFF; PN126 disable i
 the overlapping G4_61/PN118/PN353A reservation stack); Gemma-31B kv-auto chat (~2×, the proven answer
 since tensor-cores are dead-at-group=2 — a 256K↔32K product call for the operator); g4_kpad_moe int4
 path + #45703 (verify-on-rig first); PN14 grouped-kernel OOB clamp (defensive).
+
+## 24. TIER-1 IMPLEMENTED + independently verified (commit pending)
+
+Implementer ac177 ran the Tier-1 batch; I re-verified every gate myself (not the report):
+patches doctor ERROR=0, stale-audit exit=0 (default+strict), pytest dispatcher+env 346 passed,
+make evidence 63/63. Inspected the actual diffs (not the agent's summary):
+
+- **PN394 (NEW, vllm#46047)** — qwen3 partial-param regex `>([^<]*)$ → >(.*)$`: streaming tool-call
+  argument values containing a literal `<` (code/HTML/math/generics) were silently truncated at the
+  `<`. Byte-verified anchor against parser/qwen3.py@b4c80ec0f (count==1); post-fix marker absent on
+  dev148 (applies) / present after the merge (self-skips). VERIFIED the one subtle correctness point:
+  TextPatcher.apply() checks the idempotency marker (Layer 2) BEFORE the drift marker (Layer 3), so
+  PN394's own `>(.*)$` output never mis-fires the drift-skip on re-apply. default_on=True but
+  strict-opt-in (inert on the rig until a launcher sets GENESIS_ENABLE_PN394...=1 — Tier-2 will
+  rig-validate apply=applied + a `<`-containing tool-call before enabling). lifecycle=experimental
+  (honest: never PROD-validated), matching sibling PN398.
+- **PN398** — added drift marker `condense() reordered indices` (the in-pin #42347 comment): dev148
+  already remaps num_accepted_tokens via prev_positions after condense(), so PN398's guard would
+  conflict → all-1 accepted-counts corruption. Now self-skips on dev148. (PN370 marker deliberately
+  NOT added — its accepted-counts block is byte-identical dev259↔dev148 and #42347 was already in
+  dev259; PN370 composes with it + is <0.23.0-gated, so the marker false-skipped it and broke 6 tests.)
+- **Honest version-caps** (the "fix косяки"): P12/P27/P59/P61b → <0.23.0; P61c/P64/PN56/PN287/PN375/
+  PN392 widened dev491→<0.23.0 (the dev491 bound did NOT exclude the 0.23.1 dev148 pin — a
+  version-semantics gap that would have re-engaged the deleted qwen3coder/gemma4 parsers and corrupted
+  the native engine state machine, #45588). P61b+PN287 added to the stale-audit allowlist (became
+  CRITICAL via builtin-YAML enablement).
+- **Retires**: SNDR_MTP_DYNAMIC_K_001 (superseded vllm#32374, MERGED 2026-06-14 in-pin);
+  G4_24 (native softcap LogitsProcessor — no per-token GPU→CPU sync; the Genesis fused-softcap route's
+  host scalar read-back stalled the A5000 decode hot path). Both default_on=False, kernels kept as libs.
+- **PN90 landmine**: 2×27B YAMLs + 5 compose set =0 (aligned to 35B). PN90 is retired + a measured
+  -5.9% TPS / -10% accept regressor on dev371+/dev491+ (the old "+7.4%" was pre-#40269-merge state);
+  #40269 native in-pin so the patch self-skips, but =1 was a landmine (re-activation regresses + unmasks
+  a latent P71⊥PN390 target_probs NameError). PROD runs greedy draft.
+- **Doc hygiene**: tq_decode_tune.py — removed the misleading VLLM_TQ_DECODE_BLOCK_KV advertisement
+  (read by nothing; BLOCK_KV=32 A/B = -5.2%, silent-drop is intentional). Code kept.
+- **Incidental**: added PN398_ASYNC_ACCEPTED_RACE to sndr.env.Flags (prior-session registry↔Flags gap
+  that failed test_every_registry_env_flag_is_in_Flags_class). No behavior change.
+
+NOT pushed (awaiting explicit "ok push"). NOT yet rig-deployed — Tier-2 will rsync + validate PN394
+on a live 27B/35B boot (the only Tier-1 item with a runtime effect; the rest are registry/config/doc).

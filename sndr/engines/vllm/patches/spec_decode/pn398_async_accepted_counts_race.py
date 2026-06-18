@@ -130,7 +130,17 @@ def _make_gmr_patcher() -> TextPatcher | None:
             TextPatch(name="pn398_gmr_guard", anchor=GMR_OLD,
                       replacement=GMR_NEW, required=True),
         ],
-        upstream_drift_markers=["needs_cpu_accepted_counts"],
+        # `needs_cpu_accepted_counts` is the variable name #45100 introduces.
+        # `condense() reordered indices` is the comment the IN-PIN async fix
+        # (#42347, present on dev148) writes into _prepare_inputs: dev148
+        # already remaps num_accepted_tokens via self.prev_positions after
+        # condense(), so PN398's guard would CONFLICT with it (skip the sync ->
+        # all-1 accepted-counts corruption). Either marker makes PN398 self-skip
+        # on dev148. The marker is disjoint from PN398's own GMR_NEW (verified).
+        upstream_drift_markers=[
+            "needs_cpu_accepted_counts",
+            "condense() reordered indices",
+        ],
     )
 
 

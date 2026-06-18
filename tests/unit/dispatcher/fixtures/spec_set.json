@@ -818,7 +818,7 @@
   {
     "patch_id": "SNDR_MTP_DYNAMIC_K_001",
     "family": "spec_decode",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001",
@@ -1042,6 +1042,18 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn392_qwen3coder_streaming_coalesce"
+  },
+  {
+    "patch_id": "PN394",
+    "family": "tool_parsing",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": true,
+    "env_flag": "GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn394_qwen3_partial_param_lt_fix"
   },
   {
     "patch_id": "P89",
@@ -3170,7 +3182,7 @@
   {
     "patch_id": "G4_24",
     "family": "gemma4",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP",

@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-17T19:19:24Z
-Total entries: **317**
+Generated: 2026-06-18T22:27:14Z
+Total entries: **318**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **317**
+- `tier=community`: **318**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **234**
+- `lifecycle=experimental`: **233**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **4**
-- `lifecycle=retired`: **33**
+- `lifecycle=retired`: **35**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **54** / 317
+### Default-on at boot: **55** / 318
 
 ### By family
 - `attention`: 1
@@ -48,7 +48,7 @@ Total entries: **317**
 - `serving`: 14
 - `spec_decode`: 48
 - `streaming`: 4
-- `tool_parsing`: 13
+- `tool_parsing`: 14
 - `worker`: 15
 
 ## Patches by family
@@ -221,7 +221,7 @@ Total entries: **317**
 | **G4_16** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE` | — | Gemma 4 FULL_AND_PIECEWISE cudagraph mode (parallel to PN125 for gemma4) |
 | **G4_17** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP` | — | Gemma 4 vision-tower text-only skip |
 | **G4_23** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW` | [#40124](https://github.com/vllm-project/vllm/issues/40124) | Gemma 4 vision-tower FP16 overflow fix (closes vllm#40124) |
-| **G4_24** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP` | — | Fused softcap Triton kernel route for Gemma 4 (FINAL logits only; G4_24b will... |
+| **G4_24** | `community` | `retired` | · | `GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP` | — | Fused softcap Triton kernel route for Gemma 4 (FINAL logits only; G4_24b will... |
 | **G4_25** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD` | — | Gemma 4 dual-RoPE base-freq divergence guard (long-context quality) |
 | **G4_26** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB` | [#45774](https://github.com/vllm-project/vllm/pull/45774) | "Fix DiffusionGemma self-conditioning soft-embed for TP>1 (vocab-sharded embe... |
 
@@ -456,7 +456,7 @@ Total entries: **317**
 | **G4_78** | `community` | `retired` | · | `GENESIS_ENABLE_G4_78_DRAFTER_TARGET_KV_BRIDGE` | — | Drafter K/V bridge from target[58]/[59] (RETIRED — superseded by P1.8 A2 decl... |
 | **PN40-classifier** | `community` | `experimental` | · | `GENESIS_ENABLE_PN40_DFLASH_OMNIBUS` | — | PN40 sub-D workload classifier (chat_completion middleware) |
 | **SNDR_EAGLE3_AUX_HIDDEN_001** | `community` | `experimental` | · | `GENESIS_ENABLE_SNDR_EAGLE3_AUX_HIDDEN_001` | [#35029](https://github.com/vllm-project/vllm/pull/35029) | SNDR-EAGLE3-AUX-HIDDEN-001 — model-side prep for EAGLE-3 (arXiv 2503.01840) |
-| **SNDR_MTP_DYNAMIC_K_001** | `community` | `experimental` | · | `GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001` | [#26504](https://github.com/vllm-project/vllm/pull/26504) | SNDR-MTP-DYNAMIC-K-001 — adaptive K MTP proposer (vllm#26504 port to DraftMod... |
+| **SNDR_MTP_DYNAMIC_K_001** | `community` | `retired` | · | `GENESIS_ENABLE_SNDR_MTP_DYNAMIC_K_001` | [#26504](https://github.com/vllm-project/vllm/pull/26504) | SNDR-MTP-DYNAMIC-K-001 — adaptive K MTP proposer (vllm#26504 port to DraftMod... |
 
 ### `streaming` (4)
 
@@ -467,7 +467,7 @@ Total entries: **317**
 | **PN202** | `community` | `experimental` | · | `GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT` | — | PN202 — per-layer KV tensor split (Tier 2.A enabler) |
 | **PN203** | `community` | `experimental` | · | `GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD` | — | PN203 — cold-prefix CPU offload manager (Tier 3.A) |
 
-### `tool_parsing` (13)
+### `tool_parsing` (14)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -481,6 +481,7 @@ Total entries: **317**
 | **PN385** | `community` | `experimental` | · | `GENESIS_ENABLE_PN385_FORCED_NAMED_EMPTY_PARAMS` | [#45290](https://github.com/vllm-project/vllm/pull/45290) | Forced-named empty-params tool schema -> JSON object (vendor of vllm#45290) |
 | **PN386** | `community` | `experimental` | · | `GENESIS_ENABLE_PN386_REQUIRED_STREAMING_STRING_AWARE` | — | Required-tool streaming brace JSON-string-awareness (vendor of vllm#45389) |
 | **PN392** | `community` | `retired` | · | `GENESIS_ENABLE_PN392_QWEN3CODER_STREAMING_COALESCE` | — | qwen3_coder streaming tool-call within-call coalescing (dev491 regression fix) |
+| **PN394** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX` | [#46047](https://github.com/vllm-project/vllm/pull/46047) | qwen3 partial-param value `<` truncation fix (vllm#46047) |
 | **G4_T1** | `community` | `experimental` | · | `GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED` | [#42006](https://github.com/vllm-project/vllm/pull/42006) | "Gemma4 tool-parser PR |
 | **P29_HEAL** | `community` | `experimental` | · | `GENESIS_ENABLE_P29_QWEN3CODER_INDEX_HEAL` | — | qwen3coder tool parser index heal (P29 companion, fix-wire 2026-06-04) |
 | **P61c** | `community` | `experimental` | · | `GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT` | — | Qwen3Coder deferred-commit until <function= header (club-3090#72) |

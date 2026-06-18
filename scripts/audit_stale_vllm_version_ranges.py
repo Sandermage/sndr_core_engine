@@ -122,13 +122,18 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     # visible only once the `--pin dev491` audit crash (_ver_key TypeError
     # on rc/dev bounds) was fixed in this commit; before that the dev491
     # audit could not run, so the version-gate work never allowlisted them.
-    "P64",    # qwen3_coder MTP streaming wrap. dev491 #45171 remapped the
-              # engine-native parser; the dev259-era wrap CORRUPTS it (leaks
-              # tool-call XML to content) — must skip on dev491, apply dev259.
-    "P61c",   # qwen3_coder deferred-commit streaming wrap — same #45171
-              # parser remap; skip dev491, apply dev259 rollback.
-    "PN56",   # qwen3_coder XML-fallback streaming wrap — same #45171 parser
-              # remap; skip dev491, apply dev259 rollback.
+    # 2026-06-19 (dev148 TIER-1 audit): the three qwen3_coder wraps below had
+    # their cap WIDENED from <0.22.1rc1.dev491 to <0.23.0 — the dev491 bound
+    # did NOT exclude the 0.23.1 dev148 pin (version-semantics gap), so they
+    # would have re-engaged and corrupted the native parser. #45588 DELETED
+    # tool_parsers/qwen3coder_tool_parser.py + the gemma4 parser; the engine
+    # state machine supersedes. Skip 0.23.x, apply <0.23.0 (dev259 rollback).
+    "P64",    # qwen3_coder MTP streaming wrap — engine state machine
+              # supersedes; the dev259-era wrap leaks tool-call XML to content.
+    "P61c",   # qwen3_coder deferred-commit streaming wrap — same #45588 parser
+              # deletion; engine state machine supersedes.
+    "PN56",   # qwen3_coder XML-fallback streaming wrap — same #45588 parser
+              # deletion; engine state machine supersedes.
     "PN347",  # MarlinFP8 N==K corruption fix. dev491 REFACTORED the buggy
               # `if w_q.shape != (...)` transpose guard out of
               # kernels/linear/scaled_mm/marlin.py (transpose moved to caller
@@ -165,6 +170,17 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
               # #41696 CLOSED-unmerged. Skip 0.23.x, apply <0.23.0.
     "PN110",  # BlockPool dedup (#42615 OPEN) — SimpleCPUOffload-only path,
               # dormant on our non-offload PROD; anchor drifted on 0.23.x.
+    # ── 0.23.1 dev148 TIER-1 audit 2026-06-19: honesty caps on patches
+    # superseded by the engine parser (parser reorg #45413, qwen3coder/gemma4
+    # parser deletion #45588). Each capped <0.23.0 + enabled in builtin YAMLs,
+    # so they surface CRITICAL under the deployed pin — correct & intentional
+    # (the native engine handles the surface; the dev259-era wrap is harmful
+    # on 0.23.x). Kept ENABLED in the shared qwen3.6 YAMLs so a dev259 rollback
+    # keeps protection; the runtime version-gate makes the per-pin decision.
+    "P61b",   # qwen3 streaming partial-tag overlap guard — parser reorg
+              # #45413/#45588 restructured the target; native parser supersedes.
+    "PN287",  # qwen3_coder/qwen3_xml args-validity observer — wraps the
+              # Qwen3CoderToolParser/Qwen3XMLToolParser DELETED by #45588.
 })
 
 
