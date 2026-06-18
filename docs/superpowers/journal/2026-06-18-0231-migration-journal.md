@@ -810,3 +810,30 @@ DiffusionGemma carry none of them in their enabled sets. **"All patches fully fu
 is now 5/5-verified: every patch on every model is either correctly applying or honestly
 version-capped; zero silently-inert patches fleet-wide.** Both user directives (only-dev148 +
 all-patches-functional) are complete and verified.
+
+## 21. FIX 2 (Gemma MSE tensor-core) — implemented, rig-validated, DEFINITIVE: no speedup at GQA group=2 → reverted
+
+The grouped MSE tensor-core kernel was ported into the Gemma overlay (sliding-window/mm_prefix
+masking replicated + parity-tested, 93/93; conservative default-on subset + ALLOW_SLIDING knob).
+Rig A/B on Gemma-4-31B (dev148): BOTH modes COMPILE on A5000 (no register-pressure crash), output
+is fully COHERENT (Rayleigh-scattering explanation, correct physics — NOT garbage), tool-calls
+valid. BUT **TPOT ≈ 21.9-22.5ms in both modes = the SAME as the scalar path** (~21-27ms reverted-P18b
+baseline). **FIX 2 gives ZERO Gemma speedup.**
+
+**Definitive root cause:** Gemma-4-31B GQA group = **2** (32 q-heads / 16 kv-heads). The grouped
+tensor-core kernel's BLOCK_H=16 then wastes 14/16 lanes per tl.dot, and the "load each KV head once
+per group" win is tiny at group=2. Tensor-core decode only pays off at HIGH GQA (ratio 8 on the
+27B/35B FP8 path, where PN119 IS a win); at ratio 2 the masked-lane waste cancels the benefit, and
+BLOCK_H=2 would fall below the 16-row tensor-core M-minimum. So **there is no tensor-core decode win
+available for Gemma's group=2 shape** — a fundamental architectural limit, not a kernel deficiency.
+
+Also corrected: the earlier "Gemma 39ms scalar" was an artifact of MY P18b regression; the TRUE
+Gemma TurboQuant scalar floor is ~22ms / ~40 TPS. The ~2× gap to kv-auto (~11.5ms / 71 TPS, §3e)
+is the VQ-dequant + low-GQA fundamental — **closeable ONLY by dropping TurboQuant (kv-auto), which
+trades the 256K context for ~2× speed.** That is the real, honest tradeoff for Gemma-31B; tensor
+cores cannot bridge it.
+
+**Action:** reverted the overlay change (YAGNI — correct but dead code, Gemma is the only MSE-overlay
+user and it's group=2; the implementation + parity test live in git history / this journal for any
+future high-GQA MSE model). The PN119-robustness fix (the real 27B/35B FP8 tensor-core win) stays.
+Net: the one remaining "speed lever" investigated to a definitive, honest conclusion.
