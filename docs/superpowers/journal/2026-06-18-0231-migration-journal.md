@@ -851,3 +851,33 @@ pulled — the pin update was a one-time directive; flagged as candidates for th
   relevant to our fp8/turboquant KV on non-fp8-weight models.
 Recommendation: bundle these on the NEXT operator-instructed pin bump (none is urgent — current PROD
 is healthy on dev148; #46047 only bites a tool arg literally containing `<`).
+
+## 23. EXHAUSTIVE patch+engine+PR audit (8-agent workflow) — synthesis + improvement plan
+
+Audited all patches per subsystem vs the dev148 engine source (gh@b4c80ec0f) + vLLM PRs. Dominant
+finding: the #45588/#45413 parser reorg + native fixes (#32374, #42347, #43982, #44735, #40269) that
+landed in dev148 SUPERSEDED ~20 of our patches (same silent-file-missing-skip class as PN66/PN110/PN347).
+**failed=0 fleet-wide stands; no NEW crash found.** Prioritized actions:
+
+**TIER 1 — local, low-risk, high-value (implement now):**
+- **#46047 (adapt_upstream, HIGH):** the MERGED-post-dev148 fix — Qwen3 tool-call params containing
+  `<` are silently truncated by `_PARTIAL_PARAM_RE = >([^<]*)$` in parser/qwen3.py. NEW Genesis patch
+  re-anchors it to `>(.*)$` (drift-marker auto-skip once a future pin carries #46047). Real tool-call
+  correctness fix on the LIVE pin for 27B/35B.
+- **Registry honesty caps (fix косяки):** ~14 parser/spec patches are superseded by the dev148 engine
+  but only "file-missing-skip" (not version-gated) — cap <0.23.0 + accurate comments: P12/P27/P59/P61b/
+  P61c/P64/PN56/PN287/PN392/PN375 (parser reorg #45588), PN398/PN370 (add condense()/prev_positions
+  drift markers → self-skip), SNDR_MTP_DYNAMIC_K_001 (retire, #32374 native), G4_24 (retire, native
+  softcap LogitsProcessor). Makes the registry honest (none silently inert).
+- **PN90 landmine:** remove the contradictory GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT=1 from the 27B
+  YAMLs + composes (35B YAML already =0; PN90 is a measured −5.9% + NameError landmine if a future pin
+  un-caps it). #40269 is native in-pin.
+
+**TIER 2 — rig-validated wins (next):** FULL_DECODE_ONLY on multiconc profiles (#42271 → 27B conc4~292
+/ 35B conc8~689, 3-6× aggregate); PN390 enable (rejection-sampler −8-11% TPOT); PN384 enable (MTP
+prefix-cache TTFT recovery); 26B K=3-default + prefix-cache-OFF; PN126 disable in multiconc (−3-10s boot).
+
+**TIER 3 — defer/flag:** #46067 (FULL-cudagraph IMA root-cause fix → adopt at next pin bump + retire
+the overlapping G4_61/PN118/PN353A reservation stack); Gemma-31B kv-auto chat (~2×, the proven answer
+since tensor-cores are dead-at-group=2 — a 256K↔32K product call for the operator); g4_kpad_moe int4
+path + #45703 (verify-on-rig first); PN14 grouped-kernel OOB clamp (defensive).
