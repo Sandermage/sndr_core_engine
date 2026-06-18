@@ -642,3 +642,11 @@ actually tunes PN119's grouped launchers (instead of soft-skipping). The depende
 declared. To validate next: 27B with reverted P18b (no topo) → expect ~120 + PN119 applied + tl.dot>0.
 Lesson: a patch that "doesn't apply" may be CORRECTLY dormant pending its dependency — check
 requires_patches before "reviving" it.
+
+### 13-CONFIRMED — revert validated + deployed; PN119 tensor-core decode restored on PROD
+27B dev148 with reverted P18b: **tl.dot=5 (PN119 grouped kernel live), PN119 applied, P18b applied,
+wall_TPS 118.7** (TPOT 8.15ms) — vs my regressed 107.8. Live 35B PROD re-verified: **tl.dot=5,
+PN119 applied, health=200**. The regression I introduced (P18b re-anchor d2b9fd58) is fully resolved
+on PROD; 27B/35B run tensor-core TQ decode again. NET: no loss vs pre-session (~120 restored);
+the only NEW genuine win remaining is FIX 2 (Gemma MSE-key tensor-core decode, 39→~14-18ms — Gemma
+is the one model PN119's FP8-key gate doesn't cover, so its scalar penalty is real and unaddressed).
