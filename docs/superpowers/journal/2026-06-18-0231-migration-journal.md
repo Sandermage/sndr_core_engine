@@ -837,3 +837,17 @@ cores cannot bridge it.
 user and it's group=2; the implementation + parity test live in git history / this journal for any
 future high-GQA MSE model). The PN119-robustness fix (the real 27B/35B FP8 tensor-core win) stays.
 Net: the one remaining "speed lever" investigated to a definitive, honest conclusion.
+
+## 22. Upstream watch (2026-06-19, +1 day) — 3 fixes landed since dev148, flagged for the NEXT pin bump
+34 new vLLM commits since our pin dev148 (b4c80ec0f). Three are relevant to our stack (NOT auto-
+pulled — the pin update was a one-time directive; flagged as candidates for the operator's next bump):
+- **#46047** [Parser] Fix Qwen3 latent bug — partial tool-call params dropping values containing `<`.
+  Directly relevant to the 27B/35B qwen3 tool-call path: a tool argument containing `<` (e.g. a code
+  comparison or an XML-ish value) would be silently dropped. Narrow edge case, but a real correctness
+  fix for tool-calls. HIGHEST relevance.
+- **#45656** [Bugfix] Restore is_sym guard for zp in GPTQ/CT MoE — fixes a symmetric-quant regression
+  on GPTQ/CompressedTensors MoE. Relevant to MoE checkpoints (26B-A4B class).
+- **#45040** [Bugfix][Quant] Don't reject fp8_e5m2 KV cache for non-fp8 quantized checkpoints —
+  relevant to our fp8/turboquant KV on non-fp8-weight models.
+Recommendation: bundle these on the NEXT operator-instructed pin bump (none is urgent — current PROD
+is healthy on dev148; #46047 only bites a tool arg literally containing `<`).
