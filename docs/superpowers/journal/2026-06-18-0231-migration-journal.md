@@ -800,3 +800,13 @@ likely clean (same family). A confirming boot is a cheap optional follow-up.
 
 Deferred (unchanged): FIX 2 (Gemma MSE tensor-core, the one real new speed win) needs the overlay-
 source port (§18); the kernel + parity test are ready.
+
+### 20-COMPLETE — all 5 models drift-audited on dev148, CLEAN
+Booted the remaining two on dev148: **26B-A4B MoE** (health=200, failed=0, DRIFT skipped = NONE) and
+**DiffusionGemma** (health=200, applied=42/failed=0, DRIFT skipped = NONE). So across ALL FIVE models
+(35B / 27B / Gemma-31B / 26B-MoE / DiffusionGemma) on dev148: every one boots failed=0 + healthy, and
+the COMPLETE unique drift set is just the 3 already-resolved patches (PN347/PN110/PN66) — the 26B and
+DiffusionGemma carry none of them in their enabled sets. **"All patches fully functional on dev148"
+is now 5/5-verified: every patch on every model is either correctly applying or honestly
+version-capped; zero silently-inert patches fleet-wide.** Both user directives (only-dev148 +
+all-patches-functional) are complete and verified.
