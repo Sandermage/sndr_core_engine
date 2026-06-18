@@ -728,3 +728,13 @@ Live 35B PROD apply-log audit of every speed-critical suspect the FIX-2 research
 Conclusion: **PN119 was the ONE silently-inert speed patch; every other suspect is either correctly
 applied or correctly skipped for a verified reason.** After the PN119-robustness fix the 27B/35B
 FP8 tensor-core decode stack is fully intact. No further silent-inert speed losses found.
+
+## 17. Pin-policy housekeeping — server back to ≤2 pins
+Server had 4 distinct vLLM pins (dev148, dev101, dev491, dev259), violating the ≤2 policy
+(current + previous). Verified dev491 (1033ffac2) + dev259 (303916e93) are used by ZERO containers,
+removed both → server now holds exactly **dev148 (current, :nightly + nightly-b4c80ec0f) + dev101
+(previous/rollback, nightly-4c626633, runs the live 35B + sndr-daemon)**. Live 35B PROD re-verified:
+health=200, PN119 tl.dot=8 (tensor-core decode active), failed=0. Pin-update intent: dev148 is the
+validated current; promoting the LIVE launchers from dev101→dev148 (to also pick up #45849 hybrid
+hidden-states NaN fix) remains a deliberate PROD-restart step — deferred to a focused window, not
+forced autonomously at depth (the 35B is healthy on dev101 + all fixes).
