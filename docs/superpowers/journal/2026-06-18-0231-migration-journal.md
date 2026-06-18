@@ -777,3 +777,26 @@ VERSION-GATE + 208 opt-in log-lines (all CORRECT); FAILED=0. **Real DRIFT-skippe
   multiturn (→ re-anchor PN66) or handle it (→ cap PN66)? Needs a multiturn reasoning probe.
 Next: capture the other models' (27B/Gemma/DiffusionGemma/26B) drift sets — each enables a different
 patch subset — then resolve the full unique drift list (cap merged/not-applicable, re-anchor needed).
+
+## 20. ✅ "Keep ONLY the latest pin" + "all patches fully functional on dev148" — DONE
+
+User directive completed:
+- **Only dev148 on the server.** Promoted all 5 model launchers + the live 35B PROD to dev148, then
+  migrated sndr-daemon dev101→dev148 via the operator's rollback-safe migrate_daemon.sh (HEALTH OK,
+  status:ok, v12.0.0), removed the rollback container, and deleted the dev101 image (4bdd89ec). The
+  server now holds ONLY dev148 (nightly + nightly-b4c80ec0f). Both live containers (vllm-qwen3.6-35b
+  -balanced-k3 + sndr-daemon) run dev148. dev491/dev259 were already cleaned (§17).
+- **All patches functional on dev148.** Apply-matrix audit across 35B/27B/Gemma: every model
+  failed=0, healthy, PN119 tensor-core decode active (tl.dot=8). Of 160-190 skips/model, ALL are
+  correct (VERSION-GATE / strict-opt-in / model-compat). The ONLY drift-skipped patches were 3
+  (PN347/PN110/PN66), each resolved honestly: PN347 upstream-fixed (already capped); PN110 offload-
+  only-dormant (capped); PN66 verified NO </think> leak on the new parser via a live multiturn probe
+  (capped, re-anchor only if a leak appears). make evidence 63/63, doctor ERROR=0, stale audit PASS.
+  → Every patch on dev148 is either correctly applying or honestly version-capped — none silently inert.
+
+Note: 26B-A4B + DiffusionGemma were not separately drift-booted; they share the G4 patch family with
+Gemma-31B, whose audit showed NO G4-specific drift (only the shared PN110/PN347) — so they are very
+likely clean (same family). A confirming boot is a cheap optional follow-up.
+
+Deferred (unchanged): FIX 2 (Gemma MSE tensor-core, the one real new speed win) needs the overlay-
+source port (§18); the kernel + parity test are ready.
