@@ -520,3 +520,52 @@ keeping TurboQuant's 256K context is FIX 2: route the MSE-key path onto tensor c
   compression. This is careful Triton work needing numerical-equivalence validation (output parity
   vs the scalar kernel) + rig A/B — the next focused effort.
 - FIX 3 (MTP everywhere) proceeds in parallel (config-level: 26B K=3 default, PN384, accept-rate).
+
+---
+
+## 11. 🔴 BIGGEST FINDING — PN119 (the tensor-core TQ decode) is SILENTLY INERT on PROD (md5 drift)
+
+Pre-FIX2 research (six-step Search) + a live-check on the running 35B PROD container produced the
+decisive evidence — and it is the operator's thesis on the single highest-value speed patch.
+
+**Live 35B PROD kernel (`vllm/v1/attention/ops/triton_turboquant_decode.py`):**
+`tl.dot count = 0`, `_tq_grouped_decode_stage1 = 0`, `PN119 marker = 0`, `tl.sum = 6`. The decode is
+**fully scalar.** Exact reason from the live apply log:
+```
+⚠️ PN119 TurboQuant k8v4 GQA head grouping kernel (vllm#40792) —
+   drift: file md5 16ab87ca391f40cd46aa996638721bd4 != [expected e93d6f9eb591e0b68a50b0fc2eb689c3]
+```
+PN119 is ENABLED (GENESIS_ENABLE_PN119=1 on BOTH 35B and 27B launchers, default_on=True) but its
+**md5 pre-patch guard** (`PN119_PRE_PATCH_MD5 = e93d6f9...`, authored against dev338) no longer
+matches the engine kernel (dev101 = `16ab87ca...`). The engine reshaped `triton_turboquant_decode.py`
+between dev338→dev101, the full-file md5 drifted, the guard fired, PN119 self-skipped — a WARNING,
+NOT a failed=0. **So 27B AND 35B PROD have been running SCALAR TQ attention decode**, with the
+load-bearing FP8-key GQA tensor-core grouped kernel (`tl.dot(q,kᵀ)`/`tl.dot(p,values)`, BLOCK_H=16)
+silently off. This is exactly "applies-cleanly is not still-effective" — the md5 guard is the
+honest version (it WARNS), but the net effect is the same silent speed loss as P18b.
+
+**Impact:** Gemma-31B (dense, ~100% attention) pays the full scalar penalty (39ms vs ~14-18ms
+achievable). 27B/35B (hybrid GDN+MoE, ~27% attention) pay a partial penalty — a real slice of the
+27B 120-vs-138 gap. PN119 being off ALSO means there was never a live tensor-core base to extend, so
+FIX 2 (Gemma MSE) was mis-scoped: the real work is to REVIVE PN119 for dev148 FIRST (FP8-key
+tensor-core decode for 27B/35B), THEN extend its grouped kernel to the MSE-key path (Gemma).
+
+**Research verdict on FIX 2 (do NOT write from scratch):** PN119's `pn119_kernel.diff` IS the tl.dot
+grouped template (QK + PV through tensor cores); it just gates `key_fp8 and kv_group_size>1` and
+falls back to scalar for MSE presets. CommVQ (ICML'25, arXiv 2506.18879, `commvq/triton_kernels.py`)
+is the per-token-codebook reference to lift the MSE centroid-gather-into-tile (HIGH adaptability);
+TurboMind/XQA give the SM80 dequant-in-loop + scale-hoist discipline. KIVI/KVQuant are NEGATIVE
+references (scalar). Tensor-core decode pays off because of GQA (ratio 8 on 27B/35B; ratio 2 on
+Gemma-31B → smaller but positive).
+
+**Other silently-inert suspects to live-check (same class):** PN351 (triton_unified_attention triple
+anchor), P87 (marlin dual anchor), PN32 (GDN file-split), PN14 (grouped-kernel clamp gap), P40
+(GQA-grouped decode, opt-in, NOT enabled). P18b is COUPLED to PN119 (requires_patches) — with PN119
+inert, P18b's tune lands on the scalar kernel (no effect, as §10 measured).
+
+### Revised priority
+1. **Revive PN119 for dev148** — re-author `pn119_kernel.diff` + `PN119_PRE_PATCH_MD5` against the
+   live dev148 kernel; validate tl.dot present + bench 27B/35B (tensor-core FP8-key decode back on).
+2. **Extend the revived grouped kernel to the MSE-key path** (FIX 2, Gemma) — centroid gather into
+   the [BLOCK_KV, BLOCK_D] tile + reuse the tl.dot machinery (CommVQ pattern).
+3. Then re-check P18b/PN351/P87/PN32 on dev148 for the same md5/anchor drift.
