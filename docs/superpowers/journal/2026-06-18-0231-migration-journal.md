@@ -760,3 +760,20 @@ direct source edit (no md5/patch fragility) — the cleanest vehicle. The MSE ma
 parity-tested (25/25); this is a port + a rig coherence/TPOT A/B on Gemma. Substantial Triton work,
 deferred to a focused session. PN119's diff edit (committed) is harmless on Gemma (shadowed) and
 correct on 27B/35B; no revert needed.
+
+## 19. "Bring ALL patches to full functionality on dev148" — promote + apply-matrix audit (user directive)
+
+User directive: keep ONLY dev148, and bring all patches to full correct operation on it. Promoted
+all 5 model launchers + the live 35B PROD to dev148: **35B health=200, vllm dev148, PN119 tl.dot=8
+(tensor-core), applied=88 / skipped=164 / failed=0.** Categorized the 164 skips on the 35B: 56
+VERSION-GATE + 208 opt-in log-lines (all CORRECT); FAILED=0. **Real DRIFT-skipped (anchor/md5) = 3:**
+- **PN347** (MarlinFP8 N==K) — upstream removed the buggy guard structurally (size_k_first contract);
+  drift-skip is CORRECT, already version-capped. No action.
+- **PN110** (#42615 OPEN — dedup gpu_block_ids in SimpleCPUOffload eager store path) — our models run
+  NO KV-offloading, so it is dormant even if re-anchored. Cap for honesty; not a functional loss.
+- **PN66** (#41696 CLOSED-unmerged — multiturn </think> leak fix) — the fix is NOT upstream, and the
+  parser was reorganized by #45588 into vllm/parser/abstract_parser.py (22 think-related lines), so
+  PN66's anchor missed. THE one genuine question: does the new engine parser still leak </think> on
+  multiturn (→ re-anchor PN66) or handle it (→ cap PN66)? Needs a multiturn reasoning probe.
+Next: capture the other models' (27B/Gemma/DiffusionGemma/26B) drift sets — each enables a different
+patch subset — then resolve the full unique drift list (cap merged/not-applicable, re-anchor needed).
