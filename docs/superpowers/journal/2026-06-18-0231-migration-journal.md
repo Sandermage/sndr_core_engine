@@ -569,3 +569,32 @@ inert, P18b's tune lands on the scalar kernel (no effect, as §10 measured).
 2. **Extend the revived grouped kernel to the MSE-key path** (FIX 2, Gemma) — centroid gather into
    the [BLOCK_KV, BLOCK_D] tile + reuse the tl.dot machinery (CommVQ pattern).
 3. Then re-check P18b/PN351/P87/PN32 on dev148 for the same md5/anchor drift.
+
+### 11-CORRECTION — PN119 inert is an APPLY-ORDER bug, NOT a pin drift (pristine md5 MATCHES)
+
+Verified the actual mechanism (live 35B apply log, ordered):
+- The dev148 AND dev101 **pristine** `triton_turboquant_decode.py` md5 = **`e93d6f9eb591e0b68a50b0fc2eb689c3`**
+  — EXACTLY PN119's expected `PN119_PRE_PATCH_MD5`. So the pin kernel is fine; PN119 would apply on
+  the pristine file. The earlier "pin drift" framing in §11 is WRONG.
+- Live apply order: line 154 **P18B_TEXT applied** (modifies the kernel) → line 172 **PN119 skipped**
+  with `drift: md5 aaaf21e384d4…` (the md5 AFTER P18b's edit). P18b (+ PN130 warmup, PN14 clamp) all
+  touch `triton_turboquant_decode.py` BEFORE PN119, so PN119's WHOLE-FILE md5 guard sees a
+  P18b-modified file and self-skips.
+- **The irony:** P18b `requires_patches` PN119 (P18b tunes PN119's grouped-kernel launch), yet P18b
+  applies FIRST and breaks PN119. The dependency order is inverted / not enforced (no ordinal or
+  requires_patches ordering wired in the registry — all three are family=attention.turboquant and
+  ordered by dispatch registration).
+
+**Correct root cause:** apply-ORDERING bug + an over-strict whole-file md5 guard. PN119 must apply
+FIRST (on the pristine e93d6f9 kernel, injecting the grouped tl.dot kernel); P18b/PN14/PN130 must
+apply AFTER (they tune/clamp/warm PN119's kernel). Today the order is reversed → PN119 dead →
+27B/35B run scalar TQ attention decode.
+
+**Fix (clean, low-risk, no kernel re-authoring):** make PN119 apply before the other
+attention.turboquant text-patches — EITHER (a) enforce ordering (PN119 first in the dispatch list /
+add an apply_order/requires-driven sort), OR (b) robustify PN119's guard to md5 only the anchor
+REGION it rewrites (which P18b/PN14 do not touch) instead of the whole file, OR (c) snapshot the
+pristine kernel md5 at process start before any TQ patch runs. Then: validate `tl.dot`>0 in the live
+kernel + bench 27B/35B (tensor-core FP8-key decode restored) + the P18b tune lands on the grouped
+kernel. THEN extend to the MSE-key path for Gemma (FIX 2, CommVQ pattern). This single ordering fix
+revives the highest-value decode optimization for ALL three TQ models.
