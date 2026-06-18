@@ -598,3 +598,21 @@ pristine kernel md5 at process start before any TQ patch runs. Then: validate `t
 kernel + bench 27B/35B (tensor-core FP8-key decode restored) + the P18b tune lands on the grouped
 kernel. THEN extend to the MSE-key path for Gemma (FIX 2, CommVQ pattern). This single ordering fix
 revives the highest-value decode optimization for ALL three TQ models.
+
+## 12. ✅ FIX-0 PROVEN on the rig — PN119 tensor-core decode = +11.5% on 27B
+
+Clean A/B on 27B-TQ-k8v4, dev148, identical launcher, ONLY P18b toggled:
+
+| Variant | tl.dot (live kernel) | _tq_grouped_decode_stage1 | PN119 | wall_TPS | TPOT |
+|---|---|---|---|---|---|
+| BASE (P18b ON, current PROD) | 0 | 0 | **skipped** (md5 drift b8f844…) | 107.8 | 9.03ms |
+| NOP18B (P18b OFF) | **5** | **2** | **applied** | **120.2** | **8.09ms** |
+
+Disabling P18b → PN119 applies on the pristine kernel → tensor-core grouped decode →
+**27B 107.8 → 120.2 = +11.5%** (TPOT −10%), both failed=0. So the current PROD 27B (P18b on) has
+been running the SCALAR path at ~108; fixing the order recovers ~120. PN119's apply() (line 142)
+hard-skips on a whole-file md5 mismatch BEFORE its own `patch --dry-run` (line 173) — the dry-run is
+the real guard, the md5 is redundant + brittle. P18b modifies the kernel first → md5 drifts →
+PN119 self-skips. FIX: PN119 must apply on the pristine kernel (before P18b), OR its md5 hard-skip
+must be downgraded so the dry-run decides. Implementing next; then re-bench to confirm +11.5% with
+the proper fix (not just P18b-off).
