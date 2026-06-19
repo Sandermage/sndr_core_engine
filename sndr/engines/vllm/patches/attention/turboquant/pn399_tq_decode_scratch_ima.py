@@ -507,11 +507,8 @@ def apply() -> tuple[str, str]:
 
     statuses: list[str] = []
     reasons: list[str] = []
-    for label, patcher in (
-        ("turboquant_attn.py", tq_patcher),
-        ("shutdown.py", sd_patcher),
-    ):
-        result, failure = patcher.apply()
+
+    def _record(label, result, failure, patcher):
         if result == TextPatchResult.APPLIED:
             statuses.append("applied")
             reasons.append(
@@ -528,13 +525,41 @@ def apply() -> tuple[str, str]:
             reasons.append(
                 f"{label}: skipped — {msg}"
                 + (f" ({detail})" if detail else "")
-                + " — likely PN118 disabled/drifted or the pin already "
-                "carries vllm#46067"
+                + " — likely PN118/PN353A disabled/drifted or the pin "
+                "already carries vllm#46067"
             )
         else:  # FAILED
             statuses.append("failed")
             msg = failure.reason if failure else "unknown failure"
             reasons.append(f"{label}: failed — {msg}")
+
+    # TRANSACTION GUARD (deep-audit 2026-06-19, vllm#46067 partial-apply
+    # hazard): shutdown.py's sub-patch wires ``import reset_tq_decode_scratch``,
+    # a symbol DEFINED only by the turboquant_attn.py sub-patches. The two
+    # files are therefore a single unit — shutdown.py must be mutated ONLY if
+    # turboquant_attn.py was successfully patched. If the TQ patcher SKIPS
+    # (PN118/PN353A disabled/drifted, or the pin already carries vllm#46067 so
+    # the anchor is absent) or FAILS, writing shutdown.py alone would leave a
+    # dangling import that raises ImportError on engine teardown. So apply TQ
+    # first and short-circuit — leaving shutdown.py untouched — on anything
+    # other than success. (No behaviour change on PROD, where PN353A is on so
+    # the TQ patcher applies and shutdown.py follows.)
+    tq_result, tq_failure = tq_patcher.apply()
+    _record("turboquant_attn.py", tq_result, tq_failure, tq_patcher)
+    if tq_result not in (TextPatchResult.APPLIED, TextPatchResult.IDEMPOTENT):
+        joined = "; ".join(reasons) + (
+            " — shutdown.py left UNTOUCHED (transaction guard: avoids a "
+            "dangling reset_tq_decode_scratch import on teardown)"
+        )
+        return (
+            "failed" if tq_result == TextPatchResult.FAILED else "skipped",
+            joined,
+        )
+
+    # turboquant_attn.py succeeded -> reset_tq_decode_scratch is defined ->
+    # safe to wire the shutdown-time reset.
+    sd_result, sd_failure = sd_patcher.apply()
+    _record("shutdown.py", sd_result, sd_failure, sd_patcher)
 
     joined = "; ".join(reasons)
     if "failed" in statuses:

@@ -305,6 +305,17 @@ def test_apply_requires_pn353a_reserve_block_skips_when_absent(
     )
     # No partial write: marker absent.
     assert pn399.GENESIS_PN399_MARKER not in tq.read_text(encoding="utf-8")
+    # TRANSACTION GUARD (deep-audit 2026-06-19): when the TQ patcher SKIPS,
+    # shutdown.py must be left BYTE-UNTOUCHED. shutdown.py's sub-patch wires
+    # `import reset_tq_decode_scratch` — a symbol DEFINED only by the (now
+    # skipped) turboquant_attn.py sub-patches — so applying it alone would
+    # raise ImportError on engine teardown. Before the guard the shutdown
+    # patcher applied independently here (its anchor is pristine-present),
+    # leaving the dangling import; now apply() short-circuits after the TQ
+    # skip and never touches shutdown.py.
+    assert sd.read_text(encoding="utf-8") == _FIXTURE_SYN_SD.read_text(
+        encoding="utf-8"
+    )
 
 
 def test_apply_shutdown_reset_call_and_import_order(
