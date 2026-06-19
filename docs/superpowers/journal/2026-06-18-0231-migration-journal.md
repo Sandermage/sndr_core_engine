@@ -1392,3 +1392,33 @@ failed (was 18 failed); make evidence 63/63; doctor ERROR=0. Three categories:
   cannot activate in PROD. Also reconciled two PROD YAML comments (27b-tq:164, 27b-fp8kv:124) that still
   called PN90 "RETIRED" → "experimental (NOT retired — iron-rule-#11 verdict-c)". The count-tripwire tests
   earned their keep: one of them caught a genuine registry regression a title-matching sweep introduced.
+
+## 46. Loop scan — upstream activity since the dev148 pin (b4c80ec0f, 2026-06-18): nothing actionable, verified per-PR
+
+Loop tick "study engine github for regressions + check our kernels for misses". Scanned vLLM PRs merged
+>=2026-06-15 in our hot areas (spec/eagle/mtp/mamba/gated-delta + qwen3/gemma/marlin/kv-cache/cudagraph),
+cross-referenced 10 candidates against our exact stack (2×A5000 SM86, Qwen3.6-35B-A3B-FP8 + 27B-INT4 hybrid
+GDN+Mamba TQ-k8v4 MTP K=5, Gemma-4) and our patches. Cutoff = the dev148 base commit b4c80ec0f @
+2026-06-18T04:18Z (PR before = in our engine, after = next-pin candidate). Verdict: NONE actionable now;
+we are NOT missing anything critical. The two "highest-priority" hits were spot-verified (gh file lists),
+not taken on faith:
+- #45849 "fix hidden states nan for hybrid attention models" — MISLEADING TITLE. Diff is only
+  vllm/distributed/kv_transfer/kv_connector/v1/example_hidden_states_connector.py + single_type_kv_cache_manager.py
+  — a disaggregated KV-transfer hidden-states connector. We run no --kv-transfer-config, so the buggy
+  _hs_group_idx path is never instantiated; the hybrid FORWARD pass is untouched. In dev148, harmless.
+- #45656 "Restore is_sym guard for zp in GPTQ/CT MoE" — fixes the symmetric-quant regression from #43409
+  (CPU W4A16 INT4 MoE, in dev148). #45656 merged 2026-06-18T16:20Z (AFTER cutoff → next-pin). Bites only
+  is_sym=True symmetric GPTQ MoE; our 27B/35B are AutoRound INT4 ASYMMETRIC (qzeros present — P87 pads,
+  P91 tags; AutoRound emits zero-points only for sym=False), so is_sym=False and the use_zp path is
+  byte-identical pre/post → NOT exposed.
+Other 8: #45466 (vectorize_with_alignment non-16B-head store — our head dims 128/256/512 are 16B multiples,
+no-op for working callers, next-pin watch), Gemma4 cluster #45867/#45832/#45588 (all on the upstream
+channel-format engine PARSER vllm/parser/gemma4.py — disjoint from our G4_11 legacy <start_of_turn>/
+<function_call> chat TEMPLATE; keep G4_11), #45413 (new engine qwen3 parser created vllm/parser/qwen3.py —
+the file PN394 anchors against; PN394 sits on top, already-covered), #45895 (DeepSeek-V3.2 sparse-MLA
+indexer, not our MTP), #45473 (DS/align Mamba layout — we run SD layout, not DS/align), #42425
+(VLLM_TRITON_FORCE_FIRST_CONFIG = default-off determinism knob, not a boot speedup; optional A/B aid).
+ACTIONS: added #45656 (drift-check, P87/P91) + #45466 (watch, P67) to tools/upstream_watchlist.yaml as
+next-pin confirm-on-bump entries; nothing to backport, no patch to retire/adapt. The Gemma4/Qwen3
+engine-parser refactors are worth remembering IF we ever switch to --tool-call-parser gemma4/engine-qwen3
+adapters (separate concern from our current chat-template + qwen3_xml routing).

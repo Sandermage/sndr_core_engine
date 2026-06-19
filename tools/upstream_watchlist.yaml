@@ -597,6 +597,35 @@ watch:
     path (more the 27B than the 35B FP8). No confirmed current exposure; pull it when a pin includes it.
     Our P23 (marlin_fp32_reduce_wire) + P87 (sub-tile pad) + G4_08 (kdim pad) touch adjacent Marlin config
     but not this .cu clamp. 2026-06-19 loop MoE/quant scan.'
+- upstream: vllm#45656
+  status: merged
+  local_patches:
+  - P87
+  - P91
+  action: drift-check
+  since: '2026-06-19'
+  notes: '[Bugfix] Restore is_sym guard for zp in GPTQ/CT MoE — fixes a symmetric-quant regression
+    introduced by #43409 (CPU W4A16 INT4 MoE, merged 2026-06-12, IN dev148). #45656 merged
+    2026-06-18T16:20Z, AFTER our dev148 cutoff (b4c80ec0f, 04:18Z) -> next-pin candidate. The
+    regression only mis-feeds qzeros to Marlin when is_sym=True (symmetric GPTQ MoE). Our 27B/35B
+    are AutoRound INT4 ASYMMETRIC (real per-group zero-points present; P87 pads qzeros, P91 tags
+    scales/qzeros — AutoRound emits these only for sym=False), so is_sym=False and the #45656 use_zp
+    path is byte-identical pre/post fix -> NOT exposed. Drift-check only: when a pin carries #45656,
+    re-confirm our checkpoints still load is_sym=False (no behavior change expected). 2026-06-19 loop
+    MoE/quant scan.'
+- upstream: vllm#45466
+  status: merged
+  local_patches:
+  - P67
+  action: watch
+  since: '2026-06-19'
+  notes: '[Bugfix][Kernel] Check output alignment in vectorize_with_alignment — fixes a misaligned
+    store for non-16B-multiple head rows in reshape_and_cache_flash (fuzz model head_size=46). Merged
+    2026-06-18T16:58Z, AFTER our dev148 cutoff -> next-pin. PR states "no behavior change for any
+    currently-working caller". Our head dims (128/256/512) are all 16B multiples -> NOT exposed; P67
+    next_power_of_2(hpk) handles the 27B GQA=6 grouping at the block level, separate from this per-store
+    alignment. Track only so a future odd/non-pow2 head-dim model would not silently hit the misaligned
+    store landmine. Free on bump. 2026-06-19 loop kernel scan.'
 sweep:
 - pr: 42006
   genesis_patch: G4_T1
