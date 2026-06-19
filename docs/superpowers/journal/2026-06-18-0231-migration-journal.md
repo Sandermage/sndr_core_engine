@@ -1188,3 +1188,18 @@ K=5 is the true single-stream peak for BOTH Qwen models (35B K=5>K=7, K=6 unboot
 K=6 regresses). The committed K=5 (cff92740) is the correct optimum — no further win past it. Clean
 negative result validating the locked value. (The 35B K=6 boot-fail is a curiosity worth a note but not
 a blocker — K=5 is the answer; if ever needed, investigate the MTP cudagraph capture-size set at K=6.)
+
+## 37. PN95 tier-aware cache A/B — ~2% single-stream overhead (a context tradeoff)
+
+A/B 35B K=5, genesis_bench_suite quick warm (bz3sh15v3):
+  PN95 ON  (current PROD): 242.6 TPS / TPOT 3.90ms  (TierManager engaged, n_pages_total=0 on short ctx)
+  PN95 OFF:                247.4 TPS / TPOT 3.83ms   (+2.0% TPS / -1.8% TPOT)
+PN95 (tier-aware KV cache) is DORMANT on short single-stream (n_pages_total=0 — nothing tiered, 3/4
+Mamba groups excluded) but still pays: a 131072-page CPU slab alloc at boot + a TierManager tick every
+100 steps (GENESIS_PN95_TICK_EVERY). That tick is the ~2% single-stream cost. PN95's VALUE is long-ctx:
+it offloads KV to the CPU slab when 280K context exceeds GPU. So disabling PN95 is a context tradeoff
+(like Gemma kv-auto): +2% single-stream short-ctx, but caps usable context to GPU-resident KV. NOT a
+free win — surfaced as a product/profile decision. Kept PN95 ON (the 280K-capable config) as PROD;
+a dedicated short-context speed profile could set GENESIS_ENABLE_PN95_TIER_AWARE_CACHE=0 (+ a lower
+max-model-len) for the +2%. Cluster of single-stream-vs-context levers now: PN95-off +2%, Gemma-31B
+kv-auto +70%, all trading long-context for speed — operator decides the context floor.
