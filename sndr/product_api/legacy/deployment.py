@@ -655,7 +655,8 @@ def _sndr_daemon_script(cfg, params) -> str:
         '  "$IMAGE" \\\n'
         "  -c \"import os; from sndr.product_api.legacy.http_app import run_server; "
         "run_server(host=os.environ.get('SNDR_BIND','0.0.0.0'), port=int(os.environ.get('SNDR_GUI_PORT') or 8765), "
-        "enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY')))\"\n"
+        # bool('0') is True in Python -> SNDR_ENABLE_APPLY=0 would come up apply-ON; use membership check.
+        "enable_apply=os.environ.get('SNDR_ENABLE_APPLY','').strip().lower() in ('1','true','yes','on'))\"\n"
         'echo "[sndr] container \'$NAME\' started — connect the GUI to http://<this-host>:$PORT"\n'
     )
 

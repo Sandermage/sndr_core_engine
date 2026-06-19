@@ -75,7 +75,10 @@ _DAEMON_LAUNCHER = (
     b"from sndr.product_api.legacy.http_app import run_server\n"
     b"run_server(host=os.environ.get('SNDR_BIND', '0.0.0.0'), "
     b"port=int(os.environ.get('SNDR_GUI_PORT') or 8765), "
-    b"enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY')))\n"
+    # bool('0')/bool('false') are True in Python -> a node started with
+    # SNDR_ENABLE_APPLY=0 would silently come up apply-ON. Use the same
+    # membership check as runtime_exec.apply_enabled().
+    b"enable_apply=os.environ.get('SNDR_ENABLE_APPLY','').strip().lower() in ('1','true','yes','on'))\n"
 )
 
 

@@ -47,7 +47,10 @@ def test_setup_node_script_is_self_contained():
     assert m, "base64 launcher not found"
     decoded = _b64.b64decode(m.group(1)).decode()
     assert "from sndr.product_api.legacy.http_app import run_server" in decoded
-    assert "enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY'))" in decoded
+    # gate must use a membership check, NOT bool(env) — bool('0') is True in Python,
+    # which would silently bring a node up apply-ON when SNDR_ENABLE_APPLY=0.
+    assert "enable_apply=bool(os.environ.get('SNDR_ENABLE_APPLY'))" not in decoded
+    assert "SNDR_ENABLE_APPLY','').strip().lower() in ('1','true','yes','on')" in decoded
 
 
 def test_setup_node_script_enables_k8s_when_kubeconfig_present():

@@ -32,6 +32,37 @@ def test_wrap_ssh_vs_local():
     assert local == "docker ps"
     ssh = rx.wrap_command("docker ps", transport="ssh", ssh_target="user@host")
     assert ssh.startswith("ssh ") and "user@host" in ssh and "docker ps" in ssh
+    # legit user@host has no metacharacters -> quoting is a no-op (stays bare)
+    assert ssh == "ssh user@host 'docker ps'"
+
+
+def test_wrap_command_neutralizes_ssh_target_injection():
+    """ssh_target can come from the client request body and run_steps uses
+    shell=True, so a malicious target must NOT be able to inject a command."""
+    import shlex
+
+    evil = "x; touch /tmp/pwned #"
+    wrapped = rx.wrap_command("docker ps", transport="ssh", ssh_target=evil)
+    # The whole malicious string must collapse to ONE argv token (a bogus
+    # hostname), not separate shell words — i.e. no break-out.
+    tokens = shlex.split(wrapped)
+    assert tokens[0] == "ssh"
+    assert tokens[1] == evil            # single token, metacharacters inert
+    assert ";" not in wrapped.replace(shlex.quote(evil), "")   # ';' only inside the quoted token
+
+
+def test_node_launchers_use_membership_check_not_bool():
+    """bool('0') is True in Python; the daemon launchers must use a membership
+    check so SNDR_ENABLE_APPLY=0 comes up apply-OFF (no silent gate inversion)."""
+    from sndr.product_api.legacy import deployment, node_setup
+
+    launcher = node_setup._DAEMON_LAUNCHER.decode()
+    assert "bool(os.environ.get('SNDR_ENABLE_APPLY'))" not in launcher
+    assert "in ('1','true','yes','on')" in launcher
+    # the deployment template string lives inside a function; assert via module source
+    import inspect
+    dep_src = inspect.getsource(deployment)
+    assert "bool(os.environ.get('SNDR_ENABLE_APPLY'))" not in dep_src
 
 
 def test_run_steps_executes_local_safe_command():

