@@ -1161,3 +1161,18 @@ per step, net more accepted; TPS is the bottom line and it is up. MTP spec-decod
 pure speed config win, ZERO quality risk. ROOT-CAUSE of "speed was higher before" CONFIRMED:
 num_speculative_tokens was pinned at 3 (commented "empirical optimum") while the trained MTP head accepts
 well past K=3 — 8-16% was left on the table fleet-wide. LOCKING K=5 into both Qwen YAMLs + launchers.
+
+## 35. Gemma sweep (dev148, single-stream) — 31B kv-auto = +70% AND better quality
+
+genesis_bench_suite quick (10x warm-up), sweep bcv4uksw4:
+  31B TurboQuant (turboquant_4bit_nc, 65536 ctx): 41.4 TPS / TPOT 21.7ms / tool-call 6/7  (the ~22ms TQ floor)
+  31B kv-auto (auto, 32768 ctx):                   70.1 TPS / TPOT 10.98ms / tool-call 7/7  (+69.6% TPS / -49% TPOT)
+  26B-A4B-MoE (already kv-auto, 32768):            111.0 TPS / TPOT 6.14ms / tool-call 7/7
+31B kv-auto is not just ~1.7x faster — it is ALSO better quality (7/7 vs 6/7 tool-call): the 4-bit TQ
+value quant degrades one tool-call case the fp16 kv-auto cache does not. The only cost is context
+64K->32K. For a CHAT profile (<=32K) kv-auto dominates on both speed and quality → recommend it as the
+31B chat default, keep TQ only for >32K context. (Single-stream is safe; do NOT promote to max_num_seqs>1
+on kv-auto 31B — SM86 IMA-on-burst PR#45038 needs the G4_31 guard.) MTP K-tuning does NOT help Gemma
+(separate drafter, not the integrated Qwen MTP head — confirmed by study: 31B/26B prefer K<=3). 26B-MoE
+already optimal-ish; DiffusionGemma has no spec lever (block-diffusion). The Qwen K=5 win does NOT
+transfer to Gemma — Gemma's win is kv-auto (a product/context decision).
