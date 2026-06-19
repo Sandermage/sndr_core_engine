@@ -13,9 +13,11 @@ from tests.unit.integrations._family_contract_helpers import (
 
 PATCHES = [
     ("sndr.engines.vllm.patches.tool_parsing.p15_qwen3_none_null", "P15"),
-    ("sndr.engines.vllm.patches.tool_parsing.p61c_qwen3coder_deferred_commit", "P61c"),
-    ("sndr.engines.vllm.patches.tool_parsing.p64_qwen3coder_mtp_streaming", "P64"),
-    ("sndr.engines.vllm.patches.tool_parsing.pn56_qwen3coder_xml_fallback", "PN56"),
+    # P64 + P61c + PN56 consolidated 2026-06-20 into one module (all three
+    # patch tool_parsers/qwen3coder_tool_parser.py at disjoint regions). The
+    # trio is represented by the surviving primary id P64 pointing at the
+    # consolidated module.
+    ("sndr.engines.vllm.patches.tool_parsing.p64_p61c_pn56_qwen3coder_consolidated", "P64"),
 ]
 
 

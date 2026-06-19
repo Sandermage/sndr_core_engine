@@ -248,9 +248,12 @@ patches_attribution:
     note: |
       DFlash aux-layer indexing in V1 gpu_model_runner. Drafter reads
       aux layers; wrong indexing → wrong tensors → invalid drafts.
-  PN51:
+  # PN51 consolidated into P61b 2026-06-20 (reasoning merged module); its
+  # GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED flag is a P61b
+  # env_flag_alias. Attribution retargeted to the surviving primary id.
+  P61b:
     role: defensive
-    note: "Qwen3 streaming thinking-disabled short-circuit (vllm#40816)."
+    note: "Qwen3 reasoning-parser merged module (P61b overlap guard + P59 embedded tool_call recovery + PN51 thinking-disabled short-circuit, vllm#40783/#39055/#40816)."
   PN125:
     role: defensive
     note: "Forces FULL_AND_PIECEWISE on hybrid_gdn_moe."

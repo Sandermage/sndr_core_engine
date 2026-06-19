@@ -21,8 +21,15 @@ import pytest
 
 
 def _wiring():
-    from sndr.engines.vllm.patches.tool_parsing import p61c_qwen3coder_deferred_commit as M
-    return M
+    # P61c consolidated 2026-06-20 into the P64 coder merged module
+    # (p64_p61c_pn56_qwen3coder_consolidated); it re-exports P61c's anchor
+    # constants verbatim (ANCHOR_OLD/ANCHOR_NEW/GENESIS_P61C_MARKER) and a
+    # _make_patcher alias.
+    import importlib
+    return importlib.import_module(
+        "sndr.engines.vllm.patches.tool_parsing."
+        "p64_p61c_pn56_qwen3coder_consolidated"
+    )
 
 
 class TestAnchor:
@@ -144,21 +151,41 @@ class TestIdempotency:
 
 
 class TestDispatcher:
+    """P61c consolidated into the P64 entry 2026-06-20 as an env_flag_alias;
+    the dispatcher decision is now exercised via the surviving P64 id."""
+
+    def test_p61c_no_longer_standalone_registry_id(self):
+        from sndr.dispatcher import PATCH_REGISTRY
+        assert "P61c" not in PATCH_REGISTRY
+        meta = PATCH_REGISTRY["P64"]
+        assert (
+            "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT"
+            in meta.get("env_flag_aliases", [])
+        )
+        assert meta["apply_module"].endswith(
+            "p64_p61c_pn56_qwen3coder_consolidated"
+        )
+
     def test_env_flag_default_off(self, monkeypatch):
         from sndr.dispatcher import should_apply
-        monkeypatch.delenv(
-            "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT", raising=False
-        )
-        decision, _ = should_apply("P61c")
-        assert decision is False
+        monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "0")
+        for f in (
+            "GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING",
+            "SNDR_ENABLE_P64_QWEN3CODER_MTP_STREAMING",
+            "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT",
+            "SNDR_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT",
+        ):
+            monkeypatch.delenv(f, raising=False)
+        assert should_apply("P64")[0] is False
 
     def test_env_flag_engages_when_set(self, monkeypatch):
         from sndr.dispatcher import should_apply
+        monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "0")
+        # alias-only enable engages the merged module via should_apply('P64')
         monkeypatch.setenv(
             "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT", "1"
         )
-        decision, reason = should_apply("P61c")
-        assert decision is True
+        assert should_apply("P64")[0] is True
 
 
 class TestSemanticInvariants:

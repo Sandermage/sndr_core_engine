@@ -5,11 +5,6 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
-    "patch_id": "P59",
-    "applied": false,
-    "reason": "strict opt-in — set GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
-  },
-  {
     "patch_id": "P60",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_P60_GDN_NGRAM_FIX=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
@@ -28,11 +23,6 @@
     "patch_id": "P62",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
-  },
-  {
-    "patch_id": "P61c",
-    "applied": false,
-    "reason": "strict opt-in — set GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "P61b",
@@ -248,11 +238,6 @@
     "patch_id": "P107",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_P107_MTP_TRUNCATION_DETECTOR=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
-  },
-  {
-    "patch_id": "PN56",
-    "applied": false,
-    "reason": "strict opt-in — set GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "PN57",
@@ -493,11 +478,6 @@
     "patch_id": "PN52",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN52_PROMPT_LOGPROBS_EVICTION=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
-  },
-  {
-    "patch_id": "PN51",
-    "applied": false,
-    "reason": "strict opt-in — set GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
     "patch_id": "PN252",

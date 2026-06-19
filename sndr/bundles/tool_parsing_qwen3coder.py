@@ -49,21 +49,24 @@ from ._common import run_bundle
 def apply() -> tuple[str, str]:
     """Apply qwen3coder tool-parser bundle atomically."""
     from sndr.engines.vllm.patches.tool_parsing import p15_qwen3_none_null as _p15
-    from sndr.engines.vllm.patches.tool_parsing import p61c_qwen3coder_deferred_commit as _p61c
 
-    from sndr.engines.vllm.patches.tool_parsing import p64_qwen3coder_mtp_streaming as _p64
-
-    from sndr.engines.vllm.patches.tool_parsing import pn56_qwen3coder_xml_fallback as _pn56
+    # P64 + P61c + PN56 consolidated 2026-06-20 into one module; it exposes one
+    # per-feature factory each (P64 keeps its TWO: qwen3cod + serving), so the
+    # bundle's five-transaction layout (P15, P61c, P64-parser, P64-serving,
+    # PN56) is preserved with distinct per-feature markers.
+    from sndr.engines.vllm.patches.tool_parsing import (
+        p64_p61c_pn56_qwen3coder_consolidated as _coder,
+    )
     return run_bundle(
         name="tool_parsing_qwen3coder",
         umbrella_flag=Flags.BUNDLE_TOOL_PARSING_QWEN3CODER,
         tier="community",
         patcher_factories=[
             _p15._make_patcher,
-            _p61c._make_patcher,
-            _p64._make_qwen3cod_patcher,
-            _p64._make_serving_patcher,
-            _pn56._make_patcher,
+            _coder._make_p61c_patcher,
+            _coder._make_p64_qwen3cod_patcher,
+            _coder._make_p64_serving_patcher,
+            _coder._make_pn56_patcher,
         ],
     )
 

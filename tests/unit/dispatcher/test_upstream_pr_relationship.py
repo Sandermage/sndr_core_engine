@@ -305,16 +305,22 @@ class TestLiveRegistryClean:
 
 
 class TestSpecialPatchesResolveCorrectly:
-    """The 8 patches given non-default relationships in Phase 5.1.B
-    must remain so — guards against future operators editing the
-    registry without checking the audit-routing impact."""
+    """The patches given non-default relationships in Phase 5.1.B must
+    remain so — guards against future operators editing the registry
+    without checking the audit-routing impact.
+
+    PN51 (formerly "defensive_overlay") was consolidated 2026-06-20 into the
+    P61b reasoning merged module; it is no longer a standalone registry id, so
+    it is dropped from this set. Its defensive-overlay provenance (vllm#40816
+    fixed upstream by #40820, kept as a parser-layer defense) is preserved in
+    P61b's credit narrative. P61b keeps its own "backport" relationship.
+    """
 
     EXPECTED_SPECIAL = {
         "PN116": "counter_regression",
         "P98":   "intentional_inverse",
         "P75":   "enables_upstream",
         "P99":   "enables_upstream",
-        "PN51":  "defensive_overlay",
         "PN90":  "related_not_superseding",
         "PN24":  "related_not_superseding",
         "P61":   "related_not_superseding",

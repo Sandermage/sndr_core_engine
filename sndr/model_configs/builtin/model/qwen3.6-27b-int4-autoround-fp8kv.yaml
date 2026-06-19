@@ -261,22 +261,23 @@ patches_attribution:
       Qwen3 streaming partial-tag overlap guard. Defensive for
       qwen3_coder streaming path; prevents partial <tool_call>
       fragments leaking as raw content under speculative decoding.
-  P61c:
-    role: defensive
-    note: |
-      Qwen3Coder deferred-commit until <function= header. Streaming
-      tool-call accuracy hedge for the qwen3_coder parser.
+  # P61c attribution merged into the P64 block (consolidated 2026-06-20).
   P62:
     role: defensive
     note: |
       Structured-output spec-decode reasoning-end timing fix.
       Defensive against premature reasoning-end emission under
       MTP K=3.
+  # P61c + PN56 consolidated into P64 2026-06-20 (qwen3coder merged module);
+  # their GENESIS_ENABLE_P61C_*/PN56_* flags are P64 env_flag_aliases. Their
+  # separate attribution blocks below were removed — covered by this P64 note.
   P64:
     role: defensive
     note: |
-      qwen3coder MTP streaming early-return fix. Specific defensive
-      patch for MTP + qwen3_coder parser interaction.
+      qwen3coder_tool_parser merged module: MTP streaming early-return fix
+      (vllm#39598) + deferred-commit until <function= (club-3090#72, was
+      P61c) + XML parse fallback (vllm#41466, was PN56). Defensive for the
+      MTP + qwen3_coder streaming tool-call path.
   PN52:
     role: defensive
     note: |
@@ -300,9 +301,7 @@ patches_attribution:
       Mamba CUDA-graph stale is_prefilling on padded rows
       (vllm backport). Defensive — prevents stale prefilling
       flag from leaking across batch boundaries.
-  PN56:
-    role: defensive
-    note: "Qwen3Coder XML parse fallback (vllm#41466 backport)."
+  # PN56 attribution merged into the P64 block (consolidated 2026-06-20).
   PN19:
     role: defensive
     note: |

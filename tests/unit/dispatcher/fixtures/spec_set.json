@@ -12,18 +12,6 @@
     "apply_module": "sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix"
   },
   {
-    "patch_id": "P59",
-    "family": "reasoning",
-    "lifecycle": "experimental",
-    "tier": "community",
-    "default_on": false,
-    "env_flag": "GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY",
-    "has_upstream_pr": true,
-    "upstream_pr_relationship": "backport",
-    "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery"
-  },
-  {
     "patch_id": "P60",
     "family": "attention.gdn",
     "lifecycle": "experimental",
@@ -72,18 +60,6 @@
     "apply_module": "sndr.engines.vllm.patches.serving.p62_structured_output_spec_decode_timing"
   },
   {
-    "patch_id": "P61c",
-    "family": "tool_parsing",
-    "lifecycle": "experimental",
-    "tier": "community",
-    "default_on": false,
-    "env_flag": "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT",
-    "has_upstream_pr": false,
-    "upstream_pr_relationship": "backport",
-    "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.tool_parsing.p61c_qwen3coder_deferred_commit"
-  },
-  {
     "patch_id": "P61b",
     "family": "reasoning",
     "lifecycle": "experimental",
@@ -93,7 +69,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.reasoning.p61b_qwen3_streaming_overlap_guard"
+    "apply_module": "sndr.engines.vllm.patches.reasoning.p61b_p59_pn51_qwen3_reasoning_consolidated"
   },
   {
     "patch_id": "P63",
@@ -117,7 +93,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.tool_parsing.p64_qwen3coder_mtp_streaming"
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.p64_p61c_pn56_qwen3coder_consolidated"
   },
   {
     "patch_id": "P65",
@@ -598,18 +574,6 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.serving.p107_mtp_truncation_detector"
-  },
-  {
-    "patch_id": "PN56",
-    "family": "tool_parsing",
-    "lifecycle": "experimental",
-    "tier": "community",
-    "default_on": false,
-    "env_flag": "GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK",
-    "has_upstream_pr": true,
-    "upstream_pr_relationship": "backport",
-    "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn56_qwen3coder_xml_fallback"
   },
   {
     "patch_id": "PN57",
@@ -1186,18 +1150,6 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm._archive.pn52_prompt_logprobs_eviction"
-  },
-  {
-    "patch_id": "PN51",
-    "family": "reasoning",
-    "lifecycle": "experimental",
-    "tier": "community",
-    "default_on": false,
-    "env_flag": "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED",
-    "has_upstream_pr": true,
-    "upstream_pr_relationship": "defensive_overlay",
-    "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.reasoning.pn51_qwen3_streaming_thinking_disabled"
   },
   {
     "patch_id": "PN252",

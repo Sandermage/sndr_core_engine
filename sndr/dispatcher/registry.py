@@ -57,26 +57,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
-    "P59": {
-        "title": "Qwen3 reasoning embedded tool_call recovery",
-        "tier": "community",
-        "family": "reasoning",
-        "env_flag": "GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY",
-        "default_on": False,
-        "category": "structured_output",
-        "credit": "ZenoAFfectionate (vllm#39055)",
-        "upstream_pr": 39055,
-        "upstream_pr_relationship": "backport",
-        # 2026-06-19 (dev148 TIER-1 audit): capped <0.23.0 — the parser reorg
-        # #45413/#45588 (MERGED in dev148) deleted/restructured the qwen3
-        # reasoning+tool target; the native engine parser handles embedded
-        # tool_call recovery. Honest cap (correctly inert on 0.23.x, not
-        # silently file-missing-skipped); re-anchor only if a leak resurfaces.
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
-        "apply_module": "sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery",
-        "lifecycle": "experimental",
-        "implementation_status": "full",
-    },
+    # P59 (Qwen3 reasoning embedded tool_call recovery, vllm#39055) was
+    # consolidated into the P61b entry on 2026-06-20 — all three reasoning
+    # parser patches (P61b + P59 + PN51) share one apply_module
+    # (p61b_p59_pn51_qwen3_reasoning_consolidated). P59's enable flag
+    # GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY is retained as an env_flag_alias
+    # on P61b so existing YAML opt-ins keep engaging the merged module.
     "P60": {
         "title": "GDN+ngram state recovery (Phase 1: SSM pre-copy)",
         "tier": "community",
@@ -140,57 +126,84 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
-    "P61c": {
-        "title": "Qwen3Coder deferred-commit until <function= header (club-3090#72)",
-        "tier": "community",
-        "family": "tool_parsing",
-        "env_flag": "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT",
-        "default_on": False,
-        "category": "structured_output",
-        "apply_module": "sndr.engines.vllm.patches.tool_parsing.p61c_qwen3coder_deferred_commit",
-        "credit": (
-            "Local mitigation for club-3090 issue #72 (troymroberts 2026-05-06). "
-            "qwen3coder parser flips is_tool_call_started=True permanently on "
-            "EITHER tool_call_start_token_id in delta_token_ids OR string match "
-            "against `<tool_call>` in delta_text. Both trigger paths mis-fire "
-            "when narrative output contains `<tool_call>` (e.g. agent reasoning "
-            "describing the protocol). The flip is sticky: subsequent deltas "
-            "all return None and vLLM serving layer drops them via "
-            "`if delta_message is None: continue` — SSE wire goes silent for "
-            "30-120+ s until max_tokens. Fix V2 (deferred): commit only after "
-            "`<function=` header arrives in 64-char slack window; otherwise "
-            "emit delta as content. Three paths (tokenizer-edge / confirmed / "
-            "uncertain) all handled non-silently. Composes with P64 "
-            "(vllm#39598) and PN56 (vllm#41466) — all touch same file but "
-            "different sub-blocks. Default OFF until live verify on 27B PROD."
-        ),
-        "upstream_pr": None,  # club-3090 issue, not yet upstream PR
-        # version-capped 2026-06-14, widened to <0.23.0 2026-06-19 (dev148
-        # TIER-1 audit): tool_parsers/qwen3coder_tool_parser.py + gemma4 parser
-        # DELETED by #45588; engine state machine supersedes. The prior
-        # <0.22.1rc1.dev491 bound did NOT exclude the 0.23.1 dev148 pin
-        # (version-semantics gap) — this deferred-commit wrap leaks the tool
-        # XML to content on the native parser, so it MUST skip on 0.23.x.
-        "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
-        "lifecycle": "experimental",
-        "implementation_status": "full",
-    },
+    # P61c (Qwen3Coder deferred-commit, club-3090#72) was consolidated into
+    # the P64 entry on 2026-06-20 — all three qwen3coder parser patches
+    # (P64 + P61c + PN56) share one apply_module
+    # (p64_p61c_pn56_qwen3coder_consolidated). P61c's enable flag
+    # GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT is retained as an
+    # env_flag_alias on P64 so existing YAML opt-ins keep engaging the merged
+    # module.
     "P61b": {
-        "title": "Qwen3 streaming partial-tag overlap guard",
+        "title": (
+            "qwen3_reasoning_parser consolidated: streaming partial-tag "
+            "overlap guard (vllm#40783) + embedded tool_call recovery "
+            "(vllm#39055) + thinking-disabled content routing (vllm#40816)"
+        ),
         "tier": "community",
         "family": "reasoning",
         "env_flag": "GENESIS_ENABLE_P61B_STREAMING_OVERLAP",
+        # P59 + PN51 were consolidated into this entry on 2026-06-20 (all three
+        # patch reasoning/qwen3_reasoning_parser.py at disjoint regions). Their
+        # enable flags are recognized aliases so existing builtin YAMLs keep
+        # working — should_apply (decision.py::_resolve_env_state) honors
+        # env_flag_aliases at the ENTRY level, then the merged module's apply()
+        # gates each feature by its own flag + replicated version gate:
+        #   GENESIS_ENABLE_P61B_STREAMING_OVERLAP            -> p61b group
+        #   GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY           -> p59 group
+        #   GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED -> pn51 group
+        "env_flag_aliases": [
+            "GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY",
+            "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED",
+        ],
         "default_on": False,
         "category": "structured_output",
-        "credit": "ExtReMLapin (vllm#40783)",
+        "credit": (
+            "Consolidated 2026-06-20 (maintainability refactor, runtime-"
+            "neutral): P61b + P59 + PN51 all patch reasoning/"
+            "qwen3_reasoning_parser.py at disjoint regions, now share one "
+            "apply_module (p61b_p59_pn51_qwen3_reasoning_consolidated) with "
+            "three independently env-gated feature groups. Each group is its "
+            "OWN TextPatcher carrying its ORIGINAL marker verbatim (failure "
+            "isolation: a P61b anchor drift must not skip P59's subs; and no "
+            "Layer-2 marker cross-shadowing) — so the applied bytes are "
+            "byte-identical to P61b+P59+PN51 applied separately, INCLUDING "
+            "the per-feature marker lines (verified: 8/8 flag-combo md5 "
+            "match on a simulated <0.23.0 pristine tree). "
+            "(1) P61b — backport slice of vllm#40783 (ExtReMLapin): streaming "
+            "partial-tag overlap guard (holds back half-formed <tool_call> "
+            "fragments assembled across deltas). Primary flag "
+            "GENESIS_ENABLE_P61B_STREAMING_OVERLAP. P61b is the merged "
+            "primary because it is co-enabled in every builtin YAML; P59 is "
+            "enabled in ZERO YAMLs. "
+            "(2) P59 — backport of vllm#39055 (ZenoAFfectionate): promotes "
+            "tool_call XML emitted inside <think>...</think> out of reasoning "
+            "into content so qwen3_coder can parse it. Flag (alias) "
+            "GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY. "
+            "(3) PN51 — backport of vllm#40816 (fixed upstream by #40820): "
+            "defensive streaming short-circuit routing deltas to "
+            "delta.content when thinking is disabled. Flag (alias) "
+            "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED. "
+            "VERSION GATE: all three carry vllm_version_range "
+            "(>=0.20.0,<0.23.0); the #45413/#45588 parser reorg (MERGED in "
+            "dev148) restructured the qwen3 reasoning+tool target and the "
+            "native engine parser owns embedded-tool-call recovery / "
+            "tag-overlap on 0.23.x. The merged module replicates this version "
+            "gate inside each per-group helper (check_version_constraints "
+            "under live GENESIS_ENFORCE_VERSION_RANGE=1) so a >=0.23.0 pin "
+            "where the file is still present version-SKIPs every group "
+            "instead of corrupting the native parser — matching what the "
+            "standalone originals (routing through should_apply) did."
+        ),
         "upstream_pr": 40783,
         "upstream_pr_relationship": "backport",
-        # 2026-06-19 (dev148 TIER-1 audit): capped <0.23.0 — the parser reorg
-        # #45413/#45588 (MERGED in dev148) restructured the qwen3 streaming
-        # tag-overlap target; the native engine parser handles partial-tag
-        # overlap. Honest cap (correctly inert on 0.23.x, not file-missing-skip).
+        # All three absorbed patches share this identical range, so the
+        # entry-level range is correct and does NOT over-gate. should_apply's
+        # version-only gate (decision.py::_check_version_gate) fires BEFORE
+        # the env branch and is LIVE on the rig (GENESIS_ENFORCE_VERSION_RANGE
+        # composed from a5000-2x hardware yaml), so the whole module
+        # version-gate-SKIPs on dev148.
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
-        "apply_module": "sndr.engines.vllm.patches.reasoning.p61b_qwen3_streaming_overlap_guard",
+        "apply_module": "sndr.engines.vllm.patches.reasoning.p61b_p59_pn51_qwen3_reasoning_consolidated",
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
@@ -217,23 +230,81 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "P64": {
-        "title": "qwen3coder MTP streaming early-return fix",
+        "title": (
+            "qwen3coder_tool_parser consolidated: MTP streaming early-return "
+            "fix (vllm#39598) + deferred-commit until <function= "
+            "(club-3090#72) + XML parse fallback (vllm#41466)"
+        ),
         "tier": "community",
         "family": "tool_parsing",
         "env_flag": "GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING",
+        # P61c + PN56 were consolidated into this entry on 2026-06-20 (all
+        # three patch tool_parsers/qwen3coder_tool_parser.py at disjoint
+        # regions; P64 also has a second serving.py target). Their enable
+        # flags are recognized aliases so existing builtin YAMLs keep working
+        # — should_apply honors env_flag_aliases at the ENTRY level, then the
+        # merged module's apply() gates each feature by its own flag +
+        # replicated version gate:
+        #   GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING       -> p64 group
+        #   GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT    -> p61c group
+        #   GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK       -> pn56 group
+        "env_flag_aliases": [
+            "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT",
+            "GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK",
+        ],
         "default_on": False,
         "category": "structured_output",
-        "credit": "kotori-yan (vllm#39598)",
+        "credit": (
+            "Consolidated 2026-06-20 (maintainability refactor, runtime-"
+            "neutral): P64 + P61c + PN56 all patch tool_parsers/"
+            "qwen3coder_tool_parser.py at disjoint regions, now share one "
+            "apply_module (p64_p61c_pn56_qwen3coder_consolidated) with three "
+            "independently env-gated feature groups. Each group is its OWN "
+            "TextPatcher carrying its ORIGINAL marker verbatim (failure "
+            "isolation + no Layer-2 marker cross-shadowing) — so the applied "
+            "bytes are byte-identical to P64+P61c+PN56 applied separately, "
+            "INCLUDING the per-feature marker lines (verified: 8/8 flag-combo "
+            "md5 match on a simulated <0.23.0 pristine tree). "
+            "(1) P64 — backport of vllm#39598 (kotori-yan): removes the "
+            "early-return after parameter fragments so MTP-bundled "
+            "last-param+</function> deltas don't drop the closing brace. P64 "
+            "ALSO carries TWO serving.py sub-patches "
+            "(p64_safety_net_widen + p64_callsite_guard) that are RETIRED-by-"
+            "design on dev259+ (required=False, 0-match a pristine tree — the "
+            "helper they anchored on was refactored out; P107 carries the "
+            "serving-side role now). They are kept as a separate serving "
+            "patcher: serving.py stays BYTE-UNTOUCHED on pristine (verified). "
+            "Primary flag GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING. "
+            "(2) P61c — local mitigation for club-3090#72 (troymroberts): "
+            "defers is_tool_call_started=True until <function= appears in a "
+            "64-char slack window, so a narrative <tool_call> mention no "
+            "longer causes 30-120s SSE silence. Flag (alias) "
+            "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT. "
+            "(3) PN56 — backport of vllm#41466 (ToastyTheBot): on XML parse "
+            "failure restores prev_tool_call_arr arguments from "
+            "streamed_args + closing brace so the serving layer does not "
+            "double-emit the '{}' placeholder. Flag (alias) "
+            "GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK. "
+            "VERSION GATE: all three carry vllm_version_range "
+            "(>=0.20.0,<0.23.0); #45171/#45588 deleted/remapped the "
+            "qwen3coder/qwen3xml tool parsers in the dev148-era engine, which "
+            "owns streaming tool-call extraction natively. The merged module "
+            "replicates this version gate inside each per-group helper "
+            "(check_version_constraints under live GENESIS_ENFORCE_VERSION_"
+            "RANGE=1) so a >=0.23.0 pin where the files are still present "
+            "version-SKIPs every group instead of leaking tool-call XML to "
+            "content on the native parser — matching what the standalone "
+            "originals (routing through should_apply) did."
+        ),
         "upstream_pr": 39598,
         "upstream_pr_relationship": "backport",
-        # version-capped 2026-06-14, widened to <0.23.0 2026-06-19 (dev148
-        # TIER-1 audit): tool_parsers/qwen3coder_tool_parser.py + gemma4 parser
-        # DELETED by #45588; engine state machine supersedes. The prior
-        # <0.22.1rc1.dev491 bound did NOT exclude the 0.23.1 dev148 pin
-        # (version-semantics gap) — this dev259-era wrap fights the native
-        # parser and breaks streamed tool-calls, so it MUST skip on 0.23.x.
+        # All three absorbed patches share this identical range, so the
+        # entry-level range is correct and does NOT over-gate. should_apply's
+        # version-only gate fires BEFORE the env branch and is LIVE on the rig
+        # (GENESIS_ENFORCE_VERSION_RANGE), so the whole module version-gate-
+        # SKIPs on dev148.
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
-        "apply_module": "sndr.engines.vllm.patches.tool_parsing.p64_qwen3coder_mtp_streaming",
+        "apply_module": "sndr.engines.vllm.patches.tool_parsing.p64_p61c_pn56_qwen3coder_consolidated",
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
@@ -1406,39 +1477,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
-    "PN56": {
-        "title": "Qwen3Coder XML parse fallback (vllm#41466 backport)",
-        "tier": "community",
-        "family": "tool_parsing",
-        "env_flag": "GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK",
-        "default_on": False,
-        "category": "structured_output",
-        "credit": (
-            "Backport of vllm#41466 (ToastyTheBot, OPEN). When "
-            "_parse_xml_function_call returns None or throws inside "
-            "extract_tool_calls_streaming, prev_tool_call_arr keeps the "
-            "header-step \"{}\" placeholder. Serving layer remainder check "
-            "later double-emits {arguments:\"{}\"}. Strict OpenAI clients "
-            "(Vercel AI SDK, OpenAI Node SDK) reject. Fix: track parse "
-            "success, on failure restore prev_tool_call_arr from streamed "
-            "args + closing brace. Composes with our P64 (vllm#39598) — P64 "
-            "modified post-except flow but didn't touch try block. Affects "
-            "ALL Genesis configs with qwen3_coder tool parser. Default OFF "
-            "until live verify against tool-call sweep on 27B PROD."
-        ),
-        "upstream_pr": 41466,
-        "upstream_pr_relationship": "backport",
-        # version-capped 2026-06-14, widened to <0.23.0 2026-06-19 (dev148
-        # TIER-1 audit): tool_parsers/qwen3coder_tool_parser.py + gemma4 parser
-        # DELETED by #45588; engine state machine supersedes. The prior
-        # <0.22.1rc1.dev491 bound did NOT exclude the 0.23.1 dev148 pin
-        # (version-semantics gap) — the native parser handles the XML-fallback
-        # case, so this dev259-era wrap MUST skip on 0.23.x.
-        "applies_to": {"vllm_version_range": (">=0.20.0", "<0.23.0")},
-        "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn56_qwen3coder_xml_fallback",
-        "lifecycle": "experimental",
-        "implementation_status": "full",
-    },
+    # PN56 (Qwen3Coder XML parse fallback, vllm#41466) was consolidated into
+    # the P64 entry on 2026-06-20 — all three qwen3coder parser patches
+    # (P64 + P61c + PN56) share one apply_module
+    # (p64_p61c_pn56_qwen3coder_consolidated). PN56's enable flag
+    # GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK is retained as an
+    # env_flag_alias on P64 so existing YAML opt-ins keep engaging the merged
+    # module.
     "PN57": {
         "title": "TurboQuant centroids disk-persistent cache (vllm#41418-inspired)",
         "tier": "community",
@@ -3632,106 +3677,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "retired",  # 2026-05-11: byte-equivalent with #41411 in dev209
         "implementation_status": "full",
     },
-    "PN51": {
-        "title": "Qwen3 streaming `enable_thinking=false` content routing (vllm#40816 backport)",
-        "tier": "community",
-        "family": "reasoning",
-        "env_flag": "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED",
-        "default_on": False,
-        "category": "perf_hotfix",
-        "credit": (
-            "Backport of upstream issue vllm-project/vllm#40816 (filed "
-            "2026-04-22 by 'keehawkes'; closed 2026-05-06 as fixed by PR "
-            "#40820). When server is launched with "
-            "--default-chat-template-kwargs '{\"enable_thinking\": false}' or "
-            "the request passes chat_template_kwargs.enable_thinking=false, "
-            "streaming responses incorrectly route every model token via "
-            "delta.reasoning instead of delta.content. Mirrors the existing "
-            "non-streaming short-circuit at qwen3_reasoning_parser.py:146-148. "
-            "Affects ALL OpenAI-compatible streaming clients that read "
-            "delta.content. Single-line guard at extract_reasoning_streaming "
-            "entry; no risk for thinking-enabled requests (guard False). "
-            "Default OFF until end-to-end streaming repro proves the fix on "
-            "Genesis 27B/35B + reasoning-parser qwen3. "
-            "[Phase 3D 2026-05-22] Live-network re-research on dev371 "
-            "(canonical pin bf610c2f56764e1b30bc6065f4ceace3d6e59036): "
-            "(1) Upstream-trail correction — vllm#40816 was an ISSUE, not "
-            "a PR. The original `upstream_pr: 40816` field pointed at the "
-            "issue (which returns 404 on `/pulls/`). Issue was closed "
-            "2026-05-06 by sfeng33 with comment 'Closing as fixed in "
-            "#40820'. The actual fixing PR is vllm#40820 — the registry's "
-            "`upstream_pr` is updated to that PR number in this commit. "
-            "(2) Fixing PR #40820 ('Fix Qwen3 streaming content routing', "
-            "merged 2026-05-06 at commit "
-            "50acdc5b5cc00f10408d8f98b21fc97efc615173, +220/-7 across 4 "
-            "files) IS in our dev371 baseline — `gh api .../compare/"
-            "50acdc5b5...bf610c2f5` shows {ahead_by: 284, behind_by: 0, "
-            "status: 'ahead'}. Upstream fix is in our runtime. "
-            "(3) Layer asymmetry — upstream fix is at "
-            "`vllm/parser/abstract_parser.py` (`_WrappedParser`) — refines "
-            "`_in_reasoning_phase` + `_in_tool_call_phase` + `parse_delta` "
-            "phase-detection logic at the wrapper layer ABOVE the qwen3 "
-            "parser. Genesis PN51 patches `vllm/reasoning/qwen3_reasoning_parser.py` "
-            "(`Qwen3ReasoningParser.extract_reasoning_streaming`) — adds "
-            "a narrow defensive guard at the qwen3-specific layer BELOW "
-            "the wrapper. The two fixes live at different layers and do "
-            "not conflict: upstream intercepts before qwen3 parser is "
-            "called for content tokens; Genesis only fires when the "
-            "wrapper passes through AND `not self.thinking_enabled AND "
-            "end_token_id not in current_token_ids` — a strict subset of "
-            "what the wrapper handles. "
-            "(4) Anchor still matches dev371 — direct `gh api "
-            ".../contents/vllm/reasoning/qwen3_reasoning_parser.py?ref="
-            "bf610c2f5...` grep confirms the Genesis anchor docstring tail "
-            "+ 'Strip <think>' comment is present (1 hit). PN51's "
-            "TextPatch will apply normally on every Qwen3-reasoning-parser "
-            "boot. "
-            "(5) DFlash validation evidence — qwen3.6-35b-a3b-fp8-dflash.yaml "
-            "enables PN51 with `GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED: "
-            "'1'` AND tags `patches_attribution.PN51.role: defensive`. "
-            "Operator explicitly classifies PN51 as a defensive layer (not "
-            "the primary fix). Phase 2.4 sprint Q35-DFlash M8 PASS + quick "
-            "bench (commit 8b635f90, 2026-05-22) ran with PN51 active "
-            "AND upstream PR#40820 fix in dev371; both layers coexisted "
-            "safely (no double-fire observed; coherent output produced: "
-            "'Paris', '4', finish_reason=stop). "
-            "(6) Decision (verdict c-defensive-overlay per iron rule #11): "
-            "KEEP PN51 active. Do NOT retire because (i) upstream fix is "
-            "at a structurally different layer; (ii) Genesis fix occupies "
-            "a narrow defensive precondition the wrapper may not cover; "
-            "(iii) operator-tagged as `role: defensive`; (iv) Phase 2.4 "
-            "validation confirmed safe coexistence. Module stays at "
-            "integrations/reasoning/pn51_qwen3_streaming_thinking_disabled.py; "
-            "lifecycle stays experimental; ModelDef YAMLs untouched. "
-            "(7) Phase 5 audit-script follow-up queued: enhance "
-            "audit_upstream_status.py to resolve issue→fixing-PR trails "
-            "by probing issue closure comments for 'Closing as fixed in "
-            "#NNNNN' or 'Fixed by #NNNNN' patterns. The Phase 3C audit "
-            "classified PN51 as ISSUE-CLOSED (404 on /pulls/40816) — a "
-            "richer audit would have surfaced PR#40820 directly without "
-            "operator manual triage."
-        ),
-        "upstream_pr": 40820,
-        "upstream_pr_relationship": "defensive_overlay",
-        "experimental_note": (
-            "REACTIVATED 2026-05-15 after retired-patch audit of pin "
-            "bf610c2f5 (dev371). Upstream PR #40816 is STILL OPEN and the "
-            "streaming entry-point `extract_reasoning_streaming` (line 226 "
-            "of qwen3_reasoning_parser.py) has NO `not self.thinking_enabled` "
-            "short-circuit. The serving-layer `prompt_is_reasoning_end` "
-            "bypass works for the common case (prompt has the pre-baked "
-            "empty <think>\\n\\n</think>\\n\\n block), but defensive parser-"
-            "entry recovery is still valuable when the bypass misses for "
-            "any reason. Risk: zero — guard False for thinking-enabled "
-            "(dominant case) and for legacy templates with </think> token."
-        ),
-        "apply_module": "sndr.engines.vllm.patches.reasoning.pn51_qwen3_streaming_thinking_disabled",
-        "applies_to": {
-            "vllm_version_range": (">=0.20.0", "<0.23.0"),
-        },
-        "lifecycle": "experimental",  # 2026-05-15 reactivated after retired-audit (gap confirmed in upstream parser)
-        "implementation_status": "full",
-    },
+    # PN51 (Qwen3 streaming enable_thinking=false content routing,
+    # vllm#40816/#40820) was consolidated into the P61b entry on
+    # 2026-06-20 — all three reasoning parser patches (P61b + P59 + PN51)
+    # share one apply_module (p61b_p59_pn51_qwen3_reasoning_consolidated).
+    # PN51's enable flag GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED
+    # is retained as an env_flag_alias on P61b so existing YAML opt-ins keep
+    # engaging the merged module.
     "PN252": {
         "title": "M-RoPE prompt_embeds-only DoS fix (vllm#45252 / GHSA-33cg-gxv8-3p8g)",
         "tier": "community",
@@ -4908,7 +4860,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn287_qwen3coder_args_validity_observer",
         "lifecycle": "experimental",
         "implementation_status": "full",
-        "composes_with": ["P64", "PN56", "P61c"],
+        # 2026-06-20: PN56 + P61c were consolidated into the P64 entry, so the
+        # former ["P64", "PN56", "P61c"] composes_with is deduped to the
+        # surviving P64 (otherwise dangling -> test_composes_with_targets_exist
+        # would fail). Same parser-layer defense cohort, now one registry id.
+        "composes_with": ["P64"],
     },
     "PN288": {
         "title": "qwen3_coder tool_call finish_reason override — Phase B+C with length-band safety guard",
@@ -5004,7 +4960,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "apply_module": "sndr.engines.vllm.patches.serving.pn288_tool_finish_reason_override",
         "lifecycle": "experimental",
         "implementation_status": "full",
-        "composes_with": ["P64", "PN56", "P61c", "PN287"],
+        # 2026-06-20: PN56 + P61c were consolidated into the P64 entry, so the
+        # former ["P64", "PN56", "P61c", "PN287"] composes_with is deduped to
+        # ["P64", "PN287"] (otherwise dangling -> test_composes_with_targets_
+        # exist would fail).
+        "composes_with": ["P64", "PN287"],
     },
     "PN289": {
         "title": "Genesis process-info Prometheus gauge (§6.H10 enterprise observability)",

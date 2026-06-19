@@ -12,9 +12,11 @@ from __future__ import annotations
 
 __all__ = [
     "p15_qwen3_none_null",
-    "p61c_qwen3coder_deferred_commit",
-    "p64_qwen3coder_mtp_streaming",
-    "pn56_qwen3coder_xml_fallback",
+    # P64 + P61c + PN56 consolidated 2026-06-20 into one module (all three
+    # patch tool_parsers/qwen3coder_tool_parser.py at disjoint regions).
+    # Replaces p64_qwen3coder_mtp_streaming + p61c_qwen3coder_deferred_commit
+    # + pn56_qwen3coder_xml_fallback.
+    "p64_p61c_pn56_qwen3coder_consolidated",
 ]
 
 def __getattr__(name: str):

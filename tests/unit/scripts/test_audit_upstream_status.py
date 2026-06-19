@@ -220,12 +220,15 @@ class TestLiveRegistrySpecialPatchExtraction:
     extractor regex breaking and against an operator silently dropping
     the field on one of these patches."""
 
+    # PN51 ("defensive_overlay") was consolidated 2026-06-20 into the P61b
+    # reasoning merged module; no longer a standalone registry id, so dropped
+    # from this live-registry lock. Its defensive-overlay provenance is kept in
+    # P61b's credit narrative.
     EXPECTED_SPECIAL = {
         "PN116": "counter_regression",
         "P98":   "intentional_inverse",
         "P75":   "enables_upstream",
         "P99":   "enables_upstream",
-        "PN51":  "defensive_overlay",
         "PN90":  "related_not_superseding",
         "PN24":  "related_not_superseding",
         "P61":   "related_not_superseding",
@@ -555,11 +558,12 @@ class TestLiveRegistryFalsePositiveLock:
     # PR merge state pinned for determinism (mirrors PIN.R recon 2026-05-23).
     # We don't query GitHub in this test — we simulate the merged-PR state
     # that the live recon observed for each.
+    # PN51 dropped 2026-06-20 (consolidated into the P61b reasoning merged
+    # module; no longer a standalone registry id).
     SIDECLEANUP_FALSE_POSITIVES = {
         "P75":   "enables_upstream",
         "P99":   "enables_upstream",
         "P98":   "intentional_inverse",
-        "PN51":  "defensive_overlay",
         "PN90":  "related_not_superseding",
     }
 

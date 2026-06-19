@@ -353,6 +353,18 @@ _LEGACY_NAME_TO_PATCH_ID: dict[str, str] = {
     # explicitly to the merged P71 spec — keeps shadow's legacy_only /
     # spec_only clean.
     "PN369 Relaxed acceptance for MTP spec-decode (TRT-LLM-style top-K + delta window)": "P71",
+    # 2026-06-20: P59 + PN51 were consolidated into the P61b registry entry,
+    # and P61c + PN56 into the P64 entry (each trio patches one parser file at
+    # disjoint regions; one apply_module per trio). The legacy boot-log keeps
+    # the absorbed ids' @register_patch labels for operator continuity; the
+    # leading-token regex would lift "P59"/"PN51"/"P61c"/"PN56" (no longer
+    # spec ids), so map each explicitly to its merged primary — keeps shadow's
+    # legacy_only / spec_only clean. (P61b and P64 labels still match their own
+    # surviving spec ids, so they need no map entry.)
+    "P59 Qwen3 reasoning embedded tool_call recovery": "P61b",
+    "PN51 Qwen3 streaming `enable_thinking=false` content routing": "P61b",
+    "P61c Qwen3Coder deferred-commit (club-3090#72)": "P64",
+    "PN56 Qwen3Coder XML parse fallback (vllm#41466)": "P64",
 }
 
 

@@ -25,7 +25,10 @@ __all__ = [
     "pn9_independent_drafter_attn_backend",
     "pn13_cuda_graph_lambda_arity",
     "pn19_scoped_max_split",
-    "pn51_qwen3_streaming_thinking_disabled",
+    # pn51_qwen3_streaming_thinking_disabled removed 2026-06-20: the active
+    # (reactivated) PN51 lived in patches/reasoning/ and was consolidated into
+    # the P61b reasoning merged module; no _archive/pn51_*.py file exists and
+    # nothing imports this name, so this dead lazy-export entry is dropped.
     "pn52_prompt_logprobs_eviction",
     "pn78_post_warmup_cache_release",
     "pn80_lora_tensorizer_device",

@@ -311,13 +311,17 @@ patches_attribution:
       fragmented allocations and VRAM OOMs ~4-6 hours into a soak.
       Pairs with PN95 demote thresholds.
   # ── Wave 10 defensive — cheap safety guards ───────────────────────
-  PN51:
+  # PN51 consolidated into P61b 2026-06-20 (reasoning merged module); its
+  # GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED flag is a P61b
+  # env_flag_alias. Attribution retargeted to the surviving primary id.
+  P61b:
     role: defensive
     note: |
-      Qwen3 streaming thinking-disabled short-circuit (vllm#40816
-      OPEN). Defensive guard for OpenAI-compatible streaming clients
-      reading delta.content. Zero risk: guard is False when thinking
-      is enabled (dominant case).
+      Qwen3 reasoning-parser merged module (P61b overlap guard + P59
+      embedded tool_call recovery + PN51 thinking-disabled short-circuit;
+      vllm#40783/#39055/#40816). Defensive guards for OpenAI-compatible
+      streaming clients reading delta.content. Zero risk: each guard is a
+      no-op in the dominant (thinking-enabled, well-formed) case.
   PN125:
     role: defensive
     note: |

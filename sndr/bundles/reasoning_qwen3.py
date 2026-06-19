@@ -32,13 +32,15 @@ def apply() -> tuple[str, str]:
     from sndr.engines.vllm.patches.reasoning import p12_tool_call_reasoning as _p12
 
     from sndr.engines.vllm.patches.reasoning import p27_reasoning_before_think as _p27
-    from sndr.engines.vllm.patches.reasoning import p59_qwen3_reasoning_tool_call_recovery as _p59
 
     from sndr.engines.vllm._archive import p61_qwen3_multi_tool_first_occurrence as _p61  # moved to _retired/ 2026-05-14 — kept in bundle for legacy boot order, harmless no-op anchor
 
-    from sndr.engines.vllm.patches.reasoning import p61b_qwen3_streaming_overlap_guard as _p61b
-
-    from sndr.engines.vllm.patches.reasoning import pn51_qwen3_streaming_thinking_disabled as _pn51  # reactivated 2026-05-15 after retired-audit gap confirm
+    # P61b + P59 + PN51 consolidated 2026-06-20 into one module; it exposes one
+    # per-feature _make_*_patcher factory each (failure isolation + distinct
+    # markers), so the bundle's per-patcher transaction layout is preserved.
+    from sndr.engines.vllm.patches.reasoning import (
+        p61b_p59_pn51_qwen3_reasoning_consolidated as _reasoning,
+    )
     return run_bundle(
         name="reasoning_qwen3",
         umbrella_flag=Flags.BUNDLE_REASONING_QWEN3,
@@ -46,10 +48,10 @@ def apply() -> tuple[str, str]:
         patcher_factories=[
             _p12._make_patcher,
             _p27._make_patcher,
-            _p59._make_patcher,
+            _reasoning._make_p59_patcher,
             _p61._make_patcher,
-            _p61b._make_patcher,
-            _pn51._make_patcher,
+            _reasoning._make_p61b_patcher,
+            _reasoning._make_pn51_patcher,
         ],
     )
 

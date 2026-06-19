@@ -35,10 +35,12 @@ import pytest
 REASONING_PATCHES = [
     ("sndr.engines.vllm.patches.reasoning.p12_tool_call_reasoning", "P12"),
     ("sndr.engines.vllm.patches.reasoning.p27_reasoning_before_think", "P27"),
-    ("sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery", "P59"),
     ("sndr.engines.vllm._archive.p61_qwen3_multi_tool_first_occurrence", "P61"),
-    ("sndr.engines.vllm.patches.reasoning.p61b_qwen3_streaming_overlap_guard", "P61b"),
-    ("sndr.engines.vllm.patches.reasoning.pn51_qwen3_streaming_thinking_disabled", "PN51"),
+    # P61b + P59 + PN51 consolidated 2026-06-20 into one module (all three
+    # patch reasoning/qwen3_reasoning_parser.py at disjoint regions). The trio
+    # is represented by the surviving primary id P61b pointing at the
+    # consolidated module.
+    ("sndr.engines.vllm.patches.reasoning.p61b_p59_pn51_qwen3_reasoning_consolidated", "P61b"),
     ("sndr.engines.vllm.patches.reasoning.pn58_spec_reasoning_boundary", "PN58"),
     ("sndr.engines.vllm.patches.reasoning.pn66_multiturn_think_leak", "PN66"),
 ]

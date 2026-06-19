@@ -103,6 +103,16 @@ _COMBINED_LEGACY_TOKEN_TO_SPEC_ID: dict[str, str] = {
     # operator continuity; it maps to the merged P71 spec — covered by both
     # paths.
     "PN369":   "P71",
+    # 2026-06-20: P59 + PN51 consolidated into the P61b registry entry, and
+    # P61c + PN56 into the P64 entry (each trio patches one parser file at
+    # disjoint regions; one apply_module per trio). The legacy boot-log keeps
+    # the absorbed ids' @register_patch labels for operator continuity; each
+    # maps to its merged primary — covered by both paths. (P61b/P64 labels
+    # still match their own surviving spec ids, so no map entry needed.)
+    "P59":     "P61b",
+    "PN51":    "P61b",
+    "P61c":    "P64",
+    "PN56":    "P64",
 }
 
 

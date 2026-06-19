@@ -729,10 +729,18 @@ def apply_patch_61b_streaming_overlap() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.reasoning import p61b_qwen3_streaming_overlap_guard
+        # P61b + P59 + PN51 consolidated 2026-06-20 into one wiring module
+        # (all three patch reasoning/qwen3_reasoning_parser.py at disjoint
+        # regions). The consolidated apply() gates each feature by its own env
+        # flag (+ replicated version gate); each feature keeps its own marker,
+        # so the sibling P59/PN51 dispatches delegating to the same module
+        # re-run as IDEMPOTENT — runtime-neutral.
+        from sndr.engines.vllm.patches.reasoning import (
+            p61b_p59_pn51_qwen3_reasoning_consolidated as _wiring,
+        )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    status, reason = p61b_qwen3_streaming_overlap_guard.apply()
+    status, reason = _wiring.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":
@@ -811,10 +819,18 @@ def apply_patch_61c_qwen3coder_deferred_commit() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.tool_parsing import p61c_qwen3coder_deferred_commit
+        # P64 + P61c + PN56 consolidated 2026-06-20 into one wiring module
+        # (all three patch tool_parsers/qwen3coder_tool_parser.py at disjoint
+        # regions). The consolidated apply() gates each feature by its own env
+        # flag (+ replicated version gate); each feature keeps its own marker,
+        # so the sibling P64/PN56 dispatches re-run as IDEMPOTENT —
+        # runtime-neutral.
+        from sndr.engines.vllm.patches.tool_parsing import (
+            p64_p61c_pn56_qwen3coder_consolidated as _wiring,
+        )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    status, reason = p61c_qwen3coder_deferred_commit.apply()
+    status, reason = _wiring.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":
@@ -829,10 +845,13 @@ def apply_patch_N56_qwen3coder_xml_fallback() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.tool_parsing import pn56_qwen3coder_xml_fallback
+        # P64 + P61c + PN56 consolidated 2026-06-20 (see P64/P61c dispatch).
+        from sndr.engines.vllm.patches.tool_parsing import (
+            p64_p61c_pn56_qwen3coder_consolidated as _wiring,
+        )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    status, reason = pn56_qwen3coder_xml_fallback.apply()
+    status, reason = _wiring.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":
@@ -2258,10 +2277,13 @@ def apply_patch_N51_qwen3_streaming_thinking_disabled() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.reasoning import pn51_qwen3_streaming_thinking_disabled  # reactivated 2026-05-15 after retired-audit gap confirm
+        # P61b + P59 + PN51 consolidated 2026-06-20 (see P61b dispatch).
+        from sndr.engines.vllm.patches.reasoning import (
+            p61b_p59_pn51_qwen3_reasoning_consolidated as _wiring,
+        )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    status, reason = pn51_qwen3_streaming_thinking_disabled.apply()
+    status, reason = _wiring.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":
@@ -2486,10 +2508,18 @@ def apply_patch_64_qwen3coder_mtp_streaming() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.tool_parsing import p64_qwen3coder_mtp_streaming
+        # P64 + P61c + PN56 consolidated 2026-06-20 into one wiring module
+        # (all three patch tool_parsers/qwen3coder_tool_parser.py at disjoint
+        # regions; P64 also keeps its serving.py patcher). The consolidated
+        # apply() gates each feature by its own env flag (+ replicated version
+        # gate); each feature keeps its own marker, so sibling P61c/PN56
+        # dispatches re-run as IDEMPOTENT — runtime-neutral.
+        from sndr.engines.vllm.patches.tool_parsing import (
+            p64_p61c_pn56_qwen3coder_consolidated as _wiring,
+        )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    status, reason = p64_qwen3coder_mtp_streaming.apply()
+    status, reason = _wiring.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":
@@ -6416,10 +6446,13 @@ def apply_patch_59_qwen3_reasoning_tool_call_recovery() -> PatchResult:
     if not _state._APPLY_MODE:
         return _applied(name, "dry-run: text-patch ready")
     try:
-        from sndr.engines.vllm.patches.reasoning import p59_qwen3_reasoning_tool_call_recovery
+        # P61b + P59 + PN51 consolidated 2026-06-20 (see P61b dispatch).
+        from sndr.engines.vllm.patches.reasoning import (
+            p61b_p59_pn51_qwen3_reasoning_consolidated as _wiring,
+        )
     except Exception as e:
         return _failed(name, f"wiring import failed: {e}")
-    status, reason = p59_qwen3_reasoning_tool_call_recovery.apply()
+    status, reason = _wiring.apply()
     if status == "applied":
         return _applied(name, reason)
     if status == "skipped":

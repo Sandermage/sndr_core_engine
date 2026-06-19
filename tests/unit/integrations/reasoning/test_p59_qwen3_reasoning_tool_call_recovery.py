@@ -104,8 +104,17 @@ def pristine_parser_file(tmp_path):
 
 
 def _p59_module():
-    import sndr.engines.vllm.patches.reasoning.p59_qwen3_reasoning_tool_call_recovery as p59
-    return p59
+    # P59 consolidated 2026-06-20 into the P61b reasoning merged module
+    # (p61b_p59_pn51_qwen3_reasoning_consolidated). It re-exports all of P59's
+    # anchor constants, the require-at-least-one set, UPSTREAM_DRIFT_MARKERS,
+    # _P27_CHAIN_DERIVATION_OK, GENESIS_P59_MARKER, _make_patcher_for_target
+    # (= the P59-group patcher builder) and apply() (which now gates the P59
+    # group by its own flag + replicated version gate).
+    import importlib
+    return importlib.import_module(
+        "sndr.engines.vllm.patches.reasoning."
+        "p61b_p59_pn51_qwen3_reasoning_consolidated"
+    )
 
 
 def _p27_module():
@@ -283,9 +292,18 @@ class TestP59RequireAtLeastOneWrap:
     the sub-patch list (helper injected as dead code)."""
 
     def _patch_runtime(self, monkeypatch, p59, target: str, tmp_path):
-        import sndr.dispatcher as dispatcher
-        monkeypatch.setattr(dispatcher, "should_apply", lambda pid: (True, "test"))
-        monkeypatch.setattr(dispatcher, "log_decision", lambda *a, **k: None)
+        # Drive ONLY the P59 group through the consolidated apply(): enable the
+        # P59 flag, disable the sibling P61b/PN51 flags, and turn version
+        # enforcement off so the P59 group's replicated version gate passes.
+        monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "0")
+        monkeypatch.setenv("GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY", "1")
+        for f in (
+            "GENESIS_ENABLE_P61B_STREAMING_OVERLAP",
+            "SNDR_ENABLE_P61B_STREAMING_OVERLAP",
+            "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED",
+            "SNDR_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED",
+        ):
+            monkeypatch.delenv(f, raising=False)
         monkeypatch.setattr(p59, "vllm_install_root", lambda: str(tmp_path))
         monkeypatch.setattr(p59, "resolve_vllm_file", lambda rel: target)
 
@@ -367,13 +385,25 @@ class TestP59UpstreamDriftDetection:
 
 class TestP59OptIn:
     def test_apply_skips_without_env_flag(self, monkeypatch):
-        monkeypatch.delenv("GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY", raising=False)
+        # With no flag set (and version enforcement off), the consolidated
+        # apply() skips with a "default OFF" message naming the P59 flag.
+        monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "0")
+        for f in (
+            "GENESIS_ENABLE_P61B_STREAMING_OVERLAP",
+            "GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY",
+            "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED",
+        ):
+            monkeypatch.delenv(f, raising=False)
         p59 = _p59_module()
         status, reason = p59.apply()
         assert status == "skipped"
-        assert "opt-in" in reason
+        assert "OFF" in reason
+        assert "P59_QWEN3_TOOL_RECOVERY" in reason
 
     def test_env_flag_truthy_returns_true(self, monkeypatch):
+        # P59's group enable helper on the consolidated module (replicates the
+        # original env gate + the <0.23.0 version gate).
+        monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "0")
         monkeypatch.setenv("GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY", "1")
         p59 = _p59_module()
-        assert p59._is_enabled() is True
+        assert p59._p59_enabled() is True

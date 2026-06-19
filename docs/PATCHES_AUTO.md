@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-19T20:22:32Z
-Total entries: **317**
+Generated: 2026-06-19T21:46:38Z
+Total entries: **313**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **317**
+- `tier=community`: **313**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **234**
+- `lifecycle=experimental`: **230**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
 - `lifecycle=retired`: **34**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **55** / 317
+### Default-on at boot: **55** / 313
 
 ### By family
 - `attention`: 1
@@ -43,12 +43,12 @@ Total entries: **317**
 - `offload`: 4
 - `quantization`: 6
 - `quantization.marlin`: 2
-- `reasoning`: 9
+- `reasoning`: 7
 - `scheduler`: 9
 - `serving`: 14
 - `spec_decode`: 47
 - `streaming`: 4
-- `tool_parsing`: 14
+- `tool_parsing`: 12
 - `worker`: 15
 
 ## Patches by family
@@ -358,19 +358,17 @@ Total entries: **317**
 | **PN347** | `community` | `experimental` | · | `GENESIS_ENABLE_PN347` | [#44113](https://github.com/vllm-project/vllm/pull/44113) | MarlinFP8 N==K silent corruption correctness fix (vendor of CLOSED vllm#44113... |
 | **PN-FP8MOE-KPAD** | `community` | `experimental` | · | `GENESIS_ENABLE_PN_FP8MOE_KPAD` | [#45703](https://github.com/vllm-project/vllm/pull/45703) | FP8 MoE intermediate thread-tile pad (FP8-core backport of OPEN vllm#45703) |
 
-### `reasoning` (9)
+### `reasoning` (7)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **P12** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P12` | — | Qwen3 <tool_call> implicit reasoning end |
 | **P27** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P27` | — | Qwen3 BEFORE-THINK fallback |
-| **P59** | `community` | `experimental` | · | `GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY` | [#39055](https://github.com/vllm-project/vllm/pull/39055) | Qwen3 reasoning embedded tool_call recovery |
 | **P61** | `community` | `retired` | · | `GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | Qwen3 multi-tool first-occurrence (RETIRED — fully superseded by P12 v2) |
-| **PN51** | `community` | `experimental` | · | `GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED` | [#40820](https://github.com/vllm-project/vllm/pull/40820) | Qwen3 streaming `enable_thinking=false` content routing (vllm#40816 backport) |
 | **PN58** | `community` | `experimental` | · | `GENESIS_ENABLE_PN58_SPEC_REASONING_BOUNDARY` | [#40962](https://github.com/vllm-project/vllm/pull/40962) | Spec-decode reasoning boundary validation — narrower alt to P62 (vllm#40962) |
 | **PN66** | `community` | `experimental` | · | `GENESIS_ENABLE_PN66` | [#41696](https://github.com/vllm-project/vllm/pull/41696) | Multiturn </think> leak fix in DelegatingParser (vllm#41696 backport) |
 | **PN71** | `community` | `experimental` | · | `GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE` | — | PN71 — `</thinking>` hallucination runtime normalizer |
-| **P61b** | `community` | `experimental` | · | `GENESIS_ENABLE_P61B_STREAMING_OVERLAP` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | Qwen3 streaming partial-tag overlap guard |
+| **P61b** | `community` | `experimental` | · | `GENESIS_ENABLE_P61B_STREAMING_OVERLAP` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | qwen3_reasoning_parser consolidated: streaming partial-tag overlap guard (vll... |
 
 ### `scheduler` (9)
 
@@ -466,14 +464,13 @@ Total entries: **317**
 | **PN202** | `community` | `experimental` | · | `GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT` | — | PN202 — per-layer KV tensor split (Tier 2.A enabler) |
 | **PN203** | `community` | `experimental` | · | `GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD` | — | PN203 — cold-prefix CPU offload manager (Tier 3.A) |
 
-### `tool_parsing` (14)
+### `tool_parsing` (12)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **P15** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P15` | — | Qwen3 None/null tool arg parser |
 | **P29** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P29` | — | tool parser IndexError guard |
-| **P64** | `community` | `experimental` | · | `GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING` | [#39598](https://github.com/vllm-project/vllm/pull/39598) | qwen3coder MTP streaming early-return fix |
-| **PN56** | `community` | `experimental` | · | `GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK` | [#41466](https://github.com/vllm-project/vllm/pull/41466) | Qwen3Coder XML parse fallback (vllm#41466 backport) |
+| **P64** | `community` | `experimental` | · | `GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING` | [#39598](https://github.com/vllm-project/vllm/pull/39598) | qwen3coder_tool_parser consolidated: MTP streaming early-return fix (vllm#395... |
 | **PN287** | `community` | `experimental` | · | `GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER` | — | "qwen3_coder × MTP arg-corruption frequency observer (club-3090 |
 | **PN374** | `community` | `experimental` | · | `GENESIS_ENABLE_PN374_QWEN3XML_QUOTED_KEYS` | [#44877](https://github.com/vllm-project/vllm/pull/44877) | "qwen3xml quoted parameter-name strip (Gemma4 |
 | **PN375** | `community` | `experimental` | · | `GENESIS_ENABLE_PN375_GEMMA4_MULTIBOUNDARY_STREAMING` | [#44741](https://github.com/vllm-project/vllm/pull/44741) | Gemma4 multi-boundary streaming tool-call deltas under MTP (vllm#44741) |
@@ -483,7 +480,6 @@ Total entries: **317**
 | **PN394** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX` | [#46047](https://github.com/vllm-project/vllm/pull/46047) | qwen3 partial-param value `<` truncation fix (vllm#46047) |
 | **G4_T1** | `community` | `experimental` | · | `GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED` | [#42006](https://github.com/vllm-project/vllm/pull/42006) | "Gemma4 tool-parser PR |
 | **P29_HEAL** | `community` | `experimental` | · | `GENESIS_ENABLE_P29_QWEN3CODER_INDEX_HEAL` | — | qwen3coder tool parser index heal (P29 companion, fix-wire 2026-06-04) |
-| **P61c** | `community` | `experimental` | · | `GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT` | — | Qwen3Coder deferred-commit until <function= header (club-3090#72) |
 
 ### `worker` (15)
 

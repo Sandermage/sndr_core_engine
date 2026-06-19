@@ -52,8 +52,18 @@ PRISTINE_PARSER_TAIL = (
 
 
 def _load_anchors():
-    """Load the anchor strings out of the wiring module."""
-    from sndr.engines.vllm.patches.reasoning import pn51_qwen3_streaming_thinking_disabled as M
+    """Load the anchor strings out of the wiring module.
+
+    PN51 was consolidated 2026-06-20 into the P61b reasoning merged module
+    (p61b_p59_pn51_qwen3_reasoning_consolidated); it re-exports PN51's anchor
+    constants verbatim under the original names, so these assertions still
+    hold against the consolidated module.
+    """
+    import importlib
+    M = importlib.import_module(
+        "sndr.engines.vllm.patches.reasoning."
+        "p61b_p59_pn51_qwen3_reasoning_consolidated"
+    )
     return M.ANCHOR_OLD, M.ANCHOR_NEW, M.GENESIS_PN51_MARKER
 
 
@@ -118,53 +128,54 @@ def test_apply_idempotent_on_synthetic(tmp_path: Path, monkeypatch):
     assert target.read_text() == body_after_first
 
 
-def test_env_flag_gates_apply(monkeypatch):
-    """When env flag is unset, dispatcher should-apply must return False."""
+def test_pn51_consolidated_into_p61b_via_env_flag_alias(monkeypatch):
+    """PN51 was consolidated into the P61b entry 2026-06-20; its enable flag
+    is retained as an env_flag_alias on P61b. With version enforcement OFF,
+    setting ONLY the PN51 alias must engage should_apply('P61b') (the
+    alias-honoring _resolve_env_state path), and clearing all flags must skip.
+    """
     from sndr.dispatcher import should_apply
-    monkeypatch.delenv(
+    monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "0")
+    for f in (
+        "GENESIS_ENABLE_P61B_STREAMING_OVERLAP",
+        "SNDR_ENABLE_P61B_STREAMING_OVERLAP",
         "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED",
-        raising=False,
-    )
-    decision, reason = should_apply("PN51")
-    # Default OFF — must skip
-    assert decision is False
+        "SNDR_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED",
+    ):
+        monkeypatch.delenv(f, raising=False)
+    decision, reason = should_apply("P61b")
+    assert decision is False  # all flags off -> skip
     assert "opt-in" in reason.lower() or "off" in reason.lower()
 
-
-def test_env_flag_enables_apply(monkeypatch):
-    from sndr.dispatcher import should_apply
     monkeypatch.setenv(
         "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED", "1",
     )
-    decision, _ = should_apply("PN51")
-    assert decision is True
+    decision, _ = should_apply("P61b")
+    assert decision is True  # alias-only engages the merged module
 
 
-def test_registry_entry_complete():
-    """PATCH_REGISTRY must have a complete PN51 entry.
-
-    Note: `upstream_pr` verified as positive int — PN51 originally cited
-    issue vllm#40816, later fixed by PR vllm#40820. Registry tracks the
-    merged PR; the issue number stays in title/credit narrative. Pinning
-    a specific number here freezes the test on whichever historical
-    reference the registry was last set to.
-    """
+def test_registry_entry_consolidated_into_p61b():
+    """PN51 is no longer a standalone registry id — it is consolidated into
+    the P61b entry as an env_flag_alias, and the P61b apply_module points at
+    the reasoning merged module."""
     from sndr.dispatcher import PATCH_REGISTRY
-    assert "PN51" in PATCH_REGISTRY
-    meta = PATCH_REGISTRY["PN51"]
-    assert meta["env_flag"] == "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED"
-    assert meta["default_on"] is False
-    assert isinstance(meta["upstream_pr"], int) and meta["upstream_pr"] > 0
-    assert "qwen3" in meta["title"].lower()
-    # Narrative anchor — title or credit references vllm#40816 (the
-    # operator-cited issue) regardless of which PR number landed in
-    # the `upstream_pr` field.
+    assert "PN51" not in PATCH_REGISTRY
+    meta = PATCH_REGISTRY["P61b"]
+    assert (
+        "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED"
+        in meta.get("env_flag_aliases", [])
+    )
+    assert meta["apply_module"].endswith(
+        "p61b_p59_pn51_qwen3_reasoning_consolidated"
+    )
+    # PN51's vllm#40816 narrative is preserved on the merged entry.
     assert "40816" in meta["title"] or "40816" in meta.get("credit", "")
 
 
 def test_apply_all_registers_pn51():
-    """apply_all must expose apply_patch_N51_qwen3_streaming_thinking_disabled."""
+    """apply_all still exposes the PN51 legacy boot hook (it now delegates to
+    the consolidated module)."""
     from sndr.apply import apply_all
     assert hasattr(
         apply_all, "apply_patch_N51_qwen3_streaming_thinking_disabled"
-    ), "PN51 not registered in apply_all"
+    ), "PN51 legacy boot hook missing from apply_all"

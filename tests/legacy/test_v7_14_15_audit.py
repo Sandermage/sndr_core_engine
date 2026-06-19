@@ -58,8 +58,11 @@ def _pinned_file(rel: str) -> Path:
 # canonical modules so the anchor-constant assertions keep their
 # original intent.
 _WIRING_MODULES = {
+    # P64 consolidated 2026-06-20 into the coder merged module (P64 + P61c +
+    # PN56); it re-exports P64's anchor constants under the legacy names
+    # (QWEN3CODER_OLD / QWEN3COD_FNEND_OLD / SERVING_SHOULD_OLD).
     "patch_64_qwen3coder_mtp_streaming":
-        "sndr.engines.vllm.patches.tool_parsing.p64_qwen3coder_mtp_streaming",
+        "sndr.engines.vllm.patches.tool_parsing.p64_p61c_pn56_qwen3coder_consolidated",
     "patch_65_turboquant_spec_cg_downgrade":
         "sndr.engines.vllm.patches.attention.turboquant.p65_turboquant_spec_cg_downgrade",
     "patch_66_cudagraph_size_divisibility_filter":

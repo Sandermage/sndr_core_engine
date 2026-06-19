@@ -89,9 +89,16 @@ _KNOWN_SAFE_OPTIONAL_SHARING = frozenset({
     # paths (non-stream capture / non-stream return / stream start).
     # Any subset apply is graceful degradation by design.
     "reasoning/p27_reasoning_before_think.py",
-    # P59 — empirically DISPROVEN backport of vllm#39055; deprecated
-    # opt-in research artifact. partial-apply has zero PROD impact.
-    "reasoning/p59_qwen3_reasoning_tool_call_recovery.py",
+    # P59 — embedded tool_call recovery (vllm#39055). The P59 group has
+    # variants C/D + trunc as required=False (require-at-least-one wrap gate
+    # scoped to the P59 group inside apply()). partial-apply is graceful by
+    # design. Consolidated 2026-06-20 into the reasoning merged module (P61b +
+    # P59 + PN51), so the allowlisted path moves to the consolidated file.
+    "reasoning/p61b_p59_pn51_qwen3_reasoning_consolidated.py",
+    # P64 serving group — p64_safety_net_widen + p64_callsite_guard are both
+    # required=False (RETIRED-by-design on dev259+; 0-match pristine). Lives in
+    # the coder merged module (P64 + P61c + PN56) since 2026-06-20.
+    "tool_parsing/p64_p61c_pn56_qwen3coder_consolidated.py",
     # P83 entry removed 2026-06-11: retired (preflight residual triage
     # §3) and moved to sndr/engines/vllm/_archive/, which is outside
     # WIRING_DIR — the scan no longer sees it.

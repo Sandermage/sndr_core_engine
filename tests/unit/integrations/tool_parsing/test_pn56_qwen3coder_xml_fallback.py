@@ -6,8 +6,14 @@ import pytest
 
 
 def _wiring():
-    from sndr.engines.vllm.patches.tool_parsing import pn56_qwen3coder_xml_fallback as M
-    return M
+    # PN56 consolidated 2026-06-20 into the P64 coder merged module
+    # (p64_p61c_pn56_qwen3coder_consolidated); it re-exports PN56's anchor
+    # constants verbatim under the original names.
+    import importlib
+    return importlib.import_module(
+        "sndr.engines.vllm.patches.tool_parsing."
+        "p64_p61c_pn56_qwen3coder_consolidated"
+    )
 
 
 def test_anchor_targets_try_block():
@@ -69,25 +75,37 @@ def test_idempotent_on_synthetic(tmp_path):
     assert r2 == TextPatchResult.IDEMPOTENT
 
 
-def test_env_flag_default_off(monkeypatch):
+def test_pn56_consolidated_into_p64_via_env_flag_alias(monkeypatch):
+    """PN56 consolidated into the P64 entry 2026-06-20 as an env_flag_alias.
+    With version enforcement OFF, all flags cleared -> P64 skips; setting ONLY
+    the PN56 alias engages should_apply('P64') (alias-honoring path)."""
     from sndr.dispatcher import should_apply
-    monkeypatch.delenv("GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK", raising=False)
-    decision, _ = should_apply("PN56")
-    assert decision is False
-
-
-def test_env_flag_engages(monkeypatch):
-    from sndr.dispatcher import should_apply
+    monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "0")
+    for f in (
+        "GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING",
+        "SNDR_ENABLE_P64_QWEN3CODER_MTP_STREAMING",
+        "GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK",
+        "SNDR_ENABLE_PN56_QWEN3CODER_XML_FALLBACK",
+    ):
+        monkeypatch.delenv(f, raising=False)
+    assert should_apply("P64")[0] is False
     monkeypatch.setenv("GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK", "1")
-    decision, _ = should_apply("PN56")
-    assert decision is True
+    assert should_apply("P64")[0] is True
 
 
-def test_registry_entry_complete():
+def test_registry_entry_consolidated_into_p64():
     from sndr.dispatcher import PATCH_REGISTRY
-    assert "PN56" in PATCH_REGISTRY
-    meta = PATCH_REGISTRY["PN56"]
-    assert meta["upstream_pr"] == 41466
+    assert "PN56" not in PATCH_REGISTRY
+    meta = PATCH_REGISTRY["P64"]
+    assert (
+        "GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK"
+        in meta.get("env_flag_aliases", [])
+    )
+    assert meta["apply_module"].endswith(
+        "p64_p61c_pn56_qwen3coder_consolidated"
+    )
+    # PN56's vllm#41466 provenance preserved on the merged entry.
+    assert "41466" in meta.get("credit", "")
 
 
 def test_apply_all_registers_pn56():
