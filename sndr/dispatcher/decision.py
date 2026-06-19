@@ -250,15 +250,39 @@ def _resolve_env_state(
     if not env_flag:
         return False, False, None, None
 
-    bare_flag = env_flag
-    for _prefix in ("SNDR_ENABLE_", "GENESIS_ENABLE_"):
-        if bare_flag.startswith(_prefix):
-            bare_flag = bare_flag[len(_prefix):]
-            break
+    def _bare(flag: str) -> str:
+        for _prefix in ("SNDR_ENABLE_", "GENESIS_ENABLE_"):
+            if flag.startswith(_prefix):
+                return flag[len(_prefix):]
+        return flag
+
+    bare_flag = _bare(env_flag)
 
     # v11.3.0: use module-level imports (was per-call).
     env_truthy = _env_is_enabled(bare_flag)
     env_disabled = _env_is_disabled(bare_flag)
+
+    # 2026-06-19: honor ``env_flag_aliases``. When two patches that share one
+    # engine site are consolidated into a single registry entry (e.g. PN29 +
+    # PN298 -> one chunk_o module), the absorbed patch's enable flag is kept
+    # as an alias so its existing YAML opt-in still engages the merged module.
+    # The ENTRY-level decision must run the module when EITHER the primary OR
+    # any alias flag is enabled — the per-sub-patch gating inside ``apply()``
+    # then selects which sub-patch actually applies. Before this fix the alias
+    # was honored only by config-key coverage, NOT by ``should_apply``; an
+    # operator who set only the alias flag (primary unset) saw
+    # ``should_apply``=False, so the merged module silently skipped in the
+    # spec-driven path while the legacy boot loop (which calls apply()
+    # unconditionally) applied it — a real legacy-vs-spec parity divergence.
+    # A disabled alias does NOT engage the module (its sub-patch is gated off
+    # internally); a primary-level disable still hard-offs the whole module.
+    if not env_truthy:
+        for _alias in (meta.get("env_flag_aliases") or ()):
+            _abare = _bare(_alias)
+            if _env_is_enabled(_abare) and not _env_is_disabled(_abare):
+                env_truthy = True
+                break
+
     return env_truthy, env_disabled, bare_flag, env_flag
 
 
