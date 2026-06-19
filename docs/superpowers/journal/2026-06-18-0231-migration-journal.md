@@ -1203,3 +1203,24 @@ free win — surfaced as a product/profile decision. Kept PN95 ON (the 280K-capa
 a dedicated short-context speed profile could set GENESIS_ENABLE_PN95_TIER_AWARE_CACHE=0 (+ a lower
 max-model-len) for the +2%. Cluster of single-stream-vs-context levers now: PN95-off +2%, Gemma-31B
 kv-auto +70%, all trading long-context for speed — operator decides the context floor.
+
+## 38. max_num_seqs=1 dead-end → independent single-stream speed space EXHAUSTED
+
+A/B 35B K=5 (brp0u9mmz): seqs=2 = 245.1 TPS / TPOT 3.88 (clean CV 5.6%); seqs=1 = BOOT-FAIL ("Engine
+core initialization failed" — MTP K=5 + FULL cudagraph appears to require max_num_seqs>=2 for the
+spec-verify batch / capture set; same generic init-fail class as the 35B K=4/K=6 boot-fails). The study
+predicted seqs->1 was "neutral-to-tiny-positive" anyway, so this is not a lost win — just an unusable
+lever. seqs=2 stays.
+
+CONVERGENCE: the independent (no-tradeoff) single-stream speed levers are now EXHAUSTED across the
+fleet —
+  * K=5 MTP re-tune: the ONE big free win (35B +19.6% / 27B +8.2%, committed cff92740). ✓
+  * PN95 tier-cache: +2% but a context tradeoff (caps 280K offload). User decision.
+  * max_num_seqs->1: unusable (boot-fails). Dead.
+  * gpu_mem: not a speed lever (context/safety headroom).
+  * VLLM_TQ_DECODE_NUM_WARPS: speed-neutral (journal §10).
+The remaining speed gains ALL require context tradeoffs the operator must decide: PN95-off (+2%, -280K),
+Gemma-31B kv-auto (+70%, 64K->32K). Plus PN394/PN399 PROD promotion (correctness, validated). Kernels
+are at the SM 8.6 frontier (sibling-engine study §28). No further free speed exists to find — the
+campaign has converged. Honest stop point: deliver the K=5 win + the measured tradeoff menu, await the
+operator's context-floor decisions.
