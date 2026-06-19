@@ -3726,7 +3726,21 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         ),
         "upstream_pr": 45252,
         "upstream_pr_relationship": "backport",
-        "applies_to": {},
+        "applies_to": {
+            # vllm#45252 / GHSA-33cg-gxv8-3p8g MERGED upstream at/before
+            # b4c80ec0f (dev148): _init_mrope_positions now derives a non-None
+            # input_tokens (range(prompt_embeds.shape[0]) for embeds-only) and
+            # raises a per-request ValueError instead of the fatal assert — the
+            # DoS is closed BY THE ENGINE. Cap <0.23.0 so PN252 version-gate-
+            # skips cleanly on dev148+ (was an incidental anchor-miss skip
+            # because it had no cap) while still auto-applying (default_on) on
+            # rollback pins <0.23.0 where the buggy assert remains. Verified
+            # 2026-06-19: engine fix present at gpu_model_runner.py:1648/1652;
+            # both PN252 required anchors count=0 on dev148 (self-skip, no
+            # interim risk). Lower bound >=0.20.0 matches the sibling host-side
+            # parser/worker patches (P61b/PN56/PN287).
+            "vllm_version_range": (">=0.20.0", "<0.23.0"),
+        },
         "apply_module": "sndr.engines.vllm.patches.worker.pn252_mrope_prompt_embeds_dos",
         "lifecycle": "experimental",
         "implementation_status": "full",

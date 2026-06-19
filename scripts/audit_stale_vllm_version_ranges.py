@@ -70,9 +70,11 @@ DEFAULT_PIN = "0.23.1rc1.dev101+g4c6266331"  # pin-bump candidate 2026-06-17 (wa
 #   3. Remove the patch ID from this set + add a one-line "verified
 #      on pin <X> via bench <Y>" note in commit message.
 _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
-    # Default-on (always-skip without env override) — currently 0
-    # entries; legacy `legacy`/`retired` lifecycles are filtered out
-    # by `_audit` so do not appear here.
+    # Default-on (always-skip without env override) — exactly 1 entry:
+    # PN252 (security; see its note at the end of this set — kept default_on
+    # to protect by default on rollback pins, engine-superseded on 0.23.x).
+    # legacy `legacy`/`retired` lifecycles are filtered out by `_audit` so do
+    # not appear here.
     #
     # v11.3.0 BUG #14 follow-through (commit pending): empirically
     # verified on rig 0.21.1rc1 via direct apply() probe — 17 of the
@@ -181,6 +183,18 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
               # #45413/#45588 restructured the target; native parser supersedes.
     "PN287",  # qwen3_coder/qwen3_xml args-validity observer — wraps the
               # Qwen3CoderToolParser/Qwen3XMLToolParser DELETED by #45588.
+    # The ONE default_on=True allowlist entry (see the "Default-on" note at the
+    # top of this set). PN252 is a SECURITY patch (M-RoPE prompt_embeds-only DoS,
+    # GHSA-33cg-gxv8-3p8g) — kept default_on so it protects by default on every
+    # rollback pin <0.23.0 where the buggy fatal assert still exists. vllm#45252
+    # MERGED at/before b4c80ec0f (dev148): _init_mrope_positions now derives a
+    # non-None input_tokens (range over prompt_embeds for embeds-only) + raises a
+    # per-request ValueError instead of the fatal assert — the DoS is closed by
+    # the engine, so PN252's anchors are correctly absent on 0.23.x and it
+    # version-gate-skips. Cap <0.23.0 + this allowlist entry are the intentional,
+    # verified-2026-06-19 record (engine fix at gpu_model_runner.py:1648/1652).
+    # Skip 0.23.x, apply <0.23.0 (dev259/dev491 rollback).
+    "PN252",
 })
 
 
