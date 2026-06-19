@@ -2030,6 +2030,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "related_upstream_prs": [],
     },
     "PN90": {
+        "vllm_version_range": (">=0.20.0", "<0.22.0"),  # retired-provenance drift cap (native vllm#40269 (dev371+))
         "title": "Probabilistic draft rejection (vllm#40269 backport) — propagate draft_probs to verifier",
         "tier": "community",
         "family": "spec_decode",
@@ -2168,6 +2169,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "SNDR_MTP_DYNAMIC_K_001": {
+        "vllm_version_range": (">=0.20.0", "<0.23.0"),  # retired-provenance drift cap (native vllm#32374 in dev148)
         "title": "SNDR-MTP-DYNAMIC-K-001 — adaptive K MTP proposer (vllm#26504 port to DraftModelProposer base)",
         # Phase 10.5 edition-boundary fix (2026-06-01): tier corrected
         # from 'engine' to 'community'. P0-3/P0-4 audit (2026-05-08)
@@ -4360,6 +4362,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
     },
     "PN22": {
+        "vllm_version_range": (">=0.20.0", "<0.23.0"),  # retired-provenance drift cap (superseded; obsolete on dev148)
         "title": "Local argmax for TP draft (vllm#39419 backport)",
         "tier": "community",
         "family": "spec_decode",
@@ -5184,6 +5187,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "composes_with": ["PN59", "P103", "PN29", "PN106", "PN298", "PN299", "PN345", "PN350"],
     },
     "PN396": {
+        "vllm_version_range": (">=0.20.0", "<0.23.0"),  # retired-provenance drift cap (GDN spec-decode num_warps dead-end; n/a on dev148)
         "title": "GDN spec-decode recurrent kernel num_warps 4->1 (SM 8.6 row-per-thread reduction)",
         "tier": "community",
         "family": "attention.gdn",
@@ -9238,6 +9242,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration"]},
     },
     "G4_24": {
+        "vllm_version_range": (">=0.20.0", "<0.23.0"),  # retired-provenance drift cap (native softcap LogitsProcessor in-pin)
         "title": "Fused softcap Triton kernel route for Gemma 4 (FINAL logits only; G4_24b will cover attention)",
         "tier": "community",
         "family": "gemma4",
