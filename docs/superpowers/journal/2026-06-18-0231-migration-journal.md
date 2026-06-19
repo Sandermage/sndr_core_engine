@@ -1264,3 +1264,23 @@ CONCLUSION: K=5 is safe under all concurrency for our SM 8.6 + non-FlashInfer-GD
 Watchlist-noted #37052 (not-applicable, revisit ONLY if flashinfer_gdn ever flips True on newer HW).
 Other scan hits for the watchlist (lower priority, monitor): #45477 (mamba-block-aligned prefill chunks
 + spec decode — our PN388 area), #45953 (Dynamic SD + Full Cudagraph), #45144 (MTP+fp8KV+AITER SKV).
+
+## 41. #45477 (mamba prefix-cache poison) + #45953 verified — NOT exposed (APC off); scan complete
+
+Loop scan continued. #45477 (OPEN, "keep intermediate prefill chunks mamba-block-aligned with spec
+decode") = the bug our PN388 ("vendor of vllm#45477", default_on=False, requires P34) fixes. A prior
+private research doc (2026-06-17) flagged this CRITICAL: "PN388 vendored but default-OFF → APC+MTP
+prefix-cache poison live on PROD". VERIFIED the exposure gate on live dev148: **--enable-prefix-caching
+is OFF on BOTH Qwen launchers** (grep count 0, live /proc/1/cmdline carries no APC flag, no APC log).
+The #45477 poison requires APC (automatic prefix caching) ON to corrupt the cached mamba state at a
+mid-block split — with APC OFF the intermediate-chunk split is never cached, so the bug CANNOT trigger.
+PN388 default-OFF is therefore CORRECT for the current config (no exposure). DEPENDENCY documented for
+the future: if APC (--enable-prefix-caching) is EVER enabled on the Qwen hybrid models (e.g. a TTFT
+profile), PN388 MUST be enabled with it (after its async-ON boundary-timing A/B) or APC+MTP will poison
+the mamba prefix cache. #45953 (Dynamic SD + Full Cudagraph) NOT applicable — we run STATIC MTP (fixed
+K), not dynamic SD.
+
+LOOP SCAN COMPLETE — all engine-github hits from the MTP/spec-decode/GDN sweep verified NOT-APPLICABLE
+to the live config: #37052 (flashinfer_gdn=False), #45477 (APC off), #45953 (static SD). The K=5 win is
+safe and the fleet carries no live latent regression from these. Disciplined Study->Verify cleared three
+scary-looking IMA/correctness reports without a false alarm or a missed risk.
