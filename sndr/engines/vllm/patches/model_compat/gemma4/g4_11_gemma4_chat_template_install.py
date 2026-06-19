@@ -98,13 +98,14 @@ _GEMMA4_TEMPLATE = """{# Genesis G4_11 enhanced Gemma 4 chat template (vendored 
 {{ message['content'] }}<end_of_turn>
   {%- elif message['role'] == 'assistant' -%}
     <start_of_turn>model
+{%- if message.get('content') -%}
+{{ message['content'] }}
+{%- endif -%}
 {%- if message.get('tool_calls') -%}
 {%- for tc in message['tool_calls'] -%}
 <function_call name="{{ tc['function']['name'] }}">{{ tc['function']['arguments'] | tojson }}</function_call>
 {%- set ns.last_tool_call_id = tc.get('id') -%}
 {%- endfor -%}
-{%- else -%}
-{{ message.get('content') or '' }}
 {%- endif -%}
 <end_of_turn>
   {%- elif message['role'] == 'tool' -%}

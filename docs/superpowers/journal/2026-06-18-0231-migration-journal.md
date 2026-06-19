@@ -1310,3 +1310,21 @@ DiffusionGemma has no spec lever. NOTE: the rig launcher kept --attention-backen
 of the proven sweep; self-skips on the non-TQ dtype → standard attention; validated 67.92 TPS); the
 profile YAML composes to engine-default — both valid, regenerate the launcher from the profile for full
 consistency at the next render.
+
+## 43. G4_11 Gemma chat-template — assistant content+tool_calls was DROPPED (fix, found via #42776)
+
+Loop Gemma-4 scan surfaced vllm#42776 (OPEN, "Gemma 4 Template Content + Tool Rendering" — fixes
+content/tool_calls ORDERING in the upstream tool_chat_template_gemma4.jinja). Three of its four fixes are
+specific to the upstream <|turn>/<channel> template format and NOT applicable (our G4_11 installs its OWN
+standard-Gemma <start_of_turn>/<function_call> template). BUT the core bug IS in our template — and worse
+than the upstream ordering issue: G4_11's assistant turn used an if/ELSE (tool_calls XOR content), so an
+assistant message carrying BOTH visible content AND tool_calls (the common OpenAI-style multi-turn
+agentic shape, e.g. {"role":"assistant","content":"Let me check","tool_calls":[...]}) rendered ONLY the
+tool_calls and SILENTLY DROPPED the content — the model loses its own prior reasoning/context in the
+re-rendered history. FIX: render content (if present) THEN tool_calls (if present) — both, content first,
+matching #42776's intent + the model's natural emission. Validated by local jinja2 render of all 4 cases:
+content-only OK, tool_calls-only OK, BOTH now shows "Let me check that for you<function_call...>"
+(content present=True + content-before-toolcall=True), neither OK; jinja parses. Only multi-turn history
+is affected (single-turn tool-call, already 7/7, is unchanged — the template renders PRIOR turns, not the
+generation). Gates: doctor ERROR=0, make evidence 63/63, pytest dispatcher pass. A rig multi-turn
+tool-call validation on a Gemma boot would fully confirm end-to-end (deferred — PROD is the Qwen 35B).
