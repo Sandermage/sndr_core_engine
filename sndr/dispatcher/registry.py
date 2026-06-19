@@ -747,6 +747,19 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "spec_decode",
         "credit": "Genesis-original (port of SGLang adaptive_spec_params.py EMA+hysteresis Apache-2.0 + Nightjar arXiv 2512.22420 auto-disable extension). Targets free-form ngram pathology (46 tok/s).",
         "upstream_pr": None,
+        "applies_to": {
+            # 2026-06-19 drift audit: the engine CHANGED the NgramProposer.propose()
+            # API on 0.22.x — propose() now takes an explicit first positional
+            # `num_speculative_tokens: int` (+ `assert num_speculative_tokens <=
+            # self.k` + `batch_propose(..., k)`), so K flows per-call instead of via
+            # `self.k`. P77's "override self.k then restore" mechanism is anchor-dead
+            # AND partly defeated by the new fixed-width valid_ngram_draft buffers.
+            # Re-engaging would be a REWRITE, not a re-anchor. Capped <0.22.0 (the
+            # signature change predates the dev148 pin); the adaptive-K idea is still
+            # valid but must be re-authored against the per-call-K API before lifting.
+            # default_off + in zero builtin YAMLs, so no runtime change.
+            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+        },
         "apply_module": "sndr.engines.vllm.patches.spec_decode.p77_adaptive_ngram_k",
         "lifecycle": "experimental",
         "implementation_status": "full",
@@ -4960,6 +4973,18 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": None,
         "applies_to": {
             "tool_call_parser": "qwen3_coder",
+            # 2026-06-19 drift audit: 0.23.x (#45413/#45588 parser reorg era)
+            # SIMPLIFIED the streaming finish_reason block — the harmony
+            # OR-clause + both use_harmony/harmony_tools_streamed vars were
+            # removed, so PN288's dev259-era harmony anchor is count=0 on dev148
+            # (genuine drift). Capped <0.23.0: PN288 stays valid on pre-0.23
+            # rollback pins (where its anchor matches) and version-gate-skips
+            # cleanly on dev148. The load-bearing sibling P107 is dual-anchor and
+            # already handles dev148; PN288 is the UNUSED dry-run companion
+            # (default_off, in zero builtin YAMLs), so no runtime change. Bring
+            # to dev148 as a net-new dual-anchor patch only if the malformed-args
+            # downgrade is ever wanted on 0.23.x (re-author, not re-anchor).
+            "vllm_version_range": (">=0.20.0", "<0.23.0"),
         },
         # Apply-order chain (2026-06-11, pin 0.22.1rc1.dev259 re-anchor):
         # P107 v3's streaming anchor spans the same pristine finish_reason
@@ -8015,6 +8040,18 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "category": "kernel_perf",
         "credit": "Pre-dispatcher legacy patch. Splits GDN in_proj across two CUDA streams so q/k/v projections overlap. Validated +8% decode on 35B.",
         "conflicts_with": ["P7b", "PN204"],  # PN204 = port of vllm#42301, same site as P7
+        "applies_to": {
+            # 2026-06-19 drift audit: superseded by PN204 (port of vllm#42301 —
+            # same forward_cuda Part-1 in_proj site, but compile-safe via the native
+            # maybe_execute_in_parallel at utils/multi_stream_utils.py). P7 can never
+            # apply on dev148: its raw torch.cuda.Stream apply() is deferred under
+            # torch.compile, the #41126 gdn module split moved the anchored region
+            # (8-space, no hasattr branch), and all 5 builtin YAMLs set
+            # GENESIS_LEGACY_P7:'0'. Sibling P7b is already retired -> PN204 for the
+            # identical reason. Cap off 0.22.1rc1.dev259+ (where PN204 became the
+            # chosen path). legacy lifecycle is exempt from the stale-range gate.
+            "vllm_version_range": (">=0.20.0", "<0.22.1rc1.dev259"),
+        },
         "implementation_status": "full",
     },
     "P7b": {
