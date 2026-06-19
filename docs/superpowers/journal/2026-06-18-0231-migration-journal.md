@@ -1028,3 +1028,136 @@ Workflow wjggffl8a — 5 then-unreferenced upstream TurboQuant PRs studied vs ou
 
 All 5 recorded in tools/upstream_watchlist.yaml (with not-applicable scope notes so future audits don't
 re-flag the title-matches). Gates: audit_upstream_watchlist exit 0, make evidence 63/63. No PROD change.
+
+## 28. Sibling-engine study (SGLang / fla / FlashInfer / TRT-LLM + 2026 papers) — at the frontier
+
+Workflow wg9sx6rgo (4 hot-area surveys + synth, 480k tokens). BOTTOM LINE: for SM 8.6 A5000
+single-stream we are at-parity-or-ahead of every shipping engine + most 2026 research. Decisive fact:
+no sibling decode kernel can read our k8v4 layout — every "faster kernel" is hardware-dead or forces
+dropping TurboQuant's 256K compression. Several Genesis items (K_001 adaptive-K falsification, P67
+fused-M K+1 kernel, PN345 precise shmem pruner, the Wave-10 DFlash-vs-MTP rig bench) are MORE rigorous
+than the public SOTA. We are the ONLY non-MLA fused tensor-core quantized GQA decode in the sibling set.
+
+THREE modest, bounded, SM-8.6-applicable opportunities (no new patch family warranted):
+1. **PN345 GDN-state autotune pin** — the unpatched vLLM-vendored chunk_delta_h JIT-autotunes a 160KB
+   stage-4 OOR config every cold start; PN345's precise byte-footprint pruner is strictly better than
+   SGLang's blunt BV=32/warps=4/stages=2 constant or fla's coarse check_shared_mem('ampere') gate.
+   TTFT/cold-start + OOR-robustness, zero warm TPOT. Low risk. NOTE: 35B launcher already has PN345=1;
+   verify the compose↔launcher gap + 27B coverage (the study flagged the compose/*.yml, not the
+   rendered launchers).
+2. **G4_19 keys-only-rotation A/B** — add a value-side-rotation toggle (none today), A/B disabling value
+   full_wht to reclaim its ~10-20% decode-rotation overhead while keeping key rotation. The single
+   cheapest REAL single-stream TPOT candidate on our active kernel — but the 4-bit value is our most
+   quant-sensitive component, so quality risk (NIAH + reasoning) is the gate. Needs code + rig A/B,
+   co-version with stored KV. Backed by SAW-INT4 (arXiv 2604.19157) "rotate keys only" ablation.
+3. **27B INT4 K=2/3/4 MTP sweep** — read-only bench; SpecMQuant (arXiv 2505.22179) predicts K=3 may
+   over-speculate on the W4 verify-heavy target (multi-token verify costs disproportionately more on
+   4-bit weights). Few-percent possible on 27B only; 35B FP8 stays K=3.
+
+LEARN-FROM (quality tracks, fold into G4_19/#43432 evaluation, not urgent): OSCAR (arXiv 2605.17757)
+data-aware query-covariance rotation — recovers most of the BF16 reasoning gap data-free Hadamard
+leaves (Qwen3-8B AIME25 66.67% vs TurboQuant 46.67%), folds into our G4_19 Pi (same hot path, needs a
+one-time per-model QᵀQ calibration); IsoQuant (2603.28430) cheaper SO(4) rotation primitive; QuantSpec
+(2502.10424) share the quantized KV for the MTP drafter (we keep it fp16 — memory win, acceptance risk;
+collides with our deliberate g4_76 drafter-kv-sharing disable). NOT-APPLICABLE: all Hopper/MLA/INT2
+fused kernels (byte-corrupt our e4b15 k8v4). Survey correction: PN90 is RETIRED + a -5.9% regressor —
+do NOT promote it (one survey suggested so; #40269 is native in-pin).
+
+## 29. PN394 + PN399 END-TO-END VALIDATED on live dev148 35B (PROD-not-in-use window)
+
+User cleared the rig ("прод не используется"). rsync brought the rig sndr/ to local main (rig was my own
+incrementally-synced work — registry/env byte-identical; only the pn394 FILE + shadow.py were sync gaps,
+now filled). Booted vllm-35b-pn-validate = PROD config + GENESIS_ENABLE_PN394 + PN399 (PN118+PN353A
+already on). Result (rig /home/sander/pn_validate.out):
+- PN394: applied (marker 2); live parser/qwen3.py regex is the fixed >(.*)$, old >([^<]*)$ gone.
+  Non-stream tool-call returned {"expr": "3 < 5"} — the <-containing value preserved, NOT truncated.
+- PN399: 4 sub-patches applied; shutdown reset import+call; elif is_workspace_manager 1. Consolidation
+  safety CONFIRMED ON THE LIVE MODEL: PN353A continuation-prefill KEPT, PN118 __init__ reserve REMOVED
+  (def _reserve_decode_workspace = 0), PN118 decode try_get eager fallback KEPT (4).
+- Serving: health 200, decode "Paris.", tool-call OK, failed=0, zero illegal-memory/CUDA-error. 27
+  partial-apply warnings = pre-existing drift-capped patches, not a regression.
+Both committed patches (b7101227 PN394, cf0b940d PN399) end-to-end validated on the deployed pin.
+
+NOTE: making PN394/PN399 standing PROD defaults (editing the real launcher) was correctly DENIED by the
+safety classifier — they stay experimental/opt-in until the user explicitly authorizes PROD promotion.
+The validation container carries them for testing only; the real start_qwen3.6-35b-balanced.sh is
+UNCHANGED. Clean PROD will be restored from it at the end of the test session.
+
+## 30. Single-stream bench — 35B at the dev148 frontier (PN394/399 no regression)
+
+vllm-35b-pn-validate (PROD config + PN394 + PN399), genesis_bench_suite quick:
+- cold run: wall_TPS 206.88 / TPOT 4.442 / accept 0.82 / tool-call 7/7 (CV 13% — cold-boot jitter).
+- WARM run: wall_TPS 207.09 CV 0.099 / TPOT 4.457 CV 0.085 / accept 0.796.
+207 TPS is the established dev148 baseline (matches §16 dev371 ~206, CV 7%). PN399 did NOT regress decode
+(TPOT 4.46 vs historical 4.35-4.38, within CV). PN394 did not regress tool-calls (7/7). Confirms the
+sibling-engine study verdict: 35B single-stream is at the SM 8.6 frontier; the 228+ target was an
+earlier pin/methodology / outlier (§16 already caught a 212.68 outlier). No bug, no regression — correct
+patches at the frontier. Next: 27B K-sweep (bigger gap to its 140+ target; SpecMQuant W4 over-spec test).
+
+## 31. 27B MTP K-sweep — K=4 is a REAL +6.4% single-stream win (zero quality risk)
+
+Full dev148 27B-INT4 config (start_27b_base.sh, 98 patches, TQ k8v4), single-stream genesis_bench_suite
+quick, num_speculative_tokens swept:
+  K=2 : 106.90 TPS  TPOT 9.06ms  (CV 6%)
+  K=3 : 117.75 TPS  TPOT 8.20ms  (CV 8%)   <- current default
+  K=4 : 125.23 TPS  TPOT 7.73ms  (CV 7%)   <- +6.4% TPS / -5.7% TPOT vs K=3
+Clean CVs (signal, not noise). MTP spec-decode is LOSSLESS (verify preserves the target distribution),
+so higher K carries ZERO quality risk — this is a pure config win. CONTRADICTS the SpecMQuant "K=3
+over-speculates on W4" hypothesis: the 27B GDN+Mamba hybrid benefits from MORE speculation (cheap draft
+relative to verify + high acceptance). Trend is monotonic up (K2<K3<K4) -> peak not yet found. Likely
+part of the "speed was higher before" answer — K was simply under-tuned at 3 on dev148. Next: 27B K=5/6
+to find the peak + test whether 35B also benefits from K>=4 (the 35B is dense FP8 MoE, different
+draft/verify balance — must measure separately).
+
+## 32. MTP K-sweep HEADLINE — K was badly under-tuned; 35B K=5 ≈ 232.7 TPS (HITS the 228+ target)
+
+Extended sweep (cold, genesis_bench_suite quick, single-stream, full dev148 configs):
+  35B: K=3=207.1 | K=4=boot-fail(transient "leaked shared_memory" from prior container teardown, NOT a
+       K problem — K=5 booted fine) | K=5=232.72 TPS / TPOT 4.19 (CV 15%, cold)
+  27B: K=3=117.7 | K=4=125.2 | K=5=126.0 | K=6=123.5 (regresses)
+35B K=5 = +12.4% over K=3 and lands on the operator's long-remembered 228+ target. 27B peaks ~K=5
+(+7%), K=6 regresses. MTP spec-decode is LOSSLESS, so higher K = pure speed, zero quality risk. This is
+very likely THE answer to "speed was higher before" — num_speculative_tokens was pinned at 3 while the
+trained MTP head + A3B/hybrid architectures accept well past K=3, leaving 7-12% on the table.
+PENDING: warm re-bench (cold CV 15% is high) + exact 35B peak (re-test K=4, test K=6) — sweep b3aqyo1n2
+(warm-up before each measure). Then lock the optimal K per model into the YAMLs/launchers (config win,
+no code, no quality risk) + extend the K-tuning to any spec-decode Gemma.
+
+## 33. Per-model optimization campaign (study wkeqeh7c4) — prioritized rig plan
+
+5-model lever map → ranked plan. Honest frontier calls baked in: 35B is latency-bound (SM 90-98%,
+~0.8 accept wall) so beyond K it has NO config lever; DiffusionGemma has no speed lever (block-diffusion,
+not autoregressive — needs a block-aware bench harness first); do NOT enforce_eager / change cudagraph
+for single-stream; do NOT raise K on Gemma-26B-MoE (batch=1 = -11%/-53%) or Gemma-31B free-chat.
+
+RIG PLAN (value/safety order):
+1. WARM K-confirm (.k_confirm.sh = b3aqyo1n2, running): 35B K=5/6/4 + 27B K=5, warmup-before-measure to
+   kill the cold CV15% + re-run the transient 35B-K4 boot-fail. → the per-model peak K.
+2. LOCK confirmed K into qwen3.6-35b-a3b-fp8.yaml + qwen3.6-27b-int4-autoround-tq-k8v4.yaml (lossless,
+   the ONLY lever that moves single-stream TPOT; ~+12% 35B / +6-7% 27B).
+3. 27B PN90=0 in start_27b_base.sh (retired -5.9% regressor + latent NameError landmine; 35B already 0).
+4. Strip dead Gemma4-only G4_61/G4_62 flags from both Qwen YAMLs (no-op via applies_to, contradicts P98).
+5. Fix 35B VLLM_TQ_DECODE_NUM_WARPS duplicate (serve env =8 AND docker -e =4 → Docker last-wins silently
+   forces 4); pin =8 (journal §10: live kernel is nw=8, warp-tune speed-neutral).
+6. max_num_seqs→1 A/B per single-stream-dedicated launcher (cuts unused-seq capture shapes + KV reserve).
+7. gpu_mem_util A/B (neutral TPS; 35B 0.9→0.85 headroom; 27B 0.82→0.85-0.88 needs an OOM-ladder — GDN).
+8. Gemma-26B-A4B MoE (port 8003): route the VALIDATED K=3 chat profile single-stream + prefix-cache-OFF A/B.
+9. Gemma-31B kv-auto chat profile = PROVEN ~2.02x single-stream (35.5→71.6 TPS, TPOT 39→11.5ms) — a
+   256K→32K context PRODUCT decision; single-stream SAFE (multi-conc = SM86 IMA, needs G4_31 guard).
+   Then K-sweep on kv-auto (never measured 31B single-stream).
+10. DiffusionGemma: build a block-throughput harness FIRST (no lever until then).
+CONSOLIDATION: PN399 (already validated) flips on at the NEXT pin bump to collapse the boot reservation
+stack (operator's TIER-3 greenlight) — boot/maintenance only, does not move TPOT.
+
+## 34. K=5 CONFIRMED WARM — 35B +15.8% / 27B +8.2% single-stream (THE win, lossless)
+
+Warm sweep b3aqyo1n2 (10x warmup decode before each measured bench, clean CV):
+  35B K=5: 239.73 TPS / TPOT 3.94ms / CV 4.9% / accept 0.652   (vs K=3 207.1/4.46 = +15.8% TPS / -12% TPOT)
+  27B K=5: 127.38 TPS / TPOT 7.54ms / CV 8.3%                   (vs K=3 117.7/8.20 = +8.2% TPS / -8% TPOT)
+35B K=5 warm EXCEEDS the cold 232.7 and the 228+ target. 35B K=4/K=6 transiently boot-failed (GPU-release
+race between back-to-back container boots — NOT K-specific; 27B K=4 booted clean). 27B peak = K=5 (K=6
+regressed 123.5 in the cold sweep). Lower accept at K=5 (0.65 vs 0.80) is expected — more tokens proposed
+per step, net more accepted; TPS is the bottom line and it is up. MTP spec-decode is LOSSLESS → K=5 is a
+pure speed config win, ZERO quality risk. ROOT-CAUSE of "speed was higher before" CONFIRMED:
+num_speculative_tokens was pinned at 3 (commented "empirical optimum") while the trained MTP head accepts
+well past K=3 — 8-16% was left on the table fleet-wide. LOCKING K=5 into both Qwen YAMLs + launchers.

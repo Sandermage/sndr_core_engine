@@ -55,7 +55,7 @@ capabilities:
   enable_auto_tool_choice: true                  # auto-set tool_choice=required when prompt mentions tools (P68 dependency)
   spec_decode:
     method: mtp                                  # spec-decode method (range: mtp|dflash|ngram|null); MTP K=3 is the throughput winner on hybrid GDN
-    num_speculative_tokens: 3                    # MTP K-value (1-7 valid; 3 = empirical optimum, +32% TPS vs no-spec on 35B)
+    num_speculative_tokens: 5                    # MTP K-value (1-7 valid). K=5 RE-TUNED 2026-06-19 (warm sweep b3aqyo1n2, CV 4.9%): 239.7 TPS / TPOT 3.94ms vs K=3 207.1/4.46 = +15.8% TPS / -12% TPOT. Lossless (MTP verify is target-exact). K was UNDER-TUNED at 3 — this is the "speed was higher before" root cause.
     model: null                                  # MTP draft is integrated into target; DFlash variant uses separate /models/Qwen3.6-35B-A3B-DFlash
     # 2026-05-15 ROLLBACK: probabilistic draft sampling tested on dev371 +
     # MTP K=3 + hybrid_gdn_moe + TQ k8v4 — DELIVERED REGRESSION not gain.

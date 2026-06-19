@@ -58,7 +58,7 @@ capabilities:
   enable_auto_tool_choice: true                  # P68/P69 dependency — auto tool_choice on tool-mention prompts
   spec_decode:
     method: mtp                                  # MTP K=3 throughput winner on hybrid GDN (range: mtp|dflash|ngram|null)
-    num_speculative_tokens: 3                    # MTP K-value (1-7 valid; 3 optimal on 27B Lorbus)
+    num_speculative_tokens: 5                    # MTP K-value (1-7 valid). K=5 RE-TUNED 2026-06-19 (warm sweep b3aqyo1n2, CV 8.3%): 127.4 TPS / TPOT 7.54ms vs K=3 117.7/8.20 = +8.2% TPS / -8% TPOT. Lossless. Peak at K=5 (K=4=125.2, K=6 regresses to 123.5).
     model: null                                  # integrated MTP draft (DFlash uses separate /models/Qwen3.6-27B-DFlash drafter)
   kv_cache_dtype: turboquant_k8v4                # TQ k8v4: ~2× KV concurrency vs fp16, +91% TPS vs fp8_e5m2 (Wave 9 win)
 
