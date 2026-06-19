@@ -5,14 +5,14 @@
 # Genesis vLLM Patches
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![vLLM pin](https://img.shields.io/badge/vllm-0.22.1rc1.dev491+g1033ffac2-orange.svg)](https://github.com/vllm-project/vllm)
+[![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev148+gb4c80ec0f-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/registry-319%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class
 inference on consumer NVIDIA Ampere / Ada / Blackwell with TurboQuant k8v4 KV
-cache, MTP K=3 spec-decode, tool-calling, and 256K-class context. 317 patches
+cache, MTP K=5 spec-decode, tool-calling, and 256K-class context. 319 patches
 across 27 families. Apache 2.0.**
 
 ---
@@ -33,13 +33,13 @@ underlying fix.
 ## Headline numbers (v12.0.0 current registry)
 
 Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6), driver 580.142,
-CUDA 13.0.2, MTP K=3 + TurboQuant k8v4, TP=2.
+CUDA 13.0.2, MTP K=5 + TurboQuant k8v4, TP=2.
 
 | Model | Stock vLLM | Genesis (v12.0.0) | Δ |
 | --- | ---: | ---: | ---: |
-| Qwen3.6-35B-A3B-FP8 (single-conc) | ~157 t/s | **216 t/s** | +38 % |
-| Qwen3.6-35B-A3B-FP8 (8-way multi-conc) | n/a | **~675 t/s agg** | 3.21× scaling |
-| Qwen3.6-27B-int4-AutoRound | ~87 t/s | **133 t/s** | +52 % |
+| Qwen3.6-35B-A3B-FP8 (single-conc, K=5) | ~157 t/s | **239.7 t/s** | +53 % |
+| Qwen3.6-35B-A3B-FP8 (8-way multi-conc, K=3) | n/a | **~675 t/s agg** | 3.21× scaling |
+| Qwen3.6-27B-int4-AutoRound (single-conc, K=5) | ~87 t/s | **127.4 t/s** | +46 % |
 | Tool-call clean rate (35B / 27B) | 2–6 / 10 | **7/7 · 8/8** | qualitative |
 
 256K context hardware-verified on both models. Full methodology, historical
@@ -48,21 +48,24 @@ comparisons, and per-rig reproduction recipes:
 
 ![Sustained TPS — Genesis vs stock](assets/charts/tps_genesis_vs_stock.png)
 
-### Latest rig validation — 2026-06-17 (pin `0.22.1rc1.dev491+g1033ffac2`)
+### Latest rig validation — 2026-06-19 (pin `0.23.1rc1.dev148+gb4c80ec0f`)
 
-Full model-cycle re-test on the reference 2× A5000 rig after syncing it to the current
-source tree. Each model boots the Genesis apply pipeline, applies its patch set, and is
-benchmarked / smoke-tested live (`tools/genesis_bench_suite.py`, 5×5×1024-token sustained).
+Full model-cycle re-test on the reference 2× A5000 rig after the MTP K=3→K=5 re-tune and the
+dev148 pin promotion. Each model boots the Genesis apply pipeline, applies its patch set, and is
+benchmarked / smoke-tested live (`tools/genesis_bench_suite.py`, single-stream warm sweep). The
+35B / 27B single-stream rows are the K=5 re-tune numbers; Gemma stays K=3 (its separate drafter
+is optimal at K=3). `dev101` is retained as the previous / rollback pin.
 
 | Model | Quant / KV | Patches | Decode TPS | Tool-call | Status |
 | --- | --- | ---: | ---: | :---: | --- |
-| Qwen3.6-35B-A3B-FP8 | FP8 dense · TQ k8v4 · MTP K=3 | 95 | **208.7** (CV 9.5 %) | 7/7 | ✅ serving — no regression |
-| Qwen3.6-27B-int4-AutoRound | INT4 AutoRound · TQ k8v4 · MTP K=3 | 93 | **120.3** (CV 4.1 %) | 7/7 | ✅ serving — no regression |
+| Qwen3.6-35B-A3B-FP8 | FP8 dense · TQ k8v4 · MTP K=5 | 95 | **239.7** (CV 4.9 %) | 7/7 | ✅ serving — +15.8 % vs K=3 |
+| Qwen3.6-27B-int4-AutoRound | INT4 AutoRound · TQ k8v4 · MTP K=5 | 93 | **127.4** (CV 8.3 %) | 7/7 | ✅ serving — +8.2 % vs K=3 |
 | Gemma-4-31B | INT4 · TQ k8v4 · MTP K=3 | 81 | — | — | ⚙️ boots + patches apply; serving needs MM-budget config (multimodal-bidirectional × spec-decode) |
 | DiffusionGemma-26B-A4B-FP8 | FP8-dynamic · block-diffusion · TP=2 | 45 | coherent | — | ✅ **serving at TP=2** — `PN-FP8MOE-KPAD` (Marlin N=352) + `G4_26` (TP-vocab soft-embed); enforce-eager · max-num-seqs 2 · gpu-util 0.80 |
 
-The 35B and 27B reproduce their historical peak band (216 / 133 t/s) within CV →
-the v12 platform carries **no decode regression**. `PN-FP8MOE-KPAD` (backport of open vLLM
+The 35B and 27B clear their historical peak band — the K=5 re-tune lifts single-stream decode
+to 239.7 / 127.4 t/s (+15.8 % / +8.2 % vs K=3) within CV → the v12 platform carries **no decode
+regression**. `PN-FP8MOE-KPAD` (backport of open vLLM
 PR [#45703](https://github.com/vllm-project/vllm/pull/45703), model-agnostic Marlin-MoE
 intermediate-pad) plus `G4_26` (backport of [#45774](https://github.com/vllm-project/vllm/pull/45774),
 DiffusionGemma TP>1 vocab-sharded soft-embed all-gather) make

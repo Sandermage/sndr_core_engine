@@ -166,23 +166,90 @@ def parse_body(body: str) -> dict:
     """
     result: dict = {}
     for field in FIELDS:
-        # Match `"field": <value>` up to end-of-line (not greedy)
-        # Capture group 1 is the value portion
-        m = re.search(rf'"{field}":\s*(.+?)$', body, flags=re.M)
+        # Match `"field":` and capture the start of the value. The value
+        # itself may span multiple lines when it opens with `(` (an
+        # implicit string-concatenation literal, e.g. PN399's title), so
+        # we capture from `:` to end-of-string and decide below.
+        m = re.search(rf'"{field}":\s*(.+)$', body, flags=re.M | re.S)
         if not m:
             result[field] = None
             continue
-        val = m.group(1).strip()
-        # Strip trailing inline comment ` # ...`
+        rest = m.group(1)
+        val = _first_value(rest)
+        # Strip trailing inline comment ` # ...` (only meaningful for the
+        # single-line case; the balanced-paren reader already stops at
+        # the closing `)`).
         val = re.sub(r'\s+#.*$', '', val).strip()
         # Strip trailing comma
         val = val.rstrip(",").strip()
-        # Try to evaluate as Python literal
+        # Try to evaluate as Python literal (handles a `( "a" "b" )` block
+        # as implicit string concatenation).
         try:
             result[field] = ast.literal_eval(val)
         except (ValueError, SyntaxError):
             result[field] = val  # Keep raw if can't eval
     return result
+
+
+def _first_value(rest: str) -> str:
+    """Return the value token that follows a `"field":` match.
+
+    `rest` is everything from the value start to end-of-body. If the value
+    opens with `(`, read the full paren-balanced (possibly multi-line)
+    literal so an implicit string-concatenation title like::
+
+        "title": (
+            "part one "
+            "part two"
+        )
+
+    is captured whole rather than truncated to the bare `(`. Quotes and
+    `#` inside string literals are respected so a `#` or `)` inside the
+    text does not terminate the value early. Otherwise the value is the
+    single first line (the original end-of-line behavior).
+    """
+    stripped = rest.lstrip()
+    lead_ws = len(rest) - len(stripped)
+    if not stripped.startswith("("):
+        # Single-line value: take up to the first newline.
+        return rest[lead_ws:].split("\n", 1)[0].strip()
+
+    # Multi-line paren literal: scan for the balanced closing `)`,
+    # tracking string state so quotes / `#` / `)` inside a string don't
+    # confuse the depth counter.
+    depth = 0
+    i = lead_ws
+    in_str: str | None = None  # active quote char, or None
+    escaped = False
+    n = len(rest)
+    while i < n:
+        c = rest[i]
+        if in_str is not None:
+            if escaped:
+                escaped = False
+            elif c == "\\":
+                escaped = True
+            elif c == in_str:
+                in_str = None
+        else:
+            if c in ("'", '"'):
+                in_str = c
+            elif c == "(":
+                depth += 1
+            elif c == ")":
+                depth -= 1
+                if depth == 0:
+                    return rest[lead_ws:i + 1].strip()
+            elif c == "#":
+                # Comment outside a string — skip to end of line.
+                nl = rest.find("\n", i)
+                if nl == -1:
+                    break
+                i = nl
+                continue
+        i += 1
+    # Unbalanced — fall back to the original single-line behavior.
+    return rest[lead_ws:].split("\n", 1)[0].strip()
 
 
 def render_markdown(entries: dict[str, dict]) -> str:

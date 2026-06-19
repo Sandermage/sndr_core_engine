@@ -4,7 +4,7 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-19T09:24:42Z
+Generated: 2026-06-19T12:36:18Z
 Total entries: **319**
 
 ## Statistics
@@ -138,7 +138,7 @@ Total entries: **319**
 | **PN299E** | `community` | `experimental` | · | `GENESIS_ENABLE_PN299E` | — | KV cache writer arch-aware NUM_WARPS+NUM_STAGES cap (SM 8.6) |
 | **PN353A** | `community` | `experimental` | · | `GENESIS_ENABLE_PN353A` | [#44053](https://github.com/vllm-project/vllm/pull/44053) | TurboQuant MetadataBuilder workspace reserve (backport OPEN vllm#44053) |
 | **PN353B** | `community` | `experimental` | · | `GENESIS_ENABLE_PN353B` | [#43747](https://github.com/vllm-project/vllm/pull/43747) | TurboQuant prefill CUDA-graph capture safety (backport OPEN vllm#43747, close... |
-| **PN399** | `community` | `experimental` | · | `GENESIS_ENABLE_PN399_TQ_DECODE_SCRATCH_IMA` | [#46067](https://github.com/vllm-project/vllm/pull/46067) | ( |
+| **PN399** | `community` | `experimental` | · | `GENESIS_ENABLE_PN399_TQ_DECODE_SCRATCH_IMA` | [#46067](https://github.com/vllm-project/vllm/pull/46067) | Consolidated single-owner TurboQuant decode-scratch fixed-buffer — fix CUDA I... |
 | **G4_19** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | Genesis G4-TurboQuant KV cache for Gemma 4 (3/4-bit VQ, unlocks 256K context ... |
 | **G4_19B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | G4-TurboQuant KV spec integration with vLLM v1 _check_enough_kv_cache_memory |
 | **G4_19C** | `community` | `retired` | · | `GENESIS_ENABLE_G4_19C_ATTN_WRAP` | — | Round-trip K/V through G4-TurboQuant inside Gemma4Attention.forward |
@@ -257,7 +257,7 @@ Total entries: **319**
 | **PN346** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN346` | [#43650](https://github.com/vllm-project/vllm/pull/43650) | Mamba/GDN cache hit boundary fix for MTP + prefix caching (vendor of OPEN vll... |
 | **PN346B** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN346B` | [#45614](https://github.com/vllm-project/vllm/pull/45614) | Mamba/GDN + EAGLE/MTP + APC coordinator curr_hit_length clamp (coordinator ha... |
 | **PN382** | `community` | `experimental` | · | `GENESIS_ENABLE_PN382_DECODE_BENCH_HYBRID_FILL` | [#45080](https://github.com/vllm-project/vllm/pull/45080) | DecodeBenchConnector hybrid per-block KV fill (vendor of vllm#45080) |
-| **PN384** | `community` | `experimental` | · | `GENESIS_ENABLE_PN384_EAGLE_PREFIX_CACHE_PREFILL` | [#44986](https://github.com/vllm-project/vllm/pull/44986) | ( |
+| **PN384** | `community` | `experimental` | · | `GENESIS_ENABLE_PN384_EAGLE_PREFIX_CACHE_PREFILL` | [#44986](https://github.com/vllm-project/vllm/pull/44986) | PN384 — Eagle/MTP prefix-cache prefill fix (vendor of vllm#44986); thread ski... |
 | **G4_06** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0` | [#41944](https://github.com/vllm-project/vllm/pull/41944) | v_head_size=0 for k_eq_v attention layers (vendors vllm#41944) |
 | **G4_18** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE` | [#40391](https://github.com/vllm-project/vllm/pull/40391) | Per-layer KV cache page-size for 26B-A4B (vendors WIP vllm#40391) |
 
@@ -339,7 +339,7 @@ Total entries: **319**
 | **PN102** | `community` | `experimental` | · | `GENESIS_ENABLE_PN102_PARAM_POOL` | — | PrefetchOffloader pinned-allocator prewarm pool |
 | **PN104** | `community` | `experimental` | · | `GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT` | — | PN104 — redirect --cpu-offload-gb from UVA to Prefetch backend |
 | **PN105** | `community` | `experimental` | · | `GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT` | — | PN105 — PrefetchOffloader AutoRound INT4 compat (pin-assert relax) |
-| **PN383** | `community` | `experimental` | · | `GENESIS_ENABLE_PN383_OFFLOAD_MTP_EAGLE_GATE` | [#44784](https://github.com/vllm-project/vllm/pull/44784) | ( |
+| **PN383** | `community` | `experimental` | · | `GENESIS_ENABLE_PN383_OFFLOAD_MTP_EAGLE_GATE` | [#44784](https://github.com/vllm-project/vllm/pull/44784) | PN383 — KV-offload + MTP cuMemcpyBatchAsync segfault gate (vendor of vllm#447... |
 
 ### `quantization` (6)
 

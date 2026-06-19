@@ -194,8 +194,15 @@ _D7_PERMANENT_EXEMPT: frozenset[tuple[str, int]] = frozenset()
 _D8_PERMANENT_EXEMPT: frozenset[tuple[str, int]] = frozenset({
     # "> Previous v7.59 baseline (2026-04-28): vLLM dev212+g8cd174fa3 era —"
     # Explicit "Previous" prefix — historical baseline marker.
-    ("docs/CONFIGURATION.md", 37),
+    ("docs/CONFIGURATION.md", 42),
 })
+
+# The current canonical pin SHA. The D-8 stale-pin pattern uses `dev1\d+`
+# to catch pre-current dev1xx-era pins presented as current; the live
+# canonical pin (dev148+gb4c80ec0f, ratified 2026-06-19) also matches
+# `dev1\d+`, so its SHA is excluded via negative lookahead — it is the
+# current pin, not a stale one. Update this on each pin bump.
+_D8_CURRENT_PIN_SHA = "gb4c80ec0f"
 
 
 def _grep_with_allowlist(
@@ -260,7 +267,7 @@ def check_d7_no_stale_version_as_current(files: list[Path]) -> list[str]:
 
 
 def check_d8_no_stale_pin_as_current(files: list[Path]) -> list[str]:
-    """D-8: stale-as-current vLLM pin anchors.
+    r"""D-8: stale-as-current vLLM pin anchors.
 
     Flags pre-current pins (dev16, dev93, dev209, dev212) presented in
     current-state phrasings:
@@ -272,21 +279,28 @@ def check_d8_no_stale_pin_as_current(files: list[Path]) -> list[str]:
         current upstream-merge state)
       - "vLLM dev212+g..." in hardware "Primary tested" claim
 
-    The current canonical pin is `0.20.2rc1.dev371+gbf610c2f5` (per
-    docs/USAGE.md, docs/QUICKSTART.md, docs/BENCHMARKS.md). Pre-current
-    pins mentioned in historical context (CHANGELOG.md, docs/CREDITS.md,
-    or BENCHMARKS.md "Wave 7 / v7.72 (dev9) snapshot") are intentionally
-    allowed via file-level exempt OR by being phrased without
+    The current canonical pin is `0.23.1rc1.dev148+gb4c80ec0f` (per
+    docs/USAGE.md, docs/QUICKSTART.md, docs/BENCHMARKS.md). Its SHA is
+    excluded from the stale-pin pattern via `_D8_CURRENT_PIN_SHA` — it is
+    the active pin, not a stale one (it would otherwise match `dev1\d+`).
+    Pre-current pins mentioned in historical context (CHANGELOG.md,
+    docs/CREDITS.md, or BENCHMARKS.md "Wave 7 / v7.72 (dev9) snapshot") are
+    intentionally allowed via file-level exempt OR by being phrased without
     current-state markers.
 
-    Transition allowlist `_D8_TRANSITION_ALLOWLIST` suppresses the five
+    Transition allowlist `_D8_TRANSITION_ALLOWLIST` suppresses the
     known stale-as-current sites in docs/INSTALL.md and docs/PATCHES.md
     that `CONFIG-HYGIENE.docs-reconcile.1.MECHANICAL` will fix.
     """
+    # Exclude the current canonical pin SHA: dev148 matches `dev1\d+`, but
+    # it is the active pin (not stale), so a negative lookahead lets the
+    # legitimate current-state references through while still catching
+    # genuinely stale dev1xx-era pins.
+    nf = rf"(?!\d+\.\d+\.\d+rc\d+\.dev1\d+\+{re.escape(_D8_CURRENT_PIN_SHA)})"
     pat = re.compile(
-        r"currently\s+`?\d+\.\d+\.\d+rc\d+\.dev1\d+\+g"
-        r"|vllm==\d+\.\d+\.\d+rc\d+\.dev1\d+\+g"
-        r"|^#\s*vllm\s+\d+\.\d+\.\d+rc\d+\.dev1\d+\+g"
+        rf"currently\s+`?{nf}\d+\.\d+\.\d+rc\d+\.dev1\d+\+g"
+        rf"|vllm=={nf}\d+\.\d+\.\d+rc\d+\.dev1\d+\+g"
+        rf"|^#\s*vllm\s+{nf}\d+\.\d+\.\d+rc\d+\.dev1\d+\+g"
         r"|Not in nightly image as of dev\d+\+g"
         r"|vLLM\s+dev21[0-9]\+g[a-f0-9]+"
     )

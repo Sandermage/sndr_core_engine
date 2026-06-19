@@ -156,15 +156,15 @@ into the private maintainer tree; the audit gate
 [`audit_public_docs.py`](../scripts/audit_public_docs.py) enforces.
 Private evidence in a card is fine because cards live next to source.
 
-## Quick reference — 16 production-facing presets (23 carded total)
+## Quick reference — 17 production-facing presets (24 carded total)
 
-Manually curated from the cards (last refresh 2026-06-01). After
-CONFIG-UX.2b closure (2026-05-30), **all 23 builtin presets carry
-operator cards** (the 2 most recent — `prod-gemma4-26b-mtp-chat-k3`
-and `prod-gemma4-31b-tq-mtp-chat-k3` — landed 2026-06-01 as chat-K3
-mirror siblings of the K=4 structured-role presets):
+Manually curated from the cards (last refresh 2026-06-19). After
+CONFIG-UX.2b closure (2026-05-30), **all 24 builtin presets carry
+operator cards** (the most recent — `prod-gemma4-31b-kvauto-chat` —
+landed 2026-06-19 as the kv-auto high-throughput chat sibling of
+`prod-gemma4-31b-tq-mtp-chat-k3`):
 
-- 16 `production_candidate` — listed below by family
+- 17 `production_candidate` — listed below by family
 - 7 non-production (2 `qa`, 3 `example`, 1 `experimental`,
   1 `bench_pending`) — listed at the end of this section under
   [Non-production presets](#non-production-presets-7-carded)
@@ -217,6 +217,7 @@ future generator phase.
 | `prod-gemma4-31b-tq-default` ★default | 1 | 1..2 | throughput | Dense 31B, MTP off, broad workload coverage. |
 | `prod-gemma4-31b-tq-mtp-structured-k4` | 4 | 1 | structured_throughput | β'-A control: K=4 structured + acceptance artefact gate. |
 | `prod-gemma4-31b-tq-mtp-chat-k3` | 3 | 1..2 | throughput | K=3 chat-role mirror of `mtp-structured-k4`; serves free-chat + summarization + code-gen. |
+| `prod-gemma4-31b-kvauto-chat` | 3 | 1..2 | throughput | kv-auto (uniform fp16 KV, no TurboQuant), 32K ctx, MTP K=3. ~+70% chat TPS (70.1 vs TQ 41.4) and better tool-call (7/7 vs 6/7) than the TQ chat sibling, in exchange for 64K→32K context. `fallback_preset` → `prod-gemma4-31b-tq-mtp-chat-k3` for requests above 32K. |
 
 ### Non-production presets (7 carded)
 

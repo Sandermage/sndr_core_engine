@@ -61,15 +61,18 @@ requires:
 
 versions:
   genesis_pin_min: v12.0.0                               # G4_NN family lands in v12
-  vllm_pin_required: 0.23.1rc1.dev101+g4c6266331         # HELD pin (see pin_hold below) — NOT the rig-current 0.22.1 (303916e93); Gemma 4 native model_executor support validated on this baseline
+  vllm_pin_required: 0.23.1rc1.dev148+gb4c80ec0f         # PROMOTED 2026-06-19 (supersedes dev101+g4c6266331): K=5 + PN394/PN399 + Gemma kv-auto validated on dev148; dev101 = previous/rollback. Gemma 4 native model_executor + TURBOQUANT validated on dev148 (journal §20-COMPLETE: 31B health=200; §21 TQ A/B). Previous dev101 (nightly-4c626633) retained as rollback.
   # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
-  # to suppress the would-be ERROR for this row.
-  pin_hold: "TQ profile BLOCKED on the 0.22.1 pin: new upstream validity gate rejects
-    TURBOQUANT for mm models (supports_mm_prefix False + per-layer dtype) —
-    see journal 2026-06-11-fleet-validation. Degraded kv-auto/32K profile
-    validated at 78.4 TPS + tools 7/7, but THIS ModelDef prescribes
-    turboquant_4bit_nc + 65K which cannot boot. Holding 626fa9bb until the
-    G4 TQ mm_prefix unblock patch lands and validates."
+  # to suppress the would-be ERROR for this row while the ModelDef LEADS
+  # the hardware image during the dev148 promotion window.
+  pin_hold: "Gemma-4 31B AWQ TQ promoted to dev148 — the upstream TURBOQUANT
+    mm-model validity gate that BLOCKED it on the 0.22.1 era is cleared on
+    dev148 (journal §21 TQ A/B compiles + boots clean on A5000). The
+    ModelDef LEADS the shared a5000-2x hardware image, which still pins the
+    dev101 image (nightly-4c626633) until its dev148 @sha256: digest is
+    captured into the hardware YAML (R-PIN-2). The live launcher already
+    runs nightly-b4c80ec0f. Remove this hold + match the hardware image once
+    the dev148 digest lands; dev101 stays rollback."
   # Variant A migration (2026-05-20): old baseline at
   # tests/integration/baselines/gemma4_31b_awq_baseline.json was
   # captured with MTP K=4 ON; that file is now the (future) reference

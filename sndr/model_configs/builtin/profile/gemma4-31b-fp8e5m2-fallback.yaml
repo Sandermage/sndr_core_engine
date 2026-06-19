@@ -116,7 +116,7 @@ backend_plan:
 # explicit attempt to serve on the rig-current 0.22.1 pin, so it
 # overrides the pin requirement.
 versions_override:
-  vllm_pin_required: 0.23.1rc1.dev101+g4c6266331  # bumped -> 0.23.1 2026-06-17: 0.23.1 engine + patch set is fleet-validated (35B/27B/Gemma4-31B/DiffusionGemma, apply failed=0); this variant boot-validates on next launch.
+  vllm_pin_required: 0.23.1rc1.dev148+gb4c80ec0f  # PROMOTED 2026-06-19 (K=5 + PN394/PN399 + Gemma kv-auto validated on dev148); dev101 = previous/rollback. Engine + patch set fleet-validated on dev148 (35B/27B/Gemma4-31B/26B-MoE/DiffusionGemma boot apply failed=0); this variant boot-validates on next launch.
 
 # ─── Sizing override — restore toward the 256K published context ──────
 # Estimate basis (gemma4-31b-tq-default sizing history, bf16 KV):

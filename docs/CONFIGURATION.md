@@ -12,23 +12,28 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 >   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated),
 >   PN298/PN299 FLA arch-aware NUM_WARPS prune. Updated 2026-06-10 — counts
 >   auto-derived from ``PATCH_REGISTRY``.
-> - vLLM `0.22.1rc1.dev491+g1033ffac2` (bumped dev209→dev338→dev371→dev491;
->   canonical bench numbers below measured on dev93/dev209 — re-bench on
->   dev371 shows 35B sustained ~208-216 TPS at max_num_seqs=2 and ~689
->   aggregate at conc=8, both within CV of the dev209 baseline)
+> - vLLM `0.23.1rc1.dev148+gb4c80ec0f` (bumped dev209→dev338→dev371→dev491→dev101→dev148;
+>   `dev101` retained as previous / rollback pin per the ≤2-pin policy;
+>   canonical bench numbers below measured on dev93/dev209 — the dev148 MTP
+>   K=5 re-tune shows 35B sustained ~239.7 TPS single-stream at max_num_seqs=2
+>   and ~689 aggregate at conc=8 — both within CV of, or above, the baseline)
 > - PyTorch 2.11.0+cu130, Triton 3.6.0, CUDA 13.0.2
 > - **NVIDIA driver ≥ 580.126.09 REQUIRED** (570 → 3× slowdown)
 > - 2× RTX A5000 24 GiB (Ampere SM 8.6), TP=2
 >
 > **27B PROD**: Qwen3.6-27B-int4-AutoRound (Lorbus, hybrid GDN+Mamba) +
-> TurboQuant k8v4 + MTP K=3 + P67 multi-query kernel + P82=1+thr=0.1.
-> Canonical bench `genesis_bench_suite.py --quick --ctx 8k`:
+> TurboQuant k8v4 + MTP K=5 + P67 multi-query kernel + P82=1+thr=0.1.
+> MTP K=3→K=5 re-tune (2026-06-19, dev148): single-stream **127.4 TPS /
+> TPOT 7.54 ms** (+8.2 % vs K=3 117.7). Earlier canonical bench
+> `genesis_bench_suite.py --quick --ctx 8k` (K=3):
 > **wall_TPS 132.28 / decode_TPOT 7.31 ms / TTFT 100.9 ms / tool 8/8**.
 > `--max-model-len 131072` + `--max-num-batched-tokens 8192` (Wave 8 bump
 > from 4096 per scheduler warning).
 >
 > **35B PROD**: Qwen3.6-35B-A3B-FP8 (cyankiwi) + TurboQuant k8v4 +
-> MTP K=3 + P67 multi-query (NUM_KV_SPLITS=48). Sprint 1 canonical:
+> MTP K=5 + P67 multi-query (NUM_KV_SPLITS=48). MTP K=3→K=5 re-tune
+> (2026-06-19, dev148): single-stream **239.7 TPS / TPOT 3.94 ms**
+> (+15.8 % vs K=3 207). Earlier Sprint 1 canonical (K=3):
 > **wall_TPS 241.35 / decode_TPOT 3.85 ms / tool 7/7** (2026-05-09).
 > `--max-model-len 320000`.
 >
@@ -64,7 +69,7 @@ the script, or edit the script directly for permanent changes.
 |---|---|---|
 | GPU memory utilization | `0.90` | edit script `--gpu-memory-utilization` |
 | Max context length | `262144` (256K) | edit script `--max-model-len` |
-| Spec-decode method | `mtp` (K=3) | edit script `--speculative-config` |
+| Spec-decode method | `mtp` (K=5 on Qwen 35B/27B; Gemma drafter stays K=3) | edit script `--speculative-config` |
 | KV-cache dtype | `turboquant_k8v4` | edit script `--kv-cache-dtype` |
 | TP size | `2` | edit script `--tensor-parallel-size` |
 | Max num seqs | `2` | edit script `--max-num-seqs` |
@@ -261,13 +266,13 @@ response, with TTL and weighted hit-rate metrics.
 
 ## Known config interactions (operator gotchas)
 
-### `--enable-prefix-caching` + TurboQuant + MTP K=3 long-context
+### `--enable-prefix-caching` + TurboQuant + MTP (K=5 on Qwen) long-context
 
 If your config has all of:
 
 - `--enable-prefix-caching` set
 - `--kv-cache-dtype turboquant_*` (k8v4, 3bit_nc, etc.)
-- `--speculative-config '{"method": "ngram"}'` with K=3 or `mtp` K=3
+- `--speculative-config '{"method": "ngram"}'` (any K) or `mtp` (Qwen K=5)
 - `--max-model-len ≥ 128K`
 
 then on hybrid GDN models (Qwen3.5/3.6 27B/35B) the combination has

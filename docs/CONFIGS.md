@@ -8,8 +8,8 @@ If you're new to Genesis, read [../docs/QUICKSTART.md](../docs/QUICKSTART.md) fi
 > tier was fully retired 2026-06-01 (Phase 10 sunset, commit `607385f1`).
 > All operator-facing presets now live under the V2 layered triplet
 > in [`vllm/sndr_core/model_configs/builtin/`](../sndr/model_configs/builtin/):
-> **10 model defs · 3 hardware envelopes · 23 profiles · 23 presets**
-> (16 `prod-*` + 7 non-prod, all carded). Discover via
+> **11 model defs · 3 hardware envelopes · 26 profiles · 24 presets**
+> (17 `prod-*` + 7 non-prod, all carded). Discover via
 > `sndr preset list` / `sndr preset recommend`; per-preset narrative
 > tables in [`PRESETS.md`](PRESETS.md). [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md)
 > remains as a placeholder stub pending a V2 inventory generator.
@@ -63,7 +63,7 @@ Write these five things down. The rest of this guide refers back to them.
 
 ## Step 2: Pick a V2 preset
 
-Genesis ships 23 V2 presets — 16 production-facing (`prod-*`) and 7 non-production (qa / example / experimental / bench_pending). All accessed via `sndr launch <preset-alias>`. The pre-V11 launch shell scripts (`start_*.sh`, `bare_metal_*.sh`) were retired during Phase 10 V1 sunset 2026-06-01 (commit `607385f1`); every shipped V1 monolithic YAML was deleted at the same time.
+Genesis ships 24 V2 presets — 17 production-facing (`prod-*`) and 7 non-production (qa / example / experimental / bench_pending). All accessed via `sndr launch <preset-alias>`. The pre-V11 launch shell scripts (`start_*.sh`, `bare_metal_*.sh`) were retired during Phase 10 V1 sunset 2026-06-01 (commit `607385f1`); every shipped V1 monolithic YAML was deleted at the same time.
 
 Browse the catalog:
 

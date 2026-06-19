@@ -6,7 +6,7 @@ docker compose) and the first-30-minute acceptance walkthrough.
 
 > Stack as of 2026-05-30:
 > Genesis `v12.0.0` (319 PATCH_REGISTRY entries) ·
-> vLLM `0.22.1rc1.dev491+g1033ffac2` ·
+> vLLM `0.23.1rc1.dev148+gb4c80ec0f` (previous / rollback: `dev101`) ·
 > Reference rig: 2× RTX A5000 24 GB · driver ≥ 580.126 · CUDA 13.
 
 ## 1. Prerequisites
@@ -79,7 +79,7 @@ The 12 builtin configs are auto-inventoried in
 
 | Hardware | Preset (V2 alias) | Notes |
 | --- | --- | --- |
-| 2× RTX A5000 24 GB | `prod-qwen3.6-35b-balanced` | Flagship — Qwen3.6-35B-A3B-FP8, ~216 TPS sustained (V1 alias `a5000-2x-35b-prod` retired 2026-06-01). |
+| 2× RTX A5000 24 GB | `prod-qwen3.6-35b-balanced` | Flagship — Qwen3.6-35B-A3B-FP8, ~239.7 TPS single-stream (MTP K=5; V1 alias `a5000-2x-35b-prod` retired 2026-06-01). |
 | 2× RTX A5000 multi-conc | `prod-qwen3.6-35b-multiconc` | `max_num_seqs=8`, aggregate ~675 TPS. |
 | 2× 24 GB (3090 / 4090 / A5000) | `prod-qwen3.6-27b-tq-k8v4` | Lorbus 27B int4 + TurboQuant k8v4 (long context); V1 alias `a5000-2x-27b-int4-tq-k8v4` retired 2026-06-01. |
 | 2× 24 GB long-context | `long-ctx-qwen3.6-27b` | Same model, `--max-model-len 320000` (V1 alias `a5000-2x-27b-int4-long-ctx` retired 2026-06-01; V2 is sizing-identical with `override_policy.bench_pending=true` — refresh 32K+ bench on current pin before promoting). |
@@ -162,7 +162,7 @@ manifest.
 
 **Common failures:**
 
-- `vllm version mismatch (got X, expected 0.22.1rc1.dev491+g1033ffac2)`
+- `vllm version mismatch (got X, expected 0.23.1rc1.dev148+gb4c80ec0f)`
   → re-run installer with `--pin <pin>` to align, or
   `pip install vllm==<your-pin>` and accept the drift warning.
 - `NCCL P2P_DISABLE recommended on consumer Ampere` → set

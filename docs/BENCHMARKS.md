@@ -10,20 +10,27 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 >
 > - Genesis `v12.0.0` — 319 PATCH_REGISTRY entries
 >   (174 full + 17 marker-only + 4 retired + 7 partial + 2 placeholder).
-> - vLLM `0.22.1rc1.dev491+g1033ffac2`.
+> - vLLM `0.23.1rc1.dev148+gb4c80ec0f` (`dev101` = previous / rollback pin).
 > - Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6),
 >   driver 580.142, CUDA 13.0.2.
-> - Spec-decode: MTP K=3 (probabilistic draft rejection, vllm#40269).
+> - Spec-decode: MTP K=5 on Qwen 35B/27B (re-tuned 2026-06-19; Gemma drafter
+>   stays K=3 — optimal for its separate drafter). Probabilistic draft
+>   rejection, vllm#40269.
 > - Attention: TurboQuant k8v4 KV cache + FlashAttention 2, TP=2.
 
-## Latest PROD numbers (v12.0.0 current registry; benched 2026-05-23)
+## Latest PROD numbers (v12.0.0 current registry; single-stream re-benched 2026-06-19 on dev148, K=5)
 
-| Model | wall_TPS (sustained) | decode_TPOT | CV% | Tool-call | Method |
+The single-stream rows are the MTP K=3→K=5 re-tune (warm sweep, pin
+`0.23.1rc1.dev148+gb4c80ec0f`): 35B +15.8 % vs K=3 (207→239.7), 27B +8.2 %
+vs K=3 (117.7→127.4). The multi-conc rows are NOT re-benched at K=5 — they
+remain the 2026-05-23 K=3 aggregate measurements.
+
+| Model | wall_TPS | decode_TPOT | CV% | Tool-call | Method |
 | --- | ---: | ---: | ---: | :---: | --- |
-| **Qwen3.6-27B-int4-AutoRound** (prod-qwen3.6-27b-tq-k8v4) | **130.90** | 7.37 ms | 3.0% | 7/7 | `genesis_bench_suite.py --quick` (5×5×1024) |
-| **Qwen3.6-35B-A3B-FP8** (prod-qwen3.6-35b-balanced, max_num_seqs=2) | **219.04** | 4.24 ms | 7.2% | 7/7 | same harness |
-| **Qwen3.6-35B-A3B-FP8** (prod-qwen3.6-35b-multiconc, max_num_seqs=8) | **672.27** agg | 33.81 ms | 1.2% | — | `tools/multi_conc_bench.py --conc 8 --rounds 5 --max-tok 1024` (non-stream aggregate) |
-| **Qwen3.6-27B-int4-AutoRound** (prod-qwen3.6-27b-tq-multiconc, max_num_seqs=8) | **471.10** agg | 51.70 ms | 1.0% | — | same multi-conc harness (non-stream aggregate) |
+| **Qwen3.6-35B-A3B-FP8** (prod-qwen3.6-35b-balanced, max_num_seqs=2, K=5) | **239.7** | 3.94 ms | 4.9% | 7/7 | `genesis_bench_suite.py` single-stream warm sweep (dev148) |
+| **Qwen3.6-27B-int4-AutoRound** (prod-qwen3.6-27b-tq-k8v4, K=5) | **127.4** | 7.54 ms | 8.3% | 7/7 | same single-stream warm sweep (dev148) |
+| **Qwen3.6-35B-A3B-FP8** (prod-qwen3.6-35b-multiconc, max_num_seqs=8, K=3) | **672.27** agg | 33.81 ms | 1.2% | — | `tools/multi_conc_bench.py --conc 8 --rounds 5 --max-tok 1024` (non-stream aggregate, 2026-05-23) |
+| **Qwen3.6-27B-int4-AutoRound** (prod-qwen3.6-27b-tq-multiconc, max_num_seqs=8, K=3) | **471.10** agg | 51.70 ms | 1.0% | — | same multi-conc harness (non-stream aggregate, 2026-05-23) |
 
 > Multi-conc rows measure non-stream aggregate throughput across 8 concurrent
 > requests (`tools/multi_conc_bench.py`). Decode TPOT is the streaming
@@ -66,7 +73,7 @@ Per Genesis structured boot summary printed once at boot end:
 Genesis vLLM Patcher — boot summary
 ══════════════════════════════════════════════════════════════════════
   Genesis:  v12.0.0
-  vLLM:     0.22.1rc1.dev491+g1033ffac2
+  vLLM:     0.23.1rc1.dev148+gb4c80ec0f
   GPU:      2× NVIDIA RTX A5000 (sm_86)
 ──────────────────────────────────────────────────────────────────────
   Patches:  319 total → ~80 APPLY | ~148 SKIP
@@ -144,9 +151,10 @@ smaller (134 entries vs 319 today).
 | Qwen3.6-35B-A3B-FP8 (Sprint 1) | 241.35 | 3.85 ms | 3.02% | 7/7 |
 
 The 35B Sprint-1 number (241 TPS) was a single-prompt cherry-pick
-captured before the methodology shift to 5×5×1024 sustained — the
-~216 TPS sustained figure in the v12.0.0 PROD-numbers table above is the
-correct apples-to-apples comparison.
+captured before the methodology shift to sustained sweeps — the
+**239.7 TPS** single-stream K=5 figure (MTP K=3→K=5 re-tune, dev148) in
+the v12.0.0 PROD-numbers table above is the correct apples-to-apples
+comparison (K=3 single-stream was 207).
 
 ## Cross-rig validators (call for replication)
 
@@ -279,7 +287,7 @@ cd genesis-vllm-patches
 python3 -m pip install --user requests        # bench dep
 
 # Boot vLLM via the unified launcher (v12.0.0 canonical):
-sndr launch prod-qwen3.6-35b-balanced              # 35B FP8 + MTP K=3 + TQ k8v4, latency
+sndr launch prod-qwen3.6-35b-balanced              # 35B FP8 + MTP K=5 + TQ k8v4, latency
 # OR inspect resolved args:
 sndr launch prod-qwen3.6-35b-balanced --dry-run
 
@@ -299,7 +307,7 @@ The supported reference path. All Genesis PROD runs use this image.
 ```bash
 git clone https://github.com/Sandermage/genesis-vllm-patches.git
 cd genesis-vllm-patches
-docker pull vllm/vllm-openai:nightly             # current Genesis pin (0.22.1rc1.dev491+g1033ffac2)
+docker pull vllm/vllm-openai:nightly             # current Genesis pin (0.23.1rc1.dev148+gb4c80ec0f)
 
 sndr launch prod-qwen3.6-35b-balanced                            # docker emission
 docker logs -f vllm-server                      # wait for startup
@@ -467,7 +475,7 @@ boot (always cold-start).
   the last known-good config.
 
 **`accept_rate` (spec-decode acceptance).** Visible only if vLLM
-was started without `--disable-log-stats`. For MTP K=3 on
+was started without `--disable-log-stats`. For MTP K=5 on
 Qwen3.6-A3B: ~0.65–0.78 is typical (per-token rule). Lower = bias
 against the draft heads, possibly a quality regression. Higher =
 good draft alignment. For ngram strict (P77 /
@@ -504,7 +512,7 @@ The community is actively interested in cross-rig data.
    <https://github.com/Sandermage/genesis-vllm-patches/discussions>.
 3. **Title format:** `[Bench] <model> on <GPU> — <wall_TPS> TPS`.
    Examples:
-   - `[Bench] qwen3.6-35b-a3b-fp8 on 2× RTX A5000 — 216 TPS`
+   - `[Bench] qwen3.6-35b-a3b-fp8 on 2× RTX A5000 — 239.7 TPS`
    - `[Bench] qwen3.6-27b-int4-AutoRound on 1× RTX 3090 — 88 TPS`
 4. **Body should include:**
    - The Markdown summary (or paste the tables).
@@ -568,7 +576,7 @@ The four PROD-ready configs launched through the unified CLI:
 
 | Config | V2 preset |
 | --- | --- |
-| 35B-A3B-FP8 PROD (TQ k8v4 + MTP K=3, latency) | `sndr launch prod-qwen3.6-35b-balanced` |
+| 35B-A3B-FP8 PROD (TQ k8v4 + MTP K=5, latency) | `sndr launch prod-qwen3.6-35b-balanced` |
 | 35B-A3B-FP8 multi-conc (TQ k8v4 + max_num_seqs=8) | `sndr launch prod-qwen3.6-35b-multiconc` |
 | 35B-A3B-FP8 + DFlash N=3 (latency) | `sndr launch prod-qwen3.6-35b-dflash` |
 | 35B-A3B-FP8 + DFlash N=3 (multi-conc) | `sndr launch prod-qwen3.6-35b-dflash-multiconc` |

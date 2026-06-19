@@ -112,6 +112,31 @@ on 2× A5000).
 (experimental). Needs new patches for Gemma 4-specific MoE layout —
 most Genesis patches skip via dispatcher.
 
+### `cyankiwi/gemma-4-31B-it-AWQ-4bit`
+
+**HuggingFace**: <https://huggingface.co/cyankiwi/gemma-4-31B-it-AWQ-4bit>
+
+| Property | Value |
+| --- | --- |
+| Architecture | `gemma4_dense` (interleaved sliding + global + p-RoPE) |
+| Quant / KV | AWQ-4bit (compressed-tensors); KV path is the trade-off below |
+| Spec-decode | MTP K=3 via `google/gemma-4-31B-it-assistant` (separate drafter — optimal at K=3, do not raise) |
+| Published context | 256K (G4_09 chunked-prefill) |
+
+The 31B dense Gemma runs in two KV configurations that trade throughput
+against context on the same 2× A5000 rig (single-stream, pin
+`0.23.1rc1.dev148+gb4c80ec0f`):
+
+| Profile | KV plan | Context | Decode TPS | Tool-call | Best for |
+| --- | --- | ---: | ---: | :---: | --- |
+| `gemma4-31b-kvauto-chat` | kv-auto — uniform fp16 KV, no TurboQuant | 32K | **~70.1** | 7/7 | interactive chat / tool-use (preset `prod-gemma4-31b-kvauto-chat`) |
+| `gemma4-31b-tq-mtp-chat-k3` | TurboQuant `turboquant_4bit_nc` | 64K | ~41.4 | 6/7 | long-document context (preset `prod-gemma4-31b-tq-mtp-chat-k3`) |
+
+kv-auto is +69.6 % TPS AND better tool-call quality; the only cost is
+context (64K → 32K, because uniform fp16 KV is ~4× the turboquant_4bit_nc
+footprint). Pick per workload — long documents → TQ 64K; interactive chat
+/ tool-use → kv-auto 32K. The operator runs both.
+
 ## Models evaluated but NOT adopted
 
 - **`Qwen/Qwen3-Next-80B-A3B-Instruct-FP8`** — 80 GB FP8 doesn't fit

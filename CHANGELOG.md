@@ -45,7 +45,13 @@ Release-type tags in the title give the shape of the release at a glance:
 
 ## Version index (newest first)
 
-### v12.0.0 series — dev491 pin, Gemma-4 + native 31B MTP, audit hardening (current)
+### [Unreleased] — dev148 pin, MTP K=5 re-tune, PN394/PN399/PN353A, Gemma-31B kv-auto (current tip)
+
+| Tag | Date | Type | Summary |
+|---|---|---|---|
+| `[Unreleased]` | 2026-06-19 | dev | Pin promoted `dev101 → 0.23.1rc1.dev148+gb4c80ec0f` (live rig pin). MTP K=3→K=5 re-tune (Qwen, lossless): 35B **239.7 TPS** (+15.8%), 27B **127.4 TPS** (+8.2%); Gemma stays K=3. PN394 (#46047) + PN399 (#46067) promoted to PROD; PN353A (#44053) enabled in Qwen YAMLs. Gemma-4-31B kv-auto chat profile/preset (+69.6% chat TPS). G4_11 multi-turn fix. Registry 319; 55 default-on; 27 families; `make evidence` 63/63 |
+
+### v12.0.0 series — dev491 pin, Gemma-4 + native 31B MTP, audit hardening
 
 | Tag | Date | Type | Summary |
 |---|---|---|---|
@@ -98,12 +104,75 @@ Release-type tags in the title give the shape of the release at a glance:
 | `v7.65 → v7.72` | 2026-04 – 2026-05 | series | 7.72 series: PN59 streaming-GDN, Cliff 2b breakthrough, Blackwell consumer support, structured boot summary |
 | `v7.63.x` | 2026-04 | series | TurboQuant k8v4 + MTP K=3 stabilization |
 
-The current canonical baseline is `v12.0.0` on vLLM nightly pin
-`0.22.1rc1.dev491+g1033ffac2`. 313 patches in `PATCH_REGISTRY`, 53 default-ON,
-27 families, `make evidence` 63 / 63 gates green. (The PROD 35B service runs the
-`0.21.1rc0+g626fa9bba566` pin; the dev491 pin is the active development +
-Gemma-4 target. `sndr/version.py` carries the `.dev0` suffix in-tree; release
-tooling strips it on publish — pyproject.toml holds the release version.)
+The current canonical baseline is the `[Unreleased]` line below on vLLM
+nightly pin `0.23.1rc1.dev148+gb4c80ec0f` (image
+`vllm/vllm-openai:nightly-b4c80ec0f`); the last cut tag is `v12.0.0`. 319
+patches in `PATCH_REGISTRY`, 55 default-ON, 27 families, `make evidence`
+63 / 63 gates green. (The PROD 35B service runs the dev148 pin; `dev101`
+is retained as the previous / rollback pin per the CLAUDE.md ≤2-pin policy.
+`sndr/version.py` carries the `.dev0` suffix in-tree; release tooling strips
+it on publish — pyproject.toml holds the release version.)
+
+---
+
+## [Unreleased] — dev148 pin · MTP K=5 re-tune · PN394/PN399/PN353A · Gemma-31B kv-auto (2026-06-19)
+
+### Highlights
+
+- **MTP K=3 → K=5 re-tune (Qwen, lossless).** K was under-tuned at 3 fleet-wide.
+  Warm single-stream on pin `0.23.1rc1.dev148+gb4c80ec0f`: **35B 239.7 TPS /
+  TPOT 3.94 ms (+15.8 % vs K=3 207)**, **27B 127.4 TPS / TPOT 7.54 ms (+8.2 %
+  vs 117.7)**. MTP spec-decode is target-exact so the gain is free. K=5 locked
+  into both Qwen YAMLs + launchers (35B K=6 won't boot, K=7 regresses; 27B
+  peaks at K=5). **Gemma stays K=3** — its separate drafter is optimal at K=3.
+
+### Patches changed
+
+- **PN394 promoted to PROD** (backport of MERGED vllm#46047) — fixes the qwen3
+  tool-call parser truncating a partial parameter value at a literal `<`.
+  Merged upstream 2026-06-18, *after* the dev148 pin, so not yet in the
+  deployed engine; self-skips once a newer pin carries it. Default ON.
+- **PN399 promoted to PROD** (consolidated backport+improvement of OPEN
+  vllm#46067) — single-owner fixed TurboQuant decode-scratch buffer; fixes
+  the CUDA illegal-memory-access in FULL cudagraph and removes the dead
+  PN118 / PN353A decode reservations.
+- **PN353A enabled in the Qwen YAMLs** (backport of OPEN vllm#44053) —
+  TurboQuant MetadataBuilder workspace reserve; closes the long-context
+  `workspace locked, cannot grow` assertion. PN399 dependency.
+- **Gemma-4-31B kv-auto chat profile + preset added** —
+  `gemma4-31b-kvauto-chat` profile and `prod-gemma4-31b-kvauto-chat` preset.
+  kv-auto (uniform fp16 KV, no TurboQuant, 32K ctx) delivers ~70.1 TPS chat
+  (+69.6 % vs the TQ chat sibling's 41.4) AND better tool-call (7/7 vs 6/7),
+  trading 64K → 32K context. Operator runs both profiles.
+- **G4_11 multi-turn chat-template fix** carried in the Gemma-4 family.
+- **5 retired-patch version-range provenance** records added.
+
+### Migration notes
+
+- **Pin promoted dev101 → dev148** (`0.23.1rc1.dev148+gb4c80ec0f`, image
+  `vllm/vllm-openai:nightly-b4c80ec0f`). `dev101` is retained as the
+  previous / rollback pin per the CLAUDE.md ≤2-pin policy. dev148 added to
+  `KNOWN_GOOD_VLLM_PINS` (guards.py), `EXPECTED_PINS` (pin-gate test), and
+  `ALLOWED_MODELDEF_PINS` (runtime-pins audit). All 12 ModelDef / profile
+  `vllm_pin_required` fields bumped to dev148; the two PROD ModelDefs (35B,
+  27B-tq-k8v4) carry a `pin_hold` waiver because the ModelDef leads the
+  shared hardware image during the promotion window (the hardware
+  `image_digest` bumps once the dev148 sha256 is captured).
+
+### Bench / measurements
+
+| Model | K=3 → K=5 | Δ TPS | Δ TPOT |
+| --- | --- | ---: | ---: |
+| 35B-A3B-FP8 (single-stream) | 207.1 → **239.7** | +15.8 % | -12 % |
+| 27B-int4-AutoRound (single-stream) | 117.7 → **127.4** | +8.2 % | -8 % |
+| Gemma-4-31B kv-auto vs TQ chat | 41.4 → **70.1** | +69.6 % | — |
+
+### Verified
+
+- `make evidence` 63/63 green · `sndr patches doctor` ERROR=0 ·
+  `check_doc_sync.py --strict` clean · `generate_patches_md.py --check`
+  exit 0 · `pytest tests/unit/dispatcher tests/unit/model_configs` pass ·
+  `tsc --noEmit` (GUI) exit 0.
 
 ---
 

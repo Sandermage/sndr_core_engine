@@ -197,6 +197,51 @@ class TestGeneratorCheckRoundTrip:
         assert "[#39407](https://github.com/vllm-project/vllm/issues/39407)" in text
 
 
+class TestParseBodyMultilineParenTitle:
+    """Regression: a multi-line `( "a" "b" )` title literal (PN399 class)
+    must be parsed whole, not truncated to the bare `(`."""
+
+    def test_multiline_paren_title_joined(self, gen):
+        body = (
+            '        "title": (\n'
+            '            "Consolidated single-owner buffer "\n'
+            '            "(backport+improve OPEN vllm#46067)"\n'
+            "        ),\n"
+            '        "tier": "community",\n'
+            '        "family": "attention.turboquant",\n'
+        )
+        parsed = gen.parse_body(body)
+        assert parsed["title"] == (
+            "Consolidated single-owner buffer "
+            "(backport+improve OPEN vllm#46067)"
+        )
+        # Sibling fields after the multi-line literal still parse.
+        assert parsed["tier"] == "community"
+        assert parsed["family"] == "attention.turboquant"
+
+    def test_single_line_title_unchanged(self, gen):
+        """The common single-line case keeps its original behavior."""
+        body = '        "title": "Simple one-liner",  # note\n'
+        parsed = gen.parse_body(body)
+        assert parsed["title"] == "Simple one-liner"
+
+    def test_committed_doc_has_no_bare_paren_title(self):
+        """No row in the committed doc may render a bare `( ` as its
+        title cell — the PN399/PN384/PN383 truncation footprint."""
+        doc = REPO_ROOT / "docs" / "PATCHES_AUTO.md"
+        text = doc.read_text(encoding="utf-8")
+        assert "| ( |" not in text, (
+            "bare '( ' title cell found in PATCHES_AUTO.md — multi-line "
+            "paren-title parse regression (PN399 class)"
+        )
+
+    def test_pn399_title_resolved_in_committed_doc(self, gen):
+        """PN399's real title text appears in the committed doc."""
+        doc = REPO_ROOT / "docs" / "PATCHES_AUTO.md"
+        text = doc.read_text(encoding="utf-8")
+        assert "Consolidated single-owner TurboQuant decode-scratch" in text
+
+
 class TestNaturalSortKeyUnchanged:
     """Regression: refactor did not break the natural-sort helper."""
 

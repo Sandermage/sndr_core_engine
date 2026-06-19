@@ -172,3 +172,7 @@ benchmarks/runs/
 
 # sponsor-site is a separate sibling project; not part of genesis-vllm-patches release
 sponsor-site/
+
+# controller orchestration workflow scripts (never commit)
+.*_wf.js
+*_wf.js

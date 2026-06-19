@@ -291,6 +291,8 @@ of upstream-merge drift.
 | **P98** | TQ WorkspaceManager revert (vllm#40941 perf hotfix) | opt-in | `GENESIS_ENABLE_P98` | [#40941](https://github.com/vllm-project/vllm/pull/40941) | Reverts upstream PR #40941 WorkspaceManager indirection in turboquant_attn — required for TQ k8v4 on hybrid GDN models (else AssertionError on workspace lock) |
 | **P101** | TQ continuation 64-token slicing (vllm#41123 SELECTIVE) | opt-in | `GENESIS_ENABLE_P101` | [#41123](https://github.com/vllm-project/vllm/pull/41123) | Selective backport of vllm#41123 TQ on hybrid models — takes the `_CONTINUATION_DECODE_SLICE` improvement only |
 | **PN14** | TQ decode IOOB safe_page_idx clamp | opt-in | `GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP` | [#40074](https://github.com/vllm-project/vllm/pull/40074) | devarakondasrikanth @adobe (vllm#40074, OPEN) — fixes upstream issue: TQ decode page-index out-of-bounds clamp |
+| **PN353A** | TurboQuant MetadataBuilder workspace reserve | opt-in | `GENESIS_ENABLE_PN353A` | [#44053](https://github.com/vllm-project/vllm/pull/44053) | Genesis backport of OPEN vllm#44053 (Bot1822, supersedes #40798). Closes long-context `AssertionError: workspace locked, cannot grow` on TQ + chunked-prefill by reserving the decode-scratch workspace in the MetadataBuilder. PN399 dependency. Enabled in the Qwen YAMLs on the dev148 pin. |
+| **PN399** | Consolidated single-owner TQ decode-scratch fixed-buffer (IMA-safe FULL cudagraph) | opt-in | `GENESIS_ENABLE_PN399_TQ_DECODE_SCRATCH_IMA` | [#46067](https://github.com/vllm-project/vllm/pull/46067) | Genesis consolidated backport+improvement of OPEN vllm#46067 (Bugfix/TurboQuant — fix CUDA illegal memory access in FULL cudagraph). Single-owner fixed decode-scratch buffer; removes the dead PN118 / PN353A decode reservations. Promoted to PROD on dev148. requires PN353A. |
 
 ### Memory / buffers
 
@@ -379,6 +381,7 @@ of upstream-merge drift.
 | **P40** | TurboQuant GQA-grouped decode stage1 (opt-in) | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P24** | fused_moe num_warps/num_stages overlay | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P18b** | TurboQuant decode stage1 tune | opt-in | — | — | Genesis (see source / CHANGELOG) |
+| **PN394** | Qwen3 partial-param value `<` truncation fix | **ON** | `GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX` | [#46047](https://github.com/vllm-project/vllm/pull/46047) | Backport of vllm#46047 (MERGED 2026-06-18, AFTER the dev148 pin — not in the deployed engine). Fixes the qwen3 tool-call parser truncating a partial parameter value at a literal `<` character. Promoted to PROD on dev148; self-skips once the merge lands in a newer pin. |
 
 ### Hybrid / GDN / Mamba
 

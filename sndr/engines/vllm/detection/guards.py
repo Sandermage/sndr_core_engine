@@ -608,6 +608,22 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     "0.23.1rc1.dev101+g4c626633159",
     "nightly-4c626633",
     "nightly-4c626633159887b0f2c962058c17c78f1434556d",
+    # ── PROD pin PROMOTION dev148 ratified 2026-06-19 ─────────────────
+    # Image: vllm/vllm-openai:nightly-b4c80ec0f (0.23.1rc1.dev148+gb4c80ec0f,
+    # commit b4c80ec0f, +47 commits over dev101). This is the live rig pin:
+    # the 35B PROD runs it and all K=5 + Gemma kv-auto work was validated on
+    # it. Session validation 2026-06-19 — 35B-A3B FP8 TQ k8v4 + MTP K=5:
+    # 239.7 TPS single-stream / TPOT 3.94 ms (+15.8% vs K=3 207); 27B Lorbus
+    # INT4 hybrid GDN+Mamba + MTP K=5: 127.4 TPS / TPOT 7.54 ms (+8.2% vs
+    # 117.7); PN119 tensor-core FP8-key decode live (tl.dot=8), P18b revived;
+    # PN394 (#46047 qwen3 partial-param `<` truncation) + PN399 (#46067 TQ
+    # decode-scratch fixed buffer, IMA-safe FULL cudagraph) promoted to PROD;
+    # PN353A (vllm#44053 TQ builder workspace reserve) enabled in Qwen YAMLs;
+    # Gemma-4-31B kv-auto chat profile added (70.1 TPS, +69.6% vs TQ chat).
+    # dev101 (nightly-4c626633) retained above as the previous/rollback pin
+    # per CLAUDE.md ≤2-pin policy.
+    "0.23.1rc1.dev148+gb4c80ec0f",                       # setuptools_scm-derived
+    "nightly-b4c80ec0f",                                 # docker tag form (short)
 )
 
 

@@ -49,7 +49,7 @@ requires:
 
 versions:
   genesis_pin_min: v12.0.0
-  vllm_pin_required: 0.23.1rc1.dev101+g4c6266331  # bumped -> 0.23.1 2026-06-17: 0.23.1 engine + patch set is fleet-validated (35B/27B/Gemma4-31B/DiffusionGemma, apply failed=0); this variant boot-validates on next launch.
+  vllm_pin_required: 0.23.1rc1.dev148+gb4c80ec0f  # PROMOTED 2026-06-19 (K=5 + PN394/PN399 + Gemma kv-auto validated on dev148); dev101 = previous/rollback. Engine + patch set fleet-validated on dev148 (35B/27B/Gemma4-31B/26B-MoE/DiffusionGemma boot apply failed=0); this variant boot-validates on next launch.
   # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
   # to suppress the would-be ERROR for this row.
   pin_hold: "TQ-family variant blocked on 0.22.1 like the base 31B ModelDef (TURBOQUANT

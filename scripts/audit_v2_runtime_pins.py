@@ -108,6 +108,18 @@ ALLOWED_MODELDEF_PINS = frozenset({
     # tests/unit/dispatcher/test_pin_gate EXPECTED_PINS.
     "0.23.1rc1.dev101+g4c6266331",
     "0.23.1rc1.dev101+g4c626633159",
+    # ── Canonical PROD pin 0.23.1 dev148 (PROMOTED 2026-06-19) ───────────
+    # Image vllm/vllm-openai:nightly-b4c80ec0f (0.23.1rc1.dev148+gb4c80ec0f).
+    # Live rig pin: the 35B PROD runs it; all MTP K=5 + Gemma kv-auto work
+    # validated on it. 35B K=5 239.7 TPS / 27B K=5 127.4 TPS; PN394 (#46047)
+    # + PN399 (#46067) promoted to PROD, PN353A (vllm#44053) enabled in Qwen
+    # YAMLs. See guards.py KNOWN_GOOD + test_pin_gate EXPECTED_PINS. dev101
+    # retained as previous/rollback per CLAUDE.md ≤2-pin policy. The model
+    # ModelDefs LEAD the hardware image during this window — the hardware
+    # YAML image_digest bumps to the dev148 sha256 once it is captured;
+    # until then the two PROD ModelDefs carry a pin_hold waiver (see
+    # audit_v2_modeldef_vs_hardware_pin R-MD-HW-2).
+    "0.23.1rc1.dev148+gb4c80ec0f",
 })
 
 # Gemma family ModelDefs are expected to be on dev371 (validated path).

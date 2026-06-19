@@ -75,7 +75,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 | Hardware | Validation status | Notes |
 |---|---|---|
-| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.0.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.22.1rc1.dev491+g1033ffac2`) | Default config targets this |
+| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.0.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.23.1rc1.dev148+gb4c80ec0f`) | Default config targets this |
 | 1× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-27b-single-3090) | Same SM 8.6 family |
 | 2× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-dual-3090) | TP=2 PCIe Gen4 (no NVLink) |
 
@@ -306,17 +306,17 @@ pip install --upgrade pip wheel setuptools
 
 ### 2. Install vLLM nightly
 
-Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](#quick-start-canonical-v1200) — currently `0.22.1rc1.dev491+g1033ffac2`.
+Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](#quick-start-canonical-v1200) — currently `0.23.1rc1.dev148+gb4c80ec0f` (`dev101` is the retained previous / rollback pin).
 
 ```bash
 # Option A — install from a specific nightly wheel (recommended if you can match)
-pip install --pre vllm==0.22.1rc1.dev491+g1033ffac2 \
+pip install --pre vllm==0.23.1rc1.dev148+gb4c80ec0f \
   --extra-index-url https://wheels.vllm.ai/nightly
 
 # Option B — install from source at a specific commit
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
-git checkout 1033ffac2  # match the SHA from Production baseline (dev491)
+git checkout b4c80ec0f  # match the SHA from Production baseline (dev148)
 pip install -e . --no-build-isolation
 cd ..
 
@@ -337,7 +337,7 @@ print(f'cuda available: {torch.cuda.is_available()}')
 print(f'cuda devices: {torch.cuda.device_count()}')
 "
 # Expect:
-# vllm 0.22.1rc1.dev491+g1033ffac2
+# vllm 0.23.1rc1.dev148+gb4c80ec0f
 # torch 2.11.0+cu130 cuda=13.0
 # triton 3.6.0
 # cuda available: True
@@ -442,7 +442,7 @@ pip install --force-reinstall --no-deps vllm
 ### 7. Launch vLLM
 
 ```bash
-# Production-equivalent invocation (Qwen3.6-35B-A3B-FP8, TP=2, MTP K=3, TurboQuant k8v4):
+# Production-equivalent invocation (Qwen3.6-35B-A3B-FP8, TP=2, MTP K=5, TurboQuant k8v4):
 vllm serve --model /path/to/Qwen3.6-35B-A3B-FP8 \
   --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.91 \
@@ -462,7 +462,7 @@ vllm serve --model /path/to/Qwen3.6-35B-A3B-FP8 \
   --api-key genesis-local \
   --served-model-name qwen3.6-35b-a3b \
   --host 0.0.0.0 --port 8000 \
-  --speculative-config '{"method":"mtp","num_speculative_tokens":3}' \
+  --speculative-config '{"method":"mtp","num_speculative_tokens":5}' \
   --async-scheduling \
   --performance-mode interactivity \
   --no-scheduler-reserve-full-isl \
@@ -494,7 +494,7 @@ exec vllm serve --model "${MODEL_PATH:-/path/to/Qwen3.6-35B-A3B-FP8}" \
   --gpu-memory-utilization 0.91 \
   --max-model-len 262144 \
   --kv-cache-dtype turboquant_k8v4 \
-  --speculative-config '{"method":"mtp","num_speculative_tokens":3}' \
+  --speculative-config '{"method":"mtp","num_speculative_tokens":5}' \
   --async-scheduling --performance-mode interactivity \
   --api-key "${VLLM_API_KEY:-genesis-local}" \
   --port "${PORT:-8000}"

@@ -97,6 +97,15 @@ class TestExistingProfilesLoadUnchanged:
         # sizing_override (enforce_eager + max_num_seqs) + override_policy
         # only; no spec_decode/compression/backend/routing/validation.
         "diffusiongemma-tp2",               # role=bench, block-diffusion TP=2
+        # 2026-06-19 — gemma4-31b-kvauto-chat: kv-auto (uniform fp16 KV,
+        # no TurboQuant) high-throughput chat sibling of
+        # gemma4-31b-tq-mtp-chat-k3. Role=structured (carries
+        # spec_decode_override MTP K=3 + routing + validation). The TQ
+        # infra (compression_plan/backend_plan) is intentionally null —
+        # +69.6% TPS (70.1 vs TQ 41.4) and better tool-call (7/7 vs 6/7)
+        # at the cost of 64K→32K context, single-stream rig bench on pin
+        # 0.23.1rc1.dev148+gb4c80ec0f. See profile header for full rationale.
+        "gemma4-31b-kvauto-chat",           # role=structured, MTP K=3 kv-auto chat
     })
 
     def test_all_builtin_profiles_load_with_new_fields_default_none(self):

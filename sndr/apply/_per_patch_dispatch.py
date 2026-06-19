@@ -2132,14 +2132,16 @@ def apply_patch_N82_mamba_cudagraph_prefill_zero() -> PatchResult:
     window dev371 → 626fa9bba566. Deep-diff confirmed byte-equivalent
     `is_prefilling[num_reqs:] = False` insertion.
 
-    Wiring module moved to integrations/_retired/. This wrapper now
-    self-skips so legacy dispatch path returns clean.
+    Wiring module archived to
+    sndr/engines/vllm/_archive/pn82_mamba_cudagraph_prefill_zero.py.
+    This wrapper now self-skips so legacy dispatch path returns clean.
     """
     return _skipped(
         "PN82 Mamba CUDA-graph prefill zero (vllm#41873)",
         "RETIRED 2026-05-28 — superseded by upstream merge at "
         "39d5fa96a (vllm#41873) included in pin 626fa9bb. "
-        "Wiring lives in integrations/_retired/pn82_*.py for audit trail.",
+        "Wiring lives in sndr/engines/vllm/_archive/"
+        "pn82_mamba_cudagraph_prefill_zero.py for audit trail.",
     )
 
 
