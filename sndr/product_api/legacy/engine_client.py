@@ -77,6 +77,129 @@ def _auth_headers(api_key: Optional[str]) -> dict[str, str]:
     return {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
 
+# ── local-engine key auto-discovery ──────────────────────────────────────────
+# The daemon is co-located with the engine and mounts the docker socket, so when
+# no explicit (GUI) / env / host-profile key is configured it can read the LOCAL
+# engine container's own key (VLLM_API_KEY env, else a --api-key flag) and use it
+# for its own outbound auth. The key never leaves the daemon. Strictly local-only
+# (a loopback engine host) so the local key can never be sent to a remote engine;
+# only SNDR-managed (engine) containers are inspected; cached per port; fail-safe
+# (any error → None, preserving the prior no-key behaviour). Disable with
+# SNDR_ENGINE_KEY_AUTODISCOVER=0.
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "0.0.0.0", ""}
+_ENGINE_KEY_CACHE: dict[int, Optional[str]] = {}
+_CACHE_MISS = object()
+
+
+def _is_local_engine(eng: dict[str, str]) -> bool:
+    return (eng or {}).get("host", "") in _LOOPBACK_HOSTS
+
+
+def _engine_port_from_base_url(base_url: str) -> Optional[int]:
+    m = re.search(r"://[^/:]+:(\d{1,5})", base_url or "")
+    return int(m.group(1)) if m else None
+
+
+def _extract_engine_key(inspect: dict[str, Any]) -> Optional[str]:
+    """Pull the engine's own API key from a container inspect: VLLM_API_KEY env
+    first, else a ``--api-key`` flag in Entrypoint/Cmd."""
+    cfg = inspect.get("Config") or {}
+    for entry in cfg.get("Env") or []:
+        if isinstance(entry, str) and entry.startswith("VLLM_API_KEY="):
+            val = entry.split("=", 1)[1].strip()
+            if val:
+                return val
+    parts = list(cfg.get("Entrypoint") or []) + list(cfg.get("Cmd") or [])
+    for i, raw in enumerate(parts):
+        s = str(raw)
+        if s in ("--api-key", "--api_key") and i + 1 < len(parts):
+            val = str(parts[i + 1]).strip()
+            if val:
+                return val
+        m = re.match(r"--api[-_]key=(.+)", s)
+        if m and m.group(1).strip():
+            return m.group(1).strip()
+    return None
+
+
+# Same pattern ssh_client uses to grep a launcher: VLLM_API_KEY= or --api-key <val>.
+_KEY_FROM_TEXT_RE = re.compile(r"(?:VLLM_API_KEY=|--api[-_]key[= ])['\"]?([A-Za-z0-9._\-]+)")
+
+
+def _extract_key_from_text(text: str) -> Optional[str]:
+    m = _KEY_FROM_TEXT_RE.search(text or "")
+    return m.group(1) if m else None
+
+
+def _read_container_file(ctl: Any, name: str, path: str) -> str:
+    """Read ONE file from a managed container via the docker archive API — a read,
+    not an exec (so it is NOT gated by SNDR_ENABLE_EXEC). Used only for the
+    engine's own Entrypoint launcher script. Returns '' on any error."""
+    import io
+    import tarfile
+    import urllib.parse
+    try:
+        q = urllib.parse.quote(path, safe="")
+        status, raw = ctl._transport("GET", f"/containers/{urllib.parse.quote(name, safe='')}/archive?path={q}")
+        if status != 200 or not raw:
+            return ""
+        with tarfile.open(fileobj=io.BytesIO(raw)) as tf:
+            member = next((m for m in tf.getmembers() if m.isfile()), None)
+            if not member:
+                return ""
+            handle = tf.extractfile(member)
+            return handle.read().decode("utf-8", "replace") if handle else ""
+    except Exception:  # noqa: BLE001 - best-effort; never break on a read failure
+        return ""
+
+
+def _discover_local_engine_key(eng: dict[str, str]) -> Optional[str]:
+    if os.environ.get("SNDR_ENGINE_KEY_AUTODISCOVER", "1").strip().lower() in ("0", "false", "no", "off"):
+        return None
+    if not _is_local_engine(eng):
+        return None
+    port = _engine_port_from_base_url(eng.get("base_url", ""))
+    if not port:
+        return None
+    cached = _ENGINE_KEY_CACHE.get(port, _CACHE_MISS)
+    if cached is not _CACHE_MISS:
+        return cached
+    key: Optional[str] = None
+    try:
+        from . import container_ops
+        ctl = container_ops.SocketContainerControl()
+        target = None
+        for c in ctl._raw_list():
+            if not container_ops.is_managed_name(c.name):
+                continue  # whitelist: only SNDR-managed (engine) containers
+            if re.search(rf"(^|[ ,]){port}->", c.ports or ""):
+                target = c.name
+                break
+        if target:
+            container_ops.ensure_managed(target)  # defence in depth
+            info = ctl._raw_inspect(target)
+            key = _extract_engine_key(info)
+            if not key:
+                # The key may live in the engine's own launcher script (its
+                # Entrypoint), invisible to env/cmd. Read just that one script from
+                # the managed container via the archive API and grep it.
+                script = next((str(x) for x in ((info.get("Config") or {}).get("Entrypoint") or [])
+                               if str(x).endswith(".sh")), None)
+                if script:
+                    key = _extract_key_from_text(_read_container_file(ctl, target, script))
+    except Exception:  # noqa: BLE001 - best-effort; never break chat on discovery
+        key = None
+    _ENGINE_KEY_CACHE[port] = key
+    return key
+
+
+def _resolve_engine_key(explicit: Optional[str], eng: dict[str, str]) -> Optional[str]:
+    """Full engine-key resolution for a request: explicit (GUI header) → operator
+    env → auto-discovered LOCAL engine key. Used by every path that talks to the
+    engine; the discovery step only fires for a co-located loopback engine."""
+    return _resolve_api_key(explicit) or _discover_local_engine_key(eng)
+
+
 def resolve_engine(host: Optional[str] = None, port: Optional[int] = None) -> dict[str, str]:
     """Resolve the engine's base/metrics URLs. An explicit ``port`` wins (so the
     GUI chat can target any engine, e.g. 8101/8102); otherwise operator env, then
@@ -116,7 +239,7 @@ def _post_json(url: str, payload: dict, *, timeout: float = 60.0, api_key: Optio
 def engine_status(host: Optional[str] = None, *, port: Optional[int] = None, timeout: float = 3.0, api_key: Optional[str] = None) -> dict[str, Any]:
     """Probe ``/health``, ``/version`` and ``/v1/models`` on the running engine."""
     eng = resolve_engine(host, port)
-    key = _resolve_api_key(api_key)
+    key = _resolve_engine_key(api_key, eng)
     result: dict[str, Any] = {
         "reachable": False,
         "host": eng["host"],
@@ -475,7 +598,7 @@ def stream_chat(payload: dict[str, Any], *, host: Optional[str] = None, port: Op
     request = urllib.request.Request(
         f"{eng['base_url']}/chat/completions",
         data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json", "Accept": "text/event-stream", **_auth_headers(_resolve_api_key(api_key))},
+        headers={"Content-Type": "application/json", "Accept": "text/event-stream", **_auth_headers(_resolve_engine_key(api_key, eng))},
         method="POST",
     )
     started = time.time()
@@ -512,7 +635,7 @@ def engine_chat(
     # as EngineError -> the route maps it to 502 with detail, instead of a
     # misleading 503 "Engine unreachable".
     try:
-        status, text = _post_json(f"{eng['base_url']}/chat/completions", body, timeout=timeout, api_key=_resolve_api_key(api_key))
+        status, text = _post_json(f"{eng['base_url']}/chat/completions", body, timeout=timeout, api_key=_resolve_engine_key(api_key, eng))
     except urllib.error.HTTPError as exc:
         raise EngineError(_describe(exc))
     elapsed_ms = round((time.time() - started) * 1000)
@@ -567,7 +690,7 @@ def chat_raw(
         body["tools"] = tools
         body["tool_choice"] = "auto"
     try:
-        status, text = _post_json(f"{eng['base_url']}/chat/completions", body, timeout=timeout, api_key=_resolve_api_key(api_key))
+        status, text = _post_json(f"{eng['base_url']}/chat/completions", body, timeout=timeout, api_key=_resolve_engine_key(api_key, eng))
     except urllib.error.HTTPError as exc:
         raise EngineError(_describe(exc))
     data = json.loads(text) if text else {}

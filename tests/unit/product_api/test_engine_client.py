@@ -457,3 +457,117 @@ def test_engine_chat_surfaces_http_error_as_engine_error(monkeypatch):
     with pytest.raises(ec.EngineError) as excinfo:
         ec.engine_chat({"messages": [{"role": "user", "content": "hi"}], "temperature": None})
     assert "unknown sampling param" in str(excinfo.value)
+
+
+# ── local-engine key auto-discovery (mocked docker; no real secret) ───────────
+
+def test_extract_engine_key_env_and_flag_forms():
+    assert ec._extract_engine_key({"Config": {"Env": ["FOO=bar", "VLLM_API_KEY=k-env"]}}) == "k-env"
+    assert ec._extract_engine_key({"Config": {"Cmd": ["--api-key", "k-flag"]}}) == "k-flag"
+    assert ec._extract_engine_key({"Config": {"Cmd": ["--api-key=k-eq"]}}) == "k-eq"
+    assert ec._extract_engine_key({"Config": {"Entrypoint": ["python", "--api_key", "k-ep"]}}) == "k-ep"
+    assert ec._extract_engine_key({"Config": {"Env": [], "Cmd": ["serve"]}}) is None
+
+
+class _FakeC:
+    def __init__(self, name, ports):
+        self.name = name
+        self.ports = ports
+
+
+class _FakeCtl:
+    """Stand-in for SocketContainerControl with a managed engine on :8102."""
+    def __init__(self, **_kw):
+        pass
+
+    def _raw_list(self):
+        return [_FakeC("some-other", "9000->9000/tcp"),
+                _FakeC("vllm-qwen3.6-35b-balanced-k3", "8102->8102/tcp")]
+
+    def _raw_inspect(self, name):
+        return {"Config": {"Env": ["FOO=1", "VLLM_API_KEY=discovered-xyz"]}}
+
+
+def test_discover_local_engine_key_reads_managed_container(monkeypatch):
+    from sndr.product_api.legacy import container_ops
+    ec._ENGINE_KEY_CACHE.clear()
+    monkeypatch.delenv("SNDR_ENGINE_KEY_AUTODISCOVER", raising=False)
+    monkeypatch.setattr(container_ops, "SocketContainerControl", _FakeCtl)
+    eng = {"host": "127.0.0.1", "base_url": "http://127.0.0.1:8102/v1"}
+    assert ec._discover_local_engine_key(eng) == "discovered-xyz"
+    # cached by port (second call must not need the control object)
+    monkeypatch.setattr(container_ops, "SocketContainerControl", lambda **k: (_ for _ in ()).throw(AssertionError("should be cached")))
+    assert ec._discover_local_engine_key(eng) == "discovered-xyz"
+
+
+def test_discover_skips_remote_engine(monkeypatch):
+    ec._ENGINE_KEY_CACHE.clear()
+    # a remote host must never trigger discovery (no local-key leak to remote)
+    eng = {"host": "192.168.1.50", "base_url": "http://192.168.1.50:8102/v1"}
+    assert ec._discover_local_engine_key(eng) is None
+
+
+def test_discover_respects_disable_flag(monkeypatch):
+    ec._ENGINE_KEY_CACHE.clear()
+    monkeypatch.setenv("SNDR_ENGINE_KEY_AUTODISCOVER", "0")
+    eng = {"host": "127.0.0.1", "base_url": "http://127.0.0.1:8102/v1"}
+    assert ec._discover_local_engine_key(eng) is None
+
+
+def test_resolve_engine_key_precedence(monkeypatch):
+    from sndr.product_api.legacy import container_ops
+    ec._ENGINE_KEY_CACHE.clear()
+    monkeypatch.delenv("SNDR_ENGINE_KEY_AUTODISCOVER", raising=False)
+    for n in ("SNDR_ENGINE_API_KEY", "VLLM_API_KEY", "SNDR_OPENAI_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(n, raising=False)
+    monkeypatch.setattr(container_ops, "SocketContainerControl", _FakeCtl)
+    eng = {"host": "127.0.0.1", "base_url": "http://127.0.0.1:8102/v1"}
+    assert ec._resolve_engine_key("explicit-wins", eng) == "explicit-wins"   # explicit beats all
+    assert ec._resolve_engine_key(None, eng) == "discovered-xyz"             # falls to discovery
+    monkeypatch.setenv("SNDR_ENGINE_API_KEY", "env-wins")
+    assert ec._resolve_engine_key(None, eng) == "env-wins"                   # env beats discovery
+
+
+def test_extract_key_from_text_launcher_forms():
+    assert ec._extract_key_from_text("exec vllm serve M --api-key sk-abc123 --port 8102") == "sk-abc123"
+    assert ec._extract_key_from_text("export VLLM_API_KEY=k-env-99\n") == "k-env-99"
+    assert ec._extract_key_from_text("--api_key 'quoted-key'") == "quoted-key"
+    assert ec._extract_key_from_text("nothing relevant here") is None
+
+
+def _tar_bytes(name, content):
+    import io
+    import tarfile
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tf:
+        data = content.encode()
+        ti = tarfile.TarInfo(name=name)
+        ti.size = len(data)
+        tf.addfile(ti, io.BytesIO(data))
+    return buf.getvalue()
+
+
+def test_discover_reads_key_from_entrypoint_launcher_script(monkeypatch):
+    """When the key is not in env/cmd, discovery reads the engine's own Entrypoint
+    launcher script via the archive API and greps it (the real prod shape)."""
+    from sndr.product_api.legacy import container_ops
+    ec._ENGINE_KEY_CACHE.clear()
+    monkeypatch.delenv("SNDR_ENGINE_KEY_AUTODISCOVER", raising=False)
+
+    class _CtlScript:
+        def __init__(self, **_kw):
+            pass
+
+        def _raw_list(self):
+            return [_FakeC("vllm-qwen3.6-35b-balanced-k3", "8102->8102/tcp")]
+
+        def _raw_inspect(self, name):
+            return {"Config": {"Env": ["FOO=1"], "Cmd": None, "Entrypoint": ["/tmp/launcher/run.sh"]}}
+
+        def _transport(self, method, path, body=None):
+            assert "/archive?path=" in path  # archive read, not exec
+            return 200, _tar_bytes("run.sh", "#!/bin/sh\nexec vllm serve M --api-key sk-from-script --port 8102\n")
+
+    monkeypatch.setattr(container_ops, "SocketContainerControl", _CtlScript)
+    eng = {"host": "127.0.0.1", "base_url": "http://127.0.0.1:8102/v1"}
+    assert ec._discover_local_engine_key(eng) == "sk-from-script"
