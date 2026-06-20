@@ -833,9 +833,22 @@ def render_profile_launcher(
     has_compression = profile.compression_plan is not None and (
         profile.compression_plan.native_source_layers
     )
+    # [2026-06-20] The PR#42637 TQ feature-overlay bind-mount is gated ONLY on
+    # the overlay-VERIFY flags (G4_60B/C/D = attn/decode/store overlays the
+    # engine must actually read from disk). G4_60A/E/G/H are pure in-process
+    # monkey-patch togglers that the VALIDATED overlay-free Gemma launchers
+    # (start_31b_0231.sh) keep =1 WITHOUT any bind-mount. Gating on all
+    # G4_60* wrongly mounts the PR#42637 overlays — which are UNMERGED upstream
+    # and fail G4_60C signature verify on dev148 (live kernel lacks
+    # sliding_window/mm_prefix_range), boot-failing the render. Mount only when
+    # an overlay file the engine reads is explicitly requested.
+    _OVERLAY_VERIFY_FLAGS = (
+        "GENESIS_ENABLE_G4_60B_TQ_ATTN_OVERLAY",
+        "GENESIS_ENABLE_G4_60C_TQ_DECODE_OVERLAY",
+        "GENESIS_ENABLE_G4_60D_TQ_STORE_OVERLAY",
+    )
     has_overlay = any(
-        k.startswith("GENESIS_ENABLE_G4_60") and v == "1"
-        for k, v in cfg.genesis_env.items()
+        cfg.genesis_env.get(k) == "1" for k in _OVERLAY_VERIFY_FLAGS
     )
 
     # Build the speculative-config CLI arg if profile sets spec_decode.
