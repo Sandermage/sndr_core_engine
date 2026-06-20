@@ -2479,6 +2479,17 @@ def create_app(
             # otherwise refuses "future"-dated questions or reasons from a stale
             # training cutoff. Cheap and offline; market/web grounding is added below.
             grounding: list[str] = [market_tools.date_grounding()]
+            # Live crypto data is injected ALWAYS (not gated on web search) — it only
+            # fires when the question names a known ticker, so a price/analysis query
+            # is grounded in real CoinGecko figures even with web search off. Without
+            # it the model refuses ("no live data") or invents prices from stale
+            # training. Independent of the web-search toggle below.
+            try:
+                mg = market_tools.market_grounding(last_user)
+                if mg:
+                    grounding.append(mg)
+            except Exception:  # noqa: BLE001 - best-effort
+                pass
             # Optional web-search grounding: when the GUI toggles it on, search the
             # live web (aggregator SearXNG, no external API; direct-SearXNG fallback)
             # and add the results as context so the streamed answer is grounded
@@ -2488,15 +2499,6 @@ def create_app(
                     from . import external_clients
                     from urllib.parse import urlparse
 
-                    # Real-time market data for any crypto tickers in the question —
-                    # the model's training data is stale, so search snippets alone
-                    # (titles/links, no live price) led to invented numbers.
-                    try:
-                        mg = market_tools.market_grounding(last_user)
-                        if mg:
-                            grounding.append(mg)
-                    except Exception:  # noqa: BLE001 - best-effort
-                        pass
                     res = external_clients.web_search(last_user, limit=int(payload.get("web_k") or 6))
                     hits = res.get("results") or []
                     if hits:
