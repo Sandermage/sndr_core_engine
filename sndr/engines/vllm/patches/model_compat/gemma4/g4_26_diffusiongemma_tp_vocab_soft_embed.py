@@ -108,6 +108,15 @@ _TARGET_REL = "model_executor/models/diffusion_gemma.py"
 # Self-skip once #45774 merges: the upstream file then defines this helper.
 _UPSTREAM_DRIFT_MARKER = "def _get_full_embed_weight"
 
+# [2026-06-20] Also self-skip once the now-WINNING upstream TP self-conditioning
+# fix merges: #46212 (the active branch for issue #45719) adds the
+# _soft_embeddings_from_probs helper — a DIFFERENT approach (local-shard slice +
+# all-reduce) than G4_26's all-gather, so #45774's marker would NOT catch it.
+# (#46177's variant rewrites the patch's anchor region directly, so its merge is
+# caught by the required-anchor mismatch.) Without this, a future pin bump that
+# merges the TP fix would leave G4_26 mis-applying a now-redundant overlay.
+_UPSTREAM_TP_FIX_MARKER = "def _soft_embeddings_from_probs"
+
 _APPLIED = False
 
 
@@ -232,7 +241,7 @@ def _make_patcher_for_target(target_file: str) -> TextPatcher:
                 required=True,
             ),
         ],
-        upstream_drift_markers=[_UPSTREAM_DRIFT_MARKER],
+        upstream_drift_markers=[_UPSTREAM_DRIFT_MARKER, _UPSTREAM_TP_FIX_MARKER],
     )
 
 
