@@ -1760,3 +1760,38 @@ Operator-requested final bench of all models on the live rig (2× A5000 SM86, TP
 **35B fastest + most stable** (A3B MoE + FP8 + TQ + MTP K=5 + 91 patches incl PN290; PN290 gave NO regression — 243 ≥ the 225 band). 27B solidly in its canonical 120-130 band. **Gemma 65 TPS with a striking 24% CV (TPS swings 32-96).**
 
 **Loop-tick study of the Gemma instability ("что-то упустили"):** (1) the kv=auto Gemma config is a **documented, validated profile** (`gemma4-31b-kvauto-chat.yaml` reference: 70.1 TPS / TPOT 10.98 / 7/7) — my bench (65 / 11.86 / 7/7) **matches it within ~7%**, so the result is representative, not a broken config. (2) My in-report recommendation to "re-bench the TQ Gemma for better numbers" was **half-wrong**: `validate_configuration` **rejects TurboQuant for Gemma-4 MM models** (`supports_mm_prefix()` defaults False → "kv_cache_dtype not supported"); TQ-on-Gemma works only WITH the **G4_31** (`supports_mm_prefix` on `TurboQuantAttentionBackend`) + **G4_T1 (PR #42237)** overlay — the validated TQ Gemma path is the separate `gemma4-31b-tq-mtp-structured-k4` profile (700/700 tool-call, K=4, 64K ctx), not a free kv-dtype swap. (3) The 24% CV is therefore the **inherent variance of kv-auto + MTP K=3 on Gemma** (acceptance-rate swing), the documented tradeoff for uniform-fp16-KV high-throughput, not a kernel regression. Upstream this tick: #46205 (HMA KV offload) + #44577 (DSv4 KV packing) — both not our path. Net: bench results durable here; the Gemma recommendation corrected; no code change.
+
+## 78. Gemma decode-TPOT campaign — 26B-A4B driven 6.40 → 5.11ms via expert-parallel (−20%, p=0); &lt;3.8ms proven a compute-bound kernel project, not a flag
+
+**Operator goal (escalated mid-run):** drive Gemma decode TPOT below 5ms, then "below 3.8ms = победа". Tested the live G4_83 + new candidates on Gemma 26B-A4B and the new diffusiongemma model.
+
+**Workflow research (8 candidates, key structural finding):** 31B dense has a hard weight-read floor ~10.1ms on TP=2 (15.5GB AWQ ÷ 2 ÷ 768 GB/s) — &lt;5ms single-stream is **physically impossible** without spec-decode, no kernel trick beats the memory wall. Only **26B-A4B** (MoE, 4B active → active-weight floor ~1.3ms) has a realistic sub-5ms path. So all sub-5/sub-3.8 work targets 26B-A4B.
+
+**FIRST-EVER 26B-A4B decode TPOT measured in milliseconds** (bench_decode_tpot_clean_ab.py, n=40 each, streaming, temp=0.5 seed=42; profiles previously only had TPS):
+
+| Arm | decode TPOT mean | vs baseline | verdict |
+|---|---|---|---|
+| baseline (TP=2, kv-auto, MTP K=3) | 6.40ms | — | — |
+| **EP (TP=2 + `--enable-expert-parallel`)** | **5.11ms** | **−20.2%** | **Welch p=0.0000 — REAL** |
+| EP + G4_83 | 5.106ms | −0.12% | p=0.96 — G4_83 **= 0 on MoE** |
+| EP + MTP K=4 | 5.36ms | +4.9% | worse (compute-bound) |
+| TP=1 (single A5000) | 5.77ms | +12.9% | worse (½ compute) |
+| fp8 KV | **CRASH** | — | Triton fp8e4nv needs SM89+; A5000 is SM86 |
+
+On the pure-code prompt (p5) EP reaches **4.26ms**; the 5.11 mean is pulled up by narrative prompts. Correctness held across every arm (sha1 of greedy output identical to baseline; tool-call `get_weather({"city":"Paris"})` finish=tool_calls ✓).
+
+**Root-cause learnings (all empirical, not guessed):**
+- **EP is the one real lever (−20%).** On 2× A5000 with no NVLink, MoE RowParallel all-reduce over PCIe was a dominant per-token latency tax; `--enable-expert-parallel` DP-shards the experts and removes the MoE all-reduce. Confirmed the research L3 hypothesis with p=0.
+- **26B-A4B decode is COMPUTE-bound, not bandwidth- or power-bound.** During decode: SM 99%, mem 50%, power 187/192W of 230W (40W headroom), pclk 1890MHz near-max boost, temp 46°C. This is why TP=1 (half the SMs) got *worse* despite removing all-reduce, why G4_83 (attention backend; attention is the small slice on a 4B-active MoE) did nothing, and why bigger K (more draft compute) regressed.
+- **G4_83 is a 31B-dense lever, not a 26B-MoE lever.** It gave +8% on 31B-AWQ (attention-dominated) and exactly 0 on 26B-A4B (MoE/dual-MLP-dominated). Kept enabled (harmless, correctness intact, needed for 31B).
+- **fp8 KV is dead on SM86** (vLLM: "FP8 KV cache is not supported by Triton on A5000 (8.6); native fp8e4nv requires SM89+"). Closes research L6 on our hardware.
+
+**Why &lt;3.8ms is a kernel project, not a flag:** with EP the 5.11ms (4.26ms on code) is real MoE-GEMM + dual-MLP + attention compute on 2× A5000. The remaining overhead above the ~1.3ms active-weight floor is: (a) attention o_proj all-reduce (EP only removed the MoE branch); (b) **dual-MLP** — Gemma4DecoderLayer runs dense MLP AND MoE in parallel each layer and sums (gemma4.py:721-736), so 26B pays a full dense-MLP GEMM *plus* MoE; (c) router softmax over all 128 experts. Cutting these needs profile-directed kernel work, not env flags. The MoE-GEMM autotune path was started (benchmark_moe.py patched for Gemma4: `num_experts`/`top_k_experts`/`moe_intermediate_size` — upstream reads Mixtral's `num_local_experts`) but the full int4_w4a16 sweep is 1920 configs / ~75 min and even an ideal config (−0.x ms) won't break 3.8 alone.
+
+**31B (research-predicted, not re-measured this tick):** live `start_31b_kvauto.sh` force-sets `--attention-backend TURBOQUANT` (line 45) → ~21.7ms; the validated kv-auto+G4_83 path is ~10.9ms. Recommendation: 31B should drop the TURBOQUANT force for latency (its TQ path is for 64K-context, not speed). But 31B's 10.1ms bandwidth floor means &lt;3.8 is off the table there regardless.
+
+**diffusiongemma ("new model"):** `DiffusionGemmaForBlockDiffusion` — block-diffusion, not autoregressive. Boots & generates correctly on dev148 (had to swap the missing `nightly-1033ffac2` pin → `nightly`/b4c80ec0f), 18 tok/s wall under `--enforce-eager`. AR decode-TPOT is methodologically inapplicable (no per-token decode) — outside the &lt;3.8 target by construction.
+
+**Shipped this tick:** G4_83 delivered to the server's v12 `sndr/` tree (registry 314→315, default_on, import OK) so its env flag actually fires; 26B v12 launcher fixed to mount `sndr/` (was the dead empty `vllm/sndr_core` v11 path); working EP launcher `start_gemma4_26b_a4b_v12_ep.sh` on the rig. 35B PROD restored healthy (applied=90/0).
+
+**Roadmap to &lt;3.8 on 26B-A4B (compute-bound kernel work):** (1) finish Gemma4 MoE-GEMM autotune (tuner already patched; run the 75-min int4_w4a16 sweep, persist the A5000 config, mount it); (2) dual-MLP fusion / dense-branch elision (research L4 — the biggest structural slice); (3) profile-directed (nsys) decode-step breakdown to target the remaining all-reduce vs routing vs norm. The flag-space is exhausted at EP −20%.
