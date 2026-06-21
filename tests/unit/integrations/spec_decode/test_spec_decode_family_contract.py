@@ -44,7 +44,9 @@ SPEC_DECODE_PATCHES = [
     ("sndr.engines.vllm._archive.p94_spec_decode_zero_alloc", "P94"),
     ("sndr.engines.vllm._archive.pn9_independent_drafter_attn_backend", "PN9"),
     ("sndr.engines.vllm.patches.spec_decode.pn21_dflash_swa_support", "PN21"),
-    ("sndr.engines.vllm.patches.spec_decode.pn22_local_argmax_tp", "PN22"),
+    # PN22 retired 2026-06-21: superseded by vllm#39419 (LocalArgmaxMixin),
+    # native on dev148; moved to _archive/ alongside its retired siblings.
+    ("sndr.engines.vllm._archive.pn22_local_argmax_tp", "PN22"),
     ("sndr.engines.vllm.patches.spec_decode.pn23_dflash_combine_hidden_dtype", "PN23"),
     ("sndr.engines.vllm.patches.spec_decode.pn38_dflash_quant_drafter", "PN38"),
     ("sndr.engines.vllm.patches.spec_decode.pn40_dflash_omnibus", "PN40"),

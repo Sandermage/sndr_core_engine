@@ -163,7 +163,13 @@ class TestDeclaredPairsFromRegistry:
         # The Batch-1 fix declared this pair; the lint must treat it as handled.
         declared = lint._declared_conflict_pairs()
         assert frozenset(("P23_WIRE", "PN368")) in declared
-        assert frozenset(("PN390", "PN369")) in declared
+        # 2026-06-19: PN369 was consolidated INTO the P71 registry entry (both
+        # patch the same v1/sample/rejection_sampler.py at disjoint regions),
+        # so PN369 is no longer a registry id and the old ["PN369", "P71"] pair
+        # collapsed to ["P71"]. The PN390 rejection-sampler-rewrite conflict is
+        # therefore now declared symmetrically as PN390 <-> P71 (which covers
+        # both the P71 block-verify and the former PN369 relaxed-mask reads).
+        assert frozenset(("PN390", "P71")) in declared
 
 
 class TestDecideExit:

@@ -32,7 +32,9 @@ import pytest
 
 
 def _import_patch():
-    from sndr.engines.vllm.patches.spec_decode import (
+    # Retired 2026-06-21: moved to _archive/ (superseded by vllm#39419
+    # LocalArgmaxMixin, native on dev148).
+    from sndr.engines.vllm._archive import (
         pn22_local_argmax_tp as p,
     )
     return p

@@ -25,7 +25,7 @@ __all__ = [
     "p86_ngram_batch_propose_linear",
     # "p94_spec_decode_zero_alloc",  # moved to _retired/ 2026-05-14
     "pn21_dflash_swa_support",
-    "pn22_local_argmax_tp",
+    # "pn22_local_argmax_tp",  # moved to _archive/ 2026-06-21 (retired: superseded by vllm#39419 LocalArgmaxMixin, native on dev148)
     "pn23_dflash_combine_hidden_dtype",
     "pn38_dflash_quant_drafter",
     "pn40_dflash_omnibus",

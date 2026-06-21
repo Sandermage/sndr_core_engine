@@ -169,7 +169,23 @@ class TestV2ReplacementShape:
         assert "45060" in m.PN133_NEW
 
     def test_drift_markers_carry_both_upstream_forms(self):
-        assert "max(len(generated_token_ids) - 1, 0)" in m._DRIFT_MARKERS
+        # The #42722 accounting marker is OPERAND-AGNOSTIC (dev491 audit,
+        # 2026-06-14): upstream merged the fix but emits
+        # `max(len(generated_token_ids) - num_sampled, 0)` (dev491,
+        # scheduler.py:1549), whereas the <dev491 form was `- 1, 0`. The
+        # marker matches the stable `max(...` clamp prefix so PN133 self-
+        # retires as upstream_merged on EITHER operand form (the consumer
+        # in tools/check_upstream_drift.py does a plain substring `in`
+        # test). Assert the truncated marker is present AND that it is in
+        # fact a substring of BOTH historical operand forms — this is the
+        # "carry both upstream forms" contract, strengthened.
+        operand_agnostic_marker = "max(len(generated_token_ids) - "
+        assert operand_agnostic_marker in m._DRIFT_MARKERS
+        assert operand_agnostic_marker in "max(len(generated_token_ids) - 1, 0)"
+        assert (
+            operand_agnostic_marker
+            in "max(len(generated_token_ids) - num_sampled, 0)"
+        )
         assert ASSERT_LINE in m._DRIFT_MARKERS
 
     def test_45060_marker_not_in_own_replacement(self):

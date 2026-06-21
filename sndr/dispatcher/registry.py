@@ -4416,7 +4416,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "conflicts_with": [],
         "requires_patches": [],
-        "apply_module": "sndr.engines.vllm.patches.spec_decode.pn22_local_argmax_tp",
+        "apply_module": "sndr.engines.vllm._archive.pn22_local_argmax_tp",  # moved to _archive/ 2026-06-21 (retired: superseded by vllm#39419 LocalArgmaxMixin, native on dev148)
         "superseded_by": "vllm#39419 (LocalArgmaxMixin)",
         "lifecycle": "retired",
         "implementation_status": "full",
@@ -9266,7 +9266,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "median/3 runs (-8.5%%), TPS 65->~70 (+8%%)."
         ),
         "applies_to": {},
-        "composes_with": ["G4_69", "G4_71b", "G4_75", "G4_16"],
+        "composes_with": ["G4_69", "G4_71B", "G4_75", "G4_16"],
     },
     "G4_16": {
         "title": "Gemma 4 FULL_AND_PIECEWISE cudagraph mode (parallel to PN125 for gemma4)",

@@ -936,6 +936,10 @@
     "wrapped_name": "apply_patch_g4_16_gemma4_full_piecewise_cudagraph"
   },
   {
+    "name": "G4_83 gemma4 per-layer attention backend (#38891 backport, sliding-256->FA)",
+    "wrapped_name": "apply_patch_g4_83_per_layer_flashattn"
+  },
+  {
     "name": "G4_17 gemma4 vision-tower text-only skip (closes #41565)",
     "wrapped_name": "apply_patch_g4_17_gemma4_vision_tower_text_only_skip"
   },

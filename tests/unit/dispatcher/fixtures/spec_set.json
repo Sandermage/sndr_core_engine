@@ -1365,7 +1365,7 @@
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
-    "apply_module": "sndr.engines.vllm.patches.spec_decode.pn22_local_argmax_tp"
+    "apply_module": "sndr.engines.vllm._archive.pn22_local_argmax_tp"
   },
   {
     "patch_id": "PN24",
@@ -3082,6 +3082,18 @@
     "upstream_pr_relationship": "backport",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_15_gemma4_fused_rmsnorm_route"
+  },
+  {
+    "patch_id": "G4_83",
+    "family": "gemma4",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": true,
+    "env_flag": "GENESIS_ENABLE_G4_83_GEMMA4_PER_LAYER_BACKEND",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_83_per_layer_flashattn"
   },
   {
     "patch_id": "G4_16",

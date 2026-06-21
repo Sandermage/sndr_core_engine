@@ -23,6 +23,9 @@ __all__ = [
     "p63_mtp_gdn_state_recovery",
     "p94_spec_decode_zero_alloc",
     "pn9_independent_drafter_attn_backend",
+    # Retired 2026-06-21 (superseded by vllm#39419 LocalArgmaxMixin, native on
+    # dev148 - registry entry capped via applies_to vllm_version_range):
+    "pn22_local_argmax_tp",
     "pn13_cuda_graph_lambda_arity",
     "pn19_scoped_max_split",
     # pn51_qwen3_streaming_thinking_disabled removed 2026-06-20: the active
