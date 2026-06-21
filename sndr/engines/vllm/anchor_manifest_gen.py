@@ -113,6 +113,49 @@ class GenResult:
     counts: dict[str, int] = field(default_factory=dict)     # status -> n
 
 
+def to_engine_manifest(
+    res: "GenResult",
+    pristine: Callable[[str], Optional[str]],
+    *,
+    vllm_pin: str,
+    genesis_pin: str,
+) -> dict:
+    """Convert the classified ``ok`` set into the EXISTING engine manifest
+    schema (files -> rel -> {md5_pristine, size_bytes, patches -> pid ->
+    {anchors -> sub -> meta}}), so the runtime Layer-4.5 loads it unchanged.
+    ``pristine(rel)`` returns the pristine source for the per-file md5/size.
+    """
+    import hashlib
+    import time
+
+    from sndr.engines.vllm.wiring.anchor_manifest import MANIFEST_SCHEMA_VERSION
+
+    files: dict[str, dict] = {}
+    _META_KEYS = ("anchor_md5", "byte_length", "byte_offset", "replacement_md5")
+    for key, e in res.ok.items():
+        rel = e["target_rel"]
+        pid, _, sub = key.partition("::")
+        if rel not in files:
+            src = pristine(rel) or ""
+            sb = src.encode("utf-8")
+            files[rel] = {
+                "md5_pristine": hashlib.md5(sb).hexdigest(),
+                "size_bytes": len(sb),
+                "patches": {},
+            }
+        files[rel]["patches"].setdefault(pid, {"anchors": {}})
+        files[rel]["patches"][pid]["anchors"][sub] = {
+            k: e[k] for k in _META_KEYS if k in e
+        }
+    return {
+        "manifest_version": MANIFEST_SCHEMA_VERSION,
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "generated_by": "sndr.engines.vllm.anchor_manifest_gen.to_engine_manifest",
+        "pins": {"vllm": str(vllm_pin), "genesis": str(genesis_pin)},
+        "files": files,
+    }
+
+
 def build_pin_manifest(
     read_source: Callable[[str], Optional[str]],
     targets: Optional[list[AnchorTarget]] = None,

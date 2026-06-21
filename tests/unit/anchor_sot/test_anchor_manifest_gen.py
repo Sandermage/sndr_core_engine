@@ -5,10 +5,30 @@ from sndr.engines.vllm.anchor_manifest_gen import (
     build_pin_manifest,
     apply_via_meta,
     verify_roundtrip,
+    to_engine_manifest,
     STATUS_OK,
     STATUS_ANCHOR_DRIFT,
     STATUS_AMBIGUOUS,
 )
+
+
+def test_to_engine_manifest_passes_engine_validator():
+    from sndr.engines.vllm.wiring.anchor_manifest import validate_manifest_schema
+
+    targets = [
+        AnchorTarget("PA", "s1", "fileA.py", "ANCHOR_A", "REPL_A", True),
+        AnchorTarget("PB", "s1", "fileA.py", "ANCHOR_B", "REPL_B", True),
+    ]
+    pristine = {"fileA.py": "x ANCHOR_A y ANCHOR_B z"}
+    res = build_pin_manifest(lambda rel: pristine.get(rel), targets)
+    m = to_engine_manifest(
+        res, lambda rel: pristine.get(rel), vllm_pin="0.23.1", genesis_pin="v12"
+    )
+    errors = validate_manifest_schema(m)
+    assert errors == [], errors
+    assert "fileA.py" in m["files"]
+    assert set(m["files"]["fileA.py"]["patches"]) == {"PA", "PB"}
+    assert "s1" in m["files"]["fileA.py"]["patches"]["PA"]["anchors"]
 
 
 def test_R3_roundtrip_byte_identical_single_line():
