@@ -169,3 +169,65 @@ class TestSyntheticRegression:
         assert report["counts"]["error"] == 0
         # passed=True because warn-only is non-blocking by default.
         assert report["passed"] is True
+
+
+# ─── Drift-surface (default_on weighting) ───────────────────────────────────
+
+
+class TestDriftSurface:
+    def test_live_report_has_drift_surface_and_pn79_is_dormant(self):
+        """The live audit weights fragility by default_on: parked pn79
+        (default_off) is DORMANT, not active drift surface."""
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--json"],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=20,
+        )
+        assert result.returncode == 0
+        payload = json.loads(result.stdout)
+        surf = payload["drift_surface"]
+        for key in ("active_anchors", "dormant_anchors", "active_files",
+                    "dormant_files", "active_warn", "active_error"):
+            assert key in surf
+        pn79 = [f for f in payload["files"] if "pn79_inplace_ssm_state" in f["path"]]
+        assert pn79, "pn79_inplace_ssm_state.py should be scanned"
+        assert pn79[0]["active"] is False        # default_off → dormant
+        assert pn79[0]["default_on"] is False
+
+    def test_dormant_patch_does_not_count_as_active_surface(self, tmp_path, monkeypatch):
+        mod = _import_script()
+        fake = tmp_path / "parked.py"
+        _write_fake_patch(fake, anchor_lines=100)        # would be an error
+        monkeypatch.setattr(mod, "SCAN_ROOT", tmp_path)
+        monkeypatch.setattr(mod, "_path_to_module", lambda p: "parked_mod")
+        monkeypatch.setattr(mod, "_load_module_default_on", lambda: {"parked_mod": False})
+        report = mod.audit(threshold=25, hard_cap=70)
+        # Raw error still counted (transparency) but NOT on the active surface.
+        assert report["counts"]["error"] == 1
+        assert report["drift_surface"]["dormant_anchors"] == 1
+        assert report["drift_surface"]["active_error"] == 0
+        assert report["files"][0]["active"] is False
+
+    def test_active_patch_counts_on_active_surface(self, tmp_path, monkeypatch):
+        mod = _import_script()
+        fake = tmp_path / "shipping.py"
+        _write_fake_patch(fake, anchor_lines=100)
+        monkeypatch.setattr(mod, "SCAN_ROOT", tmp_path)
+        monkeypatch.setattr(mod, "_path_to_module", lambda p: "ship_mod")
+        monkeypatch.setattr(mod, "_load_module_default_on", lambda: {"ship_mod": True})
+        report = mod.audit(threshold=25, hard_cap=70)
+        assert report["drift_surface"]["active_error"] == 1
+        assert report["drift_surface"]["active_anchors"] == 1
+        assert report["files"][0]["active"] is True
+
+    def test_unknown_module_treated_as_active(self, tmp_path, monkeypatch):
+        """Registry-unavailable or unmapped files default to ACTIVE so the
+        drift surface is never under-counted."""
+        mod = _import_script()
+        fake = tmp_path / "unmapped.py"
+        _write_fake_patch(fake, anchor_lines=30)
+        monkeypatch.setattr(mod, "SCAN_ROOT", tmp_path)
+        monkeypatch.setattr(mod, "_load_module_default_on", lambda: {})
+        report = mod.audit(threshold=25, hard_cap=70)
+        assert report["files"][0]["active"] is True
+        assert report["files"][0]["default_on"] is None
+        assert report["drift_surface"]["active_warn"] == 1

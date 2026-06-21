@@ -66,6 +66,37 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCAN_ROOT = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
 
+
+def _load_module_default_on() -> dict:
+    """Map ``apply_module`` dotted-path → ``default_on`` bool from the registry.
+
+    Used to weight raw anchor fragility by whether the patch actually applies
+    (the "drift surface" dimension): a 108-anchor patch that is ``default_on=False``
+    is DORMANT — it never applies in PROD, so its fragility is not active drift and
+    should not be confused with a fragile patch that ships on by default. Degrades
+    gracefully to ``{}`` (all treated as active/unknown) if the registry can't be
+    imported — the AST fragility report itself never depends on vLLM.
+    """
+    try:
+        from sndr.dispatcher.spec import iter_patch_specs
+    except Exception:  # noqa: BLE001 — registry unavailable (e.g. minimal CI env)
+        return {}
+    out: dict = {}
+    for spec in iter_patch_specs():
+        am = getattr(spec, "apply_module", None)
+        if am:
+            out[am] = bool(getattr(spec, "default_on", False))
+    return out
+
+
+def _path_to_module(path: Path) -> str | None:
+    """Convert a scanned file path to its dotted ``apply_module`` path."""
+    try:
+        rel = path.relative_to(REPO_ROOT)
+    except ValueError:
+        return None
+    return ".".join(rel.with_suffix("").parts)
+
 # Phase 3.1 of the master plan documented 25 lines as the empirical
 # fragility threshold (anchors at or above this break quarterly on
 # pin bumps). The default ``--threshold`` reflects that.
@@ -178,6 +209,11 @@ def audit(threshold: int = DEFAULT_THRESHOLD,
             "passed": True,
             "error": f"scan root not found: {SCAN_ROOT}",
         }
+    default_on_map = _load_module_default_on()
+    # Drift-surface accumulators: anchors weighted by whether the patch applies.
+    active_anchors = dormant_anchors = 0
+    active_files = dormant_files = 0
+    active_warn = active_error = 0
     for path in sorted(SCAN_ROOT.rglob("*.py")):
         if "_retired" in path.parts:
             continue
@@ -191,6 +227,20 @@ def audit(threshold: int = DEFAULT_THRESHOLD,
         total_warn += warn_count
         total_error += error_count
         max_lines = max(l for _, l in anchors)
+        # default_on lookup: only confirmed-off patches are DORMANT; default_on
+        # AND unknown (registry unavailable / no spec) are treated as ACTIVE so
+        # the drift surface is never under-counted.
+        module = _path_to_module(path)
+        known_off = default_on_map.get(module) is False
+        default_on = None if module not in default_on_map else default_on_map[module]
+        if known_off:
+            dormant_anchors += len(anchors)
+            dormant_files += 1
+        else:
+            active_anchors += len(anchors)
+            active_files += 1
+            active_warn += warn_count
+            active_error += error_count
         try:
             rel_path = str(path.relative_to(REPO_ROOT))
         except ValueError:
@@ -205,6 +255,8 @@ def audit(threshold: int = DEFAULT_THRESHOLD,
             "max_lines": max_lines,
             "warn_count": warn_count,
             "error_count": error_count,
+            "default_on": default_on,
+            "active": not known_off,
         })
     return {
         "files": file_reports,
@@ -212,6 +264,14 @@ def audit(threshold: int = DEFAULT_THRESHOLD,
             "warn": total_warn,
             "error": total_error,
             "files_with_anchors": len(file_reports),
+        },
+        "drift_surface": {
+            "active_anchors": active_anchors,
+            "dormant_anchors": dormant_anchors,
+            "active_files": active_files,
+            "dormant_files": dormant_files,
+            "active_warn": active_warn,
+            "active_error": active_error,
         },
         "threshold": threshold,
         "hard_cap": hard_cap,
@@ -233,14 +293,26 @@ def main() -> int:
         "--strict", action="store_true",
         help="promote warnings to errors (returns non-zero on any anchor >= threshold)",
     )
+    ap.add_argument(
+        "--active-only", action="store_true",
+        help="gate only on the ACTIVE drift surface — anchors in default_on patches "
+             "(dormant default_off patches like a parked pn79 stay informational)",
+    )
     ap.add_argument("--json", action="store_true",
                     help="emit JSON payload instead of human-readable summary")
     args = ap.parse_args()
 
     report = audit(threshold=args.threshold, hard_cap=args.hard_cap)
-    passed = report["passed"]
-    if args.strict:
-        passed = passed and report["counts"]["warn"] == 0
+    surface = report.get("drift_surface", {})
+    if args.active_only:
+        # Gate on the active surface only: dormant patches never fail the build.
+        passed = surface.get("active_error", report["counts"]["error"]) == 0
+        if args.strict:
+            passed = passed and surface.get("active_warn", report["counts"]["warn"]) == 0
+    else:
+        passed = report["passed"]
+        if args.strict:
+            passed = passed and report["counts"]["warn"] == 0
 
     if args.json:
         report["strict"] = args.strict
@@ -261,10 +333,12 @@ def main() -> int:
                   f"({report['threshold']} lines)")
         else:
             print(f"  Anchors at or above the warn threshold:")
-            for f in warn_files:
+            # Active (default_on) fragility first — it's the real drift surface.
+            for f in sorted(warn_files, key=lambda x: (x.get("active") is False, -x["max_lines"])):
                 lvl = "✗" if f["error_count"] else "⚠"
+                tag = "dormant(off)" if f.get("active") is False else "ACTIVE(on)"
                 print(
-                    f"    {lvl} {f['path']}: max {f['max_lines']} lines, "
+                    f"    {lvl} [{tag}] {f['path']}: max {f['max_lines']} lines, "
                     f"{f['error_count']} error(s) + {f['warn_count']} warn(s), "
                     f"{len(f['anchors'])} total anchor(s)"
                 )
@@ -278,6 +352,16 @@ def main() -> int:
             f"  totals: error={counts['error']} warn={counts['warn']} "
             f"strict={args.strict}"
         )
+        print(
+            f"  drift surface: ACTIVE(default_on) {surface.get('active_anchors', 0)} "
+            f"anchors / {surface.get('active_files', 0)} files "
+            f"(error={surface.get('active_error', 0)} warn={surface.get('active_warn', 0)})"
+            f"  ·  DORMANT(default_off) {surface.get('dormant_anchors', 0)} "
+            f"anchors / {surface.get('dormant_files', 0)} files"
+        )
+        if args.active_only:
+            print("  (--active-only: gating on ACTIVE surface only — "
+                  "dormant patches are informational)")
 
     return 0 if passed else 1
 
