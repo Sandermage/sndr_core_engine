@@ -30,7 +30,33 @@ STATUS_OK = "ok"
 STATUS_ANCHOR_DRIFT = "anchor_drift"
 STATUS_AMBIGUOUS = "ambiguous"
 STATUS_UPSTREAM_MERGED = "upstream_merged"
+STATUS_VERSION_GATED = "version_gated"
+STATUS_OPTIONAL_ABSENT = "optional_absent"  # absent but required=False -> not drift
 STATUS_TARGET_MISSING = "target_missing"
+
+
+def version_excludes_pin(vrange, pin: Optional[str]) -> bool:
+    """True iff the patch's vllm_version_range EXCLUDES ``pin`` — then an absent
+    anchor is EXPECTED (the patch isn't for this pin), not genuine drift.
+
+    Mirrors check_upstream_drift._version_gated_out using the engine's version
+    checker. No range or no pin → not gated (conservative).
+    """
+    if not vrange or not pin:
+        return False
+    try:
+        from sndr.compat.version_check import (
+            VersionProfile,
+            check_version_constraints,
+        )
+    except Exception:  # noqa: BLE001 — checker unavailable: don't gate
+        return False
+    vr = list(vrange) if isinstance(vrange, tuple) else vrange
+    profile = VersionProfile(vllm=pin)
+    ok, _results = check_version_constraints(
+        {"vllm_version_range": vr}, profile=profile
+    )
+    return not ok  # not ok → pin not in range → gated out
 
 
 def classify_anchor(
@@ -91,21 +117,31 @@ def build_pin_manifest(
     read_source: Callable[[str], Optional[str]],
     targets: Optional[list[AnchorTarget]] = None,
     *,
+    pin: Optional[str] = None,
     is_upstream_merged: Optional[Callable[[AnchorTarget, str], bool]] = None,
 ) -> GenResult:
     """Classify every anchor target against the pristine tree (R1 × R2).
 
-    - ``read_source(target_rel)`` returns the pristine file content (or None if
-      the target file is absent at this pin).
+    Order (so an absent anchor is split into its TRUE cause, not lumped as
+    "drift"): target_missing → version_gated (range excludes ``pin``) →
+    upstream_merged (a merge marker is present) → ok/anchor_drift/ambiguous.
+
+    - ``read_source(target_rel)`` returns pristine file content (None if absent).
     - ``targets`` defaults to the full discovery (iter_anchor_targets) — R1.
-    - ``is_upstream_merged(target, content)`` lets the caller mark anchors whose
-      content upstream merged (so the per-pin file carries only NOT-merged
-      patches, per the operator requirement).
+    - ``pin`` is the target full version (e.g. "0.23.1rc1.dev148+gb4c80ec0f");
+      enables the version-gate split.
+    - ``is_upstream_merged(target, content)`` is an extra caller hook on top of
+      each target's own ``upstream_merged_markers``.
     """
     if targets is None:
         targets = list(iter_anchor_targets())
     result = GenResult()
     _src_cache: dict[str, Optional[str]] = {}
+
+    def _rej(key, t, status, **extra):
+        result.rej.append({"key": key, "target_rel": t.target_rel,
+                           "status": status, **extra})
+        result.counts[status] = result.counts.get(status, 0) + 1
 
     for t in targets:
         key = f"{t.patch_id}::{t.sub}"
@@ -114,15 +150,18 @@ def build_pin_manifest(
         src = _src_cache[t.target_rel]
 
         if src is None:
-            result.rej.append({"key": key, "target_rel": t.target_rel,
-                               "status": STATUS_TARGET_MISSING})
-            result.counts[STATUS_TARGET_MISSING] = result.counts.get(STATUS_TARGET_MISSING, 0) + 1
+            _rej(key, t, STATUS_TARGET_MISSING)
             continue
 
-        if is_upstream_merged is not None and is_upstream_merged(t, src):
-            result.rej.append({"key": key, "target_rel": t.target_rel,
-                               "status": STATUS_UPSTREAM_MERGED})
-            result.counts[STATUS_UPSTREAM_MERGED] = result.counts.get(STATUS_UPSTREAM_MERGED, 0) + 1
+        if version_excludes_pin(t.vllm_version_range, pin):
+            _rej(key, t, STATUS_VERSION_GATED, vrange=list(t.vllm_version_range or ()))
+            continue
+
+        merged = any(m in src for m in (t.upstream_merged_markers or ())) or (
+            is_upstream_merged is not None and is_upstream_merged(t, src)
+        )
+        if merged:
+            _rej(key, t, STATUS_UPSTREAM_MERGED)
             continue
 
         status, meta = classify_anchor(src, t.anchor, t.replacement)
@@ -130,9 +169,12 @@ def build_pin_manifest(
             entry = dict(meta)
             entry["target_rel"] = t.target_rel
             result.ok[key] = entry
+            result.counts[STATUS_OK] = result.counts.get(STATUS_OK, 0) + 1
+        elif status == STATUS_ANCHOR_DRIFT and not t.required:
+            # an absent OPTIONAL sub-patch is a soft-skip at apply time, not
+            # drift — mirrors check_upstream_drift (only required anchors drift).
+            _rej(key, t, STATUS_OPTIONAL_ABSENT, anchor_head=t.anchor[:60])
         else:
-            result.rej.append({"key": key, "target_rel": t.target_rel,
-                               "status": status, "anchor_head": t.anchor[:60]})
-        result.counts[status] = result.counts.get(status, 0) + 1
+            _rej(key, t, status, anchor_head=t.anchor[:60], required=t.required)
 
     return result

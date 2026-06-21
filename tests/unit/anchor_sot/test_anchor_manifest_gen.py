@@ -86,6 +86,33 @@ def test_R2_build_pin_manifest_isolates_drift():
     )
 
 
+def test_version_gated_split_not_drift():
+    # vrange excludes the pin -> version_gated even with an absent anchor (true cause)
+    t = AnchorTarget(
+        "PG", "s1", "f.py", "MISSING_ANCHOR", "R", True,
+        vllm_version_range=(">=0.20.0", "<0.23.0"),
+    )
+    src = {"f.py": "no anchor here"}
+    r = build_pin_manifest(
+        lambda rel: src.get(rel), [t], pin="0.23.1rc1.dev148+gb4c80ec0f"
+    )
+    assert not r.ok and r.rej[0]["status"] == "version_gated"
+    # without pin info it falls back to anchor_drift (can't know it's gated)
+    r2 = build_pin_manifest(lambda rel: src.get(rel), [t])
+    assert r2.rej[0]["status"] == "anchor_drift"
+
+
+def test_upstream_merged_marker_on_target_excludes():
+    # a per-target upstream_merged_marker present in source -> upstream_merged
+    t = AnchorTarget(
+        "PUM", "s1", "f.py", "ANCH", "R", True,
+        upstream_merged_markers=("def native_fix",),
+    )
+    src = {"f.py": "ANCH present and def native_fix here"}
+    r = build_pin_manifest(lambda rel: src.get(rel), [t])
+    assert not r.ok and r.rej[0]["status"] == "upstream_merged"
+
+
 def test_upstream_merged_excluded():
     targets = [AnchorTarget("PM", "s1", "f.py", "ANCH", "R", True)]
     src = {"f.py": "ANCH present"}

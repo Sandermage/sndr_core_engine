@@ -581,13 +581,6 @@
    "replacement_md5": "6e9444da48084e905271408b0cf2102b",
    "target_rel": "model_executor/layers/activation.py"
   },
-  "PN288::pn288_non_streaming_finish_reason": {
-   "anchor_md5": "6c5b929d824b953e8a73560ddf72a96f",
-   "byte_length": 220,
-   "byte_offset": 41882,
-   "replacement_md5": "f4e0875b9589d03383b201e1a2ee288d",
-   "target_rel": "entrypoints/openai/chat_completion/serving.py"
-  },
   "PN28::pn28_max_lse_clamp": {
    "anchor_md5": "6731ec2420f4473b2bcb7705ce8721c7",
    "byte_length": 67,
@@ -994,13 +987,6 @@
    "replacement_md5": "17cfd93efd7370b7c04357204c1c6b10",
    "target_rel": "parser/qwen3.py"
   },
-  "PN396::pn396_gdn_spec_decode_num_warps": {
-   "anchor_md5": "926d4dd10a6a6d6eb6011a2360aa7077",
-   "byte_length": 87,
-   "byte_offset": 7005,
-   "replacement_md5": "0c7fe81eb01c0e313b626a8cdaf67015",
-   "target_rel": "model_executor/layers/fla/ops/fused_sigmoid_gating.py"
-  },
   "PN40-classifier::pN40_hook_workload_classifier": {
    "anchor_md5": "4b9b1acc73b7f38cb6170f4cfa94306a",
    "byte_length": 73,
@@ -1021,13 +1007,6 @@
    "byte_offset": 15488,
    "replacement_md5": "e9c9931966ced7f22aa6d104c6a5a875",
    "target_rel": "model_executor/models/qwen3_dflash.py"
-  },
-  "PN50::pn50_gdn_fused_proj": {
-   "anchor_md5": "91e71bbfecc75d4324103e45ee828637",
-   "byte_length": 445,
-   "byte_offset": 34427,
-   "replacement_md5": "6fbbc4ee6196226ba4ec073a5ae7f332",
-   "target_rel": "model_executor/layers/mamba/gdn/qwen_gdn_linear_attn.py"
   },
   "PN517::pN517_pre_nccl_snapshot": {
    "anchor_md5": "3e3000f5a4cc38ebde1a74424b695724",
@@ -1063,13 +1042,6 @@
    "byte_offset": 782,
    "replacement_md5": "1712c0f41d0187f2e8e8963f4d32b63b",
    "target_rel": "model_executor/layers/fla/ops/chunk.py"
-  },
-  "PN66::pn66_remove_field": {
-   "anchor_md5": "4b0c86394cfee6915c7dcf855408e513",
-   "byte_length": 112,
-   "byte_offset": 1369,
-   "replacement_md5": "75d663aeed6bac3f797d21e2e6424cc2",
-   "target_rel": "parser/abstract_parser.py"
   },
   "PN71::pn71_extract_reasoning_normalize": {
    "anchor_md5": "449a158f6525f8a90d66024c9d3985da",

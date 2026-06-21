@@ -30,6 +30,10 @@ class AnchorTarget:
     anchor: str              # the byte-anchor text (old_text) searched in the target
     replacement: Optional[str]
     required: bool
+    # classification inputs (so an absent anchor can be split version_gated /
+    # upstream_merged / genuine drift instead of all lumped as "drift"):
+    vllm_version_range: Optional[tuple] = None   # spec.applies_to.vllm_version_range
+    upstream_merged_markers: tuple = ()          # sub-patch upstream_merged_markers
 
 
 def iter_specs_with_apply_module() -> Iterator[Any]:
@@ -142,6 +146,11 @@ def iter_anchor_targets() -> Iterator[AnchorTarget]:
         target_rel = _target_rel(getattr(patcher, "target_file", None))
         if not target_rel:
             continue
+        applies_to = getattr(spec, "applies_to", None) or {}
+        vrange = applies_to.get("vllm_version_range")
+        vrange_t = tuple(vrange) if isinstance(vrange, (list, tuple)) else (
+            (vrange,) if vrange else None
+        )
         for sp in getattr(patcher, "sub_patches", []) or []:
             anchor = getattr(sp, "anchor", None)
             if not anchor:
@@ -153,4 +162,8 @@ def iter_anchor_targets() -> Iterator[AnchorTarget]:
                 anchor=anchor,
                 replacement=getattr(sp, "replacement", None),
                 required=bool(getattr(sp, "required", False)),
+                vllm_version_range=vrange_t,
+                upstream_merged_markers=tuple(
+                    getattr(sp, "upstream_merged_markers", []) or []
+                ),
             )
