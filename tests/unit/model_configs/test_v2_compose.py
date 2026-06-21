@@ -385,3 +385,35 @@ class TestSystemEnvMerge:
     def test_profile_system_env_rejects_non_dict(self):
         with pytest.raises(SchemaError):
             _profile(system_env=["GENESIS_G4_09_CHUNK_SIZE=8192"])
+
+
+class TestComposeExpertParallel:
+    """EP (--enable-expert-parallel) is canonically emitted ONLY for
+    gemma4_moe on multi-GPU — rig-validated -20% decode TPOT on 26B-A4B
+    (6.40->5.11ms, Welch p=0; journal §78). Narrow per-family gate: the
+    Qwen3.6-35B-A3B hybrid_gdn_moe topology must NOT inherit it."""
+
+    def test_gemma4_moe_multigpu_gets_ep(self):
+        cfg = compose(
+            _model(capabilities=ModelCapabilities(attention_arch="gemma4_moe")),
+            _hardware(),
+        )
+        assert "--enable-expert-parallel" in cfg.vllm_extra_args
+
+    def test_hybrid_gdn_moe_does_not_get_ep(self):
+        # Default _model() is hybrid_gdn_moe (Qwen3.6-35B-A3B topology).
+        cfg = compose(_model(), _hardware())
+        assert "--enable-expert-parallel" not in cfg.vllm_extra_args
+
+    def test_gemma4_moe_single_gpu_no_ep(self):
+        cfg = compose(
+            _model(
+                capabilities=ModelCapabilities(attention_arch="gemma4_moe"),
+                requires=ModelRequires(
+                    min_total_vram_mib=20000, min_gpu_count=1),
+            ),
+            _hardware(hardware=HardwareSpec(
+                gpu_match_keys=["rtx a5000"], n_gpus=1,
+                min_vram_per_gpu_mib=24000, cuda_capability_min=(8, 6))),
+        )
+        assert "--enable-expert-parallel" not in cfg.vllm_extra_args

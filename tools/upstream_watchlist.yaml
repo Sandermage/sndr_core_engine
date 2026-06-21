@@ -1,13 +1,12 @@
 watch:
 - upstream: vllm#43409
-  status: merged-in-pin-REGRESSION
+  status: merged
   fix_upstream: vllm#45656
   fix_status: merged-NOT-in-pin
   severity: P0-correctness
-  local_patches: []
-  affects_models:
-  - Qwen3.6-27B-int4-AutoRound
-  action: backport-fix
+  local_patches:
+  - PN400
+  action: port
   since: 2026-06-20
   notes: |
     REGRESSION IN dev148 (found by the /loop upstream sweep 2026-06-20).
@@ -30,6 +29,65 @@ watch:
     as not-27B-correctness-safe until then. VALIDATE via 27B greedy-output
     A/B (dev148 vs dev148+patch) on a deterministic prompt. The 27B is not
     currently running (35B PROD is up) so there is no live mis-serving now.
+- upstream: vllm#43559
+  status: merged
+  fix_upstream: vllm#43650
+  fix_status: open-NOT-in-pin
+  severity: P0-correctness
+  local_patches: []
+  affects_models:
+  - Qwen3.6-27B-int4-AutoRound
+  - Qwen3.6-35B-A3B-FP8
+  action: watch
+  since: 2026-06-21
+  notes: |
+    REGRESSION in dev148 (found by the /loop upstream sweep 2026-06-21).
+    MTP + --enable-prefix-caching on hybrid GDN silently drops accuracy
+    ~20% (tool-eval 90%->50%), confirmed upstream on BOTH Qwen3.6-27B and
+    35B-A3B. Fix #43650 is OPEN, NOT in dev148. RIG STATUS: 35B PROD is
+    SAFE — start_qwen3.6-35b-balanced.sh runs MTP K=5 but has NO
+    --enable-prefix-caching (verified live 2026-06-21). 27B INT4 is exposed
+    only if launched with MTP + prefix caching. ACTION: never combine MTP +
+    --enable-prefix-caching on hybrid GDN models; if prefix caching is
+    required, force --kv-cache-dtype fp8 (issue-confirmed workaround). When
+    #43650 merges, take the final-mamba-block-drop fix. Gemma-4-26B-A4B is
+    NOT hybrid -> unaffected.
+- upstream: vllm#38999
+  status: open
+  severity: P1-crash
+  local_patches: []
+  affects_models:
+  - Gemma-4-26B-A4B
+  action: watch
+  since: 2026-06-21
+  notes: |
+    Gemma-4-26B-A4B CRASHES with --data-parallel-size>1 (AssertionError in
+    cuda_communicator all_gather on the FIRST request — loads fine, graphs
+    build, /health returns 200, then dies in serving). Found by the /loop
+    sweep 2026-06-21. TRAP: setting DP=2 for "parallelism" = a silent
+    in-flight incident after a healthy boot. ACTION: never set
+    --data-parallel-size>1 or --enable-eplb on Gemma4. The validated speedup
+    path is --enable-expert-parallel (EP-over-TP) — rig-validated -20% TPOT
+    (journal §78), now canonically emitted by compose() for gemma4_moe
+    multi-GPU. Fresh EP fixes #43219/#43110/#45002 do not regress that path.
+- upstream: vllm#44740
+  status: open
+  fix_upstream: vllm#44209
+  fix_status: open
+  severity: P1-crash
+  local_patches: []
+  affects_models:
+  - Qwen3.6-27B-int4-AutoRound
+  action: watch
+  since: 2026-06-21
+  notes: |
+    MTP cudagraph negative memory estimate (-35 GiB) -> KV reallocation ->
+    OOM. On hybrid GDN the KV pool size is non-deterministic -> a silent
+    crash-loop under restart:unless-stopped AFTER /health already returned
+    200. Found by the /loop sweep 2026-06-21. Affects our 27B INT4 (MTP +
+    hybrid GDN + cudagraph). WORKAROUND: pass an explicit
+    --kv-cache-memory-bytes instead of pure --gpu-memory-utilization; do NOT
+    treat the healthcheck as a success indicator when MTP is on.
 - upstream: vllm#38479
   status: merged
   local_patches:

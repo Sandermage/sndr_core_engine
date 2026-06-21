@@ -531,6 +531,16 @@ def compose(
         if target_backend is not None:
             vllm_extra_args.extend(["--attention-backend", target_backend])
 
+    # 4e. Expert-parallel for Gemma-4 MoE on multi-GPU (no-NVLink all-reduce
+    # tax). DP-sharding the experts removes the per-token PCIe MoE all-reduce.
+    # Rig-validated -20% decode TPOT on 26B-A4B (6.40->5.11ms, Welch p=0;
+    # journal §78). Gated NARROWLY to attention_arch == "gemma4_moe": NOT a
+    # global is_moe — Qwen3.6-35B-A3B "hybrid_gdn_moe" is a different topology
+    # (Mamba+GDN+MoE) untested with EP and must not silently inherit this.
+    if (int(hardware.hardware.n_gpus or 0) > 1
+            and model.capabilities.attention_arch == "gemma4_moe"):
+        vllm_extra_args.append("--enable-expert-parallel")
+
     # 5. Composed key for downstream identification.
     # V1 ModelConfig.key requires strict kebab-case `^[a-z0-9-]+$` —
     # no dots, no underscores. V2 IDs allow dots (e.g. `qwen3.6-fp8`),
