@@ -9238,6 +9238,36 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "applies_to": {"model_arch": ["Gemma4ForConditionalGeneration", "Gemma4ForCausalLM"]},
     },
+    "G4_83": {
+        "title": "Gemma 4 per-layer attention backend on Ampere (#38891 backport)",
+        "tier": "community",
+        "family": "gemma4",
+        "env_flag": "GENESIS_ENABLE_G4_83_GEMMA4_PER_LAYER_BACKEND",
+        "default_on": True,
+        "category": "perf_hotfix",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "upstream_pr": 38891,
+        "upstream_pr_relationship": "backport",
+        "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_83_per_layer_flashattn",
+        "lifecycle": "experimental",
+        "credit": (
+            "Backport of vllm PR #38891 (OPEN, fixes #38887). On Ampere (no "
+            "FA4) Gemma4Config force-sets TRITON_ATTN for ALL layers — a "
+            "~5-11x attention tax on the ~80%% of layers (sliding-window, "
+            "head_dim=256) that can run FlashAttention. G4_83 undoes the "
+            "global force (only when the engine itself set it, never an "
+            "explicit operator backend) so each layer picks its own backend: "
+            "sliding-256 -> FlashAttention, global-512 -> Triton. The "
+            "kv_sharing contract (G4_69 skip-list [58,59] + G4_71b/G4_75 "
+            "drafter override) is preserved independently. Rig-validated "
+            "2026-06-21 (Gemma-4-31B-AWQ, 2x A5000): correctness intact "
+            "(7x6->42, no mixed-backend corruption), decode TPOT 11.9->~10.9ms "
+            "median/3 runs (-8.5%%), TPS 65->~70 (+8%%)."
+        ),
+        "applies_to": {},
+        "composes_with": ["G4_69", "G4_71b", "G4_75", "G4_16"],
+    },
     "G4_16": {
         "title": "Gemma 4 FULL_AND_PIECEWISE cudagraph mode (parallel to PN125 for gemma4)",
         "tier": "community",

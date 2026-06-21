@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-20T03:33:26Z
-Total entries: **314**
+Generated: 2026-06-21T17:10:36Z
+Total entries: **315**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **314**
+- `tier=community`: **315**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **231**
+- `lifecycle=experimental`: **232**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
 - `lifecycle=retired`: **34**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **55** / 314
+### Default-on at boot: **56** / 315
 
 ### By family
 - `attention`: 1
@@ -29,7 +29,7 @@ Total entries: **314**
 - `attention.turboquant`: 61
 - `compile_safety`: 16
 - `detection`: 3
-- `gemma4`: 19
+- `gemma4`: 20
 - `kernels`: 9
 - `kv_cache`: 16
 - `loader`: 3
@@ -201,7 +201,7 @@ Total entries: **314**
 | **PN300** | `community` | `experimental` | · | `GENESIS_ENABLE_PN300_UNIVERSAL_TRITON_AUTOTUNE_WRAPPER` | — | Universal Triton Autotune Arch-Aware Wrapper (replaces per-file PN298/299) |
 | **PN302** | `community` | `experimental` | · | `GENESIS_ENABLE_PN302_MODEL_PROFILE_INIT` | — | Genesis Model Profile boot-time initializer (model-aware decision API) |
 
-### `gemma4` (19)
+### `gemma4` (20)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -224,6 +224,7 @@ Total entries: **314**
 | **G4_24** | `community` | `retired` | · | `GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP` | — | Fused softcap Triton kernel route for Gemma 4 (FINAL logits only; G4_24b will... |
 | **G4_25** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD` | — | Gemma 4 dual-RoPE base-freq divergence guard (long-context quality) |
 | **G4_26** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB` | [#45774](https://github.com/vllm-project/vllm/pull/45774) | "Fix DiffusionGemma self-conditioning soft-embed for TP>1 (vocab-sharded embe... |
+| **G4_83** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_G4_83_GEMMA4_PER_LAYER_BACKEND` | [#38891](https://github.com/vllm-project/vllm/pull/38891) | Gemma 4 per-layer attention backend on Ampere (#38891 backport) |
 
 ### `kernels` (9)
 
