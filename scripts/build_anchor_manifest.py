@@ -1,11 +1,23 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Build the Genesis Site Map anchor offset manifest.
+"""Build the Genesis Site Map anchor offset manifest (LEGACY GLOBAL fallback).
 
 Node 3 of P2.1 design (2026-05-07). One-shot CLI tool — typically run
 once per vllm pin upgrade. Output is committed to the repo at
 `sndr/manifests/anchor_manifest.json` and serves as the
 ground-truth for Phase 3 runtime O(1) anchor lookup.
+
+RELATIONSHIP TO THE PER-PIN ANCHOR SoT (2026-06-21):
+This builds the single GLOBAL fallback manifest — a small hand-curated
+STABLE-ratchet set (see `_REGISTRY_TARGETS`) read from committed pristine
+fixtures, works fully offline (no rig). It is the LAST-RESORT fallback that
+`cached_load_manifest` uses when no per-pin manifest matches the live pin.
+The AUTHORITATIVE per-pin manifests (`sndr/engines/vllm/pins/<pin>/anchors.json`,
+ALL anchor-bearing patches, generated from the real live engine + bare-image
+pristine source) are built by the Ф4 pipeline `scripts/anchor_sot/` →
+`make rebuild-pin`. On a pin bump, regenerate the per-pin manifest with
+`make rebuild-pin`; this legacy global generator is only touched when the
+hand-curated STABLE set itself changes.
 
 Usage:
     # Default: build for currently registered patchers using pristine

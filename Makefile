@@ -13,7 +13,7 @@
 .PHONY: help test gates audit docs precommit paths-env clean \
         test-pin-gate test-iron-rule test-family test-doc-sync \
         audit-upstream audit-yaml preflight lint-drift-markers \
-        tokenizer-fingerprint \
+        tokenizer-fingerprint rebuild-pin audit-pin \
         docs-check docs-write doctor \
         evidence evidence-release evidence-json gui-build gui-lint test-gui-contract audit-i18n
 
@@ -22,6 +22,9 @@
 
 PYTHON ?= python3
 PYTEST ?= $(PYTHON) -m pytest
+
+# Rig repo root (GENESIS_PROJECT_ROOT on sander@192.168.1.10) — anchor-SoT regen.
+RIG_REPO ?= /tmp/genesis-consolidated
 
 help: ## Show this help message
 	@echo "Genesis vLLM Patches — operator shortcuts"
@@ -158,6 +161,28 @@ tokenizer-fingerprint: ## Tokenizer-fingerprint gate, run in-container pre-bench
 		$${PROMPTS_FILE:+--prompts-file "$${PROMPTS_FILE}"} \
 		$${JSON_OUT:+--json-out "$${JSON_OUT}"} \
 		$${COMPARE:+--compare "$${COMPARE}"}
+
+rebuild-pin: ## Ф4: regenerate the per-pin anchor source-of-truth on the rig, pull it back (env: SSH_HOST [CONTAINER] [IMAGE]); see docs/superpowers/specs/2026-06-21-anchor-sot-design.md
+	@test -n "$${SSH_HOST}" || { \
+		echo "Usage: make rebuild-pin SSH_HOST=<user@host> [CONTAINER=...] [IMAGE=...]"; \
+		echo "Runs the proven 2-step: running-container discovery + bare-image pristine source."; \
+		echo "Writes sndr/engines/vllm/pins/<pin>/anchors.json — review + commit the result."; \
+		exit 2; }
+	@echo "=== sync anchor-sot scripts + sndr to rig ==="
+	rsync -a scripts/anchor_sot "$${SSH_HOST}:$(RIG_REPO)/scripts/"
+	rsync -a sndr "$${SSH_HOST}:$(RIG_REPO)/"
+	@echo "=== regenerate manifest on rig ==="
+	ssh "$${SSH_HOST}" "CONTAINER=$${CONTAINER:-vllm-qwen3.6-35b-balanced-k3} IMAGE=$${IMAGE:-vllm/vllm-openai:nightly} REPO=$(RIG_REPO) bash $(RIG_REPO)/scripts/anchor_sot/rebuild_pin.sh"
+	@echo "=== pull generated pins/ back to local repo ==="
+	rsync -a "$${SSH_HOST}:$(RIG_REPO)/sndr/engines/vllm/pins/" sndr/engines/vllm/pins/
+	@echo "rebuild-pin done — review + commit sndr/engines/vllm/pins/<pin>/anchors.json"
+
+audit-pin: ## Ф4: verify the committed per-pin manifest still matches a fresh rig regen (R2 drift gate; env: SSH_HOST [CONTAINER] [IMAGE])
+	@test -n "$${SSH_HOST}" || { \
+		echo "Usage: make audit-pin SSH_HOST=<user@host> [CONTAINER=...] [IMAGE=...]"; \
+		echo "Regenerates from the live engine + diffs vs committed (ignoring timestamps)."; \
+		exit 2; }
+	@bash scripts/anchor_sot/audit_pin.sh "$${SSH_HOST}"
 
 audit-legacy-imports: ## Forbid vllm.sndr_core.patches / vllm._genesis active imports
 	@bash scripts/check_no_legacy_imports.sh
