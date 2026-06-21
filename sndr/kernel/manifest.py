@@ -85,10 +85,24 @@ def cached_load_manifest() -> Optional[dict]:
     # Honors `SNDR_MANIFEST_DIR` env override; falls back to auto-detect
     # of legacy/canonical location.
     try:
-        from sndr.engines.vllm.wiring.anchor_manifest import load_manifest_for_pins
+        from sndr.engines.vllm.wiring.anchor_manifest import (
+            load_manifest_for_pins,
+            per_pin_manifest_path,
+        )
         from sndr.engines.vllm.locations.project_paths import manifest_json_path
+        # Ф3 (2026-06-21): prefer the per-pin source-of-truth manifest
+        # pins/<pin>/anchors.json; fall back to the legacy single committed
+        # manifest when no per-pin file exists for the running pin. Either way
+        # load_manifest_for_pins enforces the pin match, and any md5 mismatch
+        # at apply time falls back to the inline anchor (authoritative+fallback).
+        per_pin = per_pin_manifest_path(vllm_pin)
+        manifest_path = (
+            str(per_pin)
+            if (per_pin is not None and per_pin.is_file())
+            else str(manifest_json_path())
+        )
         manifest = load_manifest_for_pins(
-            str(manifest_json_path()),
+            manifest_path,
             vllm_pin=vllm_pin, genesis_pin=genesis_pin,
         )
     except Exception as e:

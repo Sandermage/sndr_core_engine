@@ -570,3 +570,52 @@ def default_manifest_path() -> Path:
     here = Path(__file__).resolve().parent
     # `wiring/anchor_manifest.py` -> `vllm/_genesis/manifests/anchor_manifest.json`
     return here.parent / "manifests" / "anchor_manifest.json"
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Ф3 — per-pin manifest resolution (the operator's "one file per pin")
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def normalize_pin(version: Optional[str]) -> Optional[str]:
+    """Map a full vllm version string to its pin-manifest directory name.
+
+    "0.23.1rc1.dev148+gb4c80ec0f" -> "0.23.1_b4c80ec0f"
+    "0.21.1rc0+g626fa9bba566"     -> "0.21.1_626fa9bba"
+    Returns None when the version has no resolvable +g<sha> (no per-pin dir).
+    """
+    if not version:
+        return None
+    import re
+    m = re.match(
+        r"(\d+\.\d+\.\d+)(?:rc\d+)?(?:\.dev\d+)?\+g([0-9a-f]{6,})", version
+    )
+    return f"{m.group(1)}_{m.group(2)[:9]}" if m else None
+
+
+def pins_dir() -> Path:
+    """`engines/vllm/pins/` — one subdir per supported pin."""
+    return Path(__file__).resolve().parent.parent / "pins"
+
+
+def per_pin_manifest_path(vllm_pin: Optional[str]) -> Optional[Path]:
+    """`pins/<normalized_pin>/anchors.json` for ``vllm_pin``, or None."""
+    norm = normalize_pin(vllm_pin)
+    return (pins_dir() / norm / "anchors.json") if norm else None
+
+
+def is_pin_supported(vllm_pin: Optional[str]) -> bool:
+    """True iff a per-pin anchors.json exists for ``vllm_pin``."""
+    p = per_pin_manifest_path(vllm_pin)
+    return bool(p and p.is_file())
+
+
+def list_supported_pins() -> tuple[str, ...]:
+    """All pins that have a committed `pins/<pin>/anchors.json`."""
+    d = pins_dir()
+    if not d.is_dir():
+        return ()
+    return tuple(sorted(
+        c.name for c in d.iterdir()
+        if c.is_dir() and (c / "anchors.json").is_file()
+    ))
