@@ -94,3 +94,63 @@ def run_case(E, K, N, G, M, TOPK, mean):
 # is robust for ALL distributions, including all-positive groups.
 run_case(8, 2816, 1408, 32, 64, 8, 0.0)   # zero-mean: GEMM_err~0, quant_err~0.087
 run_case(1, 2816, 1408, 32, 16, 1, 1.0)   # all-positive: GEMM_err~0, quant_err~0.007 (fix verified)
+
+
+# --- full MoE forward: gate -> w1w3 -> SwiGLU -> w2 -> combine -----------------
+# Reuses two TmInt4MoE instances (w13 + w2; w2 via identity gather) and does
+# SwiGLU + combine in torch. Compared against a reference full MoE on the
+# int4-dequantized weights -> isolates the pipeline (should be ~0).
+import torch.nn.functional as F
+
+
+def full_moe_case(E, K, I, G, M, TOPK):
+    torch.manual_seed(1)
+    w13 = torch.randn(E, K, 2 * I, device="cuda", dtype=torch.float16) * 0.1  # (E,hidden,2*inter)
+    w2 = torch.randn(E, I, K, device="cuda", dtype=torch.float16) * 0.1       # (E,inter,hidden)
+    op13 = torch.classes.genesis_tm.TmInt4MoE(w13, G)
+    op2 = torch.classes.genesis_tm.TmInt4MoE(w2, G)
+    x = torch.randn(M, K, device="cuda", dtype=torch.float16)
+    ti = torch.stack([torch.randperm(E)[:TOPK] for _ in range(M)])      # (M,TOPK) expert ids
+    tw = torch.softmax(torch.randn(M, TOPK), dim=-1).half()             # (M,TOPK) gate weights
+
+    slots = []  # (token, expert, gate) ordered by expert
+    for e in range(E):
+        for m in range(M):
+            row = ti[m].tolist()
+            if e in row:
+                slots.append((m, e, float(tw[m, row.index(e)])))
+    R = len(slots)
+    f2n = torch.tensor([s[0] for s in slots], dtype=torch.int32, device="cuda")
+    cnt = [0] * E
+    for s in slots:
+        cnt[s[1]] += 1
+    offs = [0]
+    for e in range(E):
+        offs.append(offs[-1] + cnt[e])
+    off_t = torch.tensor(offs, dtype=torch.int32, device="cuda")
+    ident = torch.arange(R, dtype=torch.int32, device="cuda")
+    gate = torch.tensor([s[2] for s in slots], device="cuda", dtype=torch.float32)
+
+    # op int4 pipeline
+    de = op13.forward_w1w3(x, f2n, off_t)                  # (R, 2I)
+    inter = (F.silu(de[:, :I].float()) * de[:, I:].float()).half()  # (R, I) SwiGLU
+    oe = op2.forward_w1w3(inter, ident, off_t)             # (R, K)
+    out = torch.zeros(M, K, device="cuda", dtype=torch.float32)
+    out.index_add_(0, f2n.long(), gate[:, None] * oe.float())
+
+    # reference full MoE on int4-dequantized weights
+    dq13 = torch.stack([op13.get_dequant(e) for e in range(E)])  # (E,K,2I)
+    dq2 = torch.stack([op2.get_dequant(e) for e in range(E)])    # (E,I,K)
+    ref = torch.zeros(M, K, device="cuda", dtype=torch.float32)
+    for m in range(M):
+        for jj, e in enumerate(ti[m].tolist()):
+            d = x[m].float() @ dq13[e].float()
+            it = F.silu(d[:I]) * d[I:]
+            ref[m] += tw[m, jj].float() * (it @ dq2[e].float())
+
+    rel = ((out - ref).abs().mean() / ref.abs().mean().clamp_min(1e-6)).item()
+    print(f"[fullmoe] E={E} K={K} I={I} M={M} TOPK={TOPK} R={R} "
+          f"reldiff_vs_dq_ref={rel:.5f} finite={bool(torch.isfinite(out).all())}")
+
+
+full_moe_case(8, 2816, 704, 32, 16, 8)   # Gemma-26B per-layer MoE (subset of experts)
