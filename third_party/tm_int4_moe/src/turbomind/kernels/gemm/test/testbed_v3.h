@@ -458,6 +458,51 @@ struct Testbed_v3: Parameter {
 
     void Run(const Tensor& x, const vector<unique_ptr<LinearWeight>>& experts) {}
 
+    /// Genesis: cudaEvent-timed latency of the TurboMind int4 grouped-MoE w1w3
+    /// GEMM (the op that replaces vLLM's moe_wna16 at TP=2 for Gemma-26B). Reports
+    /// us/fwd + effective int4 weight-read bandwidth (decode is memory-bound).
+    void Benchmark()
+    {
+        if (!expert_num) {
+            return;
+        }
+        const int iters  = 100;
+        const int warmup = 10;
+        const int m_gemm = max_batch_size * experts_per_token;
+
+        auto bench = [&](LinearWeight& w) -> float {
+            Tensor de;
+            for (int i = 0; i < warmup; ++i) {
+                linear_.Forward(x_original_, w, f2n_, offsets_, de);
+            }
+            cudaStreamSynchronize(stream_);
+            cudaEvent_t e0, e1;
+            cudaEventCreate(&e0);
+            cudaEventCreate(&e1);
+            cudaEventRecord(e0, stream_);
+            for (int i = 0; i < iters; ++i) {
+                linear_.Forward(x_original_, w, f2n_, offsets_, de);
+            }
+            cudaEventRecord(e1, stream_);
+            cudaEventSynchronize(e1);
+            float ms = 0.f;
+            cudaEventElapsedTime(&ms, e0, e1);
+            cudaEventDestroy(e0);
+            cudaEventDestroy(e1);
+            return ms / iters * 1000.f;  // microseconds per Forward
+        };
+
+        const float t_int4 = bench(*w_quant_);
+        // Active experts at decode ~= min(M, E); int4 weight bytes = N*K/2 per expert.
+        const int    active = m_gemm < expert_num ? m_gemm : expert_num;
+        const double wbytes = (double)active * output_dim * input_dim / 2.0;
+        const double gbps   = wbytes / (t_int4 * 1e-6) / 1e9;
+        printf("\n[BENCH] TurboMind int4 g%-3d grouped-MoE w1w3 | tokens=%d top_k=%d M=%d N=%d K=%d E=%d\n",
+               group_size, max_batch_size, experts_per_token, m_gemm, output_dim, input_dim, expert_num);
+        printf("[BENCH]   latency = %8.2f us/fwd | ~%d active experts | ~%.0f GB/s int4 weight-read\n",
+               t_int4, active, gbps);
+    }
+
     void Compare()
     {
         // Buffer_<float> h(16 * 16, kCPU);

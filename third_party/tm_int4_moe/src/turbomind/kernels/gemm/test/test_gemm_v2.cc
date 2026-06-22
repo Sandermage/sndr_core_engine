@@ -75,6 +75,20 @@ int main()
 
     p.max_batch_size = 256;
 
+    // Genesis: decode-batch sweep without rebuild. TM_BENCH_BSZ sets the token
+    // count (grouped-GEMM M = bsz * top_k). e.g. bsz=1 -> M=8 (single-token decode).
+    if (const char* s = std::getenv("TM_BENCH_BSZ")) {
+        p.max_batch_size = std::atoi(s);
+    }
+    // Genesis: override GEMM dims to bench w2 (down-proj) shape vs w1w3 (gate-up).
+    //   w1w3: K=2816 N=1408 (default).  w2: K=704 N=2816.
+    if (const char* s = std::getenv("TM_BENCH_K")) {
+        p.input_dim = std::atoi(s);
+    }
+    if (const char* s = std::getenv("TM_BENCH_N")) {
+        p.output_dim = std::atoi(s);
+    }
+
     // p.input_dim         = 16384;
     // p.output_dim        = 16384;
     // p.max_batch_size    = 16384;
@@ -94,6 +108,7 @@ int main()
     test.GetReference();
     test.Run();
     test.Compare();
+    test.Benchmark();
 
     cudaDeviceSynchronize();
 

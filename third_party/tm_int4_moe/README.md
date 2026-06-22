@@ -54,8 +54,26 @@ A5000 re-bench.
         `LinearWeight::set_grouped(true)` before `prepare()` so `GetConverters`
         returns the *grouped* u4 layout (`order_b` col-major). The dense u4 layout
         has the opposite `order_b` → "No feasible kernel" for the grouped GEMM.
+- [x] **Speed A/B PROVEN on rig (2026-06-22, 2×A5000 SM86)** — cudaEvent-timed
+      grouped-MoE GEMM latency for the Gemma-4-26B-A4B shape (E=128, top_k=8,
+      hidden=2816, inter=704, g32), TurboMind int4 (`test_gemm_v2` `Benchmark()`,
+      both GEMMs w1w3+w2) vs vLLM `moe_wna16` (`fused_experts_impl`, CUDA path
+      `should_moe_wna16_use_cuda`), both int4 g32, random weights (latency depends
+      only on shape/dtype):
+
+      | tokens | M (=tok·8) | TurboMind int4 w1w3+w2 | vLLM moe_wna16 full | speedup |
+      |-------:|-----------:|-----------------------:|--------------------:|--------:|
+      |   1 (decode) |    8 |  **57.2 µs** |  187.4 µs | **3.3×** |
+      |   4          |   32 |   159.2 µs   |  788.1 µs | **4.95×** |
+      |  16          |  128 |   506.4 µs   | 2354.3 µs | **4.65×** |
+      |  64          |  512 |   701.7 µs   | 4247.8 µs | **6.05×** |
+
+      The TurboMind int4 w1w3 GEMM alone hits **~737 GB/s = ~96% of A5000 peak HBM
+      BW** at M=128 (memory-bound optimal). Caveat: the TurboMind figure sums the
+      two grouped GEMMs (no silu/combine epilogue); moe_wna16 full includes
+      silu+combine (small), so the GEMM-core speedup is the conservative end.
 - [ ] Phase 2: torch.ops custom op + offline weight-prep (grouped layout) +
-      swap moe_wna16 + rig A/B (speed vs moe_wna16, accuracy vs FP16)
+      swap moe_wna16 in the live engine + end-to-end TPOT A/B on the 26B
 
 ## Build feasibility — PROVEN
 `cpp_extension.load_inline` JIT-compiled+ran a CUDA op under `-arch=sm_86`
