@@ -73,15 +73,27 @@ validation: null                                  # no functional artifact gate 
 #     ceiling estimate was optimistic; the actual stable ceiling
 #     after warmup-allocator settle is closer to 210K. Need a
 #     larger safety margin.
-#   • max_model_len=200000 (this commit):
+#   • max_model_len=200000 (prior commit):
 #       expected ~9.4 GiB needed → ~600 MiB margin per card
-#     Well below the 210656 stable ceiling.
+#     Well below the 210656 stable ceiling on the auto/fp16 KV path.
 #
-# 200K still serves at 78% of the 31B model's 256K published context
-# (VLLM_ALLOW_LONG_MAX_MODEL_LEN=1 in hardware system_env stays in
-# force for the remaining headroom if a future operator wants to
-# raise it back up after profiling allocator behavior on a fresh
-# vllm pin).
+# 2026-06-23: raised 200000 → 262144 (256K). A rig agent live-validated
+# 262144 on this dense 31B — real 146,050-token ingestion + correct marker
+# retrieval. CRITICAL: 256K fits ONLY via the G4_19b TurboQuant 4×-compress
+# KV path (the TQ wrapper stack G4_19/19B/31 this default profile inherits
+# from the ModelDef). The kv-auto / fp16 KV path would NOT fit 256K — that
+# is exactly why the sibling gemma4-31b-kvauto-chat profile is capped at 32K
+# and is deliberately NOT bumped. With TQ KV, the ~9.4 GiB @200K scales to
+# fit 256K inside the gmu0.90 budget on 2× A5000 (TP=2). User policy: all
+# models at 256K+. GENESIS_TQ_MAX_MODEL_LEN MUST match max_model_len so the
+# TQ workspace allocator sizes for the worst-case context (hardware-YAML
+# rule: 'GENESIS_TQ_MAX_MODEL_LEN must match'); set in system_env below.
+#
+# NOTE (unchanged from prior): on the promoted 0.22.1 pin the TQ backend is
+# gated off for Gemma 4 MM (see the ⛔ TQ-BLOCKED header) and this preset
+# falls back to the degraded kv-auto / 32K hand profile until G4_79 (+G4_31)
+# validates. The 262144 + TQ_MAX here describes the TQ-on path the ModelDef
+# pin_holds (626fa9bb); it is the intended steady-state once TQ is unblocked.
 #
 # All other sizing fields = hardware defaults (compose.py treats
 # sizing_override as full-replacement when set, so every field must
@@ -89,13 +101,24 @@ validation: null                                  # no functional artifact gate 
 #
 # This is a CONFIG fix only — no runtime / kernel / registry change.
 sizing_override:
-  max_model_len: 200000
+  max_model_len: 262144                          # was 200000 — 256K via TQ 4×-compress KV path. Rig-validated 2026-06-23: 146K-token ingestion + retrieval PASS (dense 31B, TQ KV)
   gpu_memory_utilization: 0.90
   max_num_seqs: 2
   max_num_batched_tokens: 4096
   enable_chunked_prefill: true
   enforce_eager: false
   disable_custom_all_reduce: true
+
+# ─── Workload runtime env (profile-scoped) ─────────────────────────────
+# GENESIS_TQ_MAX_MODEL_LEN sizes the TurboQuant KV workspace allocator for
+# the worst-case context. The hardware-YAML rule requires it to MATCH
+# max_model_len (same discipline as the Qwen TQ presets, e.g. the 27B gold
+# file pins both at 262144). Raised to 262144 alongside the max_model_len
+# bump above (2026-06-23). Profile-scoped so it does NOT leak onto the
+# shared gemma-4-31b-it-awq ModelDef (the kvauto-chat sibling has no TQ
+# workspace and must not inherit this); compose layers hw < model < profile.
+system_env:
+  GENESIS_TQ_MAX_MODEL_LEN: "262144"             # must match max_model_len (hardware-YAML rule); 256K worst-case TQ workspace
 
 # ─── Patches delta ─────────────────────────────────────────────────────
 # Default profile uses the ModelDef's canonical patches as-is — Gemma 4
