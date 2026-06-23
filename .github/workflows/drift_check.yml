@@ -44,14 +44,34 @@ jobs:
             echo "=== Checking pin: $pin ==="
             # NOTE: we cannot run a real GPU container in github-hosted runners,
             # so the check operates against the committed manifests as a smoke
-            # test. A self-hosted GPU runner is required for full drift detection.
-            python3 -c "
-          import yaml, sys
+            # test (schema validity). A self-hosted GPU runner is required for
+            # full md5/anchor drift detection (tools/drift_check.py --pin <pin>
+            # with the live vllm install). The CURRENT pin ships anchors.json,
+            # NOT manifest.yaml, so we prefer the authoritative anchors.json and
+            # fall back to the legacy manifest.yaml for older pins (GAP 4 fix).
+            PIN="$pin" python3 -c "
+          import json, os, sys
           from pathlib import Path
-          m = yaml.safe_load(Path('sndr/engines/vllm/pins/$pin/manifest.yaml').read_text())
-          assert m['engine'] == 'vllm'
-          assert m['pin'] == '$pin'
-          print(f'manifest valid: {len(m[\"files\"])} files tracked')
+          pin = os.environ['PIN']
+          d = Path('sndr/engines/vllm/pins') / pin
+          anchors = d / 'anchors.json'
+          legacy = d / 'manifest.yaml'
+          if anchors.is_file():
+              from sndr.engines.vllm.wiring.anchor_manifest import validate_manifest_schema
+              m = json.loads(anchors.read_text())
+              errors = validate_manifest_schema(m)
+              assert not errors, f'anchors.json schema invalid: {errors[:3]}'
+              n = sum(len(p.get('anchors', {})) for f in m['files'].values() for p in f['patches'].values())
+              print(f'anchors.json valid: {len(m[\"files\"])} files, {n} anchors tracked')
+          elif legacy.is_file():
+              import yaml
+              m = yaml.safe_load(legacy.read_text())
+              assert m['engine'] == 'vllm'
+              assert m['pin'] == pin
+              print(f'manifest.yaml valid: {len(m[\"files\"])} files tracked')
+          else:
+              print(f'ERROR: no manifest for pin {pin}', file=sys.stderr)
+              sys.exit(1)
           " || drift_found=true
           done
           if [ "$drift_found" = "true" ]; then

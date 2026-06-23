@@ -34,6 +34,15 @@ STATUS_VERSION_GATED = "version_gated"
 STATUS_OPTIONAL_ABSENT = "optional_absent"  # absent but required=False -> not drift
 STATUS_TARGET_MISSING = "target_missing"
 
+# Per-PATCH upstream-merge tri-state recorded IN the manifest (the operator's
+# explicit ask). Distinct from the per-sub STATUS_UPSTREAM_MERGED above: this
+# aggregates a patch's sub-patches so a pin-switch SEES whether the whole patch
+# was upstreamed (skip it) or only partly (apply the remaining anchors).
+MERGE_NOT_MERGED = "not_merged"          # no sub's markers fired -> still ours
+MERGE_FULLY_MERGED = "fully_merged"      # ALL subs upstreamed -> patch is moot
+MERGE_PARTIALLY_MERGED = "partially_merged"  # SOME subs upstreamed
+MERGE_STATUSES = (MERGE_NOT_MERGED, MERGE_FULLY_MERGED, MERGE_PARTIALLY_MERGED)
+
 
 def version_excludes_pin(vrange, pin: Optional[str]) -> bool:
     """True iff the patch's vllm_version_range EXCLUDES ``pin`` — then an absent
@@ -111,6 +120,34 @@ class GenResult:
     ok: dict[str, dict] = field(default_factory=dict)        # "patch_id::sub" -> meta(+target_rel)
     rej: list[dict] = field(default_factory=list)            # drifted/ambiguous/merged entries
     counts: dict[str, int] = field(default_factory=dict)     # status -> n
+    # Per-PATCH upstream-merge tri-state (TASK 1). patch_id -> {
+    #   "merge_status": MERGE_*,
+    #   "target_rel": rel,                # the file the patch targets
+    #   "merged_subs": [sub, ...],        # subs whose markers fired (sorted)
+    # }. Recorded for EVERY patch seen so a pin-switch can SEE a patch that
+    # became fully_merged even when no anchors remain to splice.
+    merge: dict[str, dict] = field(default_factory=dict)
+
+
+def aggregate_merge_status(
+    total_subs: int, merged_subs: set[str]
+) -> str:
+    """Aggregate a patch's per-sub upstream-merge signal into the tri-state.
+
+    ``total_subs`` is the count of the patch's anchor-bearing sub-patches seen
+    on this pin (present target file, not version-gated); ``merged_subs`` is the
+    subset whose ``upstream_merged_markers`` fired in the pristine source.
+
+    - none merged              -> MERGE_NOT_MERGED
+    - all merged (and at least one) -> MERGE_FULLY_MERGED
+    - some but not all merged  -> MERGE_PARTIALLY_MERGED
+    """
+    n_merged = len(merged_subs)
+    if n_merged == 0:
+        return MERGE_NOT_MERGED
+    if total_subs > 0 and n_merged >= total_subs:
+        return MERGE_FULLY_MERGED
+    return MERGE_PARTIALLY_MERGED
 
 
 def to_engine_manifest(
@@ -122,8 +159,16 @@ def to_engine_manifest(
 ) -> dict:
     """Convert the classified ``ok`` set into the EXISTING engine manifest
     schema (files -> rel -> {md5_pristine, size_bytes, patches -> pid ->
-    {anchors -> sub -> meta}}), so the runtime Layer-4.5 loads it unchanged.
-    ``pristine(rel)`` returns the pristine source for the per-file md5/size.
+    {merge_status, anchors -> sub -> meta}}), so the runtime Layer-4.5 loads it
+    unchanged (it reads ``patches.<pid>.anchors`` and ignores the sibling
+    ``merge_status``). ``pristine(rel)`` returns the pristine source for the
+    per-file md5/size.
+
+    TASK 1: every patch carries a ``merge_status`` tri-state (not_merged /
+    fully_merged / partially_merged). ``partially_merged`` also carries
+    ``merged_subs`` (the sub-patches the apply/operator should SKIP). A
+    ``fully_merged`` patch is recorded even with zero anchors left to splice, so
+    a pin-switch SEES it became upstreamed and skips it instead of breaking.
     """
     import hashlib
     import time
@@ -132,9 +177,8 @@ def to_engine_manifest(
 
     files: dict[str, dict] = {}
     _META_KEYS = ("anchor_md5", "byte_length", "byte_offset", "replacement_md5")
-    for key, e in res.ok.items():
-        rel = e["target_rel"]
-        pid, _, sub = key.partition("::")
+
+    def _ensure_file(rel: str) -> dict:
         if rel not in files:
             src = pristine(rel) or ""
             sb = src.encode("utf-8")
@@ -143,10 +187,32 @@ def to_engine_manifest(
                 "size_bytes": len(sb),
                 "patches": {},
             }
-        files[rel]["patches"].setdefault(pid, {"anchors": {}})
-        files[rel]["patches"][pid]["anchors"][sub] = {
+        return files[rel]
+
+    for key, e in res.ok.items():
+        rel = e["target_rel"]
+        pid, _, sub = key.partition("::")
+        fe = _ensure_file(rel)
+        fe["patches"].setdefault(pid, {"merge_status": MERGE_NOT_MERGED,
+                                       "anchors": {}})
+        fe["patches"][pid]["anchors"][sub] = {
             k: e[k] for k in _META_KEYS if k in e
         }
+
+    # Stamp the per-PATCH merge tri-state. For fully_merged patches with no ok
+    # anchors, materialize the file + patch entry (empty anchors) so the patch
+    # stays VISIBLE in the manifest rather than vanishing into the rej set.
+    for pid, m in res.merge.items():
+        rel = m["target_rel"]
+        fe = _ensure_file(rel)
+        pe = fe["patches"].setdefault(pid, {"merge_status": MERGE_NOT_MERGED,
+                                            "anchors": {}})
+        pe["merge_status"] = m["merge_status"]
+        if m["merge_status"] == MERGE_PARTIALLY_MERGED:
+            pe["merged_subs"] = list(m.get("merged_subs", []))
+        else:
+            pe.pop("merged_subs", None)
+
     return {
         "manifest_version": MANIFEST_SCHEMA_VERSION,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -181,6 +247,14 @@ def build_pin_manifest(
     result = GenResult()
     _src_cache: dict[str, Optional[str]] = {}
 
+    # Per-PATCH merge aggregation (TASK 1). For each patch_id present+applicable
+    # on this pin: which sub-patches we considered, and which had an upstream
+    # merge marker fire. target_rel kept so a fully_merged patch (zero anchors
+    # left) still records WHERE it lived.
+    _seen_subs: dict[str, set[str]] = {}
+    _merged_subs: dict[str, set[str]] = {}
+    _merge_target_rel: dict[str, str] = {}
+
     def _rej(key, t, status, **extra):
         result.rej.append({"key": key, "target_rel": t.target_rel,
                            "status": status, **extra})
@@ -200,10 +274,17 @@ def build_pin_manifest(
             _rej(key, t, STATUS_VERSION_GATED, vrange=list(t.vllm_version_range or ()))
             continue
 
+        # This sub is present + applicable on this pin -> it counts toward the
+        # patch's merge aggregation (denominator). version_gated/target_missing
+        # subs deliberately do NOT count (they aren't "ours on this pin").
+        _seen_subs.setdefault(t.patch_id, set()).add(t.sub)
+        _merge_target_rel.setdefault(t.patch_id, t.target_rel)
+
         merged = any(m in src for m in (t.upstream_merged_markers or ())) or (
             is_upstream_merged is not None and is_upstream_merged(t, src)
         )
         if merged:
+            _merged_subs.setdefault(t.patch_id, set()).add(t.sub)
             _rej(key, t, STATUS_UPSTREAM_MERGED)
             continue
 
@@ -219,5 +300,19 @@ def build_pin_manifest(
             _rej(key, t, STATUS_OPTIONAL_ABSENT, anchor_head=t.anchor[:60])
         else:
             _rej(key, t, status, anchor_head=t.anchor[:60], required=t.required)
+
+    # Roll up the per-patch merge tri-state. Recorded for EVERY patch that had
+    # at least one present+applicable sub (so partially/fully-merged patches are
+    # VISIBLE in the manifest instead of being silently dropped to the rej set).
+    for pid, subs in _seen_subs.items():
+        merged = _merged_subs.get(pid, set())
+        status = aggregate_merge_status(len(subs), merged)
+        entry = {
+            "merge_status": status,
+            "target_rel": _merge_target_rel[pid],
+        }
+        if status == MERGE_PARTIALLY_MERGED:
+            entry["merged_subs"] = sorted(merged)
+        result.merge[pid] = entry
 
     return result

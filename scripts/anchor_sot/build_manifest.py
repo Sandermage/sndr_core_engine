@@ -63,17 +63,40 @@ def main():
         print("FATAL: schema invalid: %s" % errors[:5], file=sys.stderr)
         sys.exit(3)
 
+    # Coverage assertion (TASK 4): every discovered target must land EXACTLY
+    # once in ok or rej — no silent loss. A drift.rej.json that doesn't account
+    # for every dropped anchor hides which patches were dropped.
+    discovered = len(targets)
+    accounted = len(res.ok) + len(res.rej)
+    if accounted != discovered:
+        print("FATAL: coverage mismatch — discovered=%d but ok=%d + rejected=%d = %d"
+              % (discovered, len(res.ok), len(res.rej), accounted), file=sys.stderr)
+        sys.exit(4)
+
     norm = normalize_pin(pin) or pin.replace("+", "_")
     pindir = os.path.join(repo, "sndr/engines/vllm/pins", norm)
     os.makedirs(pindir, exist_ok=True)
     json.dump(manifest, open(os.path.join(pindir, "anchors.json"), "w"),
               indent=1, sort_keys=True)
     genuine = [e for e in res.rej if e.get("status") == "anchor_drift"]
-    json.dump({"pin": pin, "counts": dict(res.counts), "genuine_anchor_drift": genuine},
-              open(os.path.join(pindir, "drift.rej.json"), "w"), indent=1, sort_keys=True)
+    # Emit the FULL rejected set (not only genuine drift) + the per-patch merge
+    # tri-state so the committed drift.rej.json shows every dropped anchor and
+    # which patches were upstream-merged. Both files are always written.
+    json.dump({
+        "pin": pin,
+        "genesis_pin": gpin,
+        "coverage": {"discovered": discovered, "ok": len(res.ok),
+                     "rejected": len(res.rej)},
+        "counts": dict(res.counts),
+        "merge_status": res.merge,
+        "rejected": res.rej,
+        "genuine_anchor_drift": genuine,
+    }, open(os.path.join(pindir, "drift.rej.json"), "w"), indent=1, sort_keys=True)
 
     print("OK pin=%s -> %s/anchors.json (%d anchors, %d files)" % (
         pin, pindir, len(res.ok), len(manifest["files"])))
+    print("coverage: discovered=%d == ok=%d + rejected=%d" % (
+        discovered, len(res.ok), len(res.rej)))
     print("counts=%s  roundtrip_fail=0  genuine_drift=%d %s" % (
         dict(res.counts), len(genuine), [e["key"] for e in genuine[:8]]))
 

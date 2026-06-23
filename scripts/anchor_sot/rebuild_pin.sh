@@ -34,3 +34,6 @@ docker run --rm -v "$REPO:$REPO" -v "$REPO/sndr:$DIST:ro" --entrypoint python3 "
     "$S/build_manifest.py" "$WORK/targets.json" "$WORK/pristine.json" "$REPO" "$PIN" "$GPIN"
 
 echo "=== done — manifest written under $REPO/sndr/engines/vllm/pins/ ==="
+echo "    emitted per pin: anchors.json + drift.rej.json (commit BOTH)."
+echo "    build_manifest.py asserts discovered == ok + rejected (no silent loss)."
+echo "    summary:  python3 $S/summarize_rej.py <pin_dir>   (or: make summarize-rej)"

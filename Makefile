@@ -13,7 +13,7 @@
 .PHONY: help test gates audit docs precommit paths-env clean \
         test-pin-gate test-iron-rule test-family test-doc-sync \
         audit-upstream audit-yaml preflight lint-drift-markers \
-        tokenizer-fingerprint rebuild-pin audit-pin \
+        tokenizer-fingerprint rebuild-pin audit-pin summarize-rej \
         docs-check docs-write doctor \
         evidence evidence-release evidence-json gui-build gui-lint test-gui-contract audit-i18n
 
@@ -183,6 +183,9 @@ audit-pin: ## Phase 4: verify the committed per-pin manifest still matches a fre
 		echo "Regenerates from the live engine + diffs vs committed (ignoring timestamps)."; \
 		exit 2; }
 	@bash scripts/anchor_sot/audit_pin.sh "$${SSH_HOST}"
+
+summarize-rej: ## Phase 4: human summary of pins/<pin>/drift.rej.json (counts by status + merge tri-state); PIN=<dir> for one pin, else all
+	@$(PYTHON) scripts/anchor_sot/summarize_rej.py $${PIN:+sndr/engines/vllm/pins/$${PIN}}
 
 audit-legacy-imports: ## Forbid vllm.sndr_core.patches / vllm._genesis active imports
 	@bash scripts/check_no_legacy_imports.sh

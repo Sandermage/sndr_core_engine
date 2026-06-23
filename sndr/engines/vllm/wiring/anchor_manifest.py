@@ -57,7 +57,17 @@ log = logging.getLogger("genesis.wiring.anchor_manifest")
 
 # Schema version — bump on incompatible changes. Loaders MUST refuse
 # to load a manifest with version different from MANIFEST_SCHEMA_VERSION.
+#
+# NOTE: the per-PATCH `merge_status` field (TASK 1) is an ADDITIVE, optional
+# extension — it does not bump the schema version because it neither changes the
+# layout the runtime apply path reads (it sits beside `anchors`, which the
+# runtime keys into directly) nor invalidates pre-existing manifests. A manifest
+# without merge_status still validates + loads (graceful degrade principle).
 MANIFEST_SCHEMA_VERSION = 1
+
+# Allowed values for the per-PATCH upstream-merge tri-state (TASK 1). Mirrors
+# anchor_manifest_gen.MERGE_* so the validator and the generator share one enum.
+_MERGE_STATUS_ENUM = ("not_merged", "fully_merged", "partially_merged")
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -342,6 +352,34 @@ def _validate_patch_entry(prefix: str, patch_id: str,
 
     if not isinstance(patch_entry, dict):
         return [f"{pp} must be dict"]
+
+    # TASK 1: per-PATCH upstream-merge tri-state. Validated strictly WHEN
+    # PRESENT (an invalid value is an error) but tolerated when absent for
+    # back-compat with pin manifests generated before the field existed (those
+    # still load + serve the apply fast-path; the generator emits it going
+    # forward). The runtime apply path ignores this sibling of `anchors`.
+    ms = patch_entry.get("merge_status")
+    if ms is not None:
+        if not isinstance(ms, str):
+            errors.append(f"{pp}.merge_status must be str")
+        elif ms not in _MERGE_STATUS_ENUM:
+            errors.append(
+                f"{pp}.merge_status {ms!r} not in {sorted(_MERGE_STATUS_ENUM)}"
+            )
+        # merged_subs is REQUIRED for partially_merged (tells apply/operator
+        # which subs to skip) and FORBIDDEN otherwise (would be meaningless).
+        merged_subs = patch_entry.get("merged_subs")
+        if ms == "partially_merged":
+            if not isinstance(merged_subs, list):
+                errors.append(f"{pp}.merged_subs must be list for partially_merged")
+            elif not all(isinstance(s, str) for s in merged_subs):
+                errors.append(f"{pp}.merged_subs must be list[str]")
+            elif not merged_subs:
+                errors.append(f"{pp}.merged_subs must be non-empty for partially_merged")
+        elif merged_subs is not None:
+            errors.append(
+                f"{pp}.merged_subs only valid when merge_status=partially_merged"
+            )
 
     anchors = patch_entry.get("anchors")
     if anchors is None:
