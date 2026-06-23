@@ -16,17 +16,17 @@ document is the binding statement of which side governs what.
 
 | Artefact | License |
 | --- | --- |
-| Source files under `vllm/sndr_core/**` | Apache License 2.0 ([`LICENSE`](../LICENSE)) |
-| Built wheel `vllm-sndr-core` | Apache License 2.0 |
-| Source files under `vllm/sndr_engine/**` (currently empty) | Commercial — terms published with the wheel if/when released |
-| Built wheel `vllm-sndr-engine` | Commercial — license gate via Ed25519-signed token |
+| Source files under `sndr/**` | Apache License 2.0 ([`LICENSE`](../LICENSE)) |
+| Built wheel `sndr-platform` (artifact `sndr_platform-*.whl`) | Apache License 2.0 |
+| Commercial engine overlay (import name `vllm.sndr_engine`, currently absent) | Commercial — terms published with the wheel if/when released |
+| Built commercial engine wheel (separate `pyproject-engine.toml`, not yet in repo) | Commercial — license gate via Ed25519-signed token |
 | Maintainer-private archive at repo-root `sndr_private/` | Not distributed (gitignored). Internal to the maintainer; no public license applies because nothing is published. |
 | Bench results, methodology, raw logs | Apache-2.0, same as code |
 | Documentation under `docs/` and `README.md` | Apache-2.0 (same as code; doc text is not a separate license) |
 
 ## Apache-2.0 community tier
 
-Every file under `vllm/sndr_core/`, every test, every script, every
+Every file under `sndr/`, every test, every script, every
 YAML config, every doc, and every artefact produced by
 `pip wheel` / `python -m build` of [`pyproject.toml`](../pyproject.toml)
 is governed by the Apache-2.0 license in [`LICENSE`](../LICENSE).
@@ -45,7 +45,7 @@ Practical consequences:
   See [`SPONSORS.md`](SPONSORS.md#maintainer-commitments) for the
   written commitment that this never changes.
 - SPDX header `# SPDX-License-Identifier: Apache-2.0` is required at
-  the top of every new source file under `vllm/sndr_core/`.
+  the top of every new source file under `sndr/`.
 
 The Apache-2.0 license carries an attribution obligation: every
 upstream author and contributor is credited in
@@ -53,23 +53,36 @@ upstream author and contributor is credited in
 
 ## Commercial engine tier
 
-The namespace `vllm/sndr_engine/` is reserved for the future
-commercial wheel `vllm-sndr-engine`, built from a separate
-`pyproject-engine.toml` (not present in the repo until the
-commercial product is released). After the 2026-05-08 strict-AND
-audit the namespace is **reserved but empty** — no Genesis patch
-currently meets the four conditions (no public PR link, no external
-credit, no `upstream_pr` field, not byte-equivalent with upstream)
-required to qualify as engine-tier. See
+The commercial engine overlay is reserved for a future commercial
+wheel, built from a separate `pyproject-engine.toml` (not present in
+the repo until the commercial product is released). After the
+2026-05-08 strict-AND audit the namespace is **reserved but empty** —
+no Genesis patch currently meets the four conditions (no public PR
+link, no external credit, no `upstream_pr` field, not byte-equivalent
+with upstream) required to qualify as engine-tier. See
 [`PATCHES.md`](PATCHES.md#engine-tier-the-strict-and-boundary).
+
+> **Naming note (v12.0.0).** Unlike the community tier — whose package
+> was renamed from `vllm.sndr_core` to top-level `sndr` and whose wheel
+> is now `sndr-platform` — the commercial overlay still registers under
+> the **import name** `vllm.sndr_engine`. That is the current runtime
+> contract in [`sndr/license.py`](../sndr/license.py)
+> (`_engine_overlay_available()` imports `engine_available` from
+> `vllm.sndr_engine`). The engine **wheel** name and its source-tree
+> location are not yet declared in v12 (`pyproject-engine.toml` does not
+> exist), so this document intentionally names the import contract only
+> and leaves the wheel/path names to the engine release that introduces
+> them. The companion [`CORE_ENGINE_BOUNDARY.md`](CORE_ENGINE_BOUNDARY.md)
+> still uses the pre-v12 `vllm/sndr_core` / `vllm-sndr-core` names and is
+> tracked separately for the same rename.
 
 If and when the engine wheel ships, the following terms apply:
 
-- Source files under `vllm/sndr_engine/**` carry a commercial SPDX
-  header (`# SPDX-License-Identifier: LicenseRef-SndrEngine-Commercial`
+- Engine source files carry a commercial SPDX header
+  (`# SPDX-License-Identifier: LicenseRef-SndrEngine-Commercial`
   or equivalent) and a license file specific to the commercial
   product.
-- The community wheel `vllm-sndr-core` continues to be importable
+- The community wheel `sndr-platform` continues to be importable
   without any engine wheel installed. Engine code is reached only
   through optional-discovery imports (`engine_available()`), so a
   missing or unlicensed engine wheel never breaks the community
@@ -89,7 +102,7 @@ The signed-token verification path needs the optional `cryptography`
 dependency. Installed via the `license` extra:
 
 ```
-pip install vllm-sndr-core[license]
+pip install sndr-platform[license]
 ```
 
 This extra is purely for verification — it does **not** install the
@@ -113,7 +126,7 @@ The maintainer-private archive must never:
   [`CORE_ENGINE_BOUNDARY.md`](CORE_ENGINE_BOUNDARY.md#what-is-forbidden))
 - Be committed to git (blocked by `.gitignore`)
 - Be referenced from `pyproject.toml` package discovery (out of
-  scope: discovery only includes `vllm.sndr_core*`)
+  scope: discovery only includes `sndr*`)
 
 ## Source-of-truth for license claims
 
@@ -123,7 +136,7 @@ the canonical reference:
 - `LICENSE` at repo root holds the verbatim Apache-2.0 text.
 - `pyproject.toml` declares `license = {text = "Apache-2.0"}` for
   the community wheel.
-- Every source file under `vllm/sndr_core/` carries
+- Every source file under `sndr/` carries
   `# SPDX-License-Identifier: Apache-2.0`.
 - This file (`docs/LICENSE_POLICY.md`) is the narrative explanation
   of what the SPDX headers and `LICENSE` file mean across the

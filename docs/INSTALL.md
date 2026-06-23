@@ -264,7 +264,7 @@ This path installs vLLM + Genesis directly on the host (Ubuntu 24.04 / Debian 12
 **Trade-offs vs Docker:**
 
 - ✅ No `docker compose down/up` cycle — just restart the Python process
-- ✅ Source-level edits to `sndr_core/` apply on next process restart (no bind-mount needed)
+- ✅ Source-level edits to the `sndr/` package apply on next process restart (editable install — no bind-mount needed)
 - ✅ Easier to debug with `pdb` / `py-spy` / `nsys` — no container PID translation
 - ❌ You manage the Python environment, NVIDIA driver, CUDA, Triton, PyTorch versions yourself
 - ❌ vLLM's CI builds and tests primarily on the official Docker image; bare-metal is your responsibility to keep in sync
@@ -344,40 +344,69 @@ print(f'cuda devices: {torch.cuda.device_count()}')
 # cuda devices: 2  (or however many GPUs you have)
 ```
 
-### 3. Install Genesis package into vLLM's `site-packages`
+### 3. Install the Genesis (`sndr`) package into the vLLM environment
 
-Genesis is a Python module at `vllm/sndr_core/`. We need to drop it into the **same `vllm/` package directory** that vLLM itself installed.
+In v12.0.0 Genesis ships as the top-level **`sndr`** package (wheel name
+`sndr-platform`). It is **no longer dropped into vLLM's own `vllm/`
+package directory** — the retired v11 "compat-mount" model (symlink /
+copy of `vllm/sndr_core/` into vLLM's `site-packages/vllm/`) is gone.
+There is no `vllm/sndr_core/` directory in the repo anymore.
+
+Install it the normal way — a pip install of the **repo root** — into
+the **same Python environment vLLM lives in**. This is the step that
+makes the patches actually fire, for two reasons:
+
+1. It puts the `sndr` package on `sys.path` so `python3 -m sndr.apply`
+   (the boot-time text-patcher, step 6) can run.
+2. It writes the `vllm.general_plugins` entry-point metadata
+   (`genesis_v7 = "sndr.plugin:register"`, declared in the root
+   [`pyproject.toml`](../pyproject.toml)) into `site-packages`. vLLM's
+   `load_general_plugins()` discovers that entry-point at engine + worker
+   init and calls `sndr.plugin:register()` **in-process**, which
+   re-applies the runtime monkey-patches that `python3 -m sndr.apply`
+   (a separate subprocess) cannot leave behind. See step 6 for why this
+   two-process split matters.
 
 ```bash
-# Find where vLLM lives
-VLLM_DIR=$(python3 -c "import vllm, os; print(os.path.dirname(vllm.__file__))")
-echo "vLLM installed at: $VLLM_DIR"
-# Example: $HOME/vllm-genesis/.venv/lib/python3.12/site-packages/vllm
-
 # Clone the Genesis patch repo
 git clone https://github.com/Sandermage/genesis-vllm-patches.git
 cd genesis-vllm-patches
 
-# Symlink sndr_core/ into vLLM's package directory
-# (symlink, not copy — so `git pull` updates the live install in place)
-ln -s "$(pwd)/vllm/sndr_core" "$VLLM_DIR/sndr_core"
+# Editable install of the repo ROOT into vLLM's venv.
+# This installs the `sndr` package AND registers the
+# `vllm.general_plugins` entry-point (genesis_v7 = sndr.plugin:register).
+# `--no-deps` keeps it fast — pyyaml/packaging are already present in a
+# vLLM environment; drop it on a bare venv if those are missing.
+pip install --no-deps -e .
 
-# Verify import works
-python3 -c "from vllm import sndr_core; print(sndr_core.__file__)"
-# Expect: .../site-packages/vllm/sndr_core/__init__.py
+# Verify the package imports from the SAME env vLLM uses
+python3 -c "import sndr; print(sndr.__file__); print('version', sndr.__version__)"
+# Expect: .../site-packages/.../sndr/__init__.py  (editable: the repo path)
+
+# Verify the in-process plugin entry-point is registered — THIS is what
+# lets `vllm serve` re-apply runtime monkey-patches in the serving process.
+python3 -c "
+import importlib.metadata as m
+names = [ep.value for ep in m.entry_points(group='vllm.general_plugins')]
+print('vllm.general_plugins:', names)
+assert any('sndr.plugin' in n for n in names), 'entry-point NOT registered'
+"
+# Expect a list containing 'sndr.plugin:register'
 ```
 
-If you prefer **copy over symlink** (e.g., for a frozen production install):
-
-```bash
-cp -r vllm/sndr_core "$VLLM_DIR/sndr_core"
-# After updating the patcher repo: rsync -a vllm/sndr_core/ "$VLLM_DIR/sndr_core/"
-```
-
-> Pre-v11 layout used `vllm/_genesis/` as the package directory; that
-> namespace has been removed entirely in v11.0.0 (renamed to `sndr_core/`).
-> No back-compat alias is provided — older guides or scripts that import
-> from `vllm._genesis.*` must be updated to `vllm.sndr_core.*`.
+> **Why an editable install and not a bind-mount / symlink?** A bare
+> bind-mount (or `ln -s`) of the `sndr/` source onto a `site-packages`
+> directory makes the package *importable* but registers **no**
+> entry-point (no `.dist-info` / `.egg-info` metadata). vLLM would then
+> never load the in-process plugin, so runtime monkey-patches would
+> silently not fire. The package must be pip-**installed** for the
+> entry-point to exist. (The Docker path reaches the same end state by
+> baking the wheel into the image; see `sndr/model_configs/emitters/docker_cmd.py`.)
+>
+> Pre-v11 layout used `vllm/_genesis/`, then v11 used `vllm/sndr_core/`.
+> Both are removed in v12.0.0 — the canonical package is top-level
+> `sndr`. Older guides or scripts that import from `vllm._genesis.*` or
+> `vllm.sndr_core.*` must be updated to `sndr.*`.
 
 ### 4. Install Genesis runtime extras
 
@@ -389,12 +418,17 @@ pip install pandas scipy xxhash
 pip install arctic-inference
 ```
 
-Install the Genesis vLLM plugin (auto-loads via vLLM entry point):
+The Genesis vLLM plugin (the `vllm.general_plugins` entry-point that
+auto-loads in every process) was already registered by the editable
+install of the repo root in **step 3** — there is no separate plugin
+package to install in v12. Re-run the verification from step 3 if you
+want to confirm `sndr.plugin:register` is on the entry-point list.
 
-```bash
-cd genesis-vllm-patches
-pip install --no-deps -e ./tools/genesis_vllm_plugin
-```
+> The legacy `tools/genesis_vllm_plugin` subdir still exists for
+> back-compat and now targets the same `sndr.plugin:register` entry-point,
+> but it does **not** ship the `sndr` package itself — installing only
+> that subdir would leave `python3 -m sndr.apply` (step 6) unable to
+> import `sndr`. Install the repo root (step 3), not the subdir.
 
 ### 5. Apply external probes (recommended)
 
@@ -408,7 +442,7 @@ python3 tools/external_probe/patch_40074_iooo.py
 
 These can also be run once after install — they modify files in `$VLLM_DIR` directly.
 
-### 6. Run apply_all (text-patches vLLM source)
+### 6. Run `sndr.apply` (text-patches vLLM source)
 
 ```bash
 cd genesis-vllm-patches  # or anywhere — the module is now importable
@@ -425,11 +459,33 @@ export GENESIS_BUFFER_MODE=shared
 # (See CONFIGURATION.md for the full list)
 
 # Apply patches (text-modifies $VLLM_DIR/v1/sample/rejection_sampler.py etc.)
-python3 -m vllm.sndr_core.apply
+python3 -m sndr.apply
 # Watch for: "Genesis Dispatcher" matrix output, [P82] applied, etc.
 ```
 
-**Important:** patches are idempotent — running `apply_all` twice is safe. They include drift detectors that gracefully SKIP if upstream changes the anchor.
+**Important:** patches are idempotent — running `python3 -m sndr.apply`
+twice is safe. They include drift detectors that gracefully SKIP if
+upstream changes the anchor.
+
+**The two-process apply boundary (why step 3's entry-point matters).**
+Genesis patches come in two kinds, and they persist differently:
+
+- **Text-patches** — edits to vLLM's source files on disk (e.g.
+  `$VLLM_DIR/v1/sample/rejection_sampler.py`). `python3 -m sndr.apply`
+  writes these once; they **persist** because the files stay changed,
+  and a subsequent `vllm serve` inherits them.
+- **Runtime monkey-patches** — in-memory rebinds (`SomeClass.method =
+  wrapper`, e.g. the G4 TurboQuant hooks). These live only in the
+  process that applied them. The `python3 -m sndr.apply` **subprocess**
+  exits, so its runtime monkey-patches are lost the instant it returns.
+
+The only supported way to re-apply the runtime monkey-patches **inside
+the serving process** is vLLM's plugin system: at engine + worker init
+vLLM calls `load_general_plugins()`, which invokes the
+`genesis_v7 = "sndr.plugin:register"` entry-point registered by the
+editable install in step 3, and that re-applies the runtime patches
+in-process. This is why a bare bind-mount (importable but no
+entry-point) is not enough — step 3 must be a pip install.
 
 To **reverse all patches** (e.g., before `pip install --upgrade vllm`):
 
@@ -486,7 +542,7 @@ export GENESIS_BUFFER_MODE=shared
 # (... full list — see CONFIGURATION.md)
 
 # Apply patches (idempotent)
-python3 -m vllm.sndr_core.apply
+python3 -m sndr.apply
 
 # Launch
 exec vllm serve --model "${MODEL_PATH:-/path/to/Qwen3.6-35B-A3B-FP8}" \
@@ -540,16 +596,30 @@ journalctl -u genesis-vllm -f
 
 ### 9. Updating Genesis on bare-metal
 
+Because step 3 used an **editable** install (`pip install -e .`), the
+live `sndr` package tracks the repo working tree — a `git pull` updates
+the importable code in place, no re-sync needed. Two things still have to
+happen on every update before restart: the on-disk text-patches must be
+re-applied (`python3 -m sndr.apply`), and if the pull changed packaging
+metadata (a new `vllm.general_plugins` entry-point, renamed package, or
+new `package-data`) the editable install must be refreshed so the
+`.egg-info` entry-point stays correct.
+
 ```bash
 # Pull latest patches from git
 cd ~/vllm-genesis/genesis-vllm-patches
 git pull origin main
 
-# If you symlinked sndr_core/, the live install is already updated — just restart vLLM:
-sudo systemctl restart genesis-vllm
+# Refresh the editable install ONLY if packaging metadata changed
+# (entry-points / version / package-data). Pure source edits don't need
+# this — the editable install already sees them. When unsure, it's cheap
+# and idempotent to re-run:
+pip install --no-deps -e .
 
-# If you copied (not symlinked), re-sync first:
-rsync -a vllm/sndr_core/ "$(python3 -c 'import vllm,os; print(os.path.dirname(vllm.__file__))')/sndr_core/"
+# Re-apply the on-disk text-patches against the (possibly upgraded) vLLM,
+# then restart. The in-process runtime monkey-patches re-fire on their own
+# at vllm serve boot via the entry-point — see step 6.
+python3 -m sndr.apply
 sudo systemctl restart genesis-vllm
 ```
 
@@ -566,7 +636,7 @@ pip install --upgrade --pre vllm \
   --extra-index-url https://wheels.vllm.ai/nightly
 
 # 3. Re-apply Genesis (it's idempotent + drift-aware)
-python3 -m vllm.sndr_core.apply
+python3 -m sndr.apply
 # Watch the dispatcher matrix — newly-merged-upstream patches will show:
 #   PXX | SKIP | <title> | upstream may have absorbed this fix
 # That's correct — drop the corresponding GENESIS_ENABLE_PXX=1 flag from your env.
@@ -579,12 +649,13 @@ sudo systemctl restart genesis-vllm
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `ImportError: No module named 'vllm.sndr_core'` | Symlink missing or wrong path | Re-run step 3 (`ln -s` into `$VLLM_DIR`). |
-| `ImportError: No module named 'vllm._genesis'` (pre-v11 scripts) | Pre-v11 namespace removed in v11.0.0; no alias is provided | Update the script: rewrite imports `vllm._genesis.*` → `vllm.sndr_core.*`. |
+| `ModuleNotFoundError: No module named 'sndr'` | The `sndr` package isn't installed in vLLM's env, or you installed it into a different venv | Re-run step 3 (`pip install --no-deps -e .` from the repo root) in the SAME env as vLLM. |
+| `vllm serve` boots but runtime monkey-patches never fire (text-patches OK) | The `vllm.general_plugins` entry-point isn't registered — you bind-mounted/symlinked `sndr/` instead of pip-installing it | Re-run the editable install in step 3, then verify with the `importlib.metadata` entry-point check there. |
+| `ImportError: No module named 'vllm.sndr_core'` / `vllm._genesis` (pre-v12 scripts) | Both namespaces removed by v12.0.0; no alias is provided | Update the script: rewrite imports `vllm._genesis.*` / `vllm.sndr_core.*` → `sndr.*`. |
 | Boot hangs on `Capturing CUDA graphs` | Driver mismatch (570 instead of 580) or stale Triton cache | `apt install nvidia-driver-580-server`, reboot. `rm -rf ~/.triton/cache/*` |
-| `apply_all` reports `required_anchor_missing` for many patches | vLLM nightly drifted from Genesis pin | Pin to the SHA in [`Production baseline`](#quick-start-canonical-v1200), or accept that some patches will skip (read each SKIP reason) |
-| Patches re-apply on every restart and accumulate | You're running `apply_all` from multiple processes simultaneously | Add a lockfile, or run apply_all once at boot before launching workers |
-| `pip install --upgrade vllm` silently undid Genesis | Expected — `pip` reinstalls vLLM's own files cleanly | Re-run step 6 (apply_all) after upgrade |
+| `sndr.apply` reports `required_anchor_missing` for many patches | vLLM nightly drifted from Genesis pin | Pin to the SHA in [`Production baseline`](#quick-start-canonical-v1200), or accept that some patches will skip (read each SKIP reason) |
+| Patches re-apply on every restart and accumulate | You're running `python3 -m sndr.apply` from multiple processes simultaneously | Add a lockfile, or run `sndr.apply` once at boot before launching workers |
+| `pip install --upgrade vllm` silently undid Genesis | Expected — `pip` reinstalls vLLM's own files cleanly | Re-run step 6 (`python3 -m sndr.apply`) after upgrade |
 
 For more troubleshooting see the [`Troubleshooting`](#troubleshooting) section below — most container-side issues apply equally to bare-metal.
 
