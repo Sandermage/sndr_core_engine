@@ -58,13 +58,27 @@ def build_vllm_cmd(cfg: "ModelConfig") -> list[str]:
         # `port` field when host_port/container_port are not split.
         parts.append(f"--port {cfg.docker.effective_container_port()}")
     if cfg.spec_decode:
+        # to_vllm_arg() returns raw JSON; shell_quote owns the quoting so
+        # the value survives the bash `-c '...'` wrapper. Using shell_quote
+        # (single source of truth) instead of a hardcoded `'{...}'` keeps
+        # this consistent with --override-generation-config below and
+        # avoids a second, divergent quoting idiom.
         parts.append(
-            f"--speculative-config '{cfg.spec_decode.to_vllm_arg()}'"
+            f"--speculative-config {shell_quote(cfg.spec_decode.to_vllm_arg())}"
         )
+    # Operator/compose extras are raw argv tokens (e.g. the pair
+    # ["--override-generation-config", '{"temperature":0.6,...}']). Their
+    # values can contain braces/commas/spaces, so each token MUST be
+    # shell-quoted — otherwise bash brace-expansion splits a JSON value
+    # like {"a":1,"b":2} into separate words inside the `-c` body and
+    # vllm's argparse receives a fragment it cannot json.loads.
     for extra in cfg.vllm_extra_args:
-        parts.append(extra)
+        parts.append(shell_quote(extra))
     # club-3090 #58 Path A: cpu offload knobs become engine flags.
     # OffloadConfig.validate() already blocked hybrid-GDN combos.
+    # to_vllm_args() returns flag GROUPS ("--cpu-offload-gb 10"), so quote
+    # each whitespace-separated token rather than the whole group.
     if cfg.offload is not None:
-        parts.extend(cfg.offload.to_vllm_args())
+        for group in cfg.offload.to_vllm_args():
+            parts.append(" ".join(shell_quote(tok) for tok in group.split()))
     return parts

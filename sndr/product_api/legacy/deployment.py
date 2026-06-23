@@ -22,6 +22,7 @@ import-cheap and torch-free.
 from __future__ import annotations
 
 import re
+import shlex
 from typing import Any, Optional
 
 # ``${var}`` placeholders used in preset docker mounts.
@@ -406,7 +407,11 @@ def _systemd_unit(cfg, params) -> str:
     port = params["host_port"] or 8000
     genv = _genesis_env(cfg)
     env_args = " ".join(f"-e {k}={v}" for k, v in genv.items())
-    serve = " ".join(params["argv"])
+    # argv is a flat list of raw argv tokens (e.g. the JSON value of
+    # --override-generation-config / --speculative-config). Shell-quote each
+    # token so values with braces/commas/spaces survive systemd ExecStart=
+    # word-splitting and bash brace-expansion intact.
+    serve = " ".join(shlex.quote(a) for a in params["argv"])
     run = (
         f"/usr/bin/docker run --rm --name {name} --gpus all "
         f"-p {port}:8000 {env_args} {image} {serve}"
@@ -460,7 +465,10 @@ def _bare_metal_script(cfg, params) -> str:
     lines += [
         "",
         "# --- Launch (native vLLM, no container) ---",
-        "exec " + " ".join(params["argv"]),
+        # Shell-quote each raw argv token so JSON values (e.g.
+        # --override-generation-config) survive bash word-splitting and
+        # brace-expansion in this bare-metal `exec` line.
+        "exec " + " ".join(shlex.quote(a) for a in params["argv"]),
     ]
     return "\n".join(lines)
 
