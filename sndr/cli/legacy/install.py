@@ -764,7 +764,21 @@ def _gpu_keys_match(needle: str, keys: list[str]) -> bool:
 # The new taxonomy classifies each failure into one of these buckets
 # so the installer can fail-closed on real bugs while skipping clean
 # on environment gaps.
-_RUNTIME_GAP_TOKENS = ("torch", "triton", "flashinfer", "vllm install root")
+# NOTE: "no module named" / "modulenotfounderror" MUST live here, not in
+# _WIRING_TOKENS. A patch that imports an absent vllm/torch submodule on a
+# CPU-only dev host fails with e.g.
+#   ModuleNotFoundError("No module named 'vllm.v1'")
+# which is a textbook RUNTIME GAP (vllm not installed), not a wiring bug.
+# Without these tokens the substring "name" (from "no module named") matched
+# _WIRING_TOKENS first and the failure was misclassified as a BLOCKING wiring
+# bug, so `sndr install --dry-run` on a Mac/dev rig exited non-zero with the
+# false-positive "real bugs, not environment gaps" message — exactly the
+# regression class this taxonomy was introduced to prevent. runtime_gap is
+# checked first (see _classify_failure), so listing them here wins.
+_RUNTIME_GAP_TOKENS = (
+    "torch", "triton", "flashinfer", "vllm install root",
+    "no module named", "modulenotfounderror",
+)
 _ANCHOR_TOKENS = ("anchor", "marker not found", "drift")
 _WIRING_TOKENS = ("name", "is not defined", "attributeerror", "cannot import name")
 
