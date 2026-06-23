@@ -616,6 +616,7 @@ class Flags:
     G4_82_TQ_PREFILL_SDPA_HEADDIM = "G4_82_TQ_PREFILL_SDPA_HEADDIM"  # G4_82: TQ prefill SDPA fallback for head_dim>256 (Ampere FA2 cap)
     G4_83_GEMMA4_PER_LAYER_BACKEND = "G4_83_GEMMA4_PER_LAYER_BACKEND"  # G4_83: Gemma-4 per-layer attention backend selection (SWA vs full-attn layers)
     G4_84_MOE_GEOMETRY_ADVISOR = "G4_84_MOE_GEOMETRY_ADVISOR"  # G4_84: MoE geometry advisor — detect Marlin-ineligible int4-MoE shapes (intermediate_per_partition % tile != 0)
+    G4_85 = "G4_85"  # G4_85: TurboMind tensor-core int4 grouped-MoE kernel replacing the slow CUDA-core moe_wna16 (experimental, default OFF)
     PN358_FULL_CG_CONTEXT_REFRESH = "PN358_FULL_CG_CONTEXT_REFRESH"  # PN358: FULL cudagraph forward-context refresh
     PN382_DECODE_BENCH_HYBRID_FILL = "PN382_DECODE_BENCH_HYBRID_FILL"  # PN382: DecodeBench hybrid per-block KV fill
     PN384_EAGLE_PREFIX_CACHE_PREFILL = "PN384_EAGLE_PREFIX_CACHE_PREFILL"  # PN384: Eagle/MTP prefix-cache prefill fix

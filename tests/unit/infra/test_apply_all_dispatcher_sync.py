@@ -38,7 +38,7 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # ``apply_module`` (spec-driven from inception), NOT the legacy
     # ``apply_patch_*`` convention — a registry entry with no apply_patch_*
     # function is correct here, not drift.
-    "G4_83", "G4_84", "PN394", "PN398", "PN399", "PN400",
+    "G4_83", "G4_84", "G4_85", "PN394", "PN398", "PN399", "PN400",
     # P68 and P69 share `apply_patch_68_long_ctx_tool_adherence` — both
     # patches modify the same long-context tool-adherence middleware so
     # they ship as one wiring function. Registry tracks them separately

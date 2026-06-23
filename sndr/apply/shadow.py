@@ -266,6 +266,15 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # driven from inception (apply_module + own apply(),
                        # no legacy @register_patch hook), default-OFF, pin-
                        # scoped to the pins lacking the native fix)
+    # ── 2026-06-23 G4_85 LIVE re-target: spec-driven from inception ─────
+    "G4_85",           # TurboMind tensor-core int4 grouped-MoE kernel re-
+                       # targeted from the orphaned moe_wna16.MoeWNA16Method to
+                       # the LIVE CompressedTensorsWNA16MoEMethod.apply (3-6x vs
+                       # CUDA-core moe_wna16; fires only on Marlin-ineligible
+                       # int4 MoE, gated on is_moe_model() + G4_84's marlin
+                       # detector) — apply_module + own apply() returning
+                       # (status, reason), no legacy @register_patch hook,
+                       # default-OFF experimental, fail-open to the original)
 })
 
 

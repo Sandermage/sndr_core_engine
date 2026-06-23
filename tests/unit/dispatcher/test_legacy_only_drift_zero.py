@@ -205,8 +205,13 @@ def test_spec_only_truly_orphan_baseline():
         # 2026-06-14 PR-sweep wave-1 implementation — spec-driven from
         # inception (apply_module + own apply(), no legacy hook; applied
         # at legacy boot via _run_spec_only_supplement).
-        # PN517 resolved 2026-06 (no longer a spec-only orphan in the audit).
         "PN252",
+        # PN517 (init snapshot before NCCL, worker family): spec-driven from
+        # inception (apply_module + own apply() impl=full, no legacy hook).
+        # It IS a genuine orphan — previously hidden by the audit's 60-id cap
+        # (the sorted list truncated its tail). The cap was raised 60 -> 100
+        # on 2026-06-23 when G4_85 pushed the count to 62, surfacing PN517.
+        "PN517",
         # 2026-06-17 (§2.2.A spec-only conversion): PN353A converted to
         # spec-only (apply_module set, legacy @register_patch hook
         # removed); applied at legacy boot via _run_spec_only_supplement.
@@ -232,6 +237,14 @@ def test_spec_only_truly_orphan_baseline():
         # inception (apply_module + own apply(), no legacy hook), default-OFF
         # pin-scoped correctness fix.
         "PN400",
+        # 2026-06-23 (G4_85 LIVE re-target): TurboMind tensor-core int4
+        # grouped-MoE kernel re-targeted from the orphaned moe_wna16.
+        # MoeWNA16Method to the LIVE CompressedTensorsWNA16MoEMethod.apply —
+        # spec-driven from inception (apply_module + own apply() returning
+        # (status, reason), no legacy hook), default-OFF experimental.
+        # Fires only on Marlin-ineligible int4 MoE; fail-open to the
+        # original. Same spec-only-by-design class as PN398/PN399/PN400.
+        "G4_85",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

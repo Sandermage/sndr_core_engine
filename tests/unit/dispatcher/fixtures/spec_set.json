@@ -3096,6 +3096,18 @@
     "apply_module": "sndr.engines.vllm.patches.moe.g4_84_moe_geometry_advisor"
   },
   {
+    "patch_id": "G4_85",
+    "family": "moe",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_G4_85",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.moe.g4_85_tm_int4_moe_kernel"
+  },
+  {
     "patch_id": "G4_83",
     "family": "gemma4",
     "lifecycle": "experimental",

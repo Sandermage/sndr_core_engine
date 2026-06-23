@@ -9265,6 +9265,38 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {},
         "composes_with": [],
     },
+    "G4_85": {
+        "title": "TurboMind int4 grouped-MoE kernel (tensor-core moe_wna16 replacement)",
+        "tier": "community",
+        "family": "moe",
+        "env_flag": "GENESIS_ENABLE_G4_85",
+        "default_on": False,
+        "category": "kernel",
+        "implementation_status": "partial",
+        "source": "genesis_original",
+        "apply_module": "sndr.engines.vllm.patches.moe.g4_85_tm_int4_moe_kernel",
+        "lifecycle": "experimental",
+        "credit": (
+            "Routes Marlin-ineligible int4 MoE layers through TurboMind's "
+            "tensor-core sm80_16816 int4 grouped-MoE GEMM (third_party/tm_int4_moe) "
+            "instead of vLLM's slow CUDA-core moe_wna16_gemm. 3-6x faster on "
+            "SM80/86, 0.036%% rel-err vs FP16 (rig-proven). Targets the LIVE "
+            "CompressedTensorsWNA16MoEMethod.apply (the path Gemma-4-26B-A4B "
+            "int4 g32 takes at TP=2 when N=352 makes Marlin ineligible). "
+            "Gated on GENESIS_ENABLE_G4_85 (default OFF, experimental) AND "
+            "is_moe_model() AND G4_84's marlin_moe_marginal() detector, so it "
+            "only fires on Marlin-ineligible int4 MoE. JIT-builds the vendored "
+            "torch extension on first apply. Fail-open: any error degrades to "
+            "the original moe_wna16 path. Pending live A/B vs Marlin (the "
+            "PROD-26B path G4_08 pads to Marlin-eligible). Built by the deep "
+            "TurboMind-int4-MoE port 2026-06-22."
+        ),
+        "upstream_pr": None,
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["G4_84"],
+        "applies_to": {},
+    },
     "G4_83": {
         "title": "Gemma 4 per-layer attention backend on Ampere (#38891 backport)",
         "tier": "community",

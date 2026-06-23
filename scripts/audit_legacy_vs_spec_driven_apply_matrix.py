@@ -446,7 +446,11 @@ def _diff_matrices(
         # orphan baseline crossed 30 entries (33 after the 50-PR sweep
         # wave 1 landed G4_80/PN371/PN373) and the baseline test
         # compares the FULL set — a 30-cap silently truncated it.
-        "spec_only_truly_orphan_ids": spec_only_truly_orphan[:60],
+        # Cap raised 60 → 100 (2026-06-23 G4_85 LIVE re-target): the
+        # orphan baseline reached 62 entries (G4_85 added; sorted before
+        # PN400 -> a 60-cap silently dropped PN400 from the tail, the same
+        # truncation symptom the 30-cap had).
+        "spec_only_truly_orphan_ids": spec_only_truly_orphan[:100],
         "order_divergent": order_divergent,
         "first_order_divergence": first_swap,
         # v12_0_safe: only DRIFT blocks the flip (intentional legacy
