@@ -91,6 +91,12 @@ _KNOWN_FIELDS = {
     "community_credit", "stable_since", "since_version", "deprecated_since",
     "removal_planned", "deprecated", "superseded_by", "upstream_pr",
     "applies_to", "requires_patches", "conflicts_with", "composes_with",
+    # env_flag_aliases (2026-06-19/20 consolidation): when a merged module
+    # absorbs sibling patches (P64←P61c/PN56, P71←PN369, PN298←PN29,
+    # P61b←P59/PN51), the absorbed patches' original GENESIS_ENABLE_* flags
+    # are recognized as aliases so existing YAMLs keep working. should_apply
+    # + decision.py honor them at the entry level.
+    "env_flag_aliases",
     # P1-2 audit closure 2026-05-08 (noonghunna): registry metadata
     # enrichment fields added in spec.py. Inferred at iter_patch_specs()
     # time when not set explicitly; entries can override via these keys.

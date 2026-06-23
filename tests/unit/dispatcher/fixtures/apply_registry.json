@@ -940,6 +940,10 @@
     "wrapped_name": "apply_patch_g4_83_per_layer_flashattn"
   },
   {
+    "name": "G4_84 generic MoE-geometry advisor + wna16 tuned-config provider",
+    "wrapped_name": "apply_patch_g4_84_moe_geometry_advisor"
+  },
+  {
     "name": "G4_17 gemma4 vision-tower text-only skip (closes #41565)",
     "wrapped_name": "apply_patch_g4_17_gemma4_vision_tower_text_only_skip"
   },

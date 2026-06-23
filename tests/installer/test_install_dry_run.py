@@ -234,3 +234,155 @@ def test_match_preset_returns_none_for_unknown_gpu():
     cfg, key = _match_preset("Some Unknown GPU XYZ", 2, "balanced")
     assert cfg is None
     assert key is None
+
+
+# ─── B5: installer must render launch scripts with strict_mounts=True ──────
+#
+# The installer writes a REAL launcher to ~/.sndr/launch/. If it renders
+# with strict_mounts=False (preview semantics) an unresolved ${models_dir}
+# can land in an executable script. The live `sndr launch` path uses
+# strict_mounts=True; the installer must match.
+
+
+def test_step_generate_launch_renders_strict_mounts(monkeypatch, tmp_path):
+    """step_generate_launch must call to_launch_script with
+    strict_mounts=True so unresolved ${var} placeholders fail fast
+    instead of being written into a real launcher script."""
+    from sndr.cli.legacy import install as install_mod
+
+    captured = {}
+
+    class _FakeCfg:
+        def to_launch_script(self, host_paths=None, *, strict_mounts=False):
+            captured["strict_mounts"] = strict_mounts
+            captured["host_paths"] = host_paths
+            return "#!/bin/bash\necho ok\n"
+
+    monkeypatch.setattr(
+        install_mod, "_match_preset",
+        lambda gpu, n, wl: (_FakeCfg(), "fake-preset"),
+    )
+
+    hw = {"gpu_class_hint": "rtx a5000", "n_gpus": 2}
+    workload = {"workload": "balanced"}
+    clone_info = {"home": str(tmp_path)}
+
+    res = install_mod.step_generate_launch(
+        _make_opts(), hw, workload, clone_info,
+    )
+    assert res.data.get("path") is not None
+    assert captured.get("strict_mounts") is True, (
+        "installer must render the real launcher with strict_mounts=True"
+    )
+
+
+def test_step_generate_launch_unresolved_placeholder_fails(monkeypatch, tmp_path):
+    """If a placeholder survives (strict render raises or the script still
+    carries ${var}), the installer must NOT silently write a broken
+    launcher — it surfaces a non-success reason."""
+    from sndr.cli.legacy import install as install_mod
+    from sndr.model_configs.schema import SchemaError
+
+    class _FakeCfg:
+        def to_launch_script(self, host_paths=None, *, strict_mounts=False):
+            if strict_mounts:
+                raise SchemaError("unresolved ${models_dir}: fix host.yaml")
+            return "docker run -v ${models_dir}:/models ...\n"
+
+    monkeypatch.setattr(
+        install_mod, "_match_preset",
+        lambda gpu, n, wl: (_FakeCfg(), "fake-preset"),
+    )
+
+    hw = {"gpu_class_hint": "rtx a5000", "n_gpus": 2}
+    workload = {"workload": "balanced"}
+    clone_info = {"home": str(tmp_path)}
+
+    res = install_mod.step_generate_launch(
+        _make_opts(), hw, workload, clone_info,
+    )
+    # No real launcher written, reason surfaced.
+    assert res.data.get("path") is None
+    assert res.data.get("reason")
+
+
+# ─── B6: empty gpu_class_hint must fall through to the picker ──────────────
+
+
+def test_step_generate_launch_no_gpu_falls_through_to_picker(monkeypatch, tmp_path):
+    """When GPU detection failed (empty gpu_class_hint) the installer must
+    fall through to the interactive preset picker rather than returning a
+    bare `no_gpu` skip. In non-interactive mode the picker cannot prompt,
+    so it surfaces a picker-path reason (NOT `no_gpu`)."""
+    from sndr.cli.legacy import install as install_mod
+
+    picker_called = {"n": 0}
+
+    def _fake_picker(opts):
+        picker_called["n"] += 1
+        return (None, None)  # non-interactive: no choice possible
+
+    monkeypatch.setattr(
+        install_mod, "_pick_preset_interactive", _fake_picker, raising=False,
+    )
+
+    hw = {"gpu_class_hint": "", "n_gpus": 0}
+    workload = {"workload": "balanced"}
+    clone_info = {"home": str(tmp_path)}
+
+    res = install_mod.step_generate_launch(
+        _make_opts(), hw, workload, clone_info,
+    )
+    assert picker_called["n"] == 1, (
+        "empty gpu_class_hint must fall through to the interactive picker"
+    )
+    assert res.data.get("reason") != "no_gpu"
+
+
+def test_step_generate_launch_picker_choice_is_rendered(monkeypatch, tmp_path):
+    """When the picker returns a chosen (cfg, key), the installer renders
+    and writes that preset's launcher (strict_mounts=True)."""
+    from sndr.cli.legacy import install as install_mod
+
+    captured = {}
+
+    class _FakeCfg:
+        def to_launch_script(self, host_paths=None, *, strict_mounts=False):
+            captured["strict_mounts"] = strict_mounts
+            return "#!/bin/bash\necho picked\n"
+
+    monkeypatch.setattr(
+        install_mod, "_pick_preset_interactive",
+        lambda opts: (_FakeCfg(), "operator-picked"),
+        raising=False,
+    )
+
+    hw = {"gpu_class_hint": "", "n_gpus": 0}
+    workload = {"workload": "balanced"}
+    clone_info = {"home": str(tmp_path)}
+
+    res = install_mod.step_generate_launch(
+        _make_opts(), hw, workload, clone_info,
+    )
+    assert res.data.get("path") is not None
+    assert res.data.get("preset") == "operator-picked"
+    assert captured.get("strict_mounts") is True
+
+
+# ─── B7: token-based (robust) workload match ───────────────────────────────
+
+
+def test_workload_score_token_based():
+    """`tool_agent` must score on text that contains the tokens 'tool'
+    and 'agent' even when they are not the contiguous substring
+    'tool agent' (the old `replace('_', ' ') in text` was brittle)."""
+    from sndr.cli.legacy.install import _workload_score
+    # Tokens present but reordered / separated → old substring match missed.
+    assert _workload_score("tool_agent", "best for agentic tool use") > 0
+    assert _workload_score("tool_agent", "ide coding agent with tool calls") > 0
+    # More token coverage scores higher than partial.
+    full = _workload_score("long_context", "tuned for long context windows")
+    partial = _workload_score("long_context", "long prompts only")
+    assert full > partial
+    # Unrelated text scores zero.
+    assert _workload_score("tool_agent", "high throughput batch serving") == 0

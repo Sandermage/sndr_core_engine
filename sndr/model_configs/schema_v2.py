@@ -336,6 +336,18 @@ class ModelDef:
     # Default {} → existing models unchanged.
     system_env: dict[str, str] = field(default_factory=dict)
 
+    # B10 (2026-06-22): generic extra vLLM CLI flags as a {flag: value}
+    # dict, emitted by compose() into cfg.vllm_extra_args as
+    # `--flag value` pairs (a flag with an empty-string value is emitted
+    # bare, no argument). This is the generic escape hatch that replaces
+    # adding a new special-cased branch to compose() for every one-off
+    # flag a model needs. The targeted fields above (chat_template,
+    # override_generation_config) stay because they carry extra render
+    # semantics (mounts / JSON encoding); plain pass-through flags use
+    # this. Keys MUST start with `--` so the emitted CLI is unambiguous.
+    # Default {} → existing models unchanged.
+    extra_vllm_flags: dict[str, str] = field(default_factory=dict)
+
     notes: list[str] = field(default_factory=list)
 
     def validate(self) -> None:
@@ -400,6 +412,19 @@ class ModelDef:
                         f"must be int | float | str | bool | list "
                         f"(got {type(v).__name__})"
                     )
+        # B10: extra_vllm_flags must be {str_flag: str_value}; keys start
+        # with `--` so the emitted CLI is unambiguous.
+        for k, v in self.extra_vllm_flags.items():
+            if not isinstance(k, str) or not k.startswith("--"):
+                raise SchemaError(
+                    f"model.extra_vllm_flags key {k!r} must be a non-empty "
+                    f"str starting with '--'"
+                )
+            if not isinstance(v, str):
+                raise SchemaError(
+                    f"model.extra_vllm_flags[{k!r}] value must be str "
+                    f"(got {type(v).__name__}); use '' for a bare flag"
+                )
 
 
 # ─── HardwareDef ──────────────────────────────────────────────────────────
@@ -709,6 +734,34 @@ class BackendPlanConfig:
                 f"{self.drafter_kv_sharing!r} must be one of "
                 f"('physical', 'disabled') or None"
             )
+        # B3: each declared (field, value) pair must exist in the
+        # single-source-of-truth emission map. Without this, an unknown
+        # backend value silently emits NO env at render time and the
+        # launcher boots with the wrong attention backend — caught only
+        # by the render-path consistency check (cli/profile.py), which a
+        # malformed profile can dodge if it is never rendered. Checking
+        # at load time fails the profile fast. The env-comparison half of
+        # _validate_backend_plan_consistency() still runs at render time
+        # because it needs the composed genesis_env (not available here).
+        #
+        # Lazy import: compose.py imports schema_v2 at module scope, so a
+        # top-level import here would be circular. Deferring it to call
+        # time breaks the cycle without changing the source of truth.
+        from .compose import BACKEND_PLAN_EMISSION_MAP
+        for field_name in (
+            "target_default", "target_native_layers",
+            "drafter_sliding", "drafter_full", "drafter_kv_sharing",
+        ):
+            value = getattr(self, field_name)
+            if value is None:
+                continue
+            if (field_name, value) not in BACKEND_PLAN_EMISSION_MAP:
+                raise SchemaError(
+                    f"profile.backend_plan.{field_name}={value!r}: not in "
+                    f"the supported backend mapping table. Adding a new "
+                    f"value requires extending BACKEND_PLAN_EMISSION_MAP in "
+                    f"compose.py with the env mapping AND a test."
+                )
 
 
 @dataclass
@@ -922,7 +975,7 @@ class ProfileDef:
     id: str
     parent_model: str
     maintainer: str
-    status: Literal["experimental", "validated", "promoted"] = "experimental"
+    status: Literal["experimental", "validated", "promoted", "deprecated"] = "experimental"
     created: Optional[str] = None
 
     patches_delta: PatchesDelta = field(default_factory=PatchesDelta)
@@ -979,9 +1032,10 @@ class ProfileDef:
         if not self.maintainer:
             raise SchemaError("profile.maintainer required")
         self.patches_delta.validate()
-        if self.status not in ("experimental", "validated", "promoted"):
+        if self.status not in ("experimental", "validated", "promoted", "deprecated"):
             raise SchemaError(
-                f"profile.status={self.status!r} must be experimental|validated|promoted"
+                f"profile.status={self.status!r} must be "
+                "experimental|validated|promoted|deprecated"
             )
         if self.target_hardware is not None:
             _check_id(self.target_hardware, "profile.target_hardware")
@@ -990,6 +1044,19 @@ class ProfileDef:
         if self.role is not None and self.role not in PROFILE_ROLES:
             raise SchemaError(
                 f"profile.role={self.role!r} must be one of {PROFILE_ROLES} or None"
+            )
+        # B9: a role=structured profile that omits spec_decode_override
+        # silently inherits the parent model's K, which is exactly the
+        # speculative-depth ambiguity the runtime-role split was meant to
+        # remove. Require an explicit override so structured profiles are
+        # self-describing. This is complementary to (not in conflict with)
+        # the 10_default_clean rule, which FORBIDS spec_decode_override on
+        # role=default — the two rules apply to disjoint roles.
+        if self.role == "structured" and self.spec_decode_override is None:
+            raise SchemaError(
+                "profile.role='structured' requires spec_decode_override to "
+                "be declared (structured profiles must state their K "
+                "explicitly; inheriting the parent model's K is ambiguous)"
             )
         if self.spec_decode_override is not None:
             self.spec_decode_override.validate()

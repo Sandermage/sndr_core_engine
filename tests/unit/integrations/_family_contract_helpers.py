@@ -306,9 +306,14 @@ def make_family_registry_class(
                     if not meta.get("apply_module"):
                         # No wiring expected — registry-only entry.
                         continue
-                    assert file_stem in retired_files, (
+                    # Retired patches may be RELOCATED to _retired/_archive OR
+                    # kept in place in the family dir (retired-in-place — the
+                    # live-contract family tests still import them at the family
+                    # path, so an in-place retired file is a valid state). Accept
+                    # either location.
+                    assert file_stem in retired_files or file_stem in files, (
                         f"{patch_id}: retired but file {file_stem}.py "
-                        f"not in {retired_dir}"
+                        f"not in the family dir nor any of {retired_dirs}"
                     )
                     continue
                 assert file_stem in files, (

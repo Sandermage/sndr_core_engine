@@ -81,7 +81,7 @@ kind: profile
 id: gemma4-31b-fp8e5m2-fallback
 parent_model: gemma-4-31b-it-awq
 maintainer: sandermage
-status: experimental                              # never booted — see header
+status: deprecated  # deprecated 2026-06-22 — config-curation (keep-only-validated)
 created: '2026-06-11'
 
 # ─── Runtime role ──────────────────────────────────────────────────────

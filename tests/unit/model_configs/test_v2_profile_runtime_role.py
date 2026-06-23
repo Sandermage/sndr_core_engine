@@ -357,7 +357,16 @@ class TestProfileDefRuntimeRole:
 
     @pytest.mark.parametrize("role", ["default", "structured", "gateway"])
     def test_valid_role_accepted(self, role):
-        _bare_profile(role=role).validate()
+        # B9: a structured (non-default) role MUST declare
+        # spec_decode_override, otherwise it silently inherits the
+        # parent model's K. Supply one for the structured case so this
+        # role-acceptance smoke test stays focused on the role enum.
+        overrides = {"role": role}
+        if role == "structured":
+            overrides["spec_decode_override"] = SpecDecodeConfig(
+                method="mtp", num_speculative_tokens=4,
+            )
+        _bare_profile(**overrides).validate()
 
     def test_invalid_role_rejected(self):
         with pytest.raises(SchemaError, match="role"):
@@ -427,6 +436,76 @@ class TestProfileDefRuntimeRole:
         )
         p.validate()
         assert p.role is None
+
+
+# ─── B9 — structured role MUST declare spec_decode_override ───────────────
+
+
+class TestStructuredRoleRequiresSpecDecode:
+    """A role=structured (non-default) profile that leaves
+    spec_decode_override=None silently inherits the parent model's K.
+    Load-time validation must reject this so a malformed structured
+    profile fails fast instead of running with the wrong speculative
+    depth.
+    """
+
+    def test_structured_without_spec_decode_override_rejected(self):
+        with pytest.raises(SchemaError, match="spec_decode_override"):
+            _bare_profile(role="structured").validate()
+
+    def test_structured_with_spec_decode_override_accepted(self):
+        _bare_profile(
+            role="structured",
+            spec_decode_override=SpecDecodeConfig(
+                method="mtp", num_speculative_tokens=4,
+            ),
+        ).validate()
+
+    def test_default_role_without_spec_decode_override_still_ok(self):
+        # default role MUST NOT require spec_decode_override — the
+        # complementary 10_default_clean rule actually forbids it.
+        _bare_profile(role="default").validate()
+
+    def test_role_none_without_spec_decode_override_still_ok(self):
+        # Pure tuning profiles (role=None) are unaffected.
+        _bare_profile().validate()
+
+
+# ─── B3 — backend_plan values must be in the emission map at load ─────────
+
+
+class TestBackendPlanMembershipAtLoad:
+    """A profile.backend_plan field carrying a value that is not in
+    BACKEND_PLAN_EMISSION_MAP must fail at ProfileDef.validate() (load
+    time), not only when the launcher renders it. Otherwise an unknown
+    backend declaration silently emits no env and the launcher boots
+    with the wrong attention backend.
+    """
+
+    def test_unknown_target_default_rejected_at_load(self):
+        p = _bare_profile(
+            role="structured",
+            spec_decode_override=SpecDecodeConfig(
+                method="mtp", num_speculative_tokens=4,
+            ),
+            backend_plan=BackendPlanConfig(target_default="NOT_A_BACKEND"),
+        )
+        with pytest.raises(SchemaError, match="backend mapping table"):
+            p.validate()
+
+    def test_known_target_default_accepted_at_load(self):
+        p = _bare_profile(
+            role="structured",
+            spec_decode_override=SpecDecodeConfig(
+                method="mtp", num_speculative_tokens=4,
+            ),
+            backend_plan=BackendPlanConfig(target_default="TURBOQUANT"),
+        )
+        p.validate()
+
+    def test_unknown_drafter_sliding_rejected_at_load(self):
+        with pytest.raises(SchemaError, match="backend mapping table"):
+            BackendPlanConfig(drafter_sliding="FLASH_ATTN").validate()
 
 
 # ─── P1.7c — SpecDecodeConfig.attention_backend ─────────────────────────

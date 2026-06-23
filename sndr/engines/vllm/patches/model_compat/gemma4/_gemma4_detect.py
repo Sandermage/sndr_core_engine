@@ -250,8 +250,18 @@ def detect_non_causal_drafter(speculative_config: object) -> Optional[str]:
 # ─── Common env-flag helpers ─────────────────────────────────────────
 
 
-def env_truthy(name: str) -> bool:
-    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+def env_truthy(name: str, default: bool = False) -> bool:
+    """True iff env ``name`` is set to a truthy token.
+
+    When the variable is unset or empty, ``default`` is returned — this lets
+    default-on patches (e.g. G4_84) express "enabled unless explicitly
+    disabled" via ``env_truthy(flag, default=True)``. Existing callers that
+    omit ``default`` keep the original unset→False behavior.
+    """
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
 def env_disable(name: str) -> bool:

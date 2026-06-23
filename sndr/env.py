@@ -564,6 +564,7 @@ class Flags:
     PN353A = "PN353A"  # PN353A: TurboQuant MetadataBuilder workspace reserve
     PN353B = "PN353B"  # PN353B: TurboQuant prefill CUDA-graph capture safety
     PN399_TQ_DECODE_SCRATCH_IMA = "PN399_TQ_DECODE_SCRATCH_IMA"  # PN399: consolidated single-owner TQ decode-scratch fixed buffer — fix CUDA IMA in FULL cudagraph + remove dead PN118/PN353A decode reservations (backport+improve vllm#46067; requires PN118+PN353A; default OFF/experimental)
+    PN400 = "PN400"  # PN400: restore is_sym qzeros guard for symmetric AutoRound/GPTQ Marlin MoE (backport of MERGED vllm#45656; fixes the vllm#43409 regression latent on dev148; default OFF, pin-scoped)
     # compile_safety family
     PN364_HYBRID_GDN_WARMUP = "PN364_HYBRID_GDN_WARMUP"  # PN364: Hybrid GDN/Mamba/MRoPE startup warmup
     PN367 = "PN367"  # PN367: CUDA graph memory estimate clamp
@@ -613,6 +614,8 @@ class Flags:
     G4_80_FP8E5M2_KV = "G4_80_FP8E5M2_KV"  # G4_80: fp8_e5m2 KV for weight-only ckpts (vllm#45040)
     G4_81_TQ_MQ_DIRECT_ROUTE = "G4_81_TQ_MQ_DIRECT_ROUTE"  # G4_81: TQ multi-query DIRECT decode route
     G4_82_TQ_PREFILL_SDPA_HEADDIM = "G4_82_TQ_PREFILL_SDPA_HEADDIM"  # G4_82: TQ prefill SDPA fallback for head_dim>256 (Ampere FA2 cap)
+    G4_83_GEMMA4_PER_LAYER_BACKEND = "G4_83_GEMMA4_PER_LAYER_BACKEND"  # G4_83: Gemma-4 per-layer attention backend selection (SWA vs full-attn layers)
+    G4_84_MOE_GEOMETRY_ADVISOR = "G4_84_MOE_GEOMETRY_ADVISOR"  # G4_84: MoE geometry advisor — detect Marlin-ineligible int4-MoE shapes (intermediate_per_partition % tile != 0)
     PN358_FULL_CG_CONTEXT_REFRESH = "PN358_FULL_CG_CONTEXT_REFRESH"  # PN358: FULL cudagraph forward-context refresh
     PN382_DECODE_BENCH_HYBRID_FILL = "PN382_DECODE_BENCH_HYBRID_FILL"  # PN382: DecodeBench hybrid per-block KV fill
     PN384_EAGLE_PREFIX_CACHE_PREFILL = "PN384_EAGLE_PREFIX_CACHE_PREFILL"  # PN384: Eagle/MTP prefix-cache prefill fix

@@ -417,3 +417,42 @@ class TestComposeExpertParallel:
                 min_vram_per_gpu_mib=24000, cuda_capability_min=(8, 6))),
         )
         assert "--enable-expert-parallel" not in cfg.vllm_extra_args
+
+
+# ─── B10 — generic ModelDef.extra_vllm_flags emission ─────────────────────
+
+
+class TestComposeExtraVllmFlags:
+    """B10: a ModelDef may declare arbitrary extra vLLM flags as a
+    `{flag: value}` dict, emitted generically as `--flag value` into
+    cfg.vllm_extra_args. Default {} → existing configs unchanged."""
+
+    def test_empty_extra_flags_emits_nothing_new(self):
+        cfg = compose(_model(), _hardware())
+        # No extra flags declared → no spurious args (only the canonical
+        # special-cases, none of which fire for the default _model()).
+        assert cfg.vllm_extra_args == []
+
+    def test_extra_flags_emitted_as_flag_value_pairs(self):
+        cfg = compose(
+            _model(extra_vllm_flags={"--seed": "42", "--swap-space": "16"}),
+            _hardware(),
+        )
+        args = cfg.vllm_extra_args
+        # Each (flag, value) pair appears adjacently in order.
+        assert "--seed" in args and "42" in args
+        assert args[args.index("--seed") + 1] == "42"
+        assert "--swap-space" in args and "16" in args
+        assert args[args.index("--swap-space") + 1] == "16"
+
+    def test_extra_flags_value_only_flag(self):
+        # An empty-string value means "bare flag, no argument".
+        cfg = compose(
+            _model(extra_vllm_flags={"--disable-frontend-multiprocessing": ""}),
+            _hardware(),
+        )
+        args = cfg.vllm_extra_args
+        assert "--disable-frontend-multiprocessing" in args
+        # No empty-string token follows it.
+        idx = args.index("--disable-frontend-multiprocessing")
+        assert idx + 1 == len(args) or args[idx + 1].startswith("--")

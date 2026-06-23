@@ -36,6 +36,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 import subprocess
 import sys
@@ -83,6 +84,14 @@ def add_argparser(subparsers: Any) -> None:
         help="Run the preflight gate (constraints + image digest + "
              "mount resolution) and exit without invoking vllm. "
              "Useful in CI to fail fast before the slow apply step.",
+    )
+    p.add_argument(
+        "--skip-autodetect", action="store_true",
+        help="Skip the A1-A9 autodetect preflight gate (GPU count, vLLM "
+             "pin, model/drafter path existence, HF cache mount, "
+             "max-model-len sanity, served-name default, port conflict, "
+             "repo resolution). Use only when you know the host state is "
+             "fine and want to bypass the checks.",
     )
     p.add_argument(
         "--pull", action="store_true",
@@ -294,15 +303,59 @@ def _load_host_paths() -> dict[str, str] | None:
         return None
 
 
-def _maybe_override_port(cfg: Any, port: int | None) -> None:
-    """Apply `--port` override directly on the config object so
-    `to_launch_script` picks it up."""
+def _maybe_override_port(cfg: Any, port: int | None) -> Any:
+    """Apply a `--port` override and return the config to render.
+
+    B8 (2026-06-22): the override used to mutate the passed config IN
+    PLACE. `cfg` can come from a process-cached registry, so mutating it
+    leaked the override into every later caller in the same process
+    (e.g. a second `sndr launch` of a different preset would inherit a
+    stale port). We now deep-copy the config before mutating so the
+    shared/cached object stays pristine, and return the copy.
+
+    When `port` is None there is nothing to override → return `cfg`
+    unchanged (no copy, keeps the common path cheap).
+    """
     if port is None:
-        return
+        return cfg
+    cfg = copy.deepcopy(cfg)
     if hasattr(cfg, "docker") and cfg.docker:
         cfg.docker.port = port
     if hasattr(cfg, "port"):
         cfg.port = port
+    return cfg
+
+
+def _run_autodetect_gate(cfg: Any, host_paths: dict[str, str] | None) -> int:
+    """A1-A9 autodetect preflight (see cli/legacy/preflight.py).
+
+    Runs BEFORE render/exec so cryptic engine-init failures (missing
+    model/drafter checkpoint, GPU-count mismatch, port conflict, pin
+    mismatch, over-long max_model_len) become clear operator messages.
+
+    Returns 0 when there are no errors (warnings are surfaced but allow
+    the launch to proceed), non-zero when at least one error fired and
+    the caller must abort.
+
+    Note: the A7 served-model-name default mutates `cfg` in place. The
+    caller passes an already-isolated config (deep-copied on the --port
+    path; for the no-port path we copy here) so the shared/cached
+    registry object is never touched.
+    """
+    from . import preflight as _preflight
+
+    result = _preflight.run_autodetect_preflight(cfg, host_paths)
+    for w in result.warnings:
+        _io.warn(f"preflight [{w.code}] {w.message}")
+    for e in result.errors:
+        _io.error(f"preflight [{e.code}] {e.message}")
+    if not result.ok:
+        _io.info(
+            "Autodetect preflight found blocking issues (above). Fix them, "
+            "or pass --skip-autodetect to bypass."
+        )
+        return 2
+    return 0
 
 
 def _verify_image_digest(cfg: Any, mode: str) -> int:
@@ -647,7 +700,9 @@ def _warn_about_non_full_enabled_patches(cfg: Any) -> None:
 def run_launch(opts: argparse.Namespace) -> int:
     """Render `cfg.to_launch_script()` + apply patches + exec the script."""
     cfg, key = _resolve_config(opts.config_key, opts.non_interactive)
-    _maybe_override_port(cfg, opts.port)
+    # B8: returns a deep-copied cfg when --port is set; mutating in place
+    # would leak the override into the process-cached registry object.
+    cfg = _maybe_override_port(cfg, opts.port)
 
     _io.banner(f"SNDR Launch: {key}",
                f"port={getattr(getattr(cfg, 'docker', None), 'port', None) or 'config'}")
@@ -692,6 +747,20 @@ def run_launch(opts: argparse.Namespace) -> int:
     host_paths = _load_host_paths()
     is_preflight = getattr(opts, "preflight_only", False)
     strict_mounts = not (opts.dry_run or is_preflight)
+
+    # A1-A9 autodetect preflight gate. Runs for live launch AND
+    # --preflight-only, BEFORE the render so A7 (served-model-name
+    # default) reaches the rendered script. Skipped for --dry-run (a pure
+    # preview must succeed on any machine without touching nvidia-smi /
+    # sockets) and when the operator passes --skip-autodetect. The gate
+    # mutates cfg (A7) and reads cfg, so isolate it from the cached
+    # registry object first (no-op extra cost when --port already copied).
+    if not opts.dry_run and not getattr(opts, "skip_autodetect", False):
+        cfg = copy.deepcopy(cfg)
+        rc = _run_autodetect_gate(cfg, host_paths)
+        if rc != 0:
+            return rc
+
     try:
         script = cfg.to_launch_script(
             host_paths=host_paths,

@@ -34,6 +34,11 @@ APPLY_ALL = (
 # adding a new intentional asymmetry — every entry here is a deviation
 # from the 1:1 contract and should have a clear reason.
 _KNOWN_REGISTRY_ONLY = frozenset({
+    # 2026-06-23 (dev148 spec-driven additions): these patches are wired via
+    # ``apply_module`` (spec-driven from inception), NOT the legacy
+    # ``apply_patch_*`` convention — a registry entry with no apply_patch_*
+    # function is correct here, not drift.
+    "G4_83", "G4_84", "PN394", "PN398", "PN399", "PN400",
     # P68 and P69 share `apply_patch_68_long_ctx_tool_adherence` — both
     # patches modify the same long-context tool-adherence middleware so
     # they ship as one wiring function. Registry tracks them separately
@@ -248,6 +253,12 @@ _KNOWN_REGISTRY_ONLY = frozenset({
 })
 
 _KNOWN_APPLY_ONLY: frozenset[str] = frozenset({
+    # 2026-06-19/20 consolidations: these patches were ABSORBED into a merged
+    # module (P59/PN51 -> P61b; P61c/PN56 -> P64; PN29 -> PN298; PN369 -> P71)
+    # and their PATCH_REGISTRY entries removed, but their apply_patch_* legacy
+    # boot functions are retained in apply_all.py for boot continuity (mapped to
+    # the merged primary in apply/shadow.py _LEGACY_NAME_TO_PATCH_ID).
+    "P59", "PN51", "P61c", "PN56", "PN29", "PN369",
     # No documented exceptions yet — every apply_patch_* should have a
     # registry entry. Add an ID here with a comment if you intentionally
     # ship a wiring function without dispatcher metadata.

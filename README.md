@@ -12,7 +12,7 @@
 
 **Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class
 inference on consumer NVIDIA Ampere / Ada / Blackwell with TurboQuant k8v4 KV
-cache, MTP K=5 spec-decode, tool-calling, and 256K-class context. 318 patches
+cache, MTP K=5 spec-decode, tool-calling, and 256K-class context. 316 patches
 across 27 families. Apache 2.0.**
 
 ---

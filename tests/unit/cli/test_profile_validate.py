@@ -78,6 +78,7 @@ class TestArtifactMissing:
             return original_read(artifact_id)
 
         # Build a synthetic profile referencing ghost-artifact
+        from sndr.model_configs.schema import SpecDecodeConfig
         from sndr.model_configs.schema_v2 import (
             ProfileDef, PatchesDelta, ValidationArtifactRef,
         )
@@ -89,6 +90,9 @@ class TestArtifactMissing:
             status="experimental",
             patches_delta=PatchesDelta(),
             role="structured",
+            spec_decode_override=SpecDecodeConfig(
+                method="mtp", num_speculative_tokens=4,
+            ),
             validation=ValidationArtifactRef(
                 artifact_id="ghost-artifact",
                 config_hash="71c874d7ffedae04",
@@ -128,6 +132,7 @@ class TestConfigHashMismatch:
         """When validation.config_hash differs from the artifact's
         config_hash, validate must emit ERROR on check 07."""
         from sndr.cli.legacy import profile as profile_cli
+        from sndr.model_configs.schema import SpecDecodeConfig
         from sndr.model_configs.schema_v2 import (
             ProfileDef, PatchesDelta, ValidationArtifactRef,
         )
@@ -140,6 +145,9 @@ class TestConfigHashMismatch:
             status="experimental",
             patches_delta=PatchesDelta(),
             role="structured",
+            spec_decode_override=SpecDecodeConfig(
+                method="mtp", num_speculative_tokens=4,
+            ),
             validation=ValidationArtifactRef(
                 artifact_id="gemma4-31b-tq-mtp-structured-k4",
                 config_hash="deadbeefcafebabe",  # wrong hash
@@ -173,6 +181,7 @@ class TestWorkloadIntersection:
         artifact's allowed_workloads, validate emits WARNING on check
         08 (router will deny those classes; not fatal)."""
         from sndr.cli.legacy import profile as profile_cli
+        from sndr.model_configs.schema import SpecDecodeConfig
         from sndr.model_configs.schema_v2 import (
             ProfileDef, PatchesDelta, RoutingConfig, ValidationArtifactRef,
         )
@@ -185,6 +194,9 @@ class TestWorkloadIntersection:
             status="experimental",
             patches_delta=PatchesDelta(),
             role="structured",
+            spec_decode_override=SpecDecodeConfig(
+                method="mtp", num_speculative_tokens=4,
+            ),
             routing=RoutingConfig(
                 intended_workloads=["tool_json", "code_gen"],
                 # code_gen is in artifact.denied_workloads; tool_json allowed
@@ -217,6 +229,7 @@ class TestWorkloadIntersection:
         """structured role with intended_workloads ∩ allowed_workloads = {}
         must emit ERROR on check 09 (the router would route nothing
         through the structured upstream)."""
+        from sndr.model_configs.schema import SpecDecodeConfig
         from sndr.model_configs.schema_v2 import (
             ProfileDef, PatchesDelta, RoutingConfig, ValidationArtifactRef,
         )
@@ -229,6 +242,9 @@ class TestWorkloadIntersection:
             status="experimental",
             patches_delta=PatchesDelta(),
             role="structured",
+            spec_decode_override=SpecDecodeConfig(
+                method="mtp", num_speculative_tokens=4,
+            ),
             routing=RoutingConfig(
                 intended_workloads=["code_gen"],  # NOT in artifact.allowed
             ),

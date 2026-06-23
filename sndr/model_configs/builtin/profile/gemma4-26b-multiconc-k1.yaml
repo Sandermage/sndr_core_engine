@@ -30,7 +30,7 @@ kind: profile
 id: gemma4-26b-multiconc-k1
 parent_model: gemma-4-26b-a4b-it-awq
 maintainer: sandermage
-status: experimental                              # B4-PRE creates this; B4 actual is its first bench
+status: deprecated  # deprecated 2026-06-22 — config-curation (keep-only-validated)
 created: '2026-05-23'
 
 # ─── Runtime role ──────────────────────────────────────────────────────

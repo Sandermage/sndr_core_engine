@@ -615,7 +615,7 @@ class TestBackendMapping:
         from sndr.model_configs.schema_v2 import (
             BackendPlanConfig, ProfileDef, PatchesDelta,
         )
-        from sndr.model_configs.schema import SchemaError
+        from sndr.model_configs.schema import SchemaError, SpecDecodeConfig
 
         bad_profile = ProfileDef(
             schema_version=2, kind="profile",
@@ -625,6 +625,9 @@ class TestBackendMapping:
             status="experimental",
             patches_delta=PatchesDelta(),
             role="structured",
+            spec_decode_override=SpecDecodeConfig(
+                method="mtp", num_speculative_tokens=4,
+            ),
             backend_plan=BackendPlanConfig(
                 drafter_sliding="MAMBA_ATTN",  # not in mapping
             ),
@@ -653,7 +656,7 @@ class TestBackendMapping:
         from sndr.model_configs.schema_v2 import (
             BackendPlanConfig, ProfileDef, PatchesDelta,
         )
-        from sndr.model_configs.schema import SchemaError
+        from sndr.model_configs.schema import SchemaError, SpecDecodeConfig
 
         # Build profile with backend_plan but EMPTY patches_delta —
         # backend declared but not enabled via env.
@@ -665,6 +668,9 @@ class TestBackendMapping:
             status="experimental",
             patches_delta=PatchesDelta(),  # empty; will not enable G4_71b env
             role="structured",
+            spec_decode_override=SpecDecodeConfig(
+                method="mtp", num_speculative_tokens=4,
+            ),
             backend_plan=BackendPlanConfig(
                 drafter_sliding="TRITON_ATTN",  # mapped, but no env set
             ),

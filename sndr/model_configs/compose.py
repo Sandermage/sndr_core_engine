@@ -541,6 +541,15 @@ def compose(
             and model.capabilities.attention_arch == "gemma4_moe"):
         vllm_extra_args.append("--enable-expert-parallel")
 
+    # 4f. B10 (2026-06-22): generic ModelDef.extra_vllm_flags pass-through.
+    # Each {flag: value} entry emits `--flag value`; an empty-string value
+    # emits the bare flag (no argument). Schema validation guarantees keys
+    # start with `--` and values are str. Sorted for render determinism.
+    for flag, value in sorted(getattr(model, "extra_vllm_flags", {}).items()):
+        vllm_extra_args.append(flag)
+        if value != "":
+            vllm_extra_args.append(value)
+
     # 5. Composed key for downstream identification.
     # V1 ModelConfig.key requires strict kebab-case `^[a-z0-9-]+$` —
     # no dots, no underscores. V2 IDs allow dots (e.g. `qwen3.6-fp8`),

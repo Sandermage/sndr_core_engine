@@ -37,6 +37,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -548,23 +549,34 @@ def step_generate_launch(
     """
     _io.step(10, 11, "Generate launch script")
 
+    # B6 (2026-06-22): GPU-detect failure (empty gpu_class_hint) must NOT
+    # silently skip launcher generation — it falls through to the
+    # interactive preset picker so the operator can still pick a preset by
+    # hand. In non-interactive mode the picker cannot prompt, so it
+    # returns (None, None) and we surface the manual-pick hint with a
+    # `gpu_undetected` reason (distinct from the old hard skip).
     if not hw["gpu_class_hint"] or not hw["n_gpus"]:
-        _io.warn("no GPU detected — skipping launch script generation")
-        _io.info("Pick a preset manually: sndr launch --dry-run <key>")
-        return StepResult({"path": None, "reason": "no_gpu"})
-
-    cfg, key = _match_preset(hw["gpu_class_hint"], hw["n_gpus"],
-                             workload["workload"])
-    if cfg is None:
-        _io.warn(f"no preset matches ({hw['gpu_class_hint']} × "
-                 f"{hw['n_gpus']} × {workload['workload']})")
-        _io.info("List configs: sndr launch  (interactive picker)")
-        return StepResult({"path": None, "reason": "no_match"})
+        _io.warn("no GPU detected — falling through to the preset picker")
+        cfg, key = _pick_preset_interactive(opts)
+        if cfg is None:
+            _io.info("Pick a preset manually: sndr launch --dry-run <key>")
+            return StepResult({"path": None, "reason": "gpu_undetected"})
+        # Picker chose a preset → render below via the shared filename
+        # scheme. Use a GPU-agnostic name since detection failed.
+        safe_gpu = "preset"
+    else:
+        cfg, key = _match_preset(hw["gpu_class_hint"], hw["n_gpus"],
+                                 workload["workload"])
+        if cfg is None:
+            _io.warn(f"no preset matches ({hw['gpu_class_hint']} × "
+                     f"{hw['n_gpus']} × {workload['workload']})")
+            _io.info("List configs: sndr launch  (interactive picker)")
+            return StepResult({"path": None, "reason": "no_match"})
+        safe_gpu = hw["gpu_class_hint"].replace(" ", "_")
 
     home = Path(clone_info["home"])
     out_dir = home / "launch"
     out_dir.mkdir(parents=True, exist_ok=True)
-    safe_gpu = hw["gpu_class_hint"].replace(" ", "_")
     out = (out_dir / f"start_{safe_gpu}_{hw['n_gpus']}x_"
                      f"{workload['workload']}.sh")
 
@@ -574,11 +586,72 @@ def step_generate_launch(
     except Exception:
         host_paths = None
 
-    script = cfg.to_launch_script(host_paths=host_paths)
+    # B5 (2026-06-22): render with strict_mounts=True so an unresolved
+    # ${models_dir}/${hf_cache} fails fast HERE instead of being written
+    # into a real, unbootable launcher script. This matches the live
+    # `sndr launch` path (launch.py: strict_mounts = not dry_run/preflight).
+    # The installer always writes a REAL script, so it must use the live
+    # semantics — never the preview (strict_mounts=False) semantics.
+    try:
+        script = cfg.to_launch_script(host_paths=host_paths,
+                                      strict_mounts=True)
+    except Exception as e:  # noqa: BLE001 — SchemaError + any render failure
+        _io.warn(f"launcher render failed: {type(e).__name__}: {e}")
+        _io.info("Fix ~/.sndr/host.yaml (models_dir/hf_cache) and re-run, "
+                 "or render manually: sndr launch --dry-run <key>")
+        return StepResult({"path": None, "reason": "unresolved_mounts"})
+
     out.write_text(script, encoding="utf-8")
     out.chmod(0o755)
     _io.success(f"wrote launch script: {out} (preset: {key})")
     return StepResult({"path": str(out), "preset": key})
+
+
+def _pick_preset_interactive(
+    opts: argparse.Namespace,
+) -> tuple[Optional[Any], Optional[str]]:
+    """Interactive preset picker used when GPU auto-detection fails (B6).
+
+    Lists the available model_config presets and prompts the operator to
+    choose one. In non-interactive mode (`-y`/`--non-interactive` or a
+    non-TTY stdin) there is no way to prompt, so this returns (None, None)
+    and the caller surfaces a manual-pick hint.
+
+    Returns (cfg, key) on a successful pick, else (None, None).
+    """
+    try:
+        from sndr.model_configs.registry import get as _get, list_keys
+    except ImportError:
+        return (None, None)
+
+    try:
+        keys = sorted(list_keys())
+    except Exception:  # noqa: BLE001
+        keys = []
+    if not keys:
+        return (None, None)
+
+    non_interactive = (
+        getattr(opts, "non_interactive", False) or not sys.stdin.isatty()
+    )
+    if non_interactive:
+        # Cannot prompt; let the caller surface the manual-pick hint.
+        return (None, None)
+
+    print("\nGPU not detected — pick a preset manually:\n")
+    for i, k in enumerate(keys, 1):
+        print(f"  [{i}] {k}")
+    ans = _io.prompt("Choose preset (number or key)", default="1",
+                     non_interactive=False).strip()
+    try:
+        key = keys[int(ans) - 1]
+    except (ValueError, IndexError):
+        key = ans  # treat as a literal key
+    cfg = _get(key)
+    if cfg is None:
+        _io.warn(f"preset {key!r} not found")
+        return (None, None)
+    return (cfg, key)
 
 
 def _match_preset(
@@ -614,15 +687,35 @@ def _match_preset(
         keys = getattr(hw, "gpu_match_keys", None) or []
         if not _gpu_keys_match(needle, keys):
             continue
-        # Workload preference score
-        text = f"{getattr(cfg, 'title', '')} {' '.join(getattr(cfg, 'notes', []) or [])}".lower()
-        score = 1 if workload.replace("_", " ") in text else 0
+        # Workload preference score (B7: token-based, see _workload_score).
+        text = f"{getattr(cfg, 'title', '')} {' '.join(getattr(cfg, 'notes', []) or [])}"
+        score = _workload_score(workload, text)
         candidates.append((k, cfg, score))
 
     if not candidates:
         return (None, None)
     candidates.sort(key=lambda t: -t[2])
     return (candidates[0][1], candidates[0][0])
+
+
+def _workload_score(workload: str, text: str) -> int:
+    """Token-based workload-to-config relevance score (B7).
+
+    The previous heuristic did `workload.replace("_", " ") in text`, a
+    contiguous-substring match that missed any config whose title/notes
+    mentioned the workload tokens in a different order or separated by
+    other words (e.g. `tool_agent` vs "agentic tool use"). This splits
+    the workload id on `_` and counts how many of its tokens appear as
+    whole words in the text, so a config that mentions more of the
+    workload's concepts ranks higher.
+
+    Returns the count of matched tokens (0 = no overlap).
+    """
+    tokens = [t for t in workload.lower().split("_") if t]
+    if not tokens:
+        return 0
+    words = set(re.findall(r"[a-z0-9]+", text.lower()))
+    return sum(1 for t in tokens if t in words)
 
 
 def _gpu_keys_match(needle: str, keys: list[str]) -> bool:

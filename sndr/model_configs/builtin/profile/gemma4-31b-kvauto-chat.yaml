@@ -73,7 +73,7 @@ kind: profile
 id: gemma4-31b-kvauto-chat
 parent_model: gemma-4-31b-it-awq
 maintainer: sandermage
-status: experimental                              # kv-auto chat: single-stream rig-benched 2026-06-19
+status: deprecated  # deprecated 2026-06-22 — config-curation (keep-only-validated)
                                                    # (70.1 TPS, TPOT 10.98ms, tool-call 7/7 on pin dev148)
                                                    # but no multi-day operator A/B observation window yet —
                                                    # stays experimental until that window confirms the

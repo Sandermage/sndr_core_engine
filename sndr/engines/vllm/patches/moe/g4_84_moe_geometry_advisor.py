@@ -113,20 +113,21 @@ def _advise_if_ineligible(E: int, N: int, dtype: str, group_size: int) -> None:
         )
 
 
-def apply() -> bool:
+def apply() -> tuple[str, str]:
     """Wrap get_moe_configs: advise on ineligible geometry + inject our
-    tuned config for table-listed shapes. Returns True on success."""
+    tuned config for table-listed shapes. Returns ``(status, reason)`` per the
+    Genesis apply contract — status in {applied, skipped, failed}."""
     global _ORIGINAL_GET_MOE_CONFIGS
     if not env_truthy(_ENV_FLAG, default=True):
-        return False
+        return ("skipped", "disabled via GENESIS_ENABLE_G4_84_MOE_GEOMETRY_ADVISOR=0")
     try:
         from vllm.model_executor.layers.fused_moe import fused_moe as _fm
     except Exception as e:  # pragma: no cover - import guard
         log.info("[G4_84] fused_moe not importable: %s", e)
-        return False
+        return ("failed", f"fused_moe not importable: {e}")
 
     if getattr(_fm.get_moe_configs, "_genesis_g4_84", False):
-        return True  # already wrapped (idempotent)
+        return ("skipped", "already wrapped (idempotent)")
 
     _ORIGINAL_GET_MOE_CONFIGS = _fm.get_moe_configs
     original = _ORIGINAL_GET_MOE_CONFIGS
@@ -153,7 +154,9 @@ def apply() -> bool:
     _fm.get_moe_configs = _guarded_get_moe_configs
     log.info("[G4_84] installed: MoE-geometry advisor + wna16 config-provider "
              "(table entries: %d)", len(_GENESIS_MOE_WNA16_CONFIGS))
-    return True
+    return ("applied",
+            f"MoE-geometry advisor + wna16 config-provider installed "
+            f"({len(_GENESIS_MOE_WNA16_CONFIGS)} table entries)")
 
 
 def is_applied() -> bool:

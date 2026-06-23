@@ -16,7 +16,7 @@ kind: profile
 id: ab-qwen3.6-27b-tq-dflash                # experimental- prefix marks A/B-only lifecycle
 parent_model: qwen3.6-27b-int4-autoround-tq-k8v4 # parent: TQ k8v4 model (NOT the DFlash model)
 maintainer: sandermage
-status: experimental                             # values: experimental|validated|deprecated
+status: deprecated  # deprecated 2026-06-22 — config-curation (keep-only-validated)
 created: '2026-05-06'
 
 # ─── Patches delta — enable 5 DFlash family patches on canonical 27B-TQ ──
