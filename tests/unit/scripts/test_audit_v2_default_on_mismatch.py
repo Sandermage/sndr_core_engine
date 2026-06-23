@@ -52,6 +52,23 @@ class TestLiveRepo:
         # Gemma 4 serves TQ via the wrapper path, so the patch is N/A
         # there (documented in the ModelDef YAML comment).
         ("gemma-4-31b-it-awq", "GENESIS_ENABLE_PN119", "0"),
+        # 2026-06-23 LIVE FINDING: the custom G4_11 chat-template install
+        # (gemma4.jinja) broke tool-calls + chat quality on the AWQ Gemma
+        # family — raw <start_of_turn> token echo, an unreadable
+        # <|channel>thought<channel|> format the gemma4 tool-parser can't
+        # read, ZERO tool_calls (finish=length), and a spurious "thought\n".
+        # Disabled fleet-wide so chat_template:null falls through to the
+        # model's built-in HF template (validated on the rig: clean chat +
+        # working get_weather tool-call on 26B AND 31B). Each disable carries
+        # a documenting comment in the respective gemma-4-* ModelDef YAML.
+        ("gemma-4-26b-a4b-it-awq",
+         "GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL", "0"),
+        ("gemma-4-26b-a4b-it-awq-experimental",
+         "GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL", "0"),
+        ("gemma-4-31b-it-awq",
+         "GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL", "0"),
+        ("gemma-4-31b-it-awq-mtp-n8-code",
+         "GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL", "0"),
     }
 
     def test_only_documented_overrides_present(self):
