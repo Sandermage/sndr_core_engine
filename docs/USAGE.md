@@ -34,7 +34,7 @@ Four practical entry points exist:
 | **Installer** | `install.sh` | First setup on a fresh host. |
 | **Launcher** | `sndr launch <preset>` | Boot any preset (V1 monolithic or V2 alias). |
 | **Configs** | `sndr model-config` + `sndr config` | Inspect, edit, scaffold, validate presets. |
-| **Patches** | `sndr patches`, `vllm/sndr_core/integrations/` | Browse the catalogue, author new ones. |
+| **Patches** | `sndr patches`, `sndr/engines/vllm/patches/` | Browse the catalogue, author new ones. |
 
 Everything else (`sndr doctor`, `sndr verify`, `sndr memory`,
 `sndr deps`, `sndr upstream`, …) is operator instrumentation around
@@ -166,7 +166,7 @@ sndr launch prod-qwen3.6-35b-balanced --strict-image on
 1. **Resolve** the alias / key. V2 aliases resolve to a composed
    `ModelConfig` via `model + hardware + profile + runtime`
    pointers. V1 keys are loaded directly from
-   `vllm/sndr_core/model_configs/builtin/*.yaml`.
+   `sndr/model_configs/builtin/*.yaml`.
 2. **Preflight** — mount paths exist, GPU count matches preset,
    declared vLLM pin matches `$VLLM_BUILD_COMMIT` (or the
    `--strict-image` setting governs the response), quantization
@@ -228,8 +228,8 @@ the bench reference metrics. One YAML file = one reproducible boot.
 
 | Schema | Where | Shape | Status |
 | --- | --- | --- | --- |
-| **V1 (monolithic)** | `vllm/sndr_core/model_configs/builtin/<key>.yaml` (flat) | One big YAML containing everything (model + hardware + env + genesis_env + docker mounts + reference_metrics). | **Retired 2026-06-01** (Phase 10 sunset cascade, commit `607385f1`) — every shipped V1 YAML deleted. |
-| **V2 (layered)** | `vllm/sndr_core/model_configs/builtin/{model,hardware,profile,presets}/` | Three pointer files (`model_id`, `hardware_id`, `profile_id`) wired together by a 3-line alias YAML under `presets/`. Composed on load. | **Canonical** — only active schema. |
+| **V1 (monolithic)** | `sndr/model_configs/builtin/<key>.yaml` (flat) | One big YAML containing everything (model + hardware + env + genesis_env + docker mounts + reference_metrics). | **Retired 2026-06-01** (Phase 10 sunset cascade, commit `607385f1`) — every shipped V1 YAML deleted. |
+| **V2 (layered)** | `sndr/model_configs/builtin/{model,hardware,profile,presets}/` | Three pointer files (`model_id`, `hardware_id`, `profile_id`) wired together by a 3-line alias YAML under `presets/`. Composed on load. | **Canonical** — only active schema. |
 
 V2 is the operator interface — adding a new rig means writing one
 hardware YAML and reusing every model file. The V1+V2 resolver
@@ -280,7 +280,7 @@ Three valid editing flows:
 1. **`sndr model-config new <key> --from-running <container>`** —
    capture an existing tuned container.
 2. **Copy + diff** — `cp` a close-enough builtin preset to
-   `vllm/sndr_core/model_configs/community/<key>.yaml`, edit fields,
+   `sndr/model_configs/community/<key>.yaml`, edit fields,
    then `sndr config diff <yours> <closest-builtin>` to verify your
    delta is small + intentional.
 3. **`sndr config new --from-detect`** — scaffold a starter YAML
@@ -317,7 +317,7 @@ Each entry declares: id, title, family, env_flag, default_on,
 lifecycle, applies_to (hardware/model gates), conflicts_with,
 requires_patches, upstream PR reference, anchor manifest entry.
 
-The wiring code lives in `vllm/sndr_core/integrations/<family>/`. At
+The wiring code lives in `sndr/engines/vllm/patches/<family>/`. At
 process start the orchestrator walks the registry, evaluates each
 `applies_to` predicate against the live runtime, and calls the
 patch's `apply()` for entries whose env-flag is on. Three possible
@@ -364,7 +364,7 @@ Five steps. Each has a recipe; the full version is in
 [`CONTRIBUTING.md` § "How to add a new patch"](CONTRIBUTING.md).
 
 1. **Pick a family directory** under
-   `vllm/sndr_core/integrations/<family>/` (mirror the registry
+   `sndr/engines/vllm/patches/<family>/` (mirror the registry
    `family` field).
 2. **Create `pNN_descriptive_name.py`** with a docstring stating the
    problem / solution / safety model + an `apply()` function that

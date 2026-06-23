@@ -785,4 +785,4 @@ If a patch you rely on now skips with "drift marker found", congrats — upstrea
 - See [README.md](README.md) for changelog + benchmark history
 - See [../docs/MODELS.md](../docs/MODELS.md) for supported models + how to choose
 - See [../docs/QUICKSTART.md](../docs/QUICKSTART.md) for the original quick-start guide
-- See `vllm/sndr_core/integrations/<family>/` for individual patch source — each file has a detailed docstring explaining the bug it fixes (families: `attention.gdn` / `attention.turboquant` / `attention.flash` / `spec_decode` / `kv_cache` / `gemma4` / `quantization` / etc.)
+- See `sndr/engines/vllm/patches/<family>/` for individual patch source — each file has a detailed docstring explaining the bug it fixes (families: `attention.gdn` / `attention.turboquant` / `attention.flash` / `spec_decode` / `kv_cache` / `gemma4` / `quantization` / etc.)

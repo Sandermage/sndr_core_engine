@@ -73,7 +73,7 @@ now reads the *live engine* (status/metrics/playground). Remaining surfaces:
 ## How to pick up an item
 
 Each row maps to a focused change. Auth items touch
-`vllm/sndr_core/product_api/auth/*` (+ `gui/web/src/Auth.tsx`); deployment items
+`sndr/product_api/legacy/auth/*` (+ `gui/web/src/Auth.tsx`); deployment items
 are mostly packaging; frontend-quality items are `gui/web/src/`. See
 [`docs/GUI.md`](GUI.md) and [`docs/GUI_SECURITY.md`](GUI_SECURITY.md) for the
 current surface.

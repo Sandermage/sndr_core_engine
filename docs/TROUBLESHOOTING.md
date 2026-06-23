@@ -1302,19 +1302,19 @@ spec_decode Gateway stack already implements **per-workload runtime
 routing** at the deployment layer. The user-facing primitives:
 
 ```text
-ModelDef (vllm/sndr_core/model_configs/builtin/model/<id>.yaml)
+ModelDef (sndr/model_configs/builtin/model/<id>.yaml)
    spec_decode: null  ← post-Variant-A; profiles supply spec config
        ↓
-ProfileDef (vllm/sndr_core/model_configs/builtin/profile/<id>.yaml)
+ProfileDef (sndr/model_configs/builtin/profile/<id>.yaml)
    role: structured     spec_decode_override: {method, K, model}
    compression_plan + backend_plan + routing.intended_workloads
    validation: {artifact_id, config_hash}
        ↓
-FunctionalArtifact (vllm/sndr_core/integrations/spec_decode/artifacts/<id>.json)
+FunctionalArtifact (sndr/engines/vllm/patches/spec_decode/artifacts/<id>.json)
    decision: validated_conditional | validated_global | denied
    allowed_workloads + denied_workloads + per_class TPS metrics
        ↓
-Preset (vllm/sndr_core/model_configs/builtin/presets/prod-<key>.yaml)
+Preset (sndr/model_configs/builtin/presets/prod-<key>.yaml)
    model + hardware + profile  ← composition triplet
        ↓
 sndr launch prod-<key>           — renders + execs vLLM via canonical CLI

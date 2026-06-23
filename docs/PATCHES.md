@@ -66,7 +66,7 @@ After the strict-AND + github-presence audit (2026-05-08):
 
 Everything previously parked in engine (P67/P67b/P67c, PN21..PN24, PN26,
 PN29, PN38, PN40, PN57, P82, PN16, PN65, plus 30+ legacy P*) was reclassified
-to community and ships in `vllm/sndr_core/integrations/<family>/` under Apache 2.0.
+to community and ships in `sndr/engines/vllm/patches/<family>/` under Apache 2.0.
 
 ### Tombstones (deprecated, no-op)
 
@@ -224,8 +224,8 @@ docker run -e GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=0 ... vllm/vllm-openai:ni
 
 ## Where the code lives
 
-- **Integrations** (text-patcher hooks + runtime hooks): `vllm/sndr_core/integrations/<family>/<patch_id>_*.py` — organized by subsystem family (Phase 6 reorg, ~15 subdirs: attention/, spec_decode/, scheduler/, kv_cache/, memory/, kernels/, compile_safety/, loader/, lora/, middleware/, moe/, multimodal/, observability/, quantization/, reasoning/, serving/, tool_parsing/, worker/). Resolution is layout-agnostic via `compat/categories.module_for(patch_id)`.
-- **Kernels** (Triton / CUDA): `vllm/sndr_core/kernels/`
+- **Integrations** (text-patcher hooks + runtime hooks): `sndr/engines/vllm/patches/<family>/<patch_id>_*.py` — organized by subsystem family (Phase 6 reorg, ~15 subdirs: attention/, spec_decode/, scheduler/, kv_cache/, memory/, kernels/, compile_safety/, loader/, lora/, middleware/, moe/, multimodal/, observability/, quantization/, reasoning/, serving/, tool_parsing/, worker/). Resolution is layout-agnostic via `compat/categories.module_for(patch_id)`.
+- **Kernels** (Triton / CUDA): `sndr/engines/vllm/kernels/`
 - **Dispatcher metadata** (P56+): `sndr/dispatcher/registry.py:PATCH_REGISTRY`
 - **Registration**: `sndr/apply/_per_patch_dispatch.py:@register_patch`
 - **Per-patch CHANGELOG entries**: `CHANGELOG.md` (root, search by patch ID — audit 2026-05-11)
@@ -881,12 +881,12 @@ they don't change behaviour, just visibility.
 ## Adding a new patch
 
 1. **Pick a free ID.** Run `grep -E '^@register_patch' sndr/apply/_per_patch_dispatch.py | head` and `grep -E '"P[0-9]+' sndr/dispatcher/registry.py` to confirm the next available number. Don't reuse retired IDs (P56/P57/P63 are deprecated but kept).
-2. **Write integration module**: `vllm/sndr_core/integrations/<family>/<patch_id>_<name>.py`. Use [`p71_block_verify.py`](../sndr/engines/vllm/patches/spec_decode/p71_block_verify.py) or [`p82_sglang_acceptance_threshold.py`](../sndr/engines/vllm/patches/spec_decode/p82_sglang_acceptance_threshold.py) as templates. The family should match a `compat/categories.py` bucket — `_build_module_index` will rglob the new file in automatically.
+2. **Write integration module**: `sndr/engines/vllm/patches/<family>/<patch_id>_<name>.py`. Use [`p71_block_verify.py`](../sndr/engines/vllm/patches/spec_decode/p71_block_verify.py) or [`p82_sglang_acceptance_threshold.py`](../sndr/engines/vllm/patches/spec_decode/p82_sglang_acceptance_threshold.py) as templates. The family should match a `compat/categories.py` bucket — `_build_module_index` will rglob the new file in automatically.
 3. **Register in dispatcher** (P56+): add an entry to `PATCH_REGISTRY` in [`sndr/dispatcher/registry.py`](../sndr/dispatcher/registry.py).
 4. **Hook in apply dispatch**: add `@register_patch(...)` + `apply_patch_<id>_*` function in [`sndr/apply/_per_patch_dispatch.py`](../sndr/apply/_per_patch_dispatch.py).
 5. **Document in CHANGELOG**: add a `vX.YZ` entry to [`CHANGELOG.md`](../CHANGELOG.md) explaining the WHY, empirical data, and ship/reject decision.
 6. **Validate**:
-   - Static: `python3 -c 'import ast; ast.parse(open("vllm/sndr_core/integrations/<family>/<patch_id>_*.py").read())'`
+   - Static: `python3 -c 'import ast; ast.parse(open("sndr/engines/vllm/patches/<family>/<patch_id>_*.py").read())'`
    - Container: `docker compose down && docker compose up -d` (NOT `stop/start` — see [`CONFIGURATION.md`](../docs/CONFIGURATION.md) Container R/W layer note)
    - Empirical: blue/green sweep with `genesis_quality_harness.py` + `genesis_bench_v3.py`. SHIP gate: ≥30/31 quality + ≥+5% TPS (or whatever the patch targets).
 7. **Credit upstream** in the patch docstring + `CREDITS.md` if backporting from someone else's PR / project.

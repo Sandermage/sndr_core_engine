@@ -33,13 +33,13 @@ Step-by-step. Read [PATCHES.md](PATCHES.md) (which absorbs the former `COMPATIBI
 
 ### 1. Pick the right directory
 
-`vllm/sndr_core/integrations/` (path updated 2026-05-11 audit; was `wiring/` pre-v11) is split by `family` — same vocabulary as registry's `family` field. Current 20 top-level family directories on disk; the registry adds three further sub-family tags (`attention.gdn`, `attention.flash`, `attention.turboquant`) that all live under `integrations/attention/`, bringing the canonical PATCH_REGISTRY family count to 23:
+`sndr/engines/vllm/patches/` (path updated 2026-06-01 v12 refactor; was `vllm/sndr_core/integrations/` in v11, `wiring/` pre-v11) is split by `family` — same vocabulary as registry's `family` field. Current 20 top-level family directories on disk; the registry adds three further sub-family tags (`attention.gdn`, `attention.flash`, `attention.turboquant`) that all live under `integrations/attention/`, bringing the canonical PATCH_REGISTRY family count to 23:
 
 | Directory | What goes here |
 | --- | --- |
 | `attention/` | FA2/FA3 backends, GDN, Mamba, TurboQuant (subfolders for each variant) |
 | `compile_safety/` | torch.compile guards, cudagraph capture safety, custom_op registration |
-| `kernels/` | Triton/CUDA kernel hooks (the kernels themselves live in `vllm/sndr_core/kernels/`) |
+| `kernels/` | Triton/CUDA kernel hooks (the kernels themselves live in `sndr/engines/vllm/kernels/`) |
 | `kv_cache/` | KV cache dtype, TurboQuant KV, prefix caching, hash backends |
 | `loader/` | Weight loading, quantization checkpoint loaders, model arch routing |
 | `lora/` | LoRA adapter integration |
@@ -478,7 +478,7 @@ its current state.
 
    ```bash
    python scripts/build_anchor_manifest.py
-   git add vllm/sndr_core/manifests/anchor_manifest.json
+   git add sndr/manifests/anchor_manifest.json
    pytest tests/unit/infra/test_stable_manifest_policy.py -v
    ```
 
@@ -536,7 +536,7 @@ PN33 and PN35 are the reference examples.
 ### General Python
 
 - We don't enforce a formatter on contributors, but we do run `ruff` on the maintainer side. PRs may be reformatted before merge.
-- Type hints encouraged on public surfaces (the modules under `vllm/sndr_core/dispatcher/`, `sndr/kernel/text_patch.py` (TextPatcher API), and `sndr/apply/orchestrator.py`).
+- Type hints encouraged on public surfaces (the modules under `sndr/dispatcher/`, `sndr/kernel/text_patch.py` (TextPatcher API), and `sndr/apply/orchestrator.py`).
 - Logging via `logger = logging.getLogger("vllm.sndr_core")`. The pre-v11 `vllm._genesis` namespace was removed in v11.0.0 and no longer resolves — any new code (and any pre-v11 code being touched) must use `vllm.sndr_core`. Print only in the boot-summary path.
 
 ---
@@ -840,7 +840,7 @@ quick "I want to change X, where is X" reference.
 | `install.sh` | `install.sh` (root) | One-command bootstrap. |
 | Bench harness | `sndr/extras/tools/genesis_bench_suite.py` | Canonical bench. Shim under `tools/`. |
 
-### `vllm/sndr_core/` subpackages
+### `sndr/` subpackages
 
 | Subpackage | What's inside |
 | --- | --- |

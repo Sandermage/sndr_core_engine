@@ -130,7 +130,7 @@ the canonical source. It returns the frozenset of patches that are
 either:
 
 - enabled (`GENESIS_ENABLE_*=1`) by any V2 preset matching
-  `prod-*` under `vllm/sndr_core/model_configs/builtin/presets/`, or
+  `prod-*` under `sndr/model_configs/builtin/presets/`, or
 - flagged `default_on=True` in `PATCH_REGISTRY` (so they load
   implicitly even without an explicit preset opt-in).
 

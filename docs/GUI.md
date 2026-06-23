@@ -354,8 +354,7 @@ so nodes advertise `nvidia.com/gpu`.
 
 ## Files & config locations
 
-Backend lives in the canonical `sndr/` package (re-exported as `vllm/sndr_core/*`
-for back-compat). Key files:
+Backend lives in the canonical `sndr/` package. Key files:
 
 | File | Role |
 | --- | --- |

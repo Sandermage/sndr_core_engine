@@ -235,7 +235,7 @@ sndr self-test --json                                   # machine-readable
 | --- | --- | --- |
 | 1 | version constant | `vllm.sndr_core.__version__` is a non-empty string. |
 | 2 | compat imports | All `vllm.sndr_core.compat.*` modules import cleanly. |
-| 3 | integrations imports | All `vllm/sndr_core/integrations/**/*.py` modules import; SKIP if `vllm` not installed. |
+| 3 | integrations imports | All `sndr/engines/vllm/patches/**/*.py` modules import; SKIP if `vllm` not installed. |
 | 4 | schema validator | `PATCH_REGISTRY` validates against `schemas/patch_entry.schema.json`. |
 | 5 | lifecycle audit | Every entry has a known lifecycle state. |
 | 6 | categories build | Categories index builds without errors and every patch is placed in at least one category. |
@@ -247,7 +247,7 @@ one `fail`. `warn` and `skip` do not change the exit code.
 
 **Status symbols:** ✓ `pass`, ✗ `fail`, ⚠ `warn`, • `skip`.
 
-**Slim deployments.** If only the `vllm/sndr_core/` package is mounted
+**Slim deployments.** If only the `sndr/` package is mounted
 (no source tree), the schema file check returns `skip` rather than
 `fail`. Point at an external source tree via env var:
 

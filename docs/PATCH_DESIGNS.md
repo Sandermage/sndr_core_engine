@@ -180,7 +180,7 @@ vLLM's stock CPU offload — no Genesis runtime overhead. NOT for
 hybrid-GDN; the schema validator blocks that combination outright.
 
 See V2 preset `example-3090-dense-cpu-offload` under
-`vllm/sndr_core/model_configs/builtin/presets/`.
+`sndr/model_configs/builtin/presets/`.
 
 ### When NOT to use PN95
 
@@ -473,7 +473,7 @@ SDKs).**
   per request:
 
   ```yaml
-  # vllm/sndr_core/model_configs/builtin/<preset>.yaml
+  # sndr/model_configs/builtin/presets/<preset>.yaml
   genesis_env:
     GENESIS_PN16_CLASSIFIER_MAX_TOKENS: "128"
     # or vllm-side default flag (if supported):

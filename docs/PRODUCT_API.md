@@ -1,7 +1,7 @@
 # SNDR Product API
 
-The Product API is a stable, typed, read-only data layer inside `sndr_core`
-(`vllm/sndr_core/product_api/`). It is consumed by the CLI, the GUI daemon, and
+The Product API is a stable, typed, read-only data layer inside the `sndr`
+package (`sndr/product_api/`). It is consumed by the CLI, the GUI daemon, and
 future SDK/desktop clients. The HTTP daemon (`sndr gui-api`) is a thin transport
 over it — it adds no business logic.
 

@@ -488,7 +488,7 @@ closure).
 [`scripts/audit_v1_migration.py`](../scripts/audit_v1_migration.py)
 classifies every legacy V1 monolithic key into one of four buckets via
 the frozen
-[`vllm/sndr_core/model_configs/_v1_migration_table.json`](../sndr/model_configs/_v1_migration_table.json)
+[`sndr/model_configs/_v1_migration_table.json`](../sndr/model_configs/_v1_migration_table.json)
 (shipped as package data):
 
 | Bucket | Action implied |

@@ -25,8 +25,8 @@ Where `sndr` = `python3 -m sndr.cli`.
 | Tier | Path | Who edits |
 |---|---|---|
 | `user` | `~/.genesis/model_configs/*.yaml` (or `$GENESIS_MODEL_CONFIG_DIR`) | personal — your rig |
-| `community` | `vllm/sndr_core/model_configs/community/*.yaml` | PR'd, reviewed |
-| `builtin` | `vllm/sndr_core/model_configs/builtin/*.yaml` | Sander/maintainer |
+| `community` | `sndr/model_configs/community/*.yaml` | PR'd, reviewed |
+| `builtin` | `sndr/model_configs/builtin/*.yaml` | Sander/maintainer |
 
 Filename SHOULD match the YAML `key`. Registry indexes by `cfg.key`, so technically they can diverge — but `git grep` will hate you.
 
@@ -488,7 +488,7 @@ New world: 1 YAML per (model, hardware, tuning). 1 launcher. 5 layers of validat
 ## File map
 
 ```
-vllm/sndr_core/model_configs/
+sndr/model_configs/
 ├── __init__.py                 # exports ModelConfig + sub-components
 ├── schema.py                   # dataclasses + validation (V1 monolithic + V2 layered)
 ├── registry.py                 # 3-tier loader (user > community > builtin)
@@ -511,10 +511,10 @@ vllm/sndr_core/model_configs/
     # a5000-2x-35b-fp8-dflash.yaml retired 2026-06-01
     # — use V2 preset `prod-qwen3.6-35b-dflash` instead
     # a5000-1x-tier-aware-pn95.yaml retired 2026-06-01
-    # — use PN95 tier_config `vllm/sndr_core/cache/pn95/tier_configs/
+    # — use PN95 tier_config `sndr/cache/pn95/tier_configs/
     #   a5000-1x-pn95-long-ctx.yaml` instead
     # a5000-2x-tier-aware-EXAMPLE.yaml retired 2026-06-01
-    # — use PN95 tier_config `vllm/sndr_core/cache/pn95/tier_configs/
+    # — use PN95 tier_config `sndr/cache/pn95/tier_configs/
     #   a5000-2x-tier-aware.yaml` instead
     # single-3090-dense-cpu-offload-EXAMPLE.yaml retired 2026-06-01
     # — use V2 preset `example-3090-dense-cpu-offload` instead
@@ -526,7 +526,7 @@ vllm/sndr_core/model_configs/
     ├── profile/    # <id>.yaml  — env/runtime tuning deltas
     └── presets/    # <alias>.yaml — composes model + hardware + profile
 
-vllm/sndr_core/compat/
+sndr/compat/
 └── model_config_cli.py         # 14-subcommand CLI (sndr model-config <cmd>)
 
 scripts/

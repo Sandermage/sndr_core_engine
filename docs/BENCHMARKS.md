@@ -102,7 +102,7 @@ artefacts under `evidence/patch_proof/<id>__*.json` after a
 ## Reproduction recipe
 
 The canonical bench harness is `tools/genesis_bench_suite.py` (shim
-under `tools/`, canonical source under `vllm/sndr_core/tools/`). It
+under `tools/`, canonical source under `sndr/extras/tools/`). It
 reads a `ModelConfig` preset and runs five stages: short-gen TTFT,
 sustained long-gen TPS, tool-call clean, multi-turn stability,
 long-context probe (skippable).
@@ -177,7 +177,7 @@ If you run Genesis on hardware not listed, drop a bench JSON into
 
 The bench harness is a single-script HTTP client
 (`tools/genesis_bench_suite.py`, canonical source under
-`vllm/sndr_core/tools/`) that exercises a running vLLM server through
+`sndr/extras/tools/`) that exercises a running vLLM server through
 its OpenAI-compatible endpoint. No NVML hooks, no Triton tracing, no
 tokenizer surgery — it runs everywhere `requests` runs.
 
@@ -586,7 +586,7 @@ The four PROD-ready configs launched through the unified CLI:
 | 27B-INT4-AutoRound + DFlash N=5 (multi-conc) | `sndr launch prod-qwen3.6-27b-dflash-multiconc` |
 
 V2 presets resolve to a (model, hardware, profile) triplet under
-`vllm/sndr_core/model_configs/builtin/`. The legacy per-config
+`sndr/model_configs/builtin/`. The legacy per-config
 `start_*.sh` / `bare_metal_*.sh` scripts were moved to
 `scripts/launch/_archive/` for archeology.
 
