@@ -27,7 +27,15 @@ served_model_name: gemma-4-26b-a4b                       # OpenAI-API model name
 quantization: null                                       # let vLLM detect from compressed-tensors metadata
 dtype: bfloat16                                          # CHANGED 2026-05-17 per audit: BF16 canonical for AWQ on SM 8.6 Ampere
 trust_remote_code: false
-chat_template: /tmp/genesis/chat_templates/gemma4.jinja  # installed by G4_11 at boot
+# 2026-06-23 LIVE FINDING (validated on prod-gemma4-26b): forcing the custom
+# G4_11 gemma4.jinja BREAKS tool-calls and chat quality — the model echoes raw
+# <start_of_turn>... template tokens, emits a <|channel>thought<channel|> format
+# the gemma4 tool-parser can't read, returns ZERO tool_calls (finish=length) and
+# prepends a spurious "thought\n". Booting WITHOUT the override (model's built-in
+# HF chat template) gives clean chat ("The capital of France is **Paris**.") AND
+# a working tool-call (get_weather {"city":"Berlin"}, finish=tool_calls). Set null
+# so compose() emits NO --chat-template flag → vLLM uses the built-in HF template.
+chat_template: null  # was /tmp/genesis/chat_templates/gemma4.jinja — see live finding above
 override_generation_config:
   # 2026-06-23 quality fix (validated live on the rig). The AWQ-int4 Gemma degenerates
   # into verbatim-repetition loops on longer/creative generation at the checkpoint's
@@ -104,7 +112,11 @@ patches:
   GENESIS_ENABLE_G4_04_GEMMA4_AWQ_MOE_KEYS_REMAP: '1'      # vendors vllm#40886 (AWQ MoE keys for 26B-A4B)
   # G4_05 retired 2026-05-24 (PIN.R-G4_05-RETIRE.1) — superseded by vllm#39930 in dev16+; env removed.
   GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER: '1'
-  GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '1'
+  # 2026-06-23 LIVE FINDING: the custom template G4_11 installs is what produced
+  # the broken behaviour above (raw template-token echo, unreadable thought
+  # channel, zero tool_calls). Disable the install so no broken file exists and
+  # chat_template:null falls through to the model's built-in HF template.
+  GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '0'  # was '1' — see live finding above
   GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD: '1'
   GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE: '1'
   GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW: '1'
@@ -179,8 +191,11 @@ notes:
     tool_call → K=4). Mirrors the 31B AWQ ModelDef pattern."
   - "dtype=bfloat16 is canonical for AWQ on SM 8.6 (audit 2026-05-17);
     quantization=null lets vLLM detect from the compressed-tensors metadata.
-    chat_template points at the gemma4.jinja that G4_11 installs at boot —
-    G4_11 MUST stay enabled or the --chat-template path will not resolve."
+    chat_template is null (2026-06-23 live finding): the custom G4_11 gemma4.jinja
+    broke tool-calls + chat quality on prod-gemma4-26b, so G4_11 is disabled and
+    vLLM uses the model's built-in HF chat template (clean chat + working
+    tool_calls verified live). Do NOT re-point chat_template at gemma4.jinja or
+    re-enable G4_11 without re-validating on the rig."
   - "Pin policy (CLAUDE.md): vllm_pin_required = dev148+gb4c80ec0f (PROMOTED
     2026-06-19, drift-audited clean); dev101 (nightly-4c626633) is the
     retained rollback. Do NOT bump without an explicit upgrade instruction.

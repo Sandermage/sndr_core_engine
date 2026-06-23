@@ -34,7 +34,13 @@ served_model_name: gemma-4-26b-a4b-exp
 quantization: null
 dtype: bfloat16
 trust_remote_code: false
-chat_template: /tmp/genesis/chat_templates/gemma4.jinja
+# 2026-06-23 LIVE FINDING (validated on prod-gemma4-26b, same AWQ-int4 Gemma
+# family): the custom G4_11 gemma4.jinja BREAKS tool-calls + chat quality (raw
+# <start_of_turn>... token echo, unreadable <|channel>thought<channel|> format,
+# ZERO tool_calls / finish=length, spurious "thought\n"). Booting WITHOUT the
+# override (built-in HF template) gives clean chat + a working tool-call. Set
+# null so compose() emits NO --chat-template → vLLM uses the built-in HF template.
+chat_template: null  # was /tmp/genesis/chat_templates/gemma4.jinja — see live finding above
 override_generation_config:
   # 2026-06-23 quality fix (validated live on the 26B sibling; same AWQ-int4 Gemma
   # family). The checkpoint default temperature=1.0 degenerates into verbatim-repetition
@@ -96,7 +102,10 @@ patches:
   GENESIS_ENABLE_G4_04_GEMMA4_AWQ_MOE_KEYS_REMAP: '1'
   # G4_05 retired 2026-05-24 (PIN.R-G4_05-RETIRE.1) — superseded by vllm#39930 in dev16+; env removed.
   GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER: '1'
-  GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '1'
+  # 2026-06-23 LIVE FINDING: the custom template G4_11 installs is what broke
+  # tool-calls + chat quality on the 26B sibling. Disabled so chat_template:null
+  # falls through to the model's built-in HF template.
+  GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '0'  # was '1' — see live finding above
   GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD: '1'
   GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE: '1'
   GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW: '1'

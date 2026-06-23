@@ -32,7 +32,13 @@ served_model_name: gemma-4-31b                           # OpenAI-API model name
 quantization: null                                       # let vLLM detect from compressed-tensors metadata (cyankiwi uses CT not stock awq_marlin)
 dtype: bfloat16                                          # CHANGED 2026-05-17 per audit: club-3090 A/B confirmed --dtype half is -2-3% on Gemma 4 AWQ Ampere; BF16 is canonical for AWQ Marlin path on SM 8.6
 trust_remote_code: false                                 # Gemma 4 is native vLLM model — no custom code
-chat_template: /tmp/genesis/chat_templates/gemma4.jinja  # installed by G4_11 at boot
+# 2026-06-23 LIVE FINDING (validated on prod-gemma4-26b, same AWQ-int4 Gemma
+# family): forcing the custom G4_11 gemma4.jinja BREAKS tool-calls + chat quality
+# (raw <start_of_turn>... token echo, unreadable <|channel>thought<channel|>
+# format, ZERO tool_calls / finish=length, spurious "thought\n"). Booting WITHOUT
+# the override (built-in HF template) gives clean chat + a working tool-call. null
+# → compose() emits NO --chat-template → vLLM uses the model's built-in HF template.
+chat_template: null  # was /tmp/genesis/chat_templates/gemma4.jinja — see live finding above
 override_generation_config:
   # 2026-06-23 quality fix (validated live on the 26B sibling; same AWQ-int4 Gemma
   # family). The checkpoint default temperature=1.0 degenerates into verbatim-repetition
@@ -101,7 +107,7 @@ patches:
   # ── Gemma 4 family fixes (default-on stability) ──
   # G4_05 retired 2026-05-24 (PIN.R-G4_05-RETIRE.1) — superseded by vllm#39930 in dev16+; env removed.
   GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER: '1'    # closes vllm#39914 engine hang at prefill > 4K
-  GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '1'  # installs enhanced gemma4.jinja chat template
+  GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '0'  # was '1' — 2026-06-23 live finding: the installed gemma4.jinja broke tool-calls + chat; disabled, chat_template:null uses built-in HF template
   GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD: '1'   # strips <pad>/<eos> from tool-call JSON (closes #39392)
   GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE: '1'     # forces FULL_AND_PIECEWISE cudagraph (+10-30% TPS at low batch)
   GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW: '1'   # vision tower → BF16 to avoid FP16 overflow (closes #40124)
@@ -178,12 +184,13 @@ notes:
     Marlin canonical on Ampere), quantization auto-detected from CT
     metadata. Dense gemma4 attention (interleaved sliding+global+p-RoPE)."
   - "Genesis G4_NN family carries the Gemma 4 enablement: Ampere refuse-
-    guards (G4_01/03/12/13), prefill chunker for >4K (G4_09), enhanced
-    chat-template install (G4_11), tool-call pad-strip (G4_14), vision
-    BF16 overflow fix (G4_23), FULL_AND_PIECEWISE cudagraph (G4_16), and
-    the G4-TurboQuant VQ KV stack (G4_19/19B/31) that unlocks 256K
-    context. G4_19C round-trip wrapper is OFF (codebook quality
-    regression pending)."
+    guards (G4_01/03/12/13), prefill chunker for >4K (G4_09), tool-call
+    pad-strip (G4_14), vision BF16 overflow fix (G4_23), FULL_AND_PIECEWISE
+    cudagraph (G4_16), and the G4-TurboQuant VQ KV stack (G4_19/19B/31) that
+    unlocks 256K context. G4_19C round-trip wrapper is OFF (codebook quality
+    regression pending). G4_11 chat-template install is OFF (2026-06-23 live
+    finding: the custom gemma4.jinja broke tool-calls + chat quality;
+    chat_template:null now uses the model's built-in HF template)."
   - "Status: experimental — bench figures are projected (~80-100 TPS dense
     decode, MTP K=3); server validation pending (promote to Production
     after verify-full + 5x5 n=25 + soak PASS). MTP is workload-conditional:
