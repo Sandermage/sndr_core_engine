@@ -782,6 +782,41 @@ _RUNTIME_GAP_TOKENS = (
 _ANCHOR_TOKENS = ("anchor", "marker not found", "drift")
 _WIRING_TOKENS = ("name", "is not defined", "attributeerror", "cannot import name")
 
+# Module prefixes that mean "the runtime/version is the problem", not
+# "sndr's own wiring is broken". Used to disambiguate
+# `cannot import name 'X' from '<module>'` ImportErrors: when <module>
+# is one of these, the symbol moved/was removed in the installed vLLM
+# pin (an environment/version GAP) → runtime_gap. When <module> is
+# sndr's own package, the symbol genuinely doesn't exist → wiring_bug.
+_RUNTIME_IMPORT_MODULE_PREFIXES = (
+    "vllm", "torch", "triton", "flashinfer",
+)
+
+# Extracts the source module from a CPython
+# `cannot import name 'X' from 'pkg.mod' (/path)` ImportError message.
+_CANNOT_IMPORT_FROM_RE = re.compile(
+    r"cannot import name\s+['\"]?[^'\"\s]+['\"]?\s+from\s+['\"]?"
+    r"(?P<module>[A-Za-z0-9_.]+)",
+    re.IGNORECASE,
+)
+
+
+def _is_runtime_import_gap(reason_lower: str) -> bool:
+    """True when `reason_lower` is a `cannot import name … from <module>`
+    ImportError whose source module is a vLLM/torch/triton/flashinfer
+    runtime module (a version/environment gap), NOT sndr's own code.
+
+    Scoped deliberately so genuine wiring ImportErrors from sndr's
+    package (`cannot import name 'X' from 'sndr…'`) keep classifying as
+    wiring_bug.
+    """
+    m = _CANNOT_IMPORT_FROM_RE.search(reason_lower)
+    if not m:
+        return False
+    module = m.group("module")
+    top = module.split(".", 1)[0]
+    return top in _RUNTIME_IMPORT_MODULE_PREFIXES
+
 
 def _classify_failure(reason: str) -> str:
     """Return one of: 'runtime_gap', 'anchor_drift', 'wiring_bug', 'unknown'.
@@ -790,11 +825,21 @@ def _classify_failure(reason: str) -> str:
     gap is checked first because a missing torch can SURFACE as
     `cannot import name X from torch.nn` which would otherwise look
     like a wiring bug.
+
+    A `cannot import name 'X' from 'vllm…'` ImportError is also a
+    runtime/version GAP (the symbol moved or was removed in the
+    installed pin), so it is routed to runtime_gap via
+    `_is_runtime_import_gap`. The check is scoped to vllm/torch/triton/
+    flashinfer source modules — an equivalent ImportError against sndr's
+    OWN package stays a wiring_bug, since that is a real internal
+    regression, not an environment gap.
     """
     r = reason.lower()
     for tok in _RUNTIME_GAP_TOKENS:
         if tok in r:
             return "runtime_gap"
+    if _is_runtime_import_gap(r):
+        return "runtime_gap"
     for tok in _ANCHOR_TOKENS:
         if tok in r:
             return "anchor_drift"

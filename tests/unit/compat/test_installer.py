@@ -187,3 +187,52 @@ def test_plugin_pyproject_requires_python_3_10_plus():
 def test_plugin_pyproject_apache_2_license():
     content = PLUGIN_PYPROJECT.read_text()
     assert "Apache-2.0" in content
+
+
+# ─────────────────────────────────────────────────────────────────
+# install._classify_failure — smoke-test fail-class taxonomy (P1-8)
+# ─────────────────────────────────────────────────────────────────
+#
+# Regression lock for two fixes:
+#
+#   (a) commit 24994ea1 added "no module named"/"modulenotfounderror" to
+#       _RUNTIME_GAP_TOKENS so a missing-vllm/torch ModuleNotFoundError
+#       buckets as runtime_gap (an environment GAP) instead of wiring_bug
+#       (a real, install-blocking regression). It shipped WITHOUT a test.
+#
+#   (b) integrity-audit (2026-06-23): a `cannot import name 'X' from
+#       'vllm…'` ImportError is ALSO a runtime/version gap (the symbol
+#       moved or was removed in the installed pin) — it must NOT block the
+#       install as a wiring bug. The fix scopes this to vllm/torch/triton/
+#       flashinfer source modules so a `cannot import name … from 'sndr…'`
+#       (a genuine internal wiring regression) still classifies as
+#       wiring_bug.
+
+
+@pytest.mark.parametrize(
+    "reason, expected",
+    [
+        # (a) ModuleNotFoundError → runtime_gap (the 24994ea1 fix).
+        ("No module named 'vllm.v1'", "runtime_gap"),
+        ("ModuleNotFoundError: No module named 'torch'", "runtime_gap"),
+        # (b) cannot-import-name against a vllm/runtime module → runtime_gap.
+        ("cannot import name 'Foo' from 'vllm.v1.core' (/x/y.py)",
+         "runtime_gap"),
+        ("ImportError: cannot import name 'Bar' from 'vllm.config'",
+         "runtime_gap"),
+        # cannot-import-name against sndr's OWN code → stays wiring_bug
+        # (a real internal regression, not an environment gap).
+        ("cannot import name 'apply_patch' from 'sndr.dispatcher.registry'",
+         "wiring_bug"),
+        # Genuine wiring bugs stay wiring_bug.
+        ("NameError: name 'foo' is not defined", "wiring_bug"),
+        ("AttributeError: 'Module' object has no attribute 'x'",
+         "wiring_bug"),
+    ],
+)
+def test_classify_failure_buckets(reason, expected):
+    from sndr.cli.legacy.install import _classify_failure
+    assert _classify_failure(reason) == expected, (
+        f"_classify_failure({reason!r}) = {_classify_failure(reason)!r}, "
+        f"expected {expected!r}"
+    )
