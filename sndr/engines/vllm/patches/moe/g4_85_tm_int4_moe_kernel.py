@@ -91,6 +91,51 @@ FIX PLAN (deferred, pending a design decision — the patch CODE below is unchan
      (b) bench/claim G4_85 ONLY on a pure-TP no-EP config (where moe_wna16 is the
      selected path and G4_85-vs-moe_wna16 is the honest comparison). Until that
      decision lands, G4_85 stays default-OFF, ``implementation_status=partial``.
+
+BUILD COMPLETE + KERNEL FIRES + BENCHMARK VERDICT (rig, pin dev148, 2026-06-23)
+==============================================================================
+The build is now COMPLETE and the kernel genuinely FIRES on the 26B. The
+previously-fatal ``undefined symbol: vtable turbomind::LinearWeight`` is
+RESOLVED: ``third_party/tm_int4_moe/build_kernels.sh`` now compiles the full
+~46-object dependency closure (``find src/turbomind`` MINUS ``test/`` ,
+``sm90_64n32`` , ``anomaly_handler``; KEEPS ``core/`` , ``models/`` incl.
+``linear_weight.cc`` + ``llama/LlamaLinear.cu`` , ``utils/`` ,
+``gpt_kernels.cu`` , ``cublas.cu`` , ``sm70_884_*`` , ``sm75_16816_*`` ,
+``tuner/*``), ALL ``-Xcompiler -fPIC``, linked against ``torch_ext/tm_moe_op.cu``
++ ``-lcublas -lcublasLt -lcuda``. Result: zero undefined ``turbomind::``
+symbols, ``tm_probe()=1``, both TP workers load it, numerics correct
+(GEMM_err ~3e-4, full-MoE reldiff ~9e-4).
+
+BENCHMARK (TTFT-subtracted decode TPS, 26B, n=20, MTP-off):
+
+  config                                   decode_TPS   status
+  A) EP+Marlin (prod)                      142.5        ← winner (prod path)
+  B) pure-TP moe_wna16 (g4_85 baseline,off) 125.4       ← g4_85's own baseline
+  C) pure-TP + g4_85                        —           builds + FIRES but OOMs at boot
+
+  → EP+Marlin (142.5) beats the pure-TP fallback (125.4) by +13.6%.
+
+WHY C OOMs (the remaining real blocker — a SOURCE redesign, not a build fix).
+  g4_85 dequantizes int4 -> fp16 per MoE layer (~2× weight memory transiently:
+  w13 ~968 MiB + w2 ~484 MiB per layer per GPU x ~30 layers). The int4 model
+  already fills ~20 of 23.5 GiB, so the profiling forward CUDA-OOMs at boot
+  (gpu-mem 0.88 / 0.60 / 0.45 ALL OOM). Fixing it needs a source redesign —
+  stream-dequant one layer at a time, or feed packed int4 directly to
+  TurboMind. It is NOT a build-side fix.
+
+TWO INTEGRATION NOTES WORTH RECORDING.
+  (1) TurboMind's context is ``thread_local`` (context.cc) -> ``[TM][FATAL] No
+      STREAM available`` on the vLLM forward thread unless ``tm_probe()`` is
+      warmed on THAT thread before the first op ctor.
+  (2) the dev-plugin ``pip install -e <repo>`` fails in-container when the repo
+      is not mounted (``not a valid editable requirement``).
+
+VERDICT. g4_85 would have to EXCEED 142.5 just to break even vs prod, AND it
+cannot boot on 2× A5000 (fp16-dequant footprint). g4_85 is SUPERSEDED by
+EP+Marlin -> stays experimental / pure-TP-only. The build is complete and the
+kernel fires; the remaining viability work is the dequant memory-footprint
+redesign (stream-dequant / packed-int4-direct). ``implementation_status``
+stays ``partial``. (Do NOT retire/delete g4_85 — kept + to be improved.)
 """
 from __future__ import annotations
 

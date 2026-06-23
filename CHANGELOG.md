@@ -157,23 +157,23 @@ it on publish — pyproject.toml holds the release version.)
   AND a working `get_weather` tool-call. (The g4_11 patch module is untouched —
   disabled by config.)
 - **5 retired-patch version-range provenance** records added.
-- **G4_85 (TurboMind int4 MoE kernel) investigated live (rig, pin dev148) — no
-  code change, honest documentation only.** The patch APPLIES (monkey-patch
-  installs) but NEVER fires on the prod preset: `prod-gemma4-26b-default` runs
-  with `--enable-expert-parallel`, and EP shards the 128 experts WITHOUT sharding
-  the MoE intermediate dim, so `intermediate_size_per_partition` stays 704 (not
-  352) — Marlin stays eligible and vLLM picks the sibling
-  `CompressedTensorsWNA16MarlinMoEMethod` (which G4_85 does not hook). **No perf
-  loss:** the 26B is already FAST via Marlin (~136-169 tok/s), not the slow
-  `moe_wna16` path G4_85 targets — so G4_85 is dead-on-prod but harmless. On a
-  pure-TP no-EP config (where `moe_wna16` IS selected) a second blocker bites: the
-  vendored build is incomplete — `build_kernels.sh` missed `-fPIC` (**fixed**:
-  `-Xcompiler -fPIC` added) and compiles only `kernels/gemm/*` (13 TUs), so
-  `genesis_tm.so` fails to dlopen (`undefined symbol: vtable for
-  turbomind::LinearWeight`; the `linear_weight`/`LlamaLinear`/`core` TUs are never
-  built). `implementation_status` stays `partial`; full enablement deferred
-  pending a design decision (also hook the Marlin sibling, OR bench/claim G4_85
-  only on a pure-TP no-EP config) plus completing the TU closure (all `-fPIC`).
+- **G4_85 (TurboMind int4 MoE kernel) build COMPLETED + benchmarked (rig, pin
+  dev148, 2026-06-23) — verdict: superseded by EP+Marlin, stays experimental.**
+  The build is now complete (full ~46-object `find src/turbomind` closure, all
+  `-Xcompiler -fPIC`; `build_kernels.sh` rewritten to it) and the kernel FIRES on
+  the 26B — the previously-fatal `undefined symbol: vtable for
+  turbomind::LinearWeight` is resolved, `tm_probe()=1`, both TP workers load it,
+  numerics correct (GEMM_err ~3e-4, full-MoE reldiff ~9e-4). Benchmarked vs Marlin
+  (TTFT-subtracted decode TPS, 26B, n=20, MTP-off): **EP+Marlin 142.5 tps >
+  pure-TP `moe_wna16` 125.4 tps by +13.6%**; pure-TP + g4_85 builds and fires but
+  **OOMs at boot** — it dequantizes int4 → fp16 per MoE layer (~2× weight memory
+  transiently, ~1.45 GiB/layer/GPU × ~30 layers) on top of an int4 model that
+  already fills ~20 of 23.5 GiB (gpu-mem 0.88/0.60/0.45 all OOM). Fixing that is a
+  **source redesign** (stream-dequant one layer at a time, or feed packed int4
+  directly to TurboMind), not a build fix. g4_85 would have to exceed 142.5 just
+  to break even vs prod AND it cannot boot on 2× A5000 → **superseded by EP+Marlin,
+  stays experimental / pure-TP-only**; kept (not retired) pending the dequant
+  memory-footprint redesign. `implementation_status` stays `partial`.
 
 ### Migration notes
 
