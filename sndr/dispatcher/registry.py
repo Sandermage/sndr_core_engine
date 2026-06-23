@@ -6085,9 +6085,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "(P87/#40361 dense sibling). FP8-CORE SCOPE: exactly 3 vLLM files "
             "(marlin_utils.py, marlin_utils_fp8.py, compressed_tensors_moe.py); "
             "the mxfp8 hunk + INT-WNA16 oracle module of the current #45703 "
-            "HEAD are out of scope. NOT yet rig-validated (DiffusionGemma boot "
-            "+ 35B regression bench are operator-gated) -> default OFF, opt-in "
-            "via GENESIS_ENABLE_PN_FP8MOE_KPAD=1, committing is zero-risk."
+            "HEAD are out of scope. DiffusionGemma boot rig-validated 2026-06-17 "
+            "(coherent TP=2 serve on dev101; drift-audited clean on dev148 "
+            "2026-06-19); the 35B-regression bench + block-diffusion speed bench "
+            "remain operator-gated -> default OFF, opt-in via "
+            "GENESIS_ENABLE_PN_FP8MOE_KPAD=1, committing is zero-risk."
         ),
         "upstream_pr": 45703,
         "upstream_pr_relationship": "backport",
