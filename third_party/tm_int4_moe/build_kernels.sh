@@ -17,8 +17,13 @@ apt-get update -qq >/dev/null 2>&1 && apt-get install -y -qq libfmt-dev >/dev/nu
 #  -include cuda_fp16/bf16 : the kernel headers assume these are already pulled
 #  --expt-relaxed-constexpr: constexpr in __device__ helpers
 #  -I.                     : TurboMind uses absolute "src/turbomind/..." includes
+#  -Xcompiler -fPIC        : these objects are later linked into a shared
+#    object (genesis_tm.so via torch_ext). Without position-independent code
+#    the link fails with `relocation R_X86_64_PC32 ... cannot be used when
+#    making a shared object` (live-confirmed on the rig, dev148, 2026-06-23).
+#    Matches torch_ext/build_probe.sh, which already carries -Xcompiler -fPIC.
 FLAGS="-arch=sm_86 -std=c++17 -DENABLE_BF16 --expt-relaxed-constexpr \
-  -include cuda_fp16.h -include cuda_bf16.h -I."
+  -Xcompiler -fPIC -include cuda_fp16.h -include cuda_bf16.h -I."
 
 mkdir -p build
 
@@ -37,6 +42,16 @@ for k in 4 8 16; do
 done
 ar rcs build/libtm_int4_moe.a build/*.o
 echo "OK — libtm_int4_moe.a: $(stat -c%s build/libtm_int4_moe.a) bytes, 13 objects (SM86)."
+
+# INCOMPLETE TU SET (live-confirmed on the rig, dev148, 2026-06-23). This
+# script compiles ONLY kernels/gemm/* (the 13 objects above). torch_ext/
+# tm_moe_op.cu additionally needs src/turbomind/models/linear_weight.cc +
+# LlamaLinear.cu + core/* (Allocator/Context/Stream/Layout/Module/data_format),
+# which are NEVER compiled here — so even after -fPIC the resulting genesis_tm.so
+# fails to dlopen with `undefined symbol: _ZTVN9turbomind12LinearWeightE`
+# (vtable for turbomind::LinearWeight). The wider, correct TU closure is the
+# `find src/turbomind` set in torch_ext/build_probe.sh. Completing that closure
+# here (all -fPIC) is the remaining build-side work to make G4_85 loadable.
 
 # NEXT — Phase 1: cuBLAS reference (test/reference.cu) + a thin testbed calling
 #   Gemm::Run directly; weight-repack byte-test (zero-point format = #1 risk).

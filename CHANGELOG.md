@@ -157,6 +157,23 @@ it on publish — pyproject.toml holds the release version.)
   AND a working `get_weather` tool-call. (The g4_11 patch module is untouched —
   disabled by config.)
 - **5 retired-patch version-range provenance** records added.
+- **G4_85 (TurboMind int4 MoE kernel) investigated live (rig, pin dev148) — no
+  code change, honest documentation only.** The patch APPLIES (monkey-patch
+  installs) but NEVER fires on the prod preset: `prod-gemma4-26b-default` runs
+  with `--enable-expert-parallel`, and EP shards the 128 experts WITHOUT sharding
+  the MoE intermediate dim, so `intermediate_size_per_partition` stays 704 (not
+  352) — Marlin stays eligible and vLLM picks the sibling
+  `CompressedTensorsWNA16MarlinMoEMethod` (which G4_85 does not hook). **No perf
+  loss:** the 26B is already FAST via Marlin (~136-169 tok/s), not the slow
+  `moe_wna16` path G4_85 targets — so G4_85 is dead-on-prod but harmless. On a
+  pure-TP no-EP config (where `moe_wna16` IS selected) a second blocker bites: the
+  vendored build is incomplete — `build_kernels.sh` missed `-fPIC` (**fixed**:
+  `-Xcompiler -fPIC` added) and compiles only `kernels/gemm/*` (13 TUs), so
+  `genesis_tm.so` fails to dlopen (`undefined symbol: vtable for
+  turbomind::LinearWeight`; the `linear_weight`/`LlamaLinear`/`core` TUs are never
+  built). `implementation_status` stays `partial`; full enablement deferred
+  pending a design decision (also hook the Marlin sibling, OR bench/claim G4_85
+  only on a pure-TP no-EP config) plus completing the TU closure (all `-fPIC`).
 
 ### Migration notes
 

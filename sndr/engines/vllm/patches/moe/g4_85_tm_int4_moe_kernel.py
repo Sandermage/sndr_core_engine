@@ -36,6 +36,61 @@ original ``CompressedTensorsWNA16MoEMethod.apply`` — never a crash, never a
 numeric change unless the TurboMind path completes cleanly.
 
 Author: deep TurboMind-int4-MoE port (Genesis), 2026-06-22.
+
+LIVE INVESTIGATION (rig, pin dev148, 2026-06-23) — DEAD ON THE PROD PRESET, HARMLESS
+====================================================================================
+G4_85 APPLIES in EngineCore (the monkey-patch installs cleanly) but NEVER fires a
+real GEMM at decode on the production preset. Two layered blockers, in order of
+decisiveness:
+
+BLOCKER #1 (decisive, design-level — EP vs TP geometry).
+  The prod preset ``prod-gemma4-26b-default`` launches with
+  ``--enable-expert-parallel`` (EP). EP shards the 128 experts across the 2 GPUs
+  but does NOT shard the MoE intermediate dim, so
+  ``intermediate_size_per_partition`` stays 704 (not 352).
+  ``check_moe_marlin_supports_layer`` sees ``704 % 64 == 0`` -> Marlin SUPPORTED
+  -> vLLM selects ``CompressedTensorsWNA16MarlinMoEMethod`` (a SIBLING class this
+  patch does NOT hook). The boot log shows ``Using
+  CompressedTensorsWNA16MarlinMoEMethod`` and ZERO G4_85 runtime lines. So G4_85's
+  target (the slow ``moe_wna16`` path carried by ``CompressedTensorsWNA16MoEMethod``)
+  is never taken under EP. The patch's original premise — "TP=2 -> 352/shard ->
+  Marlin refused -> slow moe_wna16" — only holds on pure tensor-parallel WITHOUT
+  EP. CONSEQUENCE: G4_85 is effectively dead code on the prod EP preset, but with
+  NO perf loss: the 26B runs the FAST Marlin path via EP, not the slow moe_wna16
+  path. The honest comparison on the prod preset is G4_85-vs-Marlin, NOT
+  G4_85-vs-moe_wna16.
+
+BLOCKER #2 (build — only reachable on a pure-TP no-EP config where the slow
+moe_wna16 path IS selected). The vendored kernel can't load:
+  (2a) ``third_party/tm_int4_moe/build_kernels.sh`` compiled the objects WITHOUT
+       ``-fPIC``, so linking ``genesis_tm.so`` failed with ``relocation
+       R_X86_64_PC32 ... cannot be used when making a shared object``. FIXED
+       2026-06-23 (``-Xcompiler -fPIC`` added to that script).
+  (2b, the remaining real blocker) even after ``-fPIC`` the ``.so`` fails to
+       dlopen: ``undefined symbol: _ZTVN9turbomind12LinearWeightE`` (vtable for
+       turbomind::LinearWeight). ``build_kernels.sh`` only compiles
+       ``kernels/gemm/*`` (13 TUs), but ``torch_ext/tm_moe_op.cu`` also needs
+       ``src/turbomind/models/linear_weight.cc`` + ``LlamaLinear.cu`` +
+       ``core/*`` (Allocator/Context/Stream/Layout/Module/data_format), which are
+       never compiled. The vendored object set is incomplete; the correct, wider
+       closure is the ``find src/turbomind`` set already used by
+       ``torch_ext/build_probe.sh``.
+
+HONEST PERF: no G4_85-vs-X number was produced because G4_85 never executed a real
+GEMM. The moe_wna16 fail-open path (pure-TP, G4_85 effectively off) served ~110
+tok/s single-stream and was correct ("Paris"). On the actual prod EP preset the
+26B uses Marlin (fast) and serves ~136-169 tok/s (measured elsewhere this session).
+
+FIX PLAN (deferred, pending a design decision — the patch CODE below is unchanged):
+  1. Complete the build TU closure (compile the full ``src/turbomind`` set, all
+     ``-fPIC``) so ``genesis_tm.so`` actually dlopens.
+  2. Serialize the 2-worker JIT build (both EngineCore workers race to compile the
+     same extension dir under EP/TP).
+  3. DECISION — either (a) ALSO hook ``CompressedTensorsWNA16MarlinMoEMethod`` so
+     G4_85 fires on the prod EP preset (then the real claim is G4_85-vs-Marlin), or
+     (b) bench/claim G4_85 ONLY on a pure-TP no-EP config (where moe_wna16 is the
+     selected path and G4_85-vs-moe_wna16 is the honest comparison). Until that
+     decision lands, G4_85 stays default-OFF, ``implementation_status=partial``.
 """
 from __future__ import annotations
 
