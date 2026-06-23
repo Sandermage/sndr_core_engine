@@ -9,6 +9,7 @@ from sndr.engines.vllm.anchor_manifest_gen import (
     STATUS_OK,
     STATUS_ANCHOR_DRIFT,
     STATUS_AMBIGUOUS,
+    STATUS_RETIRED,
 )
 
 
@@ -143,3 +144,58 @@ def test_upstream_merged_excluded():
     )
     assert not r.ok
     assert r.rej and r.rej[0]["status"] == "upstream_merged"
+
+
+def test_retired_drifted_anchor_is_retired_not_drift():
+    # FIX 2: a retired patch whose anchor is GONE classifies as `retired`, not
+    # anchor_drift — it must never enter the re-anchor backlog. A non-retired
+    # patch with the same gone anchor still classifies anchor_drift.
+    targets = [
+        AnchorTarget("PRET", "s1", "f.py", "GONE_ANCHOR", "R", True,
+                     lifecycle="retired"),
+        AnchorTarget("PLIVE", "s1", "f.py", "GONE_TOO", "R", True),
+    ]
+    src = {"f.py": "neither present"}
+    r = build_pin_manifest(lambda rel: src.get(rel), targets)
+    by_key = {e["key"]: e["status"] for e in r.rej}
+    assert by_key["PRET::s1"] == STATUS_RETIRED
+    assert by_key["PLIVE::s1"] == STATUS_ANCHOR_DRIFT
+    assert not r.ok
+    # genuine drift (the re-anchor backlog) excludes the retired patch
+    drift_keys = {e["key"] for e in r.rej if e["status"] == STATUS_ANCHOR_DRIFT}
+    assert drift_keys == {"PLIVE::s1"}
+
+
+def test_retired_matching_anchor_still_retired_never_ok():
+    # Even when the anchor STILL matches, a retired patch never lands in `ok`
+    # (never spliced) — routed to `retired` regardless of anchor presence.
+    targets = [
+        AnchorTarget("PRET", "s1", "f.py", "STILL_HERE", "R", True,
+                     lifecycle="retired"),
+    ]
+    src = {"f.py": "x STILL_HERE y"}
+    r = build_pin_manifest(lambda rel: src.get(rel), targets)
+    assert not r.ok
+    assert r.rej and r.rej[0]["status"] == STATUS_RETIRED
+
+
+def test_retired_not_counted_in_merge_aggregation():
+    # A retired patch is out of the active set: it must not feed the per-patch
+    # merge tri-state (no spurious not_merged entry for a retired patch).
+    targets = [
+        AnchorTarget("PRET", "s1", "f.py", "STILL_HERE", "R", True,
+                     lifecycle="retired"),
+        AnchorTarget("PLIVE", "s1", "f.py", "LIVE_ANCH", "R", True),
+    ]
+    src = {"f.py": "x STILL_HERE LIVE_ANCH y"}
+    r = build_pin_manifest(lambda rel: src.get(rel), targets)
+    assert "PRET" not in r.merge          # retired excluded from merge roll-up
+    assert r.merge["PLIVE"]["merge_status"] == "not_merged"
+
+
+def test_retired_case_insensitive():
+    # lifecycle string is matched case-insensitively ("Retired" / "RETIRED").
+    for lc in ("Retired", "RETIRED", "retired"):
+        t = AnchorTarget("PR", "s1", "f.py", "GONE", "R", True, lifecycle=lc)
+        r = build_pin_manifest(lambda rel: {"f.py": "x"}.get(rel), [t])
+        assert r.rej[0]["status"] == STATUS_RETIRED, lc

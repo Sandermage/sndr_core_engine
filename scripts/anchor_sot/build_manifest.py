@@ -78,7 +78,12 @@ def main():
     os.makedirs(pindir, exist_ok=True)
     json.dump(manifest, open(os.path.join(pindir, "anchors.json"), "w"),
               indent=1, sort_keys=True)
+    # genuine_anchor_drift is the human re-anchor backlog. It is EXACTLY the
+    # `anchor_drift` status — retired patches (status `retired`) are absent here
+    # by construction: a retired patch's anchor legitimately drifted and must
+    # never be re-anchored, so it is never a false re-anchor candidate.
     genuine = [e for e in res.rej if e.get("status") == "anchor_drift"]
+    retired = [e for e in res.rej if e.get("status") == "retired"]
     # Emit the FULL rejected set (not only genuine drift) + the per-patch merge
     # tri-state so the committed drift.rej.json shows every dropped anchor and
     # which patches were upstream-merged. Both files are always written.
@@ -99,6 +104,8 @@ def main():
         discovered, len(res.ok), len(res.rej)))
     print("counts=%s  roundtrip_fail=0  genuine_drift=%d %s" % (
         dict(res.counts), len(genuine), [e["key"] for e in genuine[:8]]))
+    print("retired=%d (anchors gone, as expected) %s" % (
+        len(retired), [e["key"] for e in retired[:8]]))
 
 
 if __name__ == "__main__":

@@ -33,6 +33,13 @@ STATUS_UPSTREAM_MERGED = "upstream_merged"
 STATUS_VERSION_GATED = "version_gated"
 STATUS_OPTIONAL_ABSENT = "optional_absent"  # absent but required=False -> not drift
 STATUS_TARGET_MISSING = "target_missing"
+# A retired (superseded / upstream-absorbed) patch. Its anchor legitimately no
+# longer matches the dev source — it must NEVER be re-anchored and NEVER land in
+# the applied `ok` manifest. Routed here REGARDLESS of whether its anchor still
+# matches, so a retired patch is never counted as genuine anchor_drift (false
+# re-anchor backlog). Kept VISIBLE in the reject set so the operator can SEE
+# "N retired patches' anchors are gone, as expected".
+STATUS_RETIRED = "retired"
 
 # Per-PATCH upstream-merge tri-state recorded IN the manifest (the operator's
 # explicit ask). Distinct from the per-sub STATUS_UPSTREAM_MERGED above: this
@@ -232,8 +239,16 @@ def build_pin_manifest(
     """Classify every anchor target against the pristine tree (R1 × R2).
 
     Order (so an absent anchor is split into its TRUE cause, not lumped as
-    "drift"): target_missing → version_gated (range excludes ``pin``) →
-    upstream_merged (a merge marker is present) → ok/anchor_drift/ambiguous.
+    "drift"): target_missing → retired (lifecycle=retired) → version_gated
+    (range excludes ``pin``) → upstream_merged (a merge marker is present) →
+    ok/anchor_drift/ambiguous.
+
+    ``retired`` is checked BEFORE the anchor is even classified: a retired
+    patch's anchor legitimately drifted (its code was superseded / absorbed
+    upstream), so it is routed to the reject set under STATUS_RETIRED regardless
+    of whether the anchor still matches — never the applied ``ok`` manifest,
+    never counted as anchor_drift. This keeps genuine_anchor_drift (the
+    re-anchor backlog) free of retired patches while keeping them VISIBLE.
 
     - ``read_source(target_rel)`` returns pristine file content (None if absent).
     - ``targets`` defaults to the full discovery (iter_anchor_targets) — R1.
@@ -268,6 +283,16 @@ def build_pin_manifest(
 
         if src is None:
             _rej(key, t, STATUS_TARGET_MISSING)
+            continue
+
+        # Retired patch: its anchor legitimately drifted (superseded / absorbed
+        # upstream). Route to STATUS_RETIRED REGARDLESS of anchor match — never
+        # the applied `ok` set, never anchor_drift. Recorded with anchor_head so
+        # the operator still SEES it. Deliberately does NOT feed the merge
+        # aggregation below (a retired patch is out of the active set entirely).
+        if (t.lifecycle or "").lower() == "retired":
+            _rej(key, t, STATUS_RETIRED, anchor_head=t.anchor[:60],
+                 required=t.required)
             continue
 
         if version_excludes_pin(t.vllm_version_range, pin):

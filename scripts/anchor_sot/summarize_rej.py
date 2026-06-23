@@ -3,10 +3,15 @@
 
 build_manifest.py writes pins/<pin>/drift.rej.json next to anchors.json recording
 every anchor that did NOT make it into the manifest, by status. This prints a
-concise breakdown (counts by status: anchor_drift / upstream_merged / ambiguous /
-version_gated / optional_absent / target_missing) plus the per-patch merge
-tri-state roll-up, so the operator can see at a glance which patches were dropped
-and why on a given pin — instead of the dropped set being invisible.
+concise breakdown (counts by status: anchor_drift / retired / upstream_merged /
+ambiguous / version_gated / optional_absent / target_missing) plus the per-patch
+merge tri-state roll-up, so the operator can see at a glance which patches were
+dropped and why on a given pin — instead of the dropped set being invisible.
+
+``retired`` is printed separately from ``anchor_drift``: a retired patch's anchor
+is gone by design (its code was superseded / absorbed upstream), so it is NOT a
+re-anchor candidate. The operator sees "N retired patches' anchors are gone, as
+expected" rather than a false re-anchor backlog.
 
 Usage:
     summarize_rej.py <pin/drift.rej.json>
@@ -21,6 +26,7 @@ import sys
 
 _STATUS_ORDER = (
     "anchor_drift",
+    "retired",
     "upstream_merged",
     "ambiguous",
     "version_gated",
@@ -68,7 +74,9 @@ def _summarize_one(rej_path):
         if status not in seen:
             print("  %-16s %d" % (status, n))
 
-    # the actionable subset — what a human must re-anchor on a bump
+    # the actionable subset — what a human must re-anchor on a bump.
+    # EXCLUDES retired (status `retired`): a retired patch's anchor is gone by
+    # design, so it is never a re-anchor candidate.
     genuine = [e for e in rejected if e.get("status") == "anchor_drift"]
     if genuine:
         print("genuine anchor_drift (re-anchor these %d):" % len(genuine))
@@ -76,6 +84,18 @@ def _summarize_one(rej_path):
             print("  * %s (%s)" % (e.get("key"), e.get("target_rel")))
         if len(genuine) > 20:
             print("  ... and %d more" % (len(genuine) - 20))
+
+    # retired patches whose anchors are gone, as EXPECTED — informational, not
+    # actionable. Printed separately so the operator does not mistake them for
+    # re-anchor work.
+    retired = [e for e in rejected if e.get("status") == "retired"]
+    if retired:
+        print("retired (anchors gone, as expected — do NOT re-anchor %d):"
+              % len(retired))
+        for e in retired[:20]:
+            print("  - %s (%s)" % (e.get("key"), e.get("target_rel")))
+        if len(retired) > 20:
+            print("  ... and %d more" % (len(retired) - 20))
 
     # per-patch upstream-merge tri-state roll-up
     if merge:

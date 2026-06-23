@@ -17,12 +17,14 @@ BUILD = ANCHOR_SOT / "build_manifest.py"
 SUMMARIZE = ANCHOR_SOT / "summarize_rej.py"
 
 
-def _target(pid, sub, rel, anchor, repl, required=True, markers=None):
+def _target(pid, sub, rel, anchor, repl, required=True, markers=None,
+            lifecycle=None):
     return {
         "patch_id": pid, "sub": sub, "target_rel": rel,
         "anchor": anchor, "replacement": repl, "required": required,
         "vllm_version_range": None,
         "upstream_merged_markers": list(markers or []),
+        "lifecycle": lifecycle,
     }
 
 
@@ -80,6 +82,75 @@ def test_build_rej_records_fully_merged_patch(tmp_path):
     # the fully-merged patch is VISIBLE in anchors.json (not silently dropped)
     m = json.loads((_pin_dir(repo) / "anchors.json").read_text())
     assert m["files"]["f.py"]["patches"]["PM"]["merge_status"] == "fully_merged"
+
+
+def test_build_retired_patch_classifies_retired_not_drift(tmp_path):
+    # A retired patch whose anchor is GONE from the pristine source must be
+    # classified `retired` (NOT anchor_drift) and excluded from the re-anchor
+    # backlog. A non-retired patch with the same gone anchor IS anchor_drift.
+    targets = [
+        _target("PRET", "s1", "f.py", "GONE_RETIRED_ANCHOR", "R",
+                lifecycle="retired"),
+        _target("PDRIFT", "s1", "f.py", "GONE_LIVE_ANCHOR", "R"),
+    ]
+    files = {"f.py": "neither anchor present here"}
+    r, repo = _run_build(tmp_path, targets, files)
+    assert r.returncode == 0, r.stdout + r.stderr
+    rej = json.loads((_pin_dir(repo) / "drift.rej.json").read_text())
+
+    by_key = {e["key"]: e for e in rej["rejected"]}
+    assert by_key["PRET::s1"]["status"] == "retired"
+    assert by_key["PDRIFT::s1"]["status"] == "anchor_drift"
+
+    # genuine_anchor_drift excludes the retired patch (only the live one)
+    genuine_keys = {e["key"] for e in rej["genuine_anchor_drift"]}
+    assert genuine_keys == {"PDRIFT::s1"}
+    assert "PRET::s1" not in genuine_keys
+
+    # the retired patch is NOT in the applied manifest (never re-anchored)
+    m = json.loads((_pin_dir(repo) / "anchors.json").read_text())
+    assert "PRET" not in m["files"].get("f.py", {}).get("patches", {})
+
+    # build stdout surfaces the retired count separately from genuine_drift
+    assert "retired=1" in r.stdout
+    assert "genuine_drift=1" in r.stdout
+
+
+def test_build_retired_patch_with_matching_anchor_still_retired(tmp_path):
+    # Even when a retired patch's anchor STILL matches the source, it is routed
+    # to `retired` (never the applied ok manifest) — a retired patch is never
+    # spliced regardless of anchor presence.
+    targets = [
+        _target("PRET", "s1", "f.py", "STILL_HERE", "R", lifecycle="retired"),
+    ]
+    files = {"f.py": "x STILL_HERE y"}
+    r, repo = _run_build(tmp_path, targets, files)
+    assert r.returncode == 0, r.stdout + r.stderr
+    rej = json.loads((_pin_dir(repo) / "drift.rej.json").read_text())
+    assert rej["rejected"][0]["status"] == "retired"
+    assert rej["coverage"] == {"discovered": 1, "ok": 0, "rejected": 1}
+    m = json.loads((_pin_dir(repo) / "anchors.json").read_text())
+    assert "f.py" not in m["files"]  # nothing applied
+
+
+def test_summarize_rej_prints_retired_separately(tmp_path):
+    targets = [
+        _target("PB", "s1", "f.py", "MISSING_ANCHOR", "R"),       # anchor_drift
+        _target("PRET", "s1", "f.py", "GONE_R", "R", lifecycle="retired"),
+    ]
+    files = {"f.py": "nothing matches"}
+    _, repo = _run_build(tmp_path, targets, files)
+    r = subprocess.run([sys.executable, str(SUMMARIZE), str(_pin_dir(repo))],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    out = r.stdout
+    # retired counted in the by-status table AND printed in its own block,
+    # separate from the genuine anchor_drift re-anchor list
+    assert "retired" in out
+    assert "do NOT re-anchor" in out
+    assert "genuine anchor_drift" in out
+    assert "PRET::s1" in out
+    assert "PB::s1" in out
 
 
 def test_summarize_rej_prints_human_summary(tmp_path):

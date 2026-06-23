@@ -34,6 +34,12 @@ class AnchorTarget:
     # upstream_merged / genuine drift instead of all lumped as "drift"):
     vllm_version_range: Optional[tuple] = None   # spec.applies_to.vllm_version_range
     upstream_merged_markers: tuple = ()          # sub-patch upstream_merged_markers
+    # Patch lifecycle (spec.lifecycle: "retired" / "stable" / "research" / ...).
+    # A retired patch's anchor legitimately no longer matches the dev source
+    # (its code was superseded / absorbed upstream), so it must NOT be counted
+    # as genuine anchor_drift. Carried so the manifest generator can route a
+    # retired patch to STATUS_RETIRED instead of the re-anchor backlog.
+    lifecycle: Optional[str] = None
 
 
 def iter_specs_with_apply_module() -> Iterator[Any]:
@@ -151,6 +157,11 @@ def iter_anchor_targets() -> Iterator[AnchorTarget]:
         vrange_t = tuple(vrange) if isinstance(vrange, (list, tuple)) else (
             (vrange,) if vrange else None
         )
+        # spec.lifecycle is the registry's lifecycle string (e.g. "retired").
+        # Tagged onto every target so the manifest generator can classify a
+        # retired patch's drifted anchor as STATUS_RETIRED, not anchor_drift.
+        lifecycle = getattr(spec, "lifecycle", None)
+        lifecycle = str(lifecycle).lower() if lifecycle else None
         for sp in getattr(patcher, "sub_patches", []) or []:
             anchor = getattr(sp, "anchor", None)
             if not anchor:
@@ -166,4 +177,5 @@ def iter_anchor_targets() -> Iterator[AnchorTarget]:
                 upstream_merged_markers=tuple(
                     getattr(sp, "upstream_merged_markers", []) or []
                 ),
+                lifecycle=lifecycle,
             )

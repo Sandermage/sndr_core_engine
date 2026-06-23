@@ -44,6 +44,40 @@ def test_anchor_target_shape():
         assert isinstance(t.required, bool)
 
 
+def test_anchor_target_carries_lifecycle_field():
+    # FIX 2 plumbing: AnchorTarget exposes a `lifecycle` field (defaults None),
+    # so the manifest generator can route retired patches to STATUS_RETIRED.
+    # Host-runnable (no vLLM): asserts the dataclass shape directly.
+    import dataclasses
+
+    names = {f.name for f in dataclasses.fields(AnchorTarget)}
+    assert "lifecycle" in names
+    t = AnchorTarget("P", "s", "f.py", "A", "R", True)
+    assert t.lifecycle is None  # default when a spec has no lifecycle
+    t2 = AnchorTarget("P", "s", "f.py", "A", "R", True, lifecycle="retired")
+    assert t2.lifecycle == "retired"
+
+
+def test_discovery_populates_lifecycle_from_spec():
+    # When vLLM is present, iter_anchor_targets must stamp each target's
+    # lifecycle from its spec (retired patches keep being yielded — VISIBLE —
+    # but tagged so the generator can classify them as retired). Rig-gated.
+    targets = _discovered()
+    if not targets:
+        pytest.skip("vLLM not installed — discovery empty")
+    by_pid = {}
+    for t in targets:
+        by_pid.setdefault(t.patch_id, t)
+    # every target's lifecycle is either None or a lowercase string
+    for t in targets[:50]:
+        assert t.lifecycle is None or t.lifecycle == t.lifecycle.lower()
+    # the known retired patches (if discovered on this pin) are tagged retired,
+    # NOT dropped from discovery.
+    for pid in ("P78", "PN67", "G4_05"):
+        if pid in by_pid:
+            assert by_pid[pid].lifecycle == "retired", pid
+
+
 def test_R1_no_anchor_bearing_patch_dropped():
     """Cross-check the yield logic: every spec whose patcher has >=1 anchored
     sub-patch must appear in iter_anchor_targets (catches an over-aggressive
