@@ -83,8 +83,11 @@ class TestLivePresets:
     def test_breakdown_includes_known_prod_presets(self):
         b = production_subset_breakdown()
         matched = set(b["presets_matched"])
+        # Canonical-config reorg (2026-06): prod-qwen3.6-27b-dflash-multiconc
+        # was archived; repointed to the kept INT4 27B canonical
+        # prod-qwen3.6-27b-tq-k8v4 (still matches the prod-* walker pattern).
         for expected in (
-            "prod-qwen3.6-27b-dflash-multiconc",
+            "prod-qwen3.6-27b-tq-k8v4",
             "prod-qwen3.6-35b-balanced",
             "prod-qwen3.6-35b-multiconc",
         ):

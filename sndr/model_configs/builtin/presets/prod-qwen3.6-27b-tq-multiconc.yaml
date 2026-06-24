@@ -1,4 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    Qwen 3.6 27B INT4 AutoRound (hybrid GDN+Mamba)   Topology: 2x A5000 (TP=2)
+#   KV:       turboquant_k8v4               Drafter:  MTP K=3
+#   Max ctx:  131072 (effective render)     Status:   production_candidate (throughput sibling)
+#   Bench:    379 TPS @ conc=8 (TTFT 189 ms, 3.89x scaling — best on this rig) — 2026-05-15, pin dev371+bf610c2f5
+#   Best for: multi-conc / agentic / batch on the 27B INT4 family (INT4 weight fetch frees SMs for parallel KV)
+# What's intentionally NOT enabled:  - full 262K context -> use prod-qwen3.6-27b-tq-k8v4 (⭐ canonical; this preset trims to 131K to fit max_num_seqs=8)
+# To change for scenario X:          - single-stream latency / full ctx -> prod-qwen3.6-27b-tq-k8v4
+#                                    - context > 131K -> prod-qwen3.6-27b-tq-k8v4 (262K single-conc)
+# =====================================================================
 # Genesis V2 alias — operator shortcut for the 27B TQ k8v4 THROUGHPUT triplet (Wave 10).
 # Companion to `prod-qwen3.6-27b-tq-k8v4` (latency profile). `sndr launch prod-qwen3.6-27b-tq-multiconc`
 # resolves this file to (model, hardware, profile).

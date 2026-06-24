@@ -169,7 +169,11 @@ class TestLiveRepo:
         # profile (diffusiongemma-tp2 + gemma4-31b-kvauto-chat), +1
         # preset (prod-gemma4-31b-kvauto-chat) — all committed, all
         # legitimate fleet growth.
-        assert len(results) == 64
+        # Canonical-config reorg (2026-06): 42 = 11 model + 3 hardware +
+        # 14 profile + 14 preset (archived 11 presets + 12 profiles to
+        # _archive/, added prod-diffusiongemma-tp2; models + hardware
+        # unchanged).
+        assert len(results) == 42
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

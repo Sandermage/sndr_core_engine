@@ -226,10 +226,14 @@ class TestPhase8bAcceptance:
     under the hood.
     """
 
+    # Canonical-config reorg (2026-06): dropped the 4 now-archived aliases
+    # from this freeze list (prod-qwen3.6-35b-dflash, long-ctx-qwen3.6-27b,
+    # prod-qwen3.6-27b-dflash, experimental-qwen3.6-27b-tq-dflash-ab — all
+    # moved to presets/_archive/). The list composes only surviving aliases.
     @pytest.mark.parametrize("alias", [
-        "prod-qwen3.6-35b-balanced", "prod-qwen3.6-27b-tq-k8v4", "prod-qwen3.6-35b-dflash", "long-ctx-qwen3.6-27b",
-        "qa-qwen3.6-27b-tested", "qa-qwen3.6-27b-tq-1x", "prod-qwen3.6-27b-dflash",
-        "experimental-qwen3.6-27b-tq-dflash-ab", "example-2x-tier-aware",
+        "prod-qwen3.6-35b-balanced", "prod-qwen3.6-27b-tq-k8v4",
+        "qa-qwen3.6-27b-tested", "qa-qwen3.6-27b-tq-1x",
+        "example-2x-tier-aware",
         "example-3090-dense-cpu-offload", "example-3090-tier-aware",
     ])
     def test_alias_preflight_path(self, alias):

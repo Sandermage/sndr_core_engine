@@ -204,6 +204,15 @@ def _build_routing_rules(presets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     preset_keys = {r["preset_key"] for r in presets}
 
+    # Canonical-config reorg (2026-06): the single-stream structured rules
+    # for 26B-A4B (B2, preset prod-gemma4-26b-mtp-k4) and 31B dense (B1.2,
+    # preset prod-gemma4-31b-tq-mtp-structured-k4) were REMOVED because their
+    # measured-K=4 preset targets were archived to presets/_archive/. Their
+    # workloads now fall through to the K=1 default_for_family (which is the
+    # WORKLOAD-GATE-POLICY default for single-stream structured), and the now-
+    # uncovered measured cells are surfaced explicitly in _build_coverage_gaps
+    # so operators retain visibility. The 26B-A4B multi-conc rule (B4, target
+    # prod-gemma4-26b-multiconc) is KEPT — its preset survived the reorg.
     candidate_rules: list[dict[str, Any]] = [
         # ── 26B-A4B MoE — multi-conc structured (B4 measured) ──
         {
@@ -218,39 +227,6 @@ def _build_routing_rules(presets: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "B4 (2026-05-23): K=4 conc=8 Mode A 235.9 TPS vs K=1 209.1 TPS "
                 "(+12.8%); Mode B xgrammar 271.4 TPS / schema_rate 100%. See "
                 "sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/."
-            ),
-            "evidence_tag": "measured",
-        },
-        # ── 26B-A4B MoE — single-stream structured (B2 measured) ──
-        {
-            "model_family": "gemma4_moe_26b_a4b",
-            "when": {
-                "workload_class":         ["structured_json", "tool_call"],
-                "expected_output_length": ["short"],
-                "concurrency_mode":       ["single_stream"],
-            },
-            "preset_key": "prod-gemma4-26b-mtp-k4",
-            "evidence": (
-                "B2 (2026-05-23): K=4 short-structured mean elapsed 443 ms "
-                "vs K=1 720 ms (-38%); parse_rate 10/10 vs 9/10. See "
-                "sndr_private/runs/g4_26b_a4b_K1_K4_single_2026-05-23/."
-            ),
-            "evidence_tag": "measured",
-        },
-        # ── 31B dense — single-stream structured (B1.2 measured) ──
-        {
-            "model_family": "gemma4_dense_31b",
-            "when": {
-                "workload_class":         ["structured_json", "tool_call"],
-                "concurrency_mode":       ["single_stream"],
-            },
-            "preset_key": "prod-gemma4-31b-tq-mtp-structured-k4",
-            "evidence": (
-                "B1.2 (2026-05-23): K=4 structured-JSON mean k=2.79, "
-                "+12% elapsed (Mode A excl. warmup). β'-A artifact "
-                "config_hash 71c874d7ffedae04 allowed_workloads = "
-                "[tool_json, structured_count]. See "
-                "sndr_private/runs/g4_betaA_K1_K4_tooljson_2026-05-23/."
             ),
             "evidence_tag": "measured",
         },
@@ -271,7 +247,44 @@ def _build_coverage_gaps(presets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     families_present = {r["model_family"] for r in presets}
     gaps: list[dict[str, Any]] = []
 
+    # Canonical-config reorg (2026-06): the K=4 single-stream structured
+    # presets (prod-gemma4-26b-mtp-k4, prod-gemma4-31b-tq-mtp-structured-k4)
+    # were archived, so their measured single-stream-structured routing rules
+    # (B2, B1.2) were removed. The workloads now fall through to the K=1
+    # default; these gaps make that explicit so operators retain visibility of
+    # the previously-measured K=4 advantage.
+    if "gemma4_moe_26b_a4b" in families_present:
+        gaps.append({
+            "model_family": "gemma4_moe_26b_a4b",
+            "missing_cell": (
+                "workload_class=structured_json/tool_call AND "
+                "expected_output_length=short AND "
+                "concurrency_mode=single_stream"
+            ),
+            "fallback_preset": "prod-gemma4-26b-default",
+            "next_phase": (
+                "7.G4.26B.SINGLE_STRUCTURED.RECREATE (the B2-measured K=4 "
+                "single-stream preset prod-gemma4-26b-mtp-k4 was archived in "
+                "the 2026-06 canonical reorg; recreate or re-bench before "
+                "re-adding a measured rule)"
+            ),
+        })
+
     if "gemma4_dense_31b" in families_present:
+        gaps.append({
+            "model_family": "gemma4_dense_31b",
+            "missing_cell": (
+                "workload_class=structured_json/tool_call AND "
+                "concurrency_mode=single_stream"
+            ),
+            "fallback_preset": "prod-gemma4-31b-tq-default",
+            "next_phase": (
+                "7.G4.31B.SINGLE_STRUCTURED.RECREATE (the B1.2-measured K=4 "
+                "single-stream preset prod-gemma4-31b-tq-mtp-structured-k4 was "
+                "archived in the 2026-06 canonical reorg; recreate or re-bench "
+                "before re-adding a measured rule)"
+            ),
+        })
         gaps.append({
             "model_family": "gemma4_dense_31b",
             "missing_cell": (

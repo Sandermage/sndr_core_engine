@@ -1,4 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    Gemma 4 26B-A4B AWQ-4bit (128-expert MoE, A=4B)   Topology: 2x A5000 (TP=2)
+#   KV:       auto (engine-picked)         Drafter:  MTP K=4
+#   Max ctx:  16384 (effective render)     Status:   production_candidate (structured-throughput sibling)
+#   Bench:    235.9 TPS @ conc=8 (Mode A) / 271.4 TPS schema_rate 100% (Mode B xgrammar) — 2026-05-23
+#   Best for: SHORT structured-JSON / tool-call multi-conc (tool args, small schema-bounded JSON, conc 1..8)
+# What's intentionally NOT enabled:  - free-chat multi-conc -> use prod-qwen3.6-35b-multiconc (this preset is MIXED band there, -39%)
+#                                    - long structured output -> use prod-gemma4-26b-default (K=4 loses -53% on long output)
+# To change for scenario X:          - single-stream baseline / long ctx -> prod-gemma4-26b-default (⭐ canonical, fallback target)
+#                                    - free-chat throughput -> prod-qwen3.6-35b-multiconc (672 TPS reference)
+# =====================================================================
 # Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, short structured-JSON
 # multi-conc preset (NOT a generic free-chat throughput preset).
 # `sndr launch prod-gemma4-26b-multiconc` resolves to (model, hardware, profile).
@@ -41,9 +53,10 @@
 # the harness for B3, where the policy verdict was MIXED.)
 #
 # Sibling presets:
-#   prod-gemma4-26b-default          — K=1 single-stream control
-#   prod-gemma4-26b-mtp-k4           — K=4 single-stream structured
-#   prod-gemma4-26b-multiconc-k1     — K=1 multi-conc baseline (B4-PRE comparator)
+#   prod-gemma4-26b-default          — K=1 single-stream control (also the fallback target)
+# (The K=4 single-stream prod-gemma4-26b-mtp-k4 and the K=1 multi-conc
+#  baseline prod-gemma4-26b-multiconc-k1 comparators were archived to
+#  presets/_archive/ in the 2026-06 canonical reorg — git-recoverable.)
 
 model: gemma-4-26b-a4b-it-awq
 hardware: a5000-2x-24gbvram-16cpu-128gbram
@@ -81,7 +94,10 @@ card:
     typical_output_tokens: 200
   routing_family: gemma4_moe_26b_a4b
   default_for_family: false
-  fallback_preset: prod-gemma4-26b-multiconc-k1
+  # Repointed in the 2026-06 canonical reorg: the previous K=1 multi-conc
+  # baseline prod-gemma4-26b-multiconc-k1 was archived to presets/_archive/.
+  # Points at the kept K=1 family default (same routing_family).
+  fallback_preset: prod-gemma4-26b-default
   primary_metric:
     kind: agg_TPS
     value: 235.9

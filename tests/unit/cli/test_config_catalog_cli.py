@@ -374,10 +374,9 @@ class TestGate9NeighbouringCLIsUnchanged:
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
-        # 24 builtin presets: the 24th (prod-gemma4-31b-kvauto-chat) was added
-        # in ea33b8e0 (Gemma-31B kv-auto chat profile) but this golden snapshot
-        # was not bumped at the time — ratified here.
-        assert data["total"] == 24
+        # Canonical-config reorg (2026-06): 14 builtin presets (24 - 11
+        # archived to presets/_archive/ + the new prod-diffusiongemma-tp2).
+        assert data["total"] == 14
 
     def test_sndr_routing_table_help_works(self):
         result = subprocess.run(

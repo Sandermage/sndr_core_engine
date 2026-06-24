@@ -74,20 +74,25 @@ class TestStructuralValidation:
 
 class TestPresetCoverage:
     def test_26b_a4b_presets_all_present(self, table):
+        # Canonical-config reorg (2026-06): the K=4 single-stream
+        # prod-gemma4-26b-mtp-k4 and the K=1 multi-conc baseline
+        # prod-gemma4-26b-multiconc-k1 were archived. The kept canonical
+        # (default) + functional sibling (multiconc) remain.
         keys = {p["preset_key"] for p in table["presets"]}
         for required_key in (
             "prod-gemma4-26b-default",
-            "prod-gemma4-26b-mtp-k4",
             "prod-gemma4-26b-multiconc",
-            "prod-gemma4-26b-multiconc-k1",
         ):
             assert required_key in keys, f"missing preset {required_key}"
 
     def test_31b_presets_all_present(self, table):
+        # Canonical-config reorg (2026-06): prod-gemma4-31b-tq-mtp-structured-k4
+        # was archived. The kept 31B presets are the canonical kv-auto chat
+        # path and the TQ long-context default.
         keys = {p["preset_key"] for p in table["presets"]}
         for required_key in (
+            "prod-gemma4-31b-kvauto-chat",
             "prod-gemma4-31b-tq-default",
-            "prod-gemma4-31b-tq-mtp-structured-k4",
         ):
             assert required_key in keys, f"missing preset {required_key}"
 
@@ -130,15 +135,23 @@ class TestRoutingRules:
                 f"empty evidence; the contract requires a bench citation"
             )
 
-    def test_26b_a4b_single_stream_short_structured_rule_exists(self, table):
-        match = [
-            r for r in table["routing_rules"]
-            if r["model_family"] == "gemma4_moe_26b_a4b"
-            and r["preset_key"] == "prod-gemma4-26b-mtp-k4"
-            and "single_stream" in r["when"].get("concurrency_mode", [])
-            and "short" in r["when"].get("expected_output_length", [])
+    def test_26b_a4b_single_stream_short_structured_is_explicit_gap(self, table):
+        """Canonical-config reorg (2026-06): the B2-measured K=4 single-
+        stream preset (prod-gemma4-26b-mtp-k4) was archived, so its
+        single-stream short-structured rule was removed. The workload now
+        falls through to the K=1 default; the previously-measured cell is
+        surfaced as an explicit coverage gap (operator visibility)."""
+        gap = [
+            g for g in table["coverage_gaps"]
+            if g["model_family"] == "gemma4_moe_26b_a4b"
+            and "single_stream" in g["missing_cell"]
         ]
-        assert match, "missing 26B-A4B single-stream short-structured rule"
+        assert gap, (
+            "26B-A4B single-stream short-structured cell must be an explicit "
+            "coverage gap after the K=4 single-stream preset was archived; "
+            f"got gaps: {[g['missing_cell'] for g in table['coverage_gaps']]}"
+        )
+        assert gap[0]["fallback_preset"] == "prod-gemma4-26b-default"
 
     def test_26b_a4b_multiconc_short_structured_rule_exists(self, table):
         match = [
@@ -150,36 +163,52 @@ class TestRoutingRules:
         ]
         assert match, "missing 26B-A4B multi-conc short-structured rule"
 
-    def test_31b_single_stream_structured_rule_exists(self, table):
-        match = [
-            r for r in table["routing_rules"]
-            if r["model_family"] == "gemma4_dense_31b"
-            and r["preset_key"] == "prod-gemma4-31b-tq-mtp-structured-k4"
+    def test_31b_single_stream_structured_is_explicit_gap(self, table):
+        """Canonical-config reorg (2026-06): the B1.2-measured K=4 single-
+        stream preset (prod-gemma4-31b-tq-mtp-structured-k4) was archived,
+        so its single-stream structured rule was removed. The previously-
+        measured cell is surfaced as an explicit coverage gap."""
+        gap = [
+            g for g in table["coverage_gaps"]
+            if g["model_family"] == "gemma4_dense_31b"
+            and "single_stream" in g["missing_cell"]
         ]
-        assert match, "missing 31B single-stream structured rule"
-
-    def test_multiconc_rules_precede_single_stream_for_same_workload(self, table):
-        """First-match-wins requires the multi-conc 26B-A4B rule to
-        appear BEFORE the single-stream sibling — otherwise a
-        multi_conc request would erroneously match single_stream."""
-        rules = table["routing_rules"]
-        sf_idx = next(
-            (i for i, r in enumerate(rules)
-             if r["model_family"] == "gemma4_moe_26b_a4b"
-             and r["preset_key"] == "prod-gemma4-26b-mtp-k4"),
-            None,
+        assert gap, (
+            "31B single-stream structured cell must be an explicit coverage "
+            "gap after the K=4 single-stream preset was archived; got gaps: "
+            f"{[g['missing_cell'] for g in table['coverage_gaps']]}"
         )
+        assert gap[0]["fallback_preset"] == "prod-gemma4-31b-tq-default"
+
+    def test_multiconc_rule_present_and_no_stale_single_stream_rule(self, table):
+        """The 26B-A4B multi-conc rule (B4 measured) survives the reorg.
+        First-match-wins precedence requires that any single-stream rule for
+        the same family appear AFTER the multi-conc rule. After the reorg the
+        single-stream 26B rule was removed (preset archived), so the
+        invariant reduces to: the multi-conc rule exists, and no stale
+        single-stream 26B rule remains pointing at an archived preset."""
+        rules = table["routing_rules"]
         mc_idx = next(
             (i for i, r in enumerate(rules)
              if r["model_family"] == "gemma4_moe_26b_a4b"
              and r["preset_key"] == "prod-gemma4-26b-multiconc"),
             None,
         )
-        assert mc_idx is not None and sf_idx is not None
-        assert mc_idx < sf_idx, (
-            f"multi-conc rule (idx {mc_idx}) must precede "
-            f"single-stream rule (idx {sf_idx}) for first-match-wins"
+        assert mc_idx is not None, "missing 26B-A4B multi-conc rule"
+        # No single-stream 26B rule should remain (it was removed with the
+        # archived preset); if a future rule is re-added it MUST come after
+        # the multi-conc rule for first-match-wins.
+        sf_idx = next(
+            (i for i, r in enumerate(rules)
+             if r["model_family"] == "gemma4_moe_26b_a4b"
+             and "single_stream" in r["when"].get("concurrency_mode", [])),
+            None,
         )
+        if sf_idx is not None:
+            assert mc_idx < sf_idx, (
+                f"multi-conc rule (idx {mc_idx}) must precede any single-"
+                f"stream rule (idx {sf_idx}) for first-match-wins"
+            )
 
     def test_no_free_chat_or_code_gen_rules_emitted(self, table):
         """Policy: K=1 default for free-chat / code / summarization.
@@ -209,14 +238,30 @@ class TestDefaults:
             f"26B-A4B default must be K=1, got K={matches[0]['spec_decode_K']}"
         )
 
-    def test_31b_default_is_K1_no_mtp(self, table):
+    def test_31b_default_suppressed_no_surviving_rule(self, table):
+        """Canonical-config reorg (2026-06): the 31B dense family's only
+        measured routing rule (single-stream structured, preset
+        prod-gemma4-31b-tq-mtp-structured-k4) was removed when that preset
+        was archived. compute_routing_table() suppresses default_for_family
+        for families with no rule (lines 429-438), so the 31B family now has
+        ZERO advertised defaults — the single-stream/multi-conc structured
+        cells are explicit coverage gaps instead. The kept K=1 long-context
+        path prod-gemma4-31b-tq-default is named as the gap fallback."""
         matches = [
             p for p in table["presets"]
             if p["model_family"] == "gemma4_dense_31b"
             and p["default_for_family"]
         ]
-        assert len(matches) == 1
-        assert matches[0]["spec_decode_K"] == 1
+        assert len(matches) == 0, (
+            "31B family should have no advertised default after its only "
+            f"measured rule was archived; got {[m['preset_key'] for m in matches]}"
+        )
+        # The fallback is still surfaced through the explicit coverage gaps.
+        gap_fallbacks = {
+            g["fallback_preset"] for g in table["coverage_gaps"]
+            if g["model_family"] == "gemma4_dense_31b"
+        }
+        assert "prod-gemma4-31b-tq-default" in gap_fallbacks
 
     def test_only_families_with_rules_have_defaults(self, table):
         families_with_rules = {r["model_family"] for r in table["routing_rules"]}

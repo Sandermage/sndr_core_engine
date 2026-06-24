@@ -1,4 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    Qwen 3.6 35B-A3B FP8          Topology: 2x A5000 (TP=2)
+#   KV:       turboquant_k8v4               Drafter:  MTP K=3
+#   Max ctx:  280000 (effective render)     Status:   production_candidate (throughput sibling)
+#   Bench:    689 TPS @ conc=8 (TTFT 243 ms, 3.21x scaling) — 2026-05-15, pin dev371+bf610c2f5
+#   Best for: agentic / batch / multi-tenant free-chat throughput where aggregate TPS dominates
+# What's intentionally NOT enabled:  - single-user latency tuning -> use prod-qwen3.6-35b-balanced (⭐ canonical, TTFT 65 ms)
+# To change for scenario X:          - latency-critical single-user chat -> prod-qwen3.6-35b-balanced
+#                                    - short structured-JSON multi-conc -> prod-gemma4-26b-multiconc (cheaper, wins there)
+# =====================================================================
 # Genesis V2 alias — operator shortcut for the 35B THROUGHPUT triplet (Wave 10).
 # Companion to `prod-qwen3.6-35b-balanced` (latency profile). `sndr launch prod-qwen3.6-35b-multiconc`
 # resolves this file to (model, hardware, profile) for the multi-concurrency

@@ -106,10 +106,13 @@ class TestWalkers:
         # is prod-gemma4-31b-kvauto-chat (committed alias for the new
         # gemma4-31b-kvauto-chat profile, +70% TPS / 32K). One entry per
         # preset YAML.
+        # Canonical-config reorg (2026-06): 14 preset aliases (24 - 11
+        # archived to presets/_archive/ + the new prod-diffusiongemma-tp2).
+        # One entry per live preset YAML.
         # Test name kept as "fifteen" for grep continuity (the count has
         # lived in the assertion, not the identifier, since Phase 5.4);
         # renaming would break the stable test id for no behavioural gain.
-        assert len(entries) == 24
+        assert len(entries) == 14
         for e in entries:
             assert e.layer == "resolved-alias"
 

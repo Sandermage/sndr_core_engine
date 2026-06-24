@@ -126,7 +126,8 @@ class TestJSONOutput:
         assert "has_errors" in payload
         assert "has_warnings" in payload
         assert isinstance(payload["findings"], list)
-        assert payload["scanned"] >= 21
+        # Canonical-config reorg (2026-06): catalog is 14 presets (was 24+).
+        assert payload["scanned"] >= 14
 
     def test_json_finding_shape(self):
         result = _run_cli("--json")

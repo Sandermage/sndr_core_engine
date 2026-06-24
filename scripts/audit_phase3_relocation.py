@@ -66,9 +66,16 @@ if str(REPO_ROOT) not in sys.path:
 INTEGRATIONS = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
 GEMMA4_DIR = INTEGRATIONS / "gemma4"
 REGISTRY_FILE = REPO_ROOT / "sndr" / "dispatcher" / "registry.py"
+# Canonical-config reorg (2026-06): the structured K=4 profile
+# gemma4-31b-tq-mtp-structured-k4 was archived to profile/_archive/. R3
+# validates that the structured profile's GENESIS_/SNDR_ envs are all
+# registered (or pending) — those envs (G4_71B/G4_75/G4_76 …) must STAY
+# registered for the day the profile is restored, so R3 keeps reading the
+# archived YAML in place rather than dropping the check. (If a kept
+# structured profile later carries the same env set, repoint here.)
 STRUCTURED_PROFILE = (
     REPO_ROOT / "sndr" / "model_configs" / "builtin"
-    / "profile" / "gemma4-31b-tq-mtp-structured-k4.yaml"
+    / "profile" / "_archive" / "gemma4-31b-tq-mtp-structured-k4.yaml"
 )
 
 

@@ -1,10 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 alias — operator shortcut for the 27B TQ k8v4 production triplet.
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    Qwen 3.6 27B INT4 AutoRound (hybrid GDN+Mamba)   Topology: 2x A5000 (TP=2)
+#   KV:       turboquant_k8v4               Drafter:  MTP K=3
+#   Max ctx:  262144 (effective render)     Status:   ⭐ production_candidate (family default)
+#   Bench:    pending — see card.primary_metric (Wave 9 baseline 27b_v11_wave9.json; this session's single-stream ~122 TPS is informational, not the card metric)
+#   Best for: long-context single-stream inference on the 27B INT4 family  ⭐ CANONICAL
+# What's intentionally NOT enabled:  - high concurrency -> use prod-qwen3.6-27b-tq-multiconc (379 TPS @ conc=8, trims ctx to 131K)
+# To change for scenario X:          - multi-conc throughput -> prod-qwen3.6-27b-tq-multiconc
+#                                    - single-card / 1x A5000 -> qa-qwen3.6-27b-tq-1x (QA preset)
+# =====================================================================
+# Genesis V2 alias — operator shortcut for the 27B TQ k8v4 production triplet (family default).
 # `sndr launch prod-qwen3.6-27b-tq-k8v4` resolves to (model, hardware, profile).
 
-model: qwen3.6-27b-int4-autoround-tq-k8v4
-hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: qwen3.6-27b-tq-k8v4
+model: qwen3.6-27b-int4-autoround-tq-k8v4         # Lorbus/Qwen3.6-27B-int4-AutoRound, hybrid GDN+Mamba, GQA=6
+hardware: a5000-2x-24gbvram-16cpu-128gbram         # Sander 2x A5000 homelab (TP=2)
+profile: qwen3.6-27b-tq-k8v4                       # latency profile: TurboQuant k8v4 KV, MTP K=3, max_num_seqs=4, 262K ctx
 
 # CONFIG-UX.2 — operator card (2026-05-24)
 card:

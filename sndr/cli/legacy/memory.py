@@ -114,7 +114,7 @@ def _resolve_preset_v1_or_v2(key: str):
             return cfg
     except SchemaError:
         pass
-    # V2 alias fallback (`prod-qwen3.6-35b-balanced`, `long-ctx-qwen3.6-27b`, etc.).
+    # V2 alias fallback (`prod-qwen3.6-35b-balanced`, `prod-qwen3.6-27b-tq-k8v4`, etc.).
     try:
         from sndr.model_configs.registry_v2 import load_alias
         return load_alias(key)

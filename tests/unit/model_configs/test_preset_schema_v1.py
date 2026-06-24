@@ -160,11 +160,14 @@ class TestGate2ByteIdenticalCompose:
         )
 
     def test_all_legacy_presets_compose_stable_set(self):
-        """Aggregate stable-set: all 21 legacy presets compose to a
-        deterministic set of (alias, sha256) pairs in a single process."""
+        """Aggregate stable-set: every builtin preset composes to a
+        deterministic set of (alias, sha256) pairs in a single process.
+
+        Canonical-config reorg (2026-06): builtin catalog is 14 presets
+        (11 archived to presets/_archive/, +1 new diffusiongemma)."""
         aliases = _all_builtin_aliases()
-        assert len(aliases) >= 21, (
-            f"expected ≥21 builtin presets, found {len(aliases)} — "
+        assert len(aliases) >= 14, (
+            f"expected ≥14 builtin presets, found {len(aliases)} — "
             f"CONFIG-UX.R §1.1 snapshot drift"
         )
         with warnings.catch_warnings():

@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: Apache-2.0
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    DiffusionGemma 26B-A4B FP8-dynamic (block-diffusion text)   Topology: 2x A5000 (TP=2)
+#   KV:       auto (engine-picked)   Drafter:  none (block diffusion has no AR draft+verify loop)
+#   Max ctx:  131072 (128K)          Status:   🧪 experimental (TP=2 coherent serve PASS; speed bench pending)
+#   Bench:    pending — see card.primary_metric (AR decode-TPOT is N/A for a block-diffusion sampler;
+#             needs a block-diffusion-aware harness measuring per-generated-block throughput, not per AR step)
+#   Best for: long-context block-diffusion text on 2x A5000 at full 128K, single-stream bring-up / eval
+# What's intentionally NOT enabled:  - MTP / spec-decode -> block diffusion has its own parallel-denoising
+#                                       sampler; a speculative drafter is semantically meaningless here.
+#                                    - TurboQuant KV -> kv_cache_dtype stays auto (validated launcher passes
+#                                       no --kv-cache-dtype); the KV pool is capped via num-gpu-blocks-override.
+# To change for scenario X:          - >150K context -> not available; 131072 is the max SAFE ctx at gmu0.90
+#                                       (196608 boots but ~424 MiB free = unsafe edge; 262144 = OOM).
+#                                    - high concurrency -> not bench-validated; sizing is max_num_seqs=2.
+# KNOWN CAVEATS (not closed by this preset — require the rig / a schema change):
+#   - Speed is UNMEASURED. The model serves coherently at TP=2 (rig 2026-06-17, re-confirmed drift-clean
+#     dev148 2026-06-19) but no throughput number exists; primary_metric is pending by design.
+#   - Render gap #3 (--generation-config vllm): the V2 render path has NO schema field for the
+#     `--generation-config` flag (only `--override-generation-config`, a different flag). The operator
+#     must hand-add `--generation-config vllm` to the rendered launcher. Render gaps #1/#2/#4 (explicit
+#     Genesis apply step, --enforce-eager, model-scoped system_env) are now emitted by the profile render
+#     path (R1-R7 fix 2026-06-17) — see the diffusiongemma-tp2 profile header.
+#   - Legacy mirror mount: on images where Genesis lives under .../vllm/sndr_core, the operator must also
+#     bind-mount ${GENESIS_REPO}/sndr -> .../vllm/sndr_core:ro for the plugin path (see profile header).
+# =====================================================================
+#
+# Genesis V2 alias — DiffusionGemma 26B-A4B FP8-dynamic, block-diffusion text, TP=2.
+# `sndr launch prod-diffusiongemma-tp2` resolves to (model, hardware, profile).
+#
+# Binds the rig-validated TP=2 runtime (gmu0.90 + 131072 ctx + num-gpu-blocks-override 8192 ->
+# 94.3% real util, 1.4 GiB/card margin, coherent serve) on 2x A5000. Both load-bearing Genesis
+# flags (G4_26 TP-vocab all-gather vllm#45774; PN-FP8MOE-KPAD FP8-MoE N=352 tile-pad vllm#45703)
+# live in the parent ModelDef.patches because they are intrinsic to serving THIS checkpoint at TP=2
+# (the model does not boot / serve coherently without them). The profile adds no patches delta.
+
+model: diffusiongemma-26b-a4b-fp8                 # block-diffusion 128-expert MoE, A=4B active, compressed-tensors FP8-dynamic
+hardware: a5000-2x-24gbvram-16cpu-128gbram        # Sander 2x A5000 homelab (TP=2)
+profile: diffusiongemma-tp2                        # rig-validated TP=2 bench profile: gmu0.90, 131072 ctx, num-gpu-blocks-override 8192, TRITON_ATTN, enforce_eager
+
+# CONFIG-UX.2 — operator card
+card:
+  title: "DiffusionGemma 26B-A4B FP8 — block-diffusion text, TP=2 (experimental)"
+  summary: |
+    Block-diffusion text model (NOT autoregressive) on 2x A5000 at TP=2.
+    128-expert MoE, A=4B active, compressed-tensors FP8-dynamic. TP=2
+    coherent serve is rig-validated (2026-06-17 on dev101, re-confirmed
+    drift-clean on dev148 2026-06-19); SPEED IS PENDING — block diffusion
+    has no autoregressive per-token decode loop, so the AR decode-TPOT
+    metric is N/A and throughput must be measured per generated block by a
+    block-diffusion-aware harness that is not yet wired. Serves the full
+    128K (131072) context at gpu-mem 0.90 with the KV pool capped by
+    --num-gpu-blocks-override (8192 blocks = exactly 131072 tokens). Use for
+    block-diffusion text bring-up / eval; not a production traffic path
+    until the speed bench lands and status promotes to validated.
+  status: experimental                              # TP=2 coherent serve PASS; speed bench pending + render gap #3 open -> experimental (honest), not production
+  audience: bench
+  maturity: draft
+  mode: long_context
+  workload_allow:
+    - free_chat
+    - tool_call.short
+    - long_context_qa
+  workload_deny:
+    - structured_json.long
+  concurrency:
+    min: 1
+    max: 2
+    canonical: 2
+  K: null                                           # no MTP / spec-decode — block diffusion has its own parallel-denoising sampler
+  context:
+    max_model_len: 131072                           # 128K — max SAFE ctx at gmu0.90 on 2x A5000 (196608 unsafe-edge, 262144 OOM); matches the profile sizing_override
+    typical_input_tokens: 4096
+    typical_output_tokens: 2048
+  routing_family: diffusiongemma_26b_a4b
+  default_for_family: false                         # experimental; routing.py emits no rule for this family, so no default flag (see test_routing.py::test_only_families_with_rules_have_defaults)
+  primary_metric:
+    kind: agg_TPS
+    value: 0.0                                       # pending — AR decode-TPOT N/A for block diffusion; needs a per-block throughput harness (not yet wired). Do NOT fill with an AR number.
+    source: external://pending/diffusiongemma-block-diffusion-bench
+    measured_at: 2026-06-19
+  evidence_refs:
+    - type: smoke
+      path: sndr/model_configs/builtin/model/diffusiongemma-26b-a4b-fp8.yaml
+      visibility: public
+      note: |
+        TP=2 coherent-serve receipt (model reference_metrics block): boots +
+        serves coherent text ("The capital of France is Paris.") with
+        get_weather tool-call via the native gemma4 parser, Genesis
+        applied=42-43/failed=0. Validated 2026-06-17 (dev101), re-confirmed
+        drift-clean on dev148 2026-06-19. wall_TPS / TPOT intentionally
+        omitted — block diffusion has no AR per-token decode loop.
+  evidence_visibility: public
+  tradeoffs:
+    - "Block-diffusion sampler (no AR draft+verify) — speed is UNMEASURED; AR decode-TPOT is N/A by construction. Promotion is blocked on a per-block throughput bench."
+    - "Full 128K context at gpu-mem 0.90 because the KV pool is capped to 8192 blocks (= 131072 tokens) via --num-gpu-blocks-override; without the cap the unbounded KV pool fills the 0.90 budget and OOMs the post-load working set."
+    - "Block-diffusion decode can lose exact-long-string fidelity (verbatim recall of very long literal spans) independent of context length — a property of the diffusion decode, not the sizing."
+  do_not_use:
+    - condition: "context requirement > ~150K"
+      reason: "131072 (128K) is the max SAFE ctx at gmu0.90 on 2x A5000; 196608 is an unsafe edge (~424 MiB free) and 262144 OOMs. There is no TQ long-context sibling for this checkpoint."
+    - condition: "production traffic requiring a known throughput SLA"
+      reason: "Speed is unmeasured (experimental). Promote only after a block-diffusion-aware throughput bench lands."
+    - condition: "high-concurrency (>2)"
+      reason: "Single-stream sizing only (max_num_seqs=2)."
+  card_version: 1
+  card_updated: 2026-06-19
+  card_author: sander

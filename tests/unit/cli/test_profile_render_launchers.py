@@ -149,6 +149,19 @@ class TestDefaultProfileRender:
 # ─── G03–G07: structured profile ────────────────────────────────────────
 
 
+@pytest.mark.skip(
+    reason=(
+        "Canonical-config reorg (2026-06): the structured K=4 profile "
+        "gemma4-31b-tq-mtp-structured-k4 was archived to profile/_archive/ "
+        "(its preset prod-gemma4-31b-tq-mtp-structured-k4 was retired in the "
+        "one-canonical-plus-one-sibling-per-model reorg). This whole class "
+        "renders that specific profile as its fixture. The render machinery "
+        "(skip-list, MTP-K4 speculative-config, attention-backend, sizing, "
+        "envs) is exercised by the synthetic _make_profile tests in "
+        "test_v2_compose_runtime_role.py / test_v2_profile_runtime_role.py. "
+        "Restore this class if the profile is recovered from _archive/."
+    )
+)
 class TestStructuredProfileRender:
     @pytest.fixture(scope="class")
     def script(self):
@@ -381,8 +394,11 @@ class TestP21ImagePinRouting:
 
     def test_image_line_present(self):
         """Rendered launcher has exactly one IMAGE="..." line."""
+        # Canonical-config reorg (2026-06): repointed from the archived
+        # gemma4-31b-tq-mtp-structured-k4 to the kept gemma4-31b-tq-default
+        # (same model + hardware; image-pin routing is profile-agnostic).
         script = render_profile_launcher(
-            "gemma4-31b-tq-mtp-structured-k4",
+            "gemma4-31b-tq-default",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         image = self._extract_image_line(script)
@@ -391,14 +407,15 @@ class TestP21ImagePinRouting:
         )
 
     def test_image_matches_hardware_yaml_a5000_2x(self):
-        """gemma4 structured + a5000-2x → rendered IMAGE must equal
-        hw.runtime.docker.image (dev338 explicit hash tag, NOT generic
-        :nightly)."""
+        """gemma4 31B + a5000-2x → rendered IMAGE must equal
+        hw.runtime.docker.image (explicit hash tag, NOT generic
+        :nightly). Canonical-config reorg (2026-06): repointed from the
+        archived structured-k4 to the kept gemma4-31b-tq-default."""
         from sndr.model_configs.registry_v2 import load_hardware
         hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
         expected = hw.runtime.docker.image  # type: ignore[union-attr]
         script = render_profile_launcher(
-            "gemma4-31b-tq-mtp-structured-k4",
+            "gemma4-31b-tq-default",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         image = self._extract_image_line(script)
@@ -409,11 +426,13 @@ class TestP21ImagePinRouting:
         )
 
     def test_image_is_explicit_hash_not_generic_nightly(self):
-        """Defensive: on a5000-2x the hardware YAML pins to the explicit
-        dev338 hash tag. The rendered launcher must NOT emit the bare
-        :nightly tag (which is mutable on the host)."""
+        """Defensive: on a5000-2x the hardware YAML pins to an explicit
+        hash tag. The rendered launcher must NOT emit the bare :nightly
+        tag (which is mutable on the host). Canonical-config reorg
+        (2026-06): repointed from the archived structured-k4 to the kept
+        gemma4-31b-tq-default."""
         script = render_profile_launcher(
-            "gemma4-31b-tq-mtp-structured-k4",
+            "gemma4-31b-tq-default",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
         )
         image = self._extract_image_line(script)
@@ -493,6 +512,14 @@ class TestKvCacheDtypeEmission:
         """Q27-DFlash declares `kv_cache_dtype: null` → renderer omits
         the flag entirely. The pre-fix rendered launcher was
         `--kv-cache-dtype None`, which vllm argparse rejects."""
+        pytest.skip(
+            "Canonical-config reorg (2026-06): the DFlash profiles (the only "
+            "builtins with kv_cache_dtype: null) were archived to "
+            "profile/_archive/. No kept profile exercises the null-kv "
+            "omission path (all kept profiles use auto/turboquant). The "
+            "omission machinery itself is unchanged. Restore if a null-kv "
+            "profile is recovered."
+        )
         script = render_profile_launcher(
             "qwen3.6-27b-dflash",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
@@ -509,6 +536,11 @@ class TestKvCacheDtypeEmission:
     def test_35b_dflash_omits_kv_cache_dtype(self):
         """Q35-A3B-FP8-DFlash also declares `kv_cache_dtype: null` for
         the same DFlash head_size=256 constraint."""
+        pytest.skip(
+            "Canonical-config reorg (2026-06): the DFlash profiles were "
+            "archived to profile/_archive/; no kept profile exercises the "
+            "null-kv omission path. Restore if recovered."
+        )
         script = render_profile_launcher(
             "qwen3.6-35b-dflash",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
@@ -533,6 +565,14 @@ class TestKvCacheDtypeEmission:
         assert "  --kv-cache-dtype turboquant_k8v4 \\" in script
 
     def test_gemma4_structured_still_emits_turboquant_4bit_nc(self):
+        pytest.skip(
+            "Canonical-config reorg (2026-06): gemma4-31b-tq-mtp-structured-k4 "
+            "(the only builtin profile with kv_cache_dtype turboquant_4bit_nc) "
+            "was archived to profile/_archive/. The kept TQ profiles emit "
+            "turboquant_k8v4 (covered by test_35b_balanced_still_emits_... and "
+            "test_27b_tq_k8v4_still_emits_...). Restore if the 4bit_nc profile "
+            "is recovered."
+        )
         script = render_profile_launcher(
             "gemma4-31b-tq-mtp-structured-k4",
             hardware_id="a5000-2x-24gbvram-16cpu-128gbram",
@@ -556,9 +596,12 @@ class TestKvCacheDtypeEmission:
             "turboquant_3bit_nc", "turboquant_4bit_nc",
             "turboquant_k3v4_nc", "turboquant_k8v4",
         }
+        # Canonical-config reorg (2026-06): dropped the archived
+        # gemma4-31b-tq-mtp-structured-k4 from the sweep; the kept TQ +
+        # default profiles still cover the emitted-dtype validation.
         for profile_id in (
             "qwen3.6-35b-balanced", "qwen3.6-27b-tq-k8v4",
-            "gemma4-31b-tq-mtp-structured-k4", "gemma4-31b-tq-default",
+            "gemma4-31b-tq-default",
         ):
             script = render_profile_launcher(
                 profile_id,
@@ -809,6 +852,17 @@ class TestOutputFlags:
 # ─── P1.8 regression gate ───────────────────────────────────────────────
 
 
+@pytest.mark.skip(
+    reason=(
+        "Canonical-config reorg (2026-06): this class exercises the G4_76 "
+        "physical-KV-sharing artifact-lookup machinery exclusively through the "
+        "archived gemma4-31b-tq-mtp-structured-k4 profile (the only builtin "
+        "declaring drafter_kv_sharing=physical + the full β'-A K=4 predicate "
+        "set), now in profile/_archive/. No kept profile reproduces that "
+        "predicate set. The compose/render code that emits the G4_76=0 envs "
+        "is unchanged. Restore if the profile is recovered from _archive/."
+    )
+)
 class TestP18ArtifactLookupRegression:
     """P1.8 regression gate — would have caught the 2026-05-21 C2 failure.
 
@@ -1025,6 +1079,18 @@ class TestToolCallAndCompatMountEmission:
 # 2026-06-17-gemma-cascade-emitter-plan.md.
 
 
+@pytest.mark.skip(
+    reason=(
+        "Canonical-config reorg (2026-06): the chat-role K=3 profile "
+        "gemma4-31b-tq-mtp-chat-k3 was archived to profile/_archive/ (its "
+        "preset prod-gemma4-31b-tq-mtp-chat-k3 was retired; the kept 31B chat "
+        "path is prod-gemma4-31b-kvauto-chat). This whole class renders that "
+        "specific profile as its fixture. The config-driven-boot render "
+        "machinery (apply step, chunk size, enforce-eager, overlay-mount "
+        "absence) is covered for kept profiles elsewhere in this file. "
+        "Restore if the profile is recovered from _archive/."
+    )
+)
 class TestChatK3ConfigDrivenBoot:
     @pytest.fixture(scope="class")
     def script(self):

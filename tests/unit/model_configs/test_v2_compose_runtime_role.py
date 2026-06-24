@@ -575,15 +575,23 @@ class TestAttentionBackendEmission:
         cfg = compose(model, hardware, None)
         assert "--attention-backend" not in cfg.vllm_extra_args
 
-    def test_real_structured_k4_profile_emits_turboquant(self):
-        """End-to-end check against the actual builtin profile that
-        motivated this fix: gemma4-31b-tq-mtp-structured-k4 has
-        backend_plan.target_default=TURBOQUANT, kv_cache_dtype=
-        turboquant_4bit_nc. Composing it must yield --attention-backend
-        TURBOQUANT in vllm_extra_args."""
-        model = load_model("gemma-4-31b-it-awq")
-        hardware = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
-        profile = load_profile("gemma4-31b-tq-mtp-structured-k4")
+    def test_structured_turboquant_profile_emits_turboquant(self):
+        """A structured-role profile with backend_plan.target_default=
+        TURBOQUANT and kv_cache_dtype=turboquant_4bit_nc must compose to
+        --attention-backend TURBOQUANT in vllm_extra_args.
+
+        Canonical-config reorg (2026-06): this was previously an end-to-end
+        check against the builtin profile gemma4-31b-tq-mtp-structured-k4,
+        which was archived to profile/_archive/. It is now a synthetic check
+        of the same compose machinery (TURBOQUANT backend emission +
+        kv_cache_dtype consistency), decoupled from the canonical preset set.
+        The TURBOQUANT compose path is unchanged; only the fixture source is."""
+        model = _make_model(kv_dtype="turboquant_4bit_nc")
+        hardware = _make_hardware()
+        profile = _make_profile(
+            role="structured",
+            backend_plan=BackendPlanConfig(target_default="TURBOQUANT"),
+        )
         cfg = compose(model, hardware, profile)
         assert "--attention-backend" in cfg.vllm_extra_args
         idx = cfg.vllm_extra_args.index("--attention-backend")

@@ -43,6 +43,14 @@ class TestPositiveCases:
         assert issues == []
 
     def test_gemma4_structured_k4_validates_clean(self):
+        pytest.skip(
+            "Canonical-config reorg (2026-06): gemma4-31b-tq-mtp-structured-k4 "
+            "was archived to profile/_archive/ and is no longer in the live "
+            "registry. The kept gemma4-31b-tq-default is covered by "
+            "test_gemma4_tq_default_validates_clean, and "
+            "test_all_builtin_profiles_validate_clean validates every LIVE "
+            "profile. Restore if the structured profile is recovered."
+        )
         issues, status = validate_profile("gemma4-31b-tq-mtp-structured-k4")
         assert status == "ok", f"unexpected issues: {issues}"
         assert issues == []
@@ -331,11 +339,15 @@ class TestExitCodes:
         )
 
     def test_json_emits_valid_object(self):
-        """--json output must be parseable + contain summary keys."""
+        """--json output must be parseable + contain summary keys.
+
+        Canonical-config reorg (2026-06): repointed from the archived
+        gemma4-31b-tq-mtp-structured-k4 to the kept gemma4-31b-tq-default
+        (same JSON-shape machinery; profile-agnostic)."""
         import subprocess, sys
         result = subprocess.run(
             [sys.executable, "-m", "sndr.cli.legacy",
-             "profile", "validate", "gemma4-31b-tq-mtp-structured-k4",
+             "profile", "validate", "gemma4-31b-tq-default",
              "--json"],
             capture_output=True, text=True,
         )
@@ -347,5 +359,5 @@ class TestExitCodes:
         assert "warnings" in data
         assert "results" in data
         assert len(data["results"]) == 1
-        assert data["results"][0]["profile_id"] == "gemma4-31b-tq-mtp-structured-k4"
+        assert data["results"][0]["profile_id"] == "gemma4-31b-tq-default"
         assert data["results"][0]["status"] == "ok"

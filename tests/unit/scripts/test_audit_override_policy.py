@@ -114,7 +114,8 @@ class TestJSONOutput:
         for key in ("scanned", "counts", "findings", "has_errors", "has_warnings"):
             assert key in payload, f"missing key {key!r} in JSON output"
         assert isinstance(payload["findings"], list)
-        assert payload["scanned"] >= 21
+        # Canonical-config reorg (2026-06): preset catalog is 14 (was 24+).
+        assert payload["scanned"] >= 14
 
     def test_json_finding_shape(self):
         result = _run_cli("--json")

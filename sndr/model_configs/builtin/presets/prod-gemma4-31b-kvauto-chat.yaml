@@ -1,14 +1,27 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 alias — Gemma 4 31B AWQ-4bit, kv-auto MTP K=3 chat-role.
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    Gemma 4 31B AWQ-4bit (dense)   Topology: 2x A5000 (TP=2)
+#   KV:       auto (uniform fp16, no TurboQuant)   Drafter:  MTP K=3 (gemma-4-31B-it-assistant)
+#   Max ctx:  131072 (effective render)     Status:   ⭐ production_candidate (canonical 31B chat path)
+#   Bench:    70.1 wall_TPS, TPOT 10.98 ms, tool-call 7/7 (vs TQ 41.4 / 6/7 = +69.6%) — 2026-06-19, pin dev148; measured @32K, re-bench @128K before promoting
+#   Best for: high-throughput interactive chat / tool-use at FULL fp16 quality up to 128K  ⭐ CANONICAL
+# What's intentionally NOT enabled:  - TurboQuant KV / >150K context -> use prod-gemma4-31b-tq-default (long-context path; TQ-blocked on the live pin)
+# To change for scenario X:          - context > ~150K (up to 256K) -> prod-gemma4-31b-tq-default
+#                                    - high concurrency (>2) -> not bench-validated; single-stream sizing only
+# =====================================================================
+# Genesis V2 alias — Gemma 4 31B AWQ-4bit, kv-auto MTP K=3 chat-role (canonical 31B path).
 # `sndr launch prod-gemma4-31b-kvauto-chat` resolves to (model, hardware, profile).
 #
 # High-throughput kv-auto chat preset. Uniform fp16 KV (no TurboQuant
 # compression, no skip-layers), engine-default attention, MTP K=3 via the
-# gemma-4-31B-it-assistant drafter, 128K context. The throughput-optimized
-# sibling of `prod-gemma4-31b-tq-mtp-chat-k3` (the >150K long-context TQ
-# preset). Operator runs BOTH ("both profiles" decision 2026-06-19):
-#   - prod-gemma4-31b-tq-mtp-chat-k3   → >150K long-context (TurboQuant)
+# gemma-4-31B-it-assistant drafter, 128K context. The canonical (default)
+# 31B preset; the kept long-context (>150K) sibling is the TQ default
+# `prod-gemma4-31b-tq-default`. Operator runs BOTH:
+#   - prod-gemma4-31b-tq-default       → >150K long-context (TurboQuant; TQ-blocked on the live pin — see that preset's PIN NOTE)
 #   - prod-gemma4-31b-kvauto-chat      → 128K high-throughput (THIS, +70% TPS, full fp16 quality)
+# (The earlier chat-role TQ sibling prod-gemma4-31b-tq-mtp-chat-k3 was
+#  archived to presets/_archive/ in the 2026-06 canonical reorg.)
 #
 # CONTEXT CEILING — rig-MEASURED 2026-06-23 (keep consistent with the profile):
 #   The fp16/auto-KV ceiling on 2× A5000 is 154,496 tokens (gpu-mem 0.9,
@@ -45,8 +58,8 @@ card:
     FULL fp16 quality up to 128K context (rig-MEASURED fp16/auto-KV
     ceiling 154,496 tokens on 2× A5000, 2026-06-23 — the old "fp16 caps
     at 32K" estimate was wrong by ~5×). Use for interactive chat / tool-
-    use and any workload up to 128K; use the TQ chat sibling
-    (prod-gemma4-31b-tq-mtp-chat-k3) only when you need >150K (up to 256K).
+    use and any workload up to 128K; use the TQ default sibling
+    (prod-gemma4-31b-tq-default) only when you need >150K (up to 256K).
   status: production_candidate
   audience: operator
   maturity: draft                                  # ProfileDef.status stays experimental until the operator
@@ -65,9 +78,11 @@ card:
     canonical: 2
   K: 3
   # K>1 production_candidate requires a K=1-or-fallback pointer of same
-  # routing_family. Points at the TQ chat sibling — the long-context
-  # fallback when >150K is needed (same routing_family + chat role).
-  fallback_preset: prod-gemma4-31b-tq-mtp-chat-k3
+  # routing_family. Points at the kept K=1 TQ default — the long-context
+  # (>150K) fallback for this family (same routing_family gemma4_dense_31b_tq).
+  # Repointed in the 2026-06 canonical reorg: the previous target
+  # prod-gemma4-31b-tq-mtp-chat-k3 was archived to presets/_archive/.
+  fallback_preset: prod-gemma4-31b-tq-default
   context:
     max_model_len: 131072                          # 128K — ~1.10× under the rig-MEASURED 154,496-token fp16/auto-KV ceiling (2× A5000, gpu-mem 0.9, MTP K=3, 2026-06-23); consistent with the profile sizing_override
     typical_input_tokens: 2048
@@ -94,10 +109,10 @@ card:
   evidence_visibility: public
   tradeoffs:
     - "kv-auto uniform fp16 KV → +69.6% decode TPS + better tool-call (7/7) vs the TurboQuant chat sibling, at FULL fp16 quality up to 128K (rig-MEASURED fp16/auto-KV ceiling 154,496 tokens on 2× A5000, 2026-06-23 — the old 'fp16 ~4× TQ → 32K' framing was wrong by ~5×)."
-    - "Run alongside prod-gemma4-31b-tq-mtp-chat-k3, not as a replacement: kv-auto owns high-throughput chat up to 128K (full fp16 quality); the TQ sibling is now only needed for >150K (up to 256K)."
+    - "Run alongside prod-gemma4-31b-tq-default, not as a replacement: kv-auto owns high-throughput chat up to 128K (full fp16 quality); the kept TQ default sibling is now only needed for >150K (up to 256K)."
   do_not_use:
     - condition: "context requirement > ~150K (up to 256K)"
-      reason: "Use prod-gemma4-31b-tq-mtp-chat-k3 (TurboQuant). The kv-auto fp16/auto-KV ceiling on 2× A5000 is 154,496 tokens (rig-MEASURED 2026-06-23); 128K is the configured max."
+      reason: "Use prod-gemma4-31b-tq-default (TurboQuant long-context path). The kv-auto fp16/auto-KV ceiling on 2× A5000 is 154,496 tokens (rig-MEASURED 2026-06-23); 128K is the configured max."
     - condition: "high-concurrency (>2)"
       reason: "Single-stream bench-validated only; sizing matches the canonical chat-role default."
   card_version: 1

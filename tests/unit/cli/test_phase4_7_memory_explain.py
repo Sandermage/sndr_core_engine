@@ -84,14 +84,16 @@ class TestV1PresetStillWorks:
 
 
 class TestV2AliasResolution:
+    # Canonical-config reorg (2026-06): dropped the archived aliases
+    # (long-ctx-qwen3.6-27b, prod-qwen3.6-27b-dflash, prod-qwen3.6-35b-dflash);
+    # added the new prod-diffusiongemma-tp2 to keep coverage of the diffusion
+    # path. All listed aliases resolve through the live catalog.
     @pytest.mark.parametrize("alias", [
         "prod-qwen3.6-35b-balanced",
         "prod-qwen3.6-27b-tq-k8v4",
-        "long-ctx-qwen3.6-27b",
         "qa-qwen3.6-27b-tested",
         "qa-qwen3.6-27b-tq-1x",
-        "prod-qwen3.6-27b-dflash",
-        "prod-qwen3.6-35b-dflash",
+        "prod-diffusiongemma-tp2",
         "example-2x-tier-aware",
     ])
     def test_v2_alias_resolves_and_emits_verdict(self, alias):

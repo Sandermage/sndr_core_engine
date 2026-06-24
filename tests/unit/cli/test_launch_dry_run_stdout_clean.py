@@ -30,7 +30,10 @@ import pytest
 # One gemma preset + one qwen preset. Both ship enabled partial-status
 # patches, so the `⚠ … implementation_status='partial'` warning fires —
 # the exact line that previously contaminated stdout and broke `bash -n`.
-_PRESETS = ["prod-gemma4-26b-default", "prod-qwen3.6-27b-dflash"]
+# Canonical-config reorg (2026-06): the prod-qwen3.6-27b-dflash preset was
+# archived; repointed to the kept INT4 27B canonical prod-qwen3.6-27b-tq-k8v4
+# (same family, same partial-status patch matrix).
+_PRESETS = ["prod-gemma4-26b-default", "prod-qwen3.6-27b-tq-k8v4"]
 
 # Advisory glyphs / strings that belong on STDERR, never on the
 # script-carrying stdout.

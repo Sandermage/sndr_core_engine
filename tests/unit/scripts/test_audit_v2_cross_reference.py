@@ -55,7 +55,12 @@ class TestLiveRepo:
         # parent_model refs + 24 preset×3 refs. +2 profiles
         # (diffusiongemma-tp2 + gemma4-31b-kvauto-chat) and +1 preset
         # (prod-gemma4-31b-kvauto-chat). All refs resolve (failed=0).
-        assert len(results) == 98
+        # Canonical-config reorg (2026-06): archived 11 presets + 12
+        # profiles (11 1:1 siblings + the orphan gemma4-31b-fp8e5m2-fallback)
+        # to _archive/, added the prod-diffusiongemma-tp2 preset. Live count
+        # is now 56 = 14 profile parent_model refs + 14 preset×3 refs.
+        # All refs resolve (failed=0).
+        assert len(results) == 56
 
 
 class TestScriptCLI:
@@ -84,7 +89,10 @@ class TestScriptCLI:
         # Reconciled 2026-06-19 to live count: 98 = 26 profile refs + 24
         # preset×3 refs (+2 profiles + 1 preset since the 93 baseline;
         # all committed, all refs resolve).
-        assert payload["total"] == 98
+        # Canonical-config reorg (2026-06): 56 = 14 profile refs + 14
+        # preset×3 refs (archived 11 presets + 12 profiles, added the
+        # diffusiongemma preset). All refs resolve.
+        assert payload["total"] == 56
 
 
 class TestSyntheticBroken:

@@ -107,7 +107,11 @@ class TestLiveRepo:
         # reference) and +2 profile (diffusiongemma-tp2 + the new
         # gemma4-31b-kvauto-chat, +70% TPS / 32K). Presets are not
         # id-checked here (they carry pointer triplets, not an `id`).
-        assert len(results) == 40
+        # Canonical-config reorg (2026-06): 28 = 11 model + 3 hardware +
+        # 14 profile (archived 12 profiles to profile/_archive/: 11 1:1
+        # siblings of archived presets + the orphan gemma4-31b-fp8e5m2-
+        # fallback; models + hardware unchanged).
+        assert len(results) == 28
 
 
 class TestScriptCLI:

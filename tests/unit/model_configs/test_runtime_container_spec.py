@@ -140,17 +140,20 @@ class TestComposeFromV2Alias:
 
 
 class TestComposeAcrossAllAliases:
-    """Phase 3 ships 11 V2 aliases. Each must compose into a valid spec."""
+    """Each live V2 alias must compose into a valid spec.
+
+    Canonical-config reorg (2026-06): dropped the 4 now-archived aliases
+    (prod-qwen3.6-35b-dflash, long-ctx-qwen3.6-27b, prod-qwen3.6-27b-dflash,
+    experimental-qwen3.6-27b-tq-dflash-ab) and added the new TP=2 block-
+    diffusion preset prod-diffusiongemma-tp2.
+    """
 
     @pytest.mark.parametrize("alias", [
         "prod-qwen3.6-35b-balanced",
         "prod-qwen3.6-27b-tq-k8v4",
-        "prod-qwen3.6-35b-dflash",
-        "long-ctx-qwen3.6-27b",
+        "prod-diffusiongemma-tp2",
         "qa-qwen3.6-27b-tested",
         "qa-qwen3.6-27b-tq-1x",
-        "prod-qwen3.6-27b-dflash",
-        "experimental-qwen3.6-27b-tq-dflash-ab",
         "example-2x-tier-aware",
         "example-3090-dense-cpu-offload",
         "example-3090-tier-aware",
@@ -201,7 +204,9 @@ class TestCrossRuntimeSemanticEquivalence:
     @pytest.mark.parametrize("alias", [
         "prod-qwen3.6-35b-balanced",
         "prod-qwen3.6-27b-tq-k8v4",
-        "long-ctx-qwen3.6-27b",
+        # Canonical-config reorg (2026-06): long-ctx-qwen3.6-27b archived;
+        # use the kept 27B multi-conc sibling for the third sample.
+        "prod-qwen3.6-27b-tq-multiconc",
     ])
     def test_docker_compose_quadlet_semantic_equality(self, alias):
         cfg = load_alias(alias)

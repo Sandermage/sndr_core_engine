@@ -214,7 +214,12 @@ class TestUnannotatedStageBehavior:
 
 class TestComposeUnchanged:
     """Architectural guard: at Stage 0/1 default, composed ModelConfig
-    must be byte-identical for all 21 builtin presets."""
+    must be byte-identical for every builtin preset.
+
+    Canonical-config reorg (2026-06): the builtin catalog is 14 presets
+    (was 24+; 11 archived to presets/_archive/, +1 new diffusiongemma).
+    Test name kept for grep continuity; the bound lives in the assertion.
+    """
 
     def test_all_21_presets_compose_clean(self):
         from sndr.model_configs.registry_v2 import (
@@ -225,7 +230,7 @@ class TestComposeUnchanged:
             p.stem for p in _alias_dir().glob("*.yaml")
             if p.is_file() and not p.stem.startswith("_")
         )
-        assert len(aliases) >= 21
+        assert len(aliases) >= 14
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             for alias in aliases:

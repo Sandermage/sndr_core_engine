@@ -1,10 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, K=1 MTP control (default).
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    Gemma 4 26B-A4B AWQ-4bit (128-expert MoE, A=4B)   Topology: 2x A5000 (TP=2)
+#   KV:       auto (engine-picked)         Drafter:  none (K=1 MTP control = effective MTP-off)
+#   Max ctx:  262144 (effective render)    Status:   ⭐ production_candidate (family default)
+#   Bench:    pending — see card.primary_metric (B1 baseline pending public publish; this session's single-stream ~169 TPS @ 256K is informational, not the card metric)
+#   Best for: lowest-risk single-stream serving + retrieval up to 256K; public fallback target for the family  ⭐ CANONICAL
+# What's intentionally NOT enabled:  - MTP K=4 speculation -> the short structured-JSON sibling prod-gemma4-26b-multiconc carries that (235.9 TPS @ conc=8)
+# To change for scenario X:          - short structured-JSON / tool-call multi-conc -> prod-gemma4-26b-multiconc
+#                                    - free-chat multi-conc throughput -> prod-qwen3.6-35b-multiconc (faster there)
+# =====================================================================
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, K=1 MTP control (family default).
 # `sndr launch prod-gemma4-26b-default` resolves to (model, hardware, profile).
 #
 # Default-mode preset for the MoE A=4B target. Pairs with:
-#   prod-gemma4-26b-mtp-k4         — K=4 positive-case (structured)
-#   prod-gemma4-26b-multiconc      — K=4 + conc=8 (Qwen 35B-A3B analog)
+#   prod-gemma4-26b-multiconc      — K=4 + conc=8 short structured-JSON sibling
+# (the K=4 single-stream prod-gemma4-26b-mtp-k4 and the K=1 multi-conc
+#  prod-gemma4-26b-multiconc-k1 diagnostics were archived to
+#  presets/_archive/ in the 2026-06 canonical reorg — git-recoverable.)
 #
 # "Default" here means: MTP K=1 control (effective MTP-off baseline).
 # See gemma4-26b-no-mtp profile docstring for why this is K=1 and not
@@ -44,7 +57,7 @@ card:
     canonical: 2
   K: 1
   context:
-    max_model_len: 32768
+    max_model_len: 262144                          # effective render = 262144 (profile gemma4-26b-no-mtp sizing_override 256K, rig-validated 2026-06-23: 146K-token ingestion+retrieval PASS on 26B-A4B MoE auto/fp16 KV). Card was stale at 32768.
     typical_input_tokens: 1024
     typical_output_tokens: 2048
   routing_family: gemma4_moe_26b_a4b
@@ -67,7 +80,7 @@ card:
     - condition: "high-concurrency workloads (>2 concurrent requests)"
       reason: "Sizing tuned for max_num_seqs=2; use prod-gemma4-26b-multiconc above that."
     - condition: "structured_json.long workloads"
-      reason: "32K context envelope ok for short structured; long-context structured loses on Gemma4 MoE."
+      reason: "256K context envelope is fine for short structured; long-context structured JSON loses on Gemma4 MoE — use the K=1 default for retrieval, not long structured generation."
   card_version: 1
   card_updated: 2026-05-24
   card_author: sander

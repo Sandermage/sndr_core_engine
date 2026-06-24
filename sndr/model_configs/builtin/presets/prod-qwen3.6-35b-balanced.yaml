@@ -1,10 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-# Genesis V2 alias — operator shortcut for the 35B PROD triplet.
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    Qwen 3.6 35B-A3B FP8          Topology: 2x A5000 (TP=2)
+#   KV:       turboquant_k8v4               Drafter:  MTP K=3
+#   Max ctx:  280000 (effective render)     Status:   ⭐ production_candidate (family default)
+#   Bench:    pending — see card.primary_metric (Wave 9 baseline 35b_v11_wave9.json; this session's single-stream ~233 TPS @ 280K is informational, not the card metric)
+#   Best for: balanced single-conc latency-quality default for the 35B family  ⭐ CANONICAL
+# What's intentionally NOT enabled:  - high concurrency -> use prod-qwen3.6-35b-multiconc (689 TPS @ conc=8)
+# To change for scenario X:          - agentic/batch throughput -> prod-qwen3.6-35b-multiconc
+#                                    - lower single-user latency -> already this preset (max_num_seqs=2)
+# =====================================================================
+# Genesis V2 alias — operator shortcut for the 35B PROD triplet (family default).
 # `sndr launch prod-qwen3.6-35b-balanced` resolves this file to (model, hardware, profile).
 
-model: qwen3.6-35b-a3b-fp8
-hardware: a5000-2x-24gbvram-16cpu-128gbram
-profile: qwen3.6-35b-balanced
+model: qwen3.6-35b-a3b-fp8                        # cyankiwi/Qwen3.6-35B-A3B-FP8 dense MoE (A=3B active)
+hardware: a5000-2x-24gbvram-16cpu-128gbram        # Sander 2x A5000 homelab (TP=2)
+profile: qwen3.6-35b-balanced                     # balanced latency profile: TurboQuant k8v4 KV, MTP K=3, max_num_seqs=2, 280K ctx
 # runtime: docker      # optional; defaults to hardware.runtime.default
 
 # CONFIG-UX.2 — operator card (2026-05-24)

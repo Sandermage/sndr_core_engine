@@ -174,6 +174,17 @@ class TestExistingProfilesLoadUnchanged:
     def test_p1_3_builtin_gemma4_structured_k4_loads(self):
         """gemma4-31b-tq-mtp-structured-k4 (P1.3): full structured config
         with MTP K=4, skip-list 58,59, artifact validation reference."""
+        pytest.skip(
+            "Canonical-config reorg (2026-06): the structured K=4 profile "
+            "gemma4-31b-tq-mtp-structured-k4 was archived to profile/_archive/ "
+            "(its preset prod-gemma4-31b-tq-mtp-structured-k4 was retired in "
+            "favour of one canonical + one sibling per served model). The "
+            "structured-role / MTP-K4 / TURBOQUANT-backend machinery this "
+            "test exercised is still covered by the synthetic _make_profile "
+            "tests in TestSpecDecodeAttentionBackend and "
+            "TestAttentionBackendEmission. Restore this test if the profile "
+            "is recovered from _archive/."
+        )
         p = load_profile("gemma4-31b-tq-mtp-structured-k4")
         p.validate()
         assert p.role == "structured"
@@ -566,6 +577,13 @@ class TestSpecDecodeAttentionBackend:
     def test_structured_profile_yaml_loads_attention_backend(self):
         """Smoke: the gemma4-31b-tq-mtp-structured-k4 YAML carries
         attention_backend=FLASH_ATTN after P1.7c."""
+        pytest.skip(
+            "Canonical-config reorg (2026-06): gemma4-31b-tq-mtp-structured-k4 "
+            "was archived to profile/_archive/. The attention_backend "
+            "round-trip machinery is still covered by the synthetic "
+            "test_flash_attn_emitted_in_json / test_valid_values_accepted "
+            "tests above. Restore if the profile is recovered."
+        )
         p = load_profile("gemma4-31b-tq-mtp-structured-k4")
         p.validate()
         assert p.spec_decode_override.attention_backend == "FLASH_ATTN"
@@ -580,6 +598,13 @@ class TestSpecDecodeAttentionBackend:
         )
         import json as _json
 
+        pytest.skip(
+            "Canonical-config reorg (2026-06): gemma4-31b-tq-mtp-structured-k4 "
+            "was archived to profile/_archive/. The compose path that renders "
+            "attention_backend into --speculative-config is unchanged and is "
+            "exercised by the synthetic SpecDecodeConfig.to_vllm_arg() tests. "
+            "Restore if the profile is recovered."
+        )
         p = load_profile("gemma4-31b-tq-mtp-structured-k4")
         m = load_model("gemma-4-31b-it-awq")
         hw = load_hardware("a5000-2x-24gbvram-16cpu-128gbram")
