@@ -5670,7 +5670,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # and live gpu_model_runner/dev301 pristine read. The previous
         # "KEEP ACTIVE / coupled retirement waits for #46067" reasoning was
         # self-defeating: a patch that cannot apply cannot anchor anything.
-        "lifecycle_changed": "2026-06-24 experimental -> retired (vllm#44053 merged in dev301)",
+        # Lifecycle change: 2026-06-24 experimental -> retired (vllm#44053
+        # merged in dev301). (Recorded as a comment, not a field — the schema
+        # validator has no `lifecycle_changed` key; superseded_by is canonical.)
         "superseded_by": (
             "vllm#44053 (MERGED, native in dev301 — TQ MetadataBuilder "
             "workspace reserve fixed upstream; byte-equivalent intent). "
