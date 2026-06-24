@@ -5349,3 +5349,20 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .anchor-drift-list { margin: 0; padding-left: 18px; max-height: 240px; overflow: auto; }
 .anchor-drift-list li { margin: 2px 0; }
 .anchor-drift-list code { font-size: 11px; color: var(--muted-text); }
+
+/* Preset operator guidance (do_not_use + tradeoffs) */
+.preset-guidance { display: flex; flex-direction: column; gap: 12px; }
+.guidance-block { display: flex; flex-direction: column; gap: 4px; }
+.guidance-label { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.guidance-label.danger { color: var(--danger); }
+.guidance-label.warn { color: var(--info); }
+.guidance-list { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; }
+.guidance-list li { margin: 2px 0; }
+.guidance-list strong { color: var(--danger); }
+
+/* Resolved vLLM argv token list (Deployment Console) */
+.deploy-argv { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+.deploy-argv-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.deploy-argv-label { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-text); }
+.deploy-argv-tokens { display: flex; flex-wrap: wrap; gap: 4px; }
+.deploy-argv-token { font-family: var(--mono); font-size: 11px; background: var(--bg-tint); border: 1px solid var(--border); border-radius: var(--r-xs); padding: 1px 6px; word-break: break-all; }

@@ -2,9 +2,9 @@
 // Preset display views — the Presets tab summary strip, the selected-preset
 // detail view (what-will-run + runtime + evidence + draft editor) and the
 // fallback diff.
-import { Box, Code2, Database, FileText, GitBranch, Network, Rocket, Server, ShieldCheck, SlidersHorizontal, Wrench } from "lucide-react";
+import { AlertTriangle, Box, Code2, Database, FileText, GitBranch, Network, Rocket, Scale, Server, ShieldCheck, SlidersHorizontal, Wrench } from "lucide-react";
 import { type PresetRecord, type PresetExplainResult, type ProductCapability } from "../api";
-import { asNumber, asStringArray, asText } from "../lib/coerce";
+import { asNumber, asRecord, asStringArray, asText } from "../lib/coerce";
 import { formatTokens, targetTitle } from "../lib/format";
 import { InfoRows, StatusBadge } from "../components/primitives";
 import { ModuleCard, ModuleGrid } from "../components/layout";
@@ -26,6 +26,54 @@ function PresetFallbackDiff({ explain }: { explain: PresetExplainResult | null }
           {diffs.map((line, index) => <li key={index}>{line}</li>)}
         </ul>
       ) : <p className="muted">{tr("Matches its fallback exactly — no overrides.")}</p>}
+    </div>
+  );
+}
+
+// The empirically-tested operating envelope from the preset card (rework added
+// these) — distinct from the engineering maxima shown in the metrics strip.
+function TestedEnvelope({ card }: { card: Record<string, unknown> }) {
+  const ctx = asRecord(card.context);
+  const conc = asRecord(card.concurrency);
+  const k = card.K;
+  const canonical = asNumber(conc.canonical);
+  const concText = conc.canonical != null
+    ? `${asNumber(conc.min) || canonical}–${asNumber(conc.max) || canonical} ${tr("(canonical")} ${canonical})`
+    : "—";
+  const ioText = (ctx.typical_input_tokens != null || ctx.typical_output_tokens != null)
+    ? `${formatTokens(asNumber(ctx.typical_input_tokens))} ${tr("in")} / ${formatTokens(asNumber(ctx.typical_output_tokens))} ${tr("out")}`
+    : "—";
+  return (
+    <InfoRows rows={[
+      [tr("Tested context"), ctx.max_model_len != null ? formatTokens(asNumber(ctx.max_model_len)) : "—"],
+      [tr("Typical I/O"), ioText],
+      [tr("Tested concurrency"), concText],
+      [tr("Draft tokens (K)"), typeof k === "number" ? String(k) : "—"]
+    ]} />
+  );
+}
+
+// Operator guidance from the preset card: when NOT to use it + its tradeoffs.
+function OperatorGuidance({ card }: { card: Record<string, unknown> }) {
+  const tradeoffs = asStringArray(card.tradeoffs);
+  const doNotUse = Array.isArray(card.do_not_use) ? (card.do_not_use as Array<Record<string, unknown>>) : [];
+  if (!tradeoffs.length && !doNotUse.length) return <p className="muted">{tr("No tradeoffs or anti-patterns annotated.")}</p>;
+  return (
+    <div className="preset-guidance">
+      {doNotUse.length > 0 && (
+        <div className="guidance-block">
+          <span className="guidance-label danger"><AlertTriangle size={13} /> {tr("Don't use when")}</span>
+          <ul className="guidance-list">
+            {doNotUse.map((d, i) => <li key={i}><strong>{asText(d.condition, "")}</strong>{d.reason ? ` — ${asText(d.reason, "")}` : ""}</li>)}
+          </ul>
+        </div>
+      )}
+      {tradeoffs.length > 0 && (
+        <div className="guidance-block">
+          <span className="guidance-label warn"><Scale size={13} /> {tr("Tradeoffs")}</span>
+          <ul className="guidance-list">{tradeoffs.map((t, i) => <li key={i}>{t}</li>)}</ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -145,6 +193,12 @@ export function PresetSelectedView({
         </ModuleCard>
         <ModuleCard title={tr("Overrides vs Fallback")} icon={<GitBranch size={18} />} desc={tr("What this preset changes relative to its fallback.")}>
           <PresetFallbackDiff explain={explain} />
+        </ModuleCard>
+        <ModuleCard title={tr("Tested Envelope")} icon={<SlidersHorizontal size={18} />} desc={tr("The empirically validated operating range — not the engineering maximum.")}>
+          <TestedEnvelope card={card} />
+        </ModuleCard>
+        <ModuleCard title={tr("Operator Guidance")} icon={<AlertTriangle size={18} />} desc={tr("When NOT to use this preset, and its tradeoffs.")}>
+          <OperatorGuidance card={card} />
         </ModuleCard>
       </ModuleGrid>
 

@@ -23,7 +23,9 @@ const DEPLOY_TARGET_ICONS: Record<string, ReactNode> = {
   kubernetes: <Layers size={16} />,
   systemd: <Settings size={16} />,
   bare_metal: <Cpu size={16} />,
-  proxmox: <Server size={16} />
+  proxmox: <Server size={16} />,
+  proxmox_vm: <HardDrive size={16} />,
+  sndr_daemon: <Terminal size={16} />
 };
 
 function downloadText(filename: string, content: string) {
@@ -136,6 +138,7 @@ export function DeploymentConsole({
           </select>
         </label>
         {params ? (
+          <>
           <InfoRows
             rows={[
               [tr("Tensor parallel"), `${fmtParam(params.tensor_parallel)} GPU`],
@@ -151,6 +154,18 @@ export function DeploymentConsole({
               [tr("Image"), fmtParam(params.image)]
             ]}
           />
+          {Array.isArray(params.argv) && params.argv.length > 0 && (
+            <div className="deploy-argv">
+              <div className="deploy-argv-head">
+                <span className="deploy-argv-label"><Terminal size={12} /> {tr("Resolved vLLM argv")}</span>
+                <CopyButton value={params.argv.join(" ")} label={tr("Copy")} />
+              </div>
+              <div className="deploy-argv-tokens">
+                {params.argv.map((token, i) => <code key={i} className="deploy-argv-token">{token}</code>)}
+              </div>
+            </div>
+          )}
+          </>
         ) : (
           loading ? <SkeletonLines count={5} /> : <p className="muted">{tr("Select a preset to resolve launch parameters.")}</p>
         )}
