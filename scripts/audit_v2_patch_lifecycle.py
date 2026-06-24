@@ -69,6 +69,16 @@ ALLOWED_RETIRED_PATCHES: dict[str, str] = {
         "live on dev148, the previous/rollback pin). Leave enabled until "
         "dev148 rollback is no longer possible, then clean from YAMLs."
     ),
+    "PN353A": (
+        "Pin bump dev148 -> dev301 retire 2026-06-24 — vllm#44053 (TQ "
+        "MetadataBuilder workspace reserve) is native in dev301 (PN353A "
+        "anchor matches 0x; re-anchoring would duplicate the native method). "
+        "Retired + capped <0.23.1rc1.dev301. Env flag GENESIS_ENABLE_PN353A=1 "
+        "is still set in the 27B/35B PROD YAMLs INTENTIONALLY: on dev301 it "
+        "version-gates out cleanly (no apply, no anchor-drift), AND stays "
+        "correct on a dev148 rollback (the fix is NOT in dev148). Leave "
+        "enabled until dev148 rollback is no longer possible, then clean."
+    ),
     "PN22": (
         "0.23.1 reverify 2026-06-17 — vllm#39419 (LocalArgmaxMixin) merged at "
         "bd2d83ff, ancestor of 0.23.1rc1.dev101; mixin native on the deployed "

@@ -5678,6 +5678,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "without duplicating the native method. PN399 (default_off, "
             "after-chain) skips cleanly without PN353A's output."
         ),
+        # Top-level upper bound for the retired_provenance audit (mirrors
+        # PN394/PN400): #44053 is native on dev301, so PN353A is provably
+        # safe to drop on dev301+. applies_to carries the full range below.
+        "vllm_version_range": "<0.23.1rc1.dev301",
         "applies_to": {
             "is_turboquant": True,
             # Upper bound EXCLUDES dev301 (where #44053 landed). Same scheme
