@@ -7639,18 +7639,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "source": "vllm_pr_backport",
         "lifecycle": "experimental",
         "composes_with": [
-            "PN353A", "PN353B", "P98", "P99", "P101", "PN119", "P67", "P67b",
+            "PN353B", "P98", "P99", "P101", "PN119", "P67", "P67b",
         ],
         "conflicts_with": [],
-        "requires_patches": ["PN118", "PN353A", "P101"],
+        "requires_patches": ["PN118", "P101"],
                                         # PN399 anchors the LIVE PN118-applied
-                                        # __init__ box / decode head AND the
-                                        # PN353A-applied reserve block, so BOTH
-                                        # must apply first (registry index >
-                                        # PN118 and PN353A; insertion-order
-                                        # apply runs them first). With either
-                                        # off the dependent sub-patches SKIP
-                                        # cleanly and the IMA defense is off.
+                                        # __init__ box (B') + decode head (C)
+                                        # and the P101-applied module const (A),
+                                        # so BOTH must apply first (registry
+                                        # index > PN118 and P101; insertion-order
+                                        # apply runs them first). With either off
+                                        # the dependent sub-patches SKIP cleanly.
                                         #
                                         # 2026-06-19 (dependency audit): P101
                                         # added — PN399's const sub-patch
@@ -7658,16 +7657,30 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                                         # `_CONTINUATION_DECODE_THRESHOLD = 64`
                                         # +`_CONTINUATION_DECODE_MAX_CACHED_LEN
                                         # = 32768` (pristine has `= 128` and no
-                                        # MAX_CACHED_LEN — confirmed against
-                                        # the dev148 pristine tree). With P101
-                                        # OFF that anchor is absent and the
-                                        # const sub-patch skips. P101 is
-                                        # default_on=False but co-enabled on
-                                        # 35B PROD (GENESIS_ENABLE_P101=1 in the
-                                        # live YAML), same situation as PN353A
-                                        # — so requires (not just composes) is
-                                        # correct: it mirrors the existing
-                                        # anchors-the-LIVE-applied-output edges.
+                                        # MAX_CACHED_LEN). With P101 OFF that
+                                        # anchor is absent and the const sub-
+                                        # patch skips. P101 is default_on=False
+                                        # but co-enabled on 35B PROD
+                                        # (GENESIS_ENABLE_P101=1 in the live
+                                        # YAML).
+                                        #
+                                        # 2026-06-25 (dev148->dev301 re-anchor):
+                                        # PN353A DROPPED from requires_patches
+                                        # AND composes_with. On dev301 vllm#44053
+                                        # MERGED, so the TQ workspace decode
+                                        # reserve is UPSTREAM-NATIVE inside
+                                        # `_reserve_workspace` and PN353A is
+                                        # retired (anchors 0x). PN399's C2 decode-
+                                        # reserve removal now has TWO mutually-
+                                        # exclusive required=False siblings: the
+                                        # PN353A-form (dev148) and the native
+                                        # form (dev301). Exactly one matches per
+                                        # pin; neither needs PN353A enabled on
+                                        # dev301. This re-couples PN399's
+                                        # _DECODE_SCRATCH perf path (was skipping
+                                        # whole-patch on dev301 via the dead C2
+                                        # required=True anchor -> -5.5% decode-TPS
+                                        # regression after the pin bump).
     },
     "PN118_V2_MD5_WORKSPACE": {
         "title": "PN118 v2 — md5+full-file PoC (PN119 reference pattern, workspace.py scope only)",

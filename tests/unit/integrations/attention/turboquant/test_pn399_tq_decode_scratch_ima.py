@@ -281,13 +281,17 @@ def test_apply_removes_pn353a_decode_reserve_keeps_continuation(
     ast.parse(tq_text)
 
 
-def test_apply_requires_pn353a_reserve_block_skips_when_absent(
+def test_apply_soft_skips_c2_when_neither_reserve_form_present(
     env_pn399_on, monkeypatch, tmp_path
 ):
-    """If the PN353A reserve block is absent (PN353A disabled / output not
-    present), C2's required anchor is missing -> the TQ patcher SKIPS cleanly
-    (required_anchor_missing), proving requires_patches:[PN353A] is real."""
-    # Reuse the full synthetic but strip the PN353A reserve block entirely.
+    """dev148->dev301 re-anchor: C2 (decode-reserve removal) is now pin-split
+    into two mutually-exclusive required=False siblings (PN353A form / native
+    form). If NEITHER reserve block is present, BOTH C2 siblings soft-skip but
+    the perf-critical A/B'/C (required=True) still apply -> PN399 = APPLIED.
+    The whole-patch SKIP that the dead required=True C2 used to force on dev301
+    (the -5.5% decode-TPS regression) is gone."""
+    # Reuse the full synthetic but strip the TurboQuantMetadataBuilder (both
+    # reserve forms) entirely.
     syn = _FIXTURE_SYN_TQ.read_text(encoding="utf-8")
     cut = syn.split("\nclass TurboQuantMetadataBuilder:")[0] + "\n"
     tq = tmp_path / "turboquant_attn.py"
@@ -297,25 +301,99 @@ def test_apply_requires_pn353a_reserve_block_skips_when_absent(
     _redirect_resolver(monkeypatch, tq, sd)
 
     status, reason = pn399.apply()
-    assert status == "skipped", reason
+    # Perf path (A/B'/C) lands; only the optional C2 boot-overhead reclaim is
+    # skipped because no reserve block exists to remove.
+    assert status == "applied", reason
+    tq_text = tq.read_text(encoding="utf-8")
+    assert pn399.GENESIS_PN399_MARKER in tq_text
+    # The hot-path fixed buffer + CG branch ARE present (the perf carriers).
+    assert "_DECODE_SCRATCH" in tq_text
+    assert "max_batch = self.max_decode_cudagraph_batch" in tq_text
+    # shutdown wired (TQ patcher succeeded -> reset symbol defined).
+    assert "reset_tq_decode_scratch" in sd.read_text(encoding="utf-8")
+
+
+def test_apply_removes_native_decode_reserve_dev301_form(
+    env_pn399_on, monkeypatch, tmp_path
+):
+    """dev301 native form (vllm#44053 merged): C2's native sibling removes the
+    UPSTREAM `_reserve_workspace` decode get_simultaneous (+ the now-unused
+    max_num_splits assignment) while keeping the continuation-prefill K/V
+    reservation byte-intact. Builds a TurboQuantMetadataBuilder with the native
+    dev301 `_reserve_workspace` body (no PN353A `_genesis_pn353a_torch`)."""
+    # Base synthetic up to the builder, then append the native dev301 form.
+    syn = _FIXTURE_SYN_TQ.read_text(encoding="utf-8")
+    head = syn.split("\nclass TurboQuantMetadataBuilder:")[0] + "\n"
+    native_builder = (
+        "\nclass TurboQuantMetadataBuilder:\n"
+        "    def _reserve_workspace(self) -> None:\n"
+        "        if not is_workspace_manager_initialized():\n"
+        "            return\n"
+        "\n"
+        "        scheduler_config = self.vllm_config.scheduler_config\n"
+        "        model_config = self.vllm_config.model_config\n"
+        "        parallel_config = self.vllm_config.parallel_config\n"
+        "\n"
+        "        max_num_reqs = scheduler_config.max_num_seqs\n"
+        "        num_heads = model_config.get_num_attention_heads(parallel_config)\n"
+        "        num_kv_heads = self.kv_cache_spec.num_kv_heads\n"
+        "        head_size = self.kv_cache_spec.head_size\n"
+        "        max_num_splits = (\n"
+        "            self.vllm_config.attention_config.tq_max_kv_splits_for_cuda_graph\n"
+        "        )\n"
+        "\n"
+        "        current_workspace_manager().get_simultaneous(\n"
+        "            ((max_num_reqs, num_heads, max_num_splits, head_size + 1), torch.float32),\n"
+        "            ((max_num_reqs, num_heads, head_size), model_config.dtype),\n"
+        "            ((max_num_reqs, num_heads), torch.float32),\n"
+        "        )\n"
+        "\n"
+        "        reserve_continuation_prefill = (\n"
+        "            scheduler_config.enable_chunked_prefill\n"
+        "            and scheduler_config.max_num_batched_tokens > _CONTINUATION_DECODE_THRESHOLD\n"
+        "        )\n"
+        "        if not reserve_continuation_prefill:\n"
+        "            return\n"
+        "\n"
+        "        max_cached_len = max(0, model_config.max_model_len - 1)\n"
+        "        alloc_len = round_up(max_cached_len, self.kv_cache_spec.block_size)\n"
+        "        cache_buf_shape = (1, num_kv_heads, alloc_len, head_size)\n"
+        "        current_workspace_manager().get_simultaneous(\n"
+        "            (cache_buf_shape, torch.float16),\n"
+        "            (cache_buf_shape, torch.float16),\n"
+        "        )\n"
+    )
+    tq = tmp_path / "turboquant_attn.py"
+    sd = tmp_path / "shutdown.py"
+    tq.write_text(head + native_builder, encoding="utf-8")
+    sd.write_text(_FIXTURE_SYN_SD.read_text(encoding="utf-8"), encoding="utf-8")
+    _redirect_resolver(monkeypatch, tq, sd)
+
+    status, reason = pn399.apply()
+    assert status == "applied", reason
+    tq_text = tq.read_text(encoding="utf-8")
+
+    # Native decode get_simultaneous + the now-dead max_num_splits assignment
+    # are GONE.
     assert (
-        "required_anchor_missing" in reason
-        or "pn399_pn353a_decode_reserve_remove" in reason
-        or "skipped" in reason.lower()
+        "((max_num_reqs, num_heads, max_num_splits, head_size + 1), torch.float32)"
+        not in tq_text
     )
-    # No partial write: marker absent.
-    assert pn399.GENESIS_PN399_MARKER not in tq.read_text(encoding="utf-8")
-    # TRANSACTION GUARD (deep-audit 2026-06-19): when the TQ patcher SKIPS,
-    # shutdown.py must be left BYTE-UNTOUCHED. shutdown.py's sub-patch wires
-    # `import reset_tq_decode_scratch` — a symbol DEFINED only by the (now
-    # skipped) turboquant_attn.py sub-patches — so applying it alone would
-    # raise ImportError on engine teardown. Before the guard the shutdown
-    # patcher applied independently here (its anchor is pristine-present),
-    # leaving the dangling import; now apply() short-circuits after the TQ
-    # skip and never touches shutdown.py.
-    assert sd.read_text(encoding="utf-8") == _FIXTURE_SYN_SD.read_text(
-        encoding="utf-8"
+    assert (
+        "max_num_splits = (\n"
+        "            self.vllm_config.attention_config.tq_max_kv_splits_for_cuda_graph"
+        not in tq_text
     )
+    # Continuation-prefill K/V reservation BYTE-INTACT.
+    assert "cache_buf_shape = (1, num_kv_heads, alloc_len, head_size)" in tq_text
+    assert tq_text.count("(cache_buf_shape, torch.float16),") == 2
+    # PN353A-form sibling did NOT fire — no PN353A-style reservation usage in
+    # this native-form file (the bare module-level `_genesis_pn353a_torch`
+    # alias in the fixture head is unrelated and harmless).
+    assert "_genesis_pn353a_torch.float32" not in tq_text
+    import ast
+
+    ast.parse(tq_text)
 
 
 def test_apply_shutdown_reset_call_and_import_order(
@@ -441,19 +519,20 @@ def test_registry_pn399_after_pn118_and_dependency_wired():
         "PN118 first (sub-patches B/C anchor the PN118 box)"
     )
 
-    # PN399 still declares PN353A in requires_patches and is ordered after
-    # it (PN353A stays in the registry, only its lifecycle flipped to
-    # retired on dev301). On a pre-dev301 pin PN399 anchors PN353A's
-    # applied reserve block; on dev301 PN353A is upstream-native + retired
-    # so PN399 (default_off) skips cleanly. Ordering invariant unchanged.
-    assert keys.index("PN399") > keys.index("PN353A"), (
-        "PN399 must be placed AFTER PN353A so its applied reserve block "
-        "exists when PN399's C2 removal anchors it (pre-dev301 pins)"
-    )
+    # PN399 still ordered after PN353A (PN353A stays in the registry, only
+    # its lifecycle is retired on dev301). The ordering invariant is benign
+    # whether or not PN353A applies, since PN399's C2 is now pin-split and
+    # required=False.
+    assert keys.index("PN399") > keys.index("PN353A")
 
     pn399_meta = PATCH_REGISTRY["PN399"]
     assert "PN118" in pn399_meta["requires_patches"]
-    assert "PN353A" in pn399_meta["requires_patches"]
+    assert "P101" in pn399_meta["requires_patches"]
+    # dev148->dev301 re-anchor: PN353A DROPPED from requires_patches. On
+    # dev301 vllm#44053 is native + PN353A retired; the native-form C2
+    # sibling anchors the upstream `_reserve_workspace` directly, so PN399
+    # no longer depends on PN353A's applied output.
+    assert "PN353A" not in pn399_meta["requires_patches"]
     assert pn399_meta["default_on"] is False
     assert pn399_meta["lifecycle"] == "experimental"
     assert pn399_meta["applies_to"]["is_turboquant"] is True
@@ -465,11 +544,12 @@ def test_registry_pn399_after_pn118_and_dependency_wired():
     pn118_meta = PATCH_REGISTRY["PN118"]
     assert "PN399" in pn118_meta.get("composes_with", [])
     # PN353A RETIRED on dev301 (vllm#44053 merged native — see PN353A
-    # registry note). PN399 was decoupled from PN353A's composes_with: on
-    # dev301 PN353A cannot apply (anchor matches 0x), so it no longer
-    # supplies a live reserve block for PN399's C2 anchor. PN399 keeps
-    # PN353A in requires_patches (default_off) and skips cleanly when the
-    # dependency is absent — verified by the after-chain skip semantics.
+    # registry note). PN399 is fully decoupled from PN353A: dropped from
+    # both requires_patches and composes_with. The C2 decode-reserve
+    # removal targets either PN353A's text (dev148) or the native
+    # `_reserve_workspace` (dev301) via two mutually-exclusive
+    # required=False siblings.
+    assert "PN353A" not in pn399_meta.get("composes_with", [])
     pn353a_meta = PATCH_REGISTRY["PN353A"]
     assert pn353a_meta["lifecycle"] == "retired"
     assert "PN399" not in pn353a_meta.get("composes_with", [])

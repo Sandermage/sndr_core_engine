@@ -43,10 +43,16 @@ are NOT edited (only registry composes_with notes). Five sub-patches:
     ``torch.empty`` body is left BYTE-UNCHANGED as the eager / over-max
     cold path (the safety net for ``enforce_eager`` / ``B > max_batch``).
   * C2 — ``TurboQuantMetadataBuilder._reserve_workspace``: REMOVE the
-    now-dead PN353A decode-scratch ``get_simultaneous`` reservation. The
-    PN353A CONTINUATION-PREFILL K/V reservation is KEPT BYTE-INTACT —
+    now-dead decode-scratch ``get_simultaneous`` reservation. PIN-SPLIT
+    (two mutually-exclusive ``required=False`` siblings): on dev148 the
+    reservation lives in PN353A's injected text (``_genesis_pn353a_torch``
+    form); on dev301 ``vllm#44053`` MERGED so the reservation is
+    UPSTREAM-NATIVE inside ``_reserve_workspace`` (PN353A retired, anchors
+    0x). Each sibling targets its own pin's form; exactly one matches. The
+    CONTINUATION-PREFILL K/V reservation is KEPT BYTE-INTACT on both —
     PN399 never touches the prefill path (proven distinct call sites on
-    live bytes: separated by the ``reserve_cont`` gate + early return).
+    live bytes: separated by the ``reserve_continuation_prefill`` gate +
+    early return).
   * D  — ``gpu/shutdown.py``: ``reset_tq_decode_scratch`` import + call.
 
 Why removals B'/C2 are safe: the PN118/PN353A decode reservations only
@@ -59,14 +65,16 @@ the ``torch.empty`` one-shot fires — PN118's designed behavior, WITHOUT
 the boot reserve. This single-owner consolidation is BETTER than upstream
 #46067, which has neither PN118 nor PN353A to de-duplicate.
 
-With PN399 OFF/unapplied it produces ZERO change: PN118/PN353A keep
-owning decode + their reservations (the current crash-free PROD
-behavior). This is why PN399 ``requires_patches: [PN118, PN353A]`` and is
-placed in the registry AFTER both (so the PN118 ``__init__`` box + decode
-head and the PN353A reserve block — which the anchors target — exist as
-applied output when PN399 runs). If either is disabled, the IMA defense
-is also off, so an operator running PN399 must keep both on; the
-dependent sub-patches then SKIP cleanly (required anchor missing).
+With PN399 OFF/unapplied it produces ZERO change: PN118 (and, on dev148,
+PN353A) keep owning decode + their reservations (the current crash-free
+PROD behavior). PN399 ``requires_patches: [PN118, P101]`` and is placed in
+the registry AFTER both (so the PN118 ``__init__`` box + decode head and
+the P101 module const — which the A/B'/C anchors target — exist as applied
+output when PN399 runs). The C2 decode-reserve removal needs no `requires`:
+on dev148 it targets PN353A's applied text, on dev301 the upstream-native
+``_reserve_workspace`` (vllm#44053) which exists regardless of any Genesis
+patch. PN353A was DROPPED from ``requires_patches`` on the dev148->dev301
+re-anchor (it is retired on dev301; the native form supplies the anchor).
 
 Lifecycle
 ---------
@@ -377,6 +385,55 @@ TQ_ANCHOR_PN353A_DECODE_RESERVE_NEW = (
 )
 
 
+# Sub-patch C2-native — DEV301 RE-ANCHOR (vllm#44053 merged). On dev301 the
+# TQ workspace reserve is UPSTREAM-NATIVE: TurboQuantMetadataBuilder gained a
+# `_reserve_workspace` method (native #44053) that does the SAME decode-scratch
+# `get_simultaneous` pre-grow PN353A used to inject — but in native text, so
+# PN353A is retired (its `_genesis_pn353a_torch` form anchors 0x on dev301) and
+# the PN353A-form C2 sub-patch above no longer matches. This sibling re-anchors
+# the SAME removal onto the native `_reserve_workspace` body: it excises the
+# native decode-scratch `get_simultaneous` (lines that pre-grow the
+# WorkspaceManager to (max_num_reqs, num_heads, max_num_splits, head_size+1)/f32
+# + 2 more — exactly the buffers _DECODE_SCRATCH now owns on the CG path) PLUS
+# the now-dead `max_num_splits` assignment that ONLY that reservation consumed.
+# The native continuation-prefill K/V reservation (the second get_simultaneous,
+# guarded by reserve_continuation_prefill) is KEPT BYTE-INTACT — PN399 never
+# touches the prefill path. Anchored from the `max_num_splits = (...)` assignment
+# through the decode reservation, DOWN TO the `reserve_continuation_prefill = (`
+# line, which is re-emitted UNCHANGED so the continuation-prefill block below is
+# preserved verbatim. Byte-confirmed unique (count=1) on dev301 pristine AND on
+# the post-PN118/post-P101 applied-state (P101 only touches the module const +
+# the continuation slicer, not `_reserve_workspace`). required=False so it and
+# the PN353A-form sibling are mutually exclusive across pins: dev148 matches the
+# PN353A form, dev301 matches this native form; A/B'/C (the perf carriers) stay
+# required=True and apply on both.
+TQ_ANCHOR_NATIVE_DECODE_RESERVE_OLD = (
+    "        max_num_splits = (\n"
+    "            self.vllm_config.attention_config.tq_max_kv_splits_for_cuda_graph\n"
+    "        )\n"
+    "\n"
+    "        current_workspace_manager().get_simultaneous(\n"
+    "            ((max_num_reqs, num_heads, max_num_splits, head_size + 1), torch.float32),\n"
+    "            ((max_num_reqs, num_heads, head_size), model_config.dtype),\n"
+    "            ((max_num_reqs, num_heads), torch.float32),\n"
+    "        )\n"
+    "\n"
+    "        reserve_continuation_prefill = (\n"
+)
+
+TQ_ANCHOR_NATIVE_DECODE_RESERVE_NEW = (
+    "        # [Genesis PN399 — backport of vllm#46067] Native (vllm#44053)\n"
+    "        # decode-scratch get_simultaneous reservation removed — the\n"
+    "        # module-level _DECODE_SCRATCH fixed buffer owns the CG decode\n"
+    "        # buffers now, so this WorkspaceManager pre-grow is dead weight on\n"
+    "        # the hot path (boot overhead cut). The now-unused max_num_splits\n"
+    "        # assignment is dropped with it. The continuation-prefill K/V\n"
+    "        # reservation below is untouched and stays essential (PN399 never\n"
+    "        # touches the prefill path).\n"
+    "        reserve_continuation_prefill = (\n"
+)
+
+
 # ─────────────────────────────────────────────────────────────────────
 # FILE 2 — shutdown.py — 1 anchor (D import + call). PRISTINE on dev148
 # (live = PR before, byte-for-byte). The import sorts before the existing
@@ -452,11 +509,23 @@ def _make_tq_patcher() -> TextPatcher | None:
                 replacement=TQ_ANCHOR_DECODE_NEW,
                 required=True,
             ),
+            # C2 is pin-split: the PN353A form matches dev148 (PN353A applied),
+            # the native form matches dev301 (vllm#44053 merged, PN353A retired).
+            # Both required=False / mutually exclusive — exactly one matches per
+            # pin. If neither matches (drift), the perf-critical A/B'/C still
+            # apply (only the minor boot-overhead reclaim is skipped). At least
+            # one of A/B'/C is required=True, so an empty apply still SKIPS.
             TextPatch(
                 name="pn399_pn353a_decode_reserve_remove",
                 anchor=TQ_ANCHOR_PN353A_DECODE_RESERVE_OLD,
                 replacement=TQ_ANCHOR_PN353A_DECODE_RESERVE_NEW,
-                required=True,
+                required=False,
+            ),
+            TextPatch(
+                name="pn399_native_decode_reserve_remove",
+                anchor=TQ_ANCHOR_NATIVE_DECODE_RESERVE_OLD,
+                replacement=TQ_ANCHOR_NATIVE_DECODE_RESERVE_NEW,
+                required=False,
             ),
         ],
         upstream_drift_markers=[
@@ -601,6 +670,8 @@ __all__ = [
     "TQ_ANCHOR_DECODE_NEW",
     "TQ_ANCHOR_PN353A_DECODE_RESERVE_OLD",
     "TQ_ANCHOR_PN353A_DECODE_RESERVE_NEW",
+    "TQ_ANCHOR_NATIVE_DECODE_RESERVE_OLD",
+    "TQ_ANCHOR_NATIVE_DECODE_RESERVE_NEW",
     "SHUTDOWN_ANCHOR_OLD",
     "SHUTDOWN_ANCHOR_NEW",
     "apply",
