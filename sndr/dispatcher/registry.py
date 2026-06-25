@@ -6048,9 +6048,34 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "Self-skips once #45614 merges via the exact merged-shape "
             "drift marker. Upstream regression: "
             "test_hybrid_mamba_eagle_does_not_reuse_lookahead_state in "
-            "tests/v1/core/test_prefix_caching.py."
+            "tests/v1/core/test_prefix_caching.py. "
+            "2026-06-25 — folded in a SECOND, required=False DEFENSIVE BELT "
+            "(sub-patch pn346b_mamba_group_post_trim) vendoring ONLY Part B "
+            "of OPEN vllm#46281 (a THIRD independent attempt at the same "
+            "#43559 poison; its Part A is byte-identical to the clamp above "
+            "and adds nothing). Part B mirrors the existing post-loop "
+            "full-attention block truncation for the Mamba group on a simple "
+            "hybrid (FullAttentionManager drops its last EAGLE look-ahead hit "
+            "block but MambaManager does not, leaving the two block lists "
+            "misaligned). LATENT on PROD (APC OFF on our hybrid 27B/35B) and "
+            "largely redundant given PN346's manager-half walk-back, but "
+            "survives the thin window where PN346's manager anchor "
+            "drift-skips while PN346B still applies. Edge-case hardened over "
+            "the PR's bare attention_groups[1] index: guarded on "
+            "is_simple_hybrid AND len(attention_groups) > 1 AND "
+            "isinstance(attention_groups[1].spec, MambaSpec) so it is a "
+            "strict no-op on any non-simple-hybrid / non-Mamba topology. "
+            "required=False so a missing FA-truncation anchor (future "
+            "refactor) soft-skips and the load-bearing Part-A clamp still "
+            "lands. Belt anchor (post-loop FA-truncation block) verified "
+            "byte-present and grep-unique (count==1) on dev424 "
+            "(0.23.1rc1.dev424+g3f5a1e173) pristine source. No new patch id — "
+            "rides PN346B's env flag, lifecycle, and version range."
         ),
         "upstream_pr": 45614,
+        # Part-B defensive belt also vendors OPEN vllm#46281 (Part B only);
+        # provenance documented in `credit`. Kept as a comment (not a new
+        # registry field) to avoid perturbing the doc-gen / contract schema.
         "upstream_pr_relationship": "backport",
         "upstream_issue": 43559,
         # 2026-06-17 (0.23.1 pin-bump): cap bumped <0.23.0 -> <0.24.0, lockstep

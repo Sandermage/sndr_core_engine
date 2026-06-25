@@ -126,6 +126,61 @@ MERGED_COORDINATOR = DEV491_COORDINATOR.replace(
 
 PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/core")
 
+# dev424-form (g3f5a1e173): byte-faithful copy of BOTH the clamp anchor
+# region AND the post-loop full-attention truncation block in
+# v1/core/kv_cache_coordinator.py (lines 668-732). This is the fixture the
+# Part-B Mamba-group post-trim belt (#46281 Part B) folds into PN346B. The
+# `is_simple_hybrid` local is in scope; group[1] is the Mamba group.
+DEV424_COORDINATOR = (
+    "# fake v1/core/kv_cache_coordinator.py (pin g3f5a1e173 / dev424 form)\n"
+    "\n"
+    "\n"
+    "class HybridKVCacheCoordinator:\n"
+    "    def find_longest_cache_hit(self):\n"
+    "        hit_length = self.max_cache_hit_length\n"
+    "        longest_hit_length = 0\n"
+    "        hit_blocks_by_group = [None] * num_groups\n"
+    "        is_simple_hybrid = len(self.attention_groups) == 2 and isinstance(\n"
+    "            self.attention_groups[0].spec, FullAttentionSpec\n"
+    "        )\n"
+    "        eagle_verified = set()\n"
+    "        while True:\n"
+    "            curr_hit_length = hit_length\n"
+    "            for idx, (spec, group_ids, manager_cls, use_eagle) in enumerate(\n"
+    "                self.attention_groups\n"
+    "            ):\n"
+    "                drop_eagle_block = use_eagle and idx not in eagle_verified\n"
+    "                hit_blocks = manager_cls.find_longest_cache_hit()\n"
+    "                _new_hit_length = len(hit_blocks[0]) * spec.block_size\n"
+    "                if drop_eagle_block:\n"
+    "                    eagle_verified.add(idx)\n"
+    "                elif _new_hit_length < curr_hit_length:\n"
+    "                    # length shrunk; invalidate previous eagle verifications\n"
+    "                    eagle_verified.clear()\n"
+    "                curr_hit_length = _new_hit_length\n"
+    "                for group_id, blocks in zip(group_ids, hit_blocks):\n"
+    "                    hit_blocks_by_group[group_id] = blocks\n"
+    "                longest_hit_length = max(longest_hit_length, curr_hit_length)\n"
+    "            if curr_hit_length >= hit_length:\n"
+    "                break\n"
+    "            hit_length = curr_hit_length\n"
+    "            if is_simple_hybrid:\n"
+    "                break\n"
+    "\n"
+    "        # Truncate full attention blocks to final hit_length (if present)\n"
+    "        first_group = self.attention_groups[0]\n"
+    "        if isinstance(first_group.spec, FullAttentionSpec):\n"
+    "            num_blocks = hit_length // first_group.spec.block_size\n"
+    "            for group_id in first_group.group_ids:\n"
+    "                if (blks := hit_blocks_by_group[group_id]) is not None:\n"
+    "                    del blks[num_blocks:]\n"
+    "\n"
+    "        self.num_uncached_common_prefix_tokens = (\n"
+    "            longest_hit_length - hit_length\n"
+    "        )\n"
+    "        return tuple(hit_blocks_by_group), hit_length\n"
+)
+
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -308,6 +363,93 @@ class TestDriftMarkers:
             if dm.startswith("[Genesis"):
                 continue
             assert dm not in marker_line
+
+
+# ── Part-B Mamba-group post-trim belt (#46281 Part B) ────────────────
+# PR vllm#46281 is a THIRD upstream attempt at the same #43559 poison.
+# Part A (curr_hit_length min() clamp) is ALREADY shipped above as the
+# required sub-patch. Part B is a defensive belt: after the loop, mirror
+# the full-attention truncation for the Mamba group so its hit-block list
+# is also trimmed to the final hit_length. Folded into PN346B as a
+# `required=False` sub-patch (NOT a new patch id) — see design t1 §4.
+# Latent on PROD (APC OFF) and largely redundant given PN346's manager
+# walk-back; survives the thin window where PN346's manager anchor
+# drift-skips but PN346B still applies.
+
+
+class TestMambaGroupPostTrimBelt:
+    def test_belt_anchor_constants_exist(self):
+        # The belt carries its own anchor/replacement constants on the
+        # module (distinct from the clamp anchor).
+        assert hasattr(m, "PN346B_MAMBA_TRIM_ANCHOR")
+        assert hasattr(m, "PN346B_MAMBA_TRIM_REPLACE")
+
+    def test_belt_anchor_is_fa_truncation_block(self):
+        # Anchors on the post-loop FA-truncation block (the mirror site).
+        anchor = m.PN346B_MAMBA_TRIM_ANCHOR
+        assert "Truncate full attention blocks to final hit_length" in anchor
+        assert "del blks[num_blocks:]" in anchor
+
+    def test_belt_anchor_unique_on_dev424(self):
+        assert DEV424_COORDINATOR.count(m.PN346B_MAMBA_TRIM_ANCHOR) == 1
+
+    def test_belt_replacement_guards_simple_hybrid_and_mamba(self):
+        # Our edge-case hardening over the raw PR: guard on is_simple_hybrid
+        # AND len>1 AND group[1] is MambaSpec (the PR assumes group[1]
+        # exists). MambaSpec must be referenced for the isinstance guard.
+        repl = m.PN346B_MAMBA_TRIM_REPLACE
+        assert "is_simple_hybrid" in repl
+        assert "MambaSpec" in repl
+        assert "len(self.attention_groups) > 1" in repl
+        # Mirrors the FA del-trim for the Mamba group.
+        assert repl.count("del blks[num_blocks:]") >= 2
+
+    def test_belt_is_required_false_sub_patch(self, tmp_path, monkeypatch):
+        # The belt must be a required=False sub-patch on the SAME patcher
+        # (no new patch id) so a missing FA-trunc anchor soft-skips and
+        # the required clamp still lands.
+        _install_fake(tmp_path, monkeypatch, DEV424_COORDINATOR)
+        patcher = m._make_patcher()
+        assert patcher is not None
+        belt = [
+            sp for sp in patcher.sub_patches
+            if "mamba" in sp.name.lower() and "trim" in sp.name.lower()
+        ]
+        assert len(belt) == 1, "exactly one Mamba-group post-trim belt sub-patch"
+        assert belt[0].required is False
+        # The clamp sub-patch stays required=True.
+        clamp = [
+            sp for sp in patcher.sub_patches if "clamp" in sp.name.lower()
+        ]
+        assert len(clamp) == 1
+        assert clamp[0].required is True
+
+    def test_apply_dev424_installs_both_clamp_and_belt(self, tmp_path, monkeypatch):
+        coord = _install_fake(tmp_path, monkeypatch, DEV424_COORDINATOR)
+        status, reason = m.apply()
+        assert status == "applied", reason
+        out = coord.read_text(encoding="utf-8")
+        # Part A clamp landed.
+        assert "curr_hit_length = min(curr_hit_length, _new_hit_length)" in out
+        # Part B belt landed: a Mamba-group del-trim guarded by the
+        # is_simple_hybrid + MambaSpec check now exists after the FA trim.
+        assert "MambaSpec" in out
+        assert out.count("del blks[num_blocks:]") >= 2
+        assert m.GENESIS_PN346B_MARKER in out
+        compile(out, str(coord), "exec")
+
+    def test_belt_soft_skips_when_fa_trunc_anchor_absent(self, tmp_path, monkeypatch):
+        # On a coordinator form that carries the clamp anchor but NOT the
+        # FA-truncation block (e.g. PROD/dev491 fixtures used elsewhere),
+        # the belt soft-skips while the required clamp still applies.
+        coord = _install_fake(tmp_path, monkeypatch, DEV491_COORDINATOR)
+        status, reason = m.apply()
+        assert status == "applied", reason
+        out = coord.read_text(encoding="utf-8")
+        assert "curr_hit_length = min(curr_hit_length, _new_hit_length)" in out
+        # No FA-trunc anchor in DEV491 fixture → belt soft-skipped, no
+        # spurious Mamba trim injected.
+        assert "MambaSpec" not in out
 
 
 # ── Pristine pin invariants (opportunistic) ──────────────────────────

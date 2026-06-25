@@ -84,6 +84,28 @@ Why we vendor this OPEN PR (not just wait for upstream merge)
     a unit. Composition + default-ON parity guarantee both land
     together on every boot.
 
+Part-B defensive belt (vendor of vllm#46281 Part B)
+===================================================
+
+A SECOND, ``required=False`` sub-patch folds in the Mamba-group
+post-loop truncation from the THIRD independent upstream attempt at the
+same #43559 poison (PR vllm#46281). After the fixed-point loop,
+``find_longest_cache_hit`` already truncates the FULL-ATTENTION group's
+hit-block list to the final ``hit_length``; the belt mirrors that for
+the Mamba group on a simple hybrid (``FullAttentionManager`` drops its
+last hit block on the EAGLE look-ahead path but ``MambaManager`` does
+not, so the two block lists can be left misaligned). It is LATENT on
+PROD (APC OFF on our hybrid 27B/35B) and largely redundant given PN346's
+manager-half walk-back, but survives the thin window where PN346's
+manager anchor drift-skips while PN346B still applies. Guarded on
+``is_simple_hybrid and len(attention_groups) > 1 and
+isinstance(attention_groups[1].spec, MambaSpec)`` (edge-case hardening
+over the PR's bare index assumption) so it is a strict no-op on any
+non-simple-hybrid / non-Mamba topology. ``required=False`` so a missing
+FA-truncation anchor (future refactor) soft-skips and the load-bearing
+Part-A clamp still lands. No new patch id — the belt rides PN346B's
+existing env flag, lifecycle, and version range (design t1 §4).
+
 Composition + safety
 ====================
 
@@ -156,6 +178,78 @@ PN346B_ANCHOR_NEW = (
 )
 
 
+# ── Part-B belt: Mamba-group post-loop truncation (vllm#46281 Part B) ─
+#
+# PR vllm#46281 ("Align hybrid model prefix-cache hit lengths …") is a
+# THIRD, independent upstream attempt at the same #43559 poison. Its
+# Part A (curr_hit_length min() clamp) is byte-identical to what PN346B
+# already ships above, so it adds nothing. Its Part B is a DIFFERENT
+# site: after the fixed-point loop, mirror the existing full-attention
+# block truncation for the Mamba group so the Mamba hit-block list is
+# also trimmed to the final hit_length (FullAttentionManager drops its
+# last hit block on the EAGLE look-ahead path but MambaManager does not,
+# so without the mirror the two block lists can be left misaligned).
+#
+# We fold ONLY Part B into PN346B as a required=False DEFENSIVE BELT
+# (design t1 §4). It is latent on PROD (APC is OFF for our hybrid 27B/35B)
+# and largely redundant given PN346's manager-half walk-back, which makes
+# the final-state block never *considered*. It survives the thin window
+# where PN346's manager anchor drift-skips on a future pin but PN346B
+# still applies — in that window the post-loop Mamba trim is the only
+# thing left trimming the Mamba list.
+#
+# Anchor: the post-loop full-attention truncation block (byte-identical
+# and grep-unique on dev424). Replacement: append a Mamba-group mirror.
+#
+# Edge-case hardening over the raw PR (iron-rule #10): the PR's Part B
+# assumes attention_groups[1] exists and is the Mamba spec. We guard on
+# is_simple_hybrid (the loop-local already computed above) AND
+# len(self.attention_groups) > 1 AND isinstance(...[1].spec, MambaSpec)
+# so the belt is a strict no-op on any non-simple-hybrid / non-Mamba
+# topology rather than an IndexError. required=False so a missing
+# FA-truncation anchor (e.g. a future refactor) soft-skips and the
+# load-bearing Part-A clamp still lands.
+PN346B_MAMBA_TRIM_ANCHOR = (
+    "        # Truncate full attention blocks to final hit_length (if present)\n"
+    "        first_group = self.attention_groups[0]\n"
+    "        if isinstance(first_group.spec, FullAttentionSpec):\n"
+    "            num_blocks = hit_length // first_group.spec.block_size\n"
+    "            for group_id in first_group.group_ids:\n"
+    "                if (blks := hit_blocks_by_group[group_id]) is not None:\n"
+    "                    del blks[num_blocks:]\n"
+)
+
+PN346B_MAMBA_TRIM_REPLACE = (
+    "        # Truncate full attention blocks to final hit_length (if present)\n"
+    "        first_group = self.attention_groups[0]\n"
+    "        if isinstance(first_group.spec, FullAttentionSpec):\n"
+    "            num_blocks = hit_length // first_group.spec.block_size\n"
+    "            for group_id in first_group.group_ids:\n"
+    "                if (blks := hit_blocks_by_group[group_id]) is not None:\n"
+    "                    del blks[num_blocks:]\n"
+    "\n"
+    "        # [Genesis PN346B Part-B belt vendor of vllm#46281] Mirror the\n"
+    "        # full-attention truncation above for the Mamba group on a simple\n"
+    "        # hybrid. FullAttentionManager drops its last hit block on the\n"
+    "        # EAGLE look-ahead path but MambaManager does not, so the two block\n"
+    "        # lists can be left misaligned; trim the Mamba group to the final\n"
+    "        # hit_length too. Defensive belt (APC OFF on our hybrid, and PN346's\n"
+    "        # manager walk-back already handles the common case) that survives a\n"
+    "        # PN346 manager-half anchor drift-skip. Guarded so it is a strict\n"
+    "        # no-op on any non-simple-hybrid / non-Mamba topology.\n"
+    "        if (\n"
+    "            is_simple_hybrid\n"
+    "            and len(self.attention_groups) > 1\n"
+    "            and isinstance(self.attention_groups[1].spec, MambaSpec)\n"
+    "        ):\n"
+    "            second_group = self.attention_groups[1]\n"
+    "            num_blocks = hit_length // second_group.spec.block_size\n"
+    "            for group_id in second_group.group_ids:\n"
+    "                if (blks := hit_blocks_by_group[group_id]) is not None:\n"
+    "                    del blks[num_blocks:]\n"
+)
+
+
 def _env_disabled() -> bool:
     return os.environ.get("GENESIS_DISABLE_PN346B", "").strip().lower() in (
         "1", "true", "yes", "on",
@@ -181,6 +275,17 @@ def _make_patcher() -> Optional[TextPatcher]:
                 anchor=PN346B_ANCHOR_OLD,
                 replacement=PN346B_ANCHOR_NEW,
                 required=True,
+            ),
+            # Part-B belt (vllm#46281 Part B): post-loop Mamba-group
+            # truncation mirror. required=False — a missing FA-truncation
+            # anchor (future refactor) soft-skips while the load-bearing
+            # clamp above still lands. Latent on PROD (APC OFF); composes
+            # with PN346's manager walk-back (this is the post-loop belt).
+            TextPatch(
+                name="pn346b_mamba_group_post_trim",
+                anchor=PN346B_MAMBA_TRIM_ANCHOR,
+                replacement=PN346B_MAMBA_TRIM_REPLACE,
+                required=False,
             ),
         ],
         upstream_drift_markers=[
