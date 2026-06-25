@@ -735,6 +735,16 @@ def create_app(
 
         return shadow_status()
 
+    @app.get("/api/v1/patches/preflight")
+    async def patches_preflight() -> dict[str, Any]:
+        """Runtime preflight against the RUNNING engine: PN60 quantization-arg
+        validator (reads config.json via the /models mount) + club#43 grammar-
+        rejection and club#34 spec-decode token-loop log scans. Read-only;
+        fail-safe (``error`` tag off-engine, never a 500)."""
+        from .patches.preflight_status import preflight_status
+
+        return preflight_status()
+
     @app.get("/api/v1/license")
     async def license_status() -> dict[str, Any]:
         """License + sndr_engine tier status — installed?, entitled?, subject/expiry,

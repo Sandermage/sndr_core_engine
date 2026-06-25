@@ -5396,3 +5396,20 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 /* Batch E small surfacing */
 .fleet-rel-state.warn { color: var(--warn, #d29922); }
 .bundle-import-error { color: var(--danger, #f85149); font-weight: 600; cursor: help; }
+
+/* Runtime preflight checks (Patches → integrity) */
+.preflight-checks { display: flex; flex-direction: column; gap: 5px; }
+.preflight-check { display: grid; grid-template-columns: 92px 1fr; gap: 10px; align-items: start;
+  padding: 6px 8px; border-radius: 6px; background: var(--panel-2, rgba(255,255,255,0.03)); font-size: 12px; }
+.preflight-check.danger { border-left: 3px solid var(--danger, #f85149); }
+.preflight-check.warn { border-left: 3px solid var(--warn, #d29922); }
+.preflight-check.info { border-left: 3px solid var(--info, #58a6ff); }
+.preflight-check.ok { border-left: 3px solid var(--ok, #3fb950); }
+.preflight-sev { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 11px; }
+.preflight-sev.danger { color: var(--danger, #f85149); }
+.preflight-sev.warn { color: var(--warn, #d29922); }
+.preflight-sev.info { color: var(--info, #58a6ff); }
+.preflight-sev.ok { color: var(--ok, #3fb950); }
+.preflight-body { display: flex; flex-direction: column; gap: 2px; }
+.preflight-msg { color: var(--muted-text); }
+.preflight-fix { color: var(--info, #58a6ff); font-size: 11px; }

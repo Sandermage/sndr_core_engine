@@ -21,6 +21,7 @@ import { BundlesPanel, UpstreamDiffPanel } from "./registry";
 import { AnchorManifestPanel } from "./anchor-manifest";
 import { RetireImpactPanel } from "./retire-impact";
 import { ApplyShadowPanel } from "./apply-shadow";
+import { PreflightPanel } from "./preflight";
 
 export function PatchesSection({
   patches,
@@ -109,6 +110,9 @@ export function PatchesSection({
                   </ModuleCard>
                   <ModuleCard title={tr("Apply-Order Shadow")} icon={<ShieldAlert size={18} />} desc={tr("Legacy per-patch apply loop vs the spec-driven loop. spec-boot-unsafe = patches the legacy loop applies that would silently drop under SNDR_APPLY_VIA_SPECS=1 — a healthy-looking boot quietly missing patches.")} wide>
                     <ApplyShadowPanel />
+                  </ModuleCard>
+                  <ModuleCard title={tr("Runtime Preflight")} icon={<ListChecks size={18} />} desc={tr("Runs the preflight checks against the running engine: PN60 quantization-arg validator + club#43 grammar-rejection and club#34 spec-decode token-loop log scans.")} wide>
+                    <PreflightPanel />
                   </ModuleCard>
                 </ModuleGrid>
               )

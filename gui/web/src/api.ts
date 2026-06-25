@@ -1078,6 +1078,20 @@ export type RetireImpactReport = {
   error?: string;
 };
 
+export type PreflightCheck = {
+  name: string;
+  severity: "OK" | "INFO" | "WARN" | "ERROR" | string;
+  message?: string;
+  remediation?: string;
+};
+export type PreflightReport = {
+  checks: PreflightCheck[];
+  counts: Record<string, number>;
+  container: string | null;
+  model_dir: string | null;
+  error?: string;
+};
+
 export type ShadowReport = {
   legacy_count: number;
   spec_count: number;
@@ -1407,6 +1421,7 @@ export const api = {
   patchManifest: (signal?: AbortSignal) => request<PatchManifestStatus>("/api/v1/patches/manifest", { signal }),
   retireImpact: (signal?: AbortSignal) => request<RetireImpactReport>("/api/v1/patches/retire-impact", { signal }),
   patchShadow: (signal?: AbortSignal) => request<ShadowReport>("/api/v1/patches/shadow", { signal }),
+  patchPreflight: (signal?: AbortSignal) => request<PreflightReport>("/api/v1/patches/preflight", { signal }),
   doctor: () => request<DoctorReport>("/api/v1/doctor"),
   memoryFit: (params: { model_id: string; hardware_id: string }, signal?: AbortSignal) =>
     request<MemoryFitReport>(`/api/v1/memory/fit${query(params)}`, { signal }),
