@@ -52,6 +52,67 @@ watch:
     required, force --kv-cache-dtype fp8 (issue-confirmed workaround). When
     #43650 merges, take the final-mamba-block-drop fix. Gemma-4-26B-A4B is
     NOT hybrid -> unaffected.
+- upstream: vllm#46384
+  status: open
+  severity: P0-correctness
+  local_patches:
+  - PN346
+  - PN346B
+  affects_models:
+  - Qwen3.6-35B-A3B-FP8
+  - Qwen3.6-27B-int4-AutoRound
+  action: drift-check
+  since: 2026-06-26
+  notes: |
+    INCOMING ANCHOR-DRIFT (deep re-study 2026-06-26, pin dev424
+    0.23.1rc1.dev424+g3f5a1e173). #46384 ("[2/N] partial prefix-cache hits in
+    hybrid coordinator") is an UNCONDITIONAL structural rewrite of
+    find_longest_cache_hit in BOTH v1/core/kv_cache_coordinator.py AND
+    v1/core/single_type_kv_cache_manager.py — the exact files+regions PN346
+    (manager half, vendor #43650) and PN346B (coordinator curr_hit_length
+    clamp #45614 + Part-B FA/Mamba post-trim belt #46281) anchor into with
+    required=True sub-patches. NOT a runtime bug for us today: the partial-hash
+    DATA path is gated on enable_partial_hash_hits (needs
+    mamba_cache_mode="align"; PROD runs "none" -> inert). BUT the rewrite is
+    mode-independent: it deletes the _get_block_hashes closure, reshapes the
+    clamp region (_new_hit_length -> get_cache_hit_length, cdiv truncation,
+    KVCacheBlockListWithHitLength) and edits the MambaManager loop region. On
+    the pin that carries #46384 the PN346/PN346B required anchors VANISH -> the
+    transactional patcher SKIPs -> SILENT LOSS of the #43559 Mamba+EAGLE/MTP+APC
+    poison guard (the exact 35B-A3B MTP+APC path #43559 targets). The anchor-SOT
+    bump_preflight catches this mechanically (PN346/PN346B land in
+    genuine_anchor_drift on the carrying pin); this entry records the PLAN.
+    ACTION on merge: re-anchor PN346 onto the new MambaManager partial branch;
+    for PN346B verify whether the merged clamp (get_cache_hit_length + cdiv)
+    already encodes the monotonic-min — if so RETIRE PN346B Part-A, else
+    RE-ANCHOR onto the new clamp shape; re-derive the Part-B belt against the
+    cdiv truncation. Do NOT vendor #46384 itself (half-merged [2/N] partial-hash
+    machine, inert on mamba_cache_mode="none"). Cross-ref sweep: pr 46384.
+- upstream: vllm#46446
+  status: open
+  severity: P3-perf
+  local_patches:
+  - PN129
+  affects_models:
+  - Qwen3.6-35B-A3B-FP8
+  - Qwen3.6-27B-int4-AutoRound
+  action: retire
+  since: 2026-06-26
+  notes: |
+    RETIRE-ON-MERGE (deep re-study 2026-06-26). #46446 ("Warm up slot-mapping
+    kernel through BlockTable") adds BlockTable.warmup_compute_slot_mapping()
+    (+ MultiGroupBlockTable fan-out), called from
+    gpu_worker.compile_or_warm_up_model before cudagraph capture — the CLEAN
+    upstream of PN129 (both vendor #42165). PN129 monkeypatches
+    Worker.compile_or_warm_up_model and pokes the private Triton
+    do_not_specialize attribute (self-documented hacky); #46446 does it the
+    supported way (real compute_slot_mapping over multiple shapes via
+    BlockTable, no private-API poke) and runs for MultiGroupBlockTable which our
+    hybrid (FA+GDN+Mamba) uses. PN129 is default-OFF and NOT enabled on prod
+    YAMLs -> NO correctness exposure (boot-JIT latency only). ACTION on merge:
+    retire PN129 entirely. OPTIONAL before merge: re-base PN129 onto #46446's
+    warmup_compute_slot_mapping (drop the private-Triton hack). Not urgent.
+    Cross-ref sweep: pr 46446.
 - upstream: vllm#38999
   status: open
   severity: P1-crash
@@ -716,6 +777,40 @@ watch:
     alignment. Track only so a future odd/non-pow2 head-dim model would not silently hit the misaligned
     store landmine. Free on bump. 2026-06-19 loop kernel scan.'
 sweep:
+- pr: 46384
+  genesis_patch: PN346, PN346B
+  trigger: reanchor-on-merge
+  note: 'INCOMING ANCHOR-DRIFT (deep re-study 2026-06-26, dev424 3f5a1e173). #46384 ("[2/N]
+    partial prefix-cache hits in hybrid coordinator") is an UNCONDITIONAL structural rewrite of
+    find_longest_cache_hit in BOTH v1/core/kv_cache_coordinator.py AND
+    v1/core/single_type_kv_cache_manager.py — the exact files+regions PN346 (manager half, vendor
+    #43650) and PN346B (coordinator curr_hit_length clamp #45614 + Part-B FA/Mamba post-trim belt
+    #46281) anchor into with required=True sub-patches. NOT a runtime bug for us today: its partial-hash
+    DATA path is gated on enable_partial_hash_hits (needs mamba_cache_mode="align"; PROD runs "none" so
+    the feature is inert). BUT the rewrite is mode-independent — it DELETES the _get_block_hashes closure,
+    reshapes the clamp region (_new_hit_length -> get_cache_hit_length, cdiv truncation,
+    KVCacheBlockListWithHitLength), and edits the MambaManager loop region. On the pin that carries #46384
+    PN346/PN346B required anchors will be ABSENT -> the transactional patcher SKIPs -> silent LOSS of the
+    #43559 Mamba+EAGLE/MTP+APC poison guard on the exact 35B-A3B MTP+APC path #43559 targets. On merge:
+    re-anchor PN346 onto the new MambaManager partial branch; for PN346B check whether the merged clamp
+    (get_cache_hit_length + cdiv) already encodes the monotonic-min — if so PN346B Part-A is a RETIRE
+    candidate, else RE-ANCHOR onto the new clamp shape; re-derive the Part-B belt against the cdiv
+    truncation. The anchor-SOT build_manifest already surfaces this mechanically (PN346/PN346B land in
+    genuine_anchor_drift on the carrying pin); this row records the re-anchor-vs-retire DECISION + the
+    #43559 guard rationale the mechanical detector cannot infer. Also tracked in the watch: section above.'
+- pr: 46446
+  genesis_patch: PN129
+  trigger: retire-on-merge
+  note: 'RETIRE-ON-MERGE (deep re-study 2026-06-26). #46446 ("Warm up slot-mapping kernel through
+    BlockTable") adds BlockTable.warmup_compute_slot_mapping() (+ MultiGroupBlockTable fan-out) called
+    from gpu_worker.compile_or_warm_up_model before cudagraph capture — the CLEAN upstream of PN129 (both
+    vendor #42165). PN129 monkeypatches Worker.compile_or_warm_up_model and pokes the private Triton
+    do_not_specialize attribute (self-documented hacky); #46446 does it the supported way (real
+    compute_slot_mapping over multiple shapes via BlockTable, covering more specializations, no private-API
+    poke) and runs for MultiGroupBlockTable which our hybrid (FA+GDN+Mamba) uses. PN129 is default-OFF and
+    NOT enabled on prod YAMLs (no correctness exposure; boot-JIT latency only). On merge: retire PN129
+    entirely. OPTIONAL before merge: re-base PN129 onto #46446 warmup_compute_slot_mapping (drop the
+    private-Triton hack). Not urgent.'
 - pr: 42006
   genesis_patch: G4_T1
   trigger: retire-on-merge

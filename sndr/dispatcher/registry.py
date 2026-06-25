@@ -1852,6 +1852,16 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport of vllm-project/vllm#42165 by Sandermage 2026-05-15.",
         "upstream_pr": 42165,
         "upstream_pr_relationship": "backport",
+        # RETIRE-ON-MERGE WATCH (deep re-study 2026-06-26): OPEN vllm#46446 ("Warm up
+        # slot-mapping kernel through BlockTable") is the CLEAN upstream of this patch
+        # (both vendor #42165). #46446 adds BlockTable.warmup_compute_slot_mapping()
+        # the supported way (real compute_slot_mapping over multiple shapes, no
+        # private-Triton do_not_specialize poke) and covers MultiGroupBlockTable, which
+        # our hybrid uses. PN129 is default-OFF + NOT on prod YAMLs (no correctness
+        # exposure; boot-JIT only). On merge: RETIRE PN129. Optional before merge:
+        # re-base PN129 onto #46446's warmup_compute_slot_mapping. Plan in
+        # tools/upstream_watchlist.yaml (sweep pr 46446 retire-on-merge +
+        # watch vllm#46446).
         "requires_patches": [],
         "conflicts_with": [],
         "applies_to": {
@@ -6022,6 +6032,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # forces a re-verify. Lockstep with sibling PN346B (coordinator half).
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
+        # INCOMING ANCHOR-DRIFT WATCH (deep re-study 2026-06-26): OPEN vllm#46384
+        # ("[2/N] partial prefix-cache hits in hybrid coordinator") unconditionally
+        # rewrites find_longest_cache_hit in single_type_kv_cache_manager.py — the
+        # exact region this patch's required anchor lives in. On the pin that carries
+        # #46384 the anchor VANISHES -> patcher SKIPs -> silent loss of the #43559
+        # poison guard. NOT a runtime bug today (its data path is gated on
+        # mamba_cache_mode="align"; PROD runs "none"). On merge: RE-ANCHOR PN346 onto
+        # the new MambaManager partial branch. Mechanically surfaced by the anchor-SOT
+        # bump_preflight (genuine_anchor_drift); plan recorded in
+        # tools/upstream_watchlist.yaml (sweep pr 46384 reanchor-on-merge +
+        # watch vllm#46384). Lockstep with sibling PN346B.
         # PN346B: coordinator half of the SAME fix (#45614) — manager
         # half (PN346) and coordinator half MUST ship together.
         "composes_with": ["PN340", "PN341", "PN345", "P85", "PN346B"],  # P85: Site 2 dual variants, PN346 first
@@ -6107,6 +6128,19 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # one of PN346/PN346B uncapped) is worse than none, so both move together.
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.24.0")},
         "implementation_status": "full",
+        # INCOMING ANCHOR-DRIFT WATCH (deep re-study 2026-06-26): OPEN vllm#46384
+        # rewrites find_longest_cache_hit in kv_cache_coordinator.py, reshaping the
+        # exact clamp region this patch's required Part-A anchor + the Part-B
+        # FA-truncation anchor live in (_new_hit_length -> get_cache_hit_length, cdiv
+        # truncation, KVCacheBlockListWithHitLength). On the pin that carries #46384
+        # both anchors VANISH -> patcher SKIPs -> silent loss of the #43559 guard. NOT
+        # a runtime bug today (#46384 partial-hash path gated on mamba_cache_mode=
+        # "align"; PROD runs "none"). On merge: verify whether the merged clamp already
+        # encodes the monotonic-min — if so PN346B Part-A is a RETIRE candidate, else
+        # RE-ANCHOR onto the new shape; re-derive Part-B against the cdiv truncation.
+        # Mechanically surfaced by anchor-SOT bump_preflight; plan in
+        # tools/upstream_watchlist.yaml (sweep pr 46384 reanchor-on-merge +
+        # watch vllm#46384). Lockstep with sibling PN346.
         # PN346: the sibling MANAGER half — the two MUST ship together.
         "composes_with": ["PN346", "PN340", "PN341", "PN345"],
     },
