@@ -926,7 +926,7 @@
   {
     "patch_id": "PN386",
     "family": "tool_parsing",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN386_REQUIRED_STREAMING_STRING_AWARE",

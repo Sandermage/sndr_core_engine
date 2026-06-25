@@ -636,6 +636,40 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     # previous/rollback per CLAUDE.md ≤2-pin policy.
     "0.23.1rc1.dev301+g04c2a8dea",                       # setuptools_scm-derived
     "nightly-04c2a8dea",                                 # docker tag form (short)
+    # ── PROD pin PROMOTION dev424 2026-06-25 ──────────────────────────
+    # Image: vllm/vllm-openai:nightly-3f5a1e1733200760169ff31ebe60a271072b199e
+    # (0.23.1rc1.dev424+g3f5a1e173, commit 3f5a1e173, +123 commits over
+    # dev301, no breaking headline). Content digest
+    # sha256:c4fac672fcab4560b6572cc216ddbde94b5ed28f90cc8119b996fc868fe728d4.
+    # PROMOTED 2026-06-25: operator-authorized bump dev301 -> dev424.
+    # VALIDATED (apples-to-apples canonical genesis_bench_suite.py --quick,
+    # same-session same-harness):
+    #   - 35B-A3B FP8 TQ k8v4 + MTP K=5: 244.35 TPS (CV 6.2%) vs dev301
+    #     234.77 = +4.08% (NO regression); decode_TPOT 3.87 ms (-4.5%);
+    #     tool-call 7/7 + get_weather {"city":"Berlin"} (qwen3_xml, no leak);
+    #     Paris coherent finish=stop; boot applied=101 failed=0; no CUDA IMA.
+    #   - 27B Lorbus INT4 hybrid GDN+Mamba (bisect launcher, decode A/B):
+    #     134.53 TPS vs dev301 134.90 = -0.27% (net-neutral, within 16% CV);
+    #     coherent (raw completion "Paris"); applied=37 failed=0; no IMA.
+    #   - Gemma-4-26B-A4B AWQ MoE: Paris + get_weather Berlin (gemma4
+    #     parser); failed=0; no IMA.
+    #   - Gemma-4-31B-it AWQ TQ + MTP kv-auto: Paris + 6x7=42 (no degenerate
+    #     loop) + get_weather Berlin; applied=68/75 failed=0; no IMA.
+    # ANCHOR-SOT regen (pins/0.23.1_3f5a1e173): 204 discovered = 144 ok + 60
+    # rej; genuine_anchor_drift=4 = PN386 (vllm#45389 MERGED 2026-06-23, IN
+    # dev424 — RETIRED, iron-rule-#11 (a) byte-equivalent). DOGFOOD
+    # bump_preflight dev301->dev424 = EXIT 1: (a) NO newly-retired vs dev301,
+    # (b) HIGH PN353A->PN399 (the static perf edge — MITIGATED: PN399's
+    # native C2 sibling pn399_native_decode_reserve_remove APPLIED on the
+    # dev424 35B boot; +4.08% bench proves no perf no-op), (c) NO perf
+    # landmines. The HIGH edge cleared by the canonical A/B above (gate's
+    # exit-1 remediation path). PN399 needs NO re-anchor on dev424.
+    # dev301 (nightly-04c2a8dea) retained above as the previous/rollback pin
+    # per CLAUDE.md ≤2-pin policy (dev148 nightly-b4c80ec0f also kept on the
+    # rig pending operator decision — policy allows dropping it now dev424
+    # validated).
+    "0.23.1rc1.dev424+g3f5a1e173",                       # setuptools_scm-derived
+    "nightly-3f5a1e1733200760169ff31ebe60a271072b199e",  # docker tag form (full SHA)
 )
 
 

@@ -2824,7 +2824,20 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "tool_parsing",
         "env_flag": "GENESIS_ENABLE_PN386_REQUIRED_STREAMING_STRING_AWARE",
         "default_on": False,
-        "lifecycle": "experimental",
+        # RETIRED 2026-06-25 (pin bump dev301 -> dev424): vllm#45389 MERGED
+        # 2026-06-23 (mergeCommit 899d72a5), IN dev424 (was OK on dev301 —
+        # the dev424 anchor-SOT regen flagged all 4 sub-anchors as
+        # anchor_drift, and the dev424 pristine tool_parsers/streaming.py
+        # carries _bracket_level_state + the in_string state machine + BOTH
+        # PR drift markers, byte-verified in-container). Deep-diff iron-rule
+        # #11 outcome (a): the upstream native form is byte-equivalent — our
+        # divergences are spelling-only (documented in the patch docstring),
+        # so PN386 does NOT do more than #45389. Default-off and enabled in
+        # no PROD config, so retiring loses nothing. The runtime drift-marker
+        # already self-skips on dev424; this is the FORMAL retire marking.
+        # Sibling #45310 (Hermes </tool_call> boundary) is a SEPARATE patch,
+        # unaffected.
+        "lifecycle": "retired",
         # category=structured_output (the tool_parsing-sibling convention;
         # VALID_CATEGORIES has no 'tool_calling'). PN385 uses the same.
         "category": "structured_output",
@@ -2863,8 +2876,21 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["P68"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
-        "vllm_version_range": (">=0.22.0", "<0.24.0"),
+        # RETIRED on dev424: cap the applies_to upper bound to <dev424 so the
+        # version gate self-skips on dev424+, AND mirror at top level for
+        # iron-rule-#11 provenance. Still applies through dev301 (the
+        # previous/rollback pin), where #45389 is NOT yet merged.
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.1rc1.dev424")},
+        "vllm_version_range": "<0.23.1rc1.dev424",
+        "superseded_by": (
+            "vllm#45389 (MERGED 2026-06-23, mergeCommit 899d72a5, IN dev424 — "
+            "required-tool streaming bracket scan is JSON-string-aware "
+            "natively: _bracket_level_state + in_string state machine present "
+            "in dev424 tool_parsers/streaming.py, byte-verified in-container; "
+            "4 sub-anchors drifted on the dev424 anchor-SOT regen). "
+            "Deep-diff iron-rule-#11 (a): byte-equivalent (spelling-only "
+            "Genesis divergences). Applies through dev301; retired on dev424+."
+        ),
     },
     "PN387": {
         "title": "Reject degenerate structured_outputs (DoS guard, vendor of vllm#45346)",

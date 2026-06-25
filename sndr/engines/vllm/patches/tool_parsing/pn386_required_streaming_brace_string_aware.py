@@ -1,6 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN386 — required-tool streaming brace JSON-string-awareness (vendor of vllm#45389).
 
+RETIRED 2026-06-25 (pin bump dev301 -> dev424) — superseded by vllm#45389,
+which MERGED 2026-06-23 (mergeCommit 899d72a5) and is IN dev424. The dev424
+pristine tool_parsers/streaming.py carries _bracket_level_state + the in_string
+state machine + both PR drift markers (byte-verified in-container); the dev424
+anchor-SOT regen flagged all 4 sub-anchors as anchor_drift. Iron-rule-#11
+outcome (a): byte-equivalent (Genesis divergences are spelling-only, below).
+Registry lifecycle=retired, capped <0.23.1rc1.dev424. The transform below is
+UNCHANGED and still applies on dev301 (the previous/rollback pin, where #45389
+is NOT yet merged); on dev424+ the version cap + the merged-form drift markers
+self-skip it. Default-off and enabled in no PROD config, so the retire is a
+no-op on the deployed fleet. Do not delete the module while dev301 rollback is
+possible. Sibling #45310 (Hermes </tool_call> boundary) is a SEPARATE patch,
+unaffected.
+
 Upstream bug class (vllm#45389, related #41111)
 -----------------------------------------------
 In ``tool_choice="required"`` STREAMING, vLLM trims the streamed

@@ -137,6 +137,17 @@ ALLOWED_MODELDEF_PINS = frozenset({
     # once it is captured; until then the ModelDefs carry a pin_hold waiver
     # (see audit_v2_modeldef_vs_hardware_pin R-MD-HW-2).
     "0.23.1rc1.dev301+g04c2a8dea",
+    # ── Canonical PROD pin 0.23.1 dev424 (PROMOTED 2026-06-25) ───────────
+    # Image vllm/vllm-openai:nightly-3f5a1e173 (0.23.1rc1.dev424+g3f5a1e173,
+    # +123 commits over dev301). Operator-authorized bump dev301 -> dev424.
+    # Apples-to-apples canonical bench: 35B 244.35 TPS vs dev301 234.77 =
+    # +4.08% (NO regression); 27B net-neutral; Gemma 26B/31B smoke PASS.
+    # DOGFOOD bump_preflight = EXIT 1 (HIGH PN353A->PN399 static edge,
+    # MITIGATED by PN399 native C2 + the A/B); PN386 retired (vllm#45389
+    # merged, IN dev424). See guards.py KNOWN_GOOD + test_pin_gate
+    # EXPECTED_PINS. dev301 retained as previous/rollback per CLAUDE.md
+    # ≤2-pin policy.
+    "0.23.1rc1.dev424+g3f5a1e173",
 })
 
 # Gemma family ModelDefs are expected to be on dev371 (validated path).
@@ -166,7 +177,12 @@ QWEN_PREFIX = "qwen"
 # remain documented, and the rollback-protection still works against the
 # canonical pin). On the next pin bump, update CANONICAL_PIN_SUBSTRING
 # (and ALLOWED_MODELDEF_PINS) to the new fleet pin.
-CANONICAL_PIN_SUBSTRING = "dev301"
+#
+# Bumped 2026-06-25 (dev301 -> dev424): operator-authorized pin upgrade,
+# validated (35B +4.08% / 27B net-neutral / Gemma 26B+31B smoke PASS). All
+# 11 ModelDef vllm_pin_required values move to 0.23.1rc1.dev424+g3f5a1e173.
+# dev301 stays in ALLOWED_MODELDEF_PINS as the rollback bucket.
+CANONICAL_PIN_SUBSTRING = "dev424"
 
 # ─── DFlash dev371 hold (P2.DFlash 2026-05-21) ─────────────────────────
 #

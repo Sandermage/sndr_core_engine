@@ -115,6 +115,90 @@ it on publish — pyproject.toml holds the release version.)
 
 ---
 
+## [Unreleased] — vLLM pin bump dev301 → dev424 (2026-06-25)
+
+### Highlights
+
+- **vLLM pin promoted `0.23.1rc1.dev301+g04c2a8dea` → `0.23.1rc1.dev424+g3f5a1e173`**
+  (image `vllm/vllm-openai:nightly-3f5a1e1733200760169ff31ebe60a271072b199e`,
+  commit `3f5a1e173`, +123 commits over dev301, no breaking headline; content
+  digest `sha256:c4fac672fcab…`). Operator-authorized. dev301 retained as the
+  previous/rollback pin per CLAUDE.md ≤2-pin policy (dev148 also kept on the rig
+  pending operator decision). **First bump to DOGFOOD the new anchor-SOT bump
+  tooling** (`scripts/anchor_sot/bump_preflight.py` + `retire_impact.py` +
+  `rebuild_pin.sh`).
+
+### Patches changed
+
+- **PN386 RETIRED on dev424** (`lifecycle: retired`, `superseded_by: vllm#45389`,
+  capped `< 0.23.1rc1.dev424`). Iron-rule-#11 outcome (a): vllm#45389
+  (required-tool streaming brace JSON-string-awareness) MERGED 2026-06-23
+  (mergeCommit `899d72a5`), IN dev424. The dev424 anchor-SOT regen flagged all 4
+  PN386 sub-anchors as `anchor_drift`; the dev424 pristine `tool_parsers/
+  streaming.py` carries `_bracket_level_state` + the `in_string` state machine +
+  BOTH PR drift markers (byte-verified in-container). Genesis divergences are
+  spelling-only (documented), so PN386 does NOT do more than upstream. Default-off
+  and enabled in no PROD config, so the retire loses nothing. Applies through
+  dev301 (rollback); retired on dev424+.
+- **PN399 — NO re-anchor needed on dev424.** The single genuine-drift class the
+  bump tooling guards against (the dev148→dev301 −5.5% silent perf no-op) did NOT
+  recur. PN399's pin-split C2 sibling `pn399_native_decode_reserve_remove`
+  (targeting native vllm#44053, in dev301 AND dev424) APPLIED on the dev424 35B
+  boot (`applied 4 sub-patches`), the PN353A-form sibling soft-skipped as designed,
+  and the perf carriers A/B'/C all applied. The +4.08% 35B bench confirms the perf
+  path is LIVE, not no-op'd. PN353A/PN394/PN400 stay retired (native forms supply
+  anchors). PN286/P67/P67b applied; PN382 version-range still admits dev424.
+
+### Bench / measurements (apples-to-apples canonical `genesis_bench_suite.py --quick`, same session)
+
+| Model | dev301 | dev424 | Δ | Regression |
+|---|---:|---:|---:|---|
+| **35B-A3B FP8 TQ k8v4 + MTP K=5** wall_TPS | 234.77 | **244.35** | **+4.08 %** | NO (improvement); TPOT 4.05 → 3.87 ms; tool-call 7/7 |
+| **27B Lorbus INT4 hybrid GDN+Mamba** (bisect launcher, decode A/B) wall_TPS | 134.90 | 134.53 | −0.27 % | NO (net-neutral, within 16 % CV) |
+| **Gemma-4-26B-A4B AWQ MoE** | smoke | PASS | — | NO (Paris + get_weather Berlin, failed=0, no IMA) |
+| **Gemma-4-31B-it AWQ TQ + MTP kv-auto** | smoke | PASS | — | NO (Paris + 6×7=42 + get_weather, applied=68/75 failed=0, no IMA) |
+
+### Audit findings
+
+- **DOGFOOD `bump_preflight.py` dev301 → dev424 = EXIT 1 (FAIL, correct).** The
+  gate caught the perf-relevant edge: (a) **NO newly-retired/gated-out vs dev301**
+  (the 123-commit delta retired nothing new — PN353A/PN394/PN400 were already
+  retired on dev301); (b) **HIGH `PN353A → PN399`** (the load-bearing anchor-name
+  edge the tool was built to surface) + 11 MEDIUM declared-cooperation edges;
+  (c) **NO perf-tier ok→skip landmines** (no perf patch that applied on dev301
+  went dead on dev424). The HIGH edge is a TRUE-but-MITIGATED static flag — the
+  detector can't see PN399's runtime pin-split native fallback. The gate's exit-1
+  remediation path ("run a canonical A/B proving no regression before promoting")
+  is satisfied by the +4.08 % 35B A/B above. The bump tooling worked exactly as
+  designed.
+- **Anchor-SOT regen** `pins/0.23.1_3f5a1e173/`: 204 discovered = 144 ok + 60 rej
+  (30 retired / 13 version_gated / 12 optional_absent / 4 anchor_drift=PN386 /
+  1 upstream_merged); roundtrip_fail=0; `dependency_breakage` HIGH=1 MEDIUM=11.
+- Gating audits rc0: `audit_v2_runtime_pins` (CANONICAL_PIN_SUBSTRING dev424,
+  11/11 ModelDefs agree), `audit_v2_vllm_pin_consistency`,
+  `audit_v2_modeldef_vs_hardware_pin`, `audit_v2_runtime_image_pin`,
+  `audit_v2_versions_pin_format` — all exit 0.
+
+### Migration notes
+
+- `KNOWN_GOOD_VLLM_PINS` + `EXPECTED_PINS` += dev424 (2 forms); 11 ModelDef
+  `vllm_pin_required` → dev424; `CANONICAL_PIN_SUBSTRING` + `ALLOWED_MODELDEF_PINS`
+  → dev424; `spec_set.json` regenerated for the PN386 retire. Tag rotation on the
+  rig: `:nightly` → dev424, `:nightly-04c2a8dea` (dev301) kept as previous,
+  `:nightly-b4c80ec0f` (dev148) kept pending operator decision (policy allows
+  dropping it now dev424 validated).
+
+### Verified
+
+- All four fleet models booted on the dev424 image on the rig (`genesis-a2`),
+  `failed=0`, no CUDA IMA. 35B canonical bench + tool-call; 27B decode A/B +
+  raw-completion coherence; Gemma 26B/31B Paris + get_weather smoke. Full local
+  `pytest tests/` green; pin-gate (13), dispatcher (incl. iron-rule-#11
+  enforcement + baseline snapshot), anchor_sot (bump_preflight + retire_impact),
+  and the 5 audit_v2 pin scripts + their unit tests all pass.
+
+---
+
 ## [Unreleased] — vLLM pin bump dev148 → dev301 (2026-06-24)
 
 ### Highlights

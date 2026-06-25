@@ -99,6 +99,16 @@ EXPECTED_PINS = (
     # previous/rollback per CLAUDE.md ≤2-pin policy.
     "0.23.1rc1.dev301+g04c2a8dea",                       # setuptools_scm-derived
     "nightly-04c2a8dea",                                 # docker tag form (short)
+    # PROD pin PROMOTED 2026-06-25 — image nightly-3f5a1e173 (0.23.1rc1.dev424
+    # +g3f5a1e173, +123 commits over dev301). Operator-authorized bump.
+    # Apples-to-apples canonical bench: 35B 244.35 TPS vs dev301 234.77 =
+    # +4.08% (NO regression); 27B 134.53 vs 134.90 net-neutral; Gemma 26B/31B
+    # smoke PASS (Paris + get_weather). DOGFOOD bump_preflight = EXIT 1 (HIGH
+    # PN353A->PN399 static edge, MITIGATED by PN399 native C2 + the +4.08%
+    # A/B). PN386 retired (vllm#45389 merged, IN dev424). dev301 retained as
+    # previous/rollback per CLAUDE.md ≤2-pin policy.
+    "0.23.1rc1.dev424+g3f5a1e173",                       # setuptools_scm-derived
+    "nightly-3f5a1e1733200760169ff31ebe60a271072b199e",  # docker tag form (full SHA)
 )
 
 
