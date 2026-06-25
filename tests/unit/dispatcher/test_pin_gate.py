@@ -84,13 +84,13 @@ EXPECTED_PINS = (
     "0.23.1rc1.dev101+g4c626633159",                     # 12-char SHA form
     "nightly-4c626633",                                  # short docker tag
     "nightly-4c626633159887b0f2c962058c17c78f1434556d",  # full docker tag
-    # PROD pin PROMOTED 2026-06-19 — image nightly-b4c80ec0f (0.23.1rc1.dev148
-    # +gb4c80ec0f). Live rig pin: 35B PROD runs it; all K=5 + Gemma kv-auto
-    # work validated on it. 35B MTP K=5 239.7 TPS / 27B 127.4 TPS; PN394/PN399
-    # promoted to PROD, PN353A enabled in Qwen YAMLs. dev101 retained as
-    # previous/rollback per CLAUDE.md ≤2-pin policy.
-    "0.23.1rc1.dev148+gb4c80ec0f",                       # setuptools_scm-derived
-    "nightly-b4c80ec0f",                                 # docker tag form (short)
+    # dev148 DROPPED 2026-06-25 (mirror of guards.py): 0.23.1rc1.dev148
+    # +gb4c80ec0f (nightly-b4c80ec0f) was the 2-back pin after the dev424
+    # promotion. Removed from KNOWN_GOOD_VLLM_PINS per CLAUDE.md ≤2-pin policy
+    # (current=dev424, rollback=dev301). The dev148 image stays on the rig for
+    # the sndr-daemon sidecar (legacy http_app, not vllm serve — not gated by
+    # this allowlist). PN353A/PN394 removed from the model YAMLs in the same
+    # change (both native in dev301 + dev424).
     # PROD pin PROMOTED 2026-06-24 — image nightly-04c2a8dea (0.23.1rc1.dev301
     # +g04c2a8dea). Bump from dev148. 35B 208 TPS + 31B 94.7 TPS boot+chat+
     # tool-call validated. dev301 anchor-SOT regen surfaced 5 anchor_drift

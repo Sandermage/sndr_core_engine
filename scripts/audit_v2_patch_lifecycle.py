@@ -58,27 +58,13 @@ DISALLOWED_LIFECYCLES: frozenset[str] = frozenset({"retired"})
 # Operator-known retired patches that are still enabled by design at
 # E30 freeze. Each entry records why. Add a comment when expanding.
 ALLOWED_RETIRED_PATCHES: dict[str, str] = {
-    "PN394": (
-        "Pin bump dev148 -> dev301 retire 2026-06-24 — vllm#46047 (qwen3 "
-        "partial-param `<`-truncation fix) is IN dev301 (anchor drifted per "
-        "the dev301 anchor-SOT regen). Retired + capped <0.23.1rc1.dev301. "
-        "Env flag GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX=1 is still "
-        "set in the 27B/35B PROD YAMLs INTENTIONALLY: on dev301 the wiring "
-        "self-skips (version cap + the post-fix `>(.*)$` drift marker) so it "
-        "is harmless, AND it stays correct on a dev148 rollback (the bug is "
-        "live on dev148, the previous/rollback pin). Leave enabled until "
-        "dev148 rollback is no longer possible, then clean from YAMLs."
-    ),
-    "PN353A": (
-        "Pin bump dev148 -> dev301 retire 2026-06-24 — vllm#44053 (TQ "
-        "MetadataBuilder workspace reserve) is native in dev301 (PN353A "
-        "anchor matches 0x; re-anchoring would duplicate the native method). "
-        "Retired + capped <0.23.1rc1.dev301. Env flag GENESIS_ENABLE_PN353A=1 "
-        "is still set in the 27B/35B PROD YAMLs INTENTIONALLY: on dev301 it "
-        "version-gates out cleanly (no apply, no anchor-drift), AND stays "
-        "correct on a dev148 rollback (the fix is NOT in dev148). Leave "
-        "enabled until dev148 rollback is no longer possible, then clean."
-    ),
+    # PN394 + PN353A allowlist entries REMOVED 2026-06-25 (dev148 cleanup).
+    # Both were kept enabled in the 27B/35B PROD YAMLs only as dev148-rollback
+    # correctness flags. With dev148 dropped from KNOWN_GOOD_VLLM_PINS (the
+    # rollback is now dev301, which carries vllm#46047 + vllm#44053 natively),
+    # the env flags were removed from the YAMLs in the same change, so the
+    # patches are no longer enabled anywhere and need no allowlisting. The
+    # registry tombstones (lifecycle=retired, version-capped <dev301) remain.
     "PN22": (
         "0.23.1 reverify 2026-06-17 — vllm#39419 (LocalArgmaxMixin) merged at "
         "bd2d83ff, ancestor of 0.23.1rc1.dev101; mixin native on the deployed "
