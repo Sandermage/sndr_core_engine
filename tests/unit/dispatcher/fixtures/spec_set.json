@@ -1764,6 +1764,18 @@
     "apply_module": "sndr.engines.vllm.patches.kv_cache.pn346b_mamba_mtp_apc_coordinator_clamp"
   },
   {
+    "patch_id": "PN518",
+    "family": "quantization",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN518_INC_HYBRID_FP8_DETECT",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.quantization.pn518_inc_hybrid_fp8_detect"
+  },
+  {
     "patch_id": "PN347",
     "family": "quantization.marlin",
     "lifecycle": "experimental",

@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-25T17:28:24Z
-Total entries: **319**
+Generated: 2026-06-25T18:15:22Z
+Total entries: **320**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **319**
+- `tier=community`: **320**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **232**
+- `lifecycle=experimental`: **233**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
 - `lifecycle=retired`: **38**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **57** / 319
+### Default-on at boot: **57** / 320
 
 ### By family
 - `attention`: 1
@@ -41,7 +41,7 @@ Total entries: **319**
 - `multimodal`: 2
 - `observability`: 6
 - `offload`: 4
-- `quantization`: 7
+- `quantization`: 8
 - `quantization.marlin`: 2
 - `reasoning`: 7
 - `scheduler`: 9
@@ -344,7 +344,7 @@ Total entries: **319**
 | **PN105** | `community` | `experimental` | · | `GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT` | — | PN105 — PrefetchOffloader AutoRound INT4 compat (pin-assert relax) |
 | **PN383** | `community` | `experimental` | · | `GENESIS_ENABLE_PN383_OFFLOAD_MTP_EAGLE_GATE` | [#44784](https://github.com/vllm-project/vllm/pull/44784) | PN383 — KV-offload + MTP cuMemcpyBatchAsync segfault gate (vendor of vllm#447... |
 
-### `quantization` (7)
+### `quantization` (8)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -355,6 +355,7 @@ Total entries: **319**
 | **PN77** | `community` | `experimental` | · | `GENESIS_ENABLE_PN77_FP8_LM_HEAD` | — | FP8 lm_head compression (BF16→FP8 e4m3 + per-channel scale) |
 | **PN376** | `community` | `experimental` | · | `GENESIS_ENABLE_PN376_FP8_IGNORE_SUBSTRING` | [#44628](https://github.com/vllm-project/vllm/pull/44628) | FP8 modules_to_not_convert substring match (vendor of vllm#44628) |
 | **PN400** | `community` | `retired` | · | `GENESIS_ENABLE_PN400` | [#45656](https://github.com/vllm-project/vllm/pull/45656) | Restore is_sym qzeros guard for symmetric AutoRound/GPTQ Marlin MoE (vllm#456... |
+| **PN518** | `community` | `experimental` | · | `GENESIS_ENABLE_PN518_INC_HYBRID_FP8_DETECT` | [#46322](https://github.com/vllm-project/vllm/pull/46322) | INCConfig hybrid INT4+FP8 AutoRound silent-skip trap-closer — detect-and-WARN... |
 
 ### `quantization.marlin` (2)
 

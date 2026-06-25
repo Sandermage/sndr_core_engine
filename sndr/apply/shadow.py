@@ -298,6 +298,20 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # flood-guarded WARNING + sndr_invalid_draft_tokens_
                        # dropped_total counter over the raw PR; composes with
                        # PN378/PN361/PN133, no legacy @register_patch hook)
+    "PN518",           # INCConfig hybrid INT4+FP8 AutoRound latent trap-closer
+                       # (vendor of OPEN vllm#46322). Injects a detect-and-WARN
+                       # maybe_update_config onto INCConfig (dev424 is MISSING
+                       # it -> inherits the base no-op), so a hybrid INT4+FP8
+                       # auto-round checkpoint's FP8 layers are DIAGNOSED with a
+                       # loud boot WARN instead of silently served as
+                       # unquantized -> garbage. STRICT NO-OP when no FP8 layers
+                       # present (the live 27B keeps linear_attn.in_proj at
+                       # bits=16; 35B is fp8 not inc) -> get_quant_method
+                       # unperturbed. Single-anchor text patch on inc/inc.py,
+                       # >=0.23.0,<0.24.0 gated + autoround quant_format scoped,
+                       # default-OFF latent guard, no legacy @register_patch
+                       # hook; applied at legacy boot via
+                       # _run_spec_only_supplement)
 })
 
 

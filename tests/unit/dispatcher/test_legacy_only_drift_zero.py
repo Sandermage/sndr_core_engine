@@ -263,6 +263,17 @@ def test_spec_only_truly_orphan_baseline():
         # _run_spec_only_supplement. Same spec-only-by-design class as
         # PN398/PN399/PN400/PN401. Composes with PN378/PN361/PN133 (disjoint).
         "PN402",
+        # 2026-06-25 (dev424 LATENT trap-closer): PN518 vendor of OPEN
+        # vllm#46322 (INCConfig.maybe_update_config missing -> hybrid INT4+FP8
+        # auto-round checkpoints silently skip FP8 attention/shared-expert
+        # layers). Injects a detect-and-WARN maybe_update_config; STRICT NO-OP
+        # when no FP8 layers present (the live 27B keeps linear_attn.in_proj
+        # at bits=16; 35B is fp8 not inc) -> get_quant_method unperturbed.
+        # spec-driven from inception (apply_module + own apply(), no legacy
+        # hook), default-OFF latent guard; applied at legacy boot via
+        # _run_spec_only_supplement. Same spec-only-by-design class as
+        # PN398/PN399/PN400/PN401/PN402.
+        "PN518",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

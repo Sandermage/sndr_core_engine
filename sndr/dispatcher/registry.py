@@ -6088,6 +6088,75 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # PN346: the sibling MANAGER half — the two MUST ship together.
         "composes_with": ["PN346", "PN340", "PN341", "PN345"],
     },
+    "PN518": {
+        "title": "INCConfig hybrid INT4+FP8 AutoRound silent-skip trap-closer — detect-and-WARN guard (vendor of OPEN vllm#46322; LATENT, default-OFF)",
+        "tier": "community",
+        "family": "quantization",
+        "env_flag": "GENESIS_ENABLE_PN518_INC_HYBRID_FP8_DETECT",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.quantization.pn518_inc_hybrid_fp8_detect",
+        "lifecycle": "experimental",
+        "category": "correctness",
+        "credit": (
+            "Genesis vendoring of OPEN upstream PR vllm#46322. dev424 "
+            "(0.23.1rc1.dev424+g3f5a1e173) INCConfig is MISSING "
+            "maybe_update_config — it inherits the base no-op "
+            "(QuantizationConfig.maybe_update_config at base_config.py:195, "
+            "called once per model at config/vllm.py:637; VERIFIED via "
+            "`INCConfig.maybe_update_config is QuantizationConfig."
+            "maybe_update_config` -> True on the live nightly image). "
+            "Without it, a hybrid INT4+FP8 auto-round checkpoint's FP8 "
+            "attention/shared-expert layers (float8_e4m3fn weights with a "
+            "sibling weight_scale_inv) are SILENTLY treated as unquantized "
+            "-> the weight_scale_inv is never applied -> garbage. LATENT, "
+            "NOT LIVE: none of our checkpoints is a hybrid INT4+FP8 "
+            "auto-round checkpoint. The 27B (Lorbus Qwen3.6-27B-int4-"
+            "AutoRound) routes auto-round -> INCConfig but keeps "
+            "linear_attn.in_proj_{a,b} at bits=16, data_type='fp' = "
+            "genuinely-unquantized 16-bit (NOT fp8), correctly served TODAY "
+            "by the existing extra_config bits>=16 pre-check loop in "
+            "get_quant_method; the 35B is quant_method=fp8 -> Fp8Config, not "
+            "inc. The 46322 repro needs FP8 (8-bit float w/ weight_scale_inv) "
+            "layers MIXED into an auto-round checkpoint, which we run zero "
+            "of. BUT the 27B already INSTANTIATES INCConfig, so a single "
+            "Qwen3.6-*-Hybrid-INT4-FP8 load is one checkpoint away from "
+            "silent garbage. PN518 injects a maybe_update_config that scans "
+            "the checkpoint's safetensors header dtypes (no tensor reads) "
+            "for block-scaled FP8 layers and, if any are found on a pin "
+            "lacking native FP8 routing, emits a LOUD ACTIONABLE boot WARN "
+            "naming the layers (converting silent-garbage into a diagnosed "
+            "event, the Genesis PN377-style loud-boot-assert pattern) plus "
+            "an sm_86 Triton-block-scaled-fallback INFO. DELIBERATE SCOPE "
+            "LIMIT vs the raw PR (iron-rule #10): PN518 does NOT rewrite "
+            "get_quant_method to return Fp8LinearMethod — that full re-route "
+            "touches the exact hot dispatch path the live 27B auto-round "
+            "load uses; the detect-and-WARN subset is the LOW-RISK "
+            "trap-closer. STRICT NO-OP when no FP8 layers present (the live "
+            "27B/35B case) -> get_quant_method is byte-for-byte unperturbed. "
+            "Anchor (apply_vllm_mapper -> get_quant_method boundary) verified "
+            "byte-present and grep-unique (count==1) on dev424 pristine "
+            "source. Self-skips once #46322 merges (native "
+            "maybe_update_config present -> drift-marker skip). Default-OFF: "
+            "flip on when a hybrid INT4+FP8 auto-round checkpoint enters "
+            "rotation."
+        ),
+        "upstream_pr": 46322,
+        "upstream_pr_relationship": "backport",
+        # The base-no-op maybe_update_config only exists pre-native-fix; the
+        # anchor self-gates, and the version range guards the window where
+        # INCConfig lacks the method. Scoped to auto-round formats so it can
+        # never touch the FP8 35B or any non-auto-round model.
+        "applies_to": {
+            "vllm_version_range": (">=0.23.0", "<0.24.0"),
+            "quant_format": ["autoround_int4", "autoround_int8"],
+        },
+        "implementation_status": "full",
+        # Composes with: PN400 (auto_gptq.py is_sym zp guard — different
+        # file/hook), P91/P91B (AutoRound row-group cdiv — different scheme),
+        # PN347 (MarlinFP8 N==K — different kernel). No overlap; PN518 only
+        # injects a new method + WARN, touching no existing dispatch.
+        "composes_with": ["PN400", "P91", "P91B", "PN347"],
+    },
     "PN347": {
         "title": "MarlinFP8 N==K silent corruption correctness fix (vendor of CLOSED vllm#44113; superseded by MERGED vllm#44735 on dev491+ — active only on <dev491 rollback pins, version-gated)",
         "tier": "community",

@@ -39,6 +39,7 @@ QUANT_PATCHES = [
     ("sndr.engines.vllm.patches.quantization.p81_fp8_block_scaled_m_le_8", "P81"),
     ("sndr.engines.vllm.patches.quantization.p91_autoround_row_group_cdiv", "P91"),
     ("sndr.engines.vllm.patches.quantization.pn77_fp8_lm_head", "PN77"),
+    ("sndr.engines.vllm.patches.quantization.pn518_inc_hybrid_fp8_detect", "PN518"),
 ]
 
 

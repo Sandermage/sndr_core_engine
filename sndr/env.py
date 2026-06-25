@@ -589,6 +589,8 @@ class Flags:
     PN352B_MARLIN_MOE_SUM = "PN352B_MARLIN_MOE_SUM"  # PN352B: Triton moe_sum for unsupported-topk Marlin path (sibling of PN352)
     PN368_MARLIN_MOE_ATOMIC_ADD = "PN368_MARLIN_MOE_ATOMIC_ADD"  # PN368: Marlin MoE w13 atomic-add reduce-mode wire
     PN377_MOE_WNA16_BSK_CLAMP = "PN377_MOE_WNA16_BSK_CLAMP"  # PN377: moe_wna16 BLOCK_SIZE_K legality clamp (vendor of vllm#44563)
+    # quantization family
+    PN518_INC_HYBRID_FP8_DETECT = "PN518_INC_HYBRID_FP8_DETECT"  # PN518: INCConfig hybrid INT4+FP8 AutoRound detect-and-WARN guard (vendor of vllm#46322, latent)
     # quantization.marlin family
     PN347 = "PN347"  # PN347: MarlinFP8 N==K silent corruption correctness fix
     PN_FP8MOE_KPAD = "PN_FP8MOE_KPAD"  # PN-FP8MOE-KPAD: FP8 MoE intermediate thread-tile pad (vllm#45703 backport)
