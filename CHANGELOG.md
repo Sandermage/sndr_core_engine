@@ -45,11 +45,11 @@ Release-type tags in the title give the shape of the release at a glance:
 
 ## Version index (newest first)
 
-### [Unreleased] — dev148 pin, MTP K=5 re-tune, PN394/PN399/PN353A, Gemma-31B kv-auto, enterprise hardening (current tip)
+### [Unreleased] — dev301 → dev424 integration program: pin bump + PN401/PN402/PN518/PN519/PN346B-ext + upstream-watch + dev148 retire + docs/launch overhaul (current tip)
 
 | Tag | Date | Type | Summary |
 |---|---|---|---|
-| `[Unreleased]` | 2026-06-19 | dev | Pin promoted `dev101 → 0.23.1rc1.dev148+gb4c80ec0f` (live rig pin). MTP K=3→K=5 re-tune (Qwen, lossless): 35B **239.7 TPS** (+15.8%), 27B **127.4 TPS** (+8.2%); Gemma stays K=3. PN394 (#46047) + PN399 (#46067) promoted to PROD; PN353A (#44053) enabled in Qwen YAMLs. Gemma-4-31B kv-auto chat profile/preset (+69.6% chat TPS). G4_11 multi-turn fix. PN29+PN298 consolidated into one chunk_o wiring module + one registry entry (runtime-neutral; PN29 flag retained as alias). Registry 317; 57 default-on; 27 families; `make evidence` 63/63 |
+| `[Unreleased]` | 2026-06-24 … 2026-06-26 | dev | Pin promoted `0.23.1rc1.dev301+g04c2a8dea → 0.23.1rc1.dev424+g3f5a1e173` (+123 commits, no breaking headline; first bump to **dogfood** the anchor-SOT `bump_preflight`). Canonical A/B: 35B **234.77 → 244.35 TPS (+4.08%)**, 27B 134.90 → 134.53 (neutral), Gemma 26B/31B smoke PASS. **PN386 RETIRED** (vllm#45389 native). Five patches added: **PN401** (#46461, P0 TQ prefill-continuation guard), **PN402** (#46574, MTP invalid-draft-token sanitizer), **PN519** (#46087, SWA tile-base), **PN518** (#46322, latent INT4+FP8 INCConfig trap-closer), **PN346B extended** (#46281 Part-B Mamba post-trim belt). PN403/PN404/46297 investigate-and-document closures (deferred with live evidence). Upstream-watch armed for #46384 (PN346/PN346B anchor-drift) + #46446/PN129 retire-on-merge. **dev148 dropped** (rig now exactly 2 pins: dev424 current + dev301 rollback); PN353A/PN394 rollback flags removed fleet-wide. Launch canonicalized on presets (26B vanilla-boot fixed). Docs pin-lag fixed across 18 operator docs + PIN_UPGRADE rewrite + new ANCHOR_SOT manual. Registry **321**; 261 full-impl; ~23 families. Full suite **12942 / 0**; all gating audits rc0; all 4 models validated on dev424 |
 
 ### v12.0.0 series — dev491 pin, Gemma-4 + native 31B MTP, audit hardening
 
@@ -105,29 +105,93 @@ Release-type tags in the title give the shape of the release at a glance:
 | `v7.63.x` | 2026-04 | series | TurboQuant k8v4 + MTP K=3 stabilization |
 
 The current canonical baseline is the `[Unreleased]` line below on vLLM
-nightly pin `0.23.1rc1.dev148+gb4c80ec0f` (image
-`vllm/vllm-openai:nightly-b4c80ec0f`); the last cut tag is `v12.0.0`. 317
-patches in `PATCH_REGISTRY`, 57 default-ON, 27 families, `make evidence`
-63 / 63 gates green. (The PROD 35B service runs the dev148 pin; `dev101`
-is retained as the previous / rollback pin per the CLAUDE.md ≤2-pin policy.
-`sndr/version.py` carries the `.dev0` suffix in-tree; release tooling strips
-it on publish — pyproject.toml holds the release version.)
+nightly pin `0.23.1rc1.dev424+g3f5a1e173` (image
+`vllm/vllm-openai:nightly-3f5a1e1733200760169ff31ebe60a271072b199e`); the
+last cut tag is `v12.0.0`. **321** patches in `PATCH_REGISTRY`, 261 full-impl,
+~23 families, full `pytest tests/` suite **12942 / 0** + all gating audits rc0.
+(All four fleet models — 35B FP8, 27B INT4, Gemma-4 26B/31B — run the dev424
+pin; `0.23.1rc1.dev301+g04c2a8dea` (`nightly-04c2a8dea`) is retained as the
+previous / rollback pin per the CLAUDE.md ≤2-pin policy; dev148 was dropped
+from the allowlist when dev424 was validated. `sndr/version.py` carries the
+`.dev0` suffix in-tree; release tooling strips it on publish — pyproject.toml
+holds the release version.)
 
 ---
 
-## [Unreleased] — dev424 integration backlog: PN519 (46087) + PN403/PN404/46297 build-or-document (2026-06-25)
+## [Unreleased] — dev301 → dev424 integration program (2026-06-24 … 2026-06-26)
+
+A single integration program promoting the live rig from the dev301 pin to
+the validated dev424 pin and landing the patch + tooling + docs work that
+rode with it. Ordered: pin bump → 5 new patches → investigate-and-document
+closures → upstream-watch → bump-preflight refinement → dev148 retirement →
+launch canonicalization → docs overhaul. All work was authored and verified
+against the live dev424 pin (`0.23.1rc1.dev424+g3f5a1e173`) without breaking
+the running 35B PROD container (`vllm-qwen3.6-35b-balanced-k3`, port 8102,
+restored health-200 each time).
 
 ### Highlights
 
-- **One new patch built (PN519 / vllm#46087) + three investigate-and-document
-  closures (PN403/46270, PN404/46523, 46297).** All anchored / verified on the
-  live dev424 pin (`0.23.1rc1.dev424+g3f5a1e173`) without disturbing the running
-  35B PROD container (`vllm-qwen3.6-35b-balanced-k3`, port 8102, restored
-  health-200 at the end). Registry 320 → 321.
+- **vLLM pin promoted `0.23.1rc1.dev301+g04c2a8dea` → `0.23.1rc1.dev424+g3f5a1e173`**
+  (image `vllm/vllm-openai:nightly-3f5a1e1733200760169ff31ebe60a271072b199e`,
+  commit `3f5a1e173`, +123 commits over dev301, no breaking headline; content
+  digest `sha256:c4fac672fcab…`). Operator-authorized. **First bump to DOGFOOD
+  the new anchor-SOT bump tooling** (`scripts/anchor_sot/bump_preflight.py` +
+  `retire_impact.py` + `rebuild_pin.sh`).
+- **Canonical 35B A/B: 234.77 → 244.35 wall-TPS (+4.08 %)** — the bump is a net
+  improvement, not just a no-regression. 27B net-neutral, Gemma 26B/31B smoke
+  PASS (full table below).
+- **Five patches added** — PN401 (P0, default-on TQ prefill-continuation guard),
+  PN402 (HIGH, default-on MTP invalid-draft-token sanitizer), PN519 (SWA
+  tile-base, Gemma4-scoped), PN518 (latent INT4+FP8 INCConfig trap-closer,
+  default-off), PN346B-extended (Mamba post-trim belt sub-patch). **One retired**
+  (PN386, native in dev424). Registry **319 → 321** over the program.
+- **dev148 dropped** — the rig now holds exactly two pins (dev424 current +
+  dev301 rollback), fully ≤2-pin-policy compliant; the now-dead PN353A/PN394
+  rollback flags were stripped fleet-wide.
+- **Launch canonicalized on presets + docs pin-lag fixed** — a 26B `.sh`
+  launcher was found booting VANILLA vLLM (no plugin registration); the shared
+  A5000 hardware YAML still pinned dev148; 18 operator docs lagged the pin;
+  PIN_UPGRADE.md encoded a dangerous unconditional `docker pull`. All fixed.
 
 ### Patches changed
 
-- **PN519 ADDED — start the SWA/chunked KV-tile loop at `first_allowed_key`
+#### Added
+
+- **PN401 — TurboQuant prefill continuation guard (backport+improve OPEN
+  vllm#46461; P0, LIVE, default-on).** `family=attention`,
+  `env=GENESIS_ENABLE_PN401_TQ_PREFILL_CONTINUATION_GUARD`. THE BUG (live on
+  TQ-always-on 27B/35B PROD): `_prefill_attention` takes a flash_attn fast path
+  on `max_query_len == max_seq_len` and passes `cu_seqlens_k = query_start_loc`
+  (QUERY offsets), assuming no request carries prior cached KV. A long first
+  chunk can inflate `max_query_len` to equal `max_seq_len` while the SAME batch
+  carries shorter CONTINUATION requests (a non-first chunked-prefill chunk or a
+  prefix-cache hit); for those the fast path attends only to the current chunk's
+  raw K/V and silently DROPS the cached prefix K/V → hallucination. Reaches PROD
+  via plain `enable_chunked_prefill` on the TQ k8v4 profiles — NO prefix caching
+  needed. THE FIX: a host-side continuation check on the CPU-mirror tensors
+  (`query_start_loc_cpu` / `seq_lens_cpu`, no GPU sync) gates the fast path with
+  `and not _has_continuation`; on any continuation it falls through to the
+  per-request branch that reads cached K/V correctly. BETTER THAN UPSTREAM
+  (iron-rule #10): conservative None-mirror fall-safe (a missing CPU mirror must
+  never re-enable the buggy path → we SKIP it) + a length-clamp. Composes
+  disjoint with PN399 / P101 / PN116 (TQ neighbours, separate anchors). TDD.
+- **PN402 — sanitize invalid (-1 / over-vocab) MTP draft tokens before batch
+  prep (backport+improve OPEN vllm#46574; HIGH, default-on).** `family=spec_decode`,
+  `env=GENESIS_ENABLE_PN402_SANITIZE_INVALID_DRAFT_TOKENS`. THE BUG (live on MTP
+  K=5 + FULL_AND_PIECEWISE PROD): a single invalid draft token id reaching
+  `scheduled_spec_decode_tokens` — `< 0` (the MTP proposer's reject-all/padding
+  sentinel) or `>= vocab_size` — produces an OOB embedding/gather index in batch
+  prep → `cudaErrorIllegalAddress` that hard-crashes the WHOLE engine (all TP
+  ranks). A distinct, currently-unguarded ingress on the NEW V1
+  `gpu/model_runner.py` path (adjacent guards PN378/PN361/PN133 cover other
+  classes). THE FIX: `_sanitize_scheduled_spec_decode_tokens` runs in
+  `execute_model` after `apply_staged_writes()` and before the
+  `total_num_scheduled_tokens==0` guard; it drops the offending request's drafts,
+  decrements its `num_scheduled_tokens` (floored at 1), recomputes the total, and
+  lets the request run as a normal decode this step instead of crashing.
+  Spec-gated + flood-guarded + emits Prometheus counter
+  `sndr_invalid_draft_tokens_dropped_total` so the silent case is observable. TDD.
+- **PN519 — start the SWA/chunked KV-tile loop at `first_allowed_key`
   (backport+improve OPEN vllm#46087, fixes vllm#44575).** `family=attention`,
   `category=kernel_perf`, `env=GENESIS_ENABLE_PN519_SWA_TILE_BASE`,
   `default_on=False`/`experimental`, `applies_to (>=0.23.0,<0.24.0)`. dev424
@@ -146,116 +210,126 @@ it on publish — pyproject.toml holds the release version.)
   `seq_offset = tile_base + j*TILE_SIZE + offs_t` → iteration starts EXACTLY at
   `first_allowed_key`; `tile_end` unchanged so the count never grows and the
   reduction order is residue-invariant (byte-identical). OUR-BETTER (iron-rule
-  #10): ATOMIC three-file apply that FAILS LOUDLY on any consumer-anchor drift
-  (a 4-tuple producer feeding a 3-tuple unpack is a silent crash-on-first-decode
+  #10): ATOMIC three-file apply that FAILS LOUDLY on any consumer-anchor drift (a
+  4-tuple producer feeding a 3-tuple unpack is a silent crash-on-first-decode
   ValueError). Iron-rule #11: VERIFIED no Genesis patch carried
   `tile_base`/`first_allowed_key` on the SWA loop (grep count 0). Composes with
   PN351 (same files, disjoint anchors). Runtime-inert on Qwen3.6 (35B FP8 / 27B
-  INT4 run FlashInfer/FA2, head_dim=128, never execute this kernel — boot log of
-  the live 35B confirms FlashInfer backend), so `default_on` is scoped to Gemma4
+  INT4 run FlashInfer/FA2, head_dim=128, never execute this kernel — the live 35B
+  boot log confirms the FlashInfer backend), so `default_on` is scoped to Gemma4
   SWA configs only.
+- **PN518 — INCConfig hybrid INT4+FP8 AutoRound silent-skip trap-closer
+  (backport OPEN vllm#46322; latent, default-OFF, detect-and-WARN).**
+  `env=GENESIS_ENABLE_PN518_INC_HYBRID_FP8_DETECT`. On dev424 `INCConfig` is
+  MISSING `maybe_update_config` (`INCConfig.maybe_update_config is
+  QuantizationConfig.maybe_update_config` → True); without it a hybrid INT4+FP8
+  AutoRound checkpoint's FP8 sub-layers route through INC and silently serve
+  garbage. LATENT, NOT LIVE: none of our checkpoints is a hybrid INT4+FP8
+  AutoRound checkpoint — the 27B (Lorbus Qwen3.6-27B-int4-AutoRound) keeps its
+  `linear_attn.in_proj_{a,b}` at `bits=16, data_type='fp'` (genuinely-unquantized
+  16-bit, NOT fp8), and the 35B is `quant_method=fp8` → `Fp8Config`, not INC. BUT
+  the 27B already INSTANTIATES INCConfig, so a single
+  `Qwen3.6-*-Hybrid-INT4-FP8` load is one checkpoint away from the silent trap.
+  PN518 injects a `maybe_update_config` that scans and WARNs — it does NOT
+  rewrite quant routing (LIMIT vs the raw PR, iron-rule #10). **Verified no
+  perturbation to live 27B/35B** — `get_quant_method` is byte-identical before
+  and after, so it is inert on every current checkpoint; default-off until a
+  hybrid checkpoint actually ships.
+- **PN346B EXTENDED — fold vllm#46281 Part-B Mamba-group post-trim as a
+  defensive belt (`required=False` sub-patch; default-ON, rides PN346B's flag).**
+  A second `required=False` sub-patch (`pn346b_mamba_group_post_trim`) vendors
+  ONLY Part B of OPEN vllm#46281 — a THIRD independent upstream attempt at the
+  same #43559 hybrid-Mamba + EAGLE/MTP prefix-cache poison. Part A of #46281 (the
+  `curr_hit_length min()` clamp) is byte-identical to what PN346B already carries.
+  The belt trims the Mamba group to the FullAttention hit length on the simple-
+  hybrid EAGLE look-ahead path where `FullAttentionManager` drops its last hit
+  block but `MambaManager` does not, leaving the two block lists misaligned. It is
+  gated on a Mamba topology (`MambaSpec`) so it is a strict no-op on any
+  non-simple-hybrid / non-Mamba config; `required=False` so a missing
+  FA-truncation anchor on a future pin drift-skips while the rest of PN346B still
+  applies.
 
-### Audit findings — investigate-and-document (no patch built)
-
-- **PN403 / vllm#46270 (spec-decode sampler peak-mem profiled with num_spec=1
-  instead of real K) — DEFERRED (sufficient margin, NOT built).** The dummy
-  sampler run during memory profiling uses 1 draft token/req regardless of K,
-  under-profiling the K=5 sampler peak by up to ~K× → in principle a silent KV
-  under-budget / runtime OOM. Investigated against the LIVE 35B PROD config at
-  its max (`max-num-seqs=2`, `max-model-len=280000`, MTP K=5,
-  `gpu-memory-utilization=0.9`; live `kv_cache_size_tokens=388620`,
-  `num_gpu_blocks=161`, `kv_cache_max_concurrency=1.388`). Drove 4 rounds ×
-  conc=2 of 46 840-token-prompt + up-to-1500-token-generation requests
-  (saturating the batch). RESULT: **all 8 requests OK** (finish stop/length, no
-  errors), **zero OOM / CUDA-IMA / preemption / KV-exhaustion** in the container
-  log, **health 200** throughout. Peak GPU memory under load: **GPU0 min-free
-  1799 MiB, GPU1 min-free 2430 MiB** (idle was 2048/2699 — the K=5 sampler peak
-  draws only ~700 MiB of the ~2 GiB free headroom). Because PN403 is a
-  headroom-SPENDING patch (books MORE profile memory → smaller usable KV pool)
-  and our K=5 config has a comfortable measured margin on dev424, it is NOT
-  built. Revisit if `max_num_seqs` / concurrency / context grows or the headroom
-  shrinks.
-- **PN404 / vllm#46523 (prewarm FULL cudagraph forward to keep Inductor/Triton
-  autotune OUTSIDE `torch.cuda.graph`) — NOT NEEDED (no in-capture autotune
-  residual on dev424).** Verified against the live 35B boot/capture logs. The
-  FULL+PIECEWISE capture progress bars completed cleanly and fast (PIECEWISE 2/2
-  @ 4.40 it/s, FULL 1/1 @ 1.25 it/s) with **zero graph-capture corruption / IMA
-  / "operation not permitted when stream is capturing"** across the whole
-  container life. Two structural reasons the autotune-in-capture class cannot
-  fire on our stack: (1) Inductor `max_autotune_gemm` is **HW-DISABLED on Ampere
-  sm_86** (boot log: `Not enough SMs to use max_autotune_gemm mode`, 101 s before
-  capture begins); (2) **vllm#42425 (Triton force-first-config) is MERGED
-  natively in dev424** (Genesis PN362 self-skips against it) → Triton autotune is
-  forced to first-config, no in-capture sweep. The only Triton activity in the
-  capture window is **JIT codegen during inference** (`jit_monitor.py:127`,
-  post-capture warmup + live serving of `eagle_*` / `_tq_grouped_decode_stage1`
-  / GDN kernels) — single-config JIT, NOT the autotune sweep PR 46523 fixes, and
-  it occurs AFTER the capture bars complete. The Genesis warmup family
-  (PN126/128/130/364, all applied on the live boot) plus the native autotune
-  disabling already cover the residual. PN404 NOT built; revisit only if a future
-  pin re-enables Inductor autotune on Ampere or drops the force-first-config.
-- **vllm#46297 — DO NOT vendor (documented).** Added a DO-NOT-VENDOR note in
-  `registry.py` next to the qwen3_5 arch handling. VERIFIED in-container on
-  dev424 that `Qwen3_5ForConditionalGeneration` AND
-  `Qwen3_5MoeForConditionalGeneration` already map natively to the dedicated
-  `('qwen3_5', ...)` impl and the MTP heads to `('qwen3_5_mtp', ...)` (self-MTP +
-  GDN path). PR 46297 would remap `Qwen3_5MoeForConditionalGeneration` onto the
-  generic `qwen3_moe` impl — vendoring it would OVERWRITE the better dedicated
-  impl and break self-MTP/GDN + the 6 Genesis patches that key on the qwen3_5
-  arch (PN348 / PN357 / PN380 / PN365 / PN77 / PN61). Genesis relies on and
-  PROTECTS the native mapping; confirmed no Genesis patch re-routes Qwen3_5Moe*
-  to qwen3_moe.
-
-### Verified
-
-- PN519: TDD RED→GREEN (18 unit tests — a pure tile-iteration model proves the
-  redundant-boundary-tile + residue-determinism RED then GREEN; apply /
-  idempotent / half-apply-fail-loud; registry + env-flag contract). Apply-proven
-  END-TO-END against the pristine dev424 `triton_attention_helpers.py` + both
-  consumers (all three AST-parse after patch; 4-tuple propagates; tile_base
-  formula byte-matches upstream). All anchors byte-verified count==1 on dev424.
-- PN403/PN404 evidence gathered against the live PROD container WITHOUT a restart
-  (load probe + boot/capture log inspection); PROD left healthy (health 200).
-- Doc counts bumped 320 → 321 (full-impl 260 → 261); `docs/PATCHES_AUTO.md`
-  regenerated; `check_doc_sync --strict`, `generate_patches_md --check`,
-  `audit_registry_contract`, `audit_ai_attribution`, `audit_english_only`,
-  `make gates` all green.
-
----
-
-## [Unreleased] — vLLM pin bump dev301 → dev424 (2026-06-25)
-
-### Highlights
-
-- **vLLM pin promoted `0.23.1rc1.dev301+g04c2a8dea` → `0.23.1rc1.dev424+g3f5a1e173`**
-  (image `vllm/vllm-openai:nightly-3f5a1e1733200760169ff31ebe60a271072b199e`,
-  commit `3f5a1e173`, +123 commits over dev301, no breaking headline; content
-  digest `sha256:c4fac672fcab…`). Operator-authorized. dev301 retained as the
-  previous/rollback pin per CLAUDE.md ≤2-pin policy (dev148 also kept on the rig
-  pending operator decision). **First bump to DOGFOOD the new anchor-SOT bump
-  tooling** (`scripts/anchor_sot/bump_preflight.py` + `retire_impact.py` +
-  `rebuild_pin.sh`).
-
-### Patches changed
+#### Retired
 
 - **PN386 RETIRED on dev424** (`lifecycle: retired`, `superseded_by: vllm#45389`,
   capped `< 0.23.1rc1.dev424`). Iron-rule-#11 outcome (a): vllm#45389
   (required-tool streaming brace JSON-string-awareness) MERGED 2026-06-23
   (mergeCommit `899d72a5`), IN dev424. The dev424 anchor-SOT regen flagged all 4
-  PN386 sub-anchors as `anchor_drift`; the dev424 pristine `tool_parsers/
-  streaming.py` carries `_bracket_level_state` + the `in_string` state machine +
-  BOTH PR drift markers (byte-verified in-container). Genesis divergences are
-  spelling-only (documented), so PN386 does NOT do more than upstream. Default-off
-  and enabled in no PROD config, so the retire loses nothing. Applies through
-  dev301 (rollback); retired on dev424+.
+  PN386 sub-anchors as `anchor_drift`; the dev424 pristine
+  `tool_parsers/streaming.py` carries `_bracket_level_state` + the `in_string`
+  state machine + BOTH PR drift markers (byte-verified in-container). Genesis
+  divergences are spelling-only (documented), so PN386 does NOT do more than
+  upstream. Default-off and enabled in no PROD config, so the retire loses nothing.
+  Applies through dev301 (rollback); retired on dev424+.
 - **PN399 — NO re-anchor needed on dev424.** The single genuine-drift class the
-  bump tooling guards against (the dev148→dev301 −5.5% silent perf no-op) did NOT
+  bump tooling guards against (the dev148→dev301 −5.5 % silent perf no-op) did NOT
   recur. PN399's pin-split C2 sibling `pn399_native_decode_reserve_remove`
   (targeting native vllm#44053, in dev301 AND dev424) APPLIED on the dev424 35B
-  boot (`applied 4 sub-patches`), the PN353A-form sibling soft-skipped as designed,
-  and the perf carriers A/B'/C all applied. The +4.08% 35B bench confirms the perf
-  path is LIVE, not no-op'd. PN353A/PN394/PN400 stay retired (native forms supply
-  anchors). PN286/P67/P67b applied; PN382 version-range still admits dev424.
+  boot (`applied 4 sub-patches`), the PN353A-form sibling soft-skipped as
+  designed, and the perf carriers A/B'/C all applied. The +4.08 % 35B bench
+  confirms the perf path is LIVE, not no-op'd. PN353A/PN394/PN400 stay retired
+  (native forms supply anchors). PN286/P67/P67b applied; PN382 version-range still
+  admits dev424.
+
+#### Watch (record-the-decision, action-on-merge)
+
+- **vllm#46384 (HIGH) → incoming PN346/PN346B anchor-drift.** "[2/N] partial
+  prefix-cache hits in hybrid coordinator" is an unconditional structural rewrite
+  of `find_longest_cache_hit` in BOTH `v1/core/kv_cache_coordinator.py` AND
+  `v1/core/single_type_kv_cache_manager.py` — the exact files+regions PN346
+  (manager half, #43650) and PN346B (coordinator clamp #45614 + Part-B belt
+  #46281) anchor into with `required=True` sub-patches. Its partial-hash DATA path
+  is gated on `mamba_cache_mode="align"` (PROD runs `"none"` → inert), but the
+  rewrite is mode-independent: on the pin that carries #46384 the PN346/PN346B
+  required anchors vanish → patcher SKIPs → silent loss of the #43559 poison
+  guard. The anchor-SOT/`bump_preflight` catches this mechanically (anchor count
+  → 0); the watch records the reanchor-on-merge decision (re-anchor PN346 onto the
+  new MambaManager partial branch; for PN346B check whether the merged clamp
+  already encodes the monotonic-min → RETIRE, else RE-ANCHOR).
+- **vllm#46446 → PN129 retire-on-merge.** Recorded so PN129 retires cleanly the
+  bump it lands in, rather than lingering as a then-redundant patch.
+
+### Migration notes
+
+- **dev148 dropped from the allowlist (≤2-pin policy).** After the
+  dev301→dev424 promotion, dev148 (`0.23.1rc1.dev148+gb4c80ec0f`) is the 2-back
+  pin; dev424 is current, dev301 the rollback, so dev148 left
+  `KNOWN_GOOD_VLLM_PINS` (guards.py) and the mirrored `EXPECTED_PINS`
+  (test_pin_gate.py). Verified first: the dev148 IMAGE stays resident only because
+  the `sndr-daemon` sidecar runs on `nightly-b4c80ec0f` (the legacy http_app, not
+  `vllm serve`, so it never imports the pin-gate); dropping dev148 from
+  KNOWN_GOOD has zero effect on the sidecar. The image is NOT removed (`docker
+  rmi` left as a manual operator step, unsafe while the daemon runs). The registry
+  tombstones for `<dev301` rollback stay.
+- **PN353A/PN394 rollback flags removed fleet-wide.** Both are `lifecycle=retired`
+  and version-capped `<0.23.1rc1.dev301` (vllm#44053 + vllm#46047 native in dev301
+  AND dev424). `GENESIS_ENABLE_PN353A` and
+  `GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX` removed from the shared
+  a5000-2x hardware `genesis_env` + the 27B-tq-k8v4 and 35B-a3b-fp8 YAMLs; the
+  PN353A/PN394 keys dropped from `ALLOWED_RETIRED_PATCHES`
+  (audit_v2_patch_lifecycle.py) — no longer enabled anywhere, so no allowlisting
+  needed. They were kept only as dev148-rollback flags; the rollback is now dev301
+  (carries both natively), so the flags are gone.
+- **Launch canonicalized to presets (`sndr launch <preset>`).** The hand-written
+  `start_gemma4_26b_a4b_v12.sh` bind-mounted the overlay read-only but never
+  pip-installed it (no `vllm.general_plugins` entry-point) nor ran
+  `python3 -m sndr.apply` → booting via it ran VANILLA vLLM with the whole Genesis
+  overlay INACTIVE. Found+fixed the shared A5000/3090 hardware YAMLs still pinning
+  the dev148 image (`nightly-b4c80ec0f` / `sha256:960ac5b3`) — a fresh canonical
+  render would have emitted a dev148 launcher on every render; all three hardware
+  YAMLs bumped to dev424 (`nightly-3f5a1e173…` / `sha256:c4fac672`) together
+  (R-MD-HW-1 needs one rig-wide SHA). Cleared the now-satisfied dev148→dev301
+  `pin_hold` waivers on the 35B/27B/26B/31B/diffusiongemma ModelDefs →
+  `audit_v2_modeldef_vs_hardware_pin` now reports a true `sha==image` match instead
+  of a waiver.
+- **Pin/tag rotation on the rig.** `KNOWN_GOOD_VLLM_PINS` + `EXPECTED_PINS` +=
+  dev424 (2 forms); 11 ModelDef `vllm_pin_required` → dev424;
+  `CANONICAL_PIN_SUBSTRING` + `ALLOWED_MODELDEF_PINS` → dev424; `spec_set.json`
+  regenerated for the PN386 retire. `:nightly` → dev424,
+  `:nightly-04c2a8dea` (dev301) kept as previous.
+- **PIN_UPGRADE.md rewritten** to the real policy — removed the dangerous
+  unconditional `docker pull`; now encodes the ≤2-pin / no-proactive-pull /
+  validate-before-promote lifecycle. New `docs/ANCHOR_SOT.md` manual added.
 
 ### Bench / measurements (apples-to-apples canonical `genesis_bench_suite.py --quick`, same session)
 
@@ -268,6 +342,8 @@ it on publish — pyproject.toml holds the release version.)
 
 ### Audit findings
 
+#### bump_preflight dogfood + anchor-SOT
+
 - **DOGFOOD `bump_preflight.py` dev301 → dev424 = EXIT 1 (FAIL, correct).** The
   gate caught the perf-relevant edge: (a) **NO newly-retired/gated-out vs dev301**
   (the 123-commit delta retired nothing new — PN353A/PN394/PN400 were already
@@ -279,31 +355,105 @@ it on publish — pyproject.toml holds the release version.)
   remediation path ("run a canonical A/B proving no regression before promoting")
   is satisfied by the +4.08 % 35B A/B above. The bump tooling worked exactly as
   designed.
+- **bump_preflight refinement (mitigated-edge auto-downgrade).** The gate flagged
+  `PN353A → PN399` HIGH and exited 1 even though PN399 is HANDLED — it carries a
+  native-form C2 sibling (`pn399_native_decode_reserve_remove`) that applies on
+  dev424 when the PN353A-form sibling soft-skips. That was a conservative
+  false-fail. Added an apply-state-aware mitigation signal: a HIGH anchor-break
+  edge is now flagged **HIGH-MITIGATED** when the dependent ALSO declares an
+  alternative anchor sub-patch independent of the retired id (name + anchor text
+  reference neither the bare retired id nor its `_genesis_<id>_` emitted symbol) —
+  a working fallback path detected by the static proxy
+  `_has_independent_alternative_anchor`. The edge keeps its HIGH severity TIER
+  (two-level model preserved); the gate passes without a false-fail.
+  **Unmitigated HIGH still fails** the bump gate.
 - **Anchor-SOT regen** `pins/0.23.1_3f5a1e173/`: 204 discovered = 144 ok + 60 rej
   (30 retired / 13 version_gated / 12 optional_absent / 4 anchor_drift=PN386 /
   1 upstream_merged); roundtrip_fail=0; `dependency_breakage` HIGH=1 MEDIUM=11.
 - Gating audits rc0: `audit_v2_runtime_pins` (CANONICAL_PIN_SUBSTRING dev424,
   11/11 ModelDefs agree), `audit_v2_vllm_pin_consistency`,
   `audit_v2_modeldef_vs_hardware_pin`, `audit_v2_runtime_image_pin`,
-  `audit_v2_versions_pin_format` — all exit 0.
+  `audit_v2_versions_pin_format` — all exit 0. Modeldef-vs-hardware audit is now a
+  true `sha==image` match (no waivers) after the launch canonicalization.
 
-### Migration notes
+#### Investigate-and-document (no patch built — deferred WITH live evidence)
 
-- `KNOWN_GOOD_VLLM_PINS` + `EXPECTED_PINS` += dev424 (2 forms); 11 ModelDef
-  `vllm_pin_required` → dev424; `CANONICAL_PIN_SUBSTRING` + `ALLOWED_MODELDEF_PINS`
-  → dev424; `spec_set.json` regenerated for the PN386 retire. Tag rotation on the
-  rig: `:nightly` → dev424, `:nightly-04c2a8dea` (dev301) kept as previous,
-  `:nightly-b4c80ec0f` (dev148) kept pending operator decision (policy allows
-  dropping it now dev424 validated).
+- **PN403 / vllm#46270 (spec-decode sampler peak-mem profiled with num_spec=1
+  instead of real K) — DEFERRED (sufficient margin, NOT built).** The dummy
+  sampler run during memory profiling uses 1 draft token/req regardless of K,
+  under-profiling the K=5 sampler peak by up to ~K× → in principle a silent KV
+  under-budget / runtime OOM. Investigated against the LIVE 35B PROD config at its
+  max (`max-num-seqs=2`, `max-model-len=280000`, MTP K=5,
+  `gpu-memory-utilization=0.9`; live `kv_cache_size_tokens=388620`,
+  `num_gpu_blocks=161`, `kv_cache_max_concurrency=1.388`). Drove 4 rounds ×
+  conc=2 of 46 840-token-prompt + up-to-1500-token-generation requests
+  (saturating the batch). RESULT: **all 8 requests OK** (finish stop/length, no
+  errors), **zero OOM / CUDA-IMA / preemption / KV-exhaustion** in the container
+  log, **health 200** throughout. Peak GPU memory under load: **GPU0 min-free
+  1799 MiB, GPU1 min-free 2430 MiB** (idle was 2048/2699 — the K=5 sampler peak
+  draws only ~700 MiB of the ~2 GiB free headroom). Because PN403 is a
+  headroom-SPENDING patch (books MORE profile memory → smaller usable KV pool)
+  and our K=5 config has a comfortable measured margin on dev424, it is NOT built.
+  Revisit if `max_num_seqs` / concurrency / context grows or the headroom shrinks.
+- **PN404 / vllm#46523 (prewarm FULL cudagraph forward to keep Inductor/Triton
+  autotune OUTSIDE `torch.cuda.graph`) — NOT NEEDED (no in-capture autotune
+  residual on dev424).** Verified against the live 35B boot/capture logs. The
+  FULL+PIECEWISE capture progress bars completed cleanly and fast (PIECEWISE 2/2
+  @ 4.40 it/s, FULL 1/1 @ 1.25 it/s) with **zero graph-capture corruption / IMA
+  / "operation not permitted when stream is capturing"** across the whole
+  container life. Two structural reasons the autotune-in-capture class cannot
+  fire on our stack: (1) Inductor `max_autotune_gemm` is **HW-DISABLED on Ampere
+  sm_86** (boot log: `Not enough SMs to use max_autotune_gemm mode`, 101 s before
+  capture begins); (2) **vllm#42425 (Triton force-first-config) is MERGED
+  natively in dev424** (Genesis PN362 self-skips against it) → Triton autotune is
+  forced to first-config, no in-capture sweep. The only Triton activity in the
+  capture window is JIT codegen during inference (`jit_monitor.py:127`,
+  post-capture warmup + live serving of `eagle_*` / `_tq_grouped_decode_stage1`
+  / GDN kernels) — single-config JIT, NOT the autotune sweep PR 46523 fixes, and
+  it occurs AFTER the capture bars complete. The Genesis warmup family
+  (PN126/128/130/364, all applied on the live boot) plus the native autotune
+  disabling already cover the residual. PN404 NOT built; revisit only if a future
+  pin re-enables Inductor autotune on Ampere or drops the force-first-config.
+- **vllm#46297 — DO NOT vendor (documented).** Added a DO-NOT-VENDOR note in
+  `registry.py` next to the qwen3_5 arch handling. VERIFIED in-container on dev424
+  that `Qwen3_5ForConditionalGeneration` AND `Qwen3_5MoeForConditionalGeneration`
+  already map natively to the dedicated `('qwen3_5', ...)` impl and the MTP heads
+  to `('qwen3_5_mtp', ...)` (self-MTP + GDN path). PR 46297 would remap
+  `Qwen3_5MoeForConditionalGeneration` onto the generic `qwen3_moe` impl —
+  vendoring it would OVERWRITE the better dedicated impl and break self-MTP/GDN +
+  the 6 Genesis patches that key on the qwen3_5 arch (PN348 / PN357 / PN380 /
+  PN365 / PN77 / PN61). Genesis relies on and PROTECTS the native mapping;
+  confirmed no Genesis patch re-routes `Qwen3_5Moe*` to `qwen3_moe`.
+
+**Audit health verdict:** every gate that ran during the program ended rc0
+(`check_doc_sync --strict`, `make gates`, `audit_ai_attribution`,
+`audit_english_only`, the 5 audit_v2 pin scripts, `audit_v2_patch_lifecycle`);
+the only non-zero exit in the whole program was `bump_preflight` itself, which is
+DESIGNED to fail-on-perf-edge and was satisfied by the +4.08 % A/B.
 
 ### Verified
 
-- All four fleet models booted on the dev424 image on the rig (`genesis-a2`),
-  `failed=0`, no CUDA IMA. 35B canonical bench + tool-call; 27B decode A/B +
-  raw-completion coherence; Gemma 26B/31B Paris + get_weather smoke. Full local
-  `pytest tests/` green; pin-gate (13), dispatcher (incl. iron-rule-#11
-  enforcement + baseline snapshot), anchor_sot (bump_preflight + retire_impact),
-  and the 5 audit_v2 pin scripts + their unit tests all pass.
+- **All four fleet models booted on the dev424 image on the rig** (`genesis-a2`),
+  `failed=0`, no CUDA IMA. 35B canonical bench + tool-call (7/7); 27B decode A/B +
+  raw-completion coherence; Gemma 26B/31B Paris + get_weather smoke. PROD 35B left
+  healthy (health 200) after every investigate-and-document probe (load probe +
+  boot/capture log inspection, no restart).
+- **PN401 / PN402 / PN519 / PN518 / PN346B** all TDD (RED→GREEN) and apply-proven
+  END-TO-END against the pristine dev424 source: PN519's 18 unit tests prove the
+  redundant-boundary-tile + residue-determinism RED then GREEN, plus
+  apply/idempotent/half-apply-fail-loud/registry/env contract; all anchors
+  byte-verified `count==1` on dev424; live-boot overlay `applied`/`failed=0` for
+  the default-on patches.
+- **Full `pytest tests/` suite 12942 passed / 0 failed** (1 documented xfailed at
+  the pin-bump checkpoint, 12827/0 there); pin-gate (13/13), dispatcher (incl.
+  iron-rule-#11 enforcement + regenerated baseline snapshots), anchor_sot
+  (bump_preflight + retire_impact), and the 5 audit_v2 pin scripts + their unit
+  tests all pass.
+- **Doc counts** bumped 319 → 321 (full-impl 260 → 261); `docs/PATCHES.md` +
+  `docs/PATCHES_AUTO.md` regenerated; pin-lag fixed across 18 operator docs;
+  ~30 dead CLI commands corrected; README enriched (overlay model, patch families,
+  4-model catalog, sndr launch); GUI confirmed live-wired and matching; one safe
+  cleanup (retired `phase1_test_harness.sh` relocated to `sndr_private/`).
 
 ---
 
