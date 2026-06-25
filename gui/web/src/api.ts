@@ -1078,6 +1078,20 @@ export type RetireImpactReport = {
   error?: string;
 };
 
+export type BumpPreflight = {
+  old_pin: string | null;
+  new_pin: string | null;
+  newly_retired: string[];
+  high_count: number;
+  medium_count: number;
+  high_unmitigated: string[];
+  high_mitigated: string[];
+  perf_landmines: string[];
+  edges: RetireImpactEdge[];
+  gate_pass: boolean;
+  error?: string;
+};
+
 export type ApplyCheck = { name: string; status: string; message?: string };
 export type ApplySummary = {
   summary: { passed?: number; failed?: number; warned?: number; skipped?: number; total?: number };
@@ -1432,6 +1446,7 @@ export const api = {
   patchPreflight: (signal?: AbortSignal) => request<PreflightReport>("/api/v1/patches/preflight", { signal }),
   applySummary: (signal?: AbortSignal) => request<ApplySummary>("/api/v1/patches/apply-summary", { signal }),
   catalogSummary: (signal?: AbortSignal) => request<CatalogSummary>("/api/v1/catalog/summary", { signal }),
+  bumpPreflight: (signal?: AbortSignal) => request<BumpPreflight>("/api/v1/patches/bump-preflight", { signal }),
   doctor: () => request<DoctorReport>("/api/v1/doctor"),
   memoryFit: (params: { model_id: string; hardware_id: string }, signal?: AbortSignal) =>
     request<MemoryFitReport>(`/api/v1/memory/fit${query(params)}`, { signal }),

@@ -755,6 +755,17 @@ def create_app(
 
         return apply_summary()
 
+    @app.get("/api/v1/patches/bump-preflight")
+    async def patches_bump_preflight(old: str = "", new: str = "") -> dict[str, Any]:
+        """Pin-bump preflight: diff two pin manifests (default previous -> active).
+        Reports newly retired/gated patches, retire-broken dependents (HIGH
+        unmitigated = the dev301-class silent regression; mitigated HIGH edges
+        have a native-form fallback), and perf-bearing patches dropped between the
+        pins. ``gate_pass`` is false iff a HIGH edge is unmitigated. Read-only."""
+        from .patches.bump_preflight_status import bump_preflight_status
+
+        return bump_preflight_status(old=old or None, new=new or None)
+
     @app.get("/api/v1/license")
     async def license_status() -> dict[str, Any]:
         """License + sndr_engine tier status — installed?, entitled?, subject/expiry,
