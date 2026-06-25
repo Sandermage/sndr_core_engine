@@ -1078,6 +1078,14 @@ export type RetireImpactReport = {
   error?: string;
 };
 
+export type ApplyCheck = { name: string; status: string; message?: string };
+export type ApplySummary = {
+  summary: { passed?: number; failed?: number; warned?: number; skipped?: number; total?: number };
+  checks: ApplyCheck[];
+  container: string | null;
+  error?: string;
+};
+
 export type PreflightCheck = {
   name: string;
   severity: "OK" | "INFO" | "WARN" | "ERROR" | string;
@@ -1422,6 +1430,8 @@ export const api = {
   retireImpact: (signal?: AbortSignal) => request<RetireImpactReport>("/api/v1/patches/retire-impact", { signal }),
   patchShadow: (signal?: AbortSignal) => request<ShadowReport>("/api/v1/patches/shadow", { signal }),
   patchPreflight: (signal?: AbortSignal) => request<PreflightReport>("/api/v1/patches/preflight", { signal }),
+  applySummary: (signal?: AbortSignal) => request<ApplySummary>("/api/v1/patches/apply-summary", { signal }),
+  catalogSummary: (signal?: AbortSignal) => request<CatalogSummary>("/api/v1/catalog/summary", { signal }),
   doctor: () => request<DoctorReport>("/api/v1/doctor"),
   memoryFit: (params: { model_id: string; hardware_id: string }, signal?: AbortSignal) =>
     request<MemoryFitReport>(`/api/v1/memory/fit${query(params)}`, { signal }),

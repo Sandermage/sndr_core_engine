@@ -12,6 +12,7 @@ import {
   api, type V2ConfigCatalog, type V2ConfigItem, type V2ConfigApplyResult, type V2ConfigPlan,
   type V2ConfigPreview, type V2LayerApplyResult, type V2LayerDefinition, type UserPresetList
 } from "../api";
+import { useApiQuery } from "../hooks/useApiQuery";
 import { tr } from "../i18n";
 import { asNumber, asText } from "../lib/coerce";
 import { formatTokens, formatVram } from "../lib/format";
@@ -233,6 +234,24 @@ function ConfigElementEditor({ catalog }: { catalog: V2ConfigCatalog | null }) {
   );
 }
 
+// Catalog-health guard: surfaces collect_catalog_summary — silent when healthy,
+// a warning banner when any builtin config failed to load (a broken YAML would
+// otherwise just be missing from the catalog with no signal).
+function CatalogHealthBanner() {
+  const { data } = useApiQuery(["catalog-summary"], (signal) => api.catalogSummary(signal), { staleTime: 60_000 });
+  const errs = data?.preset_load_errors ?? [];
+  if (!data || data.preset_load_error_count === 0) return null;
+  return (
+    <div className="config-plan-error catalog-health">
+      <AlertTriangle size={15} />
+      <span>
+        {data.preset_load_error_count} {tr("config(s) failed to load:")}{" "}
+        {errs.join(", ")}
+      </span>
+    </div>
+  );
+}
+
 export function ConfigsSection(props: {
   catalog: V2ConfigCatalog | null;
   preview: V2ConfigPreview | null;
@@ -244,6 +263,7 @@ export function ConfigsSection(props: {
   const [tab, setTab] = useState<"compose" | "edit">("compose");
   return (
     <div className="configs-section">
+      <CatalogHealthBanner />
       <div className="configs-top-tabs">
         <button className={tab === "compose" ? "active" : ""} onClick={() => setTab("compose")}>
           <Layers3 size={15} /> {tr("Compose")}

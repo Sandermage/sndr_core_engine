@@ -745,6 +745,16 @@ def create_app(
 
         return preflight_status()
 
+    @app.get("/api/v1/patches/apply-summary")
+    async def patches_apply_summary() -> dict[str, Any]:
+        """The running engine's REAL patch-apply state, from its own self-test
+        (a fixed read-only ``self-test --json`` exec — not the operator exec
+        endpoint, so it needs no SNDR_ENABLE_EXEC). passed/failed/warned/skipped
+        + per-check detail. Read-only; fail-safe (``error`` off-engine)."""
+        from .patches.apply_summary import apply_summary
+
+        return apply_summary()
+
     @app.get("/api/v1/license")
     async def license_status() -> dict[str, Any]:
         """License + sndr_engine tier status — installed?, entitled?, subject/expiry,

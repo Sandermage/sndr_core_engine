@@ -22,6 +22,7 @@ import { AnchorManifestPanel } from "./anchor-manifest";
 import { RetireImpactPanel } from "./retire-impact";
 import { ApplyShadowPanel } from "./apply-shadow";
 import { PreflightPanel } from "./preflight";
+import { ApplySummaryPanel } from "./apply-summary";
 
 export function PatchesSection({
   patches,
@@ -113,6 +114,9 @@ export function PatchesSection({
                   </ModuleCard>
                   <ModuleCard title={tr("Runtime Preflight")} icon={<ListChecks size={18} />} desc={tr("Runs the preflight checks against the running engine: PN60 quantization-arg validator + club#43 grammar-rejection and club#34 spec-decode token-loop log scans.")} wide>
                     <PreflightPanel />
+                  </ModuleCard>
+                  <ModuleCard title={tr("Apply Self-Test")} icon={<PackageCheck size={18} />} desc={tr("The running engine's real patch-apply state, from its own self-test (passed/failed/warned/skipped) — the in-process truth, not boot-log parsing.")} wide>
+                    <ApplySummaryPanel />
                   </ModuleCard>
                 </ModuleGrid>
               )
