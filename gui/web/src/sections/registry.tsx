@@ -25,7 +25,7 @@ export function BundlesPanel({ bundles }: { bundles: BundleSpec[] }) {
             <td><strong>{bundle.name}</strong></td>
             <td><StatusBadge status={bundle.tier} /></td>
             <td><code>{bundle.umbrella_flag}</code></td>
-            <td>{bundle.description}</td>
+            <td>{bundle.import_error ? <span className="bundle-import-error" title={bundle.import_error}>⚠ {tr("import error")}</span> : bundle.description}</td>
           </tr>
         ))}
       </tbody>

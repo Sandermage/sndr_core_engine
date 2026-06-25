@@ -260,6 +260,7 @@ export function FleetHostCard({
         <div className={`fleet-rel ${reliability.state}`} title={`${reliability.checks} ${tr("reachability checks · breaker")} ${reliability.state}`}>
           <span className="fleet-rel-up">{reliability.uptime_pct}% {tr("up")}</span>
           <RelSpark samples={reliability.samples} />
+          {reliability.consecutive_fails > 0 && <span className="fleet-rel-state warn">{reliability.consecutive_fails} {tr("fails in a row")}</span>}
           {reliability.state === "open" && <span className="fleet-rel-state">{tr("cooling down")}</span>}
           {reliability.state === "half_open" && <span className="fleet-rel-state">{tr("recovering")}</span>}
         </div>

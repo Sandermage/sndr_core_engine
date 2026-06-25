@@ -5392,3 +5392,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 /* Apply-order shadow blocks (Patches → Anchors) */
 .shadow-block { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
 .shadow-block .chip-row { flex-wrap: wrap; }
+
+/* Batch E small surfacing */
+.fleet-rel-state.warn { color: var(--warn, #d29922); }
+.bundle-import-error { color: var(--danger, #f85149); font-weight: 600; cursor: help; }

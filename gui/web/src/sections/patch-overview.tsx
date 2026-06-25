@@ -19,6 +19,7 @@ export function PatchSummaryPanel({
 }) {
   const lifecycleRows = Object.entries(summary?.lifecycle_counts ?? {});
   const productionRows = Object.entries(summary?.production_default_counts ?? {});
+  const tierRows = Object.entries(summary?.tier_counts ?? {});
   return (
     <div className="patch-summary-grid">
       <KpiGrid
@@ -31,6 +32,7 @@ export function PatchSummaryPanel({
       />
       <CompactList rows={lifecycleRows.map(([key, value]) => [`${tr("lifecycle")}:${key}`, String(value)])} />
       <CompactList rows={productionRows.map(([key, value]) => [`${tr("default")}:${key}`, String(value)])} />
+      {tierRows.length > 0 && <CompactList rows={tierRows.map(([key, value]) => [`${tr("tier")}:${key}`, String(value)])} />}
     </div>
   );
 }

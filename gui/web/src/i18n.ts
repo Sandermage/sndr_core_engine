@@ -684,6 +684,8 @@ const RU_BY_EN: Record<string, string> = {
   "Control plane connection map": "Карта подключений плоскости управления",
   "Control Plane Connections": "Соединения плоскости управления",
   "cooling down": "остывает",
+  "fails in a row": "сбоев подряд",
+  "import error": "ошибка импорта",
   "copied": "скопировано",
   "copy": "копировать",
   "Copy": "Копировать",
