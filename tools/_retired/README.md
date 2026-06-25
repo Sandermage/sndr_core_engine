@@ -24,4 +24,4 @@ they reference no still-used artefact (run dirs, baseline JSON, etc.).
 
 | File | Date archived | Successor | Reason |
 |---|---|---|---|
-| `phase1_test_harness.sh` | 2026-05-15 | `tools/multi_conc_bench.py` + `tools/genesis_bench_suite.py` | Phase 1 was the V8/Wave 1 era; Wave 10 multi-conc + Genesis bench suite cover all 6 sub-tests with better resolution. Last live run: 2026-05-01. |
+| `phase1_test_harness.sh` | 2026-05-15 (relocated to private archive 2026-06-26) | `tools/multi_conc_bench.py` + `tools/genesis_bench_suite.py` | Phase 1 was the V8/Wave 1 era; Wave 10 multi-conc + Genesis bench suite cover all 6 sub-tests with better resolution. Last live run: 2026-05-01. Moved out of the public tree to the maintainer's private archive (`sndr_private/tools/_retired/`) — verified 0 live references first. |
