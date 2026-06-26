@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# requirements-runtime.lock — exact pins for sndr-core runtime install.
+#
+# T5 (UNIFIED_CONFIG plan 2026-05-09): supplements `constraints.txt`
+# (which carries upper bounds) with EXACT versions for clean,
+# reproducible installs in production. CI and release artifacts
+# install with this lockfile; community installs prefer
+# `constraints.txt` which keeps upper bounds open for distro packagers.
+#
+# Update protocol:
+#   1. `pip install --upgrade pyyaml packaging` in clean venv
+#   2. `pip freeze | grep -E "^(pyyaml|packaging)" >> /tmp/lock-candidate`
+#   3. Run `scripts/run_clean_venv_test.sh`
+#   4. Replace lines below + commit with rationale in CHANGELOG.md.
+#
+# Pinned 2026-05-09 against pip 24.x. Reflects PROD-bench-validated
+# runtime stack on 35B/27B reference rigs.
+
+# ─── Direct runtime deps (per pyproject.toml [project.dependencies]) ───
+pyyaml==6.0.2
+packaging==24.1
+
+# ─── In-container runtime deps (Y1 + B6 fix; per
+# vllm/sndr_core/model_configs/builtin/a5000-2x-35b-prod.yaml package_versions) ───
+# These are NOT installed by `pip install vllm-sndr-core`; they're
+# installed inside the vllm Docker container at boot when
+# SNDR_DEV_INSTALL_RUNTIME_DEPS=1. Mirror to keep the version
+# tracking in one place.
+pandas==2.2.3
+scipy==1.14.1
+xxhash==3.5.0

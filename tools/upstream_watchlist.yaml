@@ -1,0 +1,1215 @@
+watch:
+- upstream: vllm#43409
+  status: merged
+  fix_upstream: vllm#45656
+  fix_status: merged-NOT-in-pin
+  severity: P0-correctness
+  local_patches:
+  - PN400
+  action: drift-check  # reconciled 2026-06-23: PN400 IS the backport of fix_upstream vllm#45656 (port complete); drift-check until #45656 lands in our pin, then retire PN400.
+  since: 2026-06-20
+  notes: |
+    REGRESSION IN dev148 (found by the /loop upstream sweep 2026-06-20).
+    #43409 (merged 06-12, IN dev148) removed the `if not is_sym` qzeros
+    guard in AutoGPTQMoEMethod.get_fused_moe_quant_config AND
+    CompressedTensorsWNA16MarlinMoEMethod.process_weights_after_loading.
+    Symmetric (is_sym=True) AutoRound/GPTQ Marlin MoE on NVIDIA then passes
+    meaningless qzeros to the Marlin kernel -> INCORRECT MoE expert outputs.
+    Our 27B = Qwen3.6-27B-int4-AutoRound is CONFIRMED on the broken path:
+    checkpoint config.json quantization_config = {quant_method: auto-round,
+    sym: True, bits: 4, group_size: 128} on NVIDIA A5000 (verified live
+    2026-06-20). Fix #45656 ("Restore is_sym guard for zp in GPTQ/CT MoE",
+    merged 06-18 16:20Z) landed ~12h AFTER the dev148 base commit
+    (b4c80ec0f @ 06-18 04:18Z) -> NOT in pin.
+    ACTION: backport #45656 as a Genesis TextPatch (2-file additive: restore
+    `use_zp = not is_sym` gating of w1_zp/w2_zp in auto_gptq.py + the
+    `if w13/w2_qzeros is not None` guards in
+    compressed_tensors_moe_wna16_marlin.py), version-capped to pins lacking
+    #45656; OR wait for the next pin bump including #45656 and treat dev148
+    as not-27B-correctness-safe until then. VALIDATE via 27B greedy-output
+    A/B (dev148 vs dev148+patch) on a deterministic prompt. The 27B is not
+    currently running (35B PROD is up) so there is no live mis-serving now.
+- upstream: vllm#43559
+  status: merged
+  fix_upstream: vllm#43650
+  fix_status: open-NOT-in-pin
+  severity: P0-correctness
+  local_patches: []
+  affects_models:
+  - Qwen3.6-27B-int4-AutoRound
+  - Qwen3.6-35B-A3B-FP8
+  action: watch
+  since: 2026-06-21
+  notes: |
+    REGRESSION in dev148 (found by the /loop upstream sweep 2026-06-21).
+    MTP + --enable-prefix-caching on hybrid GDN silently drops accuracy
+    ~20% (tool-eval 90%->50%), confirmed upstream on BOTH Qwen3.6-27B and
+    35B-A3B. Fix #43650 is OPEN, NOT in dev148. RIG STATUS: 35B PROD is
+    SAFE — start_qwen3.6-35b-balanced.sh runs MTP K=5 but has NO
+    --enable-prefix-caching (verified live 2026-06-21). 27B INT4 is exposed
+    only if launched with MTP + prefix caching. ACTION: never combine MTP +
+    --enable-prefix-caching on hybrid GDN models; if prefix caching is
+    required, force --kv-cache-dtype fp8 (issue-confirmed workaround). When
+    #43650 merges, take the final-mamba-block-drop fix. Gemma-4-26B-A4B is
+    NOT hybrid -> unaffected.
+- upstream: vllm#46384
+  status: open
+  severity: P0-correctness
+  local_patches:
+  - PN346
+  - PN346B
+  affects_models:
+  - Qwen3.6-35B-A3B-FP8
+  - Qwen3.6-27B-int4-AutoRound
+  action: drift-check
+  since: 2026-06-26
+  notes: |
+    INCOMING ANCHOR-DRIFT (deep re-study 2026-06-26, pin dev424
+    0.23.1rc1.dev424+g3f5a1e173). #46384 ("[2/N] partial prefix-cache hits in
+    hybrid coordinator") is an UNCONDITIONAL structural rewrite of
+    find_longest_cache_hit in BOTH v1/core/kv_cache_coordinator.py AND
+    v1/core/single_type_kv_cache_manager.py — the exact files+regions PN346
+    (manager half, vendor #43650) and PN346B (coordinator curr_hit_length
+    clamp #45614 + Part-B FA/Mamba post-trim belt #46281) anchor into with
+    required=True sub-patches. NOT a runtime bug for us today: the partial-hash
+    DATA path is gated on enable_partial_hash_hits (needs
+    mamba_cache_mode="align"; PROD runs "none" -> inert). BUT the rewrite is
+    mode-independent: it deletes the _get_block_hashes closure, reshapes the
+    clamp region (_new_hit_length -> get_cache_hit_length, cdiv truncation,
+    KVCacheBlockListWithHitLength) and edits the MambaManager loop region. On
+    the pin that carries #46384 the PN346/PN346B required anchors VANISH -> the
+    transactional patcher SKIPs -> SILENT LOSS of the #43559 Mamba+EAGLE/MTP+APC
+    poison guard (the exact 35B-A3B MTP+APC path #43559 targets). The anchor-SOT
+    bump_preflight catches this mechanically (PN346/PN346B land in
+    genuine_anchor_drift on the carrying pin); this entry records the PLAN.
+    ACTION on merge: re-anchor PN346 onto the new MambaManager partial branch;
+    for PN346B verify whether the merged clamp (get_cache_hit_length + cdiv)
+    already encodes the monotonic-min — if so RETIRE PN346B Part-A, else
+    RE-ANCHOR onto the new clamp shape; re-derive the Part-B belt against the
+    cdiv truncation. Do NOT vendor #46384 itself (half-merged [2/N] partial-hash
+    machine, inert on mamba_cache_mode="none"). Cross-ref sweep: pr 46384.
+- upstream: vllm#46446
+  status: open
+  severity: P3-perf
+  local_patches:
+  - PN129
+  affects_models:
+  - Qwen3.6-35B-A3B-FP8
+  - Qwen3.6-27B-int4-AutoRound
+  action: retire
+  since: 2026-06-26
+  notes: |
+    RETIRE-ON-MERGE (deep re-study 2026-06-26). #46446 ("Warm up slot-mapping
+    kernel through BlockTable") adds BlockTable.warmup_compute_slot_mapping()
+    (+ MultiGroupBlockTable fan-out), called from
+    gpu_worker.compile_or_warm_up_model before cudagraph capture — the CLEAN
+    upstream of PN129 (both vendor #42165). PN129 monkeypatches
+    Worker.compile_or_warm_up_model and pokes the private Triton
+    do_not_specialize attribute (self-documented hacky); #46446 does it the
+    supported way (real compute_slot_mapping over multiple shapes via
+    BlockTable, no private-API poke) and runs for MultiGroupBlockTable which our
+    hybrid (FA+GDN+Mamba) uses. PN129 is default-OFF and NOT enabled on prod
+    YAMLs -> NO correctness exposure (boot-JIT latency only). ACTION on merge:
+    retire PN129 entirely. OPTIONAL before merge: re-base PN129 onto #46446's
+    warmup_compute_slot_mapping (drop the private-Triton hack). Not urgent.
+    Cross-ref sweep: pr 46446.
+- upstream: vllm#38999
+  status: open
+  severity: P1-crash
+  local_patches: []
+  affects_models:
+  - Gemma-4-26B-A4B
+  action: watch
+  since: 2026-06-21
+  notes: |
+    Gemma-4-26B-A4B CRASHES with --data-parallel-size>1 (AssertionError in
+    cuda_communicator all_gather on the FIRST request — loads fine, graphs
+    build, /health returns 200, then dies in serving). Found by the /loop
+    sweep 2026-06-21. TRAP: setting DP=2 for "parallelism" = a silent
+    in-flight incident after a healthy boot. ACTION: never set
+    --data-parallel-size>1 or --enable-eplb on Gemma4. The validated speedup
+    path is --enable-expert-parallel (EP-over-TP) — rig-validated -20% TPOT
+    (journal §78), now canonically emitted by compose() for gemma4_moe
+    multi-GPU. Fresh EP fixes #43219/#43110/#45002 do not regress that path.
+- upstream: vllm#44740
+  status: open
+  fix_upstream: vllm#44209
+  fix_status: open
+  severity: P1-crash
+  local_patches: []
+  affects_models:
+  - Qwen3.6-27B-int4-AutoRound
+  action: watch
+  since: 2026-06-21
+  notes: |
+    MTP cudagraph negative memory estimate (-35 GiB) -> KV reallocation ->
+    OOM. On hybrid GDN the KV pool size is non-deterministic -> a silent
+    crash-loop under restart:unless-stopped AFTER /health already returned
+    200. Found by the /loop sweep 2026-06-21. Affects our 27B INT4 (MTP +
+    hybrid GDN + cudagraph). WORKAROUND: pass an explicit
+    --kv-cache-memory-bytes instead of pure --gpu-memory-utilization; do NOT
+    treat the healthcheck as a success indicator when MTP is on.
+- upstream: vllm#38479
+  status: merged
+  local_patches:
+  - P3
+  - P4
+  - P5
+  - P6
+  - P22
+  - P26
+  - P28
+  - P36
+  - P38
+  - P44
+  - P46
+  action: a-b-test
+  since: 2026-04-15
+  notes: 'Upstream merged TurboQuant KV cache compression. Genesis stack
+
+    (P3..P46) overlaps significantly. Need A/B vs upstream''s
+
+    `--kv-cache-dtype turboquant_k8v4` to confirm Genesis advantage
+
+    on hybrid (Mamba/DeltaNet) models that upstream excludes per
+
+    §10.10 audit note.
+
+    '
+- upstream: vllm#40914
+  status: open
+  local_patches:
+  - P67
+  - P67b
+  action: a-b-test
+  since: 2026-05-08
+  notes: 'Routes uniform K+1 spec-verify batches through the multi-query
+
+    kernel. P67/P67b are Genesis''s own implementation. After upstream
+
+    merge: A/B comparison required — keep Genesis path if it
+
+    outperforms (likely so on Ampere; uncertain on Hopper+).
+
+    '
+- upstream: vllm#40069
+  status: open
+  local_patches:
+  - P4
+  - P5
+  - P67
+  - P67b
+  - P78
+  - P98
+  - P99
+  - P101
+  - PN57
+  action: drift-check
+  since: 2026-05-08
+  notes: 'TurboQuant/HIGGS attention follow-up tracking issue. Genesis stack
+
+    should auto-retire patches as their corresponding bullet points
+
+    land in upstream PRs.
+
+    '
+- upstream: vllm#43432
+  status: open
+  local_patches:
+  - P44
+  - P67
+  - PN119
+  - P22
+  - P26
+  - P32
+  - PN261
+  action: a-b-test
+  since: 2026-06-19
+  notes: '[TurboQuant] Use MSE (Lloyd-Max) quantization for VALUES — a QUALITY
+
+    candidate; the only non-applicable-condemned delta of the delta-scan.
+
+    NOT condemned by the FIX2 dead-end: FIX2 was a decode-THROUGHPUT
+
+    MSE-KEY tensor-core experiment that died at Gemma GQA group=2 (needs
+
+    M>=16); THIS is scalar-Triton VALUE-quant accuracy, independent of the
+
+    GQA ratio. PR benches our exact 27B-int4-AutoRound 36/36 NIAH; Gemma
+
+    V-MSE mean NLL 0.297 vs 0.607 uniform + 2B/value-vector smaller slot.
+
+    DO NOT auto-adopt: OPEN/bot-review-only, 1124-line rewrite of value
+
+    store/decode/dequant on the live k8v4 hot path BOTH PROD models run,
+
+    changes value_packed_size 68->66 / slot_size 196->194 (must co-version
+
+    PN261/PN119/P22/P26/P32), extra per-decode inverse-Hadamard@Pi GEMM
+
+    unquantified for k8v4 TPOT. If pursued: backport ONLY the value-MSE
+
+    half (drop bundled mm_prefix_range — already vendored in
+
+    overlays/pr42637), default-OFF PNxxx extending overlays/pr42637
+
+    store+decode, with a mandatory dev148 rig A/B (TPOT + tool-call
+
+    clean-rate + NIAH on 27B & 35B) BEFORE enabling.
+
+    '
+- upstream: vllm#45748
+  status: open
+  local_patches: []
+  action: watch
+  since: 2026-06-19
+  notes: 'Turboquant native fp8 v4 (CUDA) store. NOT APPLICABLE — hardware-gated
+
+    SM>=8.9 (Hopper/Ada E4M3). Our 2x RTX A5000 = SM (8,6) deterministically
+
+    take the fp8e4b15 branch (live store, Genesis P3 workaround), which is
+
+    byte-incompatible with the native kernel''s E4M3; the native op is not
+
+    even compiled into dev148 (torch.ops._C.turboquant_store_fp8_v4 = False).
+
+    Zero perf/correctness delta. Revisit ONLY on a Hopper/L40 migration; if
+
+    ever ported, preserve the fp8_e4b15==0 / device_capability>=89 guards
+
+    VERBATIM or it silently corrupts the A5000 KV cache. Do NOT re-flag as
+
+    a missed backport.
+
+    '
+- upstream: vllm#41803
+  status: open
+  local_patches: []
+  action: watch
+  since: 2026-06-19
+  notes: '[Attention][MLA] Triton-fused TurboQuant decode backend. NOT APPLICABLE
+
+    — MLA-only. Our models are GQA/hybrid, not DeepSeek-MLA: 35B =
+
+    qwen3_5_moe (n_kv_heads=2, head_dim=256, no kv_lora_rank), 27B = DFlash
+
+    GDN+Mamba hybrid. The backend enters only via the MLA priority list +
+
+    the kv_lora_rank-gated spec hook, never touches our GQA decode kernel
+
+    (P67/P40/PN119). Do NOT re-flag as a missed backport despite the
+
+    "TurboQuant decode" title match. Revisit only if a DeepSeek-MLA model
+
+    joins the fleet (then with vllm#38479).
+
+    '
+- upstream: vllm#43887
+  status: open
+  local_patches:
+  - P67b
+  - G4_67
+  - G4_81
+  action: drift-check
+  since: 2026-06-19
+  notes: '[TurboQuant] Add MTP spec-decode routing. ALREADY COVERED live by P67b
+
+    (+32% TPS) with G4_67 (our #40914 backport) and G4_81 as backups. The
+
+    PR flips supports_spec_as_decode=True — the OPPOSITE of our deliberate
+
+    design (live=False); G4_81 checklist item 5 documents that flip as a
+
+    silent-corruption + PN243-empty-max hazard. Its only NEW half
+
+    (value-MSE) comes from base #43432, tracked there. Assessed and
+
+    consciously declined. IF it merges: verify G4_81 wrap-outer
+
+    interception still matches the new upstream forward() drift markers
+
+    (no double-route).
+
+    '
+- upstream: vllm#43878
+  status: open
+  local_patches:
+  - P101
+  - PN116
+  action: drift-check
+  since: 2026-06-19
+  notes: '[TurboQuant] streaming fallback for long prefill. NOT a miss — the
+
+    residual 0.5GB FP16 continuation-alloc spike that could affect us is
+
+    already mitigated differently by P101 (cached_len>=32768 -> sliced
+
+    decode-replay). The PR streaming core is gated behind
+
+    `not _can_use_flash_prefill`, unreachable on our flash-enabled
+
+    head_dim=256 / sliding_window=None / text-only PROD path -> would be
+
+    600+ dormant LOC. PR self-flags "could not validate k8v4 serving" =
+
+    our exact cache layout.
+
+    '
+- upstream: vllm#40269
+  status: open
+  local_patches:
+  - P77
+  - PN40
+  action: port
+  since: 2026-05-08
+  notes: 'Probabilistic draft rejection — passes draft_probs from drafter
+
+    to verifier. Genesis P77 (adaptive ngram K) is orthogonal but
+
+    complementary. Port as PN90 when upstream merges.
+
+    '
+- upstream: vllm#26504
+  status: open
+  local_patches: []
+  action: port
+  since: 2026-05-31
+  notes: "DynamicProposer — per-sequence adaptive K based on rolling\nacceptance-rate window. Claims +5-12%\
+    \ TPS on mixed workload\nvs static K. **Limitation for Genesis**: PR extends\n`EagleProposer` directly,\
+    \ NOT MTP-compatible as-written. Our\n4 PROD models use MTP K=3/K=4 (not Eagle). Backport requires\n\
+    MTP adaptation: either inherit from MTP-proposer instead of\nEagle, or extract a mixin/composition\
+    \ pattern. STUDY done\n2026-05-31 (see commit a074e900 follow-up notes). PR has\n`needs-rebase` label\
+    \ — wait for author to rebase before\nattempting the MTP-adapt backport. Acceptance threshold +\n\
+    hysteresis algorithm is generic enough to lift.\n\nMTP-adapt design sketch (2026-05-31 study, ready\
+    \ for vendor\nsession when upstream rebases):\n\nArchitecture target — extend DraftModelProposer instead\
+    \ of\nEagleProposer. The DraftModelProposer (at\nvllm/v1/spec_decode/draft_model.py in pin 0.21.1rc1.dev354+g626fa9bba)\n\
+    is the assistant-model-based MTP proposer all 4 of our PROD\ngemma4/qwen3.6 PROD models go through.\
+    \ It inherits from\nSpecDecodeBaseProposer which already owns\n`self.num_speculative_tokens` — the\
+    \ same attribute the\nDynamicProposer mutates per-batch.\n\nAlgorithm port (1:1 with #26504 file):\n\
+    \  1. Per-seq SequenceState (acceptance_rate_history deque\n     of len 10, num_spec_tokens int).\n\
+    \  2. ACCEPTANCE_HISTORY_LEN=10, ACCEPTANCE_RATE_HYSTERESIS=0.05,\n     MIN_HISTORY_FOR_ADJUSTMENT=3,\
+    \ MIN_SPEC_TOKENS=1 — copy\n     the constants.\n  3. In propose() override:\n     a. Update sequence\
+    \ states from prev step's\n        `self.runner.input_batch.num_accepted_tokens_cpu`.\n     b. Cleanup\
+    \ states for finished req_ids.\n     c. Compute per_sequence_k via\n        _adjust_and_get_spec_tokens_for_batch().\n\
+    \     d. Save self.num_speculative_tokens, set to\n        max(per_seq_k), call super().propose(),\
+    \ restore.\n     e. Pad the returned tensor to self.max_spec_tokens\n        columns so the runner\
+    \ expects a fixed shape.\n\nConfig plumbing:\n  - Add SpecConfig field `acceptance_rate_threshold:\
+    \ float =\n    0.7` (PR's default).\n  - Add method-name route: `--speculative-config\n    '{\"method\"\
+    : \"mtp_dynamic\", \"num_speculative_tokens\": 4,\n      \"acceptance_rate_threshold\": 0.7, ...}'`\n\
+    \  - SpecConfig.proposer_class resolution must dispatch\n    mtp_dynamic → Genesis MTPDynamicProposer.\n\
+    \nImplementation surface (estimated 1-2 days):\n  - vllm/sndr_core/integrations/spec_decode/mtp_dynamic_proposer.py\n\
+    \    (NEW, ~250 LOC mirroring PR #26504's structure with\n    DraftModelProposer base).\n  - vllm/sndr_core/integrations/spec_decode/spec_decode_config_routing.py\n\
+    \    patch — add mtp_dynamic to method enum + dispatch.\n  - registry.py entry — PN_NEW with method=mtp_dynamic\
+    \ gate.\n  - Test on gemma4-31B (4-class workload) + qwen3.6-27B (chat\n    + structured). Expected\
+    \ +5-12% per the PR's claim; the\n    actual gain on our hybrid GDN+Mamba (27B) and MoE A3B\n    (35B)\
+    \ stacks would be the first empirical check.\n\nOperator value: 31B chat-K=3 + structured-K=4 split\
+    \ currently\nrequires the spec_decode gateway to route per request. A\nmtp_dynamic proposer would\
+    \ converge a SINGLE launcher to the\nright K per-sequence automatically — no gateway needed for\n\
+    the K-axis. The chat/structured workload-class semantic split\nstays valid (different compression_plan\
+    \ / drafter behavior),\nbut the K choice within each profile becomes self-adapting.\n"
+- upstream: vllm#42006
+  status: open
+  local_patches:
+  - G4_T1
+  action: retire
+  since: 2026-05-30
+  notes: 'Gemma4 MTP streaming multi-tool-calls fix — segment-replay
+
+    refactor of `_extract_streaming`. Vendored as G4_T1 v1 overlay
+
+    `g4_t1_gemma4_tool_parser_pr42006_overlay.py` (matches
+
+    noonghunna/club-3090 stack 2026-05-08). On merge: delete both
+
+    v1 and v2 overlay files + remove `-v` mount in launcher
+
+    `start_gemma4-31b-tq-mtp-structured-k4.sh`. SUPERSEDED locally by
+
+    the v2 vendor of PR #42237 (see next entry) but kept here for
+
+    retire-on-merge symmetry.
+
+    '
+- upstream: vllm#42237
+  status: open
+  local_patches:
+  - G4_T1
+  action: retire
+  since: 2026-05-31
+  notes: 'Gemma4 streaming tool parser REWRITE in Hermes/Kimi style
+
+    (accumulated text + rescan + diff). Net -103 LOC vs PR #42006
+
+    and drops the third-party `regex` import. Currently vendored
+
+    as G4_T1 v2 overlay
+
+    `g4_t1_v2_gemma4_tool_parser_pr42237_overlay.py` — this is
+
+    the file the launcher bind-mounts as of 2026-05-31. Empirical
+
+    result on gemma4-31B AWQ-4bit + TQ k8v4 + MTP K=4: 35/35 tool
+
+    calls (7 cases × 5 runs, both streaming and non-streaming,
+
+    with `Connection: close` header — see Bug Class 13 notes in
+
+    docs/TROUBLESHOOTING.md). On merge: delete both overlay files
+
+    + remove launcher `-v` mount. The HTTP keep-alive parser
+
+    state-leak (case 5 nested-object missing closing `"}` two
+
+    chars on runs 2..N when client uses keep-alive) is a residual
+
+    vLLM-side bug worth flagging to the PR author when the merge
+
+    is being prepared.
+
+    '
+- upstream: vllm#43074
+  status: open
+  local_patches:
+  - Q3_T1
+  action: retire
+  since: 2026-05-31
+  notes: "[Bugfix] Qwen3Coder streaming: emit args when whole tool body\nlands in one delta. PR #43074\
+    \ fixes the EXACT bug class our\nQ3_T1 v1 overlay addresses — the upstream state machine drops\ntool_calls\
+    \ when MTP K=3 packs the whole `<function=NAME>...\n</function></tool_call>` body into a single delta\
+    \ after\nis_tool_call_started flipped on the prior delta. Reproduces\nwith `--tool-call-parser qwen3_coder\
+    \ --stream-interval 20\n--speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":3}'`\n\
+    on Qwen3.6-27B — exactly our 27B PROD launcher config.\n\nAuthor's fix is a surgical +81/-41 LOC patch\
+    \ to the state\nmachine (\"collapsed body\" detection + emit args inline).\nOur Q3_T1 v1 takes a different\
+    \ approach — full Hermes/Kimi\nrescan + diff rewrite (~250 LOC of new method) — which is\nmore general\
+    \ (covers ALL packing patterns, not just \"whole\nbody in one delta\") but heavier. After upstream\
+    \ merges,\nverify the fix covers our 7-case bench at 100% on both 27B\nand 35B, then retire Q3_T1\
+    \ v1.\n\nRelated (track but not primary retire triggers):\n  - vllm#40861 (Qwen3 XML and Coder streaming\
+    \ regression\n    fix, needs-rebase)\n  - vllm#39598 (streaming tool call empty fields with MTP\n\
+    \    + qwen3coder early return, needs-rebase)\n  - vllm#41970 (Enable tool parser tests for Qwen3\
+    \ Coder)\n  - vllm#37829 (stop string streaming at next <parameter=>\n    boundary, needs-rebase)\n\
+    \  - vllm#43363 (refactor Use shared type coercion utilities\n    in Qwen3 XML — touches type-coercion\
+    \ path our Q3_T1 v1\n    also depends on via _convert_param_value)\n\nEmpirical state of Q3_T1 v1\
+    \ on pin 0.21.1rc1.dev354+g626fa9bba:\n  qwen3.6-27b stream: 35/35 ✓ (was 1/7 = 14%)\n  qwen3.6-35b\
+    \ stream: 35/35 ✓ (was 2/14 = 14%)\n  non-streaming on both: unchanged 7/7\nSee Bug Class 15 in docs/TROUBLESHOOTING.md\
+    \ for full bench.\n"
+- upstream: vllm#43909
+  status: merged
+  local_patches: []
+  action: a-b-test
+  since: 2026-05-31
+  notes: "[Bug] Fix gemma4 MTP IMA issue when TP>1 (CUDA error: illegal\nmemory access). Merged 2026-05-30\
+    \ (after our pin 626fa9bb of\n2026-05-28). Minimal +9/-1 LOC fix in\n`vllm/model_executor/models/gemma4_mtp.py`:\
+    \ caches\n`_stable_full_lm_head_weight` to prevent CUDA graph from\ncapturing a dangling pointer to\
+    \ a temp tensor (post all_gather\n+ slice). Author bench on Gemma-4-E2B-it shows 0.64s avg\nlatency\
+    \ for batch=16 input-len=512 output-len=128.\n\nVendored 2026-05-31 as Genesis G4_77 overlay (4-file\n\
+    bind-mount to `/usr/local/lib/python3.12/dist-packages/\nvllm/model_executor/models/gemma4_mtp.py`).\
+    \ A/B bench on\ngemma4-31b AWQ + TQ k8v4 + MTP K=4 + TP=2 + 2× A5000 +\ngpu-mem-util=0.80 (Bug Class\
+    \ 14 fix), 3 samples × 4\nworkloads, greedy decode, `Connection: close`:\n\n  | Workload | Baseline\
+    \ | With G4_77 | Δ |\n  |---|---:|---:|---:|\n  | chat | 23.54 | 20.27 | -13.9% |\n  | code | 41.73\
+    \ | 42.95 | +2.9% |\n  | count | 52.37 | 50.05 | -4.4% |\n  | json | 53.47 | 47.63 | -10.9% |\n\n\
+    NET NEGATIVE. Reverted. Likely cause: the cached tensor\n(post all_gather across TP=2) consumes additional\
+    \ VRAM at\na config that is already running gpu-mem-util=0.80 to give\nGenesis P38 TQ workspace its\
+    \ 1 GiB alloc. Reduced KV cache\n→ more KV churn on longer prompts → measurable regression\non chat\
+    \ (longest output) and JSON (structured but long).\nThe PR's author bench was on Gemma-4-E2B-it (much\
+    \ smaller\nmodel, presumably more memory headroom). The IMA workaround\nGenesis already ships (G4_71..G4_76\
+    \ stack in launcher) may\nalso be incompatible with the upstream cache in subtle ways.\nRe-evaluate\
+    \ after next pin bump if the upstream lands in\nproduction builds.\n"
+- upstream: vllm#43803
+  status: merged
+  local_patches: []
+  action: a-b-test
+  since: 2026-05-31
+  notes: "[Perf] remove seqlen from Mamba SSD chunk kernels. Merged\n2026-05-28. +0/-10 LOC — removes\
+    \ a dead `seqlen` parameter\nfrom 5 Mamba prefill kernels (`_chunk_cumsum_fwd_kernel`,\n`_chunk_state_fwd_kernel`,\
+    \ `_chunk_scan_fwd_kernel`,\n`_bmm_chunk_fwd_kernel`, `_causal_conv1d_fwd_kernel`).\nTriton specializes\
+    \ plain `int` args by default, so every\nprefill with a new total-token-count was triggering a\nfresh\
+    \ JIT compile. Author claim on Nemotron-H-8B / A10G /\nShareGPT: Mean TTFT -17%, P99 TTFT -46%. Throughput\n\
+    unchanged.\n\nVendored 2026-05-31 to qwen3.6-27b-int4-autoround\nlauncher as a 4-file bind-mount (`/tmp/mamba_fixed/\n\
+    {causal_conv1d,ssd_bmm,ssd_chunk_scan,ssd_chunk_state}.py`).\nCleared ~/.triton/cache before measurement\
+    \ to force fresh\nJIT path. A/B vs baseline 27B, 8-sample TTFT × 3 prompt\nlengths, 3-sample TPS ×\
+    \ 4 workloads, greedy, `Connection:\nclose`:\n\n  | Metric | Baseline | With #43803 | Δ |\n  |---|---:|---:|---:|\n\
+    \  | TTFT short (5 tok prompt) | 151.3ms | 139.4ms | -7.9% |\n  | TTFT medium (80 tok prompt) | 169.7ms\
+    \ | 176.0ms | +3.7% (noise) |\n  | TTFT long (400 tok prompt) | 233.2ms | 232.5ms | -0.3% (noise)\
+    \ |\n  | TPS chat | 91.68 | 86.95 | -5.2% |\n  | TPS code | 113.53 | 113.05 | -0.4% (noise) |\n  |\
+    \ TPS count | 117.79 | 116.43 | -1.2% (noise) |\n  | TPS json | 105.61 | 107.77 | +2.0% |\n\nNET marginal-to-negative.\
+    \ Reverted. Does NOT reproduce the\nPR's claimed -17%/-46% on our config. Likely cause: our\nqwen3.6-27B\
+    \ is a hybrid GDN + Mamba architecture, NOT pure\nMamba like Nemotron-H. The GDN layers dominate the\
+    \ prefill\nhot path and the Mamba SSD kernels see fewer invocations\nwith varying seqlen — fewer JIT\
+    \ recompiles to save. The\nTPS chat regression (-5.2%) is just outside the run-to-run\nnoise band\
+    \ (~3%) and may reflect a different code path\ntaken without the dead `seqlen` arg in our specific\n\
+    configuration. Re-evaluate if Genesis later vendors a pure\nMamba model (e.g. nemotron-h-* family)\
+    \ where this PR's\narchitecture would actually apply.\n"
+- upstream: vllm#36138
+  status: merged
+  local_patches:
+  - P59
+  - P62
+  - P64
+  action: drift-check
+  since: 2026-04-25
+  notes: 'Grammar ignored when reasoning ended in speculated tokens.
+
+    Already integrated as P62 + structured-output fixes. Verify
+
+    anchor md5 not drifted after upstream pin bump.
+
+    '
+- upstream: vllm#40270
+  status: open
+  local_patches: []
+  action: port
+  since: 2026-05-08
+  notes: 'Pluggable GPU KV cache eviction (LRU/2Q/ARC). Critical for
+
+    agent/RAG workloads. Port as PN91 when merged.
+
+    '
+- upstream: vllm#37160
+  status: open
+  local_patches: []
+  action: port
+  since: 2026-05-08
+  notes: 'CPU KV offload connector. Compatibility: NOT compatible with
+
+    hybrid Mamba (Qwen3.5/3.6 GDN). Port as PN92 with `applies_to.is_hybrid: [False]`
+
+    hard guard.
+
+    '
+- upstream: vllm#37190
+  status: open
+  local_patches: []
+  action: watch
+  since: 2026-05-08
+  notes: 'MoE expert CPU offloading. Allow fitting 35B-A3B (256 experts)
+
+    on single 24GB. High throughput cost (30-60% TPS hit). Port as
+
+    experimental-only PN93.
+
+    '
+- upstream: vllm#38330
+  status: open
+  local_patches: []
+  action: port
+  since: 2026-05-08
+  notes: 'Multimodal encoder cache. Cache vision embeddings across
+
+    requests. Port as PN94 with preprocessor-version key.
+
+    '
+- upstream: vllm#37951
+  status: open
+  local_patches: []
+  action: watch
+  since: 2026-05-08
+  notes: 'KV cache memory error at 262K context. Padding waste in hybrid
+
+    layers. Genesis memory explain (DA-018) should surface this.
+
+    '
+- upstream: vllm#39998
+  status: open
+  local_patches:
+  - P14
+  action: watch
+  since: 2026-05-08
+  notes: 'Qwen3 + TurboQuant 4-bit KV + high concurrency + 32K context
+
+    index out of bounds. P14 (block_table tail zero-fill) related;
+
+    verify it covers the index path upstream is fixing.
+
+    '
+- upstream: vllm#40281
+  status: closed
+  local_patches: []
+  action: watch
+  since: 2026-05-08
+  notes: 'Gemma4 support — closed unmerged. Wait for replacement PR.
+
+    When Gemma4 lands upstream, create patch family + preset.
+
+    '
+- upstream: vllm#39133
+  status: open
+  local_patches: []
+  action: watch
+  since: 2026-05-08
+  notes: 'Gemma 4 31B INT4 KV/cache limits on 2x24GB. SWA underutilized.
+
+    Will need Gemma-specific config profile (memory estimator).
+
+    '
+- upstream: vllm#40265
+  status: closed
+  local_patches:
+  - P7
+  - P7b
+  action: drift-check
+  since: 2026-05-08
+  notes: 'FLA TP device index overflow — closed unmerged. Pattern matters.
+
+    Add regression guard in P7/P7b ensuring int64 device-index dtype.
+
+    '
+- upstream: Sandermage/genesis-vllm-patches#1
+  status: open
+  local_patches: []
+  action: cookbook
+  since: 2026-05-08
+  notes: 'OOM with long context. See docs/COOKBOOK.md §1. Memory explain
+
+    (DA-018) should preflight detect and warn.
+
+    '
+- upstream: vllm#40124
+  status: open
+  local_patches:
+  - P3
+  - P4
+  - P5
+  - P6
+  - P14
+  - P15
+  - P22
+  - P26
+  - P28
+  - P31
+  - P36
+  - P38
+  - P44
+  - P46
+  - P67
+  - P67b
+  - P95
+  action: drift-check
+  since: 2026-05-08
+  notes: 'Sander''s own master tracking issue: Ampere FP8 + TurboQuant +
+
+    Qwen3.6-35B-A3B + hybrid MoE. Every Genesis patch in this list
+
+    should map to a sub-bullet of the issue.
+
+    '
+- upstream: vllm#42102
+  status: open
+  local_patches:
+  - PN21
+  - PN23
+  - PN24
+  - PN38
+  - PN40
+  action: port
+  since: 2026-05-12
+  notes: "DFlash drafter coexistence with quantized target KV. Upstream\nproposes three mechanisms:\n\
+    \  1. partition DFlash draft KV specs before page-size unify\n     (draft and target live in separate\
+    \ KV groups).\n  2. drafter cache_dtype=\"auto\" when target global KV dtype is\n     quantized (drafter\
+    \ inherits fp16/bf16 instead).\n  3. per-spec dtype in FlashAttention metadata scheduler.\n\nGenesis\
+    \ already has PN21..PN40 for DFlash on Ampere. The relevant\nbackport target is the hybrid path where\
+    \ target KV =\nturboquant_k8v4 while the drafter keeps fp16 (head_size=256\nconstraint).\n\nBackport\
+    \ plan: see docs/_internal/research/upstream_42102_dflash_\nindependent_kv_groups_plan_2026-05-12.md\
+    \ (S4.1 closure).\n\nCritical compatibility check: refined COMPAT-001 (qwen-next only)\nfrees Qwen3.6-27B\
+    \ Lorbus + DFlash for further development.\n"
+- upstream: vllm#38864
+  status: open
+  local_patches:
+  - PN66
+  - P12
+  - P27
+  - P59
+  - PN71
+  - PN58
+  action: a-b-test
+  since: '2026-06-19'
+  notes: 'Cluster of OPEN qwen3 reasoning/tool-parser edge-case fixes found 2026-06-19 (loop scan), NOT
+    vendored, candidates for the next pin bump: #38864 (</think> leak in streaming WITH stop sequences
+    — token/text desync; distinct from our PN66 multiturn-leak), #45164 (Qwen3 parsing when reasoning
+    end-tag present), #45787 (count reasoning tokens when <think> present — our P89 area), #44812 (stop
+    thinking budget at implicit tool calls — our PN16 area), #45299 (reasoning->content short resp), #40861
+    (Qwen3 XML/Coder streaming tool call). #39055 (tool calls embedded in think) + #45389 (braces in required-tool
+    streaming) ALREADY referenced in registry. All OPEN, all edge cases. Live probe of #38864 on the 35B
+    was INCONCLUSIVE (default traffic did not trigger reasoning_content + an SSE-capture issue) — no confirmed
+    current exposure on the validated config (tool-call 7/7). Evaluate + vendor the applicable ones when
+    a pin carrying them is pulled.'
+- upstream: vllm#43730
+  status: open
+  local_patches:
+  - P23
+  - P87
+  - G4_08
+  action: watch
+  since: '2026-06-19'
+  notes: '[Bugfix] Marlin MoE c_tmp FP32-reduce IMA (drops a min() clamp in csrc/moe/marlin_moe_wna16/ops.cu;
+    re-file of closed #36889). NOT overlay-patchable — the fix is in a COMPILED .cu kernel, not Python,
+    so it can only arrive via a pin bump that carries it. Reproducer is RTX PRO 6000 Blackwell SM 12.0;
+    our fleet is SM 8.6 A5000 and the live 35B runs c_tmp/marlin-IMA-clean. It is the WNA16 (INT4) MoE
+    path (more the 27B than the 35B FP8). No confirmed current exposure; pull it when a pin includes it.
+    Our P23 (marlin_fp32_reduce_wire) + P87 (sub-tile pad) + G4_08 (kdim pad) touch adjacent Marlin config
+    but not this .cu clamp. 2026-06-19 loop MoE/quant scan.'
+- upstream: vllm#45656
+  status: merged
+  local_patches:
+  - P87
+  - P91
+  action: drift-check
+  since: '2026-06-19'
+  notes: '[Bugfix] Restore is_sym guard for zp in GPTQ/CT MoE — fixes a symmetric-quant regression
+    introduced by #43409 (CPU W4A16 INT4 MoE, merged 2026-06-12, IN dev148). #45656 merged
+    2026-06-18T16:20Z, AFTER our dev148 cutoff (b4c80ec0f, 04:18Z) -> next-pin candidate. The
+    regression only mis-feeds qzeros to Marlin when is_sym=True (symmetric GPTQ MoE). Our 27B/35B
+    are AutoRound INT4 ASYMMETRIC (real per-group zero-points present; P87 pads qzeros, P91 tags
+    scales/qzeros — AutoRound emits these only for sym=False), so is_sym=False and the #45656 use_zp
+    path is byte-identical pre/post fix -> NOT exposed. Drift-check only: when a pin carries #45656,
+    re-confirm our checkpoints still load is_sym=False (no behavior change expected). 2026-06-19 loop
+    MoE/quant scan.'
+- upstream: vllm#45466
+  status: merged
+  local_patches:
+  - P67
+  action: watch
+  since: '2026-06-19'
+  notes: '[Bugfix][Kernel] Check output alignment in vectorize_with_alignment — fixes a misaligned
+    store for non-16B-multiple head rows in reshape_and_cache_flash (fuzz model head_size=46). Merged
+    2026-06-18T16:58Z, AFTER our dev148 cutoff -> next-pin. PR states "no behavior change for any
+    currently-working caller". Our head dims (128/256/512) are all 16B multiples -> NOT exposed; P67
+    next_power_of_2(hpk) handles the 27B GQA=6 grouping at the block level, separate from this per-store
+    alignment. Track only so a future odd/non-pow2 head-dim model would not silently hit the misaligned
+    store landmine. Free on bump. 2026-06-19 loop kernel scan.'
+sweep:
+- pr: 46384
+  genesis_patch: PN346, PN346B
+  trigger: reanchor-on-merge
+  note: 'INCOMING ANCHOR-DRIFT (deep re-study 2026-06-26, dev424 3f5a1e173). #46384 ("[2/N]
+    partial prefix-cache hits in hybrid coordinator") is an UNCONDITIONAL structural rewrite of
+    find_longest_cache_hit in BOTH v1/core/kv_cache_coordinator.py AND
+    v1/core/single_type_kv_cache_manager.py — the exact files+regions PN346 (manager half, vendor
+    #43650) and PN346B (coordinator curr_hit_length clamp #45614 + Part-B FA/Mamba post-trim belt
+    #46281) anchor into with required=True sub-patches. NOT a runtime bug for us today: its partial-hash
+    DATA path is gated on enable_partial_hash_hits (needs mamba_cache_mode="align"; PROD runs "none" so
+    the feature is inert). BUT the rewrite is mode-independent — it DELETES the _get_block_hashes closure,
+    reshapes the clamp region (_new_hit_length -> get_cache_hit_length, cdiv truncation,
+    KVCacheBlockListWithHitLength), and edits the MambaManager loop region. On the pin that carries #46384
+    PN346/PN346B required anchors will be ABSENT -> the transactional patcher SKIPs -> silent LOSS of the
+    #43559 Mamba+EAGLE/MTP+APC poison guard on the exact 35B-A3B MTP+APC path #43559 targets. On merge:
+    re-anchor PN346 onto the new MambaManager partial branch; for PN346B check whether the merged clamp
+    (get_cache_hit_length + cdiv) already encodes the monotonic-min — if so PN346B Part-A is a RETIRE
+    candidate, else RE-ANCHOR onto the new clamp shape; re-derive the Part-B belt against the cdiv
+    truncation. The anchor-SOT build_manifest already surfaces this mechanically (PN346/PN346B land in
+    genuine_anchor_drift on the carrying pin); this row records the re-anchor-vs-retire DECISION + the
+    #43559 guard rationale the mechanical detector cannot infer. Also tracked in the watch: section above.'
+- pr: 46446
+  genesis_patch: PN129
+  trigger: retire-on-merge
+  note: 'RETIRE-ON-MERGE (deep re-study 2026-06-26). #46446 ("Warm up slot-mapping kernel through
+    BlockTable") adds BlockTable.warmup_compute_slot_mapping() (+ MultiGroupBlockTable fan-out) called
+    from gpu_worker.compile_or_warm_up_model before cudagraph capture — the CLEAN upstream of PN129 (both
+    vendor #42165). PN129 monkeypatches Worker.compile_or_warm_up_model and pokes the private Triton
+    do_not_specialize attribute (self-documented hacky); #46446 does it the supported way (real
+    compute_slot_mapping over multiple shapes via BlockTable, covering more specializations, no private-API
+    poke) and runs for MultiGroupBlockTable which our hybrid (FA+GDN+Mamba) uses. PN129 is default-OFF and
+    NOT enabled on prod YAMLs (no correctness exposure; boot-JIT latency only). On merge: retire PN129
+    entirely. OPTIONAL before merge: re-base PN129 onto #46446 warmup_compute_slot_mapping (drop the
+    private-Triton hack). Not urgent.'
+- pr: 42006
+  genesis_patch: G4_T1
+  trigger: retire-on-merge
+  note: 'G4_T1 RACING CLUSTER (#42006 / #42237 / #42300 / #44741 / #45068 / #44844) — whichever merges
+    first decides retirement of the overlay stack (now THREE on-disk overlay generations: v1 rollback
+    + v2 live mount + v3 prep). This PR = v1 overlay g4_t1_gemma4_tool_parser_pr42006_overlay.py (rollback
+    copy). Also tracked in the legacy watch: section above.'
+- pr: 42237
+  genesis_patch: G4_T1
+  trigger: retire-on-merge
+  note: 'G4_T1 RACING CLUSTER member — v2 overlay (live bind-mount; 35/35 tool calls with Connection:close).
+    Also tracked in the legacy watch: section above. On merge delete overlay files + launcher -v mount.'
+- pr: 42300
+  genesis_patch: G4_T1
+  trigger: retire-on-merge
+  note: G4_T1 RACING CLUSTER member — third competing upstream fix for the Gemma-4 streaming tool parser;
+    not vendored; its merge also triggers overlay retirement review.
+- pr: 44741
+  genesis_patch: PN375
+  trigger: retire-on-merge
+  note: 'G4_T1 RACING CLUSTER member. DONE in the 2026-06-11 sweep: vendored as PN375 (pn375_gemma4_multiboundary_streaming.py)
+    — _extract_streaming_delta_segments runtime hook rebinding _extract_streaming on the PRISTINE pin
+    parser; the G4_14 pad-token set IS stripped from current_text AND delta_text before the consistency
+    check (mutation-verified: without the strip the fix silently degrades to the single-pass path). Self-skips
+    on the G4_T1 v2 overlay variant (accumulated-rescan, structurally immune). Combined regression test
+    (multi-boundary + <pad> + G4_14 active) in tests/unit/integrations/tool_parsing/ test_pn375_gemma4_multiboundary_streaming.py;
+    the pristine-bug reproduction test flips to FAILED when an upstream fix lands — then deep-diff and
+    retire PN375 (iron-rule-#11).'
+- pr: 45068
+  genesis_patch: G4_T1
+  trigger: retire-on-merge
+  note: 'G4_T1 RACING CLUSTER member — Gemma4 parallel tool calls + MTP. DONE in the 2026-06-11 W2 sweep:
+    (1) MTP-split regression corpus ported into test_g4_t1_streaming_mtp_corpus.py (first streaming parser
+    tests for the family; runs against v2 AND the v3 prep), (2) token-id start-gate vendored into the
+    v2 overlay (gate on tool_call_start_token_id in current_token_ids, Genesis adaptations documented
+    inline), (3) keep-alive state leak (31/35 = remaining 4/35 failures on Gemma-4 + MTP) reproduced as
+    a strict-xfail on v2 with the `if not previous_text` reset-guard analysis; the FIX ships only in the
+    v3 prep overlay (Genesis reset-guard hardening) pending the server-stage A/B.'
+- pr: 45207
+  genesis_patch: G4_60E
+  trigger: reanchor-on-merge
+  note: 'Mamba page padding — patches the SAME function (unify_kv_cache_spec_page_size) that G4_60E owns,
+    with the same page_size_padded technique. W2 plan: fold the MambaSpec elif into G4_60E (standalone
+    vendor would double-monkey-patch) + add Genesis-unique 3-way test (TQ + Mamba + bf16-drafter). On
+    merge re-derive G4_60E anchors and drop the duplicated branch.'
+- pr: 45181
+  genesis_patch: G4_60E
+  trigger: reanchor-on-merge
+  note: 'Mixed KV page sizes (DFlash) — generic AttentionSpec padding fallback supersedes G4_60E Patch
+    2 (keep TQ-native Patches 1/3/4); same function as #45207, do ONE reconciliation pass over G4_60E
+    + the pr42637 overlay. Unblocks the Gemma-4-31B TQ k8v4 profile on this pin (~2.7x KV memory vs fp16).'
+- pr: 45199
+  genesis_patch: 'planned: PN371'
+  trigger: retire-on-merge
+  note: 'Deferred ref-pinned encoder-cache eviction — W1 vendor, flag-gated ON for gemma4 (engine-fatal
+    "Encoder cache miss" on Gemma-4 vision + MTP K=3 + async-scheduling, our exact #38551 triple). Self-skip
+    probe on eager_eviction signature; EXTEND: demote fatal assert to warn+skip in drafter path only.'
+- pr: 45202
+  genesis_patch: 'planned: P86'
+  trigger: retire-on-merge
+  note: Prefix-cache stats double-count on retries — W2 vendor as the safer variant (suppress recording
+    in get_computed_blocks, record on allocate_slots success); fallback-disable if a connector is configured.
+    Requires re-baselining p85/TQ hit-rate numbers collected under max_num_seqs=8.
+- pr: 45182
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: TRTLLM BF16 MoE modular kernel is SM100-only (dead on Ampere) — borrow ONLY the logger.info_once("Using
+    %s experts") one-liner into fp8/int_wna16 oracles + selection test asserting MarlinExperts (guards
+    PN96b/PN368 against silent selection drift across pin bumps).
+- pr: 45197
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: Disable cudagraph memory estimate default — upstream CHANGES_REQUESTED; do NOT flip configs blindly.
+    MEASURE =1 vs =0 on 35B/27B first; if >~200 MiB overestimate confirmed, write the root-cause capture-all-and-measure
+    patch (descs <= 16) and reconcile presets.py(=0) vs a5000 YAML(=1) inconsistency. Interacts with P66
+    capture-size filter.
+- pr: 45196
+  genesis_patch: 'planned: PN-tbd (loader fail-fast validation)'
+  trigger: retire-on-merge
+  note: Loader/LoadConfig fail-fast validation — W2 near-clean 4-hunk vendor + tests; safety prerequisite
+    for the enable_multithread_load + num_threads=8 experiment on 35B/27B (~30-60s saved per restart);
+    mirror checks into audit_config_keys.py.
+- pr: 45184
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: Intermediate tensors for KV connectors — W3 research. If vendored, FIX the upstream kwargs-shadowing
+    bug first; the real win is a connector-free salience tap at the same decorator site (SnapKV-style
+    scores as PN95 demote-ordering key; est. 5-15% fewer preemptions at high KV pressure).
+- pr: 45176
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'Marlin -> torch stable ABI — byte-identical kernels, 0 direct perf. On the pin that contains
+    it: verify _C_stable_libtorch/_moe_C op resolution before patch probes and re-run the Marlin A/B (all
+    sm80 kernels recompiled). Adopt the pattern for genesis_kernels.abi3.so (native p87, fused TQ dequant,
+    native pn365 GDN GEMM).'
+- pr: 45173
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: '/v1/embeddings chat messages — Track A now: copy the ~20-line duck-typing into Genesis_proxy_ai
+    to replace the zero-vector stub; Track B: vendor when the embedding sidecar lands (likely merged by
+    next bump — review then). Unblocks semantic memory (MTEB ~64-70 via Qwen3-Embedding).'
+- pr: 45100
+  genesis_patch: PN370
+  trigger: retire-on-merge
+  note: 'Racy accepted-counts under async+MTP — VENDORED 2026-06-11 as PN370 (spec_decode/pn370_async_accepted_counts_race.py):
+    live silent-corruption class on Qwen3.6-35B PROD (hybrid GDN + MTP K=3 + async is the exact repro
+    config; bonus ~2-5% TPOT from deleting a per-step synchronize). PN341 sub-patch 4 anchors the IDENTICAL
+    num_accepted_tokens_event line — dual anchor variants (post-PN341 anchor imported from PN341_PREPARE_NEW,
+    chain convention), PN341 dispatches first; PN290 composes cleanly. Drift markers self-skip on merge
+    (needs_cpu_accepted_counts + the PR''s gdn_attn comment). Retire via deep-diff on the first pin containing
+    the merge (iron rule 11).'
+- pr: 45146
+  genesis_patch: 'planned: P79e'
+  trigger: retire-on-merge
+  note: 'Reset placeholders on KV-load-failure rewind — W3, dormant until KV offloading is adopted (copy
+    P79d TextPatcher skeleton; EXTEND with discard-credit for in-flight async frames). The study surfaced
+    P79d staleness — W2-IMMEDIATE: rewrite P79d with discard-credit semantics (it backports a dead boolean
+    and would assert-crash at async_scheduler.py:60 if enabled).'
+- pr: 45144
+  genesis_patch: P67b
+  trigger: review-on-merge
+  note: 'ROCm AITER SKV (MTP + fp8 KV) — P67b DRIFT-WATCH: second independent upstream validation of the
+    P67/P67b multi-query design (PROD-active, +32% TPS); converge P67b toward its shape at next bump.
+    Also the blueprint for Variant B (multi-query direct routing in the pr42637 TQ overlay to unblock
+    MTP K=3 x TQ on Gemma-4-31B); its acceptance data (K=2: 0.75, K=3: 0.50) is a free K=2-vs-K=3 bench
+    experiment.'
+- pr: 45126
+  genesis_patch: P81
+  trigger: review-on-merge
+  note: NVIDIA-tuned tiles + PID swizzle for triton_scaled_mm — probe whether the W8A8 fallback ever fires
+    (likely dormant); main value is the transfer recipe (offline sweep -> frozen per-arch dict, bit-identical
+    assert) for g4_kpad_moe_gemm. P81's table was tuned on GB10, NOT sm_86 — re-sweep; consume static
+    tables via the PN362 force-first mechanism.
+- pr: 45151
+  genesis_patch: PN351
+  trigger: reanchor-on-merge
+  note: GUARANTEED PN351 ANCHOR-BREAKER — inserts 7 kwargs precisely inside the PN351_LAUNCH_OLD anchor.
+    Make the PN351 anchor dual-form BEFORE any pin containing this merge (else we silently lose PN351's
+    -3-7% decode TPOT). Also adopt the 3D-decode guardrail (forcing the 2D path = up-to-7x decode regression
+    at our exact operating point); architecture is the GDN-epilogue-fusion template.
+- pr: 45120
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: Fused softmax in grouped_topk CUDA — compiled .cu, cannot overlay; pin rejects scoring_func=2.
+    Port the A/B method into a routing microbench at batch 1-8; the fp32-fused finding is retire evidence
+    for kernels_legacy/router_softmax.py (dormant on the FusedTopKRouter path).
+- pr: 45053
+  genesis_patch: PN95
+  trigger: reanchor-on-merge
+  note: 'OffloadingHandler -> OffloadingWorker refactor renames symbols PN95 borrows — on post-#45053
+    pins re-anchor the PN95 stream pool and adopt explicit submit_demote/submit_promote wrappers (replacing
+    the string direction= kwarg anti-pattern upstream kills). With #45146, a prerequisite for any future
+    CPU-KV-offloading experiment; track #33689''s hybrid-model item vs the PN95 MambaSpec exclusion.'
+- pr: 45109
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: AWQ outputs under Transformers v5 tokenizer — test-only PR, vendor nothing. Build the tokenizer-fingerprint
+    gate (sha256 of token-ids on a canonical prompt set, diffed pre-bench at every pin bump) BEFORE output
+    benches that validate parser changes or PN351 anchor migrations — tokenizer drift otherwise gets misattributed
+    to patches.
+- pr: 45130
+  genesis_patch: 'planned: PN-tbd (FP8 MoE + LoRA fail-fast guard)'
+  trigger: retire-on-merge
+  note: Fail-fast FP8 MoE + LoRA guard — 38-line additive, byte-verified clean on the pin, lands on our
+    actual MarlinExperts class; vendor at next bump. Transfer the fail-fast pattern to TQ-k8v4+FA3 and
+    Gemma-4 TQ-blocked drift guards; 5-min phantom-env audit (VLLM_MOE_FORCE_MARLIN is fake).
+- pr: 45005
+  genesis_patch: 'planned: PN-next (eagle_step zero-seqlen guard)'
+  trigger: retire-on-merge
+  note: 'W1 vendor: 8-line Triton guard (seq_len <= 0, stricter than upstream''s == 0) in the eagle_step_slot_mapping
+    kernel; rebind in utils + llm_base_proposer. Kills #40756-class CUDA IMA on 262-280K MTP agent sessions;
+    if A/B confirms, retires P108''s draft-loop sync workaround (2-6% TPOT recovery). PN id assigned at
+    vendor time (PN370 collision flagged across chunks).'
+- pr: 45060
+  genesis_patch: 'planned: PN-next (all-NaN logits OOV kernel half)'
+  trigger: retire-on-merge
+  note: Vendor the KERNEL half only (tl.where -inf mask on the vocab padding tile); the scheduler hunk
+    is the same site as PN133 — keep PN133 and extend it with log.error instead of upstream's assert.
+    Qwen vocab 151936 % 8192 != 0, so the persistent-NaN livelock hole is live; ~0 latency cost.
+- pr: 44993
+  genesis_patch: P62
+  trigger: review-on-merge
+  note: 'Grammar advance across reasoning boundary — functionally COVERED by P62 (vendored #36138; its
+    prefix scan is stronger for multi-token markers). Validation-only adaptation: port the 50-trial E2E
+    json_object reproducer + 4 regression tests against P62; add drift markers for #44297/#44993 to protect
+    P62 from a wedged apply at pin bump.'
+- pr: 45040
+  genesis_patch: 'planned: G4-family vendor (fp8_e5m2 KV predicate)'
+  trigger: retire-on-merge
+  note: 'Allow fp8_e5m2 KV for weight-only checkpoints — W1: monkeypatch the _checkpoint_has_fp8_kv_scales
+    predicate into _init_kv_cache_quant, then a gemma4-31b-fp8e5m2-fallback profile (Triton-attn/FlashInfer,
+    NOT FA2). 31B KV halves (~9.4 -> 4.7 GiB @200K) -> full 256K ctx or CG/concurrency headroom. Sequence
+    with #45038: guard first, then fallback profile; check drafter KV-spec patches (G4_71/72/76) before
+    enabling on structured role.'
+- pr: 45038
+  genesis_patch: G4_31
+  trigger: retire-on-merge
+  note: 'Guard fp8 KV auto-override on sub-SM90 — W1: extend G4_31''s Attention.__init__ wrap with a second
+    suppress arm (cache_dtype=="auto" + kv_cache_scheme present) + late-mutation invariant log; do NOT
+    double-wrap. Removes the IMA-on-burst landmine on the live 31B kv-auto degraded profile (SM8.6, MTP
+    K=3, max_num_seqs=8). Audit G4_31 for redundancy on this pin (its turboquant_* arm can no longer trigger).'
+- pr: 44955
+  genesis_patch: 'planned: PN-next (parallel_tool_calls null guard)'
+  trigger: retire-on-merge
+  note: 'parallel_tool_calls null != false — W1: 1-line `is not False` text patch in tool_calls_utils.py
+    modeled on PN288 (adjacent established territory); add the streaming-delta unit test upstream lacks;
+    optional null-strip in Genesis_proxy_ai. Stops silent multi-tool-call truncation for explicit-null
+    clients (LiteLLM/n8n). PN id assigned at vendor time.'
+- pr: 45080
+  genesis_patch: 'planned: PN-tbd (DecodeBenchConnector GDN fix)'
+  trigger: review-on-merge
+  note: 'DecodeBenchConnector list/tuple KV fix — our W2 backport DOES MORE than upstream (per-block fill:
+    the pin''s MambaSpec IS block-indexed, upstream''s whole-pool fill clobbers concurrent state; plus
+    a real group_idx map), so on merge deep-diff and KEEP the extras (iron-rule-#11 outcome b). Unlocks
+    decode-TPOT-vs-depth benching on GDN hybrids (8K/32K/128K/280K sweep profile, MTP off).'
+- pr: 45022
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: Voxtral realtime re-anchor RFC — all 3 gates fail on our stack; vendor nothing. Port vram_probe.py
+    -> endurance_probe.py into the pin-validation playbook (catches multi-hour VRAM/RSS/KV creep on the
+    24GB rig); keep the in-place-KV-mutation handshake as the design template for future live-KV-rewrite
+    patches.
+- pr: 45096
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'Mamba PD async-sched NIXL race — zero code now (NIXL dormant). Pin-bump checklist invariant:
+    off-stream GDN state-pool writes MUST be event-gated (audit confirmed P7/PN204 side-streams already
+    are); reuse the event + FIFO-deque + query() idiom when building GDN state prefix-cache restore (the
+    4.4s@32K TTFT attack).'
+- pr: 45001
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'CUDA qkv_padded_fp8_quant for ViT — dead on SM8.6 + text-only + PN62 skips ViT; do not vendor
+    the .cu. Adapt the bandwidth playbook (BLOCK_M rows/program, grid-stride, vectorized loads) to the
+    TQ k8v4 Triton kernels, gated on a <50%-of-768GB/s microbench; copy the bit-exact test matrix. #45080''s
+    connector is the validation tool for any kernel rework derived from this.'
+- pr: 44877
+  genesis_patch: G4_T1
+  trigger: retire-on-merge
+  note: 'Quoted-key STRING_DELIM strip — DONE in the 2026-06-11 sweep: the ~25-line quoted-key branch
+    transplanted verbatim into BOTH live-bindable G4_T1 overlay copies (v2 PR42237 current mount + v1
+    PR42006 rollback; the sndr_private archive copy is frozen history, not live-bindable), superseding
+    the #44717 post-hoc strip (provably dead once the branch is in). qwen3_xml audited for the same key/value
+    asymmetry — PRESENT (unescaped key interpolation + quote capture in the <parameter=> preprocess regex)
+    and fixed as PN374 (pn374_qwen3xml_quoted_keys.py). Tests: test_g4_t1_dict_key_sentinel_strip.py (now
+    parametrized over all THREE overlay generations) + test_pn374_qwen3xml_quoted_keys.py (15). FOLDED
+    into the v3 prep overlay (g4_t1_v3_gemma4_tool_parser_pr44844_overlay.py, 2026-06-11) per the synergy
+    note — one overlay, one watchlist row each. Same G4_T1 file as the racing cluster.'
+- pr: 44844
+  genesis_patch: G4_T1
+  trigger: retire-on-merge
+  note: 'G4_T1 RACING CLUSTER member — span-based streaming parser rewrite. VENDORED 2026-06-11 (W2) as
+    the v3 PREP overlay g4_t1_v3_gemma4_tool_parser_pr44844_overlay.py: verbatim PR head (sha a0c0ba69be)
+    + Genesis reset-guard hardening (mutation-verified load-bearing) + the #44877 quoted-key hunk folded
+    in per the synergy note. NOT bind-mounted anywhere — the A/B vs v2 on the 7x5 tool-call harness happens
+    at the server stage before any mount switch. Closes the MTP K=3 streaming corruption v2 cannot handle
+    (stripped call:name{...} bodies) AND the keep-alive 31/35 leak (strict-xfail on v2, PASS on v3, in
+    test_g4_t1_streaming_mtp_corpus.py).'
+- pr: 44943
+  genesis_patch: PN380
+  trigger: retire-on-merge
+  note: 'Qwen3.5/3.6 MTP pre-fused expert loader — VENDORED 2026-06-11 (W2) as PN380 (pn380_qwen3_mtp_prefused_expert_loader.py):
+    six sub-patches on qwen3_5_mtp.py load_weights — 3 vendored (pre-fused mapping + detection + params_dict
+    KeyError guard, adapted to the pin''s STATIC mapping list; the PR head builds it in a loop, hence
+    alt_ckpt_name is the safe drift marker) + 3 Genesis-original (P29-style draft-weight load-coverage
+    guard: one log.error on any ckpt/param coverage gap — the engine''s strict check is disabled for quantized
+    models, i.e. all PROD). Anchors disjoint from PN348 (same file; both co-apply orders tested). Companion
+    accept-rate floor (0.55, WARN) landed in genesis_bench_suite.py. On merge: deep-diff (iron-rule-#11)
+    — expect category (b), our coverage guard does MORE; keep the guard subs, retire the 3 vendored subs.'
+- pr: 44837
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'DSV4 MTP missing prefix= — lesson ADOPTED 2026-06-11 (W2; not the code — the DSV4 files are outside
+    our engaged set): AST lint tests/unit/lint/test_quantized_linear_prefix.py flags parallel-Linear-family
+    constructions passing a non-None quant_config without prefix=, across (a) pristine pin model files
+    our patches anchor (auto-discovered from patch sources) and (b) vendored overlay copies in the repo;
+    scoped allowlist for verified-safe hits (EMPTY as of pin g303916e93 — whole surface clean). Kills
+    one pin-bump crash class + the silent AWQ/AutoRound mis-quantization variant; <1s CI. Built together
+    with #44943''s coverage guard ("loud startup" validation family, PN380).'
+- pr: 44880
+  genesis_patch: PN340, PN341
+  trigger: reanchor-on-merge
+  note: 'Bailing MTP + LINEAR_ATTN spec-decode — do NOT vendor the feature (the pin''s gdn_attn already
+    has the design). ANCHOR BREAKER: the PR edits PN341''s anchor neighborhood in gpu_model_runner.py
+    (+10/-2 around the accepted-counts / spec-decode preprocessing region PN341 sub-patch 4 and PN370
+    both anchor) — GUARANTEED PN341 anchor break on the merge pin; this row converts it into a planned
+    5-min re-anchor (re-derive PN341_PREPARE_OLD/NEW, then re-run the PN370 chain tests, which import
+    PN341''s constants and fail loudly on drift). Buffer-stability tests PORTED 2026-06-11 (W2 sweep):
+    tests/unit/integrations/attention/gdn/ test_pn340_gdn_builder_buffer_stability_torch.py — data_ptr
+    identity across consecutive FULL-CG builds + pad semantics (upstream''s PAD_SLOT_ID adapted to the
+    GDN builder''s NULL_BLOCK_ID / False / 1 / last-cumsum constants) against the PN340-patched builder,
+    K=1 upstream shape + K=3 PROD shape. REMAINING at next pin bump: cherry-pick the PR''s llm_base_proposer.py
+    getattr-hardening (defensive getattr(..., None) reads of optional drafter attrs — cheap crash-class
+    insurance for non-Bailing MTP proposers too).'
+- pr: 44868
+  genesis_patch: 'planned: PN358'
+  trigger: retire-on-merge
+  note: 'FULL CG forward-context refresh — W2 vendor as PN358 (journal pre-assigned) with 2 improvements:
+    data_ptr-pruned copy (kills upstream''s 1-3% TPOT cost) + a `detect` mode logging stale-metadata mismatches
+    (definitive audit of whether the 280-patch overlay leaks fresh tensors into captured graphs). Composes
+    with PN353B/PN118, no file conflict.'
+- pr: 44850
+  genesis_patch: 'planned: PN-tbd (tile_mask USE_TD KV load)'
+  trigger: retire-on-merge
+  note: tile_mask in USE_TD KV load — W3 vendor of the 4-line tl.where fix (constexpr-dead when USE_TD=False,
+    provably free); shares a file with PN351 but anchors verified non-colliding. Adopt the NaN-canary
+    harness and run it against tq_grouped_decode/sparse_v/p67 kernels; makes VLLM_TRITON_ATTN_USE_TD A/B
+    safe.
+- pr: 44912
+  genesis_patch: PN77
+  trigger: review-on-merge
+  note: '0-D FP8 scale rank vs torch._scaled_mm — upstream kernel dormant on SM8.6 (Marlin tier selected);
+    the SAME bug class lives in OUR lm_head_fp8_method.py:416-434 (amax() produces 0-D scales): fix the
+    Genesis side (.view(1) + TDD unit test) + grep-audit CI for all _scaled_mm call sites (inoculates
+    pn347/p81/compressor paths).'
+- pr: 44784
+  genesis_patch: 'planned: PN-tbd (KV-offload MTP draft-group gate)'
+  trigger: retire-on-merge
+  note: 'KV-offload + MTP segfault — OffloadingConnectorScheduler wrongly schedules EAGLE/MTP draft-attention
+    groups -> OOB GPU block index -> cuMemcpyBatchAsync segfault; blocks native KV offload on every MTP
+    config (ours included). W1 doc half DONE 2026-06-11 (docs/PATCHES.md stale GDN-offload caveat corrected
+    against the pin). W2: vendor the 4 scheduler.py hunks tests-first + EXTEND with Qwen3.6-specific is_eagle_group
+    flagging (avoid all-groups fallback hit-rate loss) + re-add the dropped pre-DMA bounds check. Unlocks
+    prefix-reuse (second-pass TTFT ~4-8x cut on agent loops).'
+- pr: 44932
+  genesis_patch: PN22, PN23
+  trigger: review-on-merge
+  note: 'FP8 KV + DCP FlashInfer — partial overlap with our PN22/23 dequant_buffer: borrow the fused gather+dequant
+    pattern, keep the TQ specifics. Part 1 (S, anytime): cherry-pick the selector.py info_once log-dedup
+    hunk. Part 2: TQ-k8v4 fused gather+dequant Triton kernel + narrow the PN22/23 dequant buffer dtype
+    (fp32 -> fp16 V). Part 3 research: quantize-before-collective for PCIe TP=2. Bench together with #44784
+    on the 35B long-ctx profile.'
+- pr: 44717
+  genesis_patch: G4_T1
+  trigger: retire-on-merge
+  note: 'Dict-key sentinel strip — DONE in the 2026-06-11 sweep: 8-line key-strip vendored into both G4_T1
+    overlay copies (v2 PR42237 + v1 rollback), 10 new tests, rides the G4_T1 registry entry. SUPERSEDED
+    same sweep by the #44877 quoted-key branch (same issue #44715, strictly stronger: handles '':'' inside
+    quoted keys + withholds unterminated keys) — the overlays now carry #44877''s hunk; this row stays
+    because EITHER PR merging still triggers the same retire review. #44752 is a DUPLICATE of this PR.'
+- pr: 44752
+  genesis_patch: G4_T1
+  trigger: retire-on-merge
+  note: 'DUPLICATE of #44717 (same bug, same issue #44715) — do NOT vendor separately (avoids a redundant
+    PN); tracked so that EITHER PR merging triggers retirement of the G4_T1 key-strip hunk.'
+- pr: 45076
+  genesis_patch: PN367
+  trigger: retire-on-merge
+  note: 'Negative cudagraph memory estimate — DONE this sweep as PN367 v2 (never-firing drift markers
+    fixed + 1 MiB first-capture floor); registry re-pointed to the consolidated #44745. Watch BOTH #45076
+    and #44745; retire PN367 when either merges (deep-diff first). Prevents the capture/load OOM class
+    under MTP K=3 at util=0.9 on 24GB cards.'
+- pr: 44644
+  genesis_patch: PN348
+  trigger: retire-on-merge
+  note: 'Qwen3.5/3.6 MTP backbone dedup — already vendored as PN348; ENABLED on the qwen3.6-35b-a3b-fp8
+    profile 2026-06-11 (enable+measure: ~1 GiB/rank peak VRAM + 1-3s boot expected; A/B at next restart).
+    Gain claim reframed per the sweep study: the pin''s proposer already reclaims steady-state — the benefit
+    is PEAK load VRAM + boot time, steady-state TPS unchanged. With PN367, shrinks boot-time VRAM uncertainty
+    on the same 24GB MTP boot path.'
+- pr: 44742
+  genesis_patch: PN381
+  trigger: retire-on-merge
+  note: 'allowed_token_ids metadata hardening — VENDORED 2026-06-11 (W2 sweep) as PN381 (anchored 1-line
+    condition in _make_sampling_metadata, PN67 playbook; default OFF via GENESIS_ENABLE_PN381_ALLOWED_TOKEN_IDS_METADATA);
+    defense-in-depth only (the #35654 consumer fix is already in the pin). On merge the patcher SELF-SKIPS:
+    drift marker is the PR''s unparenthesized form ''or not self.no_allowed_token_ids'' — our emitted
+    clause is parenthesized on purpose (lint_drift_markers contract); then deep-diff + retire per iron-rule-#11.
+    The PR''s CUDA regression test is PORTED CPU-runnable through OUR PN369/P71-patched sampler (tests/unit/integrations/spec_decode/
+    test_pn381_sampler_regression_torch.py) + a torch-free producer contract exec test — row-parity coverage
+    upstream never had.'
+- pr: 44778
+  genesis_patch: PN55
+  trigger: retire-on-merge
+  note: 'FP8 KV wake-up nested containers — functionally DUPLICATE of existing PN55v2 (drift marker matches
+    the helper); no re-vendor. Do: add #44778 to PN55 related_upstream_prs, replace the hand-mirrored
+    test with the PR''s exec-patched-text technique, add log.warning for skipped non-tensor leaves, review
+    companion #44779 (resume_scheduler gate) before enabling sleep/wake hot-swap. On merge deep-diff PN55v2
+    for retirement (iron-rule-#11).'
+- pr: 44628
+  genesis_patch: 'planned: PN-tbd (fp8 ignore-list substring match)'
+  trigger: retire-on-merge
+  note: FP8 modules_to_not_convert substring match — W2 vendor (text-patch fp8.py at both call sites +
+    quant_utils experts branch + parity one-liners); validate via per-layer quant-scheme log diff on 35B
+    before default_on. Eliminates a silent-gibberish class for HF-style ignore lists (Qwen3.6-VL FP8 broken
+    TODAY on the pin); unblocks selective-FP8 GDN re-quant experiments.
+- pr: 44563
+  genesis_patch: 'planned: PN-tbd (moe_wna16 BLOCK_SIZE_K clamp)'
+  trigger: retire-on-merge
+  note: 'moe_wna16 BLOCK_SIZE_K clamp for gs=32 — W2 vendor of the 4-line clamp (anchor unique, beside
+    the P24 surface) + the PR''s CPU-only test + a boot-time legality assert for the actual model grid.
+    Converts a deterministic warmup abort into serving for gs=32 int4 MoE on the live Marlin->wna16 fallback;
+    unblocks gs=32 quant benchmarking of our exact model family. The #40547 heuristic-swap finding feeds
+    the P24 MoE-tiling research track.'
+- pr: 44754
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'Revert of #44613 snapshot — DO NOT vendor (misattributed auto-revert, abandoned, conflicts; #44613
+    is correctly in the pin). Do: adopt the snapshot-at-construction discipline lint (rule for #44628
+    and any FusedMoEConfig-adjacent patch: P24/PN352/PN96B), harden the bare get_current_vllm_config()
+    at turboquant_attn.py:496 (same boot/reload AssertionError class dev134 already triggered once).'
+__sentinel__: complete

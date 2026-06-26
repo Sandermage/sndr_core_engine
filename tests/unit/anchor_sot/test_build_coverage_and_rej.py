@@ -1,0 +1,189 @@
+"""TASK 4 — commit-coverage hygiene: build_manifest emits both files +
+asserts discovered == ok + rejected; summarize_rej.py prints a human summary.
+
+Drives build_manifest.py end-to-end via subprocess with synthetic targets.json /
+pristine.json envelopes (matching discover.py / pristine_dump.py), since the real
+pipeline needs a rig. Then summarizes the emitted drift.rej.json.
+"""
+import importlib.util
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[3]
+ANCHOR_SOT = REPO / "scripts" / "anchor_sot"
+BUILD = ANCHOR_SOT / "build_manifest.py"
+SUMMARIZE = ANCHOR_SOT / "summarize_rej.py"
+
+
+def _target(pid, sub, rel, anchor, repl, required=True, markers=None,
+            lifecycle=None):
+    return {
+        "patch_id": pid, "sub": sub, "target_rel": rel,
+        "anchor": anchor, "replacement": repl, "required": required,
+        "vllm_version_range": None,
+        "upstream_merged_markers": list(markers or []),
+        "lifecycle": lifecycle,
+    }
+
+
+def _run_build(tmp_path, targets, files, pin="0.23.1rc1.dev1+gdeadbeef0"):
+    repo = tmp_path / "repo"
+    (repo / "sndr" / "engines" / "vllm" / "pins").mkdir(parents=True)
+    tjson = tmp_path / "targets.json"
+    pjson = tmp_path / "pristine.json"
+    tjson.write_text(json.dumps({"pin": pin, "genesis_pin": "g", "targets": targets}))
+    pjson.write_text(json.dumps({"pin": pin, "files": files}))
+    r = subprocess.run(
+        [sys.executable, str(BUILD), str(tjson), str(pjson), str(repo), pin, "g"],
+        capture_output=True, text=True,
+    )
+    return r, repo
+
+
+def _pin_dir(repo, pin="0.23.1_deadbeef0"):
+    return repo / "sndr" / "engines" / "vllm" / "pins" / pin
+
+
+def test_build_emits_both_files_and_passes_coverage(tmp_path):
+    targets = [
+        _target("PA", "s1", "f.py", "ANCHOR_A", "REPL_A"),
+        _target("PB", "s1", "f.py", "MISSING_ANCHOR", "R"),  # -> anchor_drift
+    ]
+    files = {"f.py": "x ANCHOR_A y"}
+    r, repo = _run_build(tmp_path, targets, files)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "coverage: discovered=2 == ok=1 + rejected=1" in r.stdout
+
+    pin_dir = _pin_dir(repo)
+    assert (pin_dir / "anchors.json").is_file()
+    rej_path = pin_dir / "drift.rej.json"
+    assert rej_path.is_file()
+    rej = json.loads(rej_path.read_text())
+    # coverage block + full rejected set are recorded (no silent loss)
+    assert rej["coverage"] == {"discovered": 2, "ok": 1, "rejected": 1}
+    assert any(e["key"] == "PB::s1" and e["status"] == "anchor_drift"
+               for e in rej["rejected"])
+    # merge tri-state roll-up present
+    assert rej["merge_status"]["PA"]["merge_status"] == "not_merged"
+
+
+def test_build_rej_records_fully_merged_patch(tmp_path):
+    targets = [
+        _target("PM", "s1", "f.py", "A1", "R1", markers=["def native_one"]),
+        _target("PM", "s2", "f.py", "A2", "R2", markers=["def native_two"]),
+    ]
+    files = {"f.py": "A1 A2 def native_one def native_two"}
+    r, repo = _run_build(tmp_path, targets, files)
+    assert r.returncode == 0, r.stdout + r.stderr
+    rej = json.loads((_pin_dir(repo) / "drift.rej.json").read_text())
+    assert rej["merge_status"]["PM"]["merge_status"] == "fully_merged"
+    # the fully-merged patch is VISIBLE in anchors.json (not silently dropped)
+    m = json.loads((_pin_dir(repo) / "anchors.json").read_text())
+    assert m["files"]["f.py"]["patches"]["PM"]["merge_status"] == "fully_merged"
+
+
+def test_build_retired_patch_classifies_retired_not_drift(tmp_path):
+    # A retired patch whose anchor is GONE from the pristine source must be
+    # classified `retired` (NOT anchor_drift) and excluded from the re-anchor
+    # backlog. A non-retired patch with the same gone anchor IS anchor_drift.
+    targets = [
+        _target("PRET", "s1", "f.py", "GONE_RETIRED_ANCHOR", "R",
+                lifecycle="retired"),
+        _target("PDRIFT", "s1", "f.py", "GONE_LIVE_ANCHOR", "R"),
+    ]
+    files = {"f.py": "neither anchor present here"}
+    r, repo = _run_build(tmp_path, targets, files)
+    assert r.returncode == 0, r.stdout + r.stderr
+    rej = json.loads((_pin_dir(repo) / "drift.rej.json").read_text())
+
+    by_key = {e["key"]: e for e in rej["rejected"]}
+    assert by_key["PRET::s1"]["status"] == "retired"
+    assert by_key["PDRIFT::s1"]["status"] == "anchor_drift"
+
+    # genuine_anchor_drift excludes the retired patch (only the live one)
+    genuine_keys = {e["key"] for e in rej["genuine_anchor_drift"]}
+    assert genuine_keys == {"PDRIFT::s1"}
+    assert "PRET::s1" not in genuine_keys
+
+    # the retired patch is NOT in the applied manifest (never re-anchored)
+    m = json.loads((_pin_dir(repo) / "anchors.json").read_text())
+    assert "PRET" not in m["files"].get("f.py", {}).get("patches", {})
+
+    # build stdout surfaces the retired count separately from genuine_drift
+    assert "retired=1" in r.stdout
+    assert "genuine_drift=1" in r.stdout
+
+
+def test_build_retired_patch_with_matching_anchor_still_retired(tmp_path):
+    # Even when a retired patch's anchor STILL matches the source, it is routed
+    # to `retired` (never the applied ok manifest) — a retired patch is never
+    # spliced regardless of anchor presence.
+    targets = [
+        _target("PRET", "s1", "f.py", "STILL_HERE", "R", lifecycle="retired"),
+    ]
+    files = {"f.py": "x STILL_HERE y"}
+    r, repo = _run_build(tmp_path, targets, files)
+    assert r.returncode == 0, r.stdout + r.stderr
+    rej = json.loads((_pin_dir(repo) / "drift.rej.json").read_text())
+    assert rej["rejected"][0]["status"] == "retired"
+    assert rej["coverage"] == {"discovered": 1, "ok": 0, "rejected": 1}
+    m = json.loads((_pin_dir(repo) / "anchors.json").read_text())
+    assert "f.py" not in m["files"]  # nothing applied
+
+
+def test_summarize_rej_prints_retired_separately(tmp_path):
+    targets = [
+        _target("PB", "s1", "f.py", "MISSING_ANCHOR", "R"),       # anchor_drift
+        _target("PRET", "s1", "f.py", "GONE_R", "R", lifecycle="retired"),
+    ]
+    files = {"f.py": "nothing matches"}
+    _, repo = _run_build(tmp_path, targets, files)
+    r = subprocess.run([sys.executable, str(SUMMARIZE), str(_pin_dir(repo))],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    out = r.stdout
+    # retired counted in the by-status table AND printed in its own block,
+    # separate from the genuine anchor_drift re-anchor list
+    assert "retired" in out
+    assert "do NOT re-anchor" in out
+    assert "genuine anchor_drift" in out
+    assert "PRET::s1" in out
+    assert "PB::s1" in out
+
+
+def test_summarize_rej_prints_human_summary(tmp_path):
+    targets = [
+        _target("PA", "s1", "f.py", "ANCHOR_A", "REPL_A"),
+        _target("PB", "s1", "f.py", "MISSING_ANCHOR", "R"),
+        _target("PM", "s1", "f.py", "A1", "R1", markers=["def native_one"]),
+    ]
+    files = {"f.py": "x ANCHOR_A y A1 def native_one"}
+    _, repo = _run_build(tmp_path, targets, files)
+    pin_dir = _pin_dir(repo)
+    r = subprocess.run([sys.executable, str(SUMMARIZE), str(pin_dir)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    out = r.stdout
+    assert "rejected by status:" in out
+    assert "anchor_drift" in out
+    assert "upstream_merged" in out
+    assert "merge_status roll-up:" in out
+    assert "fully_merged" in out
+    assert "PB::s1" in out  # the genuine drift is named for re-anchoring
+
+
+def test_summarize_rej_missing_file_exit_2(tmp_path):
+    r = subprocess.run([sys.executable, str(SUMMARIZE), str(tmp_path / "nope")],
+                       capture_output=True, text=True)
+    assert r.returncode == 2
+
+
+def test_summarize_rej_importable_helper():
+    # the status-order constant covers the four statuses the task names
+    spec = importlib.util.spec_from_file_location("_summarize_rej_t", SUMMARIZE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for s in ("anchor_drift", "upstream_merged", "ambiguous", "version_gated"):
+        assert s in mod._STATUS_ORDER

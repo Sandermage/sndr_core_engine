@@ -1,0 +1,319 @@
+# Genesis pre-commit hooks — runs the same gates as CI locally before push.
+# Saves CI minutes + faster feedback for contributors.
+#
+# Install:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Run manually:
+#   pre-commit run --all-files
+#
+# Skip (only when you absolutely must):
+#   git commit --no-verify
+#
+# The 4 Genesis-specific gates (the ones the CI test.yml workflow gates on):
+#   1. Pin-gate adoption test — KNOWN_GOOD_VLLM_PINS drift + version range
+#   2. Iron-rule-#11 meta-test — retire provenance discipline
+#   3. Doc-sync check — patch counts consistent across 5 docs
+#   4. Audit upstream (skip-network) — basic registry sanity offline
+#
+# Plus standard hygiene hooks (whitespace, EOF, YAML syntax).
+
+repos:
+  # ─── Standard hygiene ───────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'  # CHANGELOG entries may have trailing whitespace in tables
+      - id: end-of-file-fixer
+        exclude: '\.md$|tests/legacy/pristine_fixtures/'
+      - id: check-yaml
+        exclude: 'sndr_private/'  # private maintainer-only tree (gitignored)
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=2048']  # 2 MB limit (bench JSONs can be ~20 KB)
+      - id: check-merge-conflict
+
+  # ─── Genesis-specific gates (local, no external deps) ──────────────────
+  - repo: local
+    hooks:
+      - id: genesis-pin-gate
+        name: Genesis pin-gate adoption test
+        entry: python3 -m pytest tests/unit/dispatcher/test_pin_gate.py -q
+        language: system
+        pass_filenames: false
+        files: '(sndr/dispatcher/registry\.py|sndr/engines/vllm/detection/guards\.py|tests/unit/dispatcher/test_pin_gate\.py)$'
+
+      - id: genesis-iron-rule-11
+        name: Genesis iron rule #11 enforcement (retire provenance)
+        entry: python3 -m pytest tests/unit/dispatcher/test_iron_rule_11_enforcement.py -q
+        language: system
+        pass_filenames: false
+        files: '(sndr/dispatcher/registry\.py|tests/unit/dispatcher/test_iron_rule_11_enforcement\.py)$'
+
+      - id: genesis-doc-sync
+        name: Genesis doc-sync (patch count consistency)
+        entry: python3 scripts/check_doc_sync.py --strict
+        language: system
+        pass_filenames: false
+        files: '(sndr/dispatcher/registry\.py|README\.md|docs/(PATCHES|INSTALL|MODELS|BENCHMARKS)\.md)$'
+
+      - id: genesis-patches-md-sync
+        name: Genesis docs/PATCHES_AUTO.md in sync with registry
+        entry: python3 scripts/generate_patches_md.py --check
+        language: system
+        pass_filenames: false
+        files: '(sndr/dispatcher/registry\.py|docs/PATCHES_AUTO\.md)$'
+
+      - id: genesis-configs-md-sync
+        name: Genesis docs/CONFIGS_AUTO.md in sync with builtin YAMLs
+        entry: python3 scripts/generate_configs_md.py --check
+        language: system
+        pass_filenames: false
+        files: '(sndr/model_configs/builtin/.*\.yaml|docs/CONFIGS_AUTO\.md)$'
+
+      - id: genesis-upstream-audit-offline
+        name: Genesis upstream-status audit (offline registry sanity)
+        entry: python3 scripts/audit_upstream_status.py --skip-network
+        language: system
+        pass_filenames: false
+        files: '(sndr/dispatcher/registry\.py|scripts/audit_upstream_status\.py)$'
+
+      - id: genesis-family-contracts-touched
+        name: Genesis family contracts (when integrations/ touched)
+        entry: python3 -m pytest tests/unit/integrations/ -q --tb=short
+        language: system
+        pass_filenames: false
+        files: '(sndr/engines/vllm/patches/.*\.py|tests/unit/integrations/.*\.py)$'
+
+      - id: genesis-audit-phase3-relocation
+        name: Genesis Phase 3 relocation audit (R1/R2/R3/R4)
+        # §0.5 architectural invariants:
+        #   R1  gemma4/ is small-compat namespace (whitelist enforced)
+        #   R2  registry apply_module never points at a relocation shim
+        #   R3  structured-profile envs are all in PATCH_REGISTRY
+        #   R4  no shell scripts / launcher subprocess calls under integrations/
+        # Fast (~100 ms), read-only, no torch import. Fires when
+        # integrations/, registry, structured profile, or the audit
+        # script itself changes.
+        entry: python3 scripts/audit_phase3_relocation.py
+        language: system
+        pass_filenames: false
+        files: '(sndr/engines/vllm/patches/.*|sndr/dispatcher/registry\.py|sndr/model_configs/builtin/profile/.*\.yaml|scripts/audit_phase3_relocation\.py|tests/unit/scripts/test_audit_phase3_relocation\.py)$'
+
+      - id: genesis-audit-shim-window
+        name: Genesis shim-window integrity audit (E.1/E.2/E.3/E.4/E.5)
+        # BUILD-SHIM-WINDOW-AUDIT.2 — verify historical-path
+        # compatibility shims stay in valid shim state:
+        #   E.1  raw tree = exactly declared README + symlinks
+        #   E.2  declared symlinks point to expected canonical targets
+        #   E.3  resolved symlink targets exist + are directories
+        #   E.4  resolved overlay contains required sentinel files
+        #   E.5  README retains retirement-contract wording anchors
+        # Current manifest: integrations/gemma4/ → attention/turboquant/
+        # overlays/pr42637/. Fires on shim dir, overlay target, the
+        # audit script itself, or its test file.
+        entry: python3 scripts/audit_shim_window.py
+        language: system
+        pass_filenames: false
+        files: '(sndr/engines/vllm/patches/gemma4/.*|sndr/engines/vllm/patches/attention/turboquant/overlays/pr42637/.*|scripts/audit_shim_window\.py|tests/unit/scripts/test_audit_shim_window\.py)$'
+
+      - id: genesis-audit-private-namespace
+        name: Genesis private namespace boundary (hard rule #27)
+        # P0.1 M.7 — forbid `vllm/**/sndr_private` directory anywhere
+        # under the packaged tree. Only allowed private namespaces are:
+        #   - repo-root `sndr_private/`  (gitignored maintainer archive)
+        #   - `vllm/sndr_engine/`        (license-gated commercial wheel)
+        # Cross-checks that the M.2 wheel-contract test still asserts
+        # absence from a built wheel, and that the repo-root archive
+        # stays gitignored. Read-only, no torch / build deps.
+        entry: python3 scripts/audit_private_namespace.py
+        language: system
+        pass_filenames: false
+        files: '(sndr/.*\.py|vllm/.*\.py|scripts/audit_private_namespace\.py|tests/unit/test_wheel_contents\.py|\.gitignore)$'
+
+      - id: genesis-audit-config-catalog
+        name: Genesis preset card catalog (CONFIG-UX.audit Stage 1)
+        # Wraps `validate_for_status()` from preset_schema.py plus catalog-
+        # level cross-checks (fallback resolution, default_for_family
+        # uniqueness, evidence path existence). Runs in DEFAULT mode
+        # (non-strict) → warnings about card-less presets are surfaced
+        # but don't block commits at Stage 1. CI / release can run
+        # `make audit-config-catalog` with `--strict` to gate on warnings.
+        entry: python3 scripts/audit_config_catalog.py
+        language: system
+        pass_filenames: false
+        files: '(sndr/model_configs/builtin/presets/.*\.yaml|sndr/model_configs/preset_schema\.py|scripts/audit_config_catalog\.py|tests/unit/scripts/test_audit_config_catalog\.py)$'
+
+      - id: genesis-audit-override-policy
+        name: Genesis profile OverridePolicy presence + Class-4 hard-enforcement (CONFIG-UX.4)
+        # Audits every profile with `sizing_override` for the presence +
+        # shape of `override_policy`. Class-4 hard enforcement (CONFIG-UX.4,
+        # closed 2026-05-30): 4 FORBIDDEN_OVERRIDES rules ALWAYS fire as
+        # ERROR regardless of OverridePolicy justification:
+        #   - gpu_memory_utilization > 1.0 (physics-broken)
+        #   - tensor_parallel_size > hardware.n_gpus (physics-broken)
+        #   - profile narrows kv_cache_dtype below model (evidence-invalidating)
+        #   - profile changes spec_decode method (acceptance-distribution invalidated)
+        # --strict mode also escalates warnings (missing override_policy,
+        # policy-without-sizing) to fatal so CI catches debt accumulation.
+        # Wired into `make gates` as audit-override-policy-strict.
+        entry: python3 scripts/audit_override_policy.py --strict
+        language: system
+        pass_filenames: false
+        files: '(sndr/model_configs/builtin/profile/.*\.yaml|sndr/model_configs/community/profile/.*\.yaml|sndr/model_configs/schema_v2\.py|scripts/audit_override_policy\.py|tests/unit/scripts/test_audit_override_policy(_class4)?\.py)$'
+
+      - id: genesis-audit-v2-runtime-pins
+        name: Genesis V2 runtime + ModelDef pin harmonization (R-PIN-1..4)
+        # P2.6 invariants — locks the runtime image / ModelDef pin
+        # discipline so a future pin bump cannot silently regress:
+        #   R-PIN-1  no bare mutable vLLM nightly in hardware YAMLs
+        #   R-PIN-2  hardware image_digest present + correct prefix
+        #   R-PIN-3  rendered IMAGE == composed cfg.docker.image == hw image
+        #   R-PIN-4  ModelDef vllm_pin_required within allowed set;
+        #            migration table emitted as info (Qwen dev338 OK
+        #            until P2.4d promotes per-model with smoke evidence)
+        # Read-only. Fires when hardware / model YAMLs, the renderer,
+        # the compose layer, or the audit itself changes.
+        entry: python3 scripts/audit_v2_runtime_pins.py
+        language: system
+        pass_filenames: false
+        files: '(sndr/model_configs/builtin/hardware/.*\.yaml|sndr/model_configs/builtin/model/.*\.yaml|sndr/cli/legacy/profile\.py|sndr/model_configs/compose\.py|scripts/audit_v2_runtime_pins\.py|tests/unit/scripts/test_audit_v2_runtime_pins\.py)$'
+
+      - id: genesis-audit-v2-modeldef-vs-hardware-pin
+        name: Genesis V2 ModelDef ↔ hardware canonical-pin drift (R-MD-HW-1/2)
+        # Phase 5.2.E invariants — stricter than R-PIN-4 (which accepts
+        # both dev338 and dev371 as allowed pins during per-model P2.4d
+        # promotion). This audit asks "does every ModelDef pin match
+        # the canonical rig SHA, or is the operator carrying an
+        # implicit hold?":
+        #   R-MD-HW-1  hardware self-consistency — all hardware YAMLs
+        #              pin the same docker image SHA fragment
+        #   R-MD-HW-2  every ModelDef's vllm_pin_required SHA matches
+        #              the canonical hardware SHA, OR carries a
+        #              non-empty `versions.pin_hold` rationale waiver
+        # Read-only. Fires on the same edit surface as runtime-pins.
+        entry: python3 scripts/audit_v2_modeldef_vs_hardware_pin.py
+        language: system
+        pass_filenames: false
+        files: '(sndr/model_configs/builtin/hardware/.*\.yaml|sndr/model_configs/builtin/model/.*\.yaml|sndr/model_configs/schema_v2\.py|scripts/audit_v2_modeldef_vs_hardware_pin\.py|tests/unit/scripts/test_audit_v2_modeldef_vs_hardware_pin\.py)$'
+
+      - id: genesis-audit-repo-garbage
+        name: Genesis preventive repo-garbage audit (§9.A.2)
+        # Catches merge-conflict leftovers (.orig, .rej), .DS_Store,
+        # editor backups (.swp, ~), illegal filename chars, and
+        # repo-root scratchpad names (out.txt / tmp.json / debug.md).
+        # Allowlist for operator-local .claude/, CLAUDE.md, sndr_private/.
+        # Fires on any tracked-tree file change (cheap, <1s).
+        entry: python3 scripts/audit_repo_garbage.py --tracked-only
+        language: system
+        pass_filenames: false
+        files: '.*'
+
+      - id: genesis-audit-external-findings
+        name: Genesis external findings tracker validation (§9.A.7)
+        # Thin wrapper around sndr.findings.validator —
+        # validates every YAML in the tracker dir against the schema
+        # + cross-finding rules (F-1 id uniqueness, F-2 transition
+        # legality, F-3 acceptance non-empty, F-4 staleness — warning
+        # only at default). Default mode is offline; --with-network is
+        # reserved for a separate operator-approval phase. CI tree has
+        # no tracker dir → audit safely no-ops (exit 0).
+        # Fires on tracker YAML, the findings package, or the script/test.
+        entry: python3 scripts/audit_external_findings.py
+        language: system
+        pass_filenames: false
+        files: '(sndr_private/planning/external_findings/.*\.yaml|docs/_internal/external_findings/.*\.yaml|sndr/findings/.*\.py|sndr/cli/legacy/findings\.py|scripts/audit_external_findings\.py|tests/unit/scripts/test_audit_external_findings\.py|tests/unit/findings/.*\.py)$'
+
+      - id: genesis-audit-generated-links
+        name: Genesis generated-doc link integrity (§9.A.4)
+        # Verifies docs/PATCHES_AUTO.md + docs/CONFIGS_AUTO.md:
+        #   * generator --check (regenerator output matches committed)
+        #   * [#NNNN](URL) number/URL pair consistency
+        #   * GitHub PR/issue URL shape
+        #   * no placeholder TODO/... targets
+        # Fires on changes to source-of-truth files or the generators.
+        entry: python3 scripts/audit_generated_links.py
+        language: system
+        pass_filenames: false
+        files: '(docs/PATCHES_AUTO\.md|docs/CONFIGS_AUTO\.md|sndr/dispatcher/registry\.py|sndr/model_configs/builtin/.*\.yaml|scripts/generate_(patches|configs)_md\.py|scripts/audit_generated_links\.py|tests/unit/scripts/test_audit_generated_links\.py)$'
+
+      - id: genesis-audit-links
+        name: Genesis markdown link integrity (§9.A.3)
+        # Verify [text](path) and [ref]: path resolve to tracked-tree
+        # files. Path-only by default (anchors are opt-in via
+        # `make audit-links-strict` for operator-run doc reconciliation).
+        # Skips http(s) URLs, mailto, paths resolving outside the repo
+        # (sibling private trees), inline code spans (regex / shell
+        # snippets that look like links), and fenced code blocks.
+        # Inline `<!-- audit-links: allow -->` waives a line.
+        entry: python3 scripts/audit_links.py
+        language: system
+        pass_filenames: false
+        files: '\.md$'
+
+      - id: genesis-audit-yaml-status-enum
+        name: Genesis YAML Status-enum mandatory header (club-3090 convention)
+        # Every builtin model YAML must declare `# Status: <enum>` in its
+        # first 40 lines. For non-`✅ Production` statuses, a `# Caveats:
+        # <≥10 chars>` line is also required. The enum lifts the previous
+        # ambiguity where the absence of an explicit status could mean
+        # either "validated production" or "header simply forgot." Pattern
+        # adopted from noonghunna/club-3090 compose convention. Read-only,
+        # no torch / pyyaml deps. Fires when any builtin model YAML or the
+        # audit script itself is touched.
+        entry: python3 scripts/audit_yaml_status_enum.py --strict
+        language: system
+        pass_filenames: false
+        files: '(sndr/model_configs/builtin/model/.*\.yaml|scripts/audit_yaml_status_enum\.py)$'
+
+      - id: genesis-audit-pn59-cliff2b
+        name: Genesis PN59 Cliff 2b marker guard (v7.72.5+ — club-3090 #22/#182)
+        # PN59 streaming-GDN driver must carry the four v7.72.5 Level 2
+        # markers that close Cliff 2b on chunked-prefill (single-card
+        # 24 GB OOM at >50K). External users (club-3090 #182) demonstrated
+        # silent regression when Genesis is pinned to v7.72.2 — PN59
+        # eligibility check rejects chunked-prefill and routes onto the
+        # vanilla (B, NT, H, V, K) materialization. This gate fails loud
+        # at CI instead of waiting for a 24 GB rig to OOM. Read-only,
+        # no torch deps. Fires on the driver source or the audit itself.
+        entry: python3 scripts/audit_pn59_cliff2b_markers.py --strict
+        language: system
+        pass_filenames: false
+        files: '(sndr/engines/vllm/kernels_legacy/streaming_gdn_driver\.py|scripts/audit_pn59_cliff2b_markers\.py)$'
+
+      - id: genesis-audit-english-only
+        name: Genesis english-only-in-code (CLAUDE.md user rule)
+        # Cyrillic-char ratchet-down gate. Default --check mode fails ONLY
+        # on regression vs scripts/audit_english_only.baseline.json (new
+        # files with Russian, or existing files with HIGHER count than
+        # baseline). After cleaning a file, run
+        #   python3 scripts/audit_english_only.py --update-baseline
+        # to lock in the improvement so it can't regress. Strict mode is
+        # available via `make audit-english-only` (eventually) once all
+        # files reach zero.
+        entry: python3 scripts/audit_english_only.py --check
+        language: system
+        pass_filenames: false
+        files: '(sndr/.*\.py|scripts/.*\.py|tools/.*\.(py|sh)|tests/.*\.py|scripts/audit_english_only(\.py|\.baseline\.json))$'
+
+      - id: genesis-audit-ai-attribution
+        name: Genesis attribution-label policy (§9.A.6)
+        # Forbid syntactic AI-attribution constructs in tracked source:
+        #   * Co-Authored-By trailer with AI agent name
+        #   * "Generated by/with <AI>" attribution
+        #   * Robot-emoji Generated marker
+        #   * AI-assisted / Claude-assisted prose  <!-- audit-ai-attribution: allow -->
+        #   * Promotional "Powered by AI" footers
+        # Bare AI-tool names in legitimate contexts (HF model IDs,
+        # .claude/ paths, gemini-code-assist bot credits, ANTHROPIC
+        # env-var prefixes, "Claude Code" IDE client product name)
+        # are NEVER flagged — only attribution syntax. Inline override
+        # marker `<!-- audit-ai-attribution: allow -->` waives a line.
+        # Read-only. Fires on every Python / Markdown / YAML / JSON
+        # change since attribution can land in any source format.
+        entry: python3 scripts/audit_ai_attribution.py
+        language: system
+        pass_filenames: false
+        files: '\.(py|md|yaml|yml|json|toml|jinja|sh|txt|cfg|ini)$'

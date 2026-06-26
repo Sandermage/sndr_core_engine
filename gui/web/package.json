@@ -1,0 +1,44 @@
+{
+  "name": "sndr-gui-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "SNDR Control Center — operator console for the SNDR inference platform (vLLM engine ops, fleet, configs, benchmarks).",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "typecheck": "tsc -b",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.101.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^9.39.4",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "sass": "^1.83.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.60.1",
+    "vite": "^8.0.16"
+  },
+  "overrides": {
+    "js-yaml": "^4.2.0"
+  }
+}

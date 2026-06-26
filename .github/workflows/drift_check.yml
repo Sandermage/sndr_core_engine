@@ -1,0 +1,97 @@
+name: Daily drift detection
+
+on:
+  schedule:
+    # 06:00 UTC every day. Picks a quiet window before the working day starts.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      pin:
+        description: 'Pin to check (default: auto-detect)'
+        required: false
+        default: 'auto'
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install sndr-platform (community)
+        run: pip install -e .
+
+      - name: List pins to check
+        id: pins
+        run: |
+          pins=$(ls sndr/engines/vllm/pins/ 2>/dev/null | grep -v __pycache__ || true)
+          echo "pins<<EOF" >> $GITHUB_OUTPUT
+          echo "$pins" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run drift check per pin
+        id: check
+        run: |
+          mkdir -p drift_reports
+          drift_found=false
+          for pin in ${{ steps.pins.outputs.pins }}; do
+            echo "=== Checking pin: $pin ==="
+            # NOTE: we cannot run a real GPU container in github-hosted runners,
+            # so the check operates against the committed manifests as a smoke
+            # test (schema validity). A self-hosted GPU runner is required for
+            # full md5/anchor drift detection (tools/drift_check.py --pin <pin>
+            # with the live vllm install). The CURRENT pin ships anchors.json,
+            # NOT manifest.yaml, so we prefer the authoritative anchors.json and
+            # fall back to the legacy manifest.yaml for older pins (GAP 4 fix).
+            PIN="$pin" python3 -c "
+          import json, os, sys
+          from pathlib import Path
+          pin = os.environ['PIN']
+          d = Path('sndr/engines/vllm/pins') / pin
+          anchors = d / 'anchors.json'
+          legacy = d / 'manifest.yaml'
+          if anchors.is_file():
+              from sndr.engines.vllm.wiring.anchor_manifest import validate_manifest_schema
+              m = json.loads(anchors.read_text())
+              errors = validate_manifest_schema(m)
+              assert not errors, f'anchors.json schema invalid: {errors[:3]}'
+              n = sum(len(p.get('anchors', {})) for f in m['files'].values() for p in f['patches'].values())
+              print(f'anchors.json valid: {len(m[\"files\"])} files, {n} anchors tracked')
+          elif legacy.is_file():
+              import yaml
+              m = yaml.safe_load(legacy.read_text())
+              assert m['engine'] == 'vllm'
+              assert m['pin'] == pin
+              print(f'manifest.yaml valid: {len(m[\"files\"])} files tracked')
+          else:
+              print(f'ERROR: no manifest for pin {pin}', file=sys.stderr)
+              sys.exit(1)
+          " || drift_found=true
+          done
+          if [ "$drift_found" = "true" ]; then
+            echo "drift_found=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Open issue on drift
+        if: steps.check.outputs.drift_found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Drift detected $(date +%F)" \
+            --label "genesis-drift" \
+            --body "Daily drift detection found one or more anchor mismatches. See workflow run for details."
+
+      - name: Upload drift reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-reports-${{ github.run_id }}
+          path: drift_reports/
+          retention-days: 30

@@ -1,0 +1,182 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — gemma4-31b-fp8e5m2-fallback
+# Role: dev — UNVALIDATED fp8_e5m2 KV fallback for gemma-4-31b-it-awq on
+# the 0.22.1 pin (303916e93), escaping the TQ block WITHOUT TurboQuant.
+#
+# ── Basis: upstream PR pair #45040 + #45038 (both OPEN 2026-06-11) ──
+#
+#   #45040 (G4_80, GENESIS_ENABLE_G4_80_FP8E5M2_KV): the pristine
+#     `_init_kv_cache_quant` gate (attention.py:167-168) rejects
+#     `--kv-cache-dtype fp8_e5m2` for EVERY compressed-tensors
+#     checkpoint, including weight-only AWQ that carries no fp8 KV
+#     scales. G4_80 arm 1 predicate-qualifies the gate (weight-only
+#     checkpoints allowed; genuine fp8/fp8-KV checkpoints stay
+#     rejected). G4_80 arm 2 (Genesis extra, NOT in #45040) neutralizes
+#     the e4m3-only query_quant for fp8_e5m2 layers — without it the
+#     boot memory-profiling forward dies on the pristine assert
+#     `kv_cache_dtype in {fp8, fp8_e4m3, nvfp4}` (attention.py:467),
+#     because TritonAttentionImpl sets supports_quant_query_input
+#     unconditionally on CUDA (triton_attn.py:502). Both arms are
+#     required for this profile to boot.
+#   #45038 (G4_31 arm 2, inherited via model.patches G4_31='1'): guards
+#     the checkpoint-driven `auto`→fp8 KV auto-override on sub-SM90 —
+#     the IMA-crash-on-burst landmine (#44879) on the kv-auto degraded
+#     profile. Sequencing per roadmap chunk-3 Theme B: guard first
+#     (G4_31v2), then THIS fallback profile as the escape (G4_80).
+#
+# Why this profile exists: TQ profiles are BLOCKED on the 0.22.1 pin
+# (mm validity gate — see gemma4-31b-tq-default.yaml header); the
+# validated degraded fallback ran kv auto (bf16 KV) at only 32K ctx.
+# fp8_e5m2 halves KV (~9.4 → ~4.7 GiB @200K bf16-equivalent), which
+# restores the full 256K published context envelope (~6.1 GiB KV
+# @262144 vs the ~10-11 GiB per-boot budget measured in the
+# gemma4-31b-tq-default sizing history) — or, at smaller ctx, frees
+# cudagraph/concurrency headroom.
+#
+# Attention backend: TRITON_ATTN — the ONLY in-pin backend that passes
+# BOTH validity gates for this model (full audit in
+# g4_80_fp8e5m2_kv_weight_only.py, BACKEND AUDIT section):
+#   - FLASH_ATTN: no fp8 KV at all (flash_attn.py:70-74);
+#   - FLASHINFER: true fp8_e5m2 support and no query-quant sub-SM90,
+#     BUT supports_mm_prefix() is False → rejected by the same
+#     mm-prefix validity gate that blocks TQ (backend.py:301-303;
+#     Gemma-4-31B MM is an mm-prefix LM — the G4_60L/G4_79 saga);
+#   - FLEX_ATTENTION: mm-prefix yes, fp8 KV no (flex_attention.py:86-90);
+#   - TURBOQUANT: blocked on this pin (G4_79).
+# TritonAttentionBackend lists "fp8_e5m2" (triton_attn.py:273-282,
+# get_name()=="TRITON_ATTN" at :298) and supports mm_prefix (:366).
+#
+# KNOWN MASQUERADE (audited 2026-06-11): TRITON_ATTN stores and loads
+# quantized KV as current_platform.fp8_dtype() = e4m3fn regardless of
+# the e5m2 string (store triton_reshape_and_cache_flash.py:364-376,
+# load triton_attn.py:597-602). This profile therefore delivers 1-byte
+# KV with e4m3 numerics + unit scales — the standard fp8-KV config
+# (e4m3 has more mantissa than e5m2; accuracy is not degraded). The
+# e5m2 string is still the right selector: plain `fp8` would keep
+# query_quant ACTIVE (quantized-query kernel surface on sub-SM90 — the
+# #44879 IMA class), while e5m2 + G4_80 arm 2 keeps the query in model
+# dtype. First boot must confirm Triton's emulated fp8e4m3fn casts
+# compile on SM 8.6 (store kernel + unified_attention) — see promotion
+# gates.
+#
+# ⚠ VALIDATION REQUIRED BEFORE ANY PROMOTION: this profile has NEVER
+# booted — no boot ladder, no bench, no tool-call gate, no accuracy
+# check. reference_metrics_ref stays null at the parent ModelDef and
+# this profile carries no bench artifact (validation: null). Treat
+# every number below as an estimate to be confirmed by the first
+# instrumented boot. That boot also discriminates whether the cyankiwi
+# AWQ checkpoint declares a kv_cache_scheme hint (G4_31 history
+# suggests it might): if it does, G4_80's default predicate still
+# rejects fp8_e5m2 and the escape hatch
+# GENESIS_G4_80_FORCE_ALLOW_WITH_KV_SCHEME=1 (accuracy UNVALIDATED)
+# is the documented next step — see g4_80_fp8e5m2_kv_weight_only.py.
+#
+# MTP deliberately OFF (spec_decode_override: null): per roadmap, the
+# drafter KV-spec patches (G4_71/72/76) must be re-checked against
+# fp8_e5m2 target KV before any structured-role MTP sibling of this
+# profile is attempted.
+
+schema_version: 2
+kind: profile
+id: gemma4-31b-fp8e5m2-fallback
+parent_model: gemma-4-31b-it-awq
+maintainer: sandermage
+status: deprecated  # deprecated 2026-06-22 — config-curation (keep-only-validated)
+created: '2026-06-11'
+
+# ─── Runtime role ──────────────────────────────────────────────────────
+# role=dev: in-development profile, not production-eligible. It carries
+# runtime-role blocks (compression_plan + backend_plan), so role must
+# be non-default per the [10_default_clean] validator; `dev` (not
+# `structured`) because there is no spec-decode role here and no bench
+# artifact gate yet.
+role: dev
+spec_decode_override: null                        # MTP OFF for the discriminating first boot
+routing: null                                     # no workload-class restriction while dev
+validation: null                                  # no functional artifact — nothing validated yet
+
+# Per-layer KV plan: uniform fp8_e5m2, no native-source layers (no MTP
+# drafter → no KV-sharing sources to keep uncompressed). The parent
+# ModelDef's capabilities.kv_cache_dtype is `auto` (dtype-neutral), so
+# this concrete profile value wins per the P1.7a compose rule.
+compression_plan:
+  strategy: per_layer
+  default_kv_dtype: fp8_e5m2
+  native_source_layers: []
+
+# Triton attention everywhere — the only in-pin backend that both
+# supports fp8_e5m2 KV and serves Gemma 4 mm-prefix (FA2/FLEX lack fp8
+# KV; FLASHINFER fails the mm-prefix gate; TURBOQUANT is blocked on
+# this pin) — see the backend audit in the header.
+backend_plan:
+  target_default: TRITON_ATTN
+
+# ─── Versions ──────────────────────────────────────────────────────────
+# The parent ModelDef pin_holds 626fa9bb (TQ-era). THIS profile is the
+# explicit attempt to serve on the rig-current 0.22.1 pin, so it
+# overrides the pin requirement.
+versions_override:
+  vllm_pin_required: 0.23.1rc1.dev148+gb4c80ec0f  # PROMOTED 2026-06-19 (K=5 + PN394/PN399 + Gemma kv-auto validated on dev148); dev101 = previous/rollback. Engine + patch set fleet-validated on dev148 (35B/27B/Gemma4-31B/26B-MoE/DiffusionGemma boot apply failed=0); this variant boot-validates on next launch.
+
+# ─── Sizing override — restore toward the 256K published context ──────
+# Estimate basis (gemma4-31b-tq-default sizing history, bf16 KV):
+#   280K → 12.64 GiB KV  (~47.3 KiB/token bf16)
+#   fp8_e5m2 halves it   (~23.7 KiB/token)
+#   262144 (256K) → ~6.1 GiB KV vs ~10-11 GiB per-boot budget
+# First-boot ladder if _check_enough_kv_cache_memory rejects anyway:
+# 262144 → 231072 → 200000 (each a separate boot data point; the
+# budget varies ~1 GiB between boots — see tq-default header).
+sizing_override:
+  max_model_len: 262144                           # full 256K target — NEEDS boot validation
+  gpu_memory_utilization: 0.90                    # match tq-default envelope
+  max_num_seqs: 2                                 # conservative first boot; KV halving leaves
+                                                  # headroom to raise toward 8 after validation
+  max_num_batched_tokens: 4096                    # hardware default (P72 cap coordination)
+  enable_chunked_prefill: true                    # required for 256K prefill (G4_09 chunker)
+  enforce_eager: false                            # cudagraph capture enabled
+  disable_custom_all_reduce: true                 # NCCL fallback (PCIe TP=2)
+
+# ─── Patches delta ─────────────────────────────────────────────────────
+# Inherit model.patches as-is — including:
+#   GENESIS_ENABLE_G4_31_TQ_DTYPE_PRESERVE: '1' (arm 2 = the #45038
+#     sub-SM90 guard; arm 1 turboquant_* is dormant on this pin), and
+#   the TQ wrapper-stack entries (G4_19/G4_19B/...), which key on
+#   turboquant_* dtype / TURBOQUANT backend and self-skip on this
+#   profile's fp8_e5m2 + TRITON_ATTN combo (same inherited set the
+#   2026-06-11 degraded kv-auto fleet boot ran with — 78.4 TPS,
+#   tools 7/7).
+# The single addition is the #45040 unblock itself.
+patches_delta:
+  enable:
+    GENESIS_ENABLE_G4_80_FP8E5M2_KV: '1'          # vllm#45040 — fp8_e5m2 for weight-only AWQ
+  disable: []
+  override: {}
+
+# ─── Override policy (CONFIG-UX.1) ─────────────────────────────────────
+override_policy:
+  override_class: dev
+  reason: "fp8_e5m2 KV fallback (vllm#45040+#45038 pair) targeting full 256K ctx on the 0.22.1 pin while TQ is blocked; sizing is estimate-only until the first instrumented boot"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-09-30'
+  allowed_to_exceed_hardware_default: false
+
+# ─── Promotion contract ────────────────────────────────────────────────
+promotion:
+  validation_required:
+    - "boot ladder PASS at max_model_len 262144 (or documented fallback rung) on pin 0.22.1rc1.dev259+g303916e93"
+    - "G4_80 bypass log observed at boot ([G4_80] fp8_e5m2 KV cache allowed) — NOT the force-allow variant, OR force-allow explicitly documented after checkpoint kv_cache_scheme discrimination"
+    - "G4_80 arm-2 log observed at boot ([G4_80] query_quant neutralized) — confirms the forward-assert boot-DOA gate was disarmed before the memory-profiling run"
+    - "Triton emulated fp8e4m3fn casts compile on SM 8.6: no Triton compile errors from triton_reshape_and_cache_flash or unified_attention in the boot log (KNOWN MASQUERADE — see header)"
+    - "G4_31 arm-2 invariant clean (no [G4_31 INVARIANT] late-mutation warnings in boot log)"
+    - "canonical bench n>=3 at CV <= 5% vs the 32K kv-auto degraded baseline (78.4 TPS) — record TPS/TPOT/TTFT before/after"
+    - "tool-call gate 7/7 (parity with the degraded kv-auto fleet validation)"
+    - "long-ctx accuracy spot-check at >=128K depth (fp8_e5m2 KV quality is unvalidated on this model)"
+  promote_to: null                                # decide default-role promotion only after the window
+  notes: |
+    Escape profile for the Gemma-4-31B TQ block on 0.22.1 (roadmap
+    2026-06-11 chunk-3 Theme B, #45040+#45038 pair). Guard (G4_31 arm 2)
+    protects the interim kv-auto state; this profile is the exit. If TQ
+    unblocks first (G4_79 + dtype half validating), the TQ profiles
+    supersede this one — fp8_e5m2 (2x KV compression) remains the
+    simpler fallback vs TQ k8v4 (~2.7x) with no overlay stack.

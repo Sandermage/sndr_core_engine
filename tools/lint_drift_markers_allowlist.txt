@@ -1,0 +1,67 @@
+# Allowlist for tools/lint_drift_markers.py (self-collision lint, plan
+# docs/superpowers/journal/2026-06-11-preflight-residual-triage-action-plan.md §6).
+#
+# Format — one exact marker string per line:
+#   - lines whose first non-blank character is '#' are justification
+#     comments; a comment block covers every marker line until the next
+#     blank line (REQUIRED — an entry without a justification block
+#     above it fails the lint with exit 2);
+#   - trailing newline is stripped, inner whitespace preserved;
+#   - markers that start with '#' or contain a newline cannot be
+#     allowlisted here — fix the patch instead.
+#
+# Entries suppress KNOWN findings only, so remediation (plan §6 item 2:
+# markers disjoint from emitted text, or the '[Genesis' convention) can
+# land incrementally while the lint already gates NEW regressions.
+# Prune entries the lint reports as stale.
+#
+# Example entry (keep commented — illustration only):
+# # PXX vN.M: marker baked by sibling PYY replacement; remediation
+# # queued in <journal entry>. Owner: <name>, expires <date>.
+# some_exact_marker_string
+#
+# No baseline-backlog entries — the 2026-06-11 backlog is tracked in
+# the §6 plan and intentionally NOT allowlisted wholesale.
+#
+# PN394 (vllm#46047 qwen3 partial-param `<` fix): the upstream fix IS the
+# one-character widening of the value group to `(.*)`, so the only spelling
+# that signals "pin already carries #46047" — `>(.*)$` — is necessarily a
+# substring of PN394's own post-fix replacement. The self-collision is
+# benign by construction: TextPatcher checks the idempotency marker
+# (Layer 2) BEFORE the drift markers (Layer 3), so on every re-boot PN394's
+# `[Genesis PN394 ...]` marker short-circuits to IDEMPOTENT and the drift
+# scan never reads its own output. The marker only matters on a PRISTINE
+# (no-Genesis-marker) pin that already merged #46047, where it correctly
+# skips. There is no `[Genesis`-prefixed alternative because the signal is
+# upstream's own text. Owner: Sander.
+>(.*)$
+
+# PN399 (vllm#46067 TurboQuant decode-scratch fixed-buffer IMA fix): the
+# two upstream_drift_markers that signal "pin already carries #46067" —
+# `_get_decode_scratch` (the new helper fn) and `max_decode_cudagraph_batch`
+# (the new __init__ attr) — are NECESSARILY substrings of PN399's own
+# emitted replacements (sub-patch A defines `_get_decode_scratch`,
+# sub-patch B assigns `self.max_decode_cudagraph_batch`). The self-collision
+# is benign by construction: TextPatcher checks the idempotency marker
+# (Layer 2, `Genesis PN399 vllm#46067 v1`) BEFORE the drift markers
+# (Layer 3), so on every re-boot the marker short-circuits to IDEMPOTENT and
+# the drift scan never reads PN399's own output. The markers only matter on a
+# PRISTINE (no-Genesis-marker) pin that already merged #46067, where they
+# correctly skip. There is no `[Genesis`-prefixed alternative because the
+# signal is upstream's own symbol names. Owner: Sander.
+_get_decode_scratch
+max_decode_cudagraph_batch
+
+# PN382 (vllm#45080 DecodeBenchConnector hybrid fill): on dev301 #45080 is
+# MERGED as the weaker whole-pool form, so the pre-merge markers
+# (`_fill_state_tensor` / `_fill_block_tensor`) became NATIVE and were
+# dropped. PN382 now OVERRIDES the merged form by redirecting the GDN
+# list/tuple branch to per-block fill; its post-fix drift marker is the
+# per-block call it emits — `self._fill_block_tensor(state_tensor,
+# block_ids)` — an INTENTIONAL self-collision (same class as PN399 above).
+# Benign by construction: TextPatcher checks the idempotency marker
+# (Layer 2, `Genesis PN382 vendor of vllm#45080 ... v1`) BEFORE the drift
+# markers (Layer 3), so the drift scan never reads PN382s own output on
+# re-apply. It only fires on a fresh pin where upstream adopts per-block
+# list fill, where it correctly self-skips. Owner: Sander.
+self._fill_block_tensor(state_tensor, block_ids)

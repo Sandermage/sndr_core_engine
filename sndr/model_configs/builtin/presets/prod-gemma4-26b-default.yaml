@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: Apache-2.0
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    Gemma 4 26B-A4B AWQ-4bit (128-expert MoE, A=4B)   Topology: 2x A5000 (TP=2)
+#   KV:       auto (engine-picked)         Drafter:  none (K=1 MTP control = effective MTP-off)
+#   Max ctx:  262144 (effective render)    Status:   ⭐ production_candidate (family default)
+#   Bench:    pending — see card.primary_metric (B1 baseline pending public publish; this session's single-stream ~169 TPS @ 256K is informational, not the card metric)
+#   Best for: lowest-risk single-stream serving + retrieval up to 256K; public fallback target for the family  ⭐ CANONICAL
+# What's intentionally NOT enabled:  - MTP K=4 speculation -> the short structured-JSON sibling prod-gemma4-26b-multiconc carries that (235.9 TPS @ conc=8)
+# To change for scenario X:          - short structured-JSON / tool-call multi-conc -> prod-gemma4-26b-multiconc
+#                                    - free-chat multi-conc throughput -> prod-qwen3.6-35b-multiconc (faster there)
+# =====================================================================
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, K=1 MTP control (family default).
+# `sndr launch prod-gemma4-26b-default` resolves to (model, hardware, profile).
+#
+# Default-mode preset for the MoE A=4B target. Pairs with:
+#   prod-gemma4-26b-multiconc      — K=4 + conc=8 short structured-JSON sibling
+# (the K=4 single-stream prod-gemma4-26b-mtp-k4 and the K=1 multi-conc
+#  prod-gemma4-26b-multiconc-k1 diagnostics were archived to
+#  presets/_archive/ in the 2026-06 canonical reorg — git-recoverable.)
+#
+# "Default" here means: MTP K=1 control (effective MTP-off baseline).
+# See gemma4-26b-no-mtp profile docstring for why this is K=1 and not
+# spec_decode=null (26B-A4B ModelDef pre-dates Variant A migration).
+#
+# Bench status (2026-05-23):
+#   Phase 7.G4.26B-A4B.B0 = preset creation only (this file).
+#   Phase 7.G4.26B-A4B.B1 will boot-smoke + bench K=1 baseline,
+#   compare against K=4 sibling and 31B B1.1/B1.2 baselines.
+
+model: gemma-4-26b-a4b-it-awq                    # MoE 128 experts, top_k=8, A=4B active, AWQ-4bit
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
+profile: gemma4-26b-no-mtp                        # K=1 control (MTP off-by-design; profile docstring explains K=1 mechanism)
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Gemma 4 26B-A4B AWQ — single-stream baseline (MTP off)"
+  summary: |
+    K=1 control variant for the Gemma 4 26B-A4B MoE target. Use when you
+    want the lowest-risk single-stream serving path with no spec-decode
+    dependence; serves as the public fallback target for the K=4 + multi-
+    conc siblings in this family.
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: throughput
+  workload_allow:
+    - free_chat
+    - structured_json.short
+    - tool_call.short
+    - summarization
+  workload_deny:
+    - structured_json.long
+  concurrency:
+    min: 1
+    max: 2
+    canonical: 2
+  K: 1
+  context:
+    max_model_len: 262144                          # effective render = 262144 (profile gemma4-26b-no-mtp sizing_override 256K, rig-validated 2026-06-23: 146K-token ingestion+retrieval PASS on 26B-A4B MoE auto/fp16 KV). Card was stale at 32768.
+    typical_input_tokens: 1024
+    typical_output_tokens: 2048
+  routing_family: gemma4_moe_26b_a4b
+  default_for_family: true
+  primary_metric:
+    kind: agg_TPS
+    value: 0.0
+    source: external://docs.example/pending-gemma4-26b-a4b-default-bench
+    measured_at: 2026-05-23
+  evidence_refs:
+    - type: bench
+      path: external://docs.example/pending-gemma4-26b-a4b-default-bench
+      visibility: private
+      note: B1 single-stream baseline pending public publish; current evidence in sndr_private/runs/.
+    - type: smoke
+      path: evidence/bench/gemma4_26b_a4b/VERDICT_2026-06-26_dev424_smoke.md
+      visibility: public
+      note: |
+        dev424 boot + coherence receipt: engine boots (Genesis overlay
+        failed=0, no IMA) and serves coherent text ("The capital of France
+        is Paris.", no thought prefix) on pin 0.23.1rc1.dev424+g3f5a1e173,
+        2x A5000. Single-stream ~106.4 TPS (pin dev101, CV 0.38) is recorded
+        as INFORMATIONAL only — not the card metric; primary_metric stays
+        pending until a canonical dev424 single-stream baseline is published.
+    - type: tool_call_eval
+      path: evidence/bench/gemma4_26b_a4b/VERDICT_2026-06-26_dev424_smoke.md
+      visibility: public
+      note: |
+        dev424 tool-call receipt: get_weather {"city":"Berlin"},
+        finish_reason=tool_calls (native gemma4 parser). Validated on pin
+        0.23.1rc1.dev424+g3f5a1e173, 2x A5000.
+  evidence_visibility: mixed
+  tradeoffs:
+    - "K=1 (no draft tokens) → conservative latency, lower TPS than K=4 sibling."
+    - "Single-stream only (canonical concurrency=2); see prod-gemma4-26b-multiconc for high-conc workloads."
+  do_not_use:
+    - condition: "high-concurrency workloads (>2 concurrent requests)"
+      reason: "Sizing tuned for max_num_seqs=2; use prod-gemma4-26b-multiconc above that."
+    - condition: "structured_json.long workloads"
+      reason: "256K context envelope is fine for short structured; long-context structured JSON loses on Gemma4 MoE — use the K=1 default for retrieval, not long structured generation."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

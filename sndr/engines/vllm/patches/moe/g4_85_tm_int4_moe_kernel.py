@@ -1,0 +1,487 @@
+# SPDX-License-Identifier: Apache-2.0
+"""G4_85 — TurboMind int4 grouped-MoE kernel replacing the slow CUDA-core moe_wna16.
+
+At TP>1 for int4-MoE models where Marlin is structurally rejected
+(`intermediate_per_partition % max(64, group_size) != 0`, detected by G4_84),
+vLLM falls back to `moe_wna16_gemm` (CUDA-core, memory-bound). This patch routes
+those layers through TurboMind's tensor-core `sm80_16816` int4 grouped-MoE GEMM
+(see `third_party/tm_int4_moe`), which is 3-6x faster on SM80/86 and numerically
+faithful (0.036% rel-err vs FP16, proven on the rig).
+
+LIVE TARGET (re-targeted 2026-06-23). The path that actually carries
+Marlin-ineligible compressed-tensors int4 MoE on this rig is
+``CompressedTensorsWNA16MoEMethod.apply`` (verified by a 26B live boot:
+``Using CompressedTensorsWNA16MoEMethod`` + ``fused_moe.py:1074 ... E=128,N=352
+... int4_w4a16``), NOT ``moe_wna16.MoeWNA16Method``. G4_85 monkey-patches
+``CompressedTensorsWNA16MoEMethod.apply`` — the byte-identical 7-arg signature
+``(self, layer, x, topk_weights, topk_ids, shared_experts, shared_experts_input)``.
+
+Pipeline per MoE layer (built/cached on first apply from the layer's int4
+weights, dequantized to fp16): gate (topk from vLLM) -> w1w3 grouped int4 GEMM
+-> SwiGLU -> w2 grouped int4 GEMM -> combine.
+
+Gating (all must hold): env flag GENESIS_ENABLE_G4_85 (default OFF, experimental)
+AND ``is_moe_model()`` (dense models never dispatch fused_moe) AND, per-layer at
+apply time, the G4_84 ``marlin_moe_marginal()`` detector — so the TurboMind op
+only ever runs where Marlin was structurally rejected and vLLM would otherwise
+take the slow CUDA-core moe_wna16 path. With GENESIS_G4_85_VALIDATE=1 the first
+apply of each layer also runs the original method and logs the rel-err.
+
+The TurboMind op is the `genesis_tm.TmInt4MoE` torch custom class built from
+`third_party/tm_int4_moe/torch_ext` (JIT-compiled on first use).
+
+Fail-open: ANY exception (including a wrong compressed-tensors weight attribute
+name on a vLLM build whose layout we could not verify offline) degrades to the
+original ``CompressedTensorsWNA16MoEMethod.apply`` — never a crash, never a
+numeric change unless the TurboMind path completes cleanly.
+
+Author: deep TurboMind-int4-MoE port (Genesis), 2026-06-22.
+
+LIVE INVESTIGATION (rig, pin dev148, 2026-06-23) — DEAD ON THE PROD PRESET, HARMLESS
+====================================================================================
+G4_85 APPLIES in EngineCore (the monkey-patch installs cleanly) but NEVER fires a
+real GEMM at decode on the production preset. Two layered blockers, in order of
+decisiveness:
+
+BLOCKER #1 (decisive, design-level — EP vs TP geometry).
+  The prod preset ``prod-gemma4-26b-default`` launches with
+  ``--enable-expert-parallel`` (EP). EP shards the 128 experts across the 2 GPUs
+  but does NOT shard the MoE intermediate dim, so
+  ``intermediate_size_per_partition`` stays 704 (not 352).
+  ``check_moe_marlin_supports_layer`` sees ``704 % 64 == 0`` -> Marlin SUPPORTED
+  -> vLLM selects ``CompressedTensorsWNA16MarlinMoEMethod`` (a SIBLING class this
+  patch does NOT hook). The boot log shows ``Using
+  CompressedTensorsWNA16MarlinMoEMethod`` and ZERO G4_85 runtime lines. So G4_85's
+  target (the slow ``moe_wna16`` path carried by ``CompressedTensorsWNA16MoEMethod``)
+  is never taken under EP. The patch's original premise — "TP=2 -> 352/shard ->
+  Marlin refused -> slow moe_wna16" — only holds on pure tensor-parallel WITHOUT
+  EP. CONSEQUENCE: G4_85 is effectively dead code on the prod EP preset, but with
+  NO perf loss: the 26B runs the FAST Marlin path via EP, not the slow moe_wna16
+  path. The honest comparison on the prod preset is G4_85-vs-Marlin, NOT
+  G4_85-vs-moe_wna16.
+
+BLOCKER #2 (build — only reachable on a pure-TP no-EP config where the slow
+moe_wna16 path IS selected). The vendored kernel can't load:
+  (2a) ``third_party/tm_int4_moe/build_kernels.sh`` compiled the objects WITHOUT
+       ``-fPIC``, so linking ``genesis_tm.so`` failed with ``relocation
+       R_X86_64_PC32 ... cannot be used when making a shared object``. FIXED
+       2026-06-23 (``-Xcompiler -fPIC`` added to that script).
+  (2b, the remaining real blocker) even after ``-fPIC`` the ``.so`` fails to
+       dlopen: ``undefined symbol: _ZTVN9turbomind12LinearWeightE`` (vtable for
+       turbomind::LinearWeight). ``build_kernels.sh`` only compiles
+       ``kernels/gemm/*`` (13 TUs), but ``torch_ext/tm_moe_op.cu`` also needs
+       ``src/turbomind/models/linear_weight.cc`` + ``LlamaLinear.cu`` +
+       ``core/*`` (Allocator/Context/Stream/Layout/Module/data_format), which are
+       never compiled. The vendored object set is incomplete; the correct, wider
+       closure is the ``find src/turbomind`` set already used by
+       ``torch_ext/build_probe.sh``.
+
+HONEST PERF: no G4_85-vs-X number was produced because G4_85 never executed a real
+GEMM. The moe_wna16 fail-open path (pure-TP, G4_85 effectively off) served ~110
+tok/s single-stream and was correct ("Paris"). On the actual prod EP preset the
+26B uses Marlin (fast) and serves ~136-169 tok/s (measured elsewhere this session).
+
+FIX PLAN (deferred, pending a design decision — the patch CODE below is unchanged):
+  1. Complete the build TU closure (compile the full ``src/turbomind`` set, all
+     ``-fPIC``) so ``genesis_tm.so`` actually dlopens.
+  2. Serialize the 2-worker JIT build (both EngineCore workers race to compile the
+     same extension dir under EP/TP).
+  3. DECISION — either (a) ALSO hook ``CompressedTensorsWNA16MarlinMoEMethod`` so
+     G4_85 fires on the prod EP preset (then the real claim is G4_85-vs-Marlin), or
+     (b) bench/claim G4_85 ONLY on a pure-TP no-EP config (where moe_wna16 is the
+     selected path and G4_85-vs-moe_wna16 is the honest comparison). Until that
+     decision lands, G4_85 stays default-OFF, ``implementation_status=partial``.
+
+BUILD COMPLETE + KERNEL FIRES + BENCHMARK VERDICT (rig, pin dev148, 2026-06-23)
+==============================================================================
+The build is now COMPLETE and the kernel genuinely FIRES on the 26B. The
+previously-fatal ``undefined symbol: vtable turbomind::LinearWeight`` is
+RESOLVED: ``third_party/tm_int4_moe/build_kernels.sh`` now compiles the full
+~46-object dependency closure (``find src/turbomind`` MINUS ``test/`` ,
+``sm90_64n32`` , ``anomaly_handler``; KEEPS ``core/`` , ``models/`` incl.
+``linear_weight.cc`` + ``llama/LlamaLinear.cu`` , ``utils/`` ,
+``gpt_kernels.cu`` , ``cublas.cu`` , ``sm70_884_*`` , ``sm75_16816_*`` ,
+``tuner/*``), ALL ``-Xcompiler -fPIC``, linked against ``torch_ext/tm_moe_op.cu``
++ ``-lcublas -lcublasLt -lcuda``. Result: zero undefined ``turbomind::``
+symbols, ``tm_probe()=1``, both TP workers load it, numerics correct
+(GEMM_err ~3e-4, full-MoE reldiff ~9e-4).
+
+BENCHMARK (TTFT-subtracted decode TPS, 26B, n=20, MTP-off):
+
+  config                                   decode_TPS   status
+  A) EP+Marlin (prod)                      142.5        ← winner (prod path)
+  B) pure-TP moe_wna16 (g4_85 baseline,off) 125.4       ← g4_85's own baseline
+  C) pure-TP + g4_85                        —           builds + FIRES but OOMs at boot
+
+  → EP+Marlin (142.5) beats the pure-TP fallback (125.4) by +13.6%.
+
+WHY C OOMs (the remaining real blocker — a SOURCE redesign, not a build fix).
+  g4_85 dequantizes int4 -> fp16 per MoE layer (~2× weight memory transiently:
+  w13 ~968 MiB + w2 ~484 MiB per layer per GPU x ~30 layers). The int4 model
+  already fills ~20 of 23.5 GiB, so the profiling forward CUDA-OOMs at boot
+  (gpu-mem 0.88 / 0.60 / 0.45 ALL OOM). Fixing it needs a source redesign —
+  stream-dequant one layer at a time, or feed packed int4 directly to
+  TurboMind. It is NOT a build-side fix.
+
+TWO INTEGRATION NOTES WORTH RECORDING.
+  (1) TurboMind's context is ``thread_local`` (context.cc) -> ``[TM][FATAL] No
+      STREAM available`` on the vLLM forward thread unless ``tm_probe()`` is
+      warmed on THAT thread before the first op ctor.
+  (2) the dev-plugin ``pip install -e <repo>`` fails in-container when the repo
+      is not mounted (``not a valid editable requirement``).
+
+VERDICT. g4_85 would have to EXCEED 142.5 just to break even vs prod, AND it
+cannot boot on 2× A5000 (fp16-dequant footprint). g4_85 is SUPERSEDED by
+EP+Marlin -> stays experimental / pure-TP-only. The build is complete and the
+kernel fires; the remaining viability work is the dequant memory-footprint
+redesign (stream-dequant / packed-int4-direct). ``implementation_status``
+stays ``partial``. (Do NOT retire/delete g4_85 — kept + to be improved.)
+"""
+from __future__ import annotations
+
+import logging
+import os
+
+logger = logging.getLogger("genesis.g4_85")
+
+GENESIS_G4_85_MARKER = "G4_85_TM_INT4_MOE"
+_ENV = "GENESIS_ENABLE_G4_85"
+_VALIDATE_ENV = "GENESIS_G4_85_VALIDATE"
+
+_orig_apply = None  # saved CompressedTensorsWNA16MoEMethod.apply for revert + validation
+_DEFERRED_LOGGED: set[str] = set()  # log each distinct defer-to-original reason once
+
+
+def _enabled() -> bool:
+    return os.environ.get(_ENV, "0") == "1"
+
+
+def _resolve_wna16_method():
+    """Import the LIVE compressed-tensors WNA16 MoE method class.
+
+    This is the method that actually carries Marlin-ineligible int4 MoE
+    on the rig (``Using CompressedTensorsWNA16MoEMethod`` at boot). Returns
+    the class, or raises (caller treats as a runtime gap / skip).
+
+    The class moved across vLLM versions. On the dev148 pin
+    ``compressed_tensors_moe`` is a PACKAGE and the class lives in its
+    ``compressed_tensors_moe_wna16`` submodule (verified live 2026-06-23 on
+    ``vllm/vllm-openai:nightly-b4c80ec0f`` — the package root does NOT re-export
+    it, so the old flat lookup raised AttributeError and the patch silently
+    self-skipped). Older trees expose a flat ``compressed_tensors_moe_wna16``
+    module or the class at the package root. Probe the known locations in order.
+    """
+    import importlib
+
+    base = "vllm.model_executor.layers.quantization.compressed_tensors"
+    candidates = (
+        # dev148: compressed_tensors_moe is a package; class in the wna16 submodule
+        f"{base}.compressed_tensors_moe.compressed_tensors_moe_wna16",
+        # older: flat module sibling of the package
+        f"{base}.compressed_tensors_moe_wna16",
+        # fallback: class re-exported at the package/module root
+        f"{base}.compressed_tensors_moe",
+    )
+    last_exc = None
+    for mod_path in candidates:
+        try:
+            mod = importlib.import_module(mod_path)
+            return getattr(mod, "CompressedTensorsWNA16MoEMethod")
+        except (ImportError, AttributeError) as exc:  # noqa: PERF203
+            last_exc = exc
+            continue
+    raise ImportError(
+        "CompressedTensorsWNA16MoEMethod not found in any known location "
+        f"{candidates}: {last_exc}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# weight dequant (symmetric int4, compressed-tensors pack-quantized, uint8 2/byte)
+# --------------------------------------------------------------------------- #
+def _dequant_wna16(qweight, scale, group_size):
+    """(E, N, K//2) uint8 + (E, N, K//g) fp16 -> (E, K, N) fp16, input-major.
+
+    moe_wna16 decodes the symmetric int4 as an UNSIGNED nibble with zero-point 8:
+    w = (nibble - 8) * scale, packed 2-per-byte along K (low nibble first).
+    Verified against vLLM fused_experts_impl on the rig: this decode gives
+    rel-err 0.05 (the dequant->requant residual) vs 1.32 for the signed decode.
+    The (K, N) result is the input-major layout TmInt4MoE expects.
+    """
+    import torch
+
+    E, N, Kh = qweight.shape
+    K = Kh * 2
+    b = qweight.to(torch.int32)
+    q = torch.stack([b & 0xF, (b >> 4) & 0xF], dim=-1).reshape(E, N, K)
+    q = q - 8  # unsigned nibble [0,15], zero-point 8 -> signed value
+    g = K // scale.shape[-1]
+    s = scale.to(torch.float16).repeat_interleave(g, dim=-1)  # (E, N, K)
+    return (q.to(torch.float16) * s).transpose(1, 2).contiguous()  # (E, K, N) input-major
+
+
+def _build_routing(topk_ids, topk_weights, num_experts):
+    """topk_ids/topk_weights (M, top_k) -> f2n, offsets, gate, slot order (GPU)."""
+    import torch
+
+    M, TK = topk_ids.shape
+    flat_e = topk_ids.reshape(-1).to(torch.int64)               # (M*TK,)
+    flat_t = torch.arange(M, device=topk_ids.device).repeat_interleave(TK)
+    flat_g = topk_weights.reshape(-1).to(torch.float32)
+    order = torch.argsort(flat_e, stable=True)                  # group by expert
+    f2n = flat_t[order].to(torch.int32)                         # (R,) source token
+    gate = flat_g[order]                                        # (R,)
+    counts = torch.bincount(flat_e, minlength=num_experts)
+    offsets = torch.zeros(num_experts + 1, dtype=torch.int32, device=topk_ids.device)
+    offsets[1:] = counts.cumsum(0).to(torch.int32)
+    return f2n, offsets, gate
+
+
+class _LayerOps:
+    """Cached TurboMind ops + routing scratch for one MoE layer."""
+
+    def __init__(self, op13, op2, num_experts, inter):
+        self.op13 = op13
+        self.op2 = op2
+        self.E = num_experts
+        self.I = inter
+
+
+_EXT_LOADED = False
+
+
+def _ensure_ext():
+    """JIT-build + load the TurboMind torch extension (genesis_tm.TmInt4MoE).
+
+    Expects the vendored tree at $GENESIS_TM_INT4_MOE_DIR (default
+    /opt/genesis/tm_int4_moe) with its engine objects pre-built in build/. The
+    extension links those objects against libtorch (see torch_ext/build_ext.py).
+    """
+    global _EXT_LOADED
+    if _EXT_LOADED:
+        return
+    import glob
+
+    import torch
+    from torch.utils.cpp_extension import load
+
+    work = os.environ.get("GENESIS_TM_INT4_MOE_DIR", "/opt/genesis/tm_int4_moe")
+    objs = [o for o in glob.glob(f"{work}/build/*.o")
+            if "test_gemm_v2" not in o and "_test_" not in o]
+    if not objs:
+        raise RuntimeError(f"G4_85: no pre-built engine objects under {work}/build")
+    flags = ["-arch=sm_86", "-std=c++17", "-DENABLE_BF16", "-DFMT_HEADER_ONLY",
+             "--expt-relaxed-constexpr", "--extended-lambda",
+             "-include", "cuda_fp16.h", "-include", "cuda_bf16.h",
+             f"-I{work}", f"-I{work}/third_party/fmt/include",
+             f"-I{work}/third_party/moodycamel"]
+    torch.zeros(1, device="cuda")
+    load(name="genesis_tm", sources=[f"{work}/torch_ext/tm_moe_op.cu"],
+         extra_cuda_cflags=flags,
+         extra_cflags=["-std=c++17", "-DFMT_HEADER_ONLY", f"-I{work}",
+                       f"-I{work}/third_party/fmt/include"],
+         extra_ldflags=[*objs, "-lcublas", "-lcublasLt",
+                        "-L/usr/local/cuda/lib64/stubs", "-lcuda"],
+         is_python_module=False, verbose=False)
+    _EXT_LOADED = True
+    logger.info("[G4_85] TurboMind torch extension loaded (%d objects)", len(objs))
+
+
+def _layer_attr(layer, *names):
+    """First present attribute among ``names`` (compressed-tensors layouts
+    vary across vLLM builds; we could not introspect the class offline, so
+    we probe the known names and let the fail-open path catch a miss)."""
+    for name in names:
+        value = getattr(layer, name, None)
+        if value is not None:
+            return value
+    raise AttributeError(
+        f"G4_85: none of {names!r} present on layer "
+        f"(have: {[a for a in dir(layer) if 'weight' in a or 'scale' in a]})"
+    )
+
+
+def _build_layer_ops(layer, group_size):
+    import torch
+
+    _ensure_ext()
+    # CompressedTensorsWNA16MoEMethod.create_weights registers the packed
+    # int4 expert weights as ``w13_weight_packed`` / ``w2_weight_packed`` and
+    # the group scales as ``w13_weight_scale`` / ``w2_weight_scale``. We also
+    # probe the moe_wna16 (``*_qweight`` / ``*_scale``) names so the same op
+    # builds if a future build relabels — a miss falls through to fail-open.
+    w13_packed = _layer_attr(layer, "w13_weight_packed", "w13_qweight")
+    w2_packed = _layer_attr(layer, "w2_weight_packed", "w2_qweight")
+    w13_scale = _layer_attr(layer, "w13_weight_scale", "w13_scale")
+    w2_scale = _layer_attr(layer, "w2_weight_scale", "w2_scale")
+    w13 = _dequant_wna16(w13_packed, w13_scale, group_size)  # (E,K,2I)
+    w2 = _dequant_wna16(w2_packed, w2_scale, group_size)     # (E,I,K)
+    op13 = torch.classes.genesis_tm.TmInt4MoE(w13, group_size)
+    op2 = torch.classes.genesis_tm.TmInt4MoE(w2, group_size)
+    return _LayerOps(op13, op2, w13.shape[0], w2.shape[1])
+
+
+def _tm_moe_forward(ops: "_LayerOps", x, topk_weights, topk_ids):
+    import torch
+    import torch.nn.functional as F
+
+    M, K = x.shape
+    f2n, offsets, gate = _build_routing(topk_ids, topk_weights, ops.E)
+    R = f2n.shape[0]
+    ident = torch.arange(R, dtype=torch.int32, device=x.device)
+    de = ops.op13.forward_w1w3(x.contiguous(), f2n, offsets)      # (R, 2I)
+    inter = (F.silu(de[:, : ops.I].float()) * de[:, ops.I:].float()).half()
+    oe = ops.op2.forward_w1w3(inter, ident, offsets)             # (R, K)
+    out = torch.zeros(M, K, dtype=torch.float32, device=x.device)
+    out.index_add_(0, f2n.long(), gate[:, None] * oe.float())
+    return out.to(x.dtype)
+
+
+# --------------------------------------------------------------------------- #
+# patched apply
+# --------------------------------------------------------------------------- #
+def _marlin_marginal(intermediate_per_partition, group_size):
+    """Reuse G4_84's Marlin-ineligibility detector (single source of truth).
+
+    Falls back to a local mirror if the G4_84 module is not importable, so
+    the per-layer gate never crashes the apply path.
+    """
+    try:
+        from .g4_84_moe_geometry_advisor import marlin_moe_marginal
+        return marlin_moe_marginal(intermediate_per_partition, group_size)
+    except Exception:  # noqa: BLE001
+        divisor = max(64, group_size if group_size and group_size > 0 else 64)
+        return (intermediate_per_partition % divisor) != 0
+
+
+def _genesis_apply(self, layer, x, topk_weights, topk_ids,
+                   shared_experts=None, shared_experts_input=None):
+    """Replacement for CompressedTensorsWNA16MoEMethod.apply (exact signature).
+
+    Falls back to the original on any error, when shared_experts is requested,
+    or when this layer's geometry is Marlin-ELIGIBLE (G4_85 must only fire on
+    the Marlin-ineligible int4 MoE path the slow CUDA-core kernel carries).
+    Fail-open: a wrong weight attribute name -> AttributeError -> original.
+    """
+    # Only handle the plain routed-experts case; defer anything exotic.
+    if shared_experts is not None:
+        if "shared_experts" not in _DEFERRED_LOGGED:
+            _DEFERRED_LOGGED.add("shared_experts")
+            logger.warning(
+                "[G4_85] deferring to original: this layer passes shared_experts "
+                "(the routed-only TurboMind path does not yet fuse shared experts)"
+            )
+        return _orig_apply(self, layer, x, topk_weights, topk_ids,
+                           shared_experts, shared_experts_input)
+    try:
+        group_size = getattr(getattr(self, "quant_config", None), "group_size", None) \
+            or getattr(self, "group_size", 32)
+
+        # Per-layer Marlin-ineligibility gate (G4_84 detector). Only fire
+        # where Marlin was structurally rejected — i.e. exactly where vLLM
+        # would otherwise take the slow CUDA-core moe_wna16 path. If the
+        # geometry IS Marlin-eligible, defer to the original (Marlin) method.
+        inter = getattr(layer, "intermediate_size_per_partition", None)
+        if inter is None:
+            w2p = getattr(layer, "w2_weight_packed", None)
+            if w2p is None:
+                w2p = getattr(layer, "w2_qweight", None)
+            # w2 is (E, hidden, inter//2) packed -> inter = last_dim * 2.
+            inter = (w2p.shape[-1] * 2) if w2p is not None else None
+        _marginal = (_marlin_marginal(int(inter), int(group_size))
+                     if inter is not None else None)
+        if inter is not None and not _marginal:
+            if "gate" not in _DEFERRED_LOGGED:
+                _DEFERRED_LOGGED.add("gate")
+                logger.warning(
+                    "[G4_85] deferring to original: layer is Marlin-ELIGIBLE per gate "
+                    "(intermediate_per_partition=%s, group_size=%s, marlin_marginal=%s)",
+                    inter, group_size, _marginal,
+                )
+            return _orig_apply(self, layer, x, topk_weights, topk_ids,
+                               shared_experts, shared_experts_input)
+
+        ops = getattr(layer, "_g4_85_ops", None)
+        if ops is None:
+            ops = _build_layer_ops(layer, group_size)
+            layer._g4_85_ops = ops
+            logger.info("[G4_85] built TurboMind int4 MoE ops (E=%d I=%d g=%d)",
+                        ops.E, ops.I, group_size)
+
+        x2 = x.view(-1, x.shape[-1])
+        out = _tm_moe_forward(ops, x2, topk_weights, topk_ids)
+
+        if os.environ.get(_VALIDATE_ENV) == "1" and not getattr(layer, "_g4_85_val", False):
+            layer._g4_85_val = True
+            ref = _orig_apply(self, layer, x, topk_weights, topk_ids,
+                              shared_experts, shared_experts_input).view(-1, x.shape[-1])
+            rel = ((out.float() - ref.float()).abs().mean()
+                   / ref.float().abs().mean().clamp_min(1e-6)).item()
+            logger.warning("[G4_85][VALIDATE] reldiff vs original = %.5f (E=%d M=%d)",
+                           rel, ops.E, x2.shape[0])
+        return out.view_as(x)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[G4_85] fell back to original WNA16 MoE apply: %r", e)
+        return _orig_apply(self, layer, x, topk_weights, topk_ids,
+                           shared_experts, shared_experts_input)
+
+
+def apply() -> tuple[str, str]:
+    """Monkey-patch CompressedTensorsWNA16MoEMethod.apply when enabled.
+
+    Returns ``(status, reason)`` per the Genesis apply contract — status in
+    {applied, skipped, failed}. default OFF: a no-op ``skipped`` unless
+    ``GENESIS_ENABLE_G4_85=1``. Additionally gated on ``is_moe_model()`` so
+    dense models never install the hook. Fail-open is preserved at the
+    per-layer ``_genesis_apply`` level.
+    """
+    global _orig_apply
+    if not _enabled():
+        return ("skipped", "disabled via GENESIS_ENABLE_G4_85 (default OFF)")
+
+    # P52 MoE-dispatch gate: dense models never dispatch fused_moe, the hook
+    # would be dead weight. Best-effort — proceed if the probe is unavailable.
+    try:
+        from sndr.engines.vllm.detection.model_detect import is_moe_model
+        if not is_moe_model():
+            return ("skipped", "P52 dispatch: model has no MoE layers")
+    except Exception as e:  # noqa: BLE001
+        logger.debug("[G4_85] model_detect probe failed (proceeding): %s", e)
+
+    try:
+        method = _resolve_wna16_method()
+    except Exception as e:  # noqa: BLE001
+        msg = str(e).lower()
+        if any(m in msg for m in ("torch", "triton", "flashinfer", "vllm")):
+            return ("skipped",
+                    f"runtime not present on this host ({e}) — patch would "
+                    "apply on a vllm-equipped server")
+        logger.warning("[G4_85] CompressedTensorsWNA16MoEMethod not found: %s", e)
+        return ("failed", f"CompressedTensorsWNA16MoEMethod not resolvable: {e}")
+
+    if _orig_apply is not None:
+        return ("skipped", "already patched (idempotent)")
+    _orig_apply = method.apply
+    method.apply = _genesis_apply
+    logger.info("[G4_85] patched %s.apply -> TurboMind int4 MoE", method.__name__)
+    return ("applied",
+            "CompressedTensorsWNA16MoEMethod.apply re-routed to TurboMind "
+            "int4 grouped-MoE (fires only on Marlin-ineligible int4 MoE "
+            "layers; fail-open to the original)")
+
+
+def is_applied() -> bool:
+    return _orig_apply is not None
+
+
+def revert() -> bool:
+    global _orig_apply
+    if _orig_apply is None:
+        return False
+    try:
+        method = _resolve_wna16_method()
+    except Exception:  # noqa: BLE001
+        return False
+    method.apply = _orig_apply
+    _orig_apply = None
+    return True

@@ -1,0 +1,148 @@
+# SPDX-License-Identifier: Apache-2.0
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    Gemma 4 26B-A4B AWQ-4bit (128-expert MoE, A=4B)   Topology: 2x A5000 (TP=2)
+#   KV:       auto (engine-picked)         Drafter:  MTP K=4
+#   Max ctx:  16384 (effective render)     Status:   production_candidate (structured-throughput sibling)
+#   Bench:    235.9 TPS @ conc=8 (Mode A) / 271.4 TPS schema_rate 100% (Mode B xgrammar) — 2026-05-23
+#   Best for: SHORT structured-JSON / tool-call multi-conc (tool args, small schema-bounded JSON, conc 1..8)
+# What's intentionally NOT enabled:  - free-chat multi-conc -> use prod-qwen3.6-35b-multiconc (this preset is MIXED band there, -39%)
+#                                    - long structured output -> use prod-gemma4-26b-default (K=4 loses -53% on long output)
+# To change for scenario X:          - single-stream baseline / long ctx -> prod-gemma4-26b-default (⭐ canonical, fallback target)
+#                                    - free-chat throughput -> prod-qwen3.6-35b-multiconc (672 TPS reference)
+# =====================================================================
+# Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, short structured-JSON
+# multi-conc preset (NOT a generic free-chat throughput preset).
+# `sndr launch prod-gemma4-26b-multiconc` resolves to (model, hardware, profile).
+#
+# ┌─────────────────────────────────────────────────────────────────────┐
+# │ INTENDED USE — read before picking this preset                      │
+# ├─────────────────────────────────────────────────────────────────────┤
+# │ This preset is K=4 MTP + max_num_seqs=8. After B2 + B3 + B4 bench  │
+# │ closure (2026-05-23), it has ONE concrete production niche:        │
+# │                                                                     │
+# │   workload_class    ∈ {structured_json, tool_call}                  │
+# │   expected_output   short (≤ ~200 tokens, e.g. tool args, small    │
+# │                     JSON objects, schema-bounded responses)         │
+# │   concurrency_mode  any 1..8                                        │
+# │                                                                     │
+# │ Empirical evidence (see sndr_private/runs/g4_26b_a4b_*):           │
+# │   B4 conc=8 Mode A:  K=4 235.9 TPS vs K=1 209.1 TPS (+12.8%)        │
+# │   B4 conc=8 Mode B:  K=4 271.4 TPS, schema_rate 100% (xgrammar)     │
+# │   B2 conc=1 short:   K=4 mean elapsed -38% vs K=1                   │
+# │                                                                     │
+# │ DO NOT use for:                                                     │
+# │   - free-chat multi-conc throughput  → use prod-qwen3.6-35b-multiconc      │
+# │     (B3 closed K=4 free-chat conc=8 at 408 TPS, MIXED band,        │
+# │     -39% vs Qwen 35B-A3B 672 TPS reference)                        │
+# │   - long-form structured JSON  → use K=1 sibling (B2 closed K=4    │
+# │     long structured at -53% TPS)                                   │
+# │   - code generation / summarization  → K=1 is the policy default   │
+# │                                                                     │
+# │ For free-chat multi-conc throughput, Qwen 35B-A3B is the production │
+# │ baseline (672 TPS @ conc=8). 26B-A4B sits at 408 TPS for that      │
+# │ workload (B3 verdict, MIXED band).                                  │
+# └─────────────────────────────────────────────────────────────────────┘
+#
+# Policy reference: sndr_private/research/gemma4/analysis/
+#                   G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md
+#
+# Bench harness used at B4: sndr_private/runs/g4_26b_a4b_structured_multiconc_
+#                            2026-05-23/multi_conc_json_bench.py
+# (NOT tools/multi_conc_bench.py — that one is free-chat-shaped and was
+# the harness for B3, where the policy verdict was MIXED.)
+#
+# Sibling presets:
+#   prod-gemma4-26b-default          — K=1 single-stream control (also the fallback target)
+# (The K=4 single-stream prod-gemma4-26b-mtp-k4 and the K=1 multi-conc
+#  baseline prod-gemma4-26b-multiconc-k1 comparators were archived to
+#  presets/_archive/ in the 2026-06 canonical reorg — git-recoverable.)
+
+model: gemma-4-26b-a4b-it-awq
+hardware: a5000-2x-24gbvram-16cpu-128gbram
+profile: gemma4-26b-multiconc                     # max_num_seqs=8, MTP K=4, max_model_len 16K
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Gemma 4 26B-A4B AWQ — short structured-JSON multi-conc K=4"
+  summary: |
+    K=4 MTP + max_num_seqs=8 for the structured-JSON / tool-call short-
+    output niche. B4 closed at 235.9 TPS (Mode A) / 271.4 TPS schema-rate
+    100% (Mode B). Not for free-chat multi-conc — prod-qwen3.6-35b-multiconc is
+    faster there (672 TPS Qwen 35B-A3B reference; this preset 408 TPS
+    MIXED band).
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: structured_throughput
+  workload_allow:
+    - structured_json.short
+    - tool_call.short
+  workload_deny:
+    - free_chat
+    - structured_json.long
+    - summarization
+    - code_gen
+  concurrency:
+    min: 1
+    max: 8
+    canonical: 8
+  K: 4
+  context:
+    max_model_len: 16384
+    typical_input_tokens: 512
+    typical_output_tokens: 200
+  routing_family: gemma4_moe_26b_a4b
+  default_for_family: false
+  # Repointed in the 2026-06 canonical reorg: the previous K=1 multi-conc
+  # baseline prod-gemma4-26b-multiconc-k1 was archived to presets/_archive/.
+  # Points at the kept K=1 family default (same routing_family).
+  fallback_preset: prod-gemma4-26b-default
+  primary_metric:
+    kind: agg_TPS
+    value: 235.9
+    source: external://sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/VERDICT_2026-05-23.md
+    measured_at: 2026-05-23
+  evidence_refs:
+    - type: bench
+      path: external://sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/VERDICT_2026-05-23.md
+      visibility: private
+      note: B4 Mode A short structured-JSON conc=8 K=4=235.9 TPS, +12.8% vs K=1.
+    - type: structured_eval
+      path: external://sndr_private/runs/g4_26b_a4b_structured_multiconc_2026-05-23/VERDICT_2026-05-23.md
+      visibility: private
+      note: B4 Mode B xgrammar schema_rate=100% at 271.4 TPS.
+    - type: smoke
+      path: evidence/bench/gemma4_26b_a4b/VERDICT_2026-06-26_dev424_smoke.md
+      visibility: public
+      note: |
+        dev424 boot + coherence receipt for the shared gemma-4-26b-a4b-it-awq
+        ModelDef: engine boots (Genesis overlay failed=0, no IMA) and serves
+        coherent text ("The capital of France is Paris.") on pin
+        0.23.1rc1.dev424+g3f5a1e173, 2x A5000. The conc=8 structured-JSON
+        throughput is held in the private B4 VERDICT refs above — no public
+        concurrency-throughput baseline exists yet.
+    - type: tool_call_eval
+      path: evidence/bench/gemma4_26b_a4b/VERDICT_2026-06-26_dev424_smoke.md
+      visibility: public
+      note: |
+        dev424 tool-call receipt (shared ModelDef): get_weather
+        {"city":"Berlin"}, finish_reason=tool_calls (native gemma4 parser).
+        Validated on pin 0.23.1rc1.dev424+g3f5a1e173, 2x A5000.
+  evidence_visibility: mixed
+  tradeoffs:
+    - "K=4 wins only on short structured output; long-form structured loses -53% TPS."
+    - "Free-chat multi-conc collapses to MIXED band — use prod-qwen3.6-35b-multiconc instead."
+    - "16K context envelope to fit max_num_seqs=8 — not for long-context tasks."
+  do_not_use:
+    - condition: "free-chat multi-conc workloads"
+      reason: "MIXED band -39% vs Qwen 35B-A3B reference (B3 verdict)."
+    - condition: "long-form structured JSON (output > ~200 tokens)"
+      reason: "K=4 loses -53% TPS on long output (B2 closed)."
+    - condition: "code generation / summarization"
+      reason: "Policy default is K=1; this preset is for short structured only."
+    - condition: "context > 16K"
+      reason: "Sizing envelope tops at 16K for max_num_seqs=8."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

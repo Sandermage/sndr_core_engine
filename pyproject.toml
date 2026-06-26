@@ -1,0 +1,370 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Root `pyproject.toml` for SNDR Core — Phase 3 (F-003 audit fix, 2026-05-08).
+#
+# This makes the project pip-installable as `sndr-core` (alias `genesis-vllm-patches`)
+# with a `sndr` console entry point. The legacy `genesis` console name from
+# `tools/genesis_vllm_plugin/pyproject.toml` continues to work as an alias
+# for the transition window.
+#
+# Build-time intent
+# ─────────────────
+# This package ships:
+#   - `vllm/sndr_core/` — all canonical implementation (Apache 2.0)
+#
+# It does NOT ship:
+#   - `vllm/sndr_engine/` — commercial tier; built as a SEPARATE wheel
+#     from `pyproject-engine.toml` (E-04 fix, 2026-05-08).
+#   - `tests/` — pytest suite stays out of the wheel
+#   - Internal docs / benchmarks / dev scripts
+#
+# Usage
+# ─────
+#   pip install -e .                 # editable install for development
+#   pip install vllm-sndr-core       # from PyPI when published
+#
+# After install:
+#   sndr install                     # interactive setup wizard
+#   sndr launch <preset>             # launch vllm with a preset
+#   sndr doctor                      # health check
+#   sndr verify                      # post-apply verification
+#
+# Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa.
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "sndr-platform"
+# Source of truth: sndr/version.py __version__.
+# Bump there + here together on each release.
+version = "12.0.0"
+description = "sndr-platform — multi-engine inference patch orchestrator (vLLM + SGLang)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Sandermage(Sander)-Barzov Aleksandr", email = "sander.odessa@gmail.com"},
+]
+keywords = ["vllm", "llm", "inference", "patches", "turboquant", "genesis", "sndr"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# DA-007 (audit 2026-05-08): minimum self-contained runtime deps.
+# Previously `dependencies = []` assumed PyYAML came in via vllm — but
+# `pip install vllm-sndr-core` in a clean venv (without vllm yet
+# installed) would fail at first `import yaml`. Now declare the bare
+# minimum so the wheel is genuinely self-contained.
+#
+# Optional deps (HTTP probes, telemetry, license signing) are surfaced
+# as extras under [project.optional-dependencies].
+dependencies = [
+    "pyyaml>=6.0",      # model_configs YAML loader, host.yaml parser
+    "packaging>=23.0",  # version compat checks in license + drift watcher
+]
+
+[project.optional-dependencies]
+# `pip install vllm-sndr-core[dev]` for development tooling.
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "cryptography>=41.0",  # signed-license token verification
+]
+# `pip install vllm-sndr-core[http]` for upstream PR drift watcher,
+# image-digest verification, and outbound telemetry signals.
+http = [
+    "requests>=2.28",
+]
+# `pip install vllm-sndr-core[gui-api]` for the local read-only Product
+# API daemon consumed by GUI/web/desktop clients. Authentication (local
+# accounts, TOTP 2FA, sessions, OAuth) uses only the standard library — no
+# extra dependency. The optional PAM backend (system-account login on a host)
+# needs `python-pam`; install the `gui-auth-pam` extra to enable it.
+gui-api = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+]
+# `pip install vllm-sndr-core[k8s]` for the GUI's read-only Kubernetes mode
+# (cluster status, nodes with GPU capacity, pods/logs/exec). The daemon imports
+# and runs without it — k8s endpoints report a structured "not configured" so
+# the GUI shows "connect a cluster" rather than failing.
+k8s = [
+    "kubernetes>=29.0",
+]
+# `pip install vllm-sndr-core[gui-remote]` for the GUI's remote-host features:
+# SSH/SFTP connectivity + checks, an embedded PTY terminal, and encrypted
+# at-rest storage of SSH passwords / engine API keys. All optional — the daemon
+# imports and runs without these; the remote features simply report unavailable.
+gui-remote = [
+    "paramiko>=3.0",       # SSH/SFTP transport + interactive PTY channel
+    "cryptography>=41.0",  # Fernet encryption for the at-rest secrets fallback
+    "keyring>=24.0",       # OS keychain backend (preferred over the file fallback)
+    "websockets>=12.0",    # PTY terminal transport (uvicorn websocket protocol)
+]
+# `pip install vllm-sndr-core[gui-auth-pam]` to authenticate GUI logins against
+# the host's system accounts via PAM (host deployments only; in a container PAM
+# sees the container's users unless host auth files are bind-mounted).
+gui-auth-pam = [
+    "python-pam>=2.0",
+]
+# `pip install vllm-sndr-core[telemetry]` for opt-in usage reporting.
+# Telemetry stays opt-in — base install does not include it.
+telemetry = [
+    "requests>=2.28",
+]
+# `pip install vllm-sndr-core[license]` for signed-token verification.
+license = [
+    "cryptography>=41.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Sandermage/genesis-vllm-patches"
+Issues = "https://github.com/Sandermage/genesis-vllm-patches/issues"
+Changelog = "https://github.com/Sandermage/genesis-vllm-patches/blob/main/CHANGELOG.md"
+
+[project.scripts]
+# v12.0 sndr-platform: canonical CLI entry points all live under sndr.cli.*
+# The legacy ``vllm.sndr_core.cli`` and ``vllm.sndr_core.compat.cli`` modules
+# are removed in v12.0 — the entry-point targets now reference the canonical
+# sndr.cli tree directly.
+#
+# Two console scripts:
+#   ``sndr``    — modular CLI (engines.list / engines.info / pins.list / health)
+#   ``genesis`` — legacy command tree, retained as alias for operators trained
+#                 on it. Removed in v13.0.
+sndr = "sndr.cli.main:main"
+genesis = "sndr.cli.legacy:cli_main"
+
+[project.entry-points."vllm.general_plugins"]
+# v12.0: the canonical plugin registration lives in ``sndr.plugin``. vLLM
+# discovers it via setuptools entry points and calls ``register()`` at engine
+# init. Replaces the v11 ``vllm.sndr_core.plugin:register`` target — the
+# legacy module was a shim that imported from ``sndr.plugin`` anyway.
+genesis_v7 = "sndr.plugin:register"
+
+
+# ─── Setuptools package layout ────────────────────────────────────────────
+
+[tool.setuptools.packages.find]
+# v12.0 sndr-platform: namespace-package mode is required because
+#   1. `vllm/` is a PEP 420 implicit namespace (no top-level __init__.py),
+#      so we extend the upstream `vllm.*` namespace with `vllm.sndr_core.*`.
+#   2. `sndr/` is a regular package (has __init__.py), but namespaces=true
+#      remains backward-compatible for regular packages.
+namespaces = true
+where = ["."]
+# E-04 fix (audit 2026-05-08): the Apache wheel no longer includes
+# `vllm.sndr_engine*`. Engine code is built separately via
+# `pyproject-engine.toml` under a commercial license.
+include = [
+    # v12.0 sndr-platform: top-level multi-engine package. The legacy
+    # ``vllm.sndr_core*`` shim tree was removed at the v12.0 release —
+    # operators on v11 import paths must vendor it themselves or upgrade.
+    "sndr*",
+]
+# Explicit exclusions: tests, internal docs, dev scripts, engine pkg,
+# archived legacy folders.
+exclude = [
+    "tests*",
+    "docs*",
+    "scripts*",
+    "snapshots*",
+    "vllm.sndr_engine*",
+    "tools.genesis_vllm_plugin.tests*",
+    # The commercial engine tier remains a separate wheel.
+    "sndr.engine*",
+    # `sndr_private/` carries internal planning docs, license-server source,
+    # and pre-release patch drafts — must not ship in the Apache wheel.
+    "sndr_private*",
+]
+
+[tool.setuptools.package-data]
+# v12.0: sndr-platform data files (per-pin manifests, GUI bundles, schemas).
+"sndr" = [
+    # Per-pin manifest YAMLs — drift detector + manifest_gen consume these.
+    "engines/*/pins/*/manifest.yaml",
+    # Bundled launcher / config templates for the universal launcher.
+    "engines/*/launchers/*.sh.j2",
+    "engines/*/configs/*.yaml",
+    # JSON schemas for license tokens and config validation.
+    "schemas/*.json",
+    # GUI static bundle (built by `make gui-build`, served by the legacy
+    # product_api the daemon resolves from `legacy/web_static`). v12.x moved
+    # it here from vllm/sndr_core/product_api/web_static.
+    "product_api/legacy/web_static/*",
+    "product_api/legacy/web_static/assets/*",
+]
+"sndr.model_configs" = [
+    # V1 monolithic top-level (12 files; legacy compat, sunset planned).
+    "builtin/*.yaml",
+    # P0.1 M.1 (audit 2026-05-24): V2 layered configs in subdirs.
+    "builtin/model/*.yaml",
+    "builtin/hardware/*.yaml",
+    "builtin/profile/*.yaml",
+    "builtin/presets/*.yaml",
+    "community/*.yaml.sample",
+    # CONFIG-UX.4.1 (audit 2026-05-24): V1 migration table.
+    "_v1_migration_table.json",
+]
+"sndr.manifests" = ["*.json"]
+"sndr.configs" = [
+    "moe_tuning/*.yaml",
+    "moe_tuning/*.json",
+]
+"sndr.schemas" = ["*.json"]
+
+
+# ─── Pytest config (consolidated from the former root pytest.ini) ────────
+#
+# This is now the single source of truth for pytest configuration. The
+# standalone pytest.ini was merged here so the repo root carries one
+# config file (pyproject.toml) instead of two. pytest reads this section
+# directly when no pytest.ini / tox.ini / setup.cfg with a [pytest]
+# section exists at the rootdir.
+
+[tool.pytest.ini_options]
+# Discovery roots — two during the v11 transition:
+#   tests/              — canonical layout (post-Phase-2 relocation)
+#   tests/legacy/       — pre-v11 tests not yet relocated (~63 files
+#                          remain; cosmetic-only relocation is deferred)
+testpaths = ["tests"]
+# Repo root on sys.path FIRST — required for the `vllm.*` namespace-package
+# import path used by nested conftests (carried over from pytest.ini). The
+# root-level conftest.py also forces this defensively; this is the declared
+# hint pytest applies at collection time.
+pythonpath = ["."]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# NOTE: the authoritative marker registration lives in
+# `tests/conftest.py::pytest_configure` (it also auto-marks torch-importing
+# files). This list is the declarative mirror kept for `--strict-markers`
+# and `pytest --markers` discoverability.
+markers = [
+    "cuda_required: test requires NVIDIA CUDA device",
+    "rocm_required: test requires AMD ROCm device",
+    "gpu_required: test requires any GPU (CUDA or ROCm)",
+    "gpu: requires CUDA-capable GPU",
+    "slow: test takes >5 seconds",
+    "requires_torch: test imports torch — auto-skipped without torch (audit A-15)",
+    "requires_vllm: test needs an actual vllm package install — auto-skipped without it",
+    "integration: end-to-end with live container",
+]
+addopts = [
+    "-ra",
+    "--tb=short",
+    "--strict-markers",
+]
+
+
+# ─── Ruff config (consolidated from the former root ruff.toml) ───────────
+#
+# https://docs.astral.sh/ruff/
+# Engineering principle: every contributor sees identical lint errors locally.
+# CI runs `ruff check --no-fix` and `ruff format --check`; both must pass.
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+indent-width = 4
+
+# Apply to the new sndr/ tree first. Legacy vllm/sndr_core/ is excluded
+# during the refactor; it will be migrated phase by phase.
+include = ["sndr/**/*.py", "tools/**/*.py", "tests/**/*.py"]
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "build",
+    "dist",
+    "*.egg-info",
+    "vllm/",                  # legacy, migrated incrementally
+    "sndr_engine/",
+    "sndr_private/",
+    "gui/web/node_modules/",
+    "gui/web/dist/",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # bugbear
+    "C4",     # comprehensions
+    "UP",     # pyupgrade
+    "N",      # pep8-naming
+    "SIM",    # simplify
+    "RET",    # return
+    "TCH",    # type-checking
+    "TID",    # tidy imports
+    "PT",     # pytest style
+    "PIE",    # misc
+    "PL",     # pylint subset
+]
+ignore = [
+    "E501",   # handled by formatter
+    "PLR0913",# too many arguments — sometimes necessary
+    "PLR2004",# magic constants — too noisy for tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["PLR2004", "N802", "N803"]   # test names are looser
+"sndr/exceptions.py" = ["N818"]                 # we don't use "Error" suffix everywhere
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+
+# ─── Mypy config (consolidated from the former root mypy.ini) ────────────
+#
+# https://mypy.readthedocs.io/
+# Engineering principle: the new sndr/ tree is type-strict from day one.
+# Legacy vllm/sndr_core/ stays untyped during migration; it will be
+# progressively typed as files move into sndr/.
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_optional = true
+show_error_codes = true
+pretty = true
+# Only check the new sndr/ tree. Legacy code is excluded.
+files = ["sndr/"]
+
+[[tool.mypy.overrides]]
+# Allow loose typing in tests.
+module = "tests.*"
+disallow_untyped_defs = false
+strict = false
+
+[[tool.mypy.overrides]]
+# Third-party libraries without stubs.
+module = ["vllm.*", "vllm", "prometheus_client.*", "cryptography.*", "opentelemetry.*"]
+ignore_missing_imports = true

@@ -1,0 +1,962 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "vllm-sndr-core-11.0.0",
+  "documentNamespace": "https://github.com/Sandermage/genesis-vllm-patches/68df5d19-94f5-487f-9bfb-d96cc62b4424",
+  "creationInfo": {
+    "created": "2026-05-16T01:51:38.660802Z",
+    "creators": [
+      "Tool: genesis-sbom-generator-1.0"
+    ]
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-Genesis",
+      "name": "vllm-sndr-core",
+      "versionInfo": "11.0.0",
+      "supplier": "Organization: Sandermage",
+      "licenseConcluded": "Apache-2.0",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false
+    },
+    {
+      "SPDXID": "SPDXRef-Package-anyio-4-9-0",
+      "name": "anyio",
+      "versionInfo": "4.9.0",
+      "downloadLocation": "https://pypi.org/project/anyio/4.9.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-build-1-2-2-post1",
+      "name": "build",
+      "versionInfo": "1.2.2.post1",
+      "downloadLocation": "https://pypi.org/project/build/1.2.2.post1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-CacheControl-0-14-2",
+      "name": "CacheControl",
+      "versionInfo": "0.14.2",
+      "downloadLocation": "https://pypi.org/project/CacheControl/0.14.2/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-certifi-2025-1-31",
+      "name": "certifi",
+      "versionInfo": "2025.1.31",
+      "downloadLocation": "https://pypi.org/project/certifi/2025.1.31/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cffi-1-17-1",
+      "name": "cffi",
+      "versionInfo": "1.17.1",
+      "downloadLocation": "https://pypi.org/project/cffi/1.17.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-charset-normalizer-3-4-1",
+      "name": "charset-normalizer",
+      "versionInfo": "3.4.1",
+      "downloadLocation": "https://pypi.org/project/charset-normalizer/3.4.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cleo-2-1-0",
+      "name": "cleo",
+      "versionInfo": "2.1.0",
+      "downloadLocation": "https://pypi.org/project/cleo/2.1.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-contourpy-1-3-1",
+      "name": "contourpy",
+      "versionInfo": "1.3.1",
+      "downloadLocation": "https://pypi.org/project/contourpy/1.3.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-crashtest-0-4-1",
+      "name": "crashtest",
+      "versionInfo": "0.4.1",
+      "downloadLocation": "https://pypi.org/project/crashtest/0.4.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-cycler-0-12-1",
+      "name": "cycler",
+      "versionInfo": "0.12.1",
+      "downloadLocation": "https://pypi.org/project/cycler/0.12.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-distlib-0-3-9",
+      "name": "distlib",
+      "versionInfo": "0.3.9",
+      "downloadLocation": "https://pypi.org/project/distlib/0.3.9/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-dulwich-0-22-8",
+      "name": "dulwich",
+      "versionInfo": "0.22.8",
+      "downloadLocation": "https://pypi.org/project/dulwich/0.22.8/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-fastjsonschema-2-21-1",
+      "name": "fastjsonschema",
+      "versionInfo": "2.21.1",
+      "downloadLocation": "https://pypi.org/project/fastjsonschema/2.21.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-filelock-3-18-0",
+      "name": "filelock",
+      "versionInfo": "3.18.0",
+      "downloadLocation": "https://pypi.org/project/filelock/3.18.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-findpython-0-6-3",
+      "name": "findpython",
+      "versionInfo": "0.6.3",
+      "downloadLocation": "https://pypi.org/project/findpython/0.6.3/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-fonttools-4-57-0",
+      "name": "fonttools",
+      "versionInfo": "4.57.0",
+      "downloadLocation": "https://pypi.org/project/fonttools/4.57.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-fsspec-2026-3-0",
+      "name": "fsspec",
+      "versionInfo": "2026.3.0",
+      "downloadLocation": "https://pypi.org/project/fsspec/2026.3.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-graphviz-0-20-3",
+      "name": "graphviz",
+      "versionInfo": "0.20.3",
+      "downloadLocation": "https://pypi.org/project/graphviz/0.20.3/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-h11-0-14-0",
+      "name": "h11",
+      "versionInfo": "0.14.0",
+      "downloadLocation": "https://pypi.org/project/h11/0.14.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-html2text-2025-4-15",
+      "name": "html2text",
+      "versionInfo": "2025.4.15",
+      "downloadLocation": "https://pypi.org/project/html2text/2025.4.15/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-httpcore-1-0-7",
+      "name": "httpcore",
+      "versionInfo": "1.0.7",
+      "downloadLocation": "https://pypi.org/project/httpcore/1.0.7/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-httpx-0-28-1",
+      "name": "httpx",
+      "versionInfo": "0.28.1",
+      "downloadLocation": "https://pypi.org/project/httpx/0.28.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-idna-3-10",
+      "name": "idna",
+      "versionInfo": "3.10",
+      "downloadLocation": "https://pypi.org/project/idna/3.10/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-iniconfig-2-3-0",
+      "name": "iniconfig",
+      "versionInfo": "2.3.0",
+      "downloadLocation": "https://pypi.org/project/iniconfig/2.3.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-installer-0-7-0",
+      "name": "installer",
+      "versionInfo": "0.7.0",
+      "downloadLocation": "https://pypi.org/project/installer/0.7.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-jaraco.classes-3-4-0",
+      "name": "jaraco.classes",
+      "versionInfo": "3.4.0",
+      "downloadLocation": "https://pypi.org/project/jaraco.classes/3.4.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-jaraco.context-6-0-1",
+      "name": "jaraco.context",
+      "versionInfo": "6.0.1",
+      "downloadLocation": "https://pypi.org/project/jaraco.context/6.0.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-jaraco.functools-4-1-0",
+      "name": "jaraco.functools",
+      "versionInfo": "4.1.0",
+      "downloadLocation": "https://pypi.org/project/jaraco.functools/4.1.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Jinja2-3-1-6",
+      "name": "Jinja2",
+      "versionInfo": "3.1.6",
+      "downloadLocation": "https://pypi.org/project/Jinja2/3.1.6/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-keyring-25-6-0",
+      "name": "keyring",
+      "versionInfo": "25.6.0",
+      "downloadLocation": "https://pypi.org/project/keyring/25.6.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-kiwisolver-1-4-8",
+      "name": "kiwisolver",
+      "versionInfo": "1.4.8",
+      "downloadLocation": "https://pypi.org/project/kiwisolver/1.4.8/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-MarkupSafe-3-0-3",
+      "name": "MarkupSafe",
+      "versionInfo": "3.0.3",
+      "downloadLocation": "https://pypi.org/project/MarkupSafe/3.0.3/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-matplotlib-3-10-1",
+      "name": "matplotlib",
+      "versionInfo": "3.10.1",
+      "downloadLocation": "https://pypi.org/project/matplotlib/3.10.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-more-itertools-10-6-0",
+      "name": "more-itertools",
+      "versionInfo": "10.6.0",
+      "downloadLocation": "https://pypi.org/project/more-itertools/10.6.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-mpmath-1-3-0",
+      "name": "mpmath",
+      "versionInfo": "1.3.0",
+      "downloadLocation": "https://pypi.org/project/mpmath/1.3.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-msgpack-1-1-0",
+      "name": "msgpack",
+      "versionInfo": "1.1.0",
+      "downloadLocation": "https://pypi.org/project/msgpack/1.1.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-networkx-3-4-2",
+      "name": "networkx",
+      "versionInfo": "3.4.2",
+      "downloadLocation": "https://pypi.org/project/networkx/3.4.2/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-numpy-2-4-4",
+      "name": "numpy",
+      "versionInfo": "2.4.4",
+      "downloadLocation": "https://pypi.org/project/numpy/2.4.4/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-packaging-24-2",
+      "name": "packaging",
+      "versionInfo": "24.2",
+      "downloadLocation": "https://pypi.org/project/packaging/24.2/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pbs-installer-2025-3-17",
+      "name": "pbs-installer",
+      "versionInfo": "2025.3.17",
+      "downloadLocation": "https://pypi.org/project/pbs-installer/2025.3.17/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pillow-11-1-0",
+      "name": "pillow",
+      "versionInfo": "11.1.0",
+      "downloadLocation": "https://pypi.org/project/pillow/11.1.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pip-25-0-1",
+      "name": "pip",
+      "versionInfo": "25.0.1",
+      "downloadLocation": "https://pypi.org/project/pip/25.0.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pkginfo-1-12-1-2",
+      "name": "pkginfo",
+      "versionInfo": "1.12.1.2",
+      "downloadLocation": "https://pypi.org/project/pkginfo/1.12.1.2/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-platformdirs-4-3-7",
+      "name": "platformdirs",
+      "versionInfo": "4.3.7",
+      "downloadLocation": "https://pypi.org/project/platformdirs/4.3.7/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pluggy-1-6-0",
+      "name": "pluggy",
+      "versionInfo": "1.6.0",
+      "downloadLocation": "https://pypi.org/project/pluggy/1.6.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-poetry-2-1-2",
+      "name": "poetry",
+      "versionInfo": "2.1.2",
+      "downloadLocation": "https://pypi.org/project/poetry/2.1.2/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-poetry-core-2-1-2",
+      "name": "poetry-core",
+      "versionInfo": "2.1.2",
+      "downloadLocation": "https://pypi.org/project/poetry-core/2.1.2/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pycparser-2-22",
+      "name": "pycparser",
+      "versionInfo": "2.22",
+      "downloadLocation": "https://pypi.org/project/pycparser/2.22/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Pygments-2-20-0",
+      "name": "Pygments",
+      "versionInfo": "2.20.0",
+      "downloadLocation": "https://pypi.org/project/Pygments/2.20.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pyparsing-3-2-3",
+      "name": "pyparsing",
+      "versionInfo": "3.2.3",
+      "downloadLocation": "https://pypi.org/project/pyparsing/3.2.3/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pypdf-6-10-2",
+      "name": "pypdf",
+      "versionInfo": "6.10.2",
+      "downloadLocation": "https://pypi.org/project/pypdf/6.10.2/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pyproject-hooks-1-2-0",
+      "name": "pyproject_hooks",
+      "versionInfo": "1.2.0",
+      "downloadLocation": "https://pypi.org/project/pyproject_hooks/1.2.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-pytest-9-0-3",
+      "name": "pytest",
+      "versionInfo": "9.0.3",
+      "downloadLocation": "https://pypi.org/project/pytest/9.0.3/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-python-dateutil-2-9-0-post0",
+      "name": "python-dateutil",
+      "versionInfo": "2.9.0.post0",
+      "downloadLocation": "https://pypi.org/project/python-dateutil/2.9.0.post0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-PyYAML-6-0-3",
+      "name": "PyYAML",
+      "versionInfo": "6.0.3",
+      "downloadLocation": "https://pypi.org/project/PyYAML/6.0.3/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-RapidFuzz-3-13-0",
+      "name": "RapidFuzz",
+      "versionInfo": "3.13.0",
+      "downloadLocation": "https://pypi.org/project/RapidFuzz/3.13.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-requests-2-32-3",
+      "name": "requests",
+      "versionInfo": "2.32.3",
+      "downloadLocation": "https://pypi.org/project/requests/2.32.3/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-requests-toolbelt-1-0-0",
+      "name": "requests-toolbelt",
+      "versionInfo": "1.0.0",
+      "downloadLocation": "https://pypi.org/project/requests-toolbelt/1.0.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-ruff-0-15-13",
+      "name": "ruff",
+      "versionInfo": "0.15.13",
+      "downloadLocation": "https://pypi.org/project/ruff/0.15.13/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-setuptools-81-0-0",
+      "name": "setuptools",
+      "versionInfo": "81.0.0",
+      "downloadLocation": "https://pypi.org/project/setuptools/81.0.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-shellingham-1-5-4",
+      "name": "shellingham",
+      "versionInfo": "1.5.4",
+      "downloadLocation": "https://pypi.org/project/shellingham/1.5.4/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-six-1-17-0",
+      "name": "six",
+      "versionInfo": "1.17.0",
+      "downloadLocation": "https://pypi.org/project/six/1.17.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-sniffio-1-3-1",
+      "name": "sniffio",
+      "versionInfo": "1.3.1",
+      "downloadLocation": "https://pypi.org/project/sniffio/1.3.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-sympy-1-14-0",
+      "name": "sympy",
+      "versionInfo": "1.14.0",
+      "downloadLocation": "https://pypi.org/project/sympy/1.14.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-tomlkit-0-13-2",
+      "name": "tomlkit",
+      "versionInfo": "0.13.2",
+      "downloadLocation": "https://pypi.org/project/tomlkit/0.13.2/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-torch-2-11-0",
+      "name": "torch",
+      "versionInfo": "2.11.0",
+      "downloadLocation": "https://pypi.org/project/torch/2.11.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-trove-classifiers-2025-3-19-19",
+      "name": "trove-classifiers",
+      "versionInfo": "2025.3.19.19",
+      "downloadLocation": "https://pypi.org/project/trove-classifiers/2025.3.19.19/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-typing-extensions-4-15-0",
+      "name": "typing_extensions",
+      "versionInfo": "4.15.0",
+      "downloadLocation": "https://pypi.org/project/typing_extensions/4.15.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-urllib3-2-3-0",
+      "name": "urllib3",
+      "versionInfo": "2.3.0",
+      "downloadLocation": "https://pypi.org/project/urllib3/2.3.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-virtualenv-20-30-0",
+      "name": "virtualenv",
+      "versionInfo": "20.30.0",
+      "downloadLocation": "https://pypi.org/project/virtualenv/20.30.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-xattr-1-1-4",
+      "name": "xattr",
+      "versionInfo": "1.1.4",
+      "downloadLocation": "https://pypi.org/project/xattr/1.1.4/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-zstandard-0-23-0",
+      "name": "zstandard",
+      "versionInfo": "0.23.0",
+      "downloadLocation": "https://pypi.org/project/zstandard/0.23.0/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-anyio-4-9-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-build-1-2-2-post1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-CacheControl-0-14-2",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-certifi-2025-1-31",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-cffi-1-17-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-charset-normalizer-3-4-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-cleo-2-1-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-contourpy-1-3-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-crashtest-0-4-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-cycler-0-12-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-distlib-0-3-9",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-dulwich-0-22-8",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-fastjsonschema-2-21-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-filelock-3-18-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-findpython-0-6-3",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-fonttools-4-57-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-fsspec-2026-3-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-graphviz-0-20-3",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-h11-0-14-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-html2text-2025-4-15",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-httpcore-1-0-7",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-httpx-0-28-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-idna-3-10",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-iniconfig-2-3-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-installer-0-7-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-jaraco.classes-3-4-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-jaraco.context-6-0-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-jaraco.functools-4-1-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-Jinja2-3-1-6",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-keyring-25-6-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-kiwisolver-1-4-8",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-MarkupSafe-3-0-3",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-matplotlib-3-10-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-more-itertools-10-6-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-mpmath-1-3-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-msgpack-1-1-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-networkx-3-4-2",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-numpy-2-4-4",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-packaging-24-2",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-pbs-installer-2025-3-17",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-pillow-11-1-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-pip-25-0-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-pkginfo-1-12-1-2",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-platformdirs-4-3-7",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-pluggy-1-6-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-poetry-2-1-2",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-poetry-core-2-1-2",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-pycparser-2-22",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-Pygments-2-20-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-pyparsing-3-2-3",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-pypdf-6-10-2",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-pyproject-hooks-1-2-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-pytest-9-0-3",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-python-dateutil-2-9-0-post0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-PyYAML-6-0-3",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-RapidFuzz-3-13-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-requests-2-32-3",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-requests-toolbelt-1-0-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-ruff-0-15-13",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-setuptools-81-0-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-shellingham-1-5-4",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-six-1-17-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-sniffio-1-3-1",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-sympy-1-14-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-tomlkit-0-13-2",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-torch-2-11-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-trove-classifiers-2025-3-19-19",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-typing-extensions-4-15-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-urllib3-2-3-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-virtualenv-20-30-0",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-xattr-1-1-4",
+      "relationshipType": "DEPENDS_ON"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-Genesis",
+      "relatedSpdxElement": "SPDXRef-Package-zstandard-0-23-0",
+      "relationshipType": "DEPENDS_ON"
+    }
+  ]
+}

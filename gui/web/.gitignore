@@ -1,0 +1,12 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# local env / editor / OS
+*.local
+.vite/
+.DS_Store
+*.log

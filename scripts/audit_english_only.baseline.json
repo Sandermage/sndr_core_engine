@@ -1,0 +1,8 @@
+{
+  "rule": "English only in code (CLAUDE.md user rule). Baseline captures currently-tolerated counts; new violations or regressions vs this baseline fail audit. Translate + regenerate baseline as you clean files.",
+  "totals": {
+    "files": 0,
+    "chars": 0
+  },
+  "files": {}
+}

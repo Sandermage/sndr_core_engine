@@ -1,0 +1,320 @@
+# SPDX-License-Identifier: Apache-2.0
+# Status: 🧪 Experimental
+# Caveats: G4_NN family patches (Marlin K-pad + asymmetric KV-heads) not
+#   yet server-validated on rig. Projected bench only. Promotion to ✅
+#   requires: verify-full + 5×5 bench n=25 + soak-continuous PASS on 2× A5000.
+# Genesis V2 model definition — Gemma 4 26B-A4B-it AWQ-4bit (cyankiwi) + MTP.
+# 128-expert MoE; sliding+global asymmetric KV-heads (sliding=8, full=2).
+# Genesis G4_NN family closes Marlin K-dim (K=352%64≠0) + asymmetric KV.
+#
+# Bench reference (projected — server validation pending):
+#   wall_TPS  ~120-160 (MoE active params A=4B; faster than 31B dense)
+#   TPOT_ms   ~6-8     (decode at batch=1)
+#   accept_rate ~0.78-0.85 (MTP assistant)
+#   context   256K (with G4_09 chunked prefill)
+
+schema_version: 2
+kind: model
+id: gemma-4-26b-a4b-it-awq
+title: Gemma 4 26B-A4B-it AWQ-4bit (cyankiwi) + MTP assistant
+maintainer: sandermage
+last_validated: '2026-05-17'
+license: gemma-license
+
+# ─── Identity ──────────────────────────────────────────────────────────
+model_path: /models/gemma-4-26B-A4B-it-AWQ-4bit          # cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit checkpoint
+served_model_name: gemma-4-26b-a4b                       # OpenAI-API model name
+quantization: null                                       # let vLLM detect from compressed-tensors metadata
+dtype: bfloat16                                          # CHANGED 2026-05-17 per audit: BF16 canonical for AWQ on SM 8.6 Ampere
+trust_remote_code: false
+# 2026-06-23 LIVE FINDING (validated on prod-gemma4-26b): forcing the custom
+# G4_11 gemma4.jinja BREAKS tool-calls and chat quality — the model echoes raw
+# <start_of_turn>... template tokens, emits a <|channel>thought<channel|> format
+# the gemma4 tool-parser can't read, returns ZERO tool_calls (finish=length) and
+# prepends a spurious "thought\n". Booting WITHOUT the override (model's built-in
+# HF chat template) gives clean chat ("The capital of France is **Paris**.") AND
+# a working tool-call (get_weather {"city":"Berlin"}, finish=tool_calls). Set null
+# so compose() emits NO --chat-template flag → vLLM uses the built-in HF template.
+chat_template: null  # was /tmp/genesis/chat_templates/gemma4.jinja — see live finding above
+override_generation_config:
+  # 2026-06-23 quality fix (validated live on the rig). The AWQ-int4 Gemma degenerates
+  # into verbatim-repetition loops on longer/creative generation at the checkpoint's
+  # default temperature=1.0 (observed: "Wait, I'm a language model." x N, "1. 2. 3 ..."
+  # garbage). Live A/B on prod-gemma4-26b-multiconc: temp=1.0 + freq/presence penalties
+  # STILL loops; temp=0.7 + the penalties produces coherent, high-quality output. Pin a
+  # stable serving default here (clients/profiles may still override per request).
+  temperature: 0.7
+  top_p: 0.95
+  top_k: 64
+  frequency_penalty: 0.6
+  presence_penalty: 0.4
+
+# ─── Capabilities ──────────────────────────────────────────────────────
+capabilities:
+  attention_arch: gemma4_moe                             # Gemma 4 MoE (128 experts, top_k=8, A=4B active)
+  tool_call_parser: gemma4
+  reasoning_parser: null
+  enable_auto_tool_choice: true
+  # Phase 7.G4.26B-A4B.VARIANT-A-FIX (2026-05-23): MTP ownership moved
+  # from ModelDef to ProfileDef. The K-choice is workload-class-dependent
+  # per the WORKLOAD-GATE-POLICY (see sndr_private/research/gemma4/
+  # analysis/G4_WORKLOAD_GATE_POLICY_UPDATE_2026-05-23.md):
+  #   • free-chat / long-form / code / summarization → K=1 (no MTP)
+  #   • short structured JSON / tool_call → K=4 (positive in B2 + B4)
+  # ModelDef therefore leaves spec_decode = null. Each profile sets
+  # spec_decode_override explicitly when it wants K>1. Mirrors the
+  # 31B AWQ ModelDef pattern (gemma-4-31b-it-awq.yaml line 48).
+  spec_decode: null
+  kv_cache_dtype: auto                                   # G4_18 makes this per-layer-type when enabled
+
+# ─── Hardware preconditions ────────────────────────────────────────────
+requires:
+  min_total_vram_mib: 24000                              # 26B-A4B AWQ ~12 GB weights + ~8 GB KV at 32K ctx
+  min_gpu_count: 1
+  min_cuda_capability: [8, 6]
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v12.0.0
+  vllm_pin_required: 0.23.1rc1.dev424+g3f5a1e173 # PROMOTED 2026-06-25 (pin bump dev301 -> dev424): operator-authorized. Apples-to-apples canonical bench: 35B 244.35 TPS vs dev301 234.77 = +4.08% (NO regression); 27B 134.53 net-neutral; Gemma 26B/31B smoke PASS (Paris + get_weather). DOGFOOD bump_preflight = EXIT 1 (HIGH PN353A->PN399 static edge, MITIGATED: PN399 native C2 sibling applied + the +4.08% A/B clears it); PN386 RETIRED (vllm#45389 merged, IN dev424). dev301 = previous/rollback. Earlier evidence: PROMOTED 2026-06-24 (supersedes dev148+gb4c80ec0f): pin bump dev148 -> dev301. 35B 208 TPS + 31B 94.7 TPS boot+chat+tool-call validated; 5 anchor_drift handled (PN394/PN400 retired, PN353A/PN382 re-anchored+kept, P85 OFF). dev148 = previous/rollback. Earlier dev148 evidence retained: drift-audited clean 2026-06-19 (journal §20-COMPLETE: 26B-A4B MoE health=200, failed=0); native gemma4 tool parser 7/7; G4_08 CompressedTensorsMoEWNA16MarlinMethod rename soft-skip.
+  # [2026-06-24] pin_hold RE-ADDED for the dev301 promotion window: the
+  # ModelDef now leads the shared a5000-2x hardware YAML, which still pins
+  # the dev148 image (nightly-b4c80ec0f) until the dev301 @sha256: digest is
+  # captured. R-MD-HW-2 passes on this waiver until then.
+  # pin_hold CLEARED 2026-06-25 (dev424 bump): the shared a5000-2x hardware
+  # YAML now pins the dev424 image (nightly-3f5a1e173, @sha256:c4fac672…) so
+  # the ModelDef pin and the hardware image AGREE — no waiver needed. dev301
+  # is the retained vLLM rollback; dev148 stays on the rig (sndr-daemon).
+  pin_hold: null
+  reference_metrics_ref: null  # Phase 5.2.D (2026-05-22): formalize receipt-only state. The referenced baseline JSON was never generated (audit_v2_vllm_pin_consistency reported file-not-found). dev371 evidence for this model lives in the Gemma 4 P1.7d byte-equivalence test (rehearsal 2026-05-20). A formal canonical baseline JSON requires the full sustained-methodology bench cycle and is deferred to Phase 7.
+
+# ─── Canonical patches matrix ──────────────────────────────────────────
+patches:
+  # ── Gemma 4 family guards (default-on safety) ──
+  GENESIS_ENABLE_G4_01_GEMMA4_FP8_BLOCK_GUARD: '1'
+  GENESIS_ENABLE_G4_03_GEMMA4_NON_CAUSAL_DRAFTER_GUARD: '1'
+  GENESIS_ENABLE_G4_12_GEMMA4_FP8_E4NV_GUARD: '1'
+
+  # ── G4_02 disabled on the (now-questioned) premise that G4_08 supersedes it ──
+  # NOTE 2026-06-16 audit: G4_08 does NOT actually guard K=352 on the AWQ path
+  # (see the G4_08 audit block below), so on a dev491 bump neither G4_02 nor G4_08
+  # would guard it. Revisit this pair when upstream PR#45703 lands / at dev491
+  # re-validation. On dev259 (the held pin, see versions.pin_hold) the model boots.
+  GENESIS_ENABLE_G4_02_GEMMA4_MARLIN_KDIM_GUARD: '0'  # disabled — see 2026-06-16 note above
+
+  # ── G4_13 disabled on the premise G4_18 supersedes it (per-layer KV vs refusal) ──
+  # NOTE 2026-06-16 audit: that premise holds on dev259 (the held pin) but NOT on
+  # dev491 — get_num_kv_heads(self, parallel_config) lost its layer_idx kwarg on
+  # vLLM >=0.22, so G4_18 can no longer deliver per-layer KV and falls through. On a
+  # dev491 bump, re-decide this pair (likely G4_13='1' / G4_18='0', but they
+  # conflict so flip atomically + re-validate on the rig — flipping now would break
+  # the working dev259 config). Flags left unchanged.
+  GENESIS_ENABLE_G4_13_GEMMA4_PER_TOKEN_HEAD_KV_GUARD: '0'   # disabled — see 2026-06-16 note above
+
+  # ── Gemma 4 family fixes (default-on) ──
+  GENESIS_ENABLE_G4_04_GEMMA4_AWQ_MOE_KEYS_REMAP: '1'      # vendors vllm#40886 (AWQ MoE keys for 26B-A4B)
+  # G4_05 retired 2026-05-24 (PIN.R-G4_05-RETIRE.1) — superseded by vllm#39930 in dev16+; env removed.
+  GENESIS_ENABLE_G4_09_GEMMA4_SWA_PREFILL_CHUNKER: '1'
+  # 2026-06-23 LIVE FINDING: the custom template G4_11 installs is what produced
+  # the broken behaviour above (raw template-token echo, unreadable thought
+  # channel, zero tool_calls). Disable the install so no broken file exists and
+  # chat_template:null falls through to the model's built-in HF template.
+  GENESIS_ENABLE_G4_11_GEMMA4_CHAT_TEMPLATE_INSTALL: '0'  # was '1' — see live finding above
+  GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD: '1'
+  GENESIS_ENABLE_G4_16_GEMMA4_FULL_AND_PIECEWISE: '1'
+  GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW: '1'
+  GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD: '1'
+
+  # ── Deep fixes (this model needs them!) ──
+  # 2026-06-16 AUDIT: G4_08 does NOT actually unblock K=352 for this AWQ checkpoint.
+  # It monkey-patches CompressedTensorsMoEWNA16MarlinMethod, but AWQ-int4 dispatches
+  # to AWQMarlinMoEMethod (a different class); on dev491 that class is also renamed
+  # (-> CompressedTensorsWNA16MarlinMoEMethod) so apply() is now a LOUD no-op; and
+  # its int4 branch is a nibble-unpack stub. Model is pin-held on dev259 (boots there).
+  # Native fix = upstream PR#45703 (MoE Marlin K-pad incl. AWQ-int4) — retire G4_08 +
+  # re-decide the G4_02 story on its merge. Flag left at '1' (no behaviour change on
+  # dev259); DO NOT trust it as a K=352 guard on a dev491 bump until rig re-validated.
+  GENESIS_ENABLE_G4_08_MARLIN_KDIM_PAD: '1'                # K-pad MoE GEMM — see 2026-06-16 audit above (no-op on dev491 AWQ path)
+  GENESIS_ENABLE_G4_18_GEMMA4_PER_LAYER_KV_PAGE_SIZE: '1'  # per-layer KV-head counts (sliding=8, full=2)
+
+  # ── Perf kernels (opt-in; bench-gate) ──
+  GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM: '0'           # ~0% under torch.compile (no-op: apply() falls through to original — the +5-10% needs a non-existent G4_15b anchor; profiles run enforce_eager=false so Inductor already fuses the norms). 2026-06-15 audit.
+  GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP: '0'           # <0.5% (fuses only the final-logits softcap; the attention-logits softcap is already kernel-fused in-pin. Advertised +3-5% is fictional under torch.compile). 2026-06-15 audit.
+  GENESIS_ENABLE_G4_06_GEMMA4_KV_PROJ_V0: '0'              # vendor #41944
+
+  # ── Vision tower (operator choice) ──
+  GENESIS_ENABLE_G4_17_GEMMA4_VISION_SKIP: '0'
+
+  # ── PR #40914 backport — TQ K+1 spec-verify cudagraph fix (added 2026-05-17) ──
+  # Safe no-op for this model (no TurboQuant backend instantiated unless
+  # operator enables G4_19 stack), but primes the path for future TQ adoption.
+  GENESIS_ENABLE_G4_67_TQ_SPEC_VERIFY_ROUTE: '1'
+  # #41190 TP>1+MTP D2H race guard — Gemma-ONLY (dense, not GDN → PN341
+  # does not cover it here, unlike Qwen3.6 hybrid). PN290 forces the
+  # num_accepted_tokens.gpu D2H copy blocking (crash-safe). Validated
+  # dev491 2026-06-16. Disable via GENESIS_PN290_FORCE_NONBLOCKING=1.
+  GENESIS_ENABLE_PN290_NUM_ACCEPTED_TOKENS_RACE: '1'
+
+  # ── Qwen-applicable patches (MTP/general-purpose, added 2026-05-17) ──
+  GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'              # MTP K-aware warmup
+  GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'  # text-only inputs_embeds skip (vllm#35975)
+  GENESIS_ENABLE_PN116: '1'  # TQ prefill max_seq_len fallback (vllm#41434)
+  GENESIS_ENABLE_PN118: '1'  # TQ workspace graceful-fallback (vllm#42551)
+  GENESIS_ENABLE_PN119: '1'  # TQ k8v4 GQA head grouping (vllm#40792)
+  GENESIS_ENABLE_PN286_FA_LAYOUT_REVERT_SM86: '1'  # Ampere SM 8.6 FA KV layout revert (vllm#42095)
+  GENESIS_ENABLE_P108: '1'             # MTP draft stream sync
+  GENESIS_ENABLE_P109: '1'             # sampler safety (vllm#42614) — short form matches registry env_flag
+  GENESIS_ENABLE_PN110: '1'            # BlockPool.free_blocks dedup (vllm#42615) — short form matches registry env_flag
+
+  # ── Cross-family ──
+  GENESIS_ENABLE_PN126_V1_DECODE_WARMUP: '1'
+
+# ─── Composition hints ─────────────────────────────────────────────────
+compose_hints:
+  family: gemma4
+  attention_arch: gemma4_moe
+  drafter_method: mtp
+  drafter_id: gemma4-26b-a4b-assistant
+
+# ─── Operator notes ────────────────────────────────────────────────────
+# Authoring metadata only — compose() does NOT forward ModelDef.notes into
+# the V1 ModelConfig (composed cfg.notes stays []), so these lines are
+# documentation, not a behaviour-affecting field. Matches the gold
+# qwen3.6-27b-int4-autoround-tq-k8v4.yaml notes style (one fact per entry).
+notes:
+  - "Gemma 4 26B-A4B-it AWQ-4bit (cyankiwi checkpoint) — 128-expert MoE,
+    top_k=8, A=4B active params. Single-card or 2× A5000 (SM 8.6 Ampere).
+    Asymmetric KV-heads (sliding=8, full=2). Status 🧪 Experimental: the
+    G4_NN family (Marlin K-pad + asymmetric KV) is NOT yet server-validated
+    on rig — bench numbers in the header are projected only."
+  - "MTP ownership lives in the ProfileDef, not here (Phase 7.G4.26B-A4B.
+    VARIANT-A-FIX 2026-05-23): capabilities.spec_decode=null and each
+    profile sets spec_decode_override per the WORKLOAD-GATE-POLICY
+    (free-chat/long-form/code/summarization → K=1; short structured-JSON /
+    tool_call → K=4). Mirrors the 31B AWQ ModelDef pattern."
+  - "dtype=bfloat16 is canonical for AWQ on SM 8.6 (audit 2026-05-17);
+    quantization=null lets vLLM detect from the compressed-tensors metadata.
+    chat_template is null (2026-06-23 live finding): the custom G4_11 gemma4.jinja
+    broke tool-calls + chat quality on prod-gemma4-26b, so G4_11 is disabled and
+    vLLM uses the model's built-in HF chat template (clean chat + working
+    tool_calls verified live). Do NOT re-point chat_template at gemma4.jinja or
+    re-enable G4_11 without re-validating on the rig."
+  - "Pin policy (CLAUDE.md): vllm_pin_required = dev424+g3f5a1e173 (PROMOTED
+    2026-06-25, operator-authorized; Gemma 26B smoke PASS: Paris + get_weather
+    Berlin, failed=0); dev301 (nightly-04c2a8dea) is the retained vLLM
+    rollback. Do NOT bump without an explicit upgrade instruction. Several
+    G4_*/PN* flags carry dev491-bump re-decision notes inline below."
+
+# ─── Extra vLLM CLI flags (escape hatch) ───────────────────────────────
+# Generic {flag: value} pass-through that compose() emits verbatim into
+# cfg.vllm_extra_args (schema_v2.ModelDef.extra_vllm_flags, B10 2026-06-22).
+# Empty {} by design here: every vLLM flag this model needs is already
+# derived from typed fields (chat_template → --chat-template, the gemma4_moe
+# arch → --enable-expert-parallel via compose). Use this ONLY for one-off
+# raw flags that have no typed home. Must be a mapping ({}), NOT a list —
+# the field is dict[str, str] and a list would fail schema validation.
+extra_vllm_flags: {}
+
+# ── patches_attribution (gap backfill 2026-06-22) ──────────────────────
+# Keyed by registry patch ID (NOT env-flag name). Same taxonomy + house
+# style as the gold qwen3.6-27b-int4-autoround-tq-k8v4.yaml:
+#   load_bearing          → removal causes measurable regression (note req.)
+#   defensive             → correctness / crash / quality safety net
+#   optional_perf         → throughput win, gated on bench (bench_evidence req.)
+#   suspected_regression  → kept OUT or known regressor (note req.)
+#   no_op                 → enabled-but-inert for THIS model (the TQ-path
+#                           patches do not fire because no TurboQuant backend
+#                           is instantiated on the AWQ + kv_cache_dtype=auto
+#                           default path)
+#
+# SCOPE CONSTRAINT (why the G4_* family is absent here): the schema patch-ID
+# validator (schema_v2._check_patch_id) only accepts keys matching
+# ^P[N]?\d+...  — i.e. P* / PN* IDs. The Gemma-specific G4_* IDs (G4_01,
+# G4_08, G4_18, ...) are valid registry patch IDs but are NOT valid
+# patches_attribution keys, so adding them here would FAIL schema validate.
+# The gold qwen YAML hits the same wall and likewise attributes only P*/PN*
+# patches. The G4_* family is instead fully self-documented by the rich
+# per-flag comments above the `patches:` block (role + caveat + dev491
+# re-decision notes inline). This block therefore covers the 11 P*/PN*
+# patches in this config; all are enabled, so every entry uses an
+# asserting/no_op role and its env_flag is present in `patches` (AT-2 clean).
+# Validated via scripts/audit_patch_attribution.py.
+patches_attribution:
+  # ── TQ-path patches: enabled but INERT on this model's default path ──
+  # This AWQ checkpoint runs kv_cache_dtype=auto with no TurboQuant backend
+  # instantiated unless the operator opts into the G4_19 TQ stack, so the
+  # patches below prime the TQ path for future adoption without firing now.
+  PN116:
+    role: no_op
+    note: |
+      TurboQuant prefill max_seq_len fallback (regressor fix for
+      vllm#41434). Inert without an active TurboQuant prefill path; kept
+      for parity with the TQ-capable siblings.
+  PN118:
+    role: no_op
+    note: |
+      TurboQuant workspace graceful-fallback (vllm#42551). Only fires for
+      partial-TQ models on first decode; no TQ backend on this default
+      path, so inert here.
+  PN119:
+    role: no_op
+    note: |
+      TQ k8v4 GQA head-grouping decode kernel (vllm#40792). Only routes
+      traffic when a TurboQuant decode backend is active; this AWQ +
+      kv-auto model does not instantiate one by default, so inert here.
+  # ── MTP / general-purpose (enabled, active) ──
+  PN290:
+    role: defensive
+    note: |
+      Forces the num_accepted_tokens.gpu D2H copy blocking (vllm Issue
+      #41190) — crash-safe guard against a TP>1 + MTP cudaErrorIllegalAddress
+      race. Gemma-only here (dense, not GDN, so PN341 does not cover it).
+      Validated dev491 2026-06-16. ~0.3-0.6 ms blocking cost.
+  PN33:
+    role: defensive
+    note: |
+      K-aware spec-decode warmup (vllm#37521, extended to MTP/ngram).
+      Sizes the dummy sampler run to the real K so the KV-cache profile
+      does not over-estimate headroom (mid-stream OOM) and the workspace
+      lock does not fail when spec-decode grows beyond the warmup reserve.
+  PN35:
+    role: optional_perf
+    bench_evidence: "~64 MiB GPU + ~64 MiB pinned CPU reclaimed on text-only models (vllm#35975 backport: skips the (max_num_tokens, hidden_size) inputs_embeds buffer in gpu_model_runner + the spec-decode proposer)"
+    note: "Text-only inputs_embeds buffer skip; pure memory savings, no correctness change."
+  PN286:
+    role: defensive
+    note: |
+      FlashAttention KV-cache layout revert for Ampere SM 8.6 (vllm#42095
+      flipped the layout and regressed pre-Hopper). Self-skips on non-SM-8.6;
+      this 26B runs on A5000 SM 8.6 so the revert is active.
+  P108:
+    role: defensive
+    note: |
+      MTP draft-loop stream synchronization (derived from vllm#42603) —
+      defensive overlay closing a cudaErrorIllegalAddress race between the
+      draft input_ids/hidden_states writes and downstream attention kernels.
+  P109:
+    role: defensive
+    note: |
+      sampling_params vocab-range validators (vllm#42614) — validates
+      stop_token_ids / logprob_token_ids against vocab size so out-of-vocab
+      ids no longer OOB the V2 Triton bias kernel and crash the worker.
+  PN110:
+    role: defensive
+    note: |
+      BlockPool.free_blocks deduplication (vllm#42615) — de-dups by
+      id(block) so a double-freed KVCacheBlock (sliding-window + offload
+      race) cannot double-decrement ref_cnt or corrupt the free list.
+  PN126:
+    role: defensive
+    bench_evidence: "TTFT spike 5-25s on first decode without warmup (gold qwen3.6-27b attribution)"
+    note: |
+      V1 decode + spec-decode kernel warmup orchestrator — pre-JITs decode
+      kernels at boot to remove first-request JIT spikes. Boot-only cost.
+      Same role + evidence the gold attributes for this shared patch.
+  # NOTE: the 19 G4_* family patches in this config (G4_01/03/12 refusal
+  # guards; G4_04/09/11/14/16/23/25 fixes; G4_08/18 deep fixes; G4_67 TQ
+  # route; and the disabled G4_02/13/15/24/06/17) are intentionally NOT
+  # attributed here — schema_v2._check_patch_id rejects non-P*/PN* keys.
+  # Their role + caveats live in the inline comments above the `patches:`
+  # block, which is where the gemma4 family is self-documented.

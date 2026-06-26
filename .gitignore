@@ -1,0 +1,181 @@
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
+node_modules/
+*.tsbuildinfo
+
+# Built Carbon GUI assets (`make gui-build-carbon` → web_static_carbon/) are
+# gitignored. NOTE: the PRODUCTION `make gui-build` output lives at
+# sndr/product_api/legacy/web_static/ and is intentionally TRACKED/committed
+# so a clean install serves the UI without a build step.
+sndr/product_api/web_static_carbon/
+
+# Local IDE history (VS Code "Local History" extension etc.) — never part
+# of the release artefact; was leaking invalid JSON into security/audit scans.
+.history/
+
+# Test/bench artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.bench.json
+*.results.json
+
+# Editor temp files
+*.swp
+*.swo
+*~
+.DS_Store
+
+# macOS AppleDouble (created by scp from macOS)
+._*
+
+# Local IDE / agent settings. `.claude/` is the Claude Code per-project
+# config directory (agent definitions, permission allowlists, etc.) —
+# operator-only context, never part of the release. CLAUDE.md is the
+# project-memory file that Claude Code reads at session start — same
+# rationale. Both stay out of the public repo by default; if a maintainer
+# wants to share a specific agent definition, copy it out and `git add`
+# it explicitly.
+.claude/
+.claude/settings.local.json
+CLAUDE.md
+
+# Environment/secrets
+.env
+.env.*
+*.key
+*.pem
+
+# ─────────────────────────────────────────────────────────────────────
+# `sndr_private/` — single consolidated private maintainer tree.
+#
+# Everything that should not ship publicly lives under this one root:
+#   sndr_private/planning/   — RU planning + audit + roadmap notes
+#                              (was docs/_internal/)
+#   sndr_private/internal/   — operator-specific compose + scripts
+#                              (was internal/)
+#   sndr_private/snapshots/  — pre-arm state captures
+#                              (was snapshots/)
+#   sndr_private/runs/       — bench / probe outputs
+#   sndr_private/pyproject-engine.toml  — commercial-tier wheel template
+#
+# Single rule → easier to review, no scattered _internal / _private /
+# private patterns across the tree.
+# ─────────────────────────────────────────────────────────────────────
+sndr_private/
+
+# Retired internal-docs path. Content migrated to `sndr_private/planning/`
+# (see comment above). Legacy laptops may still carry pre-migration
+# leftovers under `docs/_internal/`; this rule keeps git blind to them
+# so they cannot be accidentally committed and so audit scripts that
+# walk git-tracked files do not see them. Phase 4.A (2026-05-22) added
+# this explicit entry alongside the `ALLOWLIST_PREFIXES` defensive
+# allowlist in `scripts/audit_public_docs.py`.
+docs/_internal/
+
+# Backup / temp files (still allowed anywhere)
+*.bak
+*.backup-*
+*.tmp
+
+# Logs / generated result JSON (bench output, probe runs, …)
+*.log
+*.results.json
+*.bench.json
+
+# Genesis package-data JSON is source — keep it tracked even though the
+# generic `*.json` rule above existed historically. Audit 2026-05-14
+# (CURRENT_PROJECT_RECHECK_CLEANUP_ERRORS_2026-05-14_eaa44975_RU.md P0-2):
+# wheel / clean-clone need these artifacts; the generic `*.json` rule was
+# silently dropping them.
+!sndr/schemas/
+!sndr/schemas/*.json
+!sndr/manifests/
+!sndr/manifests/*.json
+!sndr/configs/
+!sndr/configs/**/*.json
+!evidence/.gitkeep
+!benchmarks/cross_rig_reports/**/*.json
+
+# ─────────────────────────────────────────────────────────────────────
+# `evidence/patch_proof/` — static-proof JSONs are operator-generated
+# per host (carry host name + measured_at timestamp + commit SHA at
+# generation time). Operators run `sndr patches prove --all` after
+# clone — see `docs/INSTALL.md` and CI workflow. The directory itself
+# stays tracked via the `evidence/.gitkeep` exemption above.
+# ─────────────────────────────────────────────────────────────────────
+evidence/patch_proof/*.json
+!evidence/patch_proof/_waivers/
+!evidence/patch_proof/_waivers/*.yaml
+
+# vLLM compiled artifacts
+*.so
+.cache/
+
+# Genesis-specific local state
+genesis_bench_v*.md
+/genesis_bench_*.json
+/genesis_bench_*.md
+README.md.backup-*
+
+# Internal-only audit / plan / draft files at repo root (must live in
+# `Genesis_internal_docs/` sibling dir per Sander's "internal docs outside
+# project tree" rule — see feedback_internal_docs_outside_project memory).
+# These patterns catch accidental drops; move violators OUT manually.
+genesis_*_audit*.md
+genesis_master_plan*.md
+genesis_improvement_plan*.md
+genesis_runtime_*.md
+genesis_local_*.md
+genesis_deep_*.md
+genesis_project_*.md
+github_research*.md
+grok_*.md
+todos-log-*.md
+.README_*backup*.md
+.README_v*_backup*.md
+
+# ─── Commercial engine package boundary (defense-in-depth) ───────────
+# `vllm/sndr_engine/` is the COMMERCIAL package namespace. It lives
+# inside the `vllm/` import path (cannot be moved into sndr_private/
+# without breaking Python imports), so it gets its own gitignore rule.
+# Primary boundary: a real release moves sndr_engine to a SEPARATE
+# private repo. This rule is the safety net against accidental
+# `git add .` on a development checkout.
+vllm/sndr_engine/
+
+# Audit / plan files at repo root (also catches sndr_*_audit_*.md)
+sndr_*_audit_*.md
+sndr_*_plan_*.md
+sndr_repeat_*.md
+
+# Audit P1-B closure 2026-05-12: additional generated/transient artifacts.
+.ruff_cache/
+.mypy_cache/
+# Internal research artifacts (transient bench-time analysis)
+.research_marlin_moe_*.py
+
+# Runtime bench artefacts — output of `tools/genesis_bench_suite.py`.
+# Contain endpoint / model details; not for git tracking.
+# Archive bench evidence belongs under `sndr_private/planning/bench_results/`.
+benchmarks/runs/
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
+
+
+# sponsor-site is a separate sibling project; not part of genesis-vllm-patches release
+sponsor-site/
+
+# controller orchestration workflow scripts (never commit)
+.*_wf.js
+*_wf.js
+
+# Anchor-SOT rebuild_pin.sh scratch (discovery + pristine dumps)
+.anchor_build/

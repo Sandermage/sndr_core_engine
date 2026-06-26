@@ -1,0 +1,113 @@
+# Genesis upstream audit status — iron-rule-#11 enforcement
+# ==========================================================
+# Weekly cross-reference of PATCH_REGISTRY against vllm-project/vllm
+# PR merge state. Surfaces actionable iron-rule-#11 cases (per Sander's
+# 2026-05-11 strategic mandate):
+#
+#   - NEWLY-MERGED:   upstream merged BUT our lifecycle != "retired"
+#                     → run deep-diff: retire (byte-equiv) OR update
+#                     (we do MORE) OR keep (different approach)
+#   - STALE-RETIRED:  retired locally but upstream PR still OPEN
+#                     → investigate (premature retire?)
+#   - ISSUE-CLOSED:   upstream issue resolved — check if our patch
+#                     still needed
+#   - ERROR:          gh API failed — auth / network / deleted PR
+#
+# Three waiver categories are honored (no action needed):
+#   - INTENTIONAL-INVERSE: kept on purpose vs merged upstream (perf)
+#   - ENABLES-UPSTREAM:    activator/wrapper, not a backport
+#   - RETIRED-INTERNAL:    internal supersession (e.g. P12 v2 → P61)
+#
+# Distinct from `upstream_drift_watcher.yml` which does daily anchor
+# checks — that is reactive (does our text-patch anchor still match?).
+# This one is proactive (categorizes registry vs upstream state).
+#
+# Triggers:
+#   - Scheduled: Monday 07:00 UTC weekly (lower freq than drift watcher)
+#   - Manual: workflow_dispatch
+#   - On push to main, only when audit script / registry changes
+#
+# Outputs:
+#   - Job log: full categorized table + summary counts
+#   - Job FAILS if NEWLY-MERGED count > 0 (action queue is the bar
+#     for CI failure; STALE-RETIRED + ERROR are informational unless
+#     escalated)
+#
+# Operator workflow when this fails:
+#   1. Read job log for NEWLY-MERGED list
+#   2. For each: deep-diff our patch vs upstream code in current pin
+#      (see CONTRIBUTING.md "Pin-bump playbook" / iron rule #11)
+#   3. Update registry: lifecycle="retired" + superseded_by + pin-gate
+#      OR keep with appropriate waiver flag (intentional_inverse /
+#      enables_upstream_feature / internal supersession)
+#   4. Run `python3 -m pytest tests/unit/dispatcher/test_pin_gate.py
+#      tests/unit/dispatcher/test_iron_rule_11_enforcement.py` locally
+#   5. Push the registry update; this workflow goes green
+#
+# Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
+name: Upstream audit status (iron-rule-#11)
+
+on:
+  schedule:
+    # Monday 07:00 UTC — weekly. Picks up the previous week's merges.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/audit_upstream_status.py'
+      - 'sndr/dispatcher/registry.py'
+      - '.github/workflows/upstream_audit_status.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run upstream PR audit (full table)
+        run: python3 scripts/audit_upstream_status.py
+        env:
+          # gh CLI auto-uses GITHUB_TOKEN on actions runners
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail if NEWLY-MERGED queue non-empty
+        run: python3 scripts/audit_upstream_status.py --fail-on-newly-merged
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary on success
+        if: success()
+        run: |
+          echo "✓ Upstream audit clean: NEWLY-MERGED queue empty."
+          echo "  - All merged upstream PRs that affect Genesis patches"
+          echo "    are properly categorized (retired with provenance,"
+          echo "    or under one of the explicit waivers)."
+
+      - name: Summary on failure
+        if: failure()
+        run: |
+          echo "✗ Upstream audit found actionable iron-rule-#11 items."
+          echo ""
+          echo "Operator workflow (see CONTRIBUTING.md Pin-bump playbook):"
+          echo "  1. Read the audit output above for NEWLY-MERGED list"
+          echo "  2. For each entry: line-by-line diff our patch vs"
+          echo "     upstream's merged code in vllm/v1/...]"
+          echo "  3. Categorize:"
+          echo "     (a) 100% byte-identical → lifecycle='retired'"
+          echo "         + superseded_by + vllm_version_range upper bound"
+          echo "     (b) Partial overlap / we do MORE → UPDATE patch"
+          echo "         (keep extras, drop dups, ensure no conflict)"
+          echo "     (c) Different approach → keep, mark as appropriate"
+          echo "         waiver (intentional_inverse / enables_upstream)"
+          echo "  4. Run pin-gate + iron-rule-#11 meta-tests locally"
+          echo "  5. Push the registry update; workflow turns green."
+          exit 1

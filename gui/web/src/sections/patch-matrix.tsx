@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: Apache-2.0
+// Patch matrix viewer: the per-model env-flag override table with a filter,
+// an enabled-count bar and load-bearing attribution.
+import { useState } from "react";
+import { Search } from "lucide-react";
+import { Skeleton } from "../Skeleton";
+import { PercentBar } from "../components/charts";
+import { StatusBadge } from "../components/primitives";
+import { tr } from "../i18n";
+
+export function PatchMatrixViewer({
+  patches,
+  attribution,
+  loading
+}: {
+  patches: Record<string, string>;
+  attribution: Record<string, any>;
+  loading: boolean;
+}) {
+  const [needle, setNeedle] = useState("");
+  const entries = Object.entries(patches);
+  const enabled = entries.filter(([, value]) => value === "1" || value === "true").length;
+  const visible = entries.filter(([flag]) =>
+    !needle.trim() || flag.toLowerCase().includes(needle.trim().toLowerCase())
+  );
+  const attributionRows = Object.entries(attribution);
+
+  if (loading && entries.length === 0) {
+    return <div className="skel-grid cards" role="status" aria-label={tr("Loading patch matrix…")}><Skeleton variant="card" count={6} /></div>;
+  }
+  if (entries.length === 0) {
+    return <p className="muted">{tr("This model defines no canonical patch overrides.")}</p>;
+  }
+
+  return (
+    <div className="patch-matrix">
+      <div className="patch-matrix-toolbar">
+        <PercentBar
+          value={enabled}
+          max={entries.length}
+          label={tr("flags enabled")}
+          caption={`${enabled} ${tr("of")} ${entries.length} ${tr("env flags on")}`}
+        />
+        <label className="search-box">
+          <Search size={15} />
+          <input value={needle} onChange={(event) => setNeedle(event.target.value)} placeholder={tr("Filter env flag")} aria-label={tr("Filter env flags")} />
+        </label>
+      </div>
+      <div className="patch-matrix-scroll">
+        <table className="module-table compact">
+          <thead>
+            <tr>
+              <th scope="col">{tr("Env flag")}</th>
+              <th scope="col">{tr("State")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map(([flag, value]) => {
+              const on = value === "1" || value === "true";
+              return (
+                <tr key={flag}>
+                  <td><code>{flag.replace(/^GENESIS_ENABLE_/, "")}</code></td>
+                  <td><StatusBadge status={on ? "applied" : "blocked"} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {attributionRows.length > 0 && (
+        <div className="patch-attribution">
+          <strong>{tr("Load-bearing attribution")}</strong>
+          {attributionRows.map(([patchId, meta]) => (
+            <p key={patchId}>
+              <em>{patchId}</em>
+              <span>{String(meta?.role ?? tr("documented"))}</span>
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

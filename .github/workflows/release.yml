@@ -1,0 +1,187 @@
+# Genesis release pipeline — builds wheel + generates SBOM + uploads artifacts.
+#
+# T4 (UNIFIED_CONFIG plan 2026-05-09): wires `scripts/generate_sbom.py`
+# into the release path so every published wheel ships with a CycloneDX
+# 1.5 + SPDX 2.3 SBOM as a sibling artifact. Operators downloading a
+# release tarball get full provenance + dep tree without rebuilding.
+#
+# Workflow:
+#   1. Trigger on tag push (`v*` like v11.0.1) or manual dispatch.
+#   2. Build sdist + wheel with `python -m build`.
+#   3. Install the freshly-built wheel (so SBOM transitive resolution is real).
+#   4. Run generate_sbom.py to produce {.cdx.json, .spdx.json, .txt}.
+#   5. Strict-test mode: re-run pytest WITHOUT SNDR_ALLOW_LEGACY_LICENSE_KEYS
+#      to verify the production strict path is green at this tag.
+#   6. Upload wheel + sdist + SBOM bundle to the GitHub release.
+#
+# Triggered:
+#   - push to tags matching `v*`
+#   - manual workflow_dispatch (for dry-run rebuilds)
+
+name: Genesis release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build artifacts but do not attach to a release'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write   # needed to attach files to the GitHub Release
+  id-token: write   # OIDC token for PyPI Trusted Publisher (see release job)
+
+jobs:
+  # CONFIG-UX.4.2 (2026-05-24): Stage 2 strict-mode audit gate.
+  # Runs the three CONFIG-UX audits in --strict mode with
+  # SNDR_V1_ROLLOUT_STAGE=2 so warnings become errors on tag pushes.
+  # Pre-commit and dev-mode `make evidence` stay default-severity so
+  # normal edits aren't blocked by Stage 1 warnings.
+  rollout_strict_audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install audit-side tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PyYAML
+
+      - name: Run CONFIG-UX audits in strict mode (Stage 2)
+        env:
+          SNDR_V1_ROLLOUT_STAGE: "2"
+        run: |
+          python scripts/audit_config_catalog.py --strict
+          python scripts/audit_override_policy.py --strict
+          python scripts/audit_v1_migration.py --strict
+
+  build_and_sbom:
+    runs-on: ubuntu-latest
+    # `pypi` environment scopes the OIDC token to a tighter audience and
+    # gives the operator a release-gate hook (Environments → pypi →
+    # Required reviewers) before the PyPI publish step runs. If the
+    # environment doesn't exist yet in this repo's settings, GitHub
+    # auto-creates it on first run (open behaviour, no reviewer gate).
+    environment: pypi
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for SBOM provenance
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install build tooling
+        # numpy is needed by the strict-test step below: the kernel parity
+        # tests (e.g. tests/unit/kernels/test_pn119_mse_grouped_parity.py)
+        # do a top-level `import numpy`, so without it the re-verify run
+        # aborts at collection instead of running green.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build pytest PyYAML cryptography numpy
+
+      - name: Build sdist + wheel
+        run: |
+          python -m build --sdist --wheel
+          ls -lh dist/
+
+      - name: Install built wheel (for full transitive SBOM)
+        run: |
+          python -m pip install dist/*.whl
+
+      - name: Generate SBOM (CycloneDX 1.5 + SPDX 2.3 + plain text)
+        run: |
+          mkdir -p sbom
+          python scripts/generate_sbom.py --out sbom/genesis-sbom
+          ls -lh sbom/
+
+      - name: Strict-test pass (no legacy license gate)
+        env:
+          SNDR_ALLOW_LEGACY_LICENSE_KEYS: ""
+        run: |
+          # Re-verify the production strict path is green at this tag.
+          # Patches dir is excluded — it needs torch+vllm runtime.
+          python -m pytest tests/unit tests/installer -q \
+            --ignore=tests/unit/integrations \
+            --durations=10
+
+      - name: Verify SBOM is well-formed JSON
+        run: |
+          python -c "
+          import json, glob
+          for f in glob.glob('sbom/*.json'):
+              with open(f) as fh: json.load(fh)
+              print(f'{f}: OK')
+          "
+
+      - name: Upload artifacts (workflow scope, non-release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-release-${{ github.ref_name }}
+          path: |
+            dist/*
+            sbom/*
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry_run != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+            sbom/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      # ───────────────────────────────────────────────────────────────
+      # Publish to PyPI (Trusted Publisher / OIDC — no API token needed
+      # if the PyPI project is configured with a Trusted Publisher
+      # pointing at github.com/Sandermage/genesis-vllm-patches +
+      # workflow=release.yml + environment=pypi).
+      #
+      # Setup steps (one-time, by the operator):
+      #   1. Create the PyPI project `vllm-sndr-core` (manually, with a
+      #      first manual upload OR via "pending publishers" form).
+      #   2. Add a Trusted Publisher under Project settings → Publishing:
+      #         Owner    = Sandermage
+      #         Repo     = genesis-vllm-patches
+      #         Workflow = release.yml
+      #         Env      = pypi
+      #   3. Create the `pypi` environment in this repo's settings
+      #      (Environments → New environment → "pypi") so the
+      #      OIDC token is scoped tighter and reviewers can be added
+      #      as a release gate.
+      #
+      # Behaviour:
+      #   - Runs only on git-tag push (`v*`).
+      #   - Skipped automatically when `dry_run=true`.
+      #   - Skipped automatically if no Trusted Publisher is configured
+      #     yet (pypa/gh-action-pypi-publish will fail-skip rather than
+      #     block the release; check the workflow log for the actual
+      #     "OIDC token missing" diagnostic).
+      # ───────────────────────────────────────────────────────────────
+      - name: Publish to PyPI (Trusted Publisher / OIDC)
+        if: startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry_run != 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          # Skip if a wheel/sdist for this version is already on PyPI —
+          # re-runs of the same tag must not error on the duplicate.
+          skip-existing: true
+          verbose: true

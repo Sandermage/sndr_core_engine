@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: Apache-2.0
+# =====================================================================
+# Profile (at-a-glance):
+#   Model:    Gemma 4 31B AWQ-4bit (dense)   Topology: 2x A5000 (TP=2)
+#   KV:       auto on the live pin (TurboQuant intended; TQ-BLOCKED on 0.22.1 — see PIN NOTE)   Drafter:  none (MTP off, default role)
+#   Max ctx:  262144 (effective render)     Status:   production_candidate (long-context sibling)
+#   Bench:    pending — see card.primary_metric (B1.1 default-role baseline pending public publish)
+#   Best for: the documented >150K long-context path for the 31B dense family (TurboQuant, up to 256K)
+# What's intentionally NOT enabled:  - MTP / spec-decode -> default role is MTP-off; high-throughput chat -> use prod-gemma4-31b-kvauto-chat (⭐ canonical, +70% TPS, 128K)
+# To change for scenario X:          - interactive chat up to 128K -> prod-gemma4-31b-kvauto-chat
+#                                    - full TQ / 65K+ path today -> requires the :nightly-previous (626fa9bb) rollback image until the G4_79/G4_31 unblock validates
+# =====================================================================
+# Genesis V2 alias — operator shortcut for the Gemma 4 31B AWQ default TQ-only triplet (long-context sibling).
+# `sndr launch prod-gemma4-31b-tq-default` resolves to (model, hardware, profile).
+#
+# Default-mode preset: TQ-only, MTP OFF — production-safe across all
+# workload classes (free chat, summarization, code generation, anything).
+# This is the kept long-context path for the 31B dense family; the
+# high-throughput sibling is `prod-gemma4-31b-kvauto-chat` (128K fp16,
+# +70% TPS). The structured-role K=4 sibling
+# (prod-gemma4-31b-tq-mtp-structured-k4) was archived to presets/_archive/
+# in the 2026-06 canonical reorg (git-recoverable).
+#
+# Bench status (2026-05-23):
+#   No canonical baseline JSON yet. Phase 7.G4.B1.0 = preset creation
+#   only (this file). Phase 7.G4.B1.1 will collect the canonical
+#   single-stream baseline and add a BENCHMARKS.md row.
+#
+# Hand-launcher reference: the β'-A control on this rig
+# (~/start_g4_betaA_k1.sh) uses MTP K=N parametric; this preset is the
+# `K=0 / MTP OFF` analogue exposed through canonical V2 compose so
+# render-launchers can target it without hand-shell.
+#
+# ⛔ PIN NOTE / TQ-BLOCKED (2026-06-11 fleet validation): the
+# gemma-4-31b-it-awq ModelDef this preset composes pin_holds 626fa9bb —
+# the promoted 0.22.1 pin (303916e93, the image the a5000-2x hardware
+# YAML now ships) REJECTS the TURBOQUANT backend for Gemma 4 MM via the
+# new attention validity gate (supports_mm_prefix False + kv_cache_dtype
+# reason). Do NOT launch this preset on the current image until the
+# G4_79 (+G4_31) unblock validates; the validated 0.22.1 alternative is
+# the degraded kv-auto / 32K hand profile (78.4 TPS, tools 7/7), whose
+# builtin round-trip is queued (journal
+# 2026-06-11-fleet-validation-on-pin-303916e93.md, follow-up #8).
+# Rollback image for the full TQ/65K+ path: :nightly-previous (626fa9bb).
+
+model: gemma-4-31b-it-awq                        # cyankiwi/gemma-4-31B-it-AWQ-4bit + native gemma4_dense
+hardware: a5000-2x-24gbvram-16cpu-128gbram       # Sander 2× A5000 homelab
+profile: gemma4-31b-tq-default                       # default role: MTP OFF, TQ-only patches inherited from ModelDef
+
+# CONFIG-UX.2 — operator card (2026-05-24)
+card:
+  title: "Gemma 4 31B AWQ — TQ default (MTP off)"
+  summary: |
+    Dense 31B gemma4_dense_31b_tq family default. MTP disabled by design
+    (default role) — the structured K=4 sibling carries the speculation
+    workload. Production-safe across all workload classes (free chat,
+    summarization, code generation, etc.).
+  status: production_candidate
+  audience: operator
+  maturity: validated
+  mode: throughput
+  workload_allow:
+    - free_chat
+    - structured_json.short
+    - tool_call.short
+    - summarization
+    - code_gen
+  workload_deny:
+    - structured_json.long
+  concurrency:
+    min: 1
+    max: 2
+    canonical: 2
+  K: 1
+  context:
+    max_model_len: 262144                          # effective render = 262144 (profile gemma4-31b-tq-default sizing). NOTE: TQ is blocked on the live 0.22.1 pin, so the engine currently renders kv-auto at this ctx (see PIN NOTE in the header). Card was stale at 200000.
+    typical_input_tokens: 2048
+    typical_output_tokens: 2048
+  routing_family: gemma4_dense_31b_tq
+  default_for_family: true
+  primary_metric:
+    kind: agg_TPS
+    value: 0.0
+    source: external://docs.example/pending-gemma4-31b-tq-default-bench
+    measured_at: 2026-05-23
+  evidence_refs:
+    - type: bench
+      path: external://docs.example/pending-gemma4-31b-tq-default-bench
+      visibility: private
+      note: B1.1 default-role baseline pending public publish.
+    - type: smoke
+      path: evidence/bench/gemma4_31b_tq/VERDICT_2026-06-26_dev424_smoke.md
+      visibility: public
+      note: |
+        dev424 boot + coherence receipt: engine boots (Genesis overlay
+        applied=68/75 failed=0, no IMA) and serves coherent text ("Paris" +
+        "6x7=42") on pin 0.23.1rc1.dev424+g3f5a1e173, 2x A5000. Throughput is
+        intentionally omitted — TurboQuant is BLOCKED on the live dev424 image
+        (see the preset header PIN NOTE), so no clean -tq-default single-stream
+        number exists; primary_metric stays pending.
+    - type: tool_call_eval
+      path: evidence/bench/gemma4_31b_tq/VERDICT_2026-06-26_dev424_smoke.md
+      visibility: public
+      note: |
+        dev424 tool-call receipt: get_weather, finish_reason=tool_calls
+        (native gemma4 parser). Validated on pin
+        0.23.1rc1.dev424+g3f5a1e173, 2x A5000.
+  evidence_visibility: mixed
+  tradeoffs:
+    - "MTP off → conservative latency, lower TPS than the kv-auto chat sibling (prod-gemma4-31b-kvauto-chat) on interactive chat up to 128K."
+    - "TQ-blocked on the live 0.22.1 pin (renders kv-auto at this ctx); the full TQ/65K+ path needs the :nightly-previous (626fa9bb) rollback image until the G4_79/G4_31 unblock validates. See the PIN NOTE in the header."
+    - "Recent G4_19C flip ('1' → '0') in ModelDef; bench refresh pending public baseline."
+  do_not_use:
+    - condition: "high-concurrency (>2)"
+      reason: "Single-stream sizing; profile sized for max_num_seqs=2 on 2× A5000."
+    - condition: "high-throughput interactive chat up to 128K"
+      reason: "Use prod-gemma4-31b-kvauto-chat (kv-auto fp16, MTP K=3, +70% TPS) — this TQ default is the long-context (>150K) path."
+  card_version: 1
+  card_updated: 2026-05-24
+  card_author: sander

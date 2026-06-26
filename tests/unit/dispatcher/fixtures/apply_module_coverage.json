@@ -1,0 +1,25 @@
+{
+  "total": 321,
+  "mapped": 305,
+  "unmapped_count": 0,
+  "unmapped": [],
+  "intentionally_unmapped_count": 16,
+  "intentionally_unmapped": [
+    "G4_19C",
+    "G4_70",
+    "G4_70B",
+    "G4_70C",
+    "P1",
+    "P102",
+    "P17",
+    "P20",
+    "P32",
+    "P51",
+    "PN256",
+    "PN261",
+    "PN283",
+    "PN60",
+    "PN63",
+    "PN64"
+  ]
+}

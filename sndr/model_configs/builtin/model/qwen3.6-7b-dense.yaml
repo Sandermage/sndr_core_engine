@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: Apache-2.0
+# Status: 👁️ Preview
+# Caveats: community example for club-3090 #58 Path A reference (DENSE +
+#   CPU offload). NOT for hybrid-GDN production stack — validator raises if
+#   PN59 is enabled. No bench targets; promotion blocked by scope mismatch.
+# Genesis V2 model definition — Qwen3.6-7B-Instruct (DENSE — community example).
+# Used for: club-3090 #58 Path A reference (DENSE + CPU offload).
+# NOT for hybrid-GDN production stack (validator raises if PN59 is enabled).
+
+schema_version: 2
+kind: model
+id: qwen3.6-7b-dense                             # canonical ID; -dense suffix marks dense attention path
+title: Qwen 3.6 7B Instruct (DENSE — community example)
+maintainer: sandermage
+last_validated: '2026-05-09'
+license: apache-2.0
+
+# ─── Identity ──────────────────────────────────────────────────────────
+model_path: /models/Qwen3.6-7B-Instruct          # placeholder dense small-class checkpoint
+served_model_name: qwen3.6-7b                    # OpenAI-API model name
+quantization: null                               # null = no quantization arg (FP16 native)
+dtype: float16                                   # values: float16|bfloat16|float32; float16 standard for dense path
+trust_remote_code: true                          # Qwen3 custom modeling code
+
+# ─── Capabilities — DENSE attention (no hybrid GDN) ────────────────────
+capabilities:
+  attention_arch: dense                          # DENSE (NOT hybrid_gdn_moe) — Path A guard raises if PN59 enabled
+  tool_call_parser: qwen3_xml  # 2026-06-17 (0.23.1): switched qwen3_coder -> qwen3_xml to match the validated 35B choice (qwen3_coder streaming leaks tool-call XML to the content channel; qwen3_xml emits clean tool_calls deltas; #45171 remaps qwen3_xml->Qwen3CoderToolParser engine-native on 0.23.1).
+  reasoning_parser: qwen3                        # qwen3 </think> parser
+  enable_auto_tool_choice: true                  # P68/P69 default
+  spec_decode: null                              # no spec decode on small dense model (range: mtp|dflash|ngram|null)
+  kv_cache_dtype: fp8_e5m2                       # fp8_e5m2 KV — incompatible with hybrid GDN, OK for dense
+
+# ─── Hardware preconditions composer enforces ──────────────────────────
+requires:
+  min_total_vram_mib: 22000                      # 1 × 22 GB minimum (7B dense + CPU offload)
+  min_gpu_count: 1                               # single-card example
+  min_cuda_capability: [8, 6]                    # Ampere SM 8.6
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v11.0.0
+  vllm_pin_required: 0.23.1rc1.dev424+g3f5a1e173 # PROMOTED 2026-06-25 (pin bump dev301 -> dev424): operator-authorized. Apples-to-apples canonical bench: 35B 244.35 TPS vs dev301 234.77 = +4.08% (NO regression); 27B 134.53 net-neutral; Gemma 26B/31B smoke PASS (Paris + get_weather). DOGFOOD bump_preflight = EXIT 1 (HIGH PN353A->PN399 static edge, MITIGATED: PN399 native C2 sibling applied + the +4.08% A/B clears it); PN386 RETIRED (vllm#45389 merged, IN dev424). dev301 = previous/rollback. Earlier evidence: PROMOTED 2026-06-24 (pin bump dev148 -> dev301): 35B 208 TPS + 31B 94.7 TPS boot+chat+tool-call validated; 5 anchor_drift handled (PN394/PN400 retired, PN353A/PN382 re-anchored, P85 OFF); dev148 = previous/rollback. Prior dev148 evidence: PROMOTED 2026-06-19 (K=5 + PN394/PN399 + Gemma kv-auto validated on dev148); dev101 = previous/rollback. Engine + patch set fleet-validated on dev148 (35B/27B/Gemma4-31B/26B-MoE/DiffusionGemma boot apply failed=0); this variant boot-validates on next launch.
+  reference_metrics_ref: null
+  # Phase 5.2.C (2026-05-22) — explicit pin hold annotation. This
+  # ModelDef intentionally remains on dev338 even after the rest of
+  # the family was promoted to dev371 on 2026-05-21. Hold rationale:
+  #   * Q7B is a community-example DENSE Path A model. The referenced
+  #     checkpoint (/models/Qwen3.6-7B-Instruct) is a placeholder —
+  #     no real weights exist on the rig.
+  #   * Without a live checkpoint, no smoke or bench can be run on
+  #     dev371, so bumping the pin without runtime evidence would
+  #     violate iron-rule discipline (no stubs, no scaffolds).
+  #   * Retiring/deleting the model is premature: it documents the
+  #     DENSE Path A profile structure for future operators.
+  # Consumed by `audit_v2_modeldef_vs_hardware_pin.py` (Phase 5.2.E)
+  # to suppress the would-be ERROR for this row.
+  pin_hold: "placeholder community-example model; checkpoint absent
+    so dev371 smoke is impossible. Holding dev338 until either (a)
+    a real Q7B checkpoint lands on the rig and smoke validates dev371,
+    or (b) the model is retired."
+
+# ─── Canonical patches matrix ──────────────────────────────────────────
+# DENSE-only path: PN59 deliberately NOT present (Path A guard would raise
+# if PN59 fired with cpu_offload_gib > 0). Minimal baseline patches only.
+patches:
+  GENESIS_OBSERVABILITY: '1'                         # Per-patch apply timing logged; zero hot-path overhead
+
+notes:
+  - "Community example model. DENSE attention (no hybrid GDN). Pairs with
+    path-a-3090-cpu-offload-example profile for CPU-offload reference."
+
+# ── patches_attribution (Phase D backfill, 2026-05-16) ─────────────────
+# DENSE-only minimal baseline. The patches dict has only
+# GENESIS_OBSERVABILITY which is a *parameter* (not a toggle) — by
+# design it sits outside the attribution domain (it is NOT in
+# PATCH_REGISTRY, so there is no registry category/doc to attribute
+# from). Empty map is the honest representation: this model exists to
+# demonstrate the DENSE Path A profile, not to ship a curated patch
+# stack. Contrast with the GOLD reference
+# qwen3.6-27b-int4-autoround-tq-k8v4.yaml, whose patch matrix carries
+# 77 GENESIS_ENABLE_* toggles (69 enabled) backed by a 10-entry keyed
+# attribution block (load_bearing / defensive / etc.).
+patches_attribution: {}
+
+# ── extra_vllm_flags (escape hatch) ────────────────────────────────────
+# Generic pass-through for raw vLLM CLI flags that are NOT derived from
+# any other field in this config (schema_v2 B10, 2026-06-22). Schema type
+# is a {flag: value} MAP, not a list — each `--flag: value` pair is
+# emitted by compose() into cfg.vllm_extra_args; an empty-string value
+# emits a bare flag. Empty `{}` by design here: the DENSE Path A
+# community example needs nothing beyond the flags the composer already
+# derives from capabilities + sizing + patches. Keys MUST start with
+# `--`. (Note: the field is a dict, so the empty value is `{}`, not `[]`.)
+extra_vllm_flags: {}
