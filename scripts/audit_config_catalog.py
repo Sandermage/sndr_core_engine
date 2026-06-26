@@ -238,6 +238,104 @@ def _audit_one_preset(
             f"{type(card.routing_family).__name__}",
         )
 
+    # ── Rule: hardware_fit agrees with the composed rig ──────────────────
+    # EXTENSION beyond club-3090: their compose-header trailers
+    # (Requires-min-vram-gb / Tensor-parallel / Requires-min-gpu-count /
+    # Requires-sm) are advisory comments that can silently drift from the
+    # compose body. Here the declared `card.hardware_fit` is cross-checked
+    # against the hardware the preset ACTUALLY composes to, so a stale
+    # envelope is a CI failure, not a quiet lie to `sndr preflight`.
+    _audit_hardware_fit(preset_id, card, status, report)
+
+
+def _audit_hardware_fit(preset_id, card, status, report) -> None:
+    """Cross-validate card.hardware_fit against the composed (model, hardware).
+
+    Production-grade presets MUST declare hardware_fit and it must agree with
+    the rig; non-production presets get warnings only (forward-compat hint).
+    """
+    from sndr.model_configs.registry_v2 import load_alias
+
+    is_strict = status in ("production", "production_candidate")
+    fit = card.hardware_fit
+
+    if fit is None:
+        if is_strict:
+            report.add(
+                preset_id, "warning", "hardware_fit_missing",
+                "production-grade preset has no `card.hardware_fit:` block — "
+                "`sndr preflight` falls back to the composed rig, but declaring "
+                "the envelope explicitly (club-3090 convention) is recommended",
+            )
+        return
+
+    # Compose the preset to learn the rig it actually targets.
+    try:
+        cfg = load_alias(preset_id)
+    except Exception as e:  # pragma: no cover — compose errors caught elsewhere too
+        report.add(
+            preset_id, "warning", "hardware_fit_compose",
+            f"could not compose preset to cross-check hardware_fit "
+            f"({type(e).__name__}): {e}",
+        )
+        return
+
+    hw = cfg.hardware
+    sev = "error" if is_strict else "warning"
+
+    # GPU count: declared TP / requires_min_gpu_count vs hardware.n_gpus.
+    n_gpus = int(getattr(hw, "n_gpus", 0) or 0)
+    if fit.requires_min_gpu_count is not None and fit.requires_min_gpu_count != n_gpus:
+        report.add(
+            preset_id, sev, "hardware_fit_gpu_count",
+            f"card.hardware_fit.requires_min_gpu_count="
+            f"{fit.requires_min_gpu_count} disagrees with composed "
+            f"hardware.n_gpus={n_gpus}",
+        )
+    if fit.tensor_parallel is not None and fit.tensor_parallel != n_gpus:
+        report.add(
+            preset_id, sev, "hardware_fit_tp",
+            f"card.hardware_fit.tensor_parallel={fit.tensor_parallel} "
+            f"disagrees with composed hardware.n_gpus={n_gpus} "
+            f"(this rig runs TP across all visible cards)",
+        )
+
+    # VRAM floor: declared GB vs hardware.min_vram_per_gpu_mib (rounded down GB).
+    if fit.requires_min_vram_gb is not None:
+        per_gpu_mib = int(getattr(hw, "min_vram_per_gpu_mib", 0) or 0)
+        per_gpu_gb = per_gpu_mib // 1024
+        if fit.requires_min_vram_gb > per_gpu_gb:
+            report.add(
+                preset_id, sev, "hardware_fit_vram",
+                f"card.hardware_fit.requires_min_vram_gb="
+                f"{fit.requires_min_vram_gb} exceeds the composed rig's "
+                f"per-GPU floor ({per_gpu_gb} GB from "
+                f"min_vram_per_gpu_mib={per_gpu_mib}) — the preset declares it "
+                f"needs more VRAM than the rig it composes onto provides",
+            )
+
+    # CUDA capability floor: declared (M, m) must be <= the rig's SM floor.
+    if fit.requires_min_cuda_capability is not None:
+        cc_hw = getattr(hw, "cuda_capability_min", None)
+        if cc_hw is not None and tuple(fit.requires_min_cuda_capability) > tuple(cc_hw):
+            report.add(
+                preset_id, sev, "hardware_fit_sm",
+                f"card.hardware_fit.requires_min_cuda_capability="
+                f"{tuple(fit.requires_min_cuda_capability)} exceeds the composed "
+                f"rig's cuda_capability_min={tuple(cc_hw)}",
+            )
+
+    # Engine pin: declared must match the composed vllm_pin_required.
+    if fit.engine_pin is not None:
+        pin = getattr(cfg, "vllm_pin_required", None)
+        if pin is not None and fit.engine_pin != pin:
+            report.add(
+                preset_id, sev, "hardware_fit_engine_pin",
+                f"card.hardware_fit.engine_pin={fit.engine_pin!r} disagrees "
+                f"with composed vllm_pin_required={pin!r} — re-pin the fit "
+                f"block when the rig pin bumps",
+            )
+
 
 def run_audit(preset_ids: Optional[list[str]] = None) -> CatalogReport:
     """Run the full preset catalog audit.

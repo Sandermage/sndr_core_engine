@@ -4,6 +4,7 @@
 #   Model:    Gemma 4 31B AWQ-4bit (dense)   Topology: 2x A5000 (TP=2)
 #   KV:       auto on the live pin (TurboQuant intended; TQ-BLOCKED on 0.22.1 — see PIN NOTE)   Drafter:  none (MTP off, default role)
 #   Max ctx:  262144 (effective render)     Status:   production_candidate (long-context sibling)
+#   Requires: >=21 GB/GPU · 2x GPU · SM 8.6+ · vLLM 0.23.1rc1.dev424+g3f5a1e173  (machine-readable: card.hardware_fit; `sndr preflight` checks it)
 #   Bench:    pending — see card.primary_metric (B1.1 default-role baseline pending public publish)
 #   Best for: the documented >150K long-context path for the 31B dense family (TurboQuant, up to 256K)
 # What's intentionally NOT enabled:  - MTP / spec-decode -> default role is MTP-off; high-throughput chat -> use prod-gemma4-31b-kvauto-chat (⭐ canonical, +70% TPS, 128K)
@@ -76,6 +77,14 @@ card:
     max_model_len: 262144                          # effective render = 262144 (profile gemma4-31b-tq-default sizing). NOTE: TQ is blocked on the live 0.22.1 pin, so the engine currently renders kv-auto at this ctx (see PIN NOTE in the header). Card was stale at 200000.
     typical_input_tokens: 2048
     typical_output_tokens: 2048
+  # Machine-readable hardware envelope — consumed by `sndr preflight <preset>`
+  # (club-3090 compose-trailer convention, typed + rig-cross-validated).
+  hardware_fit:
+    requires_min_vram_gb: 21                       # per-GPU floor (22000 MiB usable)
+    tensor_parallel: 2                             # TP=2 across both A5000s
+    requires_min_gpu_count: 2                      # 31B dense AWQ long-ctx KV needs both cards
+    requires_min_cuda_capability: [8, 6]           # Ampere SM 8.6
+    engine_pin: 0.23.1rc1.dev424+g3f5a1e173        # validated vLLM build
   routing_family: gemma4_dense_31b_tq
   default_for_family: true
   primary_metric:

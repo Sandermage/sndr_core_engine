@@ -1,14 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 # =====================================================================
 # Profile (at-a-glance):
-#   Model:    Qwen 3.6 35B-A3B FP8          Topology: 2x A5000 (TP=2)
-#   KV:       turboquant_k8v4               Drafter:  MTP K=3
-#   Max ctx:  280000 (effective render)     Status:   ⭐ production_candidate (family default)
-#   Bench:    pending — see card.primary_metric (Wave 9 baseline 35b_v11_wave9.json; this session's single-stream ~233 TPS @ 280K is informational, not the card metric)
-#   Best for: balanced single-conc latency-quality default for the 35B family  ⭐ CANONICAL
+#   Model:     Qwen 3.6 35B-A3B FP8          Topology: 2x A5000 (TP=2)
+#   Engine:    vLLM (Genesis overlay)        Drafter:  MTP K=3
+#   KV:        turboquant_k8v4               Vision:   no
+#   Max ctx:   280000 (effective render)     Status:   ⭐ production_candidate (family default)
+#   Genesis:   dev424 pin · PN340/PN341/PN29 GDN + PN345/PN29x autotune-cap families · PN346/347/348 correctness
+#   Requires:  >=21 GB/GPU · 2x GPU · SM 8.6+ · vLLM 0.23.1rc1.dev424+g3f5a1e173   (machine-readable: card.hardware_fit)
+#   Bench:     pending — see card.primary_metric (Wave 9 baseline 35b_v11_wave9.json; this session's single-stream ~233 TPS @ 280K is informational, not the card metric)
+#   Best for:  balanced single-conc latency-quality default for the 35B family  ⭐ CANONICAL
 # What's intentionally NOT enabled:  - high concurrency -> use prod-qwen3.6-35b-multiconc (689 TPS @ conc=8)
 # To change for scenario X:          - agentic/batch throughput -> prod-qwen3.6-35b-multiconc
 #                                    - lower single-user latency -> already this preset (max_num_seqs=2)
+# Preflight:  `sndr preflight prod-qwen3.6-35b-balanced` projects this envelope
+#             against the live rig (or --rig) BEFORE boot — VRAM/GPU-count/SM/pin.
+#             Header convention + the requires_* fields adapted from club-3090's
+#             compose-header trailers (noonghunna/club-3090@master); typed + tied
+#             to this card's lifecycle, see card.hardware_fit below.
 # =====================================================================
 # Genesis V2 alias — operator shortcut for the 35B PROD triplet (family default).
 # `sndr launch prod-qwen3.6-35b-balanced` resolves this file to (model, hardware, profile).
@@ -48,6 +56,19 @@ card:
     max_model_len: 280000
     typical_input_tokens: 4096
     typical_output_tokens: 4096
+  # Machine-readable hardware envelope — consumed by `sndr preflight <preset>`.
+  # Adapted from club-3090's compose-header trailers (Requires-min-vram-gb /
+  # Tensor-parallel / Requires-min-gpu-count / Requires-sm), here typed + tied
+  # to this card's status and cross-validated against the composed rig by
+  # audit_config_catalog.py (the values below must agree with hardware
+  # a5000-2x-24gbvram-16cpu-128gbram: n_gpus=2, min_vram_per_gpu_mib=22000 ->
+  # 21 GB floor, cuda_capability_min=[8,6]).
+  hardware_fit:
+    requires_min_vram_gb: 21                       # per-GPU floor (22000 MiB usable -> 21 GB)
+    tensor_parallel: 2                             # TP=2 across both A5000s
+    requires_min_gpu_count: 2                      # MoE FP8 weights + TQ KV pool need both cards
+    requires_min_cuda_capability: [8, 6]           # Ampere SM 8.6 (A5000 / 3090 / 4090 class)
+    engine_pin: 0.23.1rc1.dev424+g3f5a1e173        # validated vLLM build (matches model vllm_pin_required)
   routing_family: qwen3_6_35b_a3b_fp8
   default_for_family: true
   fallback_preset: prod-qwen3.6-35b-balanced

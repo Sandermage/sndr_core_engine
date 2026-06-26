@@ -4,6 +4,7 @@
 #   Model:    Gemma 4 26B-A4B AWQ-4bit (128-expert MoE, A=4B)   Topology: 2x A5000 (TP=2)
 #   KV:       auto (engine-picked)         Drafter:  MTP K=4
 #   Max ctx:  16384 (effective render)     Status:   production_candidate (structured-throughput sibling)
+#   Requires: >=21 GB/GPU · 2x GPU · SM 8.6+ · vLLM 0.23.1rc1.dev424+g3f5a1e173  (machine-readable: card.hardware_fit; `sndr preflight` checks it)
 #   Bench:    235.9 TPS @ conc=8 (Mode A) / 271.4 TPS schema_rate 100% (Mode B xgrammar) — 2026-05-23
 #   Best for: SHORT structured-JSON / tool-call multi-conc (tool args, small schema-bounded JSON, conc 1..8)
 # What's intentionally NOT enabled:  - free-chat multi-conc -> use prod-qwen3.6-35b-multiconc (this preset is MIXED band there, -39%)
@@ -92,6 +93,15 @@ card:
     max_model_len: 16384
     typical_input_tokens: 512
     typical_output_tokens: 200
+  # Machine-readable hardware envelope — consumed by `sndr preflight <preset>`
+  # (club-3090 compose-trailer convention, typed + rig-cross-validated by
+  # audit_config_catalog.py).
+  hardware_fit:
+    requires_min_vram_gb: 21                       # per-GPU floor (22000 MiB usable)
+    tensor_parallel: 2                             # TP=2 across both A5000s
+    requires_min_gpu_count: 2                      # AWQ MoE multi-conc KV pool needs both cards
+    requires_min_cuda_capability: [8, 6]           # Ampere SM 8.6
+    engine_pin: 0.23.1rc1.dev424+g3f5a1e173        # validated vLLM build
   routing_family: gemma4_moe_26b_a4b
   default_for_family: false
   # Repointed in the 2026-06 canonical reorg: the previous K=1 multi-conc

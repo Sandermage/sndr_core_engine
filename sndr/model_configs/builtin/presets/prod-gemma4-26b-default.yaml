@@ -1,14 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 # =====================================================================
 # Profile (at-a-glance):
-#   Model:    Gemma 4 26B-A4B AWQ-4bit (128-expert MoE, A=4B)   Topology: 2x A5000 (TP=2)
-#   KV:       auto (engine-picked)         Drafter:  none (K=1 MTP control = effective MTP-off)
-#   Max ctx:  262144 (effective render)    Status:   ⭐ production_candidate (family default)
-#   Bench:    pending — see card.primary_metric (B1 baseline pending public publish; this session's single-stream ~169 TPS @ 256K is informational, not the card metric)
-#   Best for: lowest-risk single-stream serving + retrieval up to 256K; public fallback target for the family  ⭐ CANONICAL
+#   Model:     Gemma 4 26B-A4B AWQ-4bit (128-expert MoE, A=4B)   Topology: 2x A5000 (TP=2)
+#   Engine:    vLLM (Genesis overlay)       Drafter:  none (K=1 MTP control = effective MTP-off)
+#   KV:        auto (engine-picked)         Vision:   yes (M-RoPE; PN252 DoS-guarded)
+#   Max ctx:   262144 (effective render)    Status:   ⭐ production_candidate (family default)
+#   Genesis:   dev424 pin · PN349/PN351 Gemma4-specific · PN252 M-RoPE prompt_embeds DoS guard · PN296/PN29x autotune-cap
+#   Requires:  >=21 GB/GPU · 2x GPU · SM 8.6+ · vLLM 0.23.1rc1.dev424+g3f5a1e173   (machine-readable: card.hardware_fit)
+#   Bench:     pending — see card.primary_metric (B1 baseline pending public publish; dev424 single-stream ~106.4 TPS smoke is informational, not the card metric)
+#   Best for:  lowest-risk single-stream serving + retrieval up to 256K; public fallback target for the family  ⭐ CANONICAL
 # What's intentionally NOT enabled:  - MTP K=4 speculation -> the short structured-JSON sibling prod-gemma4-26b-multiconc carries that (235.9 TPS @ conc=8)
 # To change for scenario X:          - short structured-JSON / tool-call multi-conc -> prod-gemma4-26b-multiconc
 #                                    - free-chat multi-conc throughput -> prod-qwen3.6-35b-multiconc (faster there)
+# Preflight:  `sndr preflight prod-gemma4-26b-default` projects this envelope
+#             against the live rig (or --rig) BEFORE boot — VRAM/GPU-count/SM/pin.
+#             Header convention + the requires_* fields adapted from club-3090's
+#             compose-header trailers (noonghunna/club-3090@master); typed + tied
+#             to this card's lifecycle, see card.hardware_fit below.
 # =====================================================================
 # Genesis V2 alias — Gemma 4 26B-A4B AWQ-4bit, K=1 MTP control (family default).
 # `sndr launch prod-gemma4-26b-default` resolves to (model, hardware, profile).
@@ -60,6 +68,16 @@ card:
     max_model_len: 262144                          # effective render = 262144 (profile gemma4-26b-no-mtp sizing_override 256K, rig-validated 2026-06-23: 146K-token ingestion+retrieval PASS on 26B-A4B MoE auto/fp16 KV). Card was stale at 32768.
     typical_input_tokens: 1024
     typical_output_tokens: 2048
+  # Machine-readable hardware envelope — consumed by `sndr preflight <preset>`.
+  # Adapted from club-3090's compose-header trailers; typed + tied to this
+  # card's status, cross-validated against hardware a5000-2x-24gbvram-16cpu-128gbram
+  # by audit_config_catalog.py.
+  hardware_fit:
+    requires_min_vram_gb: 21                       # per-GPU floor (22000 MiB usable -> 21 GB)
+    tensor_parallel: 2                             # TP=2 across both A5000s
+    requires_min_gpu_count: 2                      # AWQ MoE weights + KV pool need both cards
+    requires_min_cuda_capability: [8, 6]           # Ampere SM 8.6
+    engine_pin: 0.23.1rc1.dev424+g3f5a1e173        # validated vLLM build (matches model vllm_pin_required)
   routing_family: gemma4_moe_26b_a4b
   default_for_family: true
   primary_metric:

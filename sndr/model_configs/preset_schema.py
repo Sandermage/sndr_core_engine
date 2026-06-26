@@ -219,6 +219,103 @@ class ContextEnvelope:
 
 
 @dataclass
+class HardwareFit:
+    """Machine-readable hardware requirements for `sndr preflight`.
+
+    Adapted + extended from club-3090's compose-header trailers
+    (`# Requires-min-vram-gb:`, `# Tensor-parallel:`,
+    `# Requires-min-gpu-count:`, `# Requires-sm:` parsed by
+    `scripts/preflight.sh` / `scripts/lib/compose-meta.sh` on
+    noonghunna/club-3090@master). Three things make this an EXTENSION
+    rather than a copy:
+
+      1. Typed schema, not comment trailers. club-3090 stores these as
+         `# key: value` comments parsed by a bash regex (compose-meta.sh).
+         Here they are first-class typed card fields — validated by the
+         same schema gate as the rest of the card, queryable by the GUI /
+         catalog, not silently mis-parsed when a comment moves.
+
+      2. Tied to the preset lifecycle. The fit block lives inside the
+         operator card, so its `status` (production / experimental / qa)
+         and evidence_refs travel WITH the hardware envelope. A preflight
+         fit-PASS on an `experimental` preset reads differently from a
+         PASS on a `production` one.
+
+      3. Cross-validated against the composed rig. `audit_config_catalog.py`
+         checks `hardware_fit` agrees with the hardware the preset actually
+         composes to (n_gpus / min_vram_per_gpu_mib / cuda_capability_min /
+         vllm_pin_required) — club-3090's trailers are advisory only and
+         can silently drift from the compose body.
+
+    Field semantics:
+      requires_min_vram_gb       — min VRAM PER GPU in whole GB (club-3090
+                                    `Requires-min-vram-gb`). Compared against
+                                    the rig's smallest selected card.
+      tensor_parallel            — TP degree the preset launches at
+                                    (club-3090 `Tensor-parallel`).
+      requires_min_gpu_count     — min visible GPU count for that TP
+                                    (club-3090 `Requires-min-gpu-count`).
+      requires_min_cuda_capability — (major, minor) SM floor, e.g. (8, 6)
+                                    for Ampere. club-3090 stores this as a
+                                    `Requires-sm: 8.6+` string; we keep the
+                                    structured tuple the V2 hardware schema
+                                    already uses.
+      engine_pin                 — the exact vLLM build this envelope was
+                                    validated on (club-3090 `Engine-profile`,
+                                    but we record the concrete pin string the
+                                    ModelDef requires, e.g.
+                                    `0.23.1rc1.dev424+g3f5a1e173`).
+    """
+    requires_min_vram_gb: Optional[int] = None
+    tensor_parallel: Optional[int] = None
+    requires_min_gpu_count: Optional[int] = None
+    requires_min_cuda_capability: Optional[tuple[int, int]] = None
+    engine_pin: Optional[str] = None
+
+    def validate(self) -> None:
+        if self.requires_min_vram_gb is not None and self.requires_min_vram_gb <= 0:
+            raise SchemaError(
+                f"hardware_fit.requires_min_vram_gb={self.requires_min_vram_gb} "
+                f"must be > 0 if set"
+            )
+        if self.tensor_parallel is not None and self.tensor_parallel < 1:
+            raise SchemaError(
+                f"hardware_fit.tensor_parallel={self.tensor_parallel} "
+                f"must be >= 1 if set"
+            )
+        if (
+            self.requires_min_gpu_count is not None
+            and self.requires_min_gpu_count < 1
+        ):
+            raise SchemaError(
+                f"hardware_fit.requires_min_gpu_count="
+                f"{self.requires_min_gpu_count} must be >= 1 if set"
+            )
+        if self.requires_min_cuda_capability is not None:
+            cc = self.requires_min_cuda_capability
+            if (
+                not isinstance(cc, tuple)
+                or len(cc) != 2
+                or not all(isinstance(x, int) and x >= 0 for x in cc)
+            ):
+                raise SchemaError(
+                    f"hardware_fit.requires_min_cuda_capability={cc!r} must be "
+                    f"a (major, minor) int pair, e.g. (8, 6)"
+                )
+        # tensor_parallel must not exceed the GPU count it declares it needs.
+        if (
+            self.tensor_parallel is not None
+            and self.requires_min_gpu_count is not None
+            and self.tensor_parallel > self.requires_min_gpu_count
+        ):
+            raise SchemaError(
+                f"hardware_fit: tensor_parallel={self.tensor_parallel} exceeds "
+                f"requires_min_gpu_count={self.requires_min_gpu_count} "
+                f"(TP needs at least that many visible GPUs)"
+            )
+
+
+@dataclass
 class DoNotUseCondition:
     """One anti-pattern with human-readable condition + rationale."""
     condition: str
@@ -265,6 +362,10 @@ class PresetCard:
     concurrency: Optional[ConcurrencyEnvelope] = None
     K: Optional[int] = None
     context: Optional[ContextEnvelope] = None
+
+    # — Machine-readable hardware requirements (club-3090 preflight trailers,
+    #   typed + lifecycle-tied; consumed by `sndr preflight <preset>`).
+    hardware_fit: Optional[HardwareFit] = None
 
     # — Routing metadata (consumer-side; ProfileDef.routing remains source of truth)
     routing_family: Optional[str] = None
@@ -326,6 +427,8 @@ class PresetCard:
             self.concurrency.validate()
         if self.context is not None:
             self.context.validate()
+        if self.hardware_fit is not None:
+            self.hardware_fit.validate()
         if self.primary_metric is not None:
             self.primary_metric.validate()
         for i, ev in enumerate(self.evidence_refs):
@@ -514,6 +617,7 @@ def _parse_card(preset_id: str, data: dict) -> PresetCard:
         concurrency=_parse_concurrency(data.get("concurrency")),
         K=data.get("K"),
         context=_parse_context(data.get("context")),
+        hardware_fit=_parse_hardware_fit(data.get("hardware_fit")),
         routing_family=data.get("routing_family"),
         default_for_family=bool(data.get("default_for_family", False)),
         fallback_preset=data.get("fallback_preset"),
@@ -554,6 +658,32 @@ def _parse_context(data: Any) -> Optional[ContextEnvelope]:
         max_model_len=data.get("max_model_len"),
         typical_input_tokens=data.get("typical_input_tokens"),
         typical_output_tokens=data.get("typical_output_tokens"),
+    )
+
+
+def _parse_hardware_fit(data: Any) -> Optional[HardwareFit]:
+    if data is None:
+        return None
+    if not isinstance(data, dict):
+        raise SchemaError(
+            f"card.hardware_fit must be a mapping (got {type(data).__name__})"
+        )
+    cc = data.get("requires_min_cuda_capability")
+    if cc is not None:
+        # YAML renders the (major, minor) pair as a list — coerce to tuple so
+        # comparisons against hardware.cuda_capability_min are tuple-vs-tuple.
+        if not isinstance(cc, (list, tuple)):
+            raise SchemaError(
+                f"card.hardware_fit.requires_min_cuda_capability must be a "
+                f"[major, minor] list (got {type(cc).__name__})"
+            )
+        cc = tuple(cc)
+    return HardwareFit(
+        requires_min_vram_gb=data.get("requires_min_vram_gb"),
+        tensor_parallel=data.get("tensor_parallel"),
+        requires_min_gpu_count=data.get("requires_min_gpu_count"),
+        requires_min_cuda_capability=cc,
+        engine_pin=data.get("engine_pin"),
     )
 
 
@@ -652,7 +782,8 @@ __all__ = [
     "KNOWN_WORKLOADS", "is_known_workload",
     # Dataclasses
     "EvidenceRef", "PrimaryMetric",
-    "ConcurrencyEnvelope", "ContextEnvelope", "DoNotUseCondition",
+    "ConcurrencyEnvelope", "ContextEnvelope", "HardwareFit",
+    "DoNotUseCondition",
     "PresetCard", "PresetDef",
     # Functions
     "validate_for_status",

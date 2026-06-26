@@ -35,6 +35,7 @@ from sndr.model_configs.preset_schema import (
     EVIDENCE_TYPES,
     EVIDENCE_VISIBILITIES,
     EvidenceRef,
+    HardwareFit,
     PresetCard,
     PresetDef,
     parse_preset_yaml,
@@ -631,3 +632,84 @@ class TestPresetDefPointers:
         pd = parse_preset_yaml("test-no-runtime", data)
         pd.validate()
         assert pd.runtime is None
+
+
+class TestHardwareFit:
+    """`card.hardware_fit` — machine-readable hardware envelope consumed by
+    `sndr preflight` (adapted from club-3090 compose-header trailers)."""
+
+    def _full_fit(self) -> dict:
+        return {
+            "requires_min_vram_gb": 21,
+            "tensor_parallel": 2,
+            "requires_min_gpu_count": 2,
+            "requires_min_cuda_capability": [8, 6],
+            "engine_pin": "0.23.1rc1.dev424+g3f5a1e173",
+        }
+
+    def test_full_fit_parses_and_validates(self):
+        card = parse_preset_yaml(
+            "test-fit",
+            {"model": "m1", "hardware": "h1", "card": {
+                "title": "t", "summary": "s", "status": "experimental",
+                "hardware_fit": self._full_fit(),
+            }},
+        ).card
+        assert card.hardware_fit is not None
+        card.hardware_fit.validate()
+        assert card.hardware_fit.requires_min_vram_gb == 21
+        assert card.hardware_fit.tensor_parallel == 2
+        # YAML list coerces to a tuple so it compares against
+        # hardware.cuda_capability_min tuple-vs-tuple.
+        assert card.hardware_fit.requires_min_cuda_capability == (8, 6)
+        assert card.hardware_fit.engine_pin == "0.23.1rc1.dev424+g3f5a1e173"
+
+    def test_hardware_fit_absent_is_none(self):
+        card = parse_preset_yaml(
+            "test-no-fit",
+            {"model": "m1", "hardware": "h1", "card": {
+                "title": "t", "summary": "s", "status": "experimental",
+            }},
+        ).card
+        assert card.hardware_fit is None
+
+    def test_negative_vram_rejected(self):
+        with pytest.raises(SchemaError, match="requires_min_vram_gb"):
+            HardwareFit(requires_min_vram_gb=0).validate()
+
+    def test_tp_below_one_rejected(self):
+        with pytest.raises(SchemaError, match="tensor_parallel"):
+            HardwareFit(tensor_parallel=0).validate()
+
+    def test_gpu_count_below_one_rejected(self):
+        with pytest.raises(SchemaError, match="requires_min_gpu_count"):
+            HardwareFit(requires_min_gpu_count=0).validate()
+
+    def test_bad_cuda_capability_shape_rejected(self):
+        with pytest.raises(SchemaError, match="requires_min_cuda_capability"):
+            HardwareFit(requires_min_cuda_capability=(8,)).validate()
+
+    def test_tp_exceeding_gpu_count_rejected(self):
+        with pytest.raises(SchemaError, match="exceeds"):
+            HardwareFit(
+                tensor_parallel=4, requires_min_gpu_count=2,
+            ).validate()
+
+    def test_card_validate_invokes_hardware_fit_validate(self):
+        """PresetCard.validate() must fail when a nested hardware_fit is bad."""
+        bad = PresetCard(
+            title="t", summary="s", status="experimental",
+            hardware_fit=HardwareFit(tensor_parallel=0),
+        )
+        with pytest.raises(SchemaError, match="tensor_parallel"):
+            bad.validate()
+
+    def test_cuda_capability_non_list_rejected_at_parse(self):
+        with pytest.raises(SchemaError, match="requires_min_cuda_capability"):
+            parse_preset_yaml(
+                "test-bad-cc",
+                {"model": "m1", "hardware": "h1", "card": {
+                    "title": "t", "summary": "s", "status": "experimental",
+                    "hardware_fit": {"requires_min_cuda_capability": "8.6"},
+                }},
+            )

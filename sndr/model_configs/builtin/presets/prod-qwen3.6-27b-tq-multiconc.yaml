@@ -4,6 +4,7 @@
 #   Model:    Qwen 3.6 27B INT4 AutoRound (hybrid GDN+Mamba)   Topology: 2x A5000 (TP=2)
 #   KV:       turboquant_k8v4               Drafter:  MTP K=3
 #   Max ctx:  131072 (effective render)     Status:   production_candidate (throughput sibling)
+#   Requires: >=21 GB/GPU · 2x GPU · SM 8.6+ · vLLM 0.23.1rc1.dev424+g3f5a1e173  (machine-readable: card.hardware_fit; `sndr preflight` checks it)
 #   Bench:    379 TPS @ conc=8 (TTFT 189 ms, 3.89x scaling — best on this rig) — 2026-05-15, pin dev371+bf610c2f5
 #   Best for: multi-conc / agentic / batch on the 27B INT4 family (INT4 weight fetch frees SMs for parallel KV)
 # What's intentionally NOT enabled:  - full 262K context -> use prod-qwen3.6-27b-tq-k8v4 (⭐ canonical; this preset trims to 131K to fit max_num_seqs=8)
@@ -55,6 +56,14 @@ card:
     max_model_len: 131072
     typical_input_tokens: 2048
     typical_output_tokens: 2048
+  # Machine-readable hardware envelope — consumed by `sndr preflight <preset>`
+  # (club-3090 compose-trailer convention, typed + rig-cross-validated).
+  hardware_fit:
+    requires_min_vram_gb: 21                       # per-GPU floor (22000 MiB usable)
+    tensor_parallel: 2                             # TP=2 across both A5000s
+    requires_min_gpu_count: 2                      # INT4 weights + 8-way conc KV pool need both cards
+    requires_min_cuda_capability: [8, 6]           # Ampere SM 8.6
+    engine_pin: 0.23.1rc1.dev424+g3f5a1e173        # validated vLLM build
   routing_family: qwen3_6_27b_int4_tq
   default_for_family: false
   fallback_preset: prod-qwen3.6-27b-tq-k8v4
