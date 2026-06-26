@@ -8,6 +8,8 @@ Examples::
     sndr engines info vllm
     sndr pins list --engine vllm
     sndr health
+    sndr preflight prod-qwen3.6-35b-balanced
+    sndr preflight prod-gemma4-26b-default --rig single-3090-24gbvram
 
 The CLI is intentionally minimal in v12 — operators primarily use the GUI.
 The CLI exists for headless automation (CI scripts, cron jobs, scripts).

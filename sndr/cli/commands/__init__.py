@@ -8,6 +8,7 @@ from typing import Protocol
 from sndr.cli.commands.engines import EnginesListCommand, EnginesInfoCommand
 from sndr.cli.commands.health import HealthCommand
 from sndr.cli.commands.pins import PinsListCommand
+from sndr.cli.commands.preflight import PreflightCommand
 
 
 class Command(Protocol):
@@ -32,6 +33,7 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     register(EnginesInfoCommand())
     register(PinsListCommand())
     register(HealthCommand())
+    register(PreflightCommand())
 
     for name, cmd in sorted(COMMAND_REGISTRY.items()):
         sub = subparsers.add_parser(name, help=cmd.help)
