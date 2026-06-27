@@ -48,7 +48,17 @@ GENESIS_REPO="${GENESIS_REPO:-https://github.com/Sandermage/genesis-vllm-patches
 SNDR_HOME="${SNDR_HOME:-${HOME}/.sndr}"
 GENESIS_HOME="${GENESIS_HOME:-${SNDR_HOME}}"
 GENESIS_PIN="${GENESIS_PIN:-stable}"     # 'stable' (latest tag) | 'dev' | <commit-or-tag>
+# Track whether the operator passed --pin / set GENESIS_PIN explicitly. When
+# they did NOT (still the literal 'stable' default and no env override), the
+# interactive pin picker may offer the stable/dev/explicit menu; an explicit
+# value always wins and skips the menu (scriptable). See pick_pin().
+GENESIS_PIN_EXPLICIT="${GENESIS_PIN_EXPLICIT:-0}"
+[ -n "${GENESIS_PIN+x}" ] && [ "${GENESIS_PIN}" != "stable" ] && GENESIS_PIN_EXPLICIT=1
 GENESIS_WORKLOAD="${GENESIS_WORKLOAD:-}" # one of: long_context, high_throughput, tool_agent, balanced
+# Where model weights live on the host (HF cache / models dir). The launcher
+# bind-mounts this into the engine container. Empty = ask interactively (or
+# fall back to the first auto-detected candidate in non-interactive mode).
+GENESIS_MODELS_DIR="${GENESIS_MODELS_DIR:-}"
 GENESIS_NON_INTERACTIVE="${GENESIS_NON_INTERACTIVE:-0}"
 GENESIS_NO_VERIFY="${GENESIS_NO_VERIFY:-0}"
 GENESIS_NO_PLUGIN_INSTALL="${GENESIS_NO_PLUGIN_INSTALL:-0}"
@@ -95,10 +105,12 @@ die() { err "$*"; exit 1; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --pin) GENESIS_PIN="$2"; shift 2 ;;
-    --pin=*) GENESIS_PIN="${1#*=}"; shift ;;
+    --pin) GENESIS_PIN="$2"; GENESIS_PIN_EXPLICIT=1; shift 2 ;;
+    --pin=*) GENESIS_PIN="${1#*=}"; GENESIS_PIN_EXPLICIT=1; shift ;;
     --workload) GENESIS_WORKLOAD="$2"; shift 2 ;;
     --workload=*) GENESIS_WORKLOAD="${1#*=}"; shift ;;
+    --models-dir) GENESIS_MODELS_DIR="$2"; shift 2 ;;
+    --models-dir=*) GENESIS_MODELS_DIR="${1#*=}"; shift ;;
     --home) GENESIS_HOME="$2"; shift 2 ;;
     --home=*) GENESIS_HOME="${1#*=}"; shift ;;
     --python) PYTHON_BIN="$2"; shift 2 ;;
@@ -126,6 +138,10 @@ Flags:
                        Or any commit/tag/branch
   --workload <name>    One of: balanced, long_context, high_throughput,
                        tool_agent (default: interactive prompt or 'balanced')
+  --models-dir <path>  Host directory holding model weights / HF cache; the
+                       launcher bind-mounts it into the engine container.
+                       Default: interactive prompt (or first auto-detected
+                       candidate in non-interactive mode).
   --home <path>        Where to install Genesis (default: ~/.sndr)
   --python <path>      Python interpreter to use (default: python3)
   --no-verify          Skip post-install smoke test
@@ -150,8 +166,8 @@ Examples:
 
 Env overrides (alternative to flags):
   GENESIS_REPO, GENESIS_HOME, GENESIS_PIN, GENESIS_WORKLOAD,
-  GENESIS_NON_INTERACTIVE, GENESIS_NO_VERIFY, GENESIS_NO_PLUGIN_INSTALL,
-  PYTHON_BIN, PIP_INSTALL_FLAGS
+  GENESIS_MODELS_DIR, GENESIS_NON_INTERACTIVE, GENESIS_NO_VERIFY,
+  GENESIS_NO_PLUGIN_INSTALL, PYTHON_BIN, PIP_INSTALL_FLAGS
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 HELP_EOF
@@ -404,9 +420,164 @@ pick_workload() {
   done
 }
 
+# ─── Model-weights location picker ("where do weights go") ────────────
+#
+# club-3090's setup.sh prompts "where do your GGUF/weights live" before it
+# writes the bind-mount into the compose. Same idea here: detect the common
+# host weight/cache locations, present a numbered menu (+ "custom path"), and
+# export the choice as GENESIS_MODELS_DIR so the launcher can bind-mount it.
+# Skipped (with the first auto-detected candidate) in non-interactive mode or
+# when --models-dir was passed.
+
+pick_models_dir() {
+  step "Pick model-weights location"
+
+  # Explicit choice wins — validate-light and return.
+  if [ -n "$GENESIS_MODELS_DIR" ]; then
+    if [ -d "$GENESIS_MODELS_DIR" ]; then
+      ok "weights dir: $GENESIS_MODELS_DIR (from --models-dir)"
+    else
+      warn "weights dir $GENESIS_MODELS_DIR does not exist yet — will be created on first pull"
+    fi
+    return
+  fi
+
+  # Auto-detect candidate locations (only those that exist), de-duplicated.
+  local candidates=() seen="" c
+  for c in \
+    "$HF_HOME/hub" \
+    "$HOME/.cache/huggingface/hub" \
+    "$HOME/models" \
+    "/models" \
+    "/data/models" \
+    "/srv/models"; do
+    [ -n "$c" ] || continue
+    [ -d "$c" ] || continue
+    case "$seen" in *"|$c|"*) continue ;; esac
+    seen="${seen}|$c|"
+    candidates+=("$c")
+  done
+
+  local default_dir="${candidates[0]:-$HOME/.cache/huggingface/hub}"
+
+  # Non-interactive: take the first detected candidate (or the HF default).
+  if [ "$GENESIS_NON_INTERACTIVE" = "1" ] || [ ! -t 0 ]; then
+    GENESIS_MODELS_DIR="$default_dir"
+    ok "weights dir: $GENESIS_MODELS_DIR (non-interactive default)"
+    return
+  fi
+
+  echo
+  echo "Where do your model weights / HF cache live?"
+  echo "(the launcher bind-mounts this into the engine container)"
+  echo
+  local i=1
+  for c in "${candidates[@]}"; do
+    printf "  %d) %s\n" "$i" "$c"
+    i=$((i+1))
+  done
+  printf "  %d) custom path…\n" "$i"
+  echo
+  local pick custom
+  while true; do
+    read -rp "Choice [1-${i}, default 1]: " pick
+    pick="${pick:-1}"
+    if [ "$pick" = "$i" ]; then
+      while true; do
+        read -rp "  Enter the weights directory path: " custom
+        custom="${custom/#\~/$HOME}"
+        if [ -n "$custom" ]; then
+          GENESIS_MODELS_DIR="$custom"
+          [ -d "$custom" ] || warn "  $custom does not exist yet — will be created on first pull"
+          ok "weights dir: $GENESIS_MODELS_DIR"
+          return
+        fi
+        echo "  a path is required"
+      done
+    fi
+    if [[ "$pick" =~ ^[0-9]+$ ]] && [ "$pick" -ge 1 ] && [ "$pick" -lt "$i" ]; then
+      GENESIS_MODELS_DIR="${candidates[$((pick-1))]}"
+      ok "weights dir: $GENESIS_MODELS_DIR"
+      return
+    fi
+    echo "  invalid — pick 1-${i}"
+  done
+}
+
+# ─── Pin picker (numbered menu, club-3090 setup.sh style) ─────────────
+#
+# club-3090's setup.sh asks the operator to pick an engine build from a
+# numbered list before writing the compose. We do the analogue for the
+# Genesis ref: a 3-way menu (stable / dev / explicit) with SHA/pin guidance,
+# so an interactive operator chooses the install ref deliberately instead of
+# silently inheriting 'stable'. An explicit --pin / GENESIS_PIN always wins
+# and skips this menu (scriptable, CI-safe).
+
+PIN_OPTIONS=(
+  "stable|Latest published v12+ stable tag (recommended for production)"
+  "dev|Dev-branch tip — newest features, mutable (re-run to update)"
+  "explicit|A specific commit SHA / tag / branch you paste"
+)
+
+pick_pin() {
+  step "Pick Genesis pin"
+
+  # Explicit pin (flag or non-default env) wins — never prompt over it.
+  if [ "$GENESIS_PIN_EXPLICIT" = "1" ]; then
+    ok "pin: $GENESIS_PIN (explicit — from --pin / GENESIS_PIN)"
+    return
+  fi
+
+  # Non-interactive default: keep 'stable' (resolve_pin maps it to a tag).
+  if [ "$GENESIS_NON_INTERACTIVE" = "1" ] || [ ! -t 0 ]; then
+    ok "pin: stable (non-interactive default — re-run with --pin to change)"
+    return
+  fi
+
+  echo
+  echo "Pick the Genesis ref to install:"
+  echo
+  local i=1 entry key desc
+  for entry in "${PIN_OPTIONS[@]}"; do
+    key="${entry%%|*}"; desc="${entry#*|}"
+    printf "  %d) %-9s — %s\n" "$i" "$key" "$desc"
+    i=$((i+1))
+  done
+  echo
+  hint "SHA/pin guidance: 'stable' is reproducible (a published tag); 'dev' is"
+  hint "  mutable; for an audited reproducible install paste an explicit commit"
+  hint "  SHA (full 40-char) or tag. Genesis verifies the clone carries the"
+  hint "  current top-level sndr/ layout (issue #29) after checkout."
+  echo
+  local pick
+  while true; do
+    read -rp "Choice [1-${#PIN_OPTIONS[@]}, default 1=stable]: " pick
+    pick="${pick:-1}"
+    case "$pick" in
+      1) GENESIS_PIN="stable"; ok "pin: stable"; return ;;
+      2) GENESIS_PIN="dev"; ok "pin: dev"; return ;;
+      3)
+        local ref=""
+        while [ -z "$ref" ]; do
+          read -rp "  Paste commit SHA / tag / branch: " ref
+          ref="$(printf '%s' "$ref" | tr -d '[:space:]')"
+          [ -z "$ref" ] && echo "  a ref is required (or Ctrl-C to abort)"
+        done
+        GENESIS_PIN="$ref"; GENESIS_PIN_EXPLICIT=1
+        ok "pin: $ref (explicit)"
+        return
+        ;;
+      *) echo "  invalid — pick 1-${#PIN_OPTIONS[@]}" ;;
+    esac
+  done
+}
+
 # ─── Resolve pin (stable | dev | <commit/tag>) ────────────────────────
 
 resolve_pin() {
+  # Interactive pin menu first (no-op when explicit / non-interactive).
+  pick_pin
+
   step "Resolve Genesis pin"
 
   case "$GENESIS_PIN" in
@@ -617,6 +788,13 @@ generate_launch_script() {
   mkdir -p "$out_dir"
   local out_file="$out_dir/start_${GPU_CLASS_HINT// /_}_${N_GPUS}x_${GENESIS_WORKLOAD}.sh"
 
+  # Surface the chosen weights dir to the preset-match renderer so the
+  # generated launch script bind-mounts the right host path (the launcher
+  # reads SNDR_MODELS_DIR / GENESIS_MODELS_DIR for the model mount).
+  if [ -n "$GENESIS_MODELS_DIR" ]; then
+    export GENESIS_MODELS_DIR SNDR_MODELS_DIR="$GENESIS_MODELS_DIR"
+  fi
+
   # Try matching with GENESIS_HOME on PYTHONPATH so the new clone takes
   # precedence (also covers the --no-plugin path where no editable install
   # ran). v12 module path: sndr.compat.cli.
@@ -674,6 +852,9 @@ print_next_steps() {
   echo "  Location:  $GENESIS_HOME"
   echo "  Pin:       $(git -C "$GENESIS_HOME" rev-parse --short HEAD) ($GENESIS_PIN_RESOLVED)"
   echo "  Plugin:    $([ "$GENESIS_NO_PLUGIN_INSTALL" = "1" ] && echo 'skipped' || echo 'installed (auto-loads in vllm serve)')"
+  if [ -n "${GENESIS_MODELS_DIR:-}" ]; then
+    echo "  Weights:   $GENESIS_MODELS_DIR"
+  fi
   if [ -n "${LAUNCH_SCRIPT:-}" ]; then
     echo "  Launch:    $LAUNCH_SCRIPT"
   fi
@@ -771,6 +952,7 @@ main() {
   detect_vllm
   detect_proxmox_runtime
   pick_workload
+  pick_models_dir
   resolve_pin
   clone_genesis
   install_plugin

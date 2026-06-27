@@ -7,6 +7,7 @@ from typing import Protocol
 
 from sndr.cli.commands.engines import EnginesListCommand, EnginesInfoCommand
 from sndr.cli.commands.health import HealthCommand
+from sndr.cli.commands.launch import LaunchCommand
 from sndr.cli.commands.pins import PinsListCommand
 from sndr.cli.commands.preflight import PreflightCommand
 
@@ -31,6 +32,7 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     """Register every command with the parent argument parser."""
     register(EnginesListCommand())
     register(EnginesInfoCommand())
+    register(LaunchCommand())
     register(PinsListCommand())
     register(HealthCommand())
     register(PreflightCommand())
