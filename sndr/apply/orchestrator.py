@@ -403,9 +403,9 @@ def run(verbose: bool = True, apply: bool = False) -> PatchStats:
     # GENESIS_ALLOW_PLUGINS=1. Default behavior: zero foreign code loaded.
     try:
         from sndr.compat.plugins import (
-            register_plugins as _register_genesis_plugins,
+            register_plugins as _register_sndr_plugins,
         )
-        n_plugins = _register_genesis_plugins()
+        n_plugins = _register_sndr_plugins()
         if n_plugins > 0:
             log.info(
                 "[Genesis plugins] registered %d community patch(es) via "

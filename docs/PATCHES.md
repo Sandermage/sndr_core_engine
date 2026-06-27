@@ -201,7 +201,10 @@ them.
   patches are explicitly labelled. See [`CREDITS.md`](CREDITS.md).
 - **Status legend:**
   - `default ON` — patch self-activates when its config gate passes
-  - `opt-in` — requires `GENESIS_ENABLE_<patch>=1` env var
+  - `opt-in` — requires `SNDR_ENABLE_<patch>=1` env var (the historical
+    `GENESIS_ENABLE_<patch>=1` form is an accepted, deprecated alias and
+    still works — the two resolve identically; see
+    [`CONFIGURATION.md`](CONFIGURATION.md#env-flag-prefix-sndr_enable_-canonical-and-genesis_enable_-alias))
   - `deprecated` / `retired` — superseded by another patch; kept for archeology
   - `library` — utility module loaded by other patches, no direct env flag
 

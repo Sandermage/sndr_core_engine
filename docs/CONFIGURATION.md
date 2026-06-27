@@ -81,9 +81,29 @@ the script, or edit the script directly for permanent changes.
 
 ## Patch enable / disable flags
 
-All Genesis patches are opt-in via `GENESIS_ENABLE_<patch_id>=1`.
+All Genesis patches are opt-in via `SNDR_ENABLE_<patch_id>=1`.
 Production `start_mtp.sh` enables the validated set; opt-in patches stay off
 unless explicitly engaged.
+
+### Env-flag prefix: `SNDR_ENABLE_` (canonical) and `GENESIS_ENABLE_` (alias)
+
+`SNDR_ENABLE_<patch_id>` is the **canonical** prefix. `GENESIS_ENABLE_<patch_id>`
+is an **accepted, deprecated alias** that keeps working — every example and
+table row below that uses `GENESIS_ENABLE_*` resolves identically under
+`SNDR_ENABLE_*`. You do **not** need to migrate existing start-scripts: the
+`GENESIS_ENABLE_*` names remain a supported public contract. When both prefixes
+are set for the same flag, `SNDR_ENABLE_*` wins.
+
+```bash
+# These two lines are equivalent — pick the canonical SNDR_ form for new work:
+SNDR_ENABLE_P37=1       # canonical
+GENESIS_ENABLE_P37=1    # accepted-deprecated alias (still works)
+```
+
+The same canonical/alias relationship applies to the `*_DISABLE_<patch_id>`
+opt-out and `*_LEGACY_<patch_id>` legacy-toggle prefixes. The flag-name tables
+below are written with the historical `GENESIS_ENABLE_*` form because that is
+what shipped start-scripts use; swap the prefix to `SNDR_ENABLE_` freely.
 
 ### On in production `start_mtp.sh`
 
