@@ -157,3 +157,47 @@ def test_distinct_ids_do_not_collide(monkeypatch, tmp_path):
     assert a.id == "cache-a"
     assert b.id == "cache-b"
     assert a is not b
+
+
+# ─── _PRESET_DEF_CACHE invalidation (pre-existing cache, no test before) ──
+
+
+def _compatible_model_hardware() -> tuple[str, str]:
+    for alias in registry_v2.list_presets():
+        preset = registry_v2.load_preset_def(alias)
+        if preset.model and preset.hardware:
+            return preset.model, preset.hardware
+    raise AssertionError("no builtin preset with model+hardware found")
+
+
+def test_preset_def_cache_hits_then_invalidates_on_edit(monkeypatch, tmp_path):
+    """The operator-facing preset cache (`_PRESET_DEF_CACHE`) must serve
+    repeated reads from memory but pick up a GUI edit (new mtime) live."""
+    model, hardware = _compatible_model_hardware()
+    monkeypatch.setenv("SNDR_MODEL_CONFIG_DIR", str(tmp_path))
+    registry_v2._PRESET_DEF_CACHE.pop("gui-edit-loop", None)
+
+    presets = tmp_path / "presets"
+    presets.mkdir(parents=True, exist_ok=True)
+    p = presets / "gui-edit-loop.yaml"
+    p.write_text(
+        f"model: {model}\nhardware: {hardware}\nruntime: docker\n",
+        encoding="utf-8",
+    )
+
+    first = registry_v2.load_preset_def("gui-edit-loop")
+    second = registry_v2.load_preset_def("gui-edit-loop")
+    assert first is second, "unchanged preset must serve the cached object"
+    assert first.runtime == "docker"
+
+    # Operator edits the preset via the GUI (rewrites the YAML on disk).
+    p.write_text(
+        f"model: {model}\nhardware: {hardware}\nruntime: bare_metal\n",
+        encoding="utf-8",
+    )
+    future = time.time() + 5
+    os.utime(p, (future, future))
+
+    third = registry_v2.load_preset_def("gui-edit-loop")
+    assert third is not first, "edited preset must bypass the stale cache"
+    assert third.runtime == "bare_metal", "the new content must be reflected"
