@@ -66,6 +66,52 @@ class TestVllmVersionRange:
         assert ok is True
 
 
+class TestSpecifierSetCache:
+    """`_specifier_set` memoises the parsed PEP 440 SpecifierSet per specifier
+    string (the registry feeds the same static literals through the gate for
+    all ~321 patches on every boot). The parse is a pure function of the
+    string, so the cache is permanently invalidation-safe — these tests pin
+    that the cached parse never changes the match result and fails soft."""
+
+    def test_cache_is_used_for_repeated_specifier(self):
+        from sndr.compat import version_check as vc
+
+        vc._specifier_set.cache_clear()
+        vc._match_pep440("0.20.5", ">=0.20.0")
+        vc._match_pep440("0.21.0", ">=0.20.0")  # same specifier, different version
+        info = vc._specifier_set.cache_info()
+        assert info.misses == 1, "the specifier must be parsed exactly once"
+        assert info.hits >= 1, "the second call must hit the cache"
+
+    def test_cached_match_equals_fresh_parse(self):
+        from packaging.specifiers import SpecifierSet
+
+        from sndr.compat import version_check as vc
+
+        cases = [
+            ("0.20.5", ">=0.20.0"),
+            ("0.19.0", ">=0.20.0"),
+            ("0.20.5", "<0.21.0"),
+            ("0.21.0", "<0.21.0"),
+            ("0.20.1rc1.dev16+g7a1eb8ac2", ">=0.20.0"),
+        ]
+        for version, spec in cases:
+            fresh = SpecifierSet(spec)
+            fresh.prereleases = True
+            expected = version.partition("+")[0] in fresh
+            assert vc._match_pep440(version, spec) is expected, (version, spec)
+
+    def test_malformed_specifier_fails_soft_and_is_cached(self):
+        from sndr.compat import version_check as vc
+
+        vc._specifier_set.cache_clear()
+        # A malformed specifier must return None (unknown), not raise — and the
+        # None outcome is cached so the bad string is not re-parsed each call.
+        assert vc._match_pep440("0.20.0", "not-a-specifier") is None
+        assert vc._match_pep440("0.20.0", "not-a-specifier") is None
+        assert vc._specifier_set.cache_info().misses == 1
+
+
 class TestTorchTritonCuda:
     def test_torch_min_passes(self):
         p = _profile(torch="2.5.1+cu124")

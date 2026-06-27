@@ -128,6 +128,9 @@ audit-upstream-watchlist: ## Etap 5.1: validate UPSTREAM_WATCHLIST.yaml + emit P
 watchlist-check: ## PR-sweep `sweep:` section of upstream_watchlist.yaml — schema + pr uniqueness (2026-06-11 roadmap)
 	$(PYTHON) tools/check_upstream_watchlist.py
 
+watchlist-check-registry: ## Bump-preflight gate: watchlist <-> live-registry binding (concrete genesis_patch ids are live + drift-detectable; reanchor targets carry a required anchor or a detection: override) — exit 3 on a stale binding
+	$(PYTHON) tools/check_upstream_watchlist.py --check-registry
+
 audit-upstream: audit-upstream-watchlist ## Audit PATCH_REGISTRY vs GitHub PR merge state (live)
 	$(PYTHON) scripts/audit_upstream_status.py
 
@@ -197,6 +200,9 @@ bump-preflight: ## Phase 4: bump gate — retire-impact + perf-landmine checklis
 		echo "Usage: make bump-preflight OLD=sndr/engines/vllm/pins/<old> NEW=sndr/engines/vllm/pins/<new>"; \
 		exit 2; }
 	@$(PYTHON) scripts/anchor_sot/bump_preflight.py "$${OLD}" "$${NEW}"
+
+new-pin-check: ## Phase 4: NEW-pin readiness — auto-resolves the previous pin + runs coverage + summarize + bump_preflight in one deterministic host-side pass (NEW=<dir>, default = most-recent committed pin)
+	@$(PYTHON) scripts/anchor_sot/new_pin_check.py $${NEW:+sndr/engines/vllm/pins/$${NEW}}
 
 audit-legacy-imports: ## Forbid vllm.sndr_core.patches / vllm._genesis active imports
 	@bash scripts/check_no_legacy_imports.sh

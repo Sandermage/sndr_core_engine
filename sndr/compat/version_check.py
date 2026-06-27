@@ -39,6 +39,7 @@ Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
 from __future__ import annotations
 
+import functools
 import logging
 import subprocess
 from dataclasses import dataclass, field
@@ -185,11 +186,19 @@ def _split_pep440_pre_dev_local(version: str) -> str:
     return version.partition("+")[0]
 
 
-def _match_pep440(version: str, specifier: str) -> bool | None:
-    """Return True/False if version matches PEP 440 specifier, or None
-    if the specifier is malformed (caller should treat as 'unknown')."""
-    if version is None:
-        return None
+@functools.lru_cache(maxsize=512)
+def _specifier_set(specifier: str):
+    """Parse a PEP 440 specifier string into a prerelease-aware SpecifierSet.
+
+    `SpecifierSet(...)` builds a per-clause parser/state machine — a few
+    hundred microseconds — and the registry feeds the same ~hundred static
+    specifier strings (`vllm_version_range` constants) through the gate for
+    all ~321 patches on every boot / doctor run / spec iteration. Specifier
+    strings are immutable registry literals, so caching the parsed object is
+    permanently invalidation-safe (no input but the string itself). Returns
+    None on a malformed specifier or a missing `packaging` install, matching
+    the previous fail-soft behaviour.
+    """
     try:
         from packaging.specifiers import SpecifierSet
     except Exception:
@@ -198,6 +207,20 @@ def _match_pep440(version: str, specifier: str) -> bool | None:
         sset = SpecifierSet(specifier)
         # vllm uses .dev versions extensively; allow prereleases
         sset.prereleases = True
+        return sset
+    except Exception:
+        return None
+
+
+def _match_pep440(version: str, specifier: str) -> bool | None:
+    """Return True/False if version matches PEP 440 specifier, or None
+    if the specifier is malformed (caller should treat as 'unknown')."""
+    if version is None:
+        return None
+    sset = _specifier_set(specifier)
+    if sset is None:
+        return None
+    try:
         return _split_pep440_pre_dev_local(version) in sset
     except Exception:
         return None

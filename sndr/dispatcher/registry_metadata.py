@@ -38,6 +38,7 @@ Related
 """
 from __future__ import annotations
 
+import functools
 from pathlib import Path
 from typing import Literal, TypedDict
 
@@ -294,11 +295,20 @@ EXPLICIT_OVERRIDES: dict[str, DerivedMetadata] = {
 }
 
 
+@functools.lru_cache(maxsize=1024)
 def _file_based_test_status(patch_id: str, family: str = "") -> TestStatus:
     """Best-effort: look for `tests/unit/integrations/<family>/test_<id>_*.py`
     or `tests/legacy/test_<id>*.py`. Return `unit` if found, otherwise
     `none`. Integration / bench tiers require a manual override via
     EXPLICIT_OVERRIDES.
+
+    Cached per ``(patch_id, family)``: `derive_metadata` calls this once per
+    patch on every `iter_patch_specs()` / spec construction, and the lookup
+    fans out into up to eight `rglob` walks of the (~700-file) test tree —
+    ~8 us/call, ~2.6 ms across all 321 patches, and worse on slower CI
+    filesystems. The test-file inventory is fixed within a process, so the
+    result is a pure function of its two string args. Tests that add/remove
+    test files at runtime (rare) call `reset_file_based_test_status_cache()`.
     """
     pid_lower = patch_id.lower()
     # Direct hit in integrations
@@ -326,6 +336,13 @@ def _file_based_test_status(patch_id: str, family: str = "") -> TestStatus:
         for f in legacy.rglob(f"test_p{pid_lower.lstrip('p')}*.py"):
             return "unit"
     return "none"
+
+
+def reset_file_based_test_status_cache() -> None:
+    """Drop the `_file_based_test_status` lookup cache. Test hook for the
+    rare case where a test materialises/removes test files on disk and then
+    asserts on derived metadata in the same process."""
+    _file_based_test_status.cache_clear()
 
 
 _LIFECYCLE_TO_IMPL: dict[str, ImplStatus] = {
