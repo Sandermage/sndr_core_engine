@@ -304,7 +304,18 @@ def evaluate_fit(preset_id: str, env: RequiredEnvelope, rig: Rig) -> FitReport:
 
 
 class RigProbe:
-    """Detect the live rig via ``nvidia-smi``. Subclass/override for tests."""
+    """Detect the live rig via ``nvidia-smi``. Subclass/override for tests.
+
+    ``timeout`` bounds the ``nvidia-smi`` subprocess so a wedged driver / busy
+    GPU (e.g. mid-load of a 35B engine) can never block the caller longer than
+    the cap — on timeout we degrade to an empty rig (the fit-check then SKIPs
+    the rig-dependent dimensions rather than hanging). Default 5s keeps the GUI
+    pre-launch probe snappy; the CLI may pass a larger value if it wants more
+    patience on a cold rig.
+    """
+
+    def __init__(self, timeout: float = 5.0) -> None:
+        self.timeout = timeout
 
     def detect(self) -> Rig:
         try:
@@ -312,7 +323,7 @@ class RigProbe:
                 ["nvidia-smi",
                  "--query-gpu=index,name,memory.total,compute_cap",
                  "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=8,
+                capture_output=True, text=True, timeout=self.timeout,
             )
         except (OSError, subprocess.TimeoutExpired):
             return Rig(gpus=[], source="nvidia-smi")

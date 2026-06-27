@@ -133,6 +133,18 @@ print(json.dumps(o))
 """
 
 
+def _env_float(name: str, default: float) -> float:
+    """Read a float from the environment, falling back to ``default`` on absence
+    or a malformed value (a bad override must never crash a request handler)."""
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return default
+
+
 def _own_container_id() -> str:
     """The container id THIS daemon runs in, read from /proc (empty if not in a
     container). Unlike ``socket.gethostname()`` this works under ``--network
@@ -553,7 +565,18 @@ def create_app(
         hardware id, offline) > the live nvidia-smi rig. Returns the same dict
         shape as the CLI's JSON output (``required`` + per-dimension ``checks``
         + ``verdict``/``can_run``). Read-only.
+
+        Non-blocking + bounded: the live-rig path shells out to ``nvidia-smi``,
+        which can stall on a wedged driver or a GPU busy loading a 35B engine.
+        That subprocess (and the YAML loads) run OFF the event loop via
+        ``asyncio.to_thread`` under a hard ``SNDR_PREFLIGHT_DEADLINE_S`` cap, so a
+        slow probe can never block the handler — or the whole daemon — the way a
+        synchronous in-handler ``subprocess.run`` would. On timeout we degrade to
+        an empty rig (the fit-check SKIPs the rig-dependent rows and says so),
+        never an indefinite spin.
         """
+        import asyncio  # noqa: PLC0415
+
         from sndr.model_configs.preflight_fit import (
             RigProbe,
             evaluate_fit,
@@ -568,33 +591,72 @@ def create_app(
         )
         from sndr.model_configs.schema import SchemaError
 
+        # Hard server-side cap on the whole projection (YAML loads + live probe).
+        # The live nvidia-smi probe itself is capped tighter inside RigProbe;
+        # this is the outer guarantee the handler returns within bounds even if
+        # to_thread is slow to schedule under load. The deadline is overridable
+        # via env (``SNDR_PREFLIGHT_DEADLINE_S``) so tests can exercise the
+        # timeout path fast and operators can tune patience for a cold rig.
+        preflight_deadline_s = _env_float("SNDR_PREFLIGHT_DEADLINE_S", 6.0)
+        probe_timeout_s = max(0.1, preflight_deadline_s - 2.0)
+
+        def _project() -> tuple[Any, Any, Any, str | None]:
+            """Resolve the envelope + rig and run the (pure) fit projection. Runs
+            in a worker thread — all the blocking I/O (YAML, nvidia-smi) lives
+            here so the event loop stays free. Returns
+            ``(report, resolved_rig, env, error)`` where ``error`` is a sentinel
+            the handler maps to an HTTP status (so we never raise across
+            to_thread)."""
+            try:
+                cfg = load_alias(preset_id)
+                preset_def = load_preset_def(preset_id)
+            except (SchemaError, FileNotFoundError, KeyError) as exc:
+                return None, None, None, f"preset:{preset_id}:{exc}"
+
+            env_local = resolve_required_envelope(cfg, preset_def)
+
+            # Rig resolution: fake_gpus > rig (builtin hardware id) > live probe.
+            if fake_gpus is not None:
+                resolved = rig_from_fake_spec(fake_gpus)
+            elif rig is not None:
+                try:
+                    hw_def = load_hardware(rig)
+                except (SchemaError, FileNotFoundError, KeyError) as exc:
+                    return None, None, None, f"rig:{rig}:{exc}"
+                resolved = rig_from_hardware_def(hw_def, source=f"rig:{rig}")
+            else:
+                resolved = RigProbe(timeout=probe_timeout_s).detect()
+
+            return evaluate_fit(preset_id, env_local, resolved), resolved, env_local, None
+
         try:
-            cfg = load_alias(preset_id)
-            preset_def = load_preset_def(preset_id)
-        except (SchemaError, FileNotFoundError, KeyError) as exc:
+            report, resolved_rig, env, error = await asyncio.wait_for(
+                asyncio.to_thread(_project), timeout=preflight_deadline_s
+            )
+        except asyncio.TimeoutError as exc:
+            # The probe (or a wedged YAML load) blew the deadline. Fail with a
+            # clear, retryable 504 instead of holding the connection open — the
+            # GUI surfaces this as "Fit check timed out — retry", never a spin.
             raise HTTPException(
-                status_code=404,
-                detail=f"Could not resolve preset {preset_id!r}: {exc}",
+                status_code=504,
+                detail=(
+                    f"Fit check for {preset_id!r} exceeded "
+                    f"{preflight_deadline_s:.0f}s (rig probe stalled) — retry, "
+                    "or model a rig offline with the rig selector."
+                ),
             ) from exc
 
-        env = resolve_required_envelope(cfg, preset_def)
-
-        # Rig resolution: fake_gpus > rig (builtin hardware id) > live probe.
-        if fake_gpus is not None:
-            resolved_rig = rig_from_fake_spec(fake_gpus)
-        elif rig is not None:
-            try:
-                hw_def = load_hardware(rig)
-            except (SchemaError, FileNotFoundError, KeyError) as exc:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Could not load --rig {rig!r}: {exc}",
-                ) from exc
-            resolved_rig = rig_from_hardware_def(hw_def, source=f"rig:{rig}")
-        else:
-            resolved_rig = RigProbe().detect()
-
-        report = evaluate_fit(preset_id, env, resolved_rig)
+        if error is not None:
+            kind, _, _detail = error.partition(":")
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"Could not resolve preset {preset_id!r}: {_detail}"
+                    if kind == "preset"
+                    else f"Could not load --rig {rig!r}: {_detail}"
+                ),
+            )
+        assert report is not None and resolved_rig is not None and env is not None
         return {
             "preset": report.preset_id,
             "verdict": report.verdict,
