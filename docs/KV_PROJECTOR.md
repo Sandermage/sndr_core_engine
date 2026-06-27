@@ -7,10 +7,20 @@ per-card GB, and will it OOM?"**
 It is the Genesis analogue of club-3090's `tools/kv-calc.py`. The math
 *structure* is shared (per-card weights + growing-KV pool + recurrent state +
 activation peak + cudagraph overhead + drafter, with the vLLM "KV pool fills the
-budget" capping behavior and a PASS / TIGHT / FAIL verdict). The per-family
-**calibration coefficients are OUR OWN**, derived from OUR measured reality on
-2× RTX A5000 24 GB, vLLM pin `0.23.1rc1.dev424+g3f5a1e173` — not copied from
-club-3090.
+budget" capping behavior, a PASS / TIGHT / FAIL verdict, and the `--fit-all`
+whole-catalog projection mode). The per-family **calibration coefficients are OUR
+OWN**, derived from OUR measured reality on 2× RTX A5000 24 GB, vLLM pin
+`0.23.1rc1.dev424+g3f5a1e173` — not copied from club-3090.
+
+## Paper anchors (provenance for the byte-level model)
+
+The byte-level model is paper-anchored, not curve-fit folklore:
+
+| anchor | paper | what it sets |
+|---|---|---|
+| **PagedAttention** | [arXiv:2309.06180](https://arxiv.org/abs/2309.06180) | the block-paged KV pool fills `mem_util × VRAM` minus the fixed footprint; a *capped* (not refused) pool is the TIGHT verdict |
+| **PerfMamba** | [arXiv:2511.22849](https://arxiv.org/abs/2511.22849) | the GDN/Mamba block-state activation peak is `O(γ·D·N·L)`, linear in context — the form of `_ACTIVATION_COEF_BYTES` |
+| **TurboQuant** | [arXiv:2504.19874](https://arxiv.org/abs/2504.19874) | the asymmetric **k8v4** KV cache (8-bit K + 4-bit V → 0.75 B/element) the 35B/27B production lanes run |
 
 ## Why it exists (the gap it closes)
 
@@ -178,6 +188,58 @@ kv-calc: prod-qwen3.6-35b-balanced
       pool; effective concurrency may be below max_num_seqs=2 at full
       max_ctx=280,000.
 ```
+
+## `--fit-all` — project the WHOLE catalog into one table
+
+club-3090's `tools/kv-calc.py` ships a `--fit-all` mode that projects **every**
+catalog model/preset at once into a single fit table — *"which of my models fit
+which card / ctx before I download anything?"*. `sndr kv-calc --fit-all` is the
+Genesis equivalent. It iterates every builtin preset, projects each against each
+card size (default ladder **24 / 48 / 80 GiB**, or a `--cards 24,48` list), and
+prints a per-card table with the projected per-card total, the largest ctx that
+still PASS/TIGHT-fits, and the PASS / TIGHT / FAIL / SKIP verdict. It is fully
+**offline** (no nvidia-smi) and handles **both engines** — vLLM lanes via
+`project_from_shape`, the llama.cpp single-card GGUF lane via
+`project_llamacpp_from_shape`. A model that declares **no** `capabilities.shape`
+is **SKIP**ped with a note (the projector can't do byte math for it) — it never
+errors out and never drops the rest of the table.
+
+```bash
+# Default 24/48/80 GiB ladder, every builtin preset, offline:
+sndr kv-calc --fit-all
+
+# A custom card list:
+sndr kv-calc --fit-all --cards 24,48,80
+
+# Machine-readable (one row per preset × card):
+sndr --output json kv-calc --fit-all --card 24
+```
+
+Sample (`--cards 24`, trimmed to the byte-level-shaped presets):
+
+```
+kv-calc --fit-all  (which of my models fit which card / ctx?)
+  cards: 24 GiB
+  verdict: ✓ PASS  ! TIGHT  ✗ FAIL   ? SKIP (no shape)
+
+  ═══ 24 GiB / card ════════════════════════════════════════
+  PRESET                             ENGINE     VERDICT      TOTAL   MAX-CTX-FIT
+  ──────────────────────────────────────────────────────────────────────────────
+  llamacpp-qwen3.6-27b-q4km-1x       llama-cpp  ✓ PASS     22.5 GiB          512k *
+  prod-gemma4-26b-default            vllm       ? SKIP         —                —
+  prod-qwen3.6-27b-tq-k8v4           vllm       ✓ PASS     15.3 GiB         1024k *
+  prod-qwen3.6-35b-balanced          vllm       ! TIGHT    21.6 GiB          300k
+
+  * = calibration PROVISIONAL (no live engine anchor) — ±1.5 GiB.
+  MAX-CTX-FIT = largest ctx that still PASS/TIGHT-fits that card at the preset's concurrency.
+```
+
+The `--fit-all` math is **reused, not duplicated**: every cell's verdict comes
+from the same `project_from_shape` / `project_llamacpp_from_shape` the
+single-preset path uses, and its `MAX-CTX-FIT` from `solve_max_ctx`. The
+`prod-qwen3.6-35b-balanced` row reproduces the dev424 PN403 **TIGHT** point on a
+real 24 GiB A5000; bump to `--cards 48` and the same preset goes **PASS** as the
+KV pool clears its requested ceiling.
 
 ## Wiring into preflight
 

@@ -104,3 +104,74 @@ class TestKvCalcJson:
                         "--card", "24"])
         assert rc == 2
         assert "error" in json.loads(out)
+
+
+class TestKvCalcFitAll:
+    """``--fit-all`` projects the WHOLE catalog into one table per card."""
+
+    def test_fit_all_prints_a_table_rc0(self):
+        rc, out = _run(["kv-calc", "--fit-all", "--card", "24"])
+        assert rc == 0
+        # The two anchor presets must each appear as a row.
+        assert "prod-qwen3.6-35b-balanced" in out
+        assert "prod-qwen3.6-27b-tq-k8v4" in out
+        # A verdict glyph/word is printed.
+        assert any(v in out for v in ("PASS", "TIGHT", "FAIL"))
+
+    def test_fit_all_iterates_multiple_cards(self):
+        rc, out = _run(["kv-calc", "--fit-all", "--cards", "24,48,80"])
+        assert rc == 0
+        for c in ("24", "48", "80"):
+            assert c in out
+
+    def test_fit_all_default_card_set_when_none_given(self):
+        """No --card / --cards / --rig → a sensible default 24/48/80 table,
+        offline (no nvidia-smi needed)."""
+        rc, out = _run(["kv-calc", "--fit-all"])
+        assert rc == 0
+        assert "24" in out and "48" in out and "80" in out
+
+    def test_fit_all_tiny_card_35b_fails_gguf_passes(self):
+        """The load-bearing fixture: on a tiny card the 35B FAILs; the 27B
+        single-card GGUF lane PASSes on its real 24 GiB card."""
+        rc14, out14 = _run(["--output", "json", "kv-calc", "--fit-all",
+                            "--cards", "14"])
+        assert rc14 == 0
+        rows = {r["preset"]: r for r in json.loads(out14)["rows"]}
+        assert rows["prod-qwen3.6-35b-balanced"]["verdict"] == "FAIL"
+
+        rc24, out24 = _run(["--output", "json", "kv-calc", "--fit-all",
+                            "--cards", "24"])
+        rows24 = {(r["preset"], r["card_gib"]): r
+                  for r in json.loads(out24)["rows"]}
+        gguf = rows24[("llamacpp-qwen3.6-27b-q4km-1x", 24.0)]
+        assert gguf["verdict"] == "PASS"
+        assert gguf["engine"] == "llama-cpp"
+
+    def test_fit_all_skips_shapeless_model_with_note_not_error(self):
+        """A catalog model with no ModelShape must SKIP (with a note), not crash
+        the whole table."""
+        rc, out = _run(["--output", "json", "kv-calc", "--fit-all", "--cards", "24"])
+        assert rc == 0
+        data = json.loads(out)
+        rows = data["rows"]
+        skipped = [r for r in rows if r["verdict"] == "SKIP"]
+        # gemma4 / 7b-dense / fp8kv presets carry no shape → at least one SKIP.
+        assert skipped, "expected at least one SKIP row for a shapeless model"
+        assert all(r["notes"] for r in skipped)
+
+    def test_fit_all_json_shape(self):
+        rc, out = _run(["--output", "json", "kv-calc", "--fit-all", "--cards", "24,48"])
+        assert rc == 0
+        data = json.loads(out)
+        assert data["mode"] == "fit-all"
+        assert data["cards_gib"] == [24.0, 48.0]
+        assert isinstance(data["rows"], list) and data["rows"]
+        row = data["rows"][0]
+        assert {"preset", "engine", "card_gib", "verdict", "max_ctx_fit",
+                "provisional"} <= set(row)
+
+    def test_fit_all_fit_alias_also_works(self):
+        rc, out = _run(["fit", "--fit-all", "--card", "24"])
+        assert rc == 0
+        assert "prod-qwen3.6-35b-balanced" in out

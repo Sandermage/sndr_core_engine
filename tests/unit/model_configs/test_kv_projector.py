@@ -322,3 +322,137 @@ def test_project_ctx_override():
     rig = kp.ProjectorRig(vram_gib_per_card=24.0, gpu_count=2)
     p = kp.project(preset, rig, ctx=32000)
     assert p.ctx == 32000
+
+
+# ─── fit_all: project the whole catalog into one table ───────────────────────
+
+
+def _gguf_27b_shape() -> ModelShape:
+    """qwen3.6-27b-gguf-q4km-mtp — the llama.cpp single-card GGUF lane shape."""
+    return ModelShape(
+        num_hidden_layers=48,
+        num_attention_layers=12,
+        num_recurrent_layers=36,
+        hidden_size=4096,
+        num_attention_heads=40,
+        num_kv_heads=4,
+        head_dim=128,
+        weight_bits=4,
+        weights_total_gib=17.0,
+        mtp_num_layers=1,
+    )
+
+
+def _entry_35b() -> kp.FitAllEntry:
+    return kp.FitAllEntry(
+        preset_id="prod-qwen3.6-35b-balanced",
+        shape=_shape_35b(),
+        engine="vllm",
+        kv_format="turboquant_k8v4",
+        ctx=280000, max_num_seqs=2, tp=2, mem_util=0.9, mtp=True, mtp_n=5,
+    )
+
+
+def _entry_27b_tq() -> kp.FitAllEntry:
+    return kp.FitAllEntry(
+        preset_id="prod-qwen3.6-27b-tq-k8v4",
+        shape=_shape_27b(),
+        engine="vllm",
+        kv_format="turboquant_k8v4",
+        ctx=262144, max_num_seqs=2, tp=2, mem_util=0.9, mtp=True, mtp_n=5,
+    )
+
+
+def _entry_gguf_27b() -> kp.FitAllEntry:
+    return kp.FitAllEntry(
+        preset_id="llamacpp-qwen3.6-27b-q4km-1x",
+        shape=_gguf_27b_shape(),
+        engine="llama-cpp",
+        kv_format="q4_0",
+        ctx=131072, max_num_seqs=1, tp=1, mem_util=1.0, mtp=True, mtp_n=0,
+    )
+
+
+def _entry_no_shape() -> kp.FitAllEntry:
+    """A catalog model with no byte-level shape — must skip-with-note, not crash."""
+    return kp.FitAllEntry(
+        preset_id="prod-gemma4-26b-default",
+        shape=None,
+        engine="vllm",
+        kv_format="auto",
+        ctx=262144, max_num_seqs=2, tp=2, mem_util=0.9, mtp=False, mtp_n=0,
+    )
+
+
+def test_fit_all_one_row_per_entry_per_card():
+    entries = [_entry_35b(), _entry_27b_tq(), _entry_gguf_27b()]
+    cards = (24, 48)
+    rows = kp.fit_all(entries, cards)
+    assert len(rows) == len(entries) * len(cards)
+    # Every (preset, card) pair is represented exactly once.
+    pairs = {(r.preset_id, r.card_gib) for r in rows}
+    assert pairs == {(e.preset_id, float(c)) for e in entries for c in cards}
+
+
+def test_fit_all_verdicts_on_tiny_card_match_real_math():
+    """On a tiny card the 35B FAILs (16.76 GiB weights/card > budget) while the
+    27B single-card GGUF lane PASSes — the load-bearing fixture from the task."""
+    entries = [_entry_35b(), _entry_gguf_27b()]
+    rows = kp.fit_all(entries, (14,))
+    by_id = {r.preset_id: r for r in rows}
+    # 35B weights alone (33.53 ÷ TP2 = 16.76 GiB/card) blow a 14 GiB card.
+    assert by_id["prod-qwen3.6-35b-balanced"].verdict == "FAIL"
+    # The GGUF single-card lane fits ~22.5 GiB on its own 24 GiB card; on a 14
+    # GiB card it does NOT — but on its real 24 GiB card it PASSes (next test).
+
+
+def test_fit_all_gguf_single_card_passes_on_24gib():
+    rows = kp.fit_all([_entry_gguf_27b()], (24,))
+    assert rows[0].verdict == "PASS"
+    assert rows[0].engine == "llama-cpp"
+    # The llama.cpp lane is single-card: tp stays 1 regardless of the table.
+    assert rows[0].projection.tp == 1
+
+
+def test_fit_all_skips_model_without_shape_with_note_not_error():
+    """A model missing a ModelShape must produce a skip row (verdict SKIP +
+    note), NOT raise — the table keeps going for the rest of the catalog."""
+    rows = kp.fit_all([_entry_no_shape(), _entry_35b()], (24,))
+    by_id = {r.preset_id: r for r in rows}
+    skipped = by_id["prod-gemma4-26b-default"]
+    assert skipped.verdict == "SKIP"
+    assert skipped.projection is None
+    assert any("shape" in n.lower() for n in skipped.notes)
+    # The rest of the table is unaffected.
+    assert by_id["prod-qwen3.6-35b-balanced"].verdict in ("PASS", "TIGHT", "FAIL")
+
+
+def test_fit_all_reports_max_ctx_that_fits_per_card():
+    """Each fit row carries the solved max-ctx that still PASS/TIGHT-fits, and a
+    bigger card never yields a smaller max-ctx (monotone in budget)."""
+    rows = kp.fit_all([_entry_27b_tq()], (24, 48))
+    by_card = {r.card_gib: r for r in rows}
+    assert by_card[24.0].max_ctx_fit > 0
+    assert by_card[48.0].max_ctx_fit >= by_card[24.0].max_ctx_fit
+
+
+def test_fit_all_uses_projector_math_not_duplicate():
+    """A fit_all row's projection must be byte-identical to a direct project_*
+    call at the same operating point — proving fit_all REUSES the math."""
+    e = _entry_35b()
+    row = kp.fit_all([e], (24,))[0]
+    direct = kp.project_from_shape(
+        e.shape, preset_id=e.preset_id, kv_format=e.kv_format, ctx=e.ctx,
+        max_num_seqs=e.max_num_seqs, tp=e.tp, mem_util=e.mem_util,
+        vram_gib=24.0, mtp=e.mtp, mtp_n=e.mtp_n,
+    )
+    assert row.projection.total_gib == direct.total_gib
+    assert row.projection.verdict == direct.verdict
+    assert row.verdict == direct.verdict
+
+
+def test_fit_all_provisional_flag_surfaces():
+    rows = kp.fit_all([_entry_35b(), _entry_27b_tq()], (24,))
+    by_id = {r.preset_id: r for r in rows}
+    assert by_id["prod-qwen3.6-35b-balanced"].provisional is False
+    assert by_id["prod-qwen3.6-27b-tq-k8v4"].provisional is True

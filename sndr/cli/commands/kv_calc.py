@@ -17,6 +17,12 @@ Examples::
     sndr kv-calc prod-qwen3.6-35b-balanced --ctx 131072 --kv-breakdown
     sndr kv-calc prod-qwen3.6-27b-tq-k8v4 --solve-max-ctx
     sndr --output json kv-calc prod-qwen3.6-35b-balanced
+
+    # Whole-catalog fit table — "which of my models fit which card / ctx before
+    # I download anything?". Projects EVERY builtin preset against each card.
+    sndr kv-calc --fit-all
+    sndr kv-calc --fit-all --cards 24,48,80
+    sndr --output json kv-calc --fit-all --card 24
 """
 from __future__ import annotations
 
@@ -36,8 +42,20 @@ class KvCalcCommand:
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
-            "preset",
-            help="Preset alias to project (e.g. prod-qwen3.6-35b-balanced).",
+            "preset", nargs="?", default=None,
+            help="Preset alias to project (e.g. prod-qwen3.6-35b-balanced). "
+                 "Omit with --fit-all to project the whole catalog.",
+        )
+        parser.add_argument(
+            "--fit-all", action="store_true",
+            help="Project EVERY builtin preset against each card into one fit "
+                 "table ('which of my models fit which card/ctx?'). Offline; "
+                 "uses --cards / --card / --rig or a default 24/48/80 set.",
+        )
+        parser.add_argument(
+            "--cards", default=None, metavar="GB[,GB...]",
+            help="Comma-separated per-card VRAM sizes for --fit-all "
+                 "(e.g. 24,48,80). Default: 24,48,80.",
         )
         parser.add_argument(
             "--rig", default=None, metavar="HARDWARE_ID",
@@ -88,7 +106,17 @@ class KvCalcCommand:
         )
         from sndr.model_configs.schema import SchemaError
 
+        # Whole-catalog fit table — no single preset positional needed.
+        if args.fit_all:
+            return self._do_fit_all(args, load_hardware)
+
         preset_id = args.preset
+        if not preset_id:
+            return self._error(
+                args, "<none>",
+                "a preset alias is required (or pass --fit-all to project the "
+                "whole catalog).",
+            )
 
         # Resolve the composed cfg (operating point) + the V2 ModelDef (shape).
         try:
@@ -215,6 +243,101 @@ class KvCalcCommand:
                       "(no live engine anchor) — treat as ±1.5 GiB.")
         return 0 if max_ctx > 0 else 1
 
+    # ── fit-all (whole-catalog table) ──
+
+    def _resolve_fit_all_cards(self, args, load_hardware) -> list[float]:
+        """Resolve the list of per-card VRAM sizes for the fit-all table.
+
+        Precedence: --cards (explicit list) > --card (single) > --fake-gpus /
+        --rig (the resolved rig's card size) > the default 24/48/80 set. The
+        default keeps --fit-all fully offline (no nvidia-smi) so the GUI / CI can
+        project the catalog before any host exists.
+        """
+        if args.cards:
+            out: list[float] = []
+            for tok in str(args.cards).split(","):
+                tok = tok.strip()
+                if not tok:
+                    continue
+                try:
+                    out.append(float(tok))
+                except ValueError:
+                    continue
+            if out:
+                return out
+        if args.card is not None:
+            try:
+                return [float(args.card)]
+            except ValueError:
+                pass
+        if args.fake_gpus is not None or args.rig is not None:
+            vram, _ = self._resolve_rig(args, load_hardware)
+            if vram is not None:
+                return [vram]
+        # Default offline ladder: 24 GiB (3090/A5000), 48 GiB (A6000/L40),
+        # 80 GiB (A100/H100).
+        return [24.0, 48.0, 80.0]
+
+    def _build_fit_all_entries(self, args) -> tuple[list, list[str]]:
+        """Resolve every builtin preset into a ``FitAllEntry`` (skip-with-note
+        for shapeless models — handled downstream by ``fit_all``). Returns the
+        entries plus a list of resolve-error notes (presets that wouldn't load)."""
+        from sndr.model_configs.registry_v2 import (
+            list_presets, load_alias, load_model, load_preset_def,
+        )
+        from sndr.model_configs.schema import SchemaError
+
+        ctx_override = _parse_ctx(args.ctx)
+        entries: list = []
+        errors: list[str] = []
+        for alias in list_presets():
+            try:
+                cfg = load_alias(alias)
+                preset_def = load_preset_def(alias)
+                model_def = load_model(preset_def.model)
+            except (SchemaError, FileNotFoundError, KeyError, AttributeError) as e:
+                errors.append(f"{alias}: could not resolve ({e})")
+                continue
+            except Exception as e:  # noqa: BLE001 — keep the table going
+                errors.append(f"{alias}: unexpected ({type(e).__name__}: {e})")
+                continue
+
+            shape = getattr(model_def.capabilities, "shape", None)
+            op = kp._resolve_operating_point(cfg)
+            entries.append(kp.FitAllEntry(
+                preset_id=alias,
+                shape=shape,
+                engine=getattr(cfg, "engine", "vllm"),
+                kv_format=(args.kv_format or op["kv_format"]),
+                ctx=(ctx_override if ctx_override is not None else op["ctx"]),
+                max_num_seqs=(args.max_num_seqs or op["max_num_seqs"]),
+                tp=op["tp"],
+                mem_util=op["mem_util"],
+                mtp=op["mtp"],
+                mtp_n=op["mtp_n"],
+            ))
+        return entries, errors
+
+    def _do_fit_all(self, args, load_hardware) -> int:
+        cards = self._resolve_fit_all_cards(args, load_hardware)
+        entries, errors = self._build_fit_all_entries(args)
+        rows = kp.fit_all(entries, cards)
+
+        if args.output == "json":
+            print(json.dumps({
+                "mode": "fit-all",
+                "cards_gib": cards,
+                "resolve_errors": errors,
+                "rows": [_fit_row_to_dict(r) for r in rows],
+            }, indent=2))
+        else:
+            _print_fit_all(rows, cards, errors)
+
+        # Exit 0 whenever the table rendered — --fit-all is a survey, not a gate
+        # (a single FAIL row is information, not a command failure). Non-zero
+        # only if NOTHING could be projected at all (no entries resolved).
+        return 0 if rows else 1
+
     def _error(self, args, preset_id, msg) -> int:
         if args.output == "json":
             print(json.dumps({"preset": preset_id, "error": msg}, indent=2))
@@ -320,6 +443,69 @@ def _print_projection(p: kp.Projection, rig_source: str, *, full: bool) -> None:
           + ("   [calibration PROVISIONAL]" if p.provisional else ""))
     for n in p.notes:
         print(f"    · {n}")
+
+
+def _fit_row_to_dict(r: kp.FitAllRow) -> dict:
+    return {
+        "preset": r.preset_id,
+        "engine": r.engine,
+        "card_gib": r.card_gib,
+        "verdict": r.verdict,
+        "projected_total_gib": (round(r.projected_total_gib, 3)
+                                if r.projected_total_gib is not None else None),
+        "max_ctx_fit": r.max_ctx_fit,
+        "provisional": r.provisional,
+        "notes": list(r.notes),
+    }
+
+
+def _fmt_ctx(n: int) -> str:
+    """Compact ctx for the table: 131072 → '128k', 0 → '—'."""
+    if not n:
+        return "—"
+    if n >= 1024 and n % 1024 == 0:
+        return f"{n // 1024}k"
+    if n >= 1000:
+        return f"{n / 1000:.0f}k"
+    return str(n)
+
+
+def _print_fit_all(rows, cards, errors) -> None:
+    """Render the whole-catalog fit table grouped by card size."""
+    card_set = [float(c) for c in cards]
+    print("kv-calc --fit-all  (which of my models fit which card / ctx?)")
+    print(f"  cards: {', '.join(f'{c:.0f} GiB' for c in card_set)}")
+    print("  verdict: " + "  ".join(
+        f"{g} {v}" for v, g in _VERDICT_GLYPH.items()) + "   ? SKIP (no shape)")
+
+    by_card: dict[float, list] = {c: [] for c in card_set}
+    for r in rows:
+        by_card.setdefault(r.card_gib, []).append(r)
+
+    hdr = (f"  {'PRESET':<34s} {'ENGINE':<10s} {'VERDICT':<8s} "
+           f"{'TOTAL':>9s}  {'MAX-CTX-FIT':>12s}")
+    for card in card_set:
+        print()
+        print(f"  ═══ {card:.0f} GiB / card " + "═" * 40)
+        print(hdr)
+        print("  " + "─" * 78)
+        for r in sorted(by_card.get(card, []), key=lambda x: x.preset_id):
+            glyph = _VERDICT_GLYPH.get(r.verdict, "?")
+            total = (f"{r.projected_total_gib:>6.1f} GiB"
+                     if r.projected_total_gib is not None else "      —   ")
+            prov = " *" if (r.provisional and r.verdict != "SKIP") else ""
+            print(f"  {r.preset_id:<34s} {r.engine:<10s} "
+                  f"{glyph} {r.verdict:<6s} {total}  "
+                  f"{_fmt_ctx(r.max_ctx_fit):>12s}{prov}")
+    print()
+    print("  * = calibration PROVISIONAL (no live engine anchor) — ±1.5 GiB.")
+    print("  MAX-CTX-FIT = largest ctx that still PASS/TIGHT-fits that card "
+          "at the preset's concurrency.")
+    if errors:
+        print()
+        print("  resolve notes (presets that could not be loaded):")
+        for e in errors:
+            print(f"    · {e}")
 
 
 __all__ = ["KvCalcCommand"]

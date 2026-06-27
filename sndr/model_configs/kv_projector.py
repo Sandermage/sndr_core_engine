@@ -5,9 +5,22 @@ tp, what's my ACTUAL per-card GB and will it OOM?".
 This is the Genesis analogue of club-3090's ``tools/kv-calc.py`` (the math
 STRUCTURE is borrowed — per-card weights + growing-KV pool + recurrent state +
 activation peak + cudagraph overhead + drafter, with the vLLM "KV pool fills the
-budget" capping behavior and a PASS/TIGHT/FAIL verdict). The per-family
-calibration coefficients are OUR OWN, derived from OUR measured reality on
-2× A5000 24 GB, vLLM pin dev424 — NOT copied from club-3090.
+budget" capping behavior, a PASS/TIGHT/FAIL verdict, and the ``--fit-all`` whole-
+catalog projection mode). The per-family calibration coefficients are OUR OWN,
+derived from OUR measured reality on 2× A5000 24 GB, vLLM pin dev424 — NOT copied
+from club-3090.
+
+Paper anchors (provenance for the byte-level model)
+───────────────────────────────────────────────────
+- **PagedAttention** (Kwon et al., arXiv:2309.06180) — the block-paged KV pool
+  fills ``mem_util × VRAM`` minus the fixed footprint; the requested pool being
+  *capped* (not refused) is the TIGHT verdict's basis.
+- **PerfMamba** (arXiv:2511.22849) — the GDN/Mamba block-state activation peak is
+  O(γ·D·N·L), linear in context; the ``_ACTIVATION_COEF_BYTES`` term follows this
+  form (calibrated, not guessed — see the 35B PN403 anchor below).
+- **TurboQuant** (arXiv:2504.19874) — the asymmetric k8v4 KV cache (8-bit K +
+  4-bit V → 0.75 B/element) the 35B/27B production lanes run; sets ``bpe`` for the
+  ``turboquant_k8v4`` formats in ``KV_FORMAT_BYTES``.
 
 Why this module exists
 ──────────────────────
@@ -61,6 +74,9 @@ Public surface
 ``solve_max_ctx(shape, kv_format, max_num_seqs, tp, mem_util, vram_gb, ...)``
 ``project(preset, rig) -> Projection``
 ``fit_verdict(projection) -> "PASS" | "TIGHT" | "FAIL"``
+``fit_all(entries, cards) -> list[FitAllRow]``  — project the WHOLE catalog into
+one fit table ("which of my models fit which card / ctx before I download
+anything?"), reusing the per-component math above (no duplication).
 """
 from __future__ import annotations
 
@@ -796,10 +812,201 @@ def project(
     )
 
 
+# ─── fit-all: whole-catalog projection into one fit table ───────────────────
+#
+# club-3090's ``tools/kv-calc.py --fit-all`` projects EVERY catalog model/preset
+# at once into a single fit table — "which of my models fit which card / ctx
+# before I download anything?". This is the Genesis equivalent. It is PURE
+# (no registry I/O): the CLI resolves presets → operating points and hands them
+# here as ``FitAllEntry`` rows. The math is REUSED verbatim — every fit row's
+# verdict comes from ``project_from_shape`` / ``project_llamacpp_from_shape`` and
+# its ceiling from ``solve_max_ctx``; nothing is re-derived here.
+
+
+#: Verdict for a catalog entry that carries no byte-level shape — the projector
+#: cannot do byte math, so the row is SKIPPED (with a note) rather than dropped
+#: or errored. SKIP keeps the table honest: the operator sees the model exists
+#: but its fit is unknown, distinct from a real FAIL.
+SKIP_VERDICT = "SKIP"
+
+
+@dataclass(frozen=True)
+class FitAllEntry:
+    """One catalog model/preset's resolved operating point for ``fit_all``.
+
+    Pure data — the CLI resolves a preset (``load_alias`` + ``load_model``) into
+    this, so the projector never touches the registry. ``shape=None`` is a valid
+    entry: ``fit_all`` emits a SKIP row for it (the model has no byte-level dims).
+    """
+    preset_id: str
+    shape: object                 # ModelShape | None (None → SKIP row)
+    engine: str = "vllm"          # "vllm" | "llama-cpp"
+    kv_format: Optional[str] = None
+    ctx: int = 0
+    max_num_seqs: int = 1
+    tp: int = 1
+    mem_util: float = 0.9
+    mtp: bool = False
+    mtp_n: int = 0
+    extra_drafter_gib: float = 0.0
+
+
+@dataclass(frozen=True)
+class FitAllRow:
+    """One (model × card) cell of the ``fit_all`` table.
+
+    ``projection`` is the full :class:`Projection` (None for a SKIP row).
+    ``max_ctx_fit`` is the largest ctx that still PASS/TIGHT-fits this card at the
+    entry's concurrency (0 for SKIP / FAIL-at-declared-ctx)."""
+    preset_id: str
+    engine: str
+    card_gib: float
+    verdict: str                  # "PASS" | "TIGHT" | "FAIL" | "SKIP"
+    projected_total_gib: Optional[float]
+    max_ctx_fit: int
+    provisional: bool
+    projection: Optional[Projection]
+    notes: tuple[str, ...] = field(default_factory=tuple)
+
+
+def _fit_row_for_card(entry: FitAllEntry, card_gib: float) -> FitAllRow:
+    """Project a single entry against a single card. Reuses the per-engine
+    projection + ``solve_max_ctx`` — no math is duplicated here."""
+    card_gib = float(card_gib)
+
+    # Skip-with-note (NOT error) for a model that carries no byte-level shape.
+    if entry.engine == "llama-cpp":
+        has_dims = entry.shape is not None and all(
+            getattr(entry.shape, n, None)
+            for n in ("num_hidden_layers", "num_kv_heads", "head_dim")
+        )
+    else:
+        has_dims = _has_byte_math(entry.shape)
+    if not has_dims:
+        return FitAllRow(
+            preset_id=entry.preset_id,
+            engine=entry.engine,
+            card_gib=card_gib,
+            verdict=SKIP_VERDICT,
+            projected_total_gib=None,
+            max_ctx_fit=0,
+            provisional=True,
+            projection=None,
+            notes=(
+                "no byte-level shape (capabilities.shape with "
+                "num_attention_layers/num_kv_heads/head_dim) — cannot project "
+                "byte-level VRAM; run `sndr preflight` for the envelope check.",
+            ),
+        )
+
+    if entry.engine == "llama-cpp":
+        # llama.cpp single-card GGUF lane — its own memory model.
+        proj = project_llamacpp_from_shape(
+            entry.shape,
+            preset_id=entry.preset_id,
+            ctx=entry.ctx,
+            vram_gib=card_gib,
+            mtp=entry.mtp,
+        )
+        max_ctx = _solve_llamacpp_max_ctx(entry, card_gib)
+    else:
+        proj = project_from_shape(
+            entry.shape,
+            preset_id=entry.preset_id,
+            kv_format=entry.kv_format,
+            ctx=entry.ctx,
+            max_num_seqs=entry.max_num_seqs,
+            tp=entry.tp,
+            mem_util=entry.mem_util,
+            vram_gib=card_gib,
+            mtp=entry.mtp,
+            mtp_n=entry.mtp_n,
+            extra_drafter_gib=entry.extra_drafter_gib,
+        )
+        # Cap the ctx search at 4× the declared ctx (or 1M) so a KV-light hybrid
+        # whose pool never exhausts the budget reports a ceiling tied to the
+        # operator's envelope, matching the single-preset --solve-max-ctx path.
+        ctx_cap = max(int(entry.ctx) * 4, 262_144) if entry.ctx else 1_048_576
+        max_ctx = solve_max_ctx(
+            entry.shape,
+            kv_format=entry.kv_format,
+            max_num_seqs=entry.max_num_seqs,
+            tp=entry.tp,
+            mem_util=entry.mem_util,
+            vram_gib=card_gib,
+            mtp=entry.mtp,
+            mtp_n=entry.mtp_n,
+            extra_drafter_gib=entry.extra_drafter_gib,
+            ctx_cap=ctx_cap,
+        )
+
+    return FitAllRow(
+        preset_id=entry.preset_id,
+        engine=entry.engine,
+        card_gib=card_gib,
+        verdict=proj.verdict,
+        projected_total_gib=proj.total_gib,
+        max_ctx_fit=max_ctx,
+        provisional=proj.provisional,
+        projection=proj,
+        notes=proj.notes,
+    )
+
+
+def _solve_llamacpp_max_ctx(entry: FitAllEntry, card_gib: float, step: int = 1024) -> int:
+    """Largest single-card GGUF ctx that still PASS/TIGHT-fits ``card_gib``.
+
+    The llama.cpp lane pre-allocates the full ``-c`` pool, so the ceiling is a
+    straight headroom binary-search over ``project_llamacpp_from_shape`` (the
+    same monotone-prefix argument as ``solve_max_ctx``). Reuses the lane's own
+    projection — no duplicated math."""
+    ctx_cap = max(int(entry.ctx) * 4, 262_144) if entry.ctx else 1_048_576
+    lo, hi, best = step, int(ctx_cap), 0
+    while lo <= hi:
+        mid = ((lo + hi) // 2 // step) * step
+        if mid <= 0:
+            break
+        p = project_llamacpp_from_shape(
+            entry.shape, preset_id="<solve>", ctx=mid,
+            vram_gib=card_gib, mtp=entry.mtp,
+        )
+        if p.verdict in ("PASS", "TIGHT"):
+            best = mid
+            lo = mid + step
+        else:
+            hi = mid - step
+    return best
+
+
+def fit_all(entries, cards) -> list[FitAllRow]:
+    """Project every catalog entry against every card into a flat fit table.
+
+    The Genesis ``--fit-all``: one :class:`FitAllRow` per (entry × card),
+    answering "which of my models fit which card / ctx before I download
+    anything?". Handles BOTH engines (vLLM via ``project_from_shape``, llama.cpp
+    via ``project_llamacpp_from_shape``) and never raises on a shapeless model —
+    that yields a SKIP row with a note, so one bad entry can't kill the table.
+
+    Args:
+        entries: iterable of :class:`FitAllEntry` (resolved operating points).
+        cards: iterable of per-card VRAM sizes in GiB (e.g. ``(24, 48, 80)``).
+
+    Returns:
+        A list of rows ordered entry-major, card-minor (stable for printing).
+    """
+    card_list = [float(c) for c in cards]
+    rows: list[FitAllRow] = []
+    for entry in entries:
+        for card in card_list:
+            rows.append(_fit_row_for_card(entry, card))
+    return rows
+
+
 __all__ = [
     "KV_FORMAT_BYTES",
     "DEFAULT_KV_FORMAT",
     "FIT_BAND_GIB",
+    "SKIP_VERDICT",
     "kv_format_bytes",
     "ProjectorRig",
     "Projection",
@@ -813,6 +1020,10 @@ __all__ = [
     "project",
     "fit_verdict",
     "solve_max_ctx",
+    # whole-catalog fit table
+    "FitAllEntry",
+    "FitAllRow",
+    "fit_all",
     # llama.cpp single-card GGUF lane
     "llamacpp_weights_gib",
     "llamacpp_kv_pool_gib",
