@@ -333,6 +333,7 @@ def _render_docker_config(
     runtime_block: RuntimeBlock,
     runtime: str,
     model_id: str,
+    engine: str = "vllm",
 ) -> Optional[DockerConfig]:
     """Build a V1 DockerConfig from V2 RuntimeBlock when runtime is docker/podman."""
     if runtime not in ("docker", "podman"):
@@ -343,6 +344,16 @@ def _render_docker_config(
             f"runtime={runtime!r} chosen but hardware.runtime.{runtime} block missing"
         )
     container_name = block.container_name_template.replace("{model_id}", model_id)
+    # Multi-engine (Phase 1, 2026-06-27): hardware container_name_template
+    # defaults to the engine-agnostic "vllm-{model_id}" scheme, which is
+    # correct for the vLLM lanes that own these rigs but MISLEADING for a
+    # llama.cpp lane reusing the same hardware def — the rendered command is
+    # genuinely `llama-server`, not `vllm serve`. Re-prefix the engine name
+    # so the container reflects what it actually runs. vLLM lanes
+    # (engine == "vllm", the default for every existing config) keep their
+    # byte-identical "vllm-..." name; only the llama.cpp lane is corrected.
+    if engine == "llama-cpp" and container_name.startswith("vllm-"):
+        container_name = "llamacpp-" + container_name[len("vllm-"):]
     return DockerConfig(
         image=block.image,
         container_name=container_name,
@@ -438,7 +449,10 @@ def compose(
 
     # 2. Resolve runtime + render docker block if applicable.
     runtime = _resolve_runtime(hardware.runtime, runtime_override)
-    docker_cfg = _render_docker_config(hardware.runtime, runtime, model.id)
+    docker_cfg = _render_docker_config(
+        hardware.runtime, runtime, model.id,
+        engine=getattr(model, "engine", "vllm"),
+    )
 
     # 3. Compose patches matrix.
     if profile is not None:

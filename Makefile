@@ -53,7 +53,17 @@ test-family: ## All 23 family contracts (~2300 tests, covers 20/20 families)
 	$(PYTEST) tests/unit/integrations/ -q
 
 test-gui-contract: ## GUI↔backend route contract — every api.ts path has a daemon route (structural-compat drift gate)
-	$(PYTEST) tests/unit/product_api/test_gui_contract.py -q
+	@# The contract gate instantiates the FastAPI app, so it needs the
+	@# optional [gui-api] extra (fastapi). On a bare clone without it, pytest
+	@# importorskip-skips the only test → 0 collected → exit 5 (a confusing
+	@# gate "failure"). Guard here so a dep-free checkout SKIPs cleanly with a
+	@# clear message and rc 0, while CI (which installs .[gui-api]) still runs
+	@# the gate unchanged.
+	@if $(PYTHON) -c 'import fastapi' >/dev/null 2>&1; then \
+		$(PYTEST) tests/unit/product_api/test_gui_contract.py -q ; \
+	else \
+		echo "SKIP test-gui-contract: install .[gui-api] (fastapi) to run" ; \
+	fi
 
 audit-i18n: ## GUI i18n coverage — every tr() string has a Russian translation (ratchet gate, baseline 0)
 	$(PYTHON) scripts/audit_i18n.py

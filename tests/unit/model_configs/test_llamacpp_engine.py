@@ -245,6 +245,38 @@ class TestLlamacppLanePreset:
         assert pd.card is not None
         assert pd.card.engine == "llama-cpp"
 
+    def test_container_name_reflects_engine_not_vllm(self):
+        """The composed lane reuses a single-card hardware def whose
+        container_name_template is engine-agnostic ("vllm-{model_id}-1x").
+        For a llama.cpp lane that name is misleading — the command is
+        genuinely `llama-server`. The composed DockerConfig must re-prefix
+        it to the actual engine ("llamacpp-..."), never "vllm-...".
+        """
+        cfg = load_alias(_LANE)
+        assert cfg.docker is not None
+        name = cfg.docker.container_name
+        assert name.startswith("llamacpp-"), (
+            f"llama.cpp lane container name must reflect the engine, "
+            f"got {name!r}"
+        )
+        assert not name.startswith("vllm-"), (
+            f"llama.cpp lane container name must NOT be vllm-prefixed "
+            f"(the command is llama-server, not vllm serve), got {name!r}"
+        )
+        # And it appears verbatim in the rendered launch script.
+        script = cfg.to_launch_script(strict_mounts=False)
+        assert f"--name {name}" in script
+        assert "vllm serve" not in script
+
+    def test_vllm_lane_container_name_byte_unchanged(self):
+        """The engine-aware re-prefix must NOT touch vLLM lanes: a vLLM
+        preset on the same single-card hardware keeps its "vllm-..." name.
+        """
+        cfg = load_alias("prod-qwen3.6-27b-tq-k8v4")
+        assert cfg.engine == "vllm"
+        assert cfg.docker is not None
+        assert cfg.docker.container_name.startswith("vllm-")
+
     def test_escape_hatch_points_at_lane(self):
         """The 2× vLLM 27B preset (which a single-card rig cannot run) falls
         back to the llama.cpp lane — the real launchable escape hatch."""
