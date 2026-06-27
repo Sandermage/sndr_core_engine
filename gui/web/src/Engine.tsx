@@ -962,18 +962,14 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
     set({ host: discovered.host, port: discovered.port ?? 8000, hostId: discovered.host_id ?? "" });
     chatToast(`${tr("Connecting to")} ${discoveredModel?.id ?? tr("the engine")} ${tr("on")} ${discovered.host_id || discovered.host}…`, "info");
   }
-  // First-run convenience: if the chat is still at pristine defaults and its own
-  // target is down, adopt the discovered engine automatically (once). A manually
-  // set host is never overridden — that case shows the Connect banner instead.
-  const adoptedRef = useRef(false);
-  useEffect(() => {
-    if (adoptedRef.current || reachable || !discoveredElsewhere) return;
-    if (settings.host === "127.0.0.1" && settings.port === 8000 && !settings.hostId) {
-      adoptedRef.current = true;
-      connectDiscovered();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot adopt from pristine defaults
-  }, [reachable, discoveredElsewhere]);
+  // We intentionally do NOT auto-adopt the discovered engine. A one-shot effect
+  // that called connectDiscovered() on pristine defaults raced the Connect
+  // banner away: adopting set settings.host = discovered.host, which flipped
+  // discoveredElsewhere to false on the very next render, so the banner appeared
+  // and vanished mid-frame before the operator could click it. The banner is the
+  // explicit, operator-clickable affordance — one transparent click beats a
+  // surprise auto-connect, and it now behaves uniformly whether the target host
+  // is a pristine default or manually set.
   function applyRecommended() {
     if (!recSampling) return;
     set({
