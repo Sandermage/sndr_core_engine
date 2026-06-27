@@ -27,6 +27,7 @@ export const InstallWizard = lazy(() => import("./Installer").then((m) => ({ def
 export const CopilotPanel = lazy(() => import("./Copilot").then((m) => ({ default: m.CopilotPanel })));
 export const ContainersPanel = lazy(() => import("./Containers").then((m) => ({ default: m.ContainersPanel })));
 export const VirtualizationPanel = lazy(() => import("./sections/virtualization").then((m) => ({ default: m.VirtualizationPanel })));
+export const ChooseLaunch = lazy(() => import("./sections/choose-launch").then((m) => ({ default: m.ChooseLaunchSection })));
 export const HardwarePanel = lazy(() => import("./Hardware").then((m) => ({ default: m.HardwarePanel })));
 export const RoutingPanel = lazy(() => import("./Routing").then((m) => ({ default: m.RoutingPanel })));
 export const FlagsPanel = lazy(() => import("./Flags").then((m) => ({ default: m.FlagsPanel })));

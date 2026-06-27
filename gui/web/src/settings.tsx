@@ -12,7 +12,11 @@ export type ConsoleTab = "jobs" | "events" | "logs" | "cli";
 export type ThemeMode = "light" | "dark" | "carbon" | "lime";
 export type DensityMode = "comfortable" | "compact";
 export type AccentMode = "teal" | "blue" | "emerald" | "amber";
-export type DetailMode = "operator" | "engineer";
+/** Simple = consumer surface (~5 nav items, the choice-first funnel);
+ *  Expert = the full operator workbench (~21 sections). Stored values from the
+ *  prior "operator"/"engineer" naming are parsed back-compat (see
+ *  loadGuiSettings): old "operator" → "simple", old "engineer" → "expert". */
+export type DetailMode = "simple" | "expert";
 
 /** Persisted operator UI preferences. */
 export type GuiSettings = {
@@ -56,7 +60,10 @@ export const defaultGuiSettings: GuiSettings = {
   theme: "light",
   density: "comfortable",
   accent: "teal",
-  detailMode: "engineer",
+  // A FRESH user (no stored setting) lands in Simple mode — the choice-first
+  // consumer surface. Returning users keep whatever they last chose (parsed
+  // back-compat from the old "operator"/"engineer" values in loadGuiSettings).
+  detailMode: "simple",
   showConnectionMap: true,
   autoRefresh: false,
   sidebarCollapsed: false,
@@ -65,6 +72,16 @@ export const defaultGuiSettings: GuiSettings = {
 
 function isAccent(value: unknown): value is AccentMode {
   return value === "teal" || value === "blue" || value === "emerald" || value === "amber";
+}
+
+/** Parse a stored detailMode, accepting both the current ("simple"/"expert")
+ *  and the legacy ("operator"/"engineer") vocabularies so a returning user
+ *  keeps their pref across the rename. Legacy "operator" → simple,
+ *  "engineer" → expert. Anything else (incl. a missing value) → the default. */
+function parseDetailMode(value: unknown): DetailMode {
+  if (value === "simple" || value === "operator") return "simple";
+  if (value === "expert" || value === "engineer") return "expert";
+  return defaultGuiSettings.detailMode;
 }
 
 /** Read + validate persisted operator settings, repairing any missing/corrupt
@@ -80,7 +97,7 @@ export function loadGuiSettings(): GuiSettings {
       theme: parsed.theme && VALID_THEMES.has(parsed.theme) ? parsed.theme : "light",
       density: parsed.density === "compact" ? "compact" : "comfortable",
       accent: isAccent(parsed.accent) ? parsed.accent : defaultGuiSettings.accent,
-      detailMode: parsed.detailMode === "operator" ? "operator" : "engineer",
+      detailMode: parseDetailMode(parsed.detailMode),
       showConnectionMap:
         typeof parsed.showConnectionMap === "boolean"
           ? parsed.showConnectionMap

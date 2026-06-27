@@ -1,13 +1,79 @@
 // SPDX-License-Identifier: Apache-2.0
 // Catalog cards: selectable catalog entry, single-rig fit report, all-rigs fit
-// matrix, and the KV fit-envelope heatmap.
+// matrix, the KV fit-envelope heatmap, and the single-card escape-hatch card.
 import { useState, useEffect, Fragment, type ReactNode } from "react";
-import { CheckCircle2, CircleAlert, RefreshCw } from "lucide-react";
-import { api, type FitCheck, type MemoryFitReport } from "../api";
+import { CheckCircle2, CircleAlert, LifeBuoy, RefreshCw } from "lucide-react";
+import { api, type FitCheck, type MemoryFitReport, type PreflightFitReport } from "../api";
 import { tr } from "../i18n";
 import { useApiQuery } from "../hooks/useApiQuery";
 import { PercentBar } from "../components/charts";
 import { formatVram } from "../lib/format";
+
+// Link to the single-card playbook. The GUI is served by the daemon; the doc
+// ships in-repo, so we point at the canonical GitHub-rendered copy для людей.
+const SINGLE_CARD_DOC_URL =
+  "https://github.com/Sandermage/genesis-vllm-patches/blob/main/docs/SINGLE_CARD.md";
+
+/**
+ * Genesis-specific "для людей" routing. When the live preflight FAILs a 2×
+ * preset on gpu_count for a single-card rig, we DON'T dead-end the user — we
+ * render the honest escape hatch from docs/SINGLE_CARD.md: switch to the
+ * card's declared `fallback_preset` (llama.cpp MTP, cliff-immune), or read why.
+ *
+ * Renders nothing unless the trigger condition holds (a gpu_count FAIL with a
+ * declared fallback), so a caller can drop it in unconditionally.
+ */
+export function EscapeHatchCard({
+  preflight,
+  fallbackPreset,
+  onSwitch
+}: {
+  preflight: PreflightFitReport | null;
+  // The card's declared single-card fallback (card.fallback_preset).
+  fallbackPreset: string;
+  // Switch the funnel's selected preset to the fallback.
+  onSwitch: (presetId: string) => void;
+}) {
+  if (!preflight || preflight.can_run || !fallbackPreset) return null;
+  const failures = preflight.checks.filter((c) => c.status === "fail");
+  const onlyGpuCount =
+    failures.length > 0 && failures.every((c) => c.dimension === "gpu_count");
+  if (!onlyGpuCount) return null;
+
+  const gpuFail = failures.find((c) => c.dimension === "gpu_count");
+  const need = preflight.required.min_gpu_count ?? preflight.required.tensor_parallel ?? 2;
+  const vram = preflight.required.min_vram_gb;
+  const needLabel = vram ? `${need}× ${vram}GB` : `${need}× ${tr("GPU")}`;
+
+  return (
+    <div className="escape-hatch">
+      <div className="escape-hatch-head">
+        <LifeBuoy size={16} />
+        <strong>{tr("This needs")} {needLabel}</strong>
+      </div>
+      <p className="escape-hatch-body">
+        {gpuFail?.detected
+          ? `${tr("On your")} ${gpuFail.detected.replace(/GPU\(s\)/, tr("card")).trim()}, `
+          : `${tr("On your single card,")} `}
+        {tr("the safe path is")} <code>{fallbackPreset}</code>{" "}
+        {tr("(llama.cpp MTP, cliff-immune).")}
+      </p>
+      <div className="escape-hatch-actions">
+        <button type="button" className="primary-action" onClick={() => onSwitch(fallbackPreset)}>
+          <LifeBuoy size={14} /> {tr("Switch to it")}
+        </button>
+        <a
+          className="ghost-button"
+          href={SINGLE_CARD_DOC_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {tr("Why? → docs/SINGLE_CARD.md")}
+        </a>
+      </div>
+    </div>
+  );
+}
 
 /** Small badge shown on catalog cards; shared with App.tsx's itemBadges(). */
 export type CatalogBadge = { label: string; tone?: "neutral" | "accent" | "ok" | "warn" };

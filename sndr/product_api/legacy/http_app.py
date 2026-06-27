@@ -538,6 +538,110 @@ def create_app(
                 detail=f"Cannot build fit report for {model_id} × {hardware_id} ({exc})",
             ) from exc
 
+    @app.get("/api/v1/preflight")
+    async def preflight(
+        preset_id: str = Query(...),
+        rig: Optional[str] = None,
+        fake_gpus: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Project a preset's hardware envelope against a rig — the exact same
+        check ``sndr preflight <preset>`` runs (``preflight_fit.evaluate_fit``),
+        surfaced for the GUI's pre-launch fit-check so the two never diverge.
+
+        Rig resolution mirrors the CLI: ``fake_gpus`` (synthetic, club-3090
+        ``CLUB3090_FAKE_GPUS`` style ``name:vram_mib:cc;…``) > ``rig`` (a builtin
+        hardware id, offline) > the live nvidia-smi rig. Returns the same dict
+        shape as the CLI's JSON output (``required`` + per-dimension ``checks``
+        + ``verdict``/``can_run``). Read-only.
+        """
+        from sndr.model_configs.preflight_fit import (
+            RigProbe,
+            evaluate_fit,
+            resolve_required_envelope,
+            rig_from_fake_spec,
+            rig_from_hardware_def,
+        )
+        from sndr.model_configs.registry_v2 import (
+            load_alias,
+            load_hardware,
+            load_preset_def,
+        )
+        from sndr.model_configs.schema import SchemaError
+
+        try:
+            cfg = load_alias(preset_id)
+            preset_def = load_preset_def(preset_id)
+        except (SchemaError, FileNotFoundError, KeyError) as exc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Could not resolve preset {preset_id!r}: {exc}",
+            ) from exc
+
+        env = resolve_required_envelope(cfg, preset_def)
+
+        # Rig resolution: fake_gpus > rig (builtin hardware id) > live probe.
+        if fake_gpus is not None:
+            resolved_rig = rig_from_fake_spec(fake_gpus)
+        elif rig is not None:
+            try:
+                hw_def = load_hardware(rig)
+            except (SchemaError, FileNotFoundError, KeyError) as exc:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Could not load --rig {rig!r}: {exc}",
+                ) from exc
+            resolved_rig = rig_from_hardware_def(hw_def, source=f"rig:{rig}")
+        else:
+            resolved_rig = RigProbe().detect()
+
+        report = evaluate_fit(preset_id, env, resolved_rig)
+        return {
+            "preset": report.preset_id,
+            "verdict": report.verdict,
+            "can_run": report.can_run,
+            "rig_source": report.rig_source,
+            "envelope_source": report.envelope_source,
+            "rig": {
+                "gpu_count": resolved_rig.gpu_count,
+                "min_vram_gb": resolved_rig.min_vram_gb,
+                "min_compute_cap": (
+                    list(resolved_rig.min_compute_cap)
+                    if resolved_rig.min_compute_cap else None
+                ),
+                "gpus": [
+                    {
+                        "index": g.index,
+                        "name": g.name,
+                        "vram_mib": g.vram_mib,
+                        "compute_cap": (
+                            list(g.compute_cap) if g.compute_cap else None
+                        ),
+                    }
+                    for g in resolved_rig.gpus
+                ],
+            },
+            "required": {
+                "min_vram_gb": env.requires_min_vram_gb,
+                "min_gpu_count": env.requires_min_gpu_count,
+                "tensor_parallel": env.tensor_parallel,
+                "min_cuda_capability": (
+                    list(env.requires_min_cuda_capability)
+                    if env.requires_min_cuda_capability else None
+                ),
+                "engine_pin": env.engine_pin,
+            },
+            "checks": [
+                {
+                    "dimension": c.dimension,
+                    "status": c.status,
+                    "required": c.required,
+                    "detected": c.detected,
+                    "message": c.message,
+                }
+                for c in report.checks
+            ],
+        }
+
     @app.get("/api/v1/presets")
     async def presets_list(
         family: Optional[str] = None,

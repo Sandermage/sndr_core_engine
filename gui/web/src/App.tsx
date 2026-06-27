@@ -50,6 +50,27 @@ function LangToggle() {
   );
 }
 
+// Simple ⇄ Expert detail-mode toggle. Simple = the choice-first consumer
+// surface (~5 nav items, the Choose & Launch funnel); Expert = the full
+// operator workbench (~21 sections). One button that flips the mode and
+// persists it (App writes settings to localStorage on change).
+function ModeToggle({ mode, onToggle }: { mode: "simple" | "expert"; onToggle: () => void }) {
+  const simple = mode === "simple";
+  return (
+    <button
+      className="tool-button"
+      aria-pressed={!simple}
+      title={simple
+        ? tr("Simple mode — the guided essentials. Switch to Expert for the full workbench.")
+        : tr("Expert mode — every section. Switch to Simple for the guided essentials.")}
+      onClick={onToggle}
+    >
+      {simple ? <Sparkles size={16} /> : <SlidersHorizontal size={16} />}
+      {simple ? tr("Simple") : tr("Expert")}
+    </button>
+  );
+}
+
 type NavItem = {
   id: SectionId;
   icon: ReactNode;
@@ -64,20 +85,31 @@ const AUTO_REFRESH_INTERVAL_MS = 20_000;
 // run → deploy it → use it → prove it → tools. Each group renders under a small
 // header so related sections sit together instead of in one long scatter.
 type NavGroup = { label?: string; items: NavItem[] };
-const navGroups: NavGroup[] = (() => {
-  // Derived from the single-source NAV_SECTIONS registry (nav.ts): group by the
-  // group label, preserving first-appearance order. "" = the ungrouped lead item.
+
+// Build the grouped sidebar from the single-source NAV_SECTIONS registry
+// (nav.ts), keeping only sections whose tier passes `keep`. Simple mode passes
+// just the "simple"-tier sections (~5 items); Expert mode keeps everything.
+// Group by the group label, preserving first-appearance order ("" = the
+// ungrouped lead item). Empty groups (all members filtered out) are dropped.
+function buildNavGroups(keep: (tier: (typeof NAV_SECTIONS)[number]["tier"]) => boolean): NavGroup[] {
   const order: string[] = [];
   const byGroup = new Map<string, NavItem[]>();
   for (const s of NAV_SECTIONS) {
+    if (!keep(s.tier)) continue;
     if (!byGroup.has(s.group)) { byGroup.set(s.group, []); order.push(s.group); }
     const Icon = s.icon;
     byGroup.get(s.group)?.push({ id: s.id, icon: <Icon size={17} />, label: tr(s.label) });
   }
-  return order.map((g) => ({ label: g ? tr(g) : undefined, items: byGroup.get(g) ?? [] }));
-})();
-// Flat list (command palette / lookups) — preserves the grouped order.
-const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
+  return order.map((g) => ({ label: g ? tr(g) : undefined, items: byGroup.get(g) ?? [] }))
+    .filter((g) => g.items.length > 0);
+}
+
+// Full flat list (command palette / lookups) — always every section, so a
+// power user in Simple mode can still ⌘K-jump to a hidden section.
+const allNavItems: NavItem[] = NAV_SECTIONS.map((s) => {
+  const Icon = s.icon;
+  return { id: s.id, icon: <Icon size={17} />, label: tr(s.label) };
+});
 
 // Hash-routing helpers (sectionFromHash / recordIdFromHash / buildHash /
 // replaceHash) live in ./route so ContainersPanel can share them without a
@@ -682,12 +714,65 @@ export default function App() {
   });
   const planId = launchPlan?.plan_id ?? `plan_${selectedPreset.replace(/[^a-zA-Z0-9]+/g, "_")}`;
   const endpointHost = runtimeHost(runtimeMode, settings.remoteHost);
+  // Bundle the LaunchPanel inputs once so the Choose & Launch funnel (step 4)
+  // reuses the SAME wired launch surface as the Launch Plan section — no
+  // duplicated mutation state. The two consumers stay in lock-step.
+  const launchBridge = {
+    model: asText(planSummary.model, selectedPresetRecord?.model ?? "-"),
+    hardware: selectedPresetRecord?.hardware ?? recommendForm.hardware,
+    profile: selectedPresetRecord?.profile ?? "-",
+    host: endpointHost,
+    composed,
+    planSummary,
+    card,
+    patchPolicy,
+    runtimeTitle: targetTitle(runtimeTargets, runtimeTarget),
+    runtimeMode,
+    endpoints: launchPlan?.endpoints,
+    gates,
+    gateCounts,
+    applyEnabled,
+    actionReason: launchPlan?.action_reason,
+    launchConfirm,
+    setLaunchConfirm,
+    launchBusy,
+    launchSshTarget,
+    launchJob,
+    onLaunch: () => void runLaunchApply(),
+    onConfigure: () => { setLaunchTab("compose"); setActiveSection("launch-plan"); },
+    onViewGates: () => { setLaunchTab("gates"); setActiveSection("launch-plan"); }
+  };
   const connectionTone: "success" | "warning" | "danger" =
     state === "error" ? "danger" : state === "loading" ? "warning" : "success";
   const connectionLabel =
     state === "error" ? tr("Disconnected") : state === "loading" ? tr("Connecting") : tr("Connected");
   const presetCount = overview?.catalog.presets_count ?? presets?.presets.length ?? 0;
   const engineReady = overview?.capabilities.platform.engine_installed ?? false;
+  // Sidebar groups filtered by the current detail tier. Simple mode shows only
+  // the choice-first surface (Overview, Choose & Launch, Chat, Doctor, Settings);
+  // Expert keeps every section. Recomputed when the mode or language changes
+  // (tr() labels are language-sensitive).
+  const simpleMode = settings.detailMode === "simple";
+  const navGroups = useMemo(
+    () => buildNavGroups((tier) => (simpleMode ? tier === "simple" : true)),
+    // navLang threads through tr() inside buildNavGroups → relabel on switch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [simpleMode, navLang]
+  );
+  // Section ids visible in the current tier — used to keep Simple mode coherent
+  // (flipping into Simple while parked on an expert-only section bounces you to
+  // Overview instead of stranding you on a section the sidebar no longer shows).
+  const visibleSectionIds = useMemo(
+    () => new Set(navGroups.flatMap((g) => g.items.map((i) => i.id))),
+    [navGroups]
+  );
+  useEffect(() => {
+    // launch-plan is Expert-only but is rendered by the app shell (not the
+    // sidebar list); treat it like any other expert section in Simple mode.
+    if (simpleMode && !visibleSectionIds.has(activeSection)) {
+      setActiveSection("overview");
+    }
+  }, [simpleMode, visibleSectionIds, activeSection]);
   const shellClass = [
     "desktop-shell",
     `theme-${settings.theme}`,
@@ -826,6 +911,10 @@ export default function App() {
               <RefreshCw size={16} />
               {tr("Sync Catalog")}
             </button>
+            <ModeToggle
+              mode={settings.detailMode}
+              onToggle={() => updateSettings({ detailMode: simpleMode ? "expert" : "simple" })}
+            />
             <LangToggle />
             <button
               className="tool-button"
@@ -1405,6 +1494,7 @@ export default function App() {
             onContainers={(id) => { setFocusHostId(id); setActiveSection("containers"); }}
             onHardware={(id) => { setFocusHostId(id); setActiveSection("hardware"); }}
             applyEnabled={applyEnabled}
+            launchBridge={launchBridge}
           />
           </Suspense>
         )}
@@ -1438,7 +1528,7 @@ export default function App() {
           settings={settings}
           onSettings={updateSettings}
           searchItems={[
-            ...navItems.map((nav) => ({ icon: nav.icon, title: nav.label, detail: tr("Section"), run: () => setActiveSection(nav.id) })),
+            ...allNavItems.map((nav) => ({ icon: nav.icon, title: nav.label, detail: tr("Section"), run: () => setActiveSection(nav.id) })),
             ...(presets?.presets ?? []).slice(0, 80).map((preset) => ({
               icon: <Database size={16} />, title: preset.id, detail: `${tr("Preset")} · ${preset.model} · ${preset.hardware}`,
               run: () => { void loadExplain(preset.id); setActiveSection("presets"); }

@@ -3,38 +3,52 @@
 // extracted section panels (GateRow, SetupWizard, …) can reference SectionId /
 // RuntimeMode / Gate without importing back into the app shell.
 import { type GateStatus } from "./components/primitives";
-import { type LucideIcon, BarChart3, Box, Boxes, Cpu, Database, FileText, Gauge, Home, LayoutGrid, Link2, MessageSquare, Network, Rocket, Route, Server, Settings, ShieldCheck, SlidersHorizontal, Table2, Wrench } from "lucide-react";
+import { type LucideIcon, BarChart3, Box, Boxes, Cpu, Database, FileText, Gauge, Home, LayoutGrid, Link2, MessageSquare, Network, Rocket, Route, Server, Settings, ShieldCheck, SlidersHorizontal, Table2, Wand2, Wrench } from "lucide-react";
 
-/** A top-level nav section: id + sidebar placement (group header + icon). */
-export type SectionDescriptor = { id: string; label: string; group: string; icon: LucideIcon };
+/**
+ * Which detail tier a section belongs to. "simple" sections show in BOTH
+ * Simple and Expert mode (they are the choice-first consumer surface);
+ * "expert" sections show only in Expert mode. The topbar Simple⇄Expert toggle
+ * (App.tsx) filters the sidebar on this field.
+ */
+export type SectionTier = "simple" | "expert";
+
+/** A top-level nav section: id + sidebar placement (group header + icon) + tier. */
+export type SectionDescriptor = { id: string; label: string; group: string; icon: LucideIcon; tier: SectionTier };
 
 /**
  * SINGLE SOURCE OF TRUTH for the sidebar, in render order. `group: ""` = the
  * ungrouped lead item. The grouped nav (App.tsx), `SectionId` and `SECTION_IDS`
  * are all DERIVED from this + `ROUTABLE_ONLY` — add a section in one place.
+ *
+ * `tier: "simple"` = visible in Simple mode (the ~5-item consumer surface) AND
+ * Expert; `tier: "expert"` = Expert mode only. Simple mode surfaces just the
+ * choice-first funnel: Overview, Choose & Launch, Chat, Doctor, Advanced
+ * (settings). The topbar toggle in App.tsx filters on this.
  */
 export const NAV_SECTIONS = [
-  { id: "overview", label: "Overview", group: "", icon: Home },
-  { id: "hosts", label: "Fleet", group: "Infrastructure", icon: LayoutGrid },
-  { id: "containers", label: "Containers", group: "Infrastructure", icon: Boxes },
-  { id: "virtualization", label: "Virtualization", group: "Infrastructure", icon: Server },
-  { id: "hardware", label: "Hardware", group: "Infrastructure", icon: Cpu },
-  { id: "setup", label: "Setup", group: "Infrastructure", icon: Settings },
-  { id: "models", label: "Models", group: "Models & Config", icon: Box },
-  { id: "presets", label: "Presets", group: "Models & Config", icon: Database },
-  { id: "configs", label: "Configs", group: "Models & Config", icon: SlidersHorizontal },
-  { id: "planner", label: "Planner", group: "Models & Config", icon: Gauge },
-  { id: "launch-plan", label: "Launch Plan", group: "Deploy", icon: Rocket },
-  { id: "services", label: "Services", group: "Deploy", icon: Network },
-  { id: "chat", label: "Chat & Copilot", group: "Engine", icon: MessageSquare },
-  { id: "routing", label: "Routing", group: "Engine", icon: Route },
-  { id: "clients", label: "Clients", group: "Engine", icon: Link2 },
-  { id: "doctor", label: "Doctor", group: "Validate", icon: ShieldCheck },
-  { id: "patches", label: "Patches", group: "Validate", icon: Wrench },
-  { id: "benchmarks", label: "Benchmarks", group: "Validate", icon: BarChart3 },
-  { id: "evidence", label: "Evidence", group: "Validate", icon: FileText },
-  { id: "reports", label: "Reports", group: "Validate", icon: Table2 },
-  { id: "advanced", label: "Advanced", group: "Tools", icon: SlidersHorizontal },
+  { id: "overview", label: "Overview", group: "", icon: Home, tier: "simple" },
+  { id: "choose-launch", label: "Choose & Launch", group: "", icon: Wand2, tier: "simple" },
+  { id: "hosts", label: "Fleet", group: "Infrastructure", icon: LayoutGrid, tier: "expert" },
+  { id: "containers", label: "Containers", group: "Infrastructure", icon: Boxes, tier: "expert" },
+  { id: "virtualization", label: "Virtualization", group: "Infrastructure", icon: Server, tier: "expert" },
+  { id: "hardware", label: "Hardware", group: "Infrastructure", icon: Cpu, tier: "expert" },
+  { id: "setup", label: "Setup", group: "Infrastructure", icon: Settings, tier: "expert" },
+  { id: "models", label: "Models", group: "Models & Config", icon: Box, tier: "expert" },
+  { id: "presets", label: "Presets", group: "Models & Config", icon: Database, tier: "expert" },
+  { id: "configs", label: "Configs", group: "Models & Config", icon: SlidersHorizontal, tier: "expert" },
+  { id: "planner", label: "Planner", group: "Models & Config", icon: Gauge, tier: "expert" },
+  { id: "launch-plan", label: "Launch Plan", group: "Deploy", icon: Rocket, tier: "expert" },
+  { id: "services", label: "Services", group: "Deploy", icon: Network, tier: "expert" },
+  { id: "chat", label: "Chat & Copilot", group: "Engine", icon: MessageSquare, tier: "simple" },
+  { id: "routing", label: "Routing", group: "Engine", icon: Route, tier: "expert" },
+  { id: "clients", label: "Clients", group: "Engine", icon: Link2, tier: "expert" },
+  { id: "doctor", label: "Doctor", group: "Validate", icon: ShieldCheck, tier: "simple" },
+  { id: "patches", label: "Patches", group: "Validate", icon: Wrench, tier: "expert" },
+  { id: "benchmarks", label: "Benchmarks", group: "Validate", icon: BarChart3, tier: "expert" },
+  { id: "evidence", label: "Evidence", group: "Validate", icon: FileText, tier: "expert" },
+  { id: "reports", label: "Reports", group: "Validate", icon: Table2, tier: "expert" },
+  { id: "advanced", label: "Advanced", group: "Tools", icon: SlidersHorizontal, tier: "simple" },
 ] as const satisfies readonly SectionDescriptor[];
 
 /** Routable, but not shown as a top-level nav item (deep-links / sub-tabs). */

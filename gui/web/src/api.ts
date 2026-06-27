@@ -1005,6 +1005,40 @@ export type MemoryFitReport = {
   notes: string[];
 };
 
+// One dimension of the preset→rig fit projection. Mirrors the backend
+// preflight_fit.FitCheck (the same rows `sndr preflight <preset>` prints).
+export type PreflightCheckRow = {
+  dimension: "gpu_count" | "vram" | "cuda_capability" | "engine_pin" | string;
+  status: "pass" | "fail" | "warn" | "skip";
+  required: string;
+  detected: string;
+  message: string;
+};
+
+// /api/v1/preflight result — the GUI pre-launch fit-check, identical shape to
+// `sndr preflight`'s JSON output so the GUI and CLI verdicts never diverge.
+export type PreflightFitReport = {
+  preset: string;
+  verdict: string;            // "CAN RUN" | "RUNNABLE (with warnings)" | "CANNOT RUN"
+  can_run: boolean;
+  rig_source: string;         // "nvidia-smi" | "rig:<id>" | "fake"
+  envelope_source: string;    // "card.hardware_fit" | "composed_hardware"
+  rig: {
+    gpu_count: number;
+    min_vram_gb: number | null;
+    min_compute_cap: [number, number] | null;
+    gpus: Array<{ index: number; name: string; vram_mib: number; compute_cap: [number, number] | null }>;
+  };
+  required: {
+    min_vram_gb: number | null;
+    min_gpu_count: number | null;
+    tensor_parallel: number | null;
+    min_cuda_capability: [number, number] | null;
+    engine_pin: string | null;
+  };
+  checks: PreflightCheckRow[];
+};
+
 export type PatchRow = {
   patch_id: string;
   tier: string;
@@ -1450,6 +1484,12 @@ export const api = {
   doctor: () => request<DoctorReport>("/api/v1/doctor"),
   memoryFit: (params: { model_id: string; hardware_id: string }, signal?: AbortSignal) =>
     request<MemoryFitReport>(`/api/v1/memory/fit${query(params)}`, { signal }),
+  // Project a preset's hardware envelope against a rig — the exact same check
+  // `sndr preflight <preset>` runs. `rig` (a builtin hardware id) or `fake_gpus`
+  // (synthetic "name:vram_mib:cc;…") model a rig offline; both omitted = the
+  // live nvidia-smi rig on the daemon host.
+  preflight: (params: { preset_id: string; rig?: string; fake_gpus?: string }, signal?: AbortSignal) =>
+    request<PreflightFitReport>(`/api/v1/preflight${query(params)}`, { signal }),
   modelsCache: (signal?: AbortSignal) => request<ModelCacheReport>("/api/v1/models/cache", { signal }),
   eventsRecent: (since_seq = 0) =>
     request<{ events: BackendEvent[]; last_seq: number }>(`/api/v1/events/recent${query({ since_seq })}`),

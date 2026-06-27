@@ -55,6 +55,11 @@ export function sectionSpec(sectionId: SectionId) {
       title: tr("Ops Copilot"),
       description: tr("Tool-calling assistant over the read-only Product API — answers from real catalog/doctor/preset/patch/capacity data and proposes changes you review & apply."),
     },
+    "choose-launch": {
+      kicker: tr("Get running"),
+      title: tr("Choose & Launch"),
+      description: tr("Four steps from your card to a running model — check your rig, pick a model that fits, confirm the fit, then launch. The honest path для людей."),
+    },
     "launch-plan": {
       kicker: tr("Operator workbench"),
       title: tr("Launch Plan"),

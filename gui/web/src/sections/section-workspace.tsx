@@ -34,6 +34,8 @@ import { SkeletonCards } from "../Skeleton";
 import { ChatConsole, ConfigsSection, HostsSection, KvCalcPanel, BaselinePanel, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
 import { ModelsWorkbench } from "./models-workbench";
 import { OperationsConsole } from "./operations";
+import { ChooseLaunch } from "../lazy-panels";
+import { type LaunchPanelBridge } from "./choose-launch";
 
 export function SectionWorkspace({
   sectionId,
@@ -86,7 +88,8 @@ export function SectionWorkspace({
   onSetupNode,
   onContainers,
   onHardware,
-  applyEnabled
+  applyEnabled,
+  launchBridge
 }: {
   sectionId: SectionId;
   viewport: ViewportTier;
@@ -139,6 +142,9 @@ export function SectionWorkspace({
   onContainers: (id: string) => void;
   onHardware: (id: string) => void;
   applyEnabled?: boolean;
+  // Launch state bundle for the Choose & Launch funnel's step 4 (the embedded
+  // LaunchPanel reuses the app shell's wired launch surface).
+  launchBridge: LaunchPanelBridge;
 }) {
   const spec = sectionSpec(sectionId);
   // Stable host option list — recompute only when profiles change, so the lazy
@@ -205,6 +211,21 @@ export function SectionWorkspace({
           featureRows={featureRows}
           onSection={onSection}
         />
+      )}
+
+      {sectionId === "choose-launch" && (
+        <Suspense fallback={<SkeletonCards count={4} />}>
+          <ChooseLaunch
+            presets={presets?.presets ?? []}
+            configCatalog={configCatalog}
+            hostProfiles={hostProfiles}
+            selectedPreset={selectedPreset}
+            selectedPresetRecord={selectedPresetRecord}
+            launchBridge={launchBridge}
+            onPreset={onPreset}
+            onSection={onSection}
+          />
+        </Suspense>
       )}
 
       {sectionId === "setup" && (
@@ -362,6 +383,7 @@ export function SectionWorkspace({
           gates={gates}
           patchDoctor={patchDoctor}
           onSection={onSection}
+          simpleMode={settings.detailMode === "simple"}
         />
       )}
 

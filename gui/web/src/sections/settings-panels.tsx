@@ -227,8 +227,8 @@ export function AppearanceSettings({
         <SegmentedSetting
           value={settings.detailMode}
           options={[
-            ["operator", tr("Operator")],
-            ["engineer", tr("Engineer")]
+            ["simple", tr("Simple")],
+            ["expert", tr("Expert")]
           ]}
           onChange={(detailMode) => onSettings({ detailMode: detailMode as DetailMode })}
         />
