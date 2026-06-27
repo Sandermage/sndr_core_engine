@@ -24,6 +24,9 @@ import json
 import os
 import sys
 
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..")))
+
 _STATUS_ORDER = (
     "anchor_drift",
     "retired",
@@ -39,6 +42,23 @@ def _repo_pins_dir():
     return os.path.abspath(os.path.join(
         os.path.dirname(__file__), "..", "..",
         "sndr", "engines", "vllm", "pins"))
+
+
+def _perf_patch_ids():
+    """Set of perf-bearing patch ids from the live registry (empty if the
+    registry is unavailable on the host — section then degrades silently)."""
+    try:
+        from sndr.dispatcher.registry import PATCH_REGISTRY
+        from sndr.dispatcher.spec import iter_patch_specs
+        from sndr.engines.vllm.retire_impact import is_perf_signal
+    except Exception:  # noqa: BLE001
+        return set()
+    out = set()
+    for s in iter_patch_specs():
+        credit = (PATCH_REGISTRY.get(s.patch_id) or {}).get("credit", "")
+        if is_perf_signal(s.category, s.title, credit):
+            out.add(s.patch_id)
+    return out
 
 
 def _resolve(path):
@@ -96,6 +116,29 @@ def _summarize_one(rej_path):
             print("  - %s (%s)" % (e.get("key"), e.get("target_rel")))
         if len(retired) > 20:
             print("  ... and %d more" % (len(retired) - 20))
+
+    # PERF sub-patches that SOFT-SKIPPED on this pin (status optional_absent /
+    # anchor_drift) — the single-pin face of the PN399 no-op class. Such a sub is
+    # a required=False perf EFFECT whose anchor drifted: the parent patch still
+    # reports ok (its required anchors applied), so genuine_anchor_drift stays 0,
+    # but THIS optimization is dead right now. Surfaced so the operator does not
+    # mistake a partially-dead perf patch for a healthy one.
+    perf_ids = _perf_patch_ids()
+    if perf_ids:
+        perf_soft = [
+            e for e in rejected
+            if e.get("status") in ("optional_absent", "anchor_drift")
+            and str(e.get("key", "")).split("::", 1)[0] in perf_ids
+        ]
+        if perf_soft:
+            print("⚠ PERF sub-patches soft-skipped on this pin (%d) — latent "
+                  "no-op (parent patch still ok, but this perf effect is dead):"
+                  % len(perf_soft))
+            for e in perf_soft[:20]:
+                print("    * %s (%s) status=%s" % (
+                    e.get("key"), e.get("target_rel"), e.get("status")))
+            if len(perf_soft) > 20:
+                print("    ... and %d more" % (len(perf_soft) - 20))
 
     # retire-impact / dependency-breakage — the bug class that slipped through
     # on dev148->dev301: a retired patch silently breaks a DIFFERENT patch that

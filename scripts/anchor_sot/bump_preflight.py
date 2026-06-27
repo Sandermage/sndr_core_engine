@@ -66,6 +66,25 @@ def _ok_patch_ids(manifest):
     return out
 
 
+def _applied_subs_by_patch(manifest):
+    """Map patch_id -> set of APPLIED sub-anchor names in a manifest.
+
+    Sub-patch granularity (the PN399/PN351 no-op class): a patch can keep >=1
+    applied anchor (so ``_ok_patch_ids`` still lists it as ``ok``) while an
+    INDIVIDUAL sub-patch — often a ``required=False`` perf effect — silently
+    drops because its anchor drifted (status optional_absent/anchor_drift). The
+    manifest records the surviving subs under ``patches.<pid>.anchors`` keyed by
+    sub name, so the SET DIFFERENCE old-subs minus new-subs is exactly the
+    sub-patches that went dead on the new pin while the patch stayed ok.
+    """
+    out: dict[str, set] = {}
+    for fe in (manifest.get("files") or {}).values():
+        for pid, pe in ((fe or {}).get("patches") or {}).items():
+            out.setdefault(pid, set()).update(
+                ((pe or {}).get("anchors") or {}).keys())
+    return out
+
+
 def _rej_ids_by_status(rej, statuses):
     """patch ids in the reject set whose status is in ``statuses``."""
     out = set()
@@ -89,6 +108,46 @@ def _perf_patch_ids():
         if is_perf_signal(s.category, s.title, credit):
             out.add(s.patch_id)
     return out
+
+
+def _reconcile_breakage(committed, live):
+    """Reconcile a committed dependency_breakage section against a fresh live
+    detector run. For every committed edge that the LIVE registry also reports
+    (same retired->dependent), adopt the live ``severity`` + ``mitigated`` (the
+    current truth — the committed snapshot may predate the mitigation flag).
+    Committed-only edges (e.g. synthetic offline-test edges the live registry
+    can't reproduce) are kept verbatim. Counts are recomputed from the result.
+
+    This makes the gate robust to a stale committed section without discarding
+    edges only the manifest knows about (offline determinism preserved).
+    """
+    live_by_key = {
+        (e.get("retired"), e.get("dependent")): e
+        for e in (live.get("edges") or [])
+    }
+    merged = []
+    for e in (committed.get("edges") or []):
+        key = (e.get("retired"), e.get("dependent"))
+        if key in live_by_key:
+            le = live_by_key[key]
+            e = dict(e)
+            e["severity"] = le.get("severity", e.get("severity"))
+            e["mitigated"] = le.get("mitigated", e.get("mitigated", False))
+            if le.get("detail"):
+                e["detail"] = le["detail"]
+            if le.get("via"):
+                e["via"] = le["via"]
+        merged.append(e)
+    high = [e for e in merged if e.get("severity") == "HIGH"]
+    return {
+        "high_count": len(high),
+        "high_mitigated_count": len([e for e in high if e.get("mitigated")]),
+        "high_unmitigated_count": len([e for e in high
+                                       if not e.get("mitigated")]),
+        "medium_count": len([e for e in merged
+                             if e.get("severity") != "HIGH"]),
+        "edges": merged,
+    }
 
 
 def preflight(old_dir, new_dir):
@@ -120,18 +179,29 @@ def preflight(old_dir, new_dir):
     if not newly_retired:
         print("    (none)")
 
-    # (b) broken dependents — read from the new pin's dependency_breakage
-    # section (already computed by build_manifest), falling back to a live
-    # detector run if the section is absent (older manifest).
+    # (b) broken dependents. The new pin's committed dependency_breakage section
+    # is a POINT-IN-TIME snapshot — it can go STALE as the retire-impact detector
+    # evolves (the committed dev424 section predates the apply-state-aware
+    # ``mitigated`` flag, so it labels the live-MITIGATED PN353A->PN399 edge as a
+    # FAIL). The dependency graph + mitigation state are a LIVE-REGISTRY property,
+    # so we RECONCILE the committed section against a fresh live detector run:
+    # for any edge the live registry also knows (same retired->dependent), adopt
+    # the live severity/mitigated (the current truth); committed-only edges
+    # (synthetic/offline-test edges the registry can't reproduce) are kept as-is.
+    # Falls back to the committed section verbatim when the registry can't import.
     breakage = new_rej.get("dependency_breakage")
+    live = None
+    try:
+        from sndr.engines.vllm.retire_impact import detect_on_live_registry
+        live = detect_on_live_registry(
+            gated_out=_rej_ids_by_status(new_rej, ("version_gated",))
+        ).to_dict()
+    except Exception:  # noqa: BLE001 — registry unavailable: use committed only
+        live = None
     if breakage is None:
-        try:
-            from sndr.engines.vllm.retire_impact import detect_on_live_registry
-            breakage = detect_on_live_registry(
-                gated_out=_rej_ids_by_status(new_rej, ("version_gated",))
-            ).to_dict()
-        except Exception:  # noqa: BLE001
-            breakage = {"high_count": 0, "medium_count": 0, "edges": []}
+        breakage = live or {"high_count": 0, "medium_count": 0, "edges": []}
+    elif live is not None:
+        breakage = _reconcile_breakage(breakage, live)
     edges = breakage.get("edges") or []
     high_edges = [e for e in edges if e.get("severity") == "HIGH"]
     # APPLY-STATE-AWARE: a HIGH edge flagged ``mitigated`` is already handled (the
@@ -172,8 +242,36 @@ def preflight(old_dir, new_dir):
     if not perf_landmines:
         print("    (none)")
 
+    # (c2) SUB-PATCH no-op landmines — the PN399/PN351 class (c) cannot see.
+    # A perf-bearing patch can keep >=1 applied anchor (so it stays out of (c)'s
+    # ok->skip set) while an INDIVIDUAL sub-patch — typically a required=False
+    # perf EFFECT — silently drops because its anchor drifted. The patch reports
+    # ``ok``, genuine_anchor_drift stays 0, but the optimization is dead. This is
+    # the literal dev148->dev301 PN399 incident at sub granularity. Detect by the
+    # set difference of APPLIED sub-anchors per perf patch across the two pins.
+    old_subs = _applied_subs_by_patch(old_anchors)
+    new_subs = _applied_subs_by_patch(new_anchors)
+    sub_landmines = []  # (pid, [lost_subs])
+    for pid in sorted(perf_ids):
+        # only patches that REMAIN ok on both pins — a fully-dropped patch is
+        # already covered by (c); here we want the patch that LOOKS healthy.
+        if pid not in old_ok or pid not in new_ok:
+            continue
+        lost = sorted(old_subs.get(pid, set()) - new_subs.get(pid, set()))
+        if lost:
+            sub_landmines.append((pid, lost))
+    print("\n(c2) PERF sub-patch no-op landmines on %s (%d) — patch still ok but "
+          "a perf sub-patch went dead (the PN399 class):" % (
+              new_pin, len(sub_landmines)))
+    for pid, lost in sub_landmines:
+        print("    * %s lost applied sub-patch(es): %s (patch still reports ok "
+              "on both pins — effect silently no-op'd)" % (pid, ", ".join(lost)))
+    if not sub_landmines:
+        print("    (none)")
+
     # (d) iron-rule #9 reminder + verdict
-    perf_delta = bool(high_unmitigated) or bool(perf_landmines)
+    perf_delta = (bool(high_unmitigated) or bool(perf_landmines)
+                  or bool(sub_landmines))
     print("\n(d) iron-rule #9 — bench methodology:")
     if perf_delta:
         print("    A canonical A/B (genesis_bench_suite.py --quick) is REQUIRED "
@@ -190,6 +288,19 @@ def preflight(old_dir, new_dir):
               "against the new pin OR run a canonical A/B proving no regression "
               "before promoting." % (len(high_unmitigated), new_pin))
         return 1
+    # Advisory perf-delta tail (perf_landmines + sub_landmines): NOT a hard fail
+    # on its own (a perf patch/sub can legitimately drop when upstream merges the
+    # fix), but it MUST be surfaced loudly with the iron-rule-#9 A/B gate so the
+    # PN399 silent-no-op class never passes unnoticed. Reported in the PASS line.
+    if perf_delta:
+        print("\nRESULT: PASS (with A/B gate) — no UNMITIGATED HIGH dependency "
+              "break, but a perf-tier delta on %s (perf_landmines=%d "
+              "sub_landmines=%d high_mitigated=%d) REQUIRES a canonical A/B "
+              "before promoting (iron-rule #9). Re-anchor the dead sub-patch(es) "
+              "above OR prove no regression with genesis_bench_suite.py."
+              % (new_pin, len(perf_landmines), len(sub_landmines),
+                 len(high_mitigated)))
+        return 0
     if high_mitigated:
         print("\nRESULT: PASS — %d HIGH-severity edge(s) are MITIGATED (the "
               "dependent has a working fallback anchor independent of the retired "

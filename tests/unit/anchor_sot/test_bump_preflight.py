@@ -269,3 +269,88 @@ def test_preflight_usage_error_exit_2(tmp_path):
     r = subprocess.run([sys.executable, str(PREFLIGHT), str(tmp_path / "only")],
                        capture_output=True, text=True)
     assert r.returncode == 2
+
+
+# ─── PART 1b: SUB-PATCH no-op landmine (the PN399 class (c) cannot see) ────────
+#
+# A perf-bearing patch keeps >=1 applied anchor (stays ``ok``) while an
+# INDIVIDUAL sub-patch — usually a required=False perf effect — silently drops
+# because its anchor drifted (status optional_absent / anchor_drift). The patch
+# reports ok, genuine_anchor_drift stays 0, but the optimization is dead. This is
+# the literal dev148->dev301 PN399 incident at sub granularity, which the
+# patch-level (c) ``ok->skip`` check misses entirely.
+
+
+def _perf_pid_with_two_subs():
+    """A live perf-bearing patch id usable as the SUB-landmine subject. PN351 is
+    a kernel_perf patch with two sub-anchors in the committed manifests; falls
+    back to the first perf id found if PN351 is ever renamed."""
+    sys.path.insert(0, str(REPO))
+    from sndr.dispatcher.registry import PATCH_REGISTRY
+    from sndr.dispatcher.spec import iter_patch_specs
+    from sndr.engines.vllm.retire_impact import is_perf_signal
+    for s in iter_patch_specs():
+        if s.patch_id == "PN351":
+            return "PN351"
+    for s in iter_patch_specs():
+        credit = (PATCH_REGISTRY.get(s.patch_id) or {}).get("credit", "")
+        if is_perf_signal(s.category, s.title, credit):
+            return s.patch_id
+    raise AssertionError("no perf-bearing patch in the live registry")
+
+
+def test_preflight_flags_perf_sub_patch_landmine(tmp_path):
+    """A perf patch that keeps one applied sub but LOSES another applied sub on
+    the new pin is surfaced as a (c2) sub-patch landmine, and the perf-delta A/B
+    gate fires (RESULT: PASS (with A/B gate)) — even though the patch stays ok
+    on both pins and genuine_anchor_drift is 0."""
+    pid = _perf_pid_with_two_subs()
+    old = _pin_dir(
+        tmp_path, "old",
+        {"pins": {"vllm": "dev148"}, "files": {"f.py": {"patches": {
+            pid: {"anchors": {"sub_main": {"byte_offset": 1},
+                              "sub_perf_effect": {"byte_offset": 2}}}}}}},
+        {"rejected": [],
+         "dependency_breakage": {"high_count": 0, "medium_count": 0,
+                                 "edges": []}})
+    new = _pin_dir(
+        tmp_path, "new",
+        # patch still ok (sub_main applied) but sub_perf_effect dropped.
+        {"pins": {"vllm": "dev301"}, "files": {"f.py": {"patches": {
+            pid: {"anchors": {"sub_main": {"byte_offset": 9}}}}}}},
+        {"rejected": [{"key": "%s::sub_perf_effect" % pid,
+                       "status": "optional_absent"}],
+         "dependency_breakage": {"high_count": 0, "medium_count": 0,
+                                 "edges": []}})
+    r = subprocess.run([sys.executable, str(PREFLIGHT), str(old), str(new)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    # the dead sub-patch is named in the (c2) block + the A/B gate is required.
+    assert "PERF sub-patch no-op landmines" in r.stdout
+    assert "sub_perf_effect" in r.stdout
+    assert "%s lost applied sub-patch" % pid in r.stdout
+    assert "PASS (with A/B gate)" in r.stdout
+    assert "sub_landmines=1" in r.stdout
+
+
+def test_preflight_no_sub_landmine_when_all_subs_survive(tmp_path):
+    """A perf patch that keeps ALL its applied subs across the bump does NOT trip
+    (c2) — no false landmine."""
+    pid = _perf_pid_with_two_subs()
+    anchors_old = {"pins": {"vllm": "dev148"}, "files": {"f.py": {"patches": {
+        pid: {"anchors": {"sub_main": {"byte_offset": 1},
+                          "sub_perf_effect": {"byte_offset": 2}}}}}}}
+    anchors_new = {"pins": {"vllm": "dev301"}, "files": {"f.py": {"patches": {
+        pid: {"anchors": {"sub_main": {"byte_offset": 9},
+                          "sub_perf_effect": {"byte_offset": 8}}}}}}}
+    rej = {"rejected": [],
+           "dependency_breakage": {"high_count": 0, "medium_count": 0,
+                                   "edges": []}}
+    old = _pin_dir(tmp_path, "old", anchors_old, rej)
+    new = _pin_dir(tmp_path, "new", anchors_new, rej)
+    r = subprocess.run([sys.executable, str(PREFLIGHT), str(old), str(new)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "(c2) PERF sub-patch no-op landmines on dev301 (0)" in r.stdout
+    # nothing perf-delta -> plain PASS, no A/B gate.
+    assert "RESULT: PASS — no HIGH-severity perf dependent broken" in r.stdout

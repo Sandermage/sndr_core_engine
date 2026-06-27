@@ -174,6 +174,30 @@ def test_summarize_rej_prints_human_summary(tmp_path):
     assert "PB::s1" in out  # the genuine drift is named for re-anchoring
 
 
+def test_summarize_rej_flags_perf_soft_skip_as_latent_noop(tmp_path):
+    """PART 1b single-pin face: a PERF patch with a required=True applied anchor
+    AND a required=False anchor whose target text is ABSENT (status
+    optional_absent) is surfaced as a latent no-op — the parent patch reports ok
+    but the perf EFFECT sub-patch is silently dead. PN351 is a live kernel_perf
+    patch, so the registry classifies it perf and the callout fires."""
+    targets = [
+        # required sub applies -> patch stays ok
+        _target("PN351", "pn351_main", "f.py", "PN351_APPLIED", "R"),
+        # required=False perf-effect sub whose anchor is absent -> optional_absent
+        _target("PN351", "pn351_perf_effect", "f.py", "PN351_MISSING_EFFECT",
+                "R", required=False),
+    ]
+    files = {"f.py": "x PN351_APPLIED y"}
+    _, repo = _run_build(tmp_path, targets, files)
+    r = subprocess.run([sys.executable, str(SUMMARIZE), str(_pin_dir(repo))],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    out = r.stdout
+    assert "PERF sub-patches soft-skipped on this pin" in out
+    assert "PN351::pn351_perf_effect" in out
+    assert "latent no-op" in out
+
+
 def test_summarize_rej_missing_file_exit_2(tmp_path):
     r = subprocess.run([sys.executable, str(SUMMARIZE), str(tmp_path / "nope")],
                        capture_output=True, text=True)
