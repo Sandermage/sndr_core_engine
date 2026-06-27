@@ -86,6 +86,7 @@ dev = [
 # image-digest verification, and outbound telemetry signals.
 http = [
     "requests>=2.28",
+    "urllib3>=2.7.0",  # CVE-2026-44431 / GHSA-qccp-gfcp-xxvc pin floor (transitive via requests)
 ]
 # `pip install vllm-sndr-core[gui-api]` for the local read-only Product
 # API daemon consumed by GUI/web/desktop clients. Authentication (local
@@ -95,6 +96,7 @@ http = [
 gui-api = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
+    "h11>=0.16.0",  # CVE-2025-43859 / GHSA-vqfr-h8mv-ghfj pin floor (transitive via uvicorn)
 ]
 # `pip install vllm-sndr-core[k8s]` for the GUI's read-only Kubernetes mode
 # (cluster status, nodes with GPU capacity, pods/logs/exec). The daemon imports
@@ -102,6 +104,7 @@ gui-api = [
 # the GUI shows "connect a cluster" rather than failing.
 k8s = [
     "kubernetes>=29.0",
+    "urllib3>=2.7.0",  # CVE-2026-44431 / GHSA-qccp-gfcp-xxvc pin floor (kubernetes requires urllib3 directly)
 ]
 # `pip install vllm-sndr-core[gui-remote]` for the GUI's remote-host features:
 # SSH/SFTP connectivity + checks, an embedded PTY terminal, and encrypted
@@ -123,6 +126,7 @@ gui-auth-pam = [
 # Telemetry stays opt-in — base install does not include it.
 telemetry = [
     "requests>=2.28",
+    "urllib3>=2.7.0",  # CVE-2026-44431 / GHSA-qccp-gfcp-xxvc pin floor (transitive via requests)
 ]
 # `pip install vllm-sndr-core[license]` for signed-token verification.
 license = [
