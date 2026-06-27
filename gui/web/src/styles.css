@@ -5063,6 +5063,34 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .hw-foot-i svg { color: var(--text-faint); flex: none; }
 .hw-uuid { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* GPU power-cap control (the write half of the Hardware view) */
+.hw-cap { display: flex; flex-direction: column; gap: 6px; padding: var(--sp-3) 0; border-top: 1px solid var(--border); }
+.hw-cap-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+.hw-cap-t { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; color: var(--text-soft); text-transform: uppercase; letter-spacing: .04em; }
+.hw-cap-t svg { color: var(--accent); }
+.hw-cap-cur { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+.hw-cap-na { font-size: 10.5px; color: var(--text-faint); font-style: italic; }
+.hw-cap-off { opacity: .8; }
+.hw-cap-row { display: flex; align-items: center; gap: var(--sp-2); }
+.hw-cap-slider { flex: 1 1 auto; min-width: 60px; accent-color: var(--accent); cursor: pointer; }
+.hw-cap-num { width: 64px; padding: 3px 6px; font-family: var(--mono); font-size: 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+.hw-cap-unit { font-size: 10px; color: var(--text-faint); }
+.hw-cap-range { font-family: var(--mono); font-size: 9.5px; color: var(--text-faint); margin-left: auto; white-space: nowrap; }
+.hw-cap-actions { display: flex; gap: var(--sp-2); }
+.hw-cap-apply { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: 11px; font-weight: 600; color: var(--accent-contrast); background: var(--accent); border: 1px solid var(--accent-strong); border-radius: 6px; cursor: pointer; }
+.hw-cap-apply:hover:not(:disabled) { background: var(--accent-strong); }
+.hw-cap-apply:disabled { opacity: .5; cursor: not-allowed; }
+.hw-cap-reset { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; font-size: 11px; }
+.hw-cap-confirm { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; background: var(--warn-soft); border: 1px solid var(--warn); border-radius: 6px; }
+.hw-cap-warn { display: inline-flex; align-items: flex-start; gap: 5px; font-size: 10.5px; color: var(--warn); line-height: 1.35; }
+.hw-cap-warn svg { flex: none; margin-top: 1px; }
+.hw-cap-confirm-btns { display: flex; gap: var(--sp-2); }
+.hw-cap-yes { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: 11px; font-weight: 600; color: var(--accent-contrast); background: var(--warn); border: 1px solid var(--warn); border-radius: 6px; cursor: pointer; }
+.hw-cap-yes:disabled { opacity: .6; cursor: not-allowed; }
+.hw-cap-no { padding: 4px 8px; font-size: 11px; }
+.hw-cap-err { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--danger); }
+.hw-cap-ok { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--ok); }
+
 @media (max-width: 400px) { .hw-gpus { grid-template-columns: 1fr; } }
 
 /* License & sndr_engine panel */

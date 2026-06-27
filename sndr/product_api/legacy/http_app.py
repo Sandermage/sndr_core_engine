@@ -2399,6 +2399,66 @@ def create_app(
         _profile, target = _ssh_target_for(host_id)
         return _dataclass_payload(gpu_telemetry.collect_remote(target))
 
+    # ── GPU power-cap WRITE path (the Hardware view's cap CONTROL) ───────────
+    # The display half lives in the telemetry routes above; this is the missing
+    # write half. It is a PRIVILEGED host mutation, so it is double-gated exactly
+    # like the install/exec routes: SNDR_ENABLE_APPLY (apply_on) AND an explicit
+    # confirm:true in the body. Watts are validated server-side against each
+    # card's live [min,max] (the request's bounds are never trusted). Body:
+    #   {gpu_index?: int, watts: int}  — a custom cap, or
+    #   {gpu_index?: int, watts: "default"|"reset"}  — restore the hardware default.
+    def _power_cap_request(payload: dict[str, Any]):
+        """Parse + gate a power-cap request body. Returns (gpu_index, watts, reset)
+        or raises HTTPException for a gate/validation failure."""
+        from . import power_cap as _pc
+
+        if not apply_on:
+            raise HTTPException(status_code=403, detail="apply is disabled — start the daemon with SNDR_ENABLE_APPLY=1")
+        if not bool(payload.get("confirm")):
+            raise HTTPException(status_code=400, detail="explicit confirm:true is required to change a GPU power limit")
+        gpu_index_raw = payload.get("gpu_index")
+        gpu_index: Optional[int] = None
+        if gpu_index_raw is not None and gpu_index_raw != "":
+            try:
+                gpu_index = int(gpu_index_raw)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="gpu_index must be an integer")
+        watts_raw = payload.get("watts")
+        reset = isinstance(watts_raw, str) and watts_raw.strip().lower() in ("default", "reset")
+        watts: Optional[int] = None
+        if not reset:
+            try:
+                watts = int(watts_raw)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="watts must be an integer, or 'default'/'reset'")
+            if watts < 1:
+                raise HTTPException(status_code=400, detail="watts must be a positive integer")
+        return _pc, gpu_index, watts, reset
+
+    @app.post("/api/v1/host/power-cap")
+    async def host_power_cap_route(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        """Set (or reset) a GPU power limit on the daemon host — MUTATING,
+        double-gated (apply_on + confirm:true). Validates watts against the live
+        per-GPU [min,max] and returns the limits read back after applying."""
+        _pc, gpu_index, watts, reset = _power_cap_request(payload)
+        try:
+            outcome = _pc.apply_cap_local(watts=watts, reset=reset, gpu_index=gpu_index)
+        except _pc.PowerCapError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc))
+        return outcome.to_dict()
+
+    @app.post("/api/v1/hosts/{host_id}/power-cap")
+    async def host_power_cap_remote_route(host_id: str, payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+        """Set (or reset) a GPU power limit on a registered host over SSH —
+        MUTATING, double-gated (apply_on + confirm:true)."""
+        _pc, gpu_index, watts, reset = _power_cap_request(payload)
+        _profile, target = _ssh_target_for(host_id)
+        try:
+            outcome = _pc.apply_cap_remote(target, watts=watts, reset=reset, gpu_index=gpu_index)
+        except _pc.PowerCapError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc))
+        return outcome.to_dict()
+
     # ── Kubernetes mode (read-only, P1) — degrades gracefully when no cluster ──
     @app.get("/api/v1/k8s/status")
     def k8s_status_route() -> dict[str, Any]:

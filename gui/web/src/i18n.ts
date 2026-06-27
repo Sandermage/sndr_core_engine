@@ -2945,4 +2945,18 @@ const RU_BY_EN: Record<string, string> = {
   "you instead of you SSH-ing to each.": "вам, вместо того чтобы вы подключались по SSH к каждому.",
   "You need to place a 2-GPU engine": "Нужно разместить движок на 2 GPU",
   "Your password and two-factor settings.": "Ваш пароль и настройки двухфакторной аутентификации.",
+  // GPU power-cap control (Hardware view)
+  "Power cap": "Лимит мощности",
+  "Power cap watts": "Лимит мощности, Вт",
+  "Set power cap": "Задать лимит мощности",
+  "Restore the hardware default limit": "Восстановить заводской лимит",
+  "Reset to default": "Сброс к заводскому",
+  "Cap set": "Лимит задан",
+  "Reset GPU": "Сбросить GPU",
+  "to its default power limit": "к его заводскому лимиту мощности",
+  "Change GPU": "Изменить GPU",
+  "power limit to": "лимит мощности на",
+  "This changes the GPU's hardware power limit.": "Это изменяет аппаратный лимит мощности GPU.",
+  "Control unavailable — no power-limit range on this device.": "Управление недоступно — у этого устройства нет диапазона лимита мощности.",
+  "The daemon could not apply the cap.": "Демон не смог применить лимит.",
 };

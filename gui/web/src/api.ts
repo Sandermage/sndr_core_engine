@@ -347,6 +347,23 @@ export type HardwareSystem = {
 };
 export type HardwareTelemetry = { gpus: GpuInfo[]; system: HardwareSystem; error: string | null };
 
+// Live per-GPU power limits read back after a cap is applied (watts).
+export type PowerCapLimits = {
+  index: number; limit: number | null; default_limit: number | null;
+  min_limit: number | null; max_limit: number | null;
+};
+export type PowerCapGpuResult = {
+  index: number; requested_watts: number; applied: boolean;
+  error: string | null; limits: PowerCapLimits | null;
+};
+export type PowerCapOutcome = {
+  ok: boolean; action: "set" | "reset";
+  results: PowerCapGpuResult[]; limits: PowerCapLimits[]; error: string | null;
+};
+// `watts` is a positive integer (a custom cap) or "default"/"reset" (restore the
+// hardware default). `gpuIndex` omitted → applies to every GPU on the host.
+export type PowerCapBody = { gpu_index?: number; watts: number | "default" | "reset"; confirm: true };
+
 export type K8sStatus = {
   available: boolean; error: string | null;
   version?: string | null; platform?: string | null;
@@ -1726,6 +1743,10 @@ export const api = {
   hostInventory: () => request<HostInventory>("/api/v1/host/inventory"),
   hostGpu: () => request<HardwareTelemetry>("/api/v1/host/gpu"),
   hostGpuRemote: (hostId: string) => request<HardwareTelemetry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/gpu`),
+  // GPU power-cap WRITE path (double-gated server-side: SNDR_ENABLE_APPLY + confirm).
+  hostPowerCap: (body: PowerCapBody) => postJson<PowerCapOutcome>("/api/v1/host/power-cap", body),
+  hostPowerCapRemote: (hostId: string, body: PowerCapBody) =>
+    postJson<PowerCapOutcome>(`/api/v1/hosts/${encodeURIComponent(hostId)}/power-cap`, body),
   k8sStatus: () => request<K8sStatus>("/api/v1/k8s/status"),
   k8sNodes: () => request<K8sNodesResult>("/api/v1/k8s/nodes"),
   k8sPods: () => request<K8sPodsResult>("/api/v1/k8s/pods"),

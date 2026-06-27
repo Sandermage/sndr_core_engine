@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Activity, AlertTriangle, ArrowDown, ArrowUp, CircuitBoard, Cpu, Fan, Gauge,
-  HardDrive, Network, RefreshCw, Server, Thermometer, Zap,
+  Activity, AlertTriangle, ArrowDown, ArrowUp, Check, CircuitBoard, Cpu, Fan, Gauge,
+  HardDrive, Network, RefreshCw, RotateCcw, Server, Sliders, Thermometer, X, Zap,
 } from "lucide-react";
-import { api, type GpuInfo, type HardwareSystem, type HardwareTelemetry } from "./api";
+import { api, type GpuInfo, type HardwareSystem, type HardwareTelemetry, type PowerCapBody } from "./api";
 import { tr } from "./i18n";
 
 type HostOption = { id: string; label: string };
@@ -95,7 +95,120 @@ function Sparkline({ data, t }: { data: number[]; t: "ok" | "warn" | "hot" }) {
 
 type GpuHistory = { util: number[]; temp: number[] };
 
-function GpuCard({ gpu, index, hist }: { gpu: GpuInfo; index: number; hist?: GpuHistory }) {
+// The cap CONTROL: a bounded watts input + slider and an Apply (with a two-step
+// confirm — this changes hardware power) plus a reset-to-default. It is disabled
+// gracefully when the card reports no min/max range (no permission / no device),
+// and surfaces a clean perm-denied / out-of-range error from the daemon.
+function PowerCapControl({ gpu, index, source, onApplied }: {
+  gpu: GpuInfo; index: number; source: Source; onApplied: () => void;
+}) {
+  const min = num(gpu.power_min_limit);
+  const max = num(gpu.power_max_limit) || num(gpu.power_default_limit);
+  const def = num(gpu.power_default_limit);
+  const current = num(gpu.power_max_limit); // enforced cap is the live max limit
+  const supported = min > 0 && max > 0 && max >= min;
+
+  const start = Math.round(current || def || max || min);
+  const [watts, setWatts] = useState<number>(start);
+  const [confirming, setConfirming] = useState<null | "set" | "reset">(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  // Re-sync the input to the live cap when telemetry refreshes (unless the
+  // operator is mid-edit / confirming) so the field tracks reality.
+  useEffect(() => {
+    if (confirming === null && !busy) setWatts(Math.round(current || def || max || min));
+  }, [current, def, max, min, confirming, busy]);
+
+  if (!supported) {
+    return (
+      <div className="hw-cap hw-cap-off">
+        <span className="hw-cap-t"><Sliders size={11} /> {tr("Power cap")}</span>
+        <span className="hw-cap-na">{tr("Control unavailable — no power-limit range on this device.")}</span>
+      </div>
+    );
+  }
+
+  const clampW = (v: number) => Math.max(min, Math.min(max, Math.round(v || 0)));
+
+  async function apply(action: "set" | "reset") {
+    setBusy(true); setErr(null); setDone(null);
+    const body: PowerCapBody = action === "reset"
+      ? { gpu_index: index, watts: "reset", confirm: true }
+      : { gpu_index: index, watts: clampW(watts), confirm: true };
+    try {
+      const out = source.kind === "host"
+        ? await api.hostPowerCapRemote(source.hostId, body)
+        : await api.hostPowerCap(body);
+      if (!out.ok) throw new Error(out.error ?? tr("The daemon could not apply the cap."));
+      setDone(action === "reset" ? tr("Reset to default") : `${tr("Cap set")} · ${clampW(watts)} W`);
+      onApplied();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false); setConfirming(null);
+    }
+  }
+
+  return (
+    <div className="hw-cap">
+      <div className="hw-cap-head">
+        <span className="hw-cap-t"><Sliders size={11} /> {tr("Power cap")}</span>
+        <span className="hw-cap-cur">{tr("now")} {Math.round(current || 0)} W · {tr("default")} {Math.round(def || 0)} W</span>
+      </div>
+      <div className="hw-cap-row">
+        <input className="hw-cap-slider" type="range" min={min} max={max} step={5}
+          value={watts} disabled={busy || confirming !== null}
+          aria-label={`${tr("Power cap watts")} GPU ${index}`}
+          onChange={(e) => setWatts(clampW(Number(e.target.value)))} />
+        <input className="hw-cap-num" type="number" min={min} max={max} step={5}
+          value={watts} disabled={busy || confirming !== null}
+          aria-label={`${tr("Power cap watts")} GPU ${index}`}
+          onChange={(e) => setWatts(clampW(Number(e.target.value)))} />
+        <span className="hw-cap-unit">W</span>
+        <span className="hw-cap-range">{Math.round(min)}–{Math.round(max)}</span>
+      </div>
+
+      {confirming === null ? (
+        <div className="hw-cap-actions">
+          <button className="hw-cap-apply" disabled={busy || watts === Math.round(current)}
+            onClick={() => setConfirming("set")}>
+            {busy ? <RefreshCw size={12} className="spin" /> : <Sliders size={12} />} {tr("Set power cap")}
+          </button>
+          <button className="hw-cap-reset ghost-button" disabled={busy}
+            onClick={() => setConfirming("reset")} title={tr("Restore the hardware default limit")}>
+            <RotateCcw size={12} /> {tr("Default")}
+          </button>
+        </div>
+      ) : (
+        <div className="hw-cap-confirm">
+          <span className="hw-cap-warn">
+            <AlertTriangle size={12} />{" "}
+            {confirming === "reset"
+              ? `${tr("Reset GPU")} ${index} ${tr("to its default power limit")} (${Math.round(def || 0)} W)?`
+              : `${tr("Change GPU")} ${index} ${tr("power limit to")} ${clampW(watts)} W? ${tr("This changes the GPU's hardware power limit.")}`}
+          </span>
+          <div className="hw-cap-confirm-btns">
+            <button className="hw-cap-yes" disabled={busy} onClick={() => void apply(confirming)}>
+              {busy ? <RefreshCw size={12} className="spin" /> : <Check size={12} />} {tr("Confirm")}
+            </button>
+            <button className="hw-cap-no ghost-button" disabled={busy} onClick={() => setConfirming(null)}>
+              <X size={12} /> {tr("Cancel")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {err && <span className="hw-cap-err"><AlertTriangle size={11} /> {err}</span>}
+      {done && !err && <span className="hw-cap-ok"><Check size={11} /> {done}</span>}
+    </div>
+  );
+}
+
+function GpuCard({ gpu, index, hist, source, onApplied }: {
+  gpu: GpuInfo; index: number; hist?: GpuHistory; source: Source; onApplied: () => void;
+}) {
   const util = num(gpu.gpu_util);
   const temp = num(gpu.temp_gpu);
   const power = num(gpu.power);
@@ -181,6 +294,8 @@ function GpuCard({ gpu, index, hist }: { gpu: GpuInfo; index: number; hist?: Gpu
           <Row k={tr("ECC uncorr")} v={<span className={eccUnc > 0 ? "hw-bad" : ""}>{gpu.ecc_uncorrected ?? "—"}</span>} />
         </div>
       </div>
+
+      <PowerCapControl gpu={gpu} index={index} source={source} onApplied={onApplied} />
 
       <div className="hw-foot">
         {gpu.vbios_version && <span className="hw-foot-i"><CircuitBoard size={10} /> vBIOS {gpu.vbios_version}</span>}
@@ -327,7 +442,7 @@ export function HardwarePanel({ hosts, initialHostId }: { hosts: HostOption[]; i
 
       {gpus.length > 0 && (
         <div className="hw-gpus">
-          {gpus.map((g, i) => <GpuCard key={g.uuid ?? i} gpu={g} index={i} hist={history[g.uuid ?? String(i)]} />)}
+          {gpus.map((g, i) => <GpuCard key={g.uuid ?? i} gpu={g} index={i} hist={history[g.uuid ?? String(i)]} source={source} onApplied={() => void load()} />)}
         </div>
       )}
 
