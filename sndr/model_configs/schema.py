@@ -101,6 +101,15 @@ class ModelConfig:
     quantization: Optional[str] = None
     kv_cache_dtype: Optional[str] = None
 
+    # Multi-engine support (Phase 0, 2026-06-27). Inference engine this
+    # launch lane targets — "vllm" (default) or "llama-cpp". Carried through
+    # compose() from the V2 ModelDef.engine field. The launch dispatcher
+    # (build_runtime_command / the launch-script emitters) branches on this:
+    # "vllm" renders the canonical `vllm serve ...` argv unchanged; "llama-cpp"
+    # renders the llama-server GGUF argv. Default "vllm" keeps every existing
+    # V1 config + every V2-composed config byte-identical.
+    engine: str = "vllm"
+
     # vLLM serve flags (canonical)
     max_model_len: int = 32768
     gpu_memory_utilization: float = 0.90

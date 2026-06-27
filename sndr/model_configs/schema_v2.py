@@ -150,6 +150,26 @@ ALLOWED_KV_CACHE_DTYPES = (
     "fp8_e5m2",
     "fp8_e4m3",
     "turboquant_k8v4",
+    # llama.cpp GGUF KV-cache quant types (--cache-type-k / --cache-type-v).
+    # Densest mainline q4_0 is the single-card workhorse (Ampere-fast); the
+    # higher-bit variants trade context ceiling for quality. Only meaningful
+    # on engine=llama-cpp lanes — the vLLM emitters never see these values.
+    "q4_0",
+    "q5_0",
+    "q8_0",
+)
+
+# Multi-engine support (Phase 0, 2026-06-27). A ModelDef declares which
+# inference engine its launch lane targets. Default "vllm" keeps every
+# existing model byte-identical (the vLLM emitters are the only path that
+# fires when engine=="vllm"). "llama-cpp" routes the launch dispatcher to
+# the GGUF/llama-server argv builder instead — see
+# sndr.model_configs.runtime_command.build_llamacpp_argv and the
+# kv_projector llama.cpp projection. Extend this tuple (with operator
+# review + an EngineAdapter) to add a new engine lane.
+ALLOWED_ENGINES = (
+    "vllm",
+    "llama-cpp",
 )
 
 # D.11 (CONFIG-UX-D10-D11-ENUM.1, 2026-05-26) — license enum-validation.
@@ -341,6 +361,15 @@ class ModelDef:
     dtype: str = "float16"
     trust_remote_code: bool = True
 
+    # Multi-engine support (Phase 0, 2026-06-27). Which inference engine this
+    # model's launch lane targets. Default "vllm" → the launch dispatcher
+    # renders the canonical `vllm serve ...` argv exactly as before (zero
+    # behaviour change for every existing model). "llama-cpp" routes the
+    # dispatcher to the GGUF/llama-server argv builder. See ALLOWED_ENGINES.
+    # `model_path` semantics shift with the engine: a vLLM model_path is an HF
+    # checkpoint DIR; a llama-cpp model_path is a single .gguf FILE.
+    engine: str = "vllm"
+
     capabilities: ModelCapabilities = field(
         default_factory=lambda: ModelCapabilities(attention_arch="dense"),
     )
@@ -439,6 +468,12 @@ class ModelDef:
                 f"model.license={self.license!r} must be one of "
                 f"{ALLOWED_LICENSES} (extend ALLOWED_LICENSES in "
                 "schema_v2.py with operator review)"
+            )
+        if self.engine not in ALLOWED_ENGINES:
+            raise SchemaError(
+                f"model.engine={self.engine!r} must be one of "
+                f"{ALLOWED_ENGINES} (extend ALLOWED_ENGINES in "
+                "schema_v2.py with operator review + an EngineAdapter)"
             )
         self.capabilities.validate()
         self.requires.validate()

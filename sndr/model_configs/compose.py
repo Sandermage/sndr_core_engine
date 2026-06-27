@@ -593,6 +593,11 @@ def compose(
         # cfg.kv_cache_dtype when parent ModelDef is neutral (auto/None).
         kv_cache_dtype=_resolve_kv_cache_dtype(model, profile),
 
+        # Multi-engine support (Phase 0): carry the model's declared engine
+        # into the V1 ModelConfig so the launch dispatcher can branch on it.
+        # Defaults to "vllm" for every existing model (zero behaviour change).
+        engine=getattr(model, "engine", "vllm"),
+
         # vLLM serve flags (sizing resolved with profile override above)
         max_model_len=sizing.max_model_len,
         gpu_memory_utilization=sizing.gpu_memory_utilization,
