@@ -1634,7 +1634,7 @@ export const api = {
   downloadRepo: (repo_id: string) => postJson<Job>("/api/v1/models/download", { repo_id }),
   engineChatStream: async (
     payload: { messages: Array<{ role: string; content: string }>; model?: string; max_tokens?: number; temperature?: number; top_p?: number; top_k?: number; min_p?: number; presence_penalty?: number; frequency_penalty?: number; repetition_penalty?: number; seed?: number; stop?: string[]; host?: string; port?: number; apiKey?: string; hostId?: string; web_search?: boolean; web_k?: number; chat_template_kwargs?: { enable_thinking?: boolean } },
-    handlers: { onDelta: (text: string) => void; onReasoning?: (text: string) => void; onSources?: (docs: RagDoc[]) => void; onDone: (meta: { tokens?: number; latency_ms?: number; ttft_ms?: number; finish_reason?: string; had_reasoning?: boolean }) => void; onError: (msg: string) => void },
+    handlers: { onDelta: (text: string) => void; onReasoning?: (text: string) => void; onSources?: (docs: RagDoc[]) => void; onSearchError?: (msg: string) => void; onDone: (meta: { tokens?: number; latency_ms?: number; ttft_ms?: number; finish_reason?: string; had_reasoning?: boolean }) => void; onError: (msg: string) => void },
     signal?: AbortSignal
   ) => {
     const { apiKey, hostId, ...rest } = payload;
@@ -1661,6 +1661,7 @@ export const api = {
         if (obj.error) handlers.onError(obj.error);
         else if (obj.done) handlers.onDone(obj);
         else if (obj.sources) handlers.onSources?.(obj.sources);
+        else if (obj.search_error) handlers.onSearchError?.(obj.search_error);
         else if (obj.reasoning) handlers.onReasoning?.(obj.reasoning);
         else if (obj.delta) handlers.onDelta(obj.delta);
       } catch {
