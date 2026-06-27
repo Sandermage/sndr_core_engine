@@ -135,7 +135,11 @@ class TestLiveRepo:
         # Reconciled 2026-06-19 to live count: 11 model YAMLs — the 11th
         # is qwen3.6-7b-dense (committed club-3090 #58 Path A DENSE
         # reference; one pin-format result per model YAML).
-        assert len(results) == 11
+        # Multi-engine Phase 1 (2026-06-27): 12 model YAMLs — the 12th is
+        # qwen3.6-27b-gguf-q4km-mtp (engine: llama-cpp). It is still counted
+        # but exempt from the vLLM pin-format check (no vLLM pin), so it
+        # passes rather than failing on a null vllm_pin_required.
+        assert len(results) == 12
 
 
 class TestScriptCLI:

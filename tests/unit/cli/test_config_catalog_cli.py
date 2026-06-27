@@ -376,7 +376,9 @@ class TestGate9NeighbouringCLIsUnchanged:
         data = json.loads(result.stdout)
         # Canonical-config reorg (2026-06): 14 builtin presets (24 - 11
         # archived to presets/_archive/ + the new prod-diffusiongemma-tp2).
-        assert data["total"] == 14
+        # Multi-engine Phase 1 (2026-06-27): +1 = llamacpp-qwen3.6-27b-q4km-1x
+        # → 15 builtin presets.
+        assert data["total"] == 15
 
     def test_sndr_routing_table_help_works(self):
         result = subprocess.run(

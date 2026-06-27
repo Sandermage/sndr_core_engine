@@ -10,7 +10,7 @@
 //   · a fit pill for the current rig (reuses the preflight verdict);
 //   · a one-line "why this" (workload + drafter).
 import { type ReactNode } from "react";
-import { CheckCircle2, CircleAlert, Cpu, Gauge, HelpCircle, LifeBuoy } from "lucide-react";
+import { Boxes, CheckCircle2, CircleAlert, Cpu, Gauge, HelpCircle, LifeBuoy } from "lucide-react";
 import { tr } from "../i18n";
 import { type PresetRecord, type PreflightFitReport } from "../api";
 import { asNumber, asText } from "../lib/coerce";
@@ -84,6 +84,16 @@ function hardwareReq(fit: Record<string, unknown>): string {
   return parts.length ? parts.join(" · ") : tr("no declared requirement");
 }
 
+/** Human label for the inference engine the lane runs on. Defaults to vLLM
+ *  (the engine for every lane that does not declare one). "llama-cpp" is the
+ *  single-card GGUF escape-hatch engine. Surfaced so a consumer can tell a
+ *  vLLM lane from a llama.cpp lane at a glance, without composing the preset. */
+function engineLabel(card: Record<string, unknown>): string {
+  const raw = asText(card.engine, "vllm").toLowerCase();
+  if (raw === "llama-cpp" || raw === "llamacpp" || raw === "llama.cpp") return "llama.cpp";
+  return "vLLM";
+}
+
 /** One-line "why pick this" from the card's allowed workloads + drafter. */
 function whyThis(card: Record<string, unknown>): string {
   const allow = Array.isArray(card.workload_allow) ? (card.workload_allow as string[]) : [];
@@ -147,6 +157,9 @@ export function ModelCard({
       <div className="mc-meta">
         <span className="mc-metric" title={tr("Measured throughput from the preset's primary metric")}>
           <Gauge size={13} /> {tps > 0 ? `${tps.toLocaleString()} ${metricKind}` : tr("TPS pending")}
+        </span>
+        <span className="mc-engine" title={tr("Inference engine this lane runs on")}>
+          <Boxes size={13} /> {engineLabel(card)}
         </span>
         <span className="mc-hw" title={tr("Hardware the preset declares it needs")}>
           <Cpu size={13} /> {hardwareReq(fit)}

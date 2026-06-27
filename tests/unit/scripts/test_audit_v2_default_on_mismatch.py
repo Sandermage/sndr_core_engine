@@ -97,7 +97,10 @@ class TestLiveRepo:
         # _ALLOWED_OVERRIDES allowlist is unchanged: 7b-dense carries no
         # default_on overrides, so it adds a clean (empty-overrides)
         # result without expanding the allowlist.
-        assert len(results) == 11
+        # Multi-engine Phase 1 (2026-06-27): 12 model YAMLs — the 12th is
+        # qwen3.6-27b-gguf-q4km-mtp (engine: llama-cpp); it carries no
+        # default_on overrides, so it adds a clean result.
+        assert len(results) == 12
 
 
 class TestSyntheticOverride:

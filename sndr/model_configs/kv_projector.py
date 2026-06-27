@@ -140,6 +140,45 @@ _TIGHT_BAND = 1.05
 FIT_BAND_GIB = 1.5
 
 
+# ─── llama.cpp single-card lane calibration (club-3090 anchor) ───────────────
+#
+# The llama.cpp GGUF lane is a DIFFERENT engine with a different memory model
+# than vLLM, so it gets its own coefficients — NOT the vLLM TP/cudagraph math
+# above. Anchored to the club-3090 published VRAM budget for the validated
+# single-3090 Qwen3.6-27B Q4_K_M + q4_0-KV + MTP lane
+# (models/qwen3.6-27b/llama-cpp/compose/single/unsloth-q4km/mtp.yml header):
+#
+#     weights (Q4_K_M):            ~17.0 GB
+#     KV at 131K (q4_0 K+V):        ~5.0 GB
+#     MTP draft head + overhead:    ~0.5 GB
+#     total:                       ~22.5 GB    (on a 24 GB card)
+#
+# GGUF Q4_K_M packs heavier than vLLM AutoRound INT4 (~13 GiB) because of the
+# K-quant block structure + the GGUF embed/output tensors, so the projector
+# prefers an explicit ``weights_total_gib`` on the GGUF shape and only falls
+# back to this default when none is declared.
+_LLAMACPP_Q4KM_WEIGHTS_GIB = 17.0
+
+# llama.cpp q4_0 effective KV bytes/element. CALIBRATED to the club-3090
+# anchor: solving the published ~5.0 GB KV at 131K over the 27B checkpoint's
+# 48 hidden layers (4 KV heads, head_dim 128, K+V counted separately) gives
+#     5.0 GiB = 48 * 4 * 128 * 2 * bpe * 131072 / 1024^3  →  bpe = 0.8333 B/elem.
+# This is HIGHER than the bare 4-bit value because llama.cpp's q4_0 cache adds
+# the per-32-element fp16 block scale AND the model's full per-layer K/V state
+# (llama.cpp does NOT apply the vLLM hybrid-GDN "only the 12 full-attention
+# layers grow KV" split — the GGUF caches K/V across all hidden layers). The
+# single bpe knob is what lands the lane on the published ~22.5 GB / 24 GB
+# anchor; treat the prediction as ±FIT_BAND_GIB like the vLLM lanes.
+_LLAMACPP_Q4_0_BYTES_PER_ELEM = 0.8333
+
+# llama.cpp fixed overhead on a single card (GiB): MTP draft head + the
+# llama-server compute buffers. The mtp.yml budget books ~0.5 GB for
+# "MTP draft head + overhead"; the -ub microbatch activation peak is folded in
+# here as a fixed (NOT ctx-linear) term because llama.cpp chunked prefill caps
+# the per-pass buffer at -ub tokens regardless of context depth.
+_LLAMACPP_OVERHEAD_GIB = 0.5
+
+
 # ─── Rig + projection result objects ────────────────────────────────────────
 
 
@@ -528,6 +567,138 @@ def solve_max_ctx(
     return best
 
 
+# ─── llama.cpp single-card GGUF projection ──────────────────────────────────
+
+
+def llamacpp_weights_gib(shape) -> float:
+    """Resident GGUF weight size (GiB) on a single card for the llama.cpp lane.
+
+    Prefers an explicit ``weights_total_gib`` declared on the GGUF shape (the
+    measured on-disk == resident footprint, exact for the Q4_K_M GGUF). Falls
+    back to the club-3090 ~17.0 GB Q4_K_M anchor when none is declared. No TP
+    divide — the llama.cpp single-card lane runs the whole model on one GPU.
+    """
+    total = getattr(shape, "weights_total_gib", None) if shape else None
+    if total:
+        return float(total)
+    return _LLAMACPP_Q4KM_WEIGHTS_GIB
+
+
+def llamacpp_kv_pool_gib(shape, ctx: int) -> float:
+    """Growing q4_0 KV-pool size (GiB) at ``ctx`` for the llama.cpp lane.
+
+    Sized over ALL hidden layers (llama.cpp does not apply the vLLM hybrid-GDN
+    attention-layer split), K and V counted separately (×2), at the calibrated
+    q4_0 effective bytes/element. Reproduces the club-3090 ~5.0 GB at 131K.
+    Single-card (-np 1), so no concurrency multiplier and no TP divide.
+    """
+    if shape is None:
+        return 0.0
+    layers = getattr(shape, "num_hidden_layers", None) or 0
+    kv_heads = getattr(shape, "num_kv_heads", None) or 0
+    head_dim = getattr(shape, "head_dim", None) or 0
+    if not (layers and kv_heads and head_dim):
+        return 0.0
+    per_token = layers * kv_heads * head_dim * 2 * _LLAMACPP_Q4_0_BYTES_PER_ELEM
+    return per_token * int(ctx) / _GIB
+
+
+def project_llamacpp_from_shape(
+    shape,
+    *,
+    preset_id: str,
+    ctx: int,
+    vram_gib: float,
+    mtp: bool = False,
+) -> Projection:
+    """Byte-level VRAM projection for the llama.cpp single-card GGUF lane.
+
+    A SEPARATE projection from ``project_from_shape`` because llama.cpp's
+    memory model is different from vLLM's: GGUF weights (no TP shard), a q4_0
+    KV pool sized over all hidden layers, a fixed ``-ub`` activation peak (not
+    ctx-linear), and no cudagraph / NCCL overhead. The verdict bands match the
+    vLLM lane (PASS / TIGHT / FAIL) so the GUI / preflight reads one scale.
+
+    Args:
+        shape: GGUF ModelShape (num_hidden_layers / num_kv_heads / head_dim;
+            optionally weights_total_gib).
+        ctx: the ``-c`` context window (the KV pool size).
+        vram_gib: per-card VRAM (single card).
+        mtp: whether the lane runs the MTP drafter (folded into overhead).
+    """
+    ctx = max(int(ctx), 1)
+
+    weights_gib = llamacpp_weights_gib(shape)
+    kv_gib = llamacpp_kv_pool_gib(shape, ctx)
+    overhead_gib = _LLAMACPP_OVERHEAD_GIB
+    fixed_gib = weights_gib + overhead_gib
+    total_gib = fixed_gib + kv_gib
+
+    # llama.cpp pre-allocates the full -c KV pool up front (it does NOT grow
+    # PagedAttention-style like vLLM), so the requested pool IS the actual
+    # pool. The verdict is therefore a straight headroom check.
+    available_for_kv_gib = max(0.0, vram_gib - fixed_gib)
+    headroom_gib = vram_gib - total_gib
+
+    notes: list[str] = []
+    if kv_gib <= 0.0:
+        notes.append(
+            "GGUF shape declares no KV dims (num_hidden_layers/num_kv_heads/"
+            "head_dim) — KV pool is 0; projection under-counts."
+        )
+
+    # FAIL — the fixed footprint alone (GGUF weights + overhead) leaves no room
+    # for even a minimal KV pool; llama-server would OOM at load.
+    if available_for_kv_gib < 0.25:
+        verdict = "FAIL"
+        notes.append(
+            f"GGUF weights + overhead ({fixed_gib:.1f} GiB) leave only "
+            f"{available_for_kv_gib:.2f} GiB for the q4_0 KV pool — not enough "
+            f"for ctx={ctx:,}. Lower -c, use a smaller quant, or add VRAM."
+        )
+    elif kv_gib > available_for_kv_gib * _TIGHT_BAND:
+        verdict = "TIGHT"
+        notes.append(
+            f"q4_0 KV pool ({kv_gib:.1f} GiB at ctx={ctx:,}) exceeds the "
+            f"{available_for_kv_gib:.1f} GiB free after weights+overhead — "
+            f"llama-server pre-allocates the full -c pool, so this would OOM "
+            f"at load. Lower -c (e.g. via CTX_SIZE) or raise -ub headroom."
+        )
+    else:
+        verdict = "PASS"
+
+    notes.append(
+        "llama.cpp single-card lane — projection anchored to the club-3090 "
+        "Q4_K_M + q4_0-KV + MTP budget (~22.5 GiB at 131K on 24 GB); treat "
+        f"per-card GiB as ±{FIT_BAND_GIB} GiB."
+    )
+
+    return Projection(
+        preset_id=preset_id,
+        kv_format="q4_0",
+        ctx=ctx,
+        max_num_seqs=1,                 # -np 1 mandatory on the single-card lane
+        tp=1,
+        mem_util=1.0,                   # llama.cpp pre-allocates against full VRAM
+        vram_gib=vram_gib,
+        weights_gib=weights_gib,
+        kv_pool_requested_gib=kv_gib,
+        kv_pool_actual_gib=min(kv_gib, available_for_kv_gib),
+        recurrent_state_gib=0.0,        # GGUF folds GDN state into weights
+        activation_gib=0.0,             # -ub peak folded into overhead
+        cudagraph_overhead_gib=0.0,     # no cudagraph on llama.cpp
+        drafter_gib=overhead_gib if mtp else 0.0,
+        fixed_gib=fixed_gib,
+        budget_gib=vram_gib,
+        total_gib=total_gib,
+        headroom_gib=headroom_gib,
+        available_for_kv_gib=available_for_kv_gib,
+        verdict=verdict,
+        provisional=True,               # no live llama-server telemetry anchor
+        notes=tuple(notes),
+    )
+
+
 # ─── Preset-driven convenience wrapper ──────────────────────────────────────
 
 
@@ -599,6 +770,18 @@ def project(
         )
 
     op = _resolve_operating_point(preset)
+
+    # Multi-engine dispatch (Phase 1): the llama.cpp lane uses its own
+    # single-card GGUF projection, NOT the vLLM TP/cudagraph math.
+    if getattr(preset, "engine", "vllm") == "llama-cpp":
+        return project_llamacpp_from_shape(
+            shape,
+            preset_id=(preset_id or getattr(preset, "key", None) or "<preset>"),
+            ctx=(ctx if ctx is not None else op["ctx"]),
+            vram_gib=rig.vram_gib_per_card,
+            mtp=op["mtp"],
+        )
+
     return project_from_shape(
         shape,
         preset_id=(preset_id or getattr(preset, "key", None) or "<preset>"),
@@ -630,4 +813,8 @@ __all__ = [
     "project",
     "fit_verdict",
     "solve_max_ctx",
+    # llama.cpp single-card GGUF lane
+    "llamacpp_weights_gib",
+    "llamacpp_kv_pool_gib",
+    "project_llamacpp_from_shape",
 ]

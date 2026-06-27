@@ -55,7 +55,9 @@ class TestLiveRepo:
         # Reconciled 2026-06-19 to live count: 11 model YAMLs — the 11th
         # is qwen3.6-7b-dense (committed club-3090 #58 Path A DENSE
         # reference; one lifecycle-check result per model YAML).
-        assert len(results) == 11
+        # Multi-engine Phase 1 (2026-06-27): 12 model YAMLs — the 12th is
+        # qwen3.6-27b-gguf-q4km-mtp (engine: llama-cpp).
+        assert len(results) == 12
 
     def test_enabled_patches_actually_count(self):
         """Sanity: at least one model has ≥ 20 enabled patches (not all 0)."""

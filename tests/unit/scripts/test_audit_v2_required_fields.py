@@ -173,7 +173,10 @@ class TestLiveRepo:
         # 14 profile + 14 preset (archived 11 presets + 12 profiles to
         # _archive/, added prod-diffusiongemma-tp2; models + hardware
         # unchanged).
-        assert len(results) == 42
+        # Multi-engine Phase 1 (2026-06-27): 45 = +1 model + +1 profile +
+        # +1 preset (the llamacpp-qwen3.6-27b-q4km-1x single-card GGUF
+        # lane); hardware unchanged.
+        assert len(results) == 45
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

@@ -67,6 +67,15 @@ def check_one_model(path: Path) -> PinCheck:
         return PinCheck(path=path, model_id="?",
                       error=f"YAML parse error: {e}")
     model_id = data.get("id", path.stem)
+    # Multi-engine (Phase 1): a top-level `engine:` field declares the lane's
+    # inference engine. A non-vLLM lane (e.g. llama-cpp) carries no vLLM pin —
+    # `versions.vllm_pin_required` is legitimately null — so the vLLM pin-format
+    # gate does not apply. Mirror the carve-out already in audit_v2_runtime_pins
+    # / audit_v2_modeldef_vs_hardware_pin: keep it in the result set (still
+    # counted) but exempt from the format check.
+    engine = str(data.get("engine", "vllm")).strip().lower()
+    if engine != "vllm":
+        return PinCheck(path=path, model_id=model_id)
     versions = data.get("versions") or {}
     vp = versions.get("vllm_pin_required")
     gp = versions.get("genesis_pin_min")

@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from .docker_cmd import build_docker_cmd
+from .llamacpp_cmd import build_llamacpp_cmd, build_llamacpp_docker_cmd
 from .shell import shell_quote
 from .vllm_cmd import build_vllm_cmd
 
@@ -93,6 +94,24 @@ def render_launch_script(
         for k, v in sorted(cfg.genesis_env.items()):
             lines.append(f'export {k}={shell_quote(v)}')
         lines.append("")
+
+    # Multi-engine dispatch (Phase 1, 2026-06-27). The vLLM branch is
+    # UNCHANGED — it fires for engine == "vllm" (the default for every
+    # existing config), so vLLM presets render a byte-identical script. The
+    # llama.cpp branch builds the llama-server GGUF command + a docker run
+    # with the pinned llama.cpp image and NO Genesis apply step.
+    if getattr(cfg, "engine", "vllm") == "llama-cpp":
+        cmd_parts = build_llamacpp_cmd(cfg)
+        if cfg.docker:
+            lines.append("# Docker launch (llama.cpp)")
+            lines.append(build_llamacpp_docker_cmd(
+                cfg, cmd_parts, host_paths=host_paths,
+                strict_mounts=strict_mounts,
+            ))
+        else:
+            lines.append("# Bare-metal launch (llama.cpp)")
+            lines.append("exec " + " \\\n  ".join(cmd_parts))
+        return "\n".join(lines) + "\n"
 
     # Build vllm serve cmd
     cmd_parts = build_vllm_cmd(cfg)

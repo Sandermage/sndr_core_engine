@@ -99,7 +99,9 @@ class TestLiveRepo:
         # Reconciled 2026-06-19 to live count: 11 model YAMLs — the 11th
         # is qwen3.6-7b-dense (committed club-3090 #58 Path A DENSE
         # reference; one quantization-check result per model YAML).
-        assert len(results) == 11
+        # Multi-engine Phase 1 (2026-06-27): 12 model YAMLs — the 12th is
+        # qwen3.6-27b-gguf-q4km-mtp (engine: llama-cpp, GGUF Q4_K_M).
+        assert len(results) == 12
 
 
 class TestScriptCLI:

@@ -256,6 +256,7 @@ const RU_BY_EN: Record<string, string> = {
   "Blocked on your rig": "Не подходит для вашей сборки",
   "Measured throughput from the preset's primary metric": "Измеренная пропускная способность из основной метрики пресета",
   "Hardware the preset declares it needs": "Оборудование, которое требует пресет",
+  "Inference engine this lane runs on": "Движок инференса этой конфигурации",
   "Why pick this preset": "Почему стоит выбрать этот пресет",
   "TPS pending": "TPS ожидается",
   "no declared requirement": "требования не заявлены",

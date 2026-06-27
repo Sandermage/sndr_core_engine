@@ -307,6 +307,13 @@ _VLLM_PIN_REQUIRED_RE = re.compile(
     r"^\s{2}vllm_pin_required:\s*(?P<value>\S+)",
     re.MULTILINE,
 )
+# Multi-engine (Phase 1): a top-level `engine:` field on a ModelDef declares
+# which inference engine the lane targets. A non-vLLM engine (e.g. llama-cpp)
+# has NO vLLM pin, so the vLLM-pin audits below skip it.
+_ENGINE_RE = re.compile(
+    r"^engine:\s*(?P<value>\S+)",
+    re.MULTILINE,
+)
 
 
 def _strip_yaml_value(raw: str) -> str:
@@ -345,6 +352,18 @@ def _read_model_pin(yaml_path: Path) -> str | None:
     src = yaml_path.read_text()
     m = _VLLM_PIN_REQUIRED_RE.search(src)
     return _strip_yaml_value(m.group("value")) if m else None
+
+
+def _read_model_engine(yaml_path: Path) -> str:
+    """Return the ModelDef's declared engine ('vllm' default / 'llama-cpp')."""
+    m = _ENGINE_RE.search(yaml_path.read_text())
+    return _strip_yaml_value(m.group("value")) if m else "vllm"
+
+
+def _is_vllm_engine_model(yaml_path: Path) -> bool:
+    """True when the ModelDef targets the vLLM engine (the only engine the
+    vLLM-pin audits apply to). A llama.cpp lane has no vLLM pin → skip."""
+    return _read_model_engine(yaml_path) == "vllm"
 
 
 # ─── Rule implementations ───────────────────────────────────────────────
@@ -552,9 +571,17 @@ def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
     dflash_canonical: list[str] = []
 
     for yaml_path in sorted(MODEL_DIR.glob("*.yaml")):
-        pin = _read_model_pin(yaml_path)
         stem = yaml_path.stem
         rel = _rel(yaml_path)
+        # Multi-engine (Phase 1): a non-vLLM lane (e.g. llama-cpp) has no vLLM
+        # pin. The vLLM-pin migration audit does not apply — record it as info.
+        if not _is_vllm_engine_model(yaml_path):
+            infos.append(
+                f"{rel}: engine={_read_model_engine(yaml_path)!r} — non-vLLM "
+                f"lane, exempt from the vLLM ModelDef-pin migration check."
+            )
+            continue
+        pin = _read_model_pin(yaml_path)
         if pin is None:
             errors.append(
                 f"{rel}: vllm_pin_required is missing. Every ModelDef "

@@ -58,7 +58,11 @@ card:
     engine_pin: 0.23.1rc1.dev424+g3f5a1e173        # validated vLLM build
   routing_family: qwen3_6_27b_int4_tq
   default_for_family: true
-  fallback_preset: prod-qwen3.6-27b-tq-k8v4
+  # Single-card escape hatch (multi-engine Phase 1, 2026-06-27): a 1×24GB
+  # operator cannot run this 2× tensor-parallel vLLM lane. The fallback is the
+  # cliff-immune llama.cpp GGUF lane they CAN launch on one card (the GUI
+  # EscapeHatchCard [Switch] routes here). Previously self-referential.
+  fallback_preset: llamacpp-qwen3.6-27b-q4km-1x
   primary_metric:
     kind: agg_TPS
     value: 0.0

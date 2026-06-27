@@ -111,7 +111,10 @@ class TestLiveRepo:
         # 14 profile (archived 12 profiles to profile/_archive/: 11 1:1
         # siblings of archived presets + the orphan gemma4-31b-fp8e5m2-
         # fallback; models + hardware unchanged).
-        assert len(results) == 28
+        # Multi-engine Phase 1 (2026-06-27): 30 = +1 model
+        # (qwen3.6-27b-gguf-q4km-mtp) + +1 profile
+        # (llamacpp-qwen3.6-27b-q4km-1x); hardware unchanged.
+        assert len(results) == 30
 
 
 class TestScriptCLI:

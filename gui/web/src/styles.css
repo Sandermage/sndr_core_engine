@@ -5459,7 +5459,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
 .mc-id { font-family: var(--mono); font-size: 12.5px; word-break: break-word; }
 .mc-title { font-size: 12px; color: var(--text-muted); line-height: 1.3; }
 .mc-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
-.mc-metric, .mc-hw { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text); font-variant-numeric: tabular-nums; }
+.mc-metric, .mc-hw, .mc-engine { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text); font-variant-numeric: tabular-nums; }
 .mc-why { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); line-height: 1.35; }
 .mc-status { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
 .mc-status.tone-ok { color: var(--ok); background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }

@@ -73,6 +73,18 @@ except ImportError:
     # sglang adapter not yet implemented (skeleton only).
     pass
 
+# llama.cpp is the single-card GGUF escape-hatch engine (multi-engine Phase 1).
+# Pure-Python adapter (no llama.cpp Python package needed — it probes the
+# binary / reports the pinned image build), so the import always succeeds.
+try:
+    from sndr.engines.llamacpp import LlamacppEngine
+    register_engine("llama-cpp", LlamacppEngine)
+except ImportError as e:
+    import logging
+    logging.getLogger("sndr.engines").warning(
+        "Failed to register llama-cpp engine adapter: %s", e,
+    )
+
 __all__ = [
     "EngineAdapter",
     "EngineInfo",

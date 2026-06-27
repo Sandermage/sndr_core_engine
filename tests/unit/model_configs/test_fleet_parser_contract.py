@@ -88,6 +88,24 @@ def test_modeldef_parser_values_match_fleet_contract(model_id):
     """
     model = load_model(model_id)
     caps = model.capabilities
+    # Multi-engine carve-out (Phase 1, 2026-06-27): the fleet parser contract
+    # is a vLLM contract — it locks the validated tool/reasoning parser flags
+    # that vllm serve needs. The llama.cpp engine lane has NO first-class
+    # --tool-call-parser / --reasoning-parser (llama-server handles the native
+    # GGUF-embedded template itself; tool-call extraction is via an Ollama /
+    # Open WebUI wrapper — see club-3090 README "Tool calls (limited)"), so its
+    # ModelDef correctly declares both parsers null. Exempt it here.
+    if getattr(model, "engine", "vllm") == "llama-cpp":
+        assert caps.tool_call_parser is None, (
+            f"{model_id}: llama.cpp lane must declare tool_call_parser null "
+            f"(no first-class parser on llama-server), got "
+            f"{caps.tool_call_parser!r}"
+        )
+        assert caps.reasoning_parser is None, (
+            f"{model_id}: llama.cpp lane must declare reasoning_parser null, "
+            f"got {caps.reasoning_parser!r}"
+        )
+        return
     if model_id.startswith("qwen3.6"):
         assert caps.tool_call_parser in ("qwen3_coder", "qwen3_xml"), (
             f"{model_id}: Qwen 3.6 fleet contract requires "

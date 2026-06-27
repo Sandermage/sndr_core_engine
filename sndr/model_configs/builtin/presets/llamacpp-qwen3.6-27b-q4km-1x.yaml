@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 alias — 27B Q4_K_M GGUF on llama.cpp, single 1×24GB card.
+# The "for humans" unlock: the cliff-immune single-card escape hatch a 1×24GB
+# operator can actually LAUNCH. `sndr launch llamacpp-qwen3.6-27b-q4km-1x
+# --dry-run` renders the llama-server GGUF docker command (NOT vllm serve).
+
+model: qwen3.6-27b-gguf-q4km-mtp                  # engine: llama-cpp
+hardware: a5000-1x-24gbvram-16cpu-128gbram        # single-card 24GB Ampere (A5000 / 3090 / 4090)
+profile: llamacpp-qwen3.6-27b-q4km-1x             # 131K @ -ub 1024, -np 1, q4_0 KV, MTP n=2
+
+card:
+  title: "Qwen 3.6 27B Q4_K_M GGUF — llama.cpp single-card escape hatch (1×24GB, 131K ctx)"
+  summary: |
+    The cliff-immune single-card fallback. Runs the Unsloth MTP-enabled Q4_K_M
+    GGUF on llama.cpp (NOT vLLM) — no Genesis patches, native MTP. Best for the
+    1×24GB operator who can't run the 2× tensor-parallel vLLM lanes: 131K
+    context fits ~22.5 GB with cliff coverage. Status experimental — the lane is
+    wired end-to-end (render + preflight + GUI); a live boot needs the MTP GGUF
+    on the rig.
+  status: experimental
+  audience: operator
+  maturity: draft
+  mode: long_context
+  engine: llama-cpp                               # surfaced on the GUI model card engine line
+  workload_allow:
+    - free_chat
+    - long_context_qa
+    - code_gen
+  workload_deny:
+    - tool_call.short                             # llama-server has no first-class tool-call extraction
+    - tool_call.long
+    - structured_json.long
+  concurrency:
+    min: 1
+    max: 1
+    canonical: 1                                  # -np 1 mandatory
+  K: 2                                            # MTP n=2 (--spec-draft-n-max)
+  context:
+    max_model_len: 131072
+    typical_input_tokens: 8192
+    typical_output_tokens: 4096
+  # Machine-readable hardware envelope — single 24GB Ampere card.
+  hardware_fit:
+    # 21 GB = the corpus convention for every preset composing onto a 24GB
+    # Ampere card: the hardware floor min_vram_per_gpu_mib=22000 floors to
+    # 21 GiB (22000 // 1024), so requires_min_vram_gb must be ≤ 21 to fit.
+    # The ~22.5 GB at 131K club-3090 budget is the physical-card runtime
+    # envelope (24 GB card), not the audit's floored per-GPU floor.
+    requires_min_vram_gb: 21                      # 24GB Ampere floor (matches all sibling presets)
+    tensor_parallel: 1                            # single card — escapes the 2× TP requirement
+    requires_min_gpu_count: 1
+    requires_min_cuda_capability: [8, 6]
+    engine_pin: server-cuda-b9246                 # llama.cpp image build (club-3090-validated)
+  routing_family: qwen3_6_27b_llamacpp_1x
+  default_for_family: true
+  fallback_preset: llamacpp-qwen3.6-27b-q4km-1x   # already the single-card terminal lane — falls back to itself
+  tradeoffs:
+    - "llama.cpp lane: max context + multi-platform + Cliff-immune, NOT raw throughput (vLLM is ~2.5× faster on the same card)."
+    - "No first-class OpenAI tool-call extraction (use Ollama/Open WebUI wrapper if you need tools)."
+    - "-np 1 is mandatory: raising it disables MTP and OOMs the spec-context buffer on a single 24GB card."
+  do_not_use:
+    - condition: "multi-user concurrent serving"
+      reason: "llama-server forks per request — sluggish under concurrent load; use the 2× vLLM lanes for multi-tenant."
+  card_version: 1
+  card_updated: '2026-06-27'
+  card_author: sander

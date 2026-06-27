@@ -108,6 +108,17 @@ def check_one_model(path: Path) -> CapCheck:
         return CapCheck(path=path, model_id="?",
                        error=f"YAML parse error: {e}")
     model_id = data.get("id", path.stem)
+    # Multi-engine (Phase 1): the frozen allowlists above are vLLM-side
+    # capability tokens (vLLM tool-call / reasoning parsers, vLLM
+    # kv_cache_dtype modes). A non-vLLM lane (e.g. llama-cpp) uses native
+    # tokens — `tool_call_parser: null` (llama-server has no first-class
+    # vLLM parser) and `kv_cache_dtype: q4_0` (a llama.cpp KV quant, not a
+    # vLLM dtype) — so the vLLM capability gate does not apply. Mirror the
+    # carve-out in audit_v2_runtime_pins / audit_v2_modeldef_vs_hardware_pin:
+    # keep it in the result set (still counted) but exempt from the check.
+    engine = str(data.get("engine", "vllm")).strip().lower()
+    if engine != "vllm":
+        return CapCheck(path=path, model_id=model_id)
     caps = data.get("capabilities") or {}
     if not isinstance(caps, dict):
         return CapCheck(path=path, model_id=model_id,

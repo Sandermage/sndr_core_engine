@@ -34,9 +34,12 @@ def test_list_presets_returns_catalog_records():
     # experimental presets to presets/_archive/ (one canonical ⭐ + at most
     # one functional sibling per served model) and added the new
     # prod-diffusiongemma-tp2 preset (24 - 11 + 1 = 14).
+    # Multi-engine Phase 1 (2026-06-27): +1 → 15. Added the llama.cpp
+    # single-card GGUF escape-hatch lane (llamacpp-qwen3.6-27b-q4km-1x) —
+    # the cliff-immune fallback a 1×24GB operator can launch.
     assert isinstance(result, PresetListResult)
-    assert result.total == 14
-    assert result.matched == 14
+    assert result.total == 15
+    assert result.matched == 15
     assert result.load_errors == ()
     assert all(isinstance(row, PresetRecord) for row in result.presets)
 

@@ -75,7 +75,9 @@ class TestWalkers:
         # Reconciled 2026-06-19 to live count: 11 model YAMLs — the 11th
         # is qwen3.6-7b-dense (committed club-3090 #58 Path A DENSE
         # reference; model walker yields one entry per model YAML).
-        assert len(entries) == 11
+        # Multi-engine Phase 1 (2026-06-27): 12 model YAMLs — the 12th is
+        # qwen3.6-27b-gguf-q4km-mtp (engine: llama-cpp).
+        assert len(entries) == 12
         for e in entries:
             assert e.layer == "model"
 
@@ -109,10 +111,12 @@ class TestWalkers:
         # Canonical-config reorg (2026-06): 14 preset aliases (24 - 11
         # archived to presets/_archive/ + the new prod-diffusiongemma-tp2).
         # One entry per live preset YAML.
+        # Multi-engine Phase 1 (2026-06-27): 15 preset aliases — +1 is
+        # llamacpp-qwen3.6-27b-q4km-1x (the single-card llama.cpp GGUF lane).
         # Test name kept as "fifteen" for grep continuity (the count has
         # lived in the assertion, not the identifier, since Phase 5.4);
         # renaming would break the stable test id for no behavioural gain.
-        assert len(entries) == 14
+        assert len(entries) == 15
         for e in entries:
             assert e.layer == "resolved-alias"
 

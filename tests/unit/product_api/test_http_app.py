@@ -491,7 +491,9 @@ def test_overview_and_catalog_summary_endpoints(tmp_path, monkeypatch):
     # Gemma-31B kv-auto profile (2026-06-19, ea33b8e0): +1 → 24.
     # Canonical-config reorg (2026-06): 24 → 14 (archived 11 test/
     # experimental presets, added prod-diffusiongemma-tp2).
-    assert payload["catalog"]["presets_count"] == 14
+    # Multi-engine Phase 1 (2026-06-27): +1 → 15 (llama.cpp single-card
+    # GGUF escape-hatch lane llamacpp-qwen3.6-27b-q4km-1x).
+    assert payload["catalog"]["presets_count"] == 15
     assert payload["capabilities"]["platform"]["sndr_core_version"]
 
     summary = client.get("/api/v1/catalog/summary")
@@ -501,7 +503,9 @@ def test_overview_and_catalog_summary_endpoints(tmp_path, monkeypatch):
     # with operator cards from the start). Gemma-31B kv-auto (2026-06-19): +1 → 24.
     # Canonical-config reorg (2026-06): 24 → 14 (new diffusiongemma preset
     # also carries an operator card).
-    assert summary.json()["preset_cards_count"] == 14
+    # Multi-engine Phase 1 (2026-06-27): +1 → 15 (the llama.cpp escape-hatch
+    # lane carries an operator card with engine=llama-cpp).
+    assert summary.json()["preset_cards_count"] == 15
 
 
 def test_presets_endpoints_are_read_only_json_views():

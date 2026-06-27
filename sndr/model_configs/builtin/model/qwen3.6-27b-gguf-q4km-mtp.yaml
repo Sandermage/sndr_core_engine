@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+# Status: 🧪 Experimental
+# Caveats: llama.cpp engine lane (NOT vLLM) — no Genesis patch stack. Lane wired
+#   end-to-end (render + preflight projection + GUI engine line + escape-hatch),
+#   but a live boot + bench needs the MTP-enabled Q4_K_M GGUF on the rig
+#   (hf download unsloth/Qwen3.6-27B-MTP-GGUF). No first-class tool-call parser
+#   on llama-server. -np 1 is MANDATORY (>1 disables MTP + OOMs the single card).
+# Genesis V2 model definition — Qwen 3.6 27B Q4_K_M GGUF (llama.cpp engine lane).
+#
+# This is the "for humans" single-card escape hatch: the cliff-immune llama.cpp
+# fallback a 1×24GB operator can actually LAUNCH (not just read about). It is a
+# DIFFERENT engine from the vLLM 27B lanes — no Genesis patch stack (Genesis is
+# a vLLM/Qwen3-Next overlay), the official ggml-org image carries native MTP.
+#
+# Contract source: club-3090
+#   models/qwen3.6-27b/llama-cpp/compose/single/unsloth-q4km/mtp.yml + README.md
+#   (Unsloth MTP-enabled Q4_K_M GGUF, single 3090, -np 1, q4_0 KV, b9246).
+#
+# engine: llama-cpp  → the launch dispatcher renders the llama-server GGUF argv
+# (build_llamacpp_argv), NOT `vllm serve`. model_path is a single .gguf FILE.
+
+schema_version: 2
+kind: model
+id: qwen3.6-27b-gguf-q4km-mtp
+title: Qwen 3.6 27B Q4_K_M GGUF (llama.cpp, MTP, single-card)
+maintainer: sandermage
+last_validated: '2026-06-27'                      # lane wired end-to-end (render+preflight+GUI); live boot needs GGUF weights on the rig (follow-up)
+license: apache-2.0
+
+# Multi-engine: this lane targets llama.cpp, not vLLM.
+engine: llama-cpp
+
+# ─── Identity ──────────────────────────────────────────────────────────
+# model_path is a single GGUF FILE (the MTP-enabled Q4_K_M build), NOT an HF
+# directory. resolve_gguf_file() enforces the .gguf-file contract at render
+# time. Get it via:
+#   hf download unsloth/Qwen3.6-27B-MTP-GGUF Qwen3.6-27B-Q4_K_M.gguf \
+#     --local-dir $MODEL_DIR/qwen3.6-27b-gguf/unsloth-mtp-q4km
+model_path: /models/qwen3.6-27b-gguf/unsloth-mtp-q4km/Qwen3.6-27B-Q4_K_M.gguf
+served_model_name: qwen3.6-27b
+quantization: null                               # GGUF carries its own quant metadata (Q4_K_M)
+dtype: float16                                   # informational on the llama.cpp lane
+trust_remote_code: false                         # llama.cpp does not import HF modeling code
+
+# ─── Capabilities — inherent to this model ─────────────────────────────
+capabilities:
+  attention_arch: hybrid_gdn_moe                 # same checkpoint architecture as the vLLM 27B lanes
+  tool_call_parser: null                         # llama-server has no first-class --enable-auto-tool-choice (see club-3090 README "Tool calls (limited)")
+  reasoning_parser: null                         # native GGUF-embedded template + --reasoning off handled by llama-server, not a Genesis parser
+  enable_auto_tool_choice: false                 # not available on this engine lane
+  spec_decode:
+    method: mtp                                  # GGUF-embedded MTP drafter (--spec-type draft-mtp)
+    num_speculative_tokens: 2                    # --spec-draft-n-max 2 — sweet spot per club-3090 BENCHMARKS.md
+    model: null                                  # integrated draft (no separate drafter checkpoint)
+  kv_cache_dtype: q4_0                            # --cache-type-k/-v q4_0 — densest mainline, Ampere-fast
+  # Byte-level dims for the llama.cpp single-card GGUF projection
+  # (kv_projector.project_llamacpp_from_shape). Calibrated to the club-3090
+  # ~22.5 GB / 24 GB budget at 131K. weights_total_gib is the GGUF Q4_K_M
+  # resident footprint (~17.0 GB, heavier than the vLLM AutoRound INT4 13.04).
+  shape:
+    num_hidden_layers: 48
+    num_attention_layers: 12
+    num_recurrent_layers: 36
+    hidden_size: 4096
+    num_attention_heads: 40
+    num_kv_heads: 4
+    head_dim: 128
+    weight_bits: 4                               # Q4_K_M ~4.5 bpw effective
+    weights_total_gib: 17.0                      # GGUF Q4_K_M resident (club-3090 budget anchor)
+    mtp_num_layers: 1
+
+# ─── Hardware preconditions composer enforces ──────────────────────────
+requires:
+  min_total_vram_mib: 22000                      # 1 × 22 GB usable — the single-card escape hatch
+  min_gpu_count: 1                               # single card (TP=1, -np 1)
+  min_cuda_capability: [8, 6]                    # Ampere SM 8.6 (the ggml-org server-cuda image targets CUDA)
+  rig_arch_blocklist: []
+
+versions:
+  genesis_pin_min: v12.0.0                       # min sndr version that ships the llama.cpp lane
+  vllm_pin_required: null                        # N/A — this lane runs llama.cpp, not vLLM
+  reference_metrics_ref: null                    # live boot + bench is a follow-up (needs GGUF on the rig)
+
+# No Genesis patch stack — llama.cpp is a separate engine. The official
+# ggml-org image carries native MTP (PR #22673); Genesis patches are
+# vLLM/Qwen3-Next-specific and do not apply here.
+patches: {}
+
+notes:
+  - "llama.cpp engine lane (Phase 1, 2026-06-27). Single-card escape hatch for
+    1×24GB operators — the cliff-immune fallback a 1-card user can LAUNCH.
+    Contract from club-3090 single/unsloth-q4km/mtp.yml (b9246, -np 1, q4_0 KV,
+    MTP n=2)."
+  - "model_path is a single .gguf FILE, not an HF dir. -np 1 is MANDATORY:
+    >1 disables MTP and OOMs the spec-context buffer on a single 24GB card."
+  - "Status experimental: lane wired end-to-end (render + preflight projection +
+    GUI engine line + escape-hatch). A live boot + bench needs the MTP GGUF on
+    the rig (follow-up)."

@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+# Genesis V2 profile — Qwen 3.6 27B Q4_K_M GGUF on llama.cpp, single 1×24GB card.
+# The cliff-immune single-card escape hatch. 131K ctx @ -ub 1024 (the balanced
+# point that fits ~22.5 GB / 24 GB with cliff coverage per club-3090).
+# Lifecycle: experimental — lane wired end-to-end; live boot/bench is a follow-up.
+
+schema_version: 2
+kind: profile
+id: llamacpp-qwen3.6-27b-q4km-1x
+parent_model: qwen3.6-27b-gguf-q4km-mtp
+maintainer: sandermage
+status: experimental                             # experimental lane — not bench-validated on the rig yet
+created: '2026-06-27'
+target_hardware: a5000-1x-24gbvram-16cpu-128gbram # single-card rig (24GB Ampere — A5000 / 3090 / 4090)
+
+# No patches delta — llama.cpp has no Genesis patch stack.
+patches_delta:
+  enable: {}
+  disable: []
+  override: {}
+
+# ─── Sizing override — single-card llama.cpp regime ────────────────────
+# 131072 @ -ub 1024 is the club-3090 "balanced (extra headroom)" point:
+# ~21 GB, verify-stress 7/7. The KV pool is pre-allocated (-c), so the
+# projector sizes the full 131K q4_0 pool up front (~5.0 GB) → ~22.5 GB total.
+sizing_override:
+  max_model_len: 131072                          # -c 131072 (KV pool size). 200K boots but walls; see club-3090 CLIFFS.md
+  gpu_memory_utilization: 1.0                    # llama.cpp pre-allocates against full VRAM (not a vLLM mem-util pool)
+  max_num_seqs: 1                                # -np 1 MANDATORY (>1 disables MTP + OOMs)
+  max_num_batched_tokens: 1024                   # -ub 1024 physical microbatch (cliff-survival default)
+  enable_chunked_prefill: true                   # informational on llama.cpp (chunked prefill is native)
+  enforce_eager: false                           # informational on llama.cpp
+  disable_custom_all_reduce: true               # informational on single card
+
+# ─── Override policy ────────────────────────────────────────────────────
+override_policy:
+  override_class: dev                             # experimental single-card lane, time-bounded justification
+  reason: "Single-card llama.cpp escape hatch: GGUF Q4_K_M + q4_0 KV + MTP, 1×24GB"
+  evidence_refs: []
+  evidence_visibility: public
+  expires_at: '2026-09-27'
+  allowed_to_exceed_hardware_default: true        # llama.cpp uses full VRAM (mem_util 1.0) by design
+
+promotion:
+  validation_required:
+    - "single-card boot + /v1/models on the llama.cpp b9246 image"
+    - "verify-stress needle recall at 58K + 91K (club-3090 parity)"
+  promote_to: null
+  notes: |
+    llama.cpp single-card lane. Live boot + bench needs the MTP-enabled
+    Q4_K_M GGUF on the rig (hf download unsloth/Qwen3.6-27B-MTP-GGUF). Until
+    then this is an experimental escape-hatch lane: render + preflight wired.

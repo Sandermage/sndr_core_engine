@@ -69,21 +69,27 @@ class TestGate1ListWorksWithoutGPU:
         # Canonical-config reorg (2026-06): catalog is 14 presets (24 - 11
         # archived + 1 new prod-diffusiongemma-tp2). Test id kept for grep
         # continuity; the count lives in the assertion, not the name.
+        # Multi-engine Phase 1 (2026-06-27): +1 = llamacpp-qwen3.6-27b-q4km-1x
+        # → 15 presets total.
         result = _run_cli("list")
-        assert "matched 14 / 14 presets" in result.stdout
+        assert "matched 15 / 15 presets" in result.stdout
 
     def test_list_filter_status_prod_candidate(self):
         result = _run_cli("list", "--status", "production_candidate")
         assert result.returncode == 0
         # Canonical-config reorg (2026-06): 8 production_candidate prod-*
         # presets survive (the new diffusiongemma preset is experimental).
-        assert "matched 8 / 14 presets" in result.stdout
+        # Multi-engine Phase 1: total is 15 (the new llama.cpp lane is
+        # experimental, so the production_candidate numerator stays 8).
+        assert "matched 8 / 15 presets" in result.stdout
 
     def test_list_filter_family(self):
         result = _run_cli("list", "--family", "qwen3_6_35b_a3b_fp8")
         assert result.returncode == 0
         # prod-qwen3.6-35b-balanced + prod-qwen3.6-35b-multiconc (both kept)
-        assert "matched 2 / 14 presets" in result.stdout
+        # Multi-engine Phase 1: total is 15 (the new llama.cpp lane is a
+        # different family, so the matched numerator stays 2).
+        assert "matched 2 / 15 presets" in result.stdout
 
     def test_list_filter_no_matches(self):
         result = _run_cli("list", "--family", "nonexistent_family")
@@ -123,8 +129,10 @@ class TestGate8And9JSONRoundTrip:
         assert result.returncode == 0
         data = json.loads(result.stdout)
         # Canonical-config reorg (2026-06): 8 production_candidate / 14 total.
+        # Multi-engine Phase 1 (2026-06-27): total is 15 (the new llama.cpp
+        # lane is experimental → production_candidate matched stays 8).
         assert data["matched"] == 8
-        assert data["total"] == 14
+        assert data["total"] == 15
         ids = {p["id"] for p in data["presets"]}
         # Spot-check a couple of expected ids
         assert "prod-qwen3.6-35b-balanced" in ids
@@ -518,7 +526,8 @@ class TestGate13GracefulDegradation:
         result = _run_cli("list", "--json")
         data = json.loads(result.stdout)
         # Canonical-config reorg (2026-06): 14 presets in the catalog.
-        assert "presets" in data and len(data["presets"]) == 14
+        # Multi-engine Phase 1 (2026-06-27): +1 llama.cpp lane → 15.
+        assert "presets" in data and len(data["presets"]) == 15
         # has_card key is required on every entry — schema contract.
         for p in data["presets"]:
             assert "has_card" in p, (

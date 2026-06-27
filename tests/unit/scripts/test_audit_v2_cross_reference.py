@@ -60,7 +60,9 @@ class TestLiveRepo:
         # to _archive/, added the prod-diffusiongemma-tp2 preset. Live count
         # is now 56 = 14 profile parent_model refs + 14 preset×3 refs.
         # All refs resolve (failed=0).
-        assert len(results) == 56
+        # Multi-engine Phase 1 (2026-06-27): +4 = the llama.cpp lane's
+        # profile parent_model ref (+1) + its preset×3 refs (+3) → 60.
+        assert len(results) == 60
 
 
 class TestScriptCLI:
@@ -92,7 +94,9 @@ class TestScriptCLI:
         # Canonical-config reorg (2026-06): 56 = 14 profile refs + 14
         # preset×3 refs (archived 11 presets + 12 profiles, added the
         # diffusiongemma preset). All refs resolve.
-        assert payload["total"] == 56
+        # Multi-engine Phase 1 (2026-06-27): +4 (llama.cpp profile +1 ref,
+        # preset +3 refs) → 60.
+        assert payload["total"] == 60
 
 
 class TestSyntheticBroken:

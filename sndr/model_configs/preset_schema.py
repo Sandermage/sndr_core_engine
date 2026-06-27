@@ -353,6 +353,13 @@ class PresetCard:
     audience: Optional[PresetAudience] = None
     maturity: Optional[PresetMaturity] = None
 
+    # — Engine (multi-engine Phase 1, 2026-06-27). Display-only mirror of the
+    #   composed ModelConfig.engine ("vllm" default / "llama-cpp"). Surfaced on
+    #   the GUI model-card engine line so a consumer can see which engine a lane
+    #   runs WITHOUT composing the preset. The authoritative value is
+    #   ModelDef.engine; the card field is the operator-readable label.
+    engine: Optional[str] = None
+
     # — Workload contract
     mode: Optional[PresetMode] = None
     workload_allow: list[str] = field(default_factory=list)
@@ -611,6 +618,7 @@ def _parse_card(preset_id: str, data: dict) -> PresetCard:
         status=data.get("status", "experimental"),
         audience=data.get("audience"),
         maturity=data.get("maturity"),
+        engine=data.get("engine"),
         mode=data.get("mode"),
         workload_allow=list(data.get("workload_allow") or []),
         workload_deny=list(data.get("workload_deny") or []),
