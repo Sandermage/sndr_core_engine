@@ -233,10 +233,14 @@ def date_grounding(now: Optional[datetime] = None) -> str:
     now = now or datetime.now(timezone.utc)
     return (
         f"Current date: {now:%Y-%m-%d} ({now:%A}), {now:%H:%M} UTC. Treat this as the "
-        "present moment. Any live data below is real-time as of now — answer the user's "
-        "question using it. If the user names a date, give the current analysis from this "
-        "live data and note the as-of date; never refuse to answer merely because a date "
-        "is mentioned or appears to be in the future.")
+        "present moment. You DO know today's date — it is stated right here; state it "
+        "confidently as fact. Do NOT claim you lack a clock, real-time access, or "
+        "knowledge of the current date, and do NOT tell the user to check their own "
+        "device — that information is provided to you above. Any live data below is "
+        "real-time as of now — answer the user's question using it. If the user names a "
+        "date, give the current analysis from this live data and note the as-of date; "
+        "never refuse to answer merely because a date is mentioned or appears to be in "
+        "the future.")
 
 
 # ── news / information-field analysis ────────────────────────────────────────
