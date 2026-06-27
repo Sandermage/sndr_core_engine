@@ -49,6 +49,22 @@ RECOGNIZED_MARKER_PREFIXES = (MARKER_PREFIX_LEGACY, MARKER_PREFIX_CANONICAL)
 
 # ── Env flag prefixes ────────────────────────────────────────────────────
 # is_enabled() in env.py checks SNDR_* first, then GENESIS_* alias.
+#
+# Canonicalization contract (v12 residual pass): SNDR_ENABLE_* is the
+# CANONICAL prefix; GENESIS_ENABLE_* is an accepted-DEPRECATED alias kept
+# working for the public contract (321 patches + rig start-scripts +
+# downstream consumers — club-3090 discussion #19). The alias must NOT be
+# hard-removed; both names resolve identically (SNDR_ wins when both set).
+# tests/unit/env/test_sndr_genesis_alias.py pins this for every registry
+# flag. The same canonical/alias relationship applies to the DISABLE_,
+# LEGACY_, ALLOW_, and generic-suffix readers (get_sndr_env) in env.py.
+#
+# NOTE on the "Genesis" word elsewhere in the tree: occurrences of the
+# brand string "Genesis" (PUBLIC_BRAND_COMMUNITY above, the "Genesis "
+# marker prefix, "genesis.*" logger names, the genesis-vllm-patches repo
+# URL, and serialized keys like genesis_env / genesis_pin) are the
+# DELIBERATE community brand / load-bearing contract — they are NOT stale
+# internal codenames and must NOT be canonicalized to "sndr".
 ENV_PREFIX_CANONICAL = "SNDR_ENABLE_"
 ENV_PREFIX_LEGACY = "GENESIS_ENABLE_"
 RECOGNIZED_ENV_PREFIXES = (ENV_PREFIX_CANONICAL, ENV_PREFIX_LEGACY)
