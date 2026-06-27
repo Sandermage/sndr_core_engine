@@ -10,7 +10,16 @@ import io
 import json
 from contextlib import redirect_stdout
 
-from sndr.cli.main import main
+import pytest
+
+# The CLI entrypoint imports the product-API schemas (engines), which pull in
+# pydantic transitively. pydantic is not part of the minimal public-CI dep set
+# (see .github/workflows/test.yml), so skip cleanly rather than abort
+# collection — mirrors the fastapi importorskip guard in
+# tests/unit/product_api/test_preflight_route.py.
+pytest.importorskip("pydantic")
+
+from sndr.cli.main import main  # noqa: E402
 
 
 def _run(argv) -> tuple[int, str]:
