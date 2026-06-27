@@ -104,9 +104,14 @@ def add_argparser(subparsers: Any) -> None:
     # — explain —
     p_explain = sub.add_parser(
         "explain",
-        help="Operator walkthrough: card narrative + composed runtime + fallback diff.",
+        help="One-slug full story: card + composed runtime + projected fit + "
+             "measured bench + fallback diff.",
     )
     p_explain.add_argument("preset_id", help="Preset alias id.")
+    p_explain.add_argument(
+        "--card", default=None, metavar="VRAM_GB",
+        help="Per-card VRAM in GiB for the projected-fit verdict (e.g. "
+             "--card 24). Default: the preset's composed hardware definition.")
     p_explain.add_argument("--json", action="store_true",
                            help="Emit machine-readable JSON.")
     p_explain.set_defaults(func=run_explain)
@@ -380,6 +385,8 @@ def _render_card_human(alias_id: str, pd) -> None:
 
 
 def run_explain(args) -> int:
+    # Load the preset def (for the human card render) and the FULL story payload
+    # from the shared backend (so the CLI + HTTP route compose identically).
     try:
         from sndr.model_configs.registry_v2 import load_preset_def
         import warnings
@@ -390,32 +397,23 @@ def run_explain(args) -> int:
         _io.error(f"preset {args.preset_id!r}: {e}")
         return 1
 
-    # Compose to V1 ModelConfig for dry-run summary (this DOES touch
-    # compose path; cli/preset.py reads composed cfg, doesn't mutate it).
+    vram_gib: Optional[float] = None
+    if getattr(args, "card", None) is not None:
+        try:
+            vram_gib = float(args.card)
+        except ValueError:
+            _io.error(f"--card {args.card!r} must be a number (GiB)")
+            return 1
+
     try:
-        cfg = _compose_for(args.preset_id)
-    except Exception as e:
-        _io.error(f"compose failed for preset {args.preset_id!r}: {e}")
+        result = preset_api.explain_preset(
+            args.preset_id, vram_gib=vram_gib,
+            rig=(f"card:{args.card}GB" if vram_gib is not None else None))
+    except preset_api.PresetProductAPIError as e:
+        _io.error(str(e))
         return 1
 
-    # Fallback diff (if card declares one).
-    fallback_summary: Optional[dict] = None
-    if pd.has_card() and pd.card.fallback_preset:
-        try:
-            fb_cfg = _compose_for(pd.card.fallback_preset)
-            fallback_summary = _summarize_diff(cfg, fb_cfg, pd.card.fallback_preset)
-        except Exception as e:  # pragma: no cover — defensive
-            fallback_summary = {
-                "fallback_preset": pd.card.fallback_preset,
-                "error": f"compose failed: {e}",
-            }
-
-    payload = {
-        "id": args.preset_id,
-        "card": _card_dict(pd.card),
-        "composed": _composed_summary(cfg),
-        "fallback_diff": fallback_summary,
-    }
+    payload = asdict(result)
 
     if args.json:
         print(json.dumps(payload, indent=2, default=str))
@@ -425,13 +423,52 @@ def run_explain(args) -> int:
 
     # Composed runtime
     print("\n  Composed runtime (dry-run):")
-    cs = _composed_summary(cfg)
+    cs = result.composed
     for k in ("composed_key", "kv_cache_dtype", "max_model_len", "max_num_seqs",
               "gpu_memory_utilization", "spec_decode_method", "spec_decode_K",
               "enabled_patches_count"):
         if k in cs and cs[k] is not None:
             print(f"    {k:24s} {cs[k]}")
 
+    # Projected fit (byte-level kv_projector verdict).
+    pf = result.projected_fit
+    print("\n  Projected fit (byte-level VRAM):")
+    if pf is None:
+        print("    (no byte-level model shape or rig — run `sndr kv-calc` for "
+              "the projection, or this model declares no shape)")
+    else:
+        glyph = {"PASS": "✓", "TIGHT": "!", "FAIL": "✗"}.get(pf["verdict"], "?")
+        prov = "  [calibration PROVISIONAL]" if pf.get("provisional") else ""
+        print(f"    {glyph} {pf['verdict']}  ({pf['rig']}, "
+              f"{pf['vram_gib_per_card']:.0f} GiB/card, TP={pf['tp']}){prov}")
+        print(f"    weights={pf['weights_gib']:.1f}  "
+              f"kv_req={pf['kv_pool_requested_gib']:.1f}  "
+              f"total={pf['total_gib']:.1f} / {pf['budget_gib']:.1f} budget  "
+              f"headroom={pf['headroom_gib']:.1f} GiB  "
+              f"({pf['utilization'] * 100:.0f}%)")
+        for n in pf.get("notes", []):
+            print(f"      · {n}")
+
+    # Measured bench (what was actually observed on a rig).
+    mb = result.measured_bench
+    print("\n  Measured bench:")
+    if mb is None:
+        print("    (no measured metric on the card)")
+    else:
+        pm = mb.get("primary_metric")
+        if pm:
+            pending = "  [PENDING — placeholder, not yet measured]" \
+                if mb.get("pending") else ""
+            print(f"    {pm.get('kind')}={pm.get('value')}  "
+                  f"(source={pm.get('source')}, "
+                  f"measured_at={pm.get('measured_at')}){pending}")
+        for ev in mb.get("evidence", []):
+            note = (ev.get("note") or "").splitlines()
+            head = note[0] if note else ""
+            print(f"    {ev.get('type')}: {ev.get('path')}"
+                  + (f" — {head}" if head else ""))
+
+    fallback_summary = result.fallback_diff
     if fallback_summary:
         if fallback_summary.get("error"):
             print(f"\n  Fallback {fallback_summary['fallback_preset']}: "

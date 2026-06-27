@@ -118,12 +118,17 @@ class PresetRecommendResult:
 
 @dataclass(frozen=True)
 class PresetExplainResult:
-    """Machine-readable preset explain payload."""
+    """Machine-readable preset explain payload — the one-slug full story."""
 
     id: str
     card: dict[str, Any]
     composed: dict[str, Any]
     fallback_diff: Optional[dict[str, Any]]
+    # B3: the two story pieces that complete config + card with PROJECTED fit
+    # (kv_projector verdict) and MEASURED bench (card primary_metric). Optional
+    # / default None so existing callers + the frozen-schema tests still hold.
+    projected_fit: Optional[dict[str, Any]] = None
+    measured_bench: Optional[dict[str, Any]] = None
 
 
 def card_to_dict(card: Any) -> dict[str, Any]:
@@ -364,8 +369,130 @@ def summarize_diff(cfg_a: Any, cfg_b: Any, fallback_id: str) -> dict[str, Any]:
     return {"fallback_preset": fallback_id, "diffs": tuple(diffs)}
 
 
-def explain_preset(preset_id: str) -> PresetExplainResult:
-    """Return card + composed runtime + fallback diff for one preset."""
+def projected_fit_summary(
+    preset_id: str, preset_def: Any, cfg: Any,
+    *, vram_gib: Optional[float] = None, rig: Optional[str] = None,
+) -> Optional[dict[str, Any]]:
+    """Byte-level kv_projector verdict for the preset, or None when it can't be
+    projected (no model shape, no resolvable rig). This is the PROJECTED-FIT
+    story piece of `preset explain` — the same engine `sndr kv-calc` drives,
+    composed inline so the full story lives in one slug.
+
+    Rig basis: an explicit ``vram_gib`` (e.g. the GUI's live free-VRAM, or a
+    --card override) wins; else the preset's composed hardware definition;
+    else None (the projection is skipped, never crashes explain).
+    """
+    try:
+        from sndr.model_configs import kv_projector as kp
+        from sndr.model_configs.registry_v2 import load_hardware, load_model
+    except Exception:  # noqa: BLE001 — projector unavailable: skip the piece
+        return None
+
+    try:
+        model_def = load_model(preset_def.model)
+        shape = getattr(model_def.capabilities, "shape", None)
+    except Exception:  # noqa: BLE001
+        return None
+    if shape is None or getattr(shape, "num_attention_layers", None) is None:
+        return None  # no byte-level shape — kv-calc can't project either
+
+    rig_source = rig
+    if vram_gib is None:
+        # Derive the per-card VRAM from the preset's composed hardware def.
+        try:
+            from sndr.model_configs.preflight_fit import rig_from_hardware_def
+            hw = load_hardware(preset_def.hardware)
+            r = rig_from_hardware_def(hw, source=f"rig:{preset_def.hardware}")
+            gpus = getattr(r, "gpus", None)
+            if gpus:
+                mib = min(g.vram_mib for g in gpus if g.vram_mib)
+                vram_gib = (mib / 1024.0) if mib else None
+            rig_source = rig_source or f"rig:{preset_def.hardware}"
+        except Exception:  # noqa: BLE001
+            vram_gib = None
+    if vram_gib is None:
+        return None
+
+    try:
+        p = kp.project(
+            cfg,
+            kp.ProjectorRig(vram_gib_per_card=float(vram_gib), gpu_count=1,
+                            name=rig_source or "explain"),
+            shape=shape,
+            preset_id=preset_id,
+        )
+    except Exception:  # noqa: BLE001 — projection error: skip, don't crash
+        return None
+
+    return {
+        "verdict": p.verdict,
+        "provisional": p.provisional,
+        "rig": rig_source or "explain",
+        "vram_gib_per_card": round(p.vram_gib, 2),
+        "tp": p.tp,
+        "weights_gib": round(p.weights_gib, 2),
+        "kv_pool_requested_gib": round(p.kv_pool_requested_gib, 2),
+        "total_gib": round(p.total_gib, 2),
+        "budget_gib": round(p.budget_gib, 2),
+        "headroom_gib": round(p.headroom_gib, 2),
+        "utilization": round(p.utilization, 3),
+        "notes": list(p.notes),
+    }
+
+
+def measured_bench_summary(card: Any) -> Optional[dict[str, Any]]:
+    """The MEASURED-bench story piece of `preset explain`: the card's
+    primary_metric (a real measured number with a source + timestamp) plus any
+    bench/smoke evidence refs. None when the card carries no measured metric.
+
+    Distinct from projected_fit (a MODEL of the fit): this is what was actually
+    OBSERVED on a rig, so the operator can compare projected vs measured.
+    """
+    if card is None:
+        return None
+    pm = getattr(card, "primary_metric", None)
+    bench_evidence = [
+        {"type": getattr(ev, "type", None), "path": getattr(ev, "path", None),
+         "note": getattr(ev, "note", None)}
+        for ev in (getattr(card, "evidence_refs", None) or [])
+        if getattr(ev, "type", None) in ("bench", "smoke", "ab", "soak")
+    ]
+    if pm is None and not bench_evidence:
+        return None
+    out: dict[str, Any] = {}
+    if pm is not None:
+        out["primary_metric"] = {
+            "kind": getattr(pm, "kind", None),
+            "value": getattr(pm, "value", None),
+            "source": getattr(pm, "source", None),
+            "measured_at": getattr(pm, "measured_at", None),
+        }
+        # a value of 0.0 with a "pending"/"external" source is a PLACEHOLDER,
+        # not a real measurement — flag it so the operator does not read 0 TPS
+        # as a measured result.
+        val = getattr(pm, "value", None)
+        src = str(getattr(pm, "source", "") or "")
+        out["pending"] = bool(
+            (val in (0, 0.0, None)) or "pending" in src.lower())
+    if bench_evidence:
+        out["evidence"] = bench_evidence
+    return out
+
+
+def explain_preset(
+    preset_id: str,
+    *,
+    vram_gib: Optional[float] = None,
+    rig: Optional[str] = None,
+) -> PresetExplainResult:
+    """Return the FULL preset story: card + composed runtime + fallback diff +
+    projected-fit (kv_projector verdict) + measured-bench (card metric). The
+    one-slug operator walkthrough.
+
+    ``vram_gib`` / ``rig`` thread an explicit VRAM basis into the projected-fit
+    (e.g. the GUI's live free-VRAM or a --card override); when absent the
+    preset's composed hardware definition supplies it.
+    """
     preset_def = load_preset(preset_id)
     cfg = compose_for(preset_id)
 
@@ -386,6 +513,9 @@ def explain_preset(preset_id: str) -> PresetExplainResult:
         card=card_to_dict(preset_def.card),
         composed=composed_summary(cfg),
         fallback_diff=fallback_summary,
+        projected_fit=projected_fit_summary(
+            preset_id, preset_def, cfg, vram_gib=vram_gib, rig=rig),
+        measured_bench=measured_bench_summary(preset_def.card),
     )
 
 

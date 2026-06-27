@@ -789,9 +789,19 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get("/api/v1/presets/{preset_id}/explain")
-    async def presets_explain(preset_id: str) -> dict[str, Any]:
+    async def presets_explain(
+        preset_id: str,
+        live_vram_gib: Optional[float] = Query(
+            None,
+            description="Live free per-card VRAM (GiB) to base the projected-fit "
+                        "verdict on instead of the preset's static hardware def "
+                        "(the GUI threads its polled free-VRAM here)."),
+    ) -> dict[str, Any]:
         try:
-            return _dataclass_payload(explain_preset(preset_id))
+            return _dataclass_payload(explain_preset(
+                preset_id,
+                vram_gib=live_vram_gib,
+                rig=("live-free" if live_vram_gib is not None else None)))
         except PresetNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except PresetComposeError as exc:

@@ -211,6 +211,30 @@ class TestGate3Explain:
         assert "composed" in data
         assert data["composed"]["max_num_seqs"] == 8
 
+    # ── B3: the full story — projected fit + measured bench ──
+    def test_explain_shows_projected_fit_and_measured_bench_sections(self):
+        result = _run_cli("explain", "prod-qwen3.6-35b-balanced", "--card", "24")
+        assert result.returncode == 0, result.stderr
+        assert "Projected fit" in result.stdout
+        assert "Measured bench" in result.stdout
+        # a real byte-level verdict is rendered (not a stub).
+        assert any(v in result.stdout for v in ("PASS", "TIGHT", "FAIL"))
+
+    def test_explain_json_has_full_story_keys(self):
+        result = _run_cli("explain", "--json", "prod-qwen3.6-35b-balanced",
+                          "--card", "24")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "projected_fit" in data and "measured_bench" in data
+        assert data["projected_fit"]["vram_gib_per_card"] == 24.0
+        assert data["projected_fit"]["verdict"] in ("PASS", "TIGHT", "FAIL")
+
+    def test_explain_card_invalid_errors(self):
+        result = _run_cli("explain", "prod-qwen3.6-35b-balanced",
+                          "--card", "not-a-number")
+        assert result.returncode == 1
+        assert "--card" in (result.stdout + result.stderr)
+
 
 # ─── Gate 4 + 5 + 6: recommend ──────────────────────────────────────────────
 

@@ -101,6 +101,76 @@ def test_explain_preset_returns_composed_runtime_summary():
     assert "enabled_patches_count" in payload["composed"]
 
 
+# ─── B3: explain full story — projected fit + measured bench ──────────────────
+
+def test_explain_preset_has_projected_fit_and_measured_bench_keys():
+    """The one-slug full story: config + card + projected-fit + measured-bench."""
+    payload = asdict(presets.explain_preset("prod-qwen3.6-35b-balanced"))
+    assert "projected_fit" in payload
+    assert "measured_bench" in payload
+
+
+def test_explain_preset_projected_fit_from_explicit_vram():
+    """An explicit vram_gib (the GUI live-free / --card path) drives a byte-level
+    PASS/TIGHT/FAIL verdict against that VRAM basis."""
+    result = presets.explain_preset("prod-qwen3.6-35b-balanced", vram_gib=24.0)
+    pf = result.projected_fit
+    assert pf is not None
+    assert pf["verdict"] in ("PASS", "TIGHT", "FAIL")
+    assert pf["vram_gib_per_card"] == 24.0
+    # 35B at 24 GiB/card is not a comfortable PASS — verifies the projector is
+    # actually computing (not a stub).
+    assert pf["verdict"] in ("TIGHT", "FAIL")
+
+
+def test_explain_preset_lower_vram_is_tighter_or_worse():
+    """A smaller card never yields a BETTER verdict than a larger one — the
+    projected fit is monotone in VRAM (sanity that live-VRAM threading is real)."""
+    rank = {"PASS": 0, "TIGHT": 1, "FAIL": 2}
+    big = presets.explain_preset(
+        "prod-qwen3.6-35b-balanced", vram_gib=80.0).projected_fit
+    small = presets.explain_preset(
+        "prod-qwen3.6-35b-balanced", vram_gib=16.0).projected_fit
+    assert big is not None and small is not None
+    assert rank[small["verdict"]] >= rank[big["verdict"]]
+
+
+def test_measured_bench_summary_flags_placeholder():
+    """A primary_metric value of 0.0 is a PENDING placeholder, not a measured
+    result — flagged so the operator does not read 0 TPS as real."""
+    class _PM:
+        kind = "agg_TPS"
+        value = 0.0
+        source = "external://pending/x"
+        measured_at = "2026-06-19"
+
+    class _Card:
+        primary_metric = _PM()
+        evidence_refs = ()
+
+    mb = presets.measured_bench_summary(_Card())
+    assert mb is not None
+    assert mb["pending"] is True
+
+
+def test_projected_fit_summary_none_without_shape_or_rig():
+    """A model with no byte-level shape yields None (explain still works, the
+    piece is just absent) — never crashes."""
+    class _Caps:
+        shape = None
+
+    class _Model:
+        capabilities = _Caps()
+
+    class _PD:
+        model = "no-shape-model"
+        hardware = "nope"
+
+    # No shape -> None regardless of vram.
+    assert presets.projected_fit_summary(
+        "x", _PD(), cfg=None, vram_gib=24.0) is None
+
+
 def test_recommend_presets_honors_allow_deny_and_ranking():
     result = presets.recommend_presets(
         workload="free_chat",
