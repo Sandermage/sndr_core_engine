@@ -86,7 +86,7 @@ log = logging.getLogger("genesis.gemma4.g4_15_fused_rmsnorm")
 
 GENESIS_G4_15_MARKER = (
     "Genesis G4_15 gemma4 fused RMSNorm route v1 "
-    "(routes Q/K/V + residual norms through Triton fused kernel; +5-10% TPS)"
+    "(kernel ported; hot-path wiring deferred to G4_15b — currently no-op)"
 )
 
 _ENV_ENABLE = "GENESIS_ENABLE_G4_15_GEMMA4_FUSED_RMSNORM"
@@ -114,30 +114,13 @@ def _make_attn_forward_wrapper(original):
 
     We fuse those 3 norm calls into 1 via g4_qkv_rmsnorm.
     """
-    import torch
-
     def _g4_15_wrapped_forward(self, *args, **kwargs):
-        try:
-            from .kernels.g4_fused_rmsnorm_triton import (
-                _TRITON_AVAILABLE,
-                g4_qkv_rmsnorm,
-            )
-            if not _TRITON_AVAILABLE or not torch.cuda.is_available():
-                return original(self, *args, **kwargs)
-        except ImportError:
-            return original(self, *args, **kwargs)
-
-        # Inject our fused path:
-        # We can't safely intercept the inner split-and-norm logic from
-        # outside without rewriting the whole forward. Instead we install
-        # an attribute marker that the model patcher reads downstream
-        # and a helper that the user can call directly when adapting
-        # custom forwards. The actual hot path is patched via a
-        # text-anchor patch in a follow-up.
-        #
-        # For idempotency / safety we fall through to original here.
-        # The hot-path replacement happens via a separate Gemma4Attention
-        # subclass install (see _install_gemma4_attention_subclass below).
+        # We cannot safely intercept the inner split-and-norm logic from
+        # outside without rewriting the whole forward, so this wrapper does
+        # NOT call the fused kernel — it always delegates to the original.
+        # The hot-path replacement is the deep-cut anchor patch G4_15b
+        # (still a roadmap item). This wrapper exists only to carry the
+        # idempotency marker; it is a deliberate, honest pass-through.
         return original(self, *args, **kwargs)
 
     _g4_15_wrapped_forward._genesis_g4_15_wrapped = True
@@ -146,48 +129,24 @@ def _make_attn_forward_wrapper(original):
 
 
 def _install_gemma4_attention_subclass(attn_cls):
-    """Subclass Gemma4Attention with our fused-QKV-RMSNorm forward.
+    """Try to wire the fused-QKV-RMSNorm forward onto Gemma4Attention.
 
-    Returns True on success, False if the upstream forward doesn't expose
-    the q_norm / k_norm / v_norm attributes we rely on.
+    Returns True ONLY when the fused kernel is actually engaged in the
+    hot path. On every current vLLM pin this returns False: replacing the
+    forward requires anchor-precise positions for the post-rotary
+    query/key/value states that we cannot reach by wrapping the public
+    ``forward`` from outside. The deep-cut anchor patch (G4_15b) is still
+    a roadmap item, so we do NOT install a forward that merely delegates
+    to the original — that would deliver nothing while masquerading as an
+    active fusion. We refuse here so apply() can report the honest
+    no-op status.
     """
-    if not all(hasattr(attn_cls, attr) for attr in ()):
-        # Heuristic: we don't try to introspect every class up-front.
-        # The actual gate happens at instance time when we check
-        # self.q_norm etc.
-        pass
-
-    import torch
-    from .kernels.g4_fused_rmsnorm_triton import g4_qkv_rmsnorm
-
-    original_forward = attn_cls.forward
-
-    def _g4_15_fused_forward(self, hidden_states, *args, **kwargs):
-        """Forward with fused Q/K/V RMSNorm — falls through to original
-        when shapes don't match.
-
-        Pattern:
-          qkv = self.qkv_proj(hidden_states)
-          q, k, v = qkv.split(...)
-          fused: g4_qkv_rmsnorm(q, k, v, q_norm.weight, k_norm.weight, ...)
-          → attn forward continues as in original
-        """
-        # We require the attention to expose the fused-path entry attrs
-        if not all(hasattr(self, a) for a in
-                   ("qkv_proj", "q_norm", "k_norm", "v_norm",
-                    "num_heads", "num_kv_heads", "head_dim")):
-            return original_forward(self, hidden_states, *args, **kwargs)
-        # Falling back to original — the deeper-cut forward replacement
-        # would need anchor-precise positions for query_states, key_states,
-        # value_states post-rotary. To keep this patch low-risk we route
-        # through a public helper for now, and the explicit anchor patch
-        # is left as the deep-cut version (see G4_15b in roadmap).
-        return original_forward(self, hidden_states, *args, **kwargs)
-
-    _g4_15_fused_forward._genesis_g4_15_wrapped = True
-    _g4_15_fused_forward.__wrapped__ = original_forward
-    attn_cls.forward = _g4_15_fused_forward
-    return True
+    # The fused kernel (g4_qkv_rmsnorm) ships in
+    # kernels/g4_fused_rmsnorm_triton.py and is reviewed against the SGLang
+    # reference, but it is not wired into the attention forward yet. Until
+    # the deep-cut anchor patch G4_15b lands, the fusion does not engage on
+    # any pin, so we refuse to install and let apply() report a clean no-op.
+    return False
 
 
 def apply() -> tuple[str, str]:
@@ -196,8 +155,9 @@ def apply() -> tuple[str, str]:
 
     if not _env_enabled():
         return "skipped", (
-            f"G4_15 disabled (set {_ENV_ENABLE}=1 to route Gemma 4 RMSNorm "
-            "calls through fused Triton kernels; +5-10% TPS expected)"
+            f"G4_15 disabled (set {_ENV_ENABLE}=1 once the deep-cut anchor "
+            "patch G4_15b wires the fused Gemma 4 RMSNorm kernel into the "
+            "attention hot path)"
         )
 
     if _APPLIED:
@@ -208,7 +168,7 @@ def apply() -> tuple[str, str]:
     except ImportError as e:
         return "skipped", f"vllm.model_executor.models.gemma4 not importable: {e}"
 
-    # Verify Triton is healthy before installing
+    # Verify Triton is healthy before attempting the install.
     try:
         from .kernels.g4_fused_rmsnorm_triton import _TRITON_AVAILABLE
     except ImportError as e:
@@ -229,25 +189,30 @@ def apply() -> tuple[str, str]:
         return "applied", "G4_15 already wrapped (idempotent)"
     _ORIGINAL_ATTN_FORWARD = original_forward
 
-    ok = _install_gemma4_attention_subclass(attn_cls)
-    if not ok:
+    # The fused kernel is not wired into the hot path on any current pin
+    # (the helper refuses to install a forward that only delegates to the
+    # original). Report the honest no-op status — never a false "applied",
+    # and never a TPS claim the patch does not deliver.
+    if not _install_gemma4_attention_subclass(attn_cls):
         return "skipped", (
-            "Gemma4Attention does not expose q_norm/k_norm/v_norm attributes "
-            "— vLLM pin lacks the SGLang-style fused RMSNorm pattern. "
-            "G4_15 is no-op on this pin (the deep-cut anchor patch G4_15b "
-            "is needed instead)."
+            "fused QKV-RMSNorm kernel not wired on this pin — falls through "
+            "to upstream; no-op, no TPS delta. RIG FOLLOW-UP: land the "
+            "deep-cut anchor patch G4_15b (anchor-precise text patch into "
+            "Gemma4Attention.forward post-rotary q/k/v states) and re-validate "
+            "with genesis_bench_suite.py before claiming a TPS win."
         )
 
+    # Reachable only once G4_15b actually engages the kernel; the install
+    # helper returns True and this honest "applied" reports the live fusion.
     _APPLIED = True
     log.info(
-        "[G4_15] installed: Gemma 4 attention forward will route Q/K/V "
-        "RMSNorm through fused Triton kernel (expected +5-10%% TPS at low "
-        "concurrency)."
+        "[G4_15] installed: Gemma 4 attention forward routes Q/K/V RMSNorm "
+        "through the fused Triton kernel."
     )
     return "applied", (
         "G4_15 installed: Gemma 4 RMSNorm calls routed through fused Triton "
-        "kernel. Expected +5-10% TPS on decode at low concurrency. "
-        "Validate via genesis_bench_suite.py before promotion."
+        "kernel. Validate the TPS effect via genesis_bench_suite.py before "
+        "promotion."
     )
 
 

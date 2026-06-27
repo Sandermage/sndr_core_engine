@@ -1,22 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Wiring for Patch N26 — TurboQuant unified perf pack.
+"""Wiring for Patch N26 — TurboQuant centroids-prebake orchestrator.
 
-Combined backport of three independent upstream PRs that all touch the
-TurboQuant code path:
+Backport of the safe, drop-in piece of the TurboQuant perf work:
 
 - vllm#41418 (jasonkim8652) — Pre-bake Lloyd-Max centroids for common
   (d, bits) shapes. Eliminates the 50 ms - 2.5 s JIT solver run on
   the first request per shape. Fully deterministic given d and bits,
   so the pre-baked tables can be embedded inline.
 
-- vllm#41422 (jasonkim8652) — Sparse V tile-skip in the decode kernel.
-  Per-tile skip when softmax probability max is entirely below
-  `SPARSE_V_THRESHOLD`. The online-softmax denominator still updates
-  so totals stay exact. Author validated on AMD MI300X only.
-
 - vllm#41414 (jasonkim8652) — Pad head_dim to power-of-2 for WHT.
   Fixes Phi-2 (head_dim=80) crash; for power-of-2 head_dims (Qwen3.6
   head_dim=128) the patch adds runtime branch overhead with no benefit.
+
+The sparse-V tile-skip work (vllm#41422) is a SEPARATE registry patch,
+PN26b (env `GENESIS_ENABLE_PN26_SPARSE_V`), whose real kernel dispatcher
+lives in `pn26_sparse_v_kernel.py`. This master orchestrator does NOT
+touch that flag — it only wires the centroids prebake.
 
 ================================================================
 WHAT WE TAKE / WHAT WE DROP
@@ -35,11 +34,11 @@ self-check catches that and disables the prebake (falls through to
 solver) with a WARNING. This addresses the third bullet in the upstream
 issue: #41418's tables become stale if the solver changes.
 
-**Taken from #41422** — Sparse V tile-skip kernel modification, but
-**OFF by default**, gated by `GENESIS_ENABLE_PN26_SPARSE_V=1` sub-flag.
-Author validated on AMD MI300X only — NVIDIA Ampere correctness needs
-empirical confirmation before promoting to default-on. Scaffolded so it's
-ready to flip when validation passes.
+**Sparse-V (#41422) is NOT handled here** — it is the standalone PN26b
+patch (`pn26_sparse_v_kernel.py`, env `GENESIS_ENABLE_PN26_SPARSE_V`).
+That flag has a single owner; this orchestrator never reads it. A prior
+"deferred" branch here read the flag and did nothing, giving it a false
+second meaning — that dead branch has been removed.
 
 **Dropped from #41414** — head_dim power-of-2 padding. Qwen3.6 head_dim
 is 128 (already pow-2). Adds `needs_padding` runtime branch overhead
@@ -51,17 +50,12 @@ ENV INTERFACE
 ================================================================
 
 - `GENESIS_ENABLE_PN26_TQ_UNIFIED=1` — master flag. When ON, applies
-  the centroids prebake (with self-check). Default OFF.
+  the centroids prebake (with self-check). Default OFF. This is the ONLY
+  flag this module reads.
 
-- `GENESIS_ENABLE_PN26_SPARSE_V=1` — sub-flag. Only takes effect when
-  master flag is ON. Wires the SPARSE_V tile-skip in the decode kernel.
-  Default OFF until NVIDIA Ampere correctness validation.
-
-- `GENESIS_PN26_SPARSE_V_THRESHOLD` — softmax probability cutoff
-  (float, default 0.001). Below this max prob, the V tile is skipped.
-
-- `GENESIS_PN26_SPARSE_V_CTX_THRESHOLD` — minimum context length
-  for sparse V to engage (int, default 8192). Auto-mode gate.
+The sparse-V flags (`GENESIS_ENABLE_PN26_SPARSE_V`,
+`GENESIS_PN26_SPARSE_V_THRESHOLD`, `GENESIS_PN26_SPARSE_V_SCALE_FACTOR`,
+etc.) belong to PN26b and are documented in `pn26_sparse_v_kernel.py`.
 
 ================================================================
 COMPOSITION
@@ -82,22 +76,19 @@ SAFETY MODEL
 
 - Master flag default OFF — operator must explicitly enable.
 - Centroids prebake auto-disables if self-check fails (upstream drift).
-- Sparse V scaffold ships but defaults to OFF; correctness must be
-  proved on NVIDIA before flipping.
 - Idempotent text-patches (marker-checked).
-- Drift-aware: if upstream merges either #41418 or #41422 directly,
-  our anchors miss → patch SKIPS, source stays vanilla, zero regression.
+- Drift-aware: if upstream merges #41418 directly, our anchor misses →
+  patch SKIPS, source stays vanilla, zero regression.
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa
 Cross-engine sources:
   - vllm#41418 (jasonkim8652, OPEN 2026-04-30)
-  - vllm#41422 (jasonkim8652, OPEN 2026-04-30)
   - vllm#41414 (DROPPED — not applicable)
+  - vllm#41422 — sparse-V tile-skip; handled by PN26b, not here.
 """
 from __future__ import annotations
 
 import logging
-import os
 
 from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 from sndr.kernel import (
@@ -108,7 +99,7 @@ from sndr.kernel import (
 
 log = logging.getLogger("genesis.wiring.pn26_tq_unified_perf")
 
-GENESIS_PN26_MARKER = "Genesis PN26 TQ unified perf (centroids+sparseV) v7.65"
+GENESIS_PN26_MARKER = "Genesis PN26 TQ centroids prebake v7.65"
 
 
 # ─── Sub-patch 1: centroids.py — pre-baked tables + self-check ────────
@@ -319,12 +310,13 @@ def _apply_centroids() -> tuple[str, str]:
 
 
 def apply() -> tuple[str, str]:
-    """Apply PN26 — TQ unified perf pack (centroids prebake + sparse V scaffold).
+    """Apply PN26 — TQ centroids prebake orchestrator.
 
-    Centroids prebake: ALWAYS applied when PN26 master flag is ON.
-    Sparse V kernel modification: scaffolded but ONLY engaged when
-    `GENESIS_ENABLE_PN26_SPARSE_V=1` sub-flag is also set. Default OFF
-    pending NVIDIA Ampere correctness validation.
+    Centroids prebake: ALWAYS applied when the PN26 master flag is ON.
+    The returned status reflects ONLY the centroids sub-patch — the work
+    this module actually performs. The sparse-V tile-skip kernel is a
+    separate patch (PN26b, env `GENESIS_ENABLE_PN26_SPARSE_V`) and is not
+    touched here.
 
     Self-check defense: if upstream Lloyd-Max algorithm changes after
     we pre-baked our tables, the on-import self-check catches it and
@@ -340,37 +332,21 @@ def apply() -> tuple[str, str]:
     if vllm_install_root() is None:
         return "skipped", "vllm install root not discoverable"
 
-    # Sub-patch 1: centroids prebake (always-on when master is on).
+    # Sub-patch 1: centroids prebake (always-on when master is on). This is
+    # the ONLY work the master orchestrator performs, so the master status
+    # reflects it directly. The sparse-V tile-skip kernel is a SEPARATE
+    # registry patch (PN26b, env GENESIS_ENABLE_PN26_SPARSE_V) wired by
+    # `pn26_sparse_v_kernel.py`. The master deliberately does NOT read that
+    # flag — a prior "deferred" branch here read it and did nothing, giving
+    # the flag a false second meaning; that dead branch was removed so the
+    # flag has exactly one truthful owner.
     cent_status, cent_detail = _apply_centroids()
     log.info("[PN26:centroids] %s — %s", cent_status, cent_detail)
 
-    # Sub-patch 2: sparse V kernel scaffold (deferred until NVIDIA validation).
-    sparse_v_enabled = os.environ.get(
-        "GENESIS_ENABLE_PN26_SPARSE_V", "0"
-    ).strip().lower() in ("1", "true", "yes", "on")
-    sparse_v_status = "scaffold-only"
-    if sparse_v_enabled:
-        # Reserved for next iteration once NVIDIA correctness is validated.
-        # Implementing the kernel-side SPARSE_V constexpr + invocation-site
-        # opt-in requires text-patching `triton_turboquant_decode.py` (kernel
-        # definition) AND `turboquant_attn.py` (caller arguments). Two
-        # coordinated text-patches with high anchor-drift risk on the kernel
-        # body — defer until correctness baseline established. For now,
-        # acknowledge the user opt-in and log that scaffold mode is awaiting
-        # validation.
-        sparse_v_status = "deferred"
-        log.warning(
-            "[PN26:sparse_v] GENESIS_ENABLE_PN26_SPARSE_V=1 set, but kernel "
-            "scaffold pending NVIDIA Ampere correctness validation. "
-            "Centroids prebake still active. Sparse V tile-skip will be "
-            "wired in next iteration."
-        )
-
     if cent_status == "applied":
         return "applied", (
-            f"PN26 centroids prebaked active (with drift self-check); "
-            f"sparse V {sparse_v_status}"
+            "PN26 centroids prebaked active (with drift self-check)"
         )
     if cent_status == "skipped":
-        return "skipped", f"PN26 centroids: {cent_detail}; sparse V {sparse_v_status}"
+        return "skipped", f"PN26 centroids: {cent_detail}"
     return "failed", f"PN26 centroids failed: {cent_detail}"

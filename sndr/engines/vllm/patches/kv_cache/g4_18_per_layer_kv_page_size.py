@@ -85,6 +85,32 @@ def _env_enabled() -> bool:
     return env_truthy(_ENV_ENABLE)
 
 
+def _upstream_accepts_layer_idx(method) -> bool:
+    """True when ``ModelConfig.get_num_kv_heads`` exposes a ``layer_idx``
+    parameter (the only signature shape under which G4_18's per-layer
+    override can ever fire).
+
+    vLLM >= 0.22 (dev491) ships ``get_num_kv_heads(self, parallel_config)``
+    with no ``layer_idx`` — there the override is permanently inert and
+    G4_18 must report a no-op rather than a false ``"applied"``. A method
+    that accepts ``**kwargs`` is treated as layer-idx-capable (the caller
+    can pass it through).
+    """
+    import inspect
+
+    try:
+        params = inspect.signature(method).parameters
+    except (TypeError, ValueError):
+        # Builtins / C-level callables expose no signature — be conservative
+        # and treat as inert so we never claim a false apply.
+        return False
+    if "layer_idx" in params:
+        return True
+    return any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()
+    )
+
+
 def _read_per_layer_kv_heads(model_config) -> dict[int, int] | None:
     """Return per-layer-index num_kv_heads, or None if symmetric/unknown."""
     hf = getattr(model_config, "hf_config", None) or model_config
@@ -134,6 +160,22 @@ def apply() -> tuple[str, str]:
     if getattr(method, "_genesis_g4_18_wrapped", False):
         _APPLIED = True
         return "applied", "G4_18 already wrapped (idempotent)"
+
+    # The per-layer override only fires when get_num_kv_heads receives a
+    # `layer_idx` kwarg. On vLLM >= 0.22 (dev491) the upstream signature is
+    # get_num_kv_heads(self, parallel_config) with NO layer_idx, and every
+    # caller invokes it without one — so the override branch can never run
+    # and wrapping would deliver nothing. Detect that here and report the
+    # honest no-op status instead of a false "applied".
+    if not _upstream_accepts_layer_idx(method):
+        return "skipped", (
+            "upstream dropped the layer_idx kwarg on this pin "
+            "(get_num_kv_heads has no layer_idx parameter) — per-layer KV "
+            "page-size override is inert; no-op, leaves upstream untouched. "
+            "Rely on G4_13's refusal until vllm#40391 lands. RIG FOLLOW-UP: "
+            "when a pin restores a layer-aware KV-spec entry point, re-target "
+            "G4_18 to it and re-validate on 26B-A4B before disabling G4_13."
+        )
     _ORIGINAL_GET_NUM_KV = method
 
     def _genesis_g4_18_get_num_kv_heads(self, parallel_config=None, layer_idx=None, **kwargs):
