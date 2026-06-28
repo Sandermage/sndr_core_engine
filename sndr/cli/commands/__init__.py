@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from typing import Protocol
 
+from sndr.cli.commands.chat import ChatCommand
 from sndr.cli.commands.engines import EnginesListCommand, EnginesInfoCommand
 from sndr.cli.commands.health import HealthCommand
 from sndr.cli.commands.kv_calc import KvCalcCommand
@@ -12,6 +13,7 @@ from sndr.cli.commands.launch import LaunchCommand
 from sndr.cli.commands.pins import PinsListCommand
 from sndr.cli.commands.preflight import PreflightCommand
 from sndr.cli.commands.promoted import PROMOTED_COMMANDS
+from sndr.cli.commands.run import RunCommand
 
 
 class Command(Protocol):
@@ -47,6 +49,8 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     register(EnginesListCommand())
     register(EnginesInfoCommand())
     register(LaunchCommand())
+    register(RunCommand())
+    register(ChatCommand())
     register(PinsListCommand())
     register(HealthCommand())
     register(PreflightCommand())

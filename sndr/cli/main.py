@@ -31,11 +31,49 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from sndr.cli.commands import COMMAND_REGISTRY, build_subparsers
 from sndr.cli.commands.promoted import PROMOTED_COMMANDS
 from sndr.version import __version__
+
+# Env markers that signal a non-interactive / CI context. When any is set we
+# never auto-launch the wizard on a bare ``sndr`` invocation — scripted callers
+# (and dashboards that scrape the help text) must keep the old help behaviour
+# even if they happen to run under a pseudo-TTY.
+_CI_ENV_MARKERS = ("CI", "CONTINUOUS_INTEGRATION", "GITHUB_ACTIONS", "SNDR_NO_WIZARD")
+
+
+def _interactive_no_args() -> bool:
+    """True when a bare ``sndr`` should drop into the interactive wizard.
+
+    Gated on BOTH stdin and stdout being a real TTY (so piped / redirected
+    callers keep the help output) AND the absence of any CI marker. This is the
+    only thing that turns the Ollama-style "type one thing → chatting" first
+    experience on; everything else keeps the legacy help wall.
+    """
+    if any(os.environ.get(name) for name in _CI_ENV_MARKERS):
+        return False
+    try:
+        return bool(sys.stdin.isatty() and sys.stdout.isatty())
+    except Exception:
+        return False
+
+
+def _run_wizard_no_args(argv: list[str]) -> int:
+    """Dispatch a bare ``sndr`` to the interactive launch wizard.
+
+    A bare invocation maps to ``sndr launch`` with no preset — the existing
+    rig→preset→fit wizard. Kept as a separate seam (overridable in tests) so
+    the no-args dispatch can be exercised without spinning up the whole wizard.
+    """
+    from sndr.cli.commands.launch import LaunchCommand
+
+    parser = build_parser()
+    args = parser.parse_args(["launch", *argv])
+    return LaunchCommand().execute(args)
+
 
 # Promoted pass-through commands delegate their entire argv tail to the
 # legacy implementation. They must bypass the top-level argparse so that a
@@ -94,6 +132,20 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command is None:
+        # Ollama-style first experience: a bare ``sndr`` on an interactive TTY
+        # drops straight into the launch wizard. ``-h``/``--help`` never reaches
+        # here (argparse exits first), so this only fires on a truly bare call.
+        # Non-TTY / piped / CI keeps the legacy help output unchanged.
+        if not argv and _interactive_no_args():
+            sys.stderr.write(
+                "Welcome to sndr — let's get a model running. "
+                "(Ctrl-C to exit, `sndr --help` for all commands)\n"
+            )
+            try:
+                return _run_wizard_no_args([])
+            except KeyboardInterrupt:
+                sys.stderr.write("\nInterrupted.\n")
+                return 130
         parser.print_help()
         return 0
 
