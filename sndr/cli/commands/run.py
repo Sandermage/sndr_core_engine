@@ -44,6 +44,8 @@ import sys
 import time
 from typing import Any, Callable, Optional
 
+from sndr.cli._messages import Emitter, heartbeat
+
 _DEFAULT_TIMEOUT_S = 300
 
 
@@ -88,8 +90,7 @@ class RunCommand:
     # ── dispatch ─────────────────────────────────────────────────────────────
 
     def execute(self, args: argparse.Namespace) -> int:
-        def out(msg: str = "") -> None:
-            print(msg, file=sys.stderr)
+        em = Emitter()  # advisory output → stderr (stdout stays scriptable)
 
         # 1) Resolve the preset (explicit, else top-fit for the rig).
         try:
@@ -98,23 +99,23 @@ class RunCommand:
                 port_override=args.port,
             )
         except _ResolveError as exc:
-            out(f"sndr run: {exc}")
-            out("  list presets: sndr preset list   |   pick interactively: sndr")
+            em.line(f"sndr run: {exc}")
+            em.line("  list presets: sndr preset list   |   pick interactively: sndr")
             return 2
 
         host = "127.0.0.1"
         url = f"http://{host}:{port}/v1"
-        out("")
-        out(f"  sndr run — preset: {preset_id}  (engine → {url})")
+        em.blank()
+        em.line(f"  sndr run — preset: {preset_id}  (engine → {url})")
 
         # --dry-run: report the plan, launch nothing.
         if args.dry_run:
-            out("  (dry-run) plan:")
-            out(f"    1. ensure weights present  (pull {preset_id})")
-            out(f"    2. launch                  (sndr launch {preset_id})")
-            out(f"    3. wait for engine ready   ({host}:{port}/health, "
-                f"timeout {args.timeout}s)")
-            out(f"    4. chat                    (sndr chat {preset_id})")
+            em.line("  (dry-run) plan:")
+            em.line(f"    1. ensure weights present  (pull {preset_id})")
+            em.line(f"    2. launch                  (sndr launch {preset_id})")
+            em.line(f"    3. wait for engine ready   ({host}:{port}/health, "
+                    f"timeout {args.timeout}s)")
+            em.line(f"    4. chat                    (sndr chat {preset_id})")
             # Mirror the resolved preset on stdout for scriptability.
             print(f"sndr run plan: {preset_id} (port {port})")
             # Let the pull step plan its own download in dry-run too.
@@ -122,53 +123,53 @@ class RunCommand:
             return 0
 
         # 2) Ensure weights are present (no-op when already complete).
-        out("  [1/3] ensuring model weights are present …")
+        em.line("  [1/3] ensuring model weights are present …")
         rc = _pull_if_missing(preset_id, dry_run=False)
         if rc not in (0, None):
-            out(f"  ✗ weights not ready (pull rc={rc}).")
-            out(f"    fetch them manually: python3 -m sndr.compat.models.pull "
-                f"--config {preset_id}")
+            em.err(f"weights not ready (pull rc={rc}).")
+            em.hint(f"fetch them manually: python3 -m sndr.compat.models.pull "
+                    f"--config {preset_id}")
             return rc or 1
 
         # 3) Launch (detached) via the existing launch flag path.
-        out("  [2/3] launching the engine …")
+        em.line("  [2/3] launching the engine …")
         rc = _launch_detached(preset_id, port=args.port, dry_run=False)
         if rc not in (0, None):
-            out(f"  ✗ launch failed (rc={rc}).")
-            out(f"    re-run for the full diagnostics: sndr launch {preset_id}")
+            em.err(f"launch failed (rc={rc}).")
+            em.hint(f"re-run for the full diagnostics: sndr launch {preset_id}")
             return rc or 1
 
         # 4) Wait for the engine to become ready.
-        out(f"  [3/3] waiting for the engine on {host}:{port} "
-            f"(timeout {args.timeout}s) …")
+        em.line(f"  [3/3] waiting for the engine on {host}:{port} "
+                f"(timeout {args.timeout}s) …")
         status = _wait_ready(
-            host, port, timeout=args.timeout, on_progress=_progress(out),
+            host, port, timeout=args.timeout, on_progress=heartbeat(em.line),
         )
         if not (status or {}).get("reachable"):
             detail = (status or {}).get("error") or "no /health response"
-            out("")
-            out(f"  ✗ engine did not become ready in {args.timeout}s ({detail}).")
-            out("    find the container:        docker ps --filter ancestor=vllm")
-            out("    then tail its logs:        docker logs -f <container>")
-            out(f"    once it is up, chat with:  sndr chat {preset_id}")
+            em.blank()
+            em.err(f"engine did not become ready in {args.timeout}s ({detail}).")
+            em.hint("find the container:        docker ps --filter ancestor=vllm")
+            em.hint("then tail its logs:        docker logs -f <container>")
+            em.hint(f"once it is up, chat with:  sndr chat {preset_id}")
             return 1
 
         # 5) Ready — chat (or, headless, the ready-pointer).
         models = (status or {}).get("models") or []
         served = models[0] if models else preset_id
-        out("")
-        out(f"  ✓ Ready — chat at {url}  (model: {served})")
-        out(f"    or later:  sndr chat {preset_id}")
+        em.blank()
+        em.ok(f"Ready — chat at {url}  (model: {served})")
+        em.hint(f"or later:  sndr chat {preset_id}")
 
         if args.no_input:
-            out("  (--no-input: not opening the interactive REPL)")
+            em.line("  (--no-input: not opening the interactive REPL)")
             return 0
         if not (sys.stdin.isatty() and sys.stdout.isatty()):
-            out("  (non-interactive stdin/stdout — not opening the REPL; "
-                f"chat with: sndr chat {preset_id})")
+            em.line("  (non-interactive stdin/stdout — not opening the REPL; "
+                    f"chat with: sndr chat {preset_id})")
             return 0
 
-        out("")
+        em.blank()
         return _chat_repl(host, port, preset_id=preset_id)
 
 
@@ -351,19 +352,6 @@ def _chat_repl(host: str, port: int, *, preset_id: str) -> int:
     from sndr.cli.chat_repl import chat_loop
 
     return chat_loop(host, port, preset_id=preset_id)
-
-
-def _progress(out: Callable[[str], None]) -> Callable[[float], None]:
-    """A throttled progress callback for the readiness wait — one dot per poll,
-    a newline-free heartbeat so the operator sees it is still working."""
-    state = {"dots": 0}
-
-    def _tick(_now: float) -> None:
-        state["dots"] += 1
-        if state["dots"] % 5 == 0:
-            out(f"    … still warming up ({state['dots'] * 2}s)")
-
-    return _tick
 
 
 __all__ = ["RunCommand"]

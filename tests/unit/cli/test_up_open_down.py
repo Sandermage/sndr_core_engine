@@ -321,6 +321,41 @@ class TestDown:
         assert rc == 0
         assert "down" in err.getvalue().lower() or "stopped" in err.getvalue().lower()
 
+    def test_down_is_idempotent_when_nothing_running(self, monkeypatch):
+        # `sndr down` is a teardown: when NOTHING is running (both teardown
+        # seams report "no process found"), it must still exit 0 with a clean
+        # "is down" summary — re-running down must never error.
+        monkeypatch.setattr(up_mod, "_stop_engine", lambda preset_id, *, dry_run=False: False)
+        monkeypatch.setattr(up_mod, "_stop_daemon", lambda *, dry_run=False: False)
+        err = io.StringIO()
+        with redirect_stderr(err), redirect_stdout(io.StringIO()):
+            rc = DownCommand().execute(_down_ns(preset="example-2x-tier-aware", fake_gpus=TWO_A5000))
+        assert rc == 0, "down must be idempotent — exit 0 even when nothing was running"
+        low = err.getvalue().lower()
+        assert "is down" in low
+        assert "no running" in low  # the daemon line reports nothing was running
+
+    def test_down_survives_unresolvable_preset(self, monkeypatch):
+        # If the engine preset can't be resolved (bad --rig, corpus gap), down
+        # must NOT crash — it reports the miss and still stops the daemon.
+        from sndr.cli.commands import run as run_mod
+
+        def boom(*a, **k):
+            raise run_mod._ResolveError("nothing fits")
+
+        monkeypatch.setattr(run_mod, "_resolve_preset_and_port", boom)
+        stopped = {"daemon": False}
+        monkeypatch.setattr(
+            up_mod, "_stop_daemon",
+            lambda *, dry_run=False: stopped.__setitem__("daemon", True) or True,
+        )
+        err = io.StringIO()
+        with redirect_stderr(err), redirect_stdout(io.StringIO()):
+            rc = DownCommand().execute(_down_ns(preset="zzz-nonexistent"))
+        assert rc == 0
+        assert stopped["daemon"], "daemon teardown must still run after a preset miss"
+        assert "could not resolve" in err.getvalue().lower()
+
 
 # ── 7. R1 + R2 behaviors unbroken ────────────────────────────────────────────
 

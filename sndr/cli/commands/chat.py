@@ -20,7 +20,8 @@ Examples::
 from __future__ import annotations
 
 import argparse
-import sys
+
+from sndr.cli._messages import Emitter
 
 
 class ChatCommand:
@@ -42,8 +43,7 @@ class ChatCommand:
         )
 
     def execute(self, args: argparse.Namespace) -> int:
-        def out(msg: str = "") -> None:
-            print(msg, file=sys.stderr)
+        em = Emitter()  # advisory output → stderr
 
         host = args.host
         port = args.port
@@ -58,11 +58,11 @@ class ChatCommand:
         status = engine_client.engine_status(host, port=port, timeout=3.0)
         if not status.get("reachable"):
             detail = status.get("error") or "no /health response"
-            out(f"sndr chat: no engine reachable at {host}:{port} ({detail}).")
+            em.line(f"sndr chat: no engine reachable at {host}:{port} ({detail}).")
             if preset_id:
-                out(f"  start it with:  sndr run {preset_id}")
+                em.line(f"  start it with:  sndr run {preset_id}")
             else:
-                out("  start one with:  sndr run   (or `sndr` to pick a preset)")
+                em.line("  start one with:  sndr run   (or `sndr` to pick a preset)")
             return 1
 
         from sndr.cli.chat_repl import chat_loop

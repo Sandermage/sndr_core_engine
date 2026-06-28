@@ -125,6 +125,45 @@ class TestReplExit:
         assert called["n"] == 1  # only the non-blank "real" line was sent
 
 
+class TestReplCtrlC:
+    def test_ctrl_c_at_prompt_exits_cleanly(self):
+        # Ctrl-C while waiting for the next line ends the session with rc 0 —
+        # no traceback, like Ctrl-C out of a normal shell REPL.
+        def at_prompt_interrupt(_prompt=""):
+            raise KeyboardInterrupt
+
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc = run_repl(
+                chat_fn=lambda m: {"reply": "x"},
+                input_fn=at_prompt_interrupt,
+                model_label="m",
+            )
+        assert rc == 0
+
+    def test_ctrl_c_mid_generation_keeps_session_alive(self):
+        # Ctrl-C DURING a model turn drops just that unanswered turn and keeps
+        # the loop alive (the next line still works) — a single interrupted
+        # generation must not end the whole chat.
+        calls = {"n": 0}
+
+        def flaky_chat(messages):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise KeyboardInterrupt  # interrupt the first generation
+            return {"reply": "second-ok"}
+
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            rc = run_repl(
+                chat_fn=flaky_chat,
+                input_fn=_scripted_inputs(["interrupt me", "now answer", "/exit"]),
+                model_label="m",
+            )
+        assert rc == 0
+        assert "second-ok" in out.getvalue()
+        assert calls["n"] == 2  # both turns were attempted; loop survived
+
+
 class TestReplErrorHandling:
     def test_engine_error_is_friendly_and_loop_continues(self):
         calls = {"n": 0}

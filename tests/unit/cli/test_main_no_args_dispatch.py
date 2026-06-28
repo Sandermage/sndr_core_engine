@@ -149,3 +149,55 @@ class TestExplicitCommandNotIntercepted:
             rc = main(["health"])
         assert rc == 0
         assert "sndr-platform" in out.getvalue()
+
+
+class TestCtrlCExitsCleanly:
+    """A Ctrl-C anywhere in dispatch must end with the same clean line + the
+    conventional 130 exit code (128 + SIGINT), never a raw KeyboardInterrupt
+    traceback that leaks the call stack to the operator."""
+
+    def test_ctrl_c_in_command_returns_130_no_traceback(self, monkeypatch):
+        from sndr.cli.commands import COMMAND_REGISTRY
+        from sndr.cli.main import build_parser
+
+        build_parser()
+
+        def boom(self, args):  # noqa: ANN001 — raise as if the user hit Ctrl-C
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(type(COMMAND_REGISTRY["health"]), "execute", boom)
+        err = io.StringIO()
+        # No pytest.raises: a leaked KeyboardInterrupt would propagate here and
+        # fail the test, which is exactly the regression this guards.
+        with redirect_stderr(err), redirect_stdout(io.StringIO()):
+            rc = main(["health"])
+        assert rc == 130, "Ctrl-C must exit 130 (128 + SIGINT)"
+        assert "Interrupted." in err.getvalue()
+        assert "Traceback" not in err.getvalue()
+
+    def test_ctrl_c_in_no_args_wizard_returns_130(self, monkeypatch):
+        _force_interactive(monkeypatch, interactive=True)
+
+        def boom(argv):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(cli_main, "_run_wizard_no_args", boom)
+        err = io.StringIO()
+        with redirect_stderr(err), redirect_stdout(io.StringIO()):
+            rc = main([])
+        assert rc == 130
+        assert "Interrupted." in err.getvalue()
+
+    def test_ctrl_c_in_passthrough_returns_130(self, monkeypatch):
+        # A promoted pass-through (doctor) that the user Ctrl-Cs mid-run.
+        import sndr.compat.cli as compat_cli
+
+        def boom(argv):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(compat_cli, "main", boom)
+        err = io.StringIO()
+        with redirect_stderr(err), redirect_stdout(io.StringIO()):
+            rc = main(["doctor", "--full"])
+        assert rc == 130
+        assert "Interrupted." in err.getvalue()

@@ -53,6 +53,8 @@ import sys
 import time
 from typing import Any, Callable, Optional
 
+from sndr.cli._messages import Emitter, heartbeat
+
 _DEFAULT_GUI_PORT = 8765
 _DEFAULT_GUI_HOST = "127.0.0.1"
 _DEFAULT_ENGINE_TIMEOUT_S = 300
@@ -114,8 +116,7 @@ class UpCommand:
         )
 
     def execute(self, args: argparse.Namespace) -> int:
-        def out(msg: str = "") -> None:
-            print(msg, file=sys.stderr)
+        em = Emitter()  # advisory output → stderr (stdout stays scriptable)
 
         gui_port = int(getattr(args, "gui_port", _DEFAULT_GUI_PORT))
         no_engine = bool(getattr(args, "no_engine", False))
@@ -133,31 +134,31 @@ class UpCommand:
                     port_override=args.port,
                 )
             except _ResolveError as exc:
-                out(f"sndr up: {exc}")
-                out("  list presets: sndr preset list   |   pick interactively: sndr")
+                em.line(f"sndr up: {exc}")
+                em.line("  list presets: sndr preset list   |   pick interactively: sndr")
                 return 2
 
-        out("")
+        em.blank()
         if no_engine:
-            out(f"  sndr up — daemon + GUI only  (→ {url})")
+            em.line(f"  sndr up — daemon + GUI only  (→ {url})")
         else:
-            out(f"  sndr up — preset: {preset_id}  (engine → 127.0.0.1:{engine_port}, "
-                f"GUI → {url})")
+            em.line(f"  sndr up — preset: {preset_id}  (engine → 127.0.0.1:{engine_port}, "
+                    f"GUI → {url})")
 
         # ── --dry-run: report the plan, start nothing ────────────────────────
         if args.dry_run:
-            out("  (dry-run) plan:")
+            em.line("  (dry-run) plan:")
             step = 1
             if not no_engine:
-                out(f"    {step}. launch engine            (sndr launch {preset_id})")
+                em.line(f"    {step}. launch engine            (sndr launch {preset_id})")
                 step += 1
-                out(f"    {step}. wait for engine ready    (127.0.0.1:{engine_port}/health)")
+                em.line(f"    {step}. wait for engine ready    (127.0.0.1:{engine_port}/health)")
                 step += 1
-            out(f"    {step}. start product-API + GUI  (sndr gui-api --port {gui_port})")
+            em.line(f"    {step}. start product-API + GUI  (sndr gui-api --port {gui_port})")
             step += 1
-            out(f"    {step}. wait for the GUI ready   ({url}/api/v1/health)")
+            em.line(f"    {step}. wait for the GUI ready   ({url}/api/v1/health)")
             step += 1
-            out(f"    {step}. open the GUI             ({url})")
+            em.line(f"    {step}. open the GUI             ({url})")
             # Scriptable mirror on stdout.
             target = preset_id if not no_engine else "(no-engine)"
             print(f"sndr up plan: engine={target} gui={url}")
@@ -166,51 +167,51 @@ class UpCommand:
         # ── 1) engine: launch + wait (skipped with --no-engine) ──────────────
         if not no_engine:
             assert preset_id is not None and engine_port is not None
-            out("  [engine] launching …")
+            em.line("  [engine] launching …")
             rc = _launch_engine_detached(preset_id, port=args.port, dry_run=False)
             if rc not in (0, None):
-                out(f"  ✗ engine launch failed (rc={rc}).")
-                out(f"    re-run for full diagnostics: sndr launch {preset_id}")
+                em.err(f"engine launch failed (rc={rc}).")
+                em.hint(f"re-run for full diagnostics: sndr launch {preset_id}")
                 return rc or 1
 
-            out(f"  [engine] waiting on 127.0.0.1:{engine_port} "
-                f"(timeout {args.timeout}s) …")
+            em.line(f"  [engine] waiting on 127.0.0.1:{engine_port} "
+                    f"(timeout {args.timeout}s) …")
             status = _wait_engine_ready(
                 _DEFAULT_GUI_HOST, engine_port, timeout=args.timeout,
-                on_progress=_progress(out, "engine"),
+                on_progress=heartbeat(em.line, label="engine"),
             )
             if not (status or {}).get("reachable"):
                 detail = (status or {}).get("error") or "no /health response"
-                out("")
-                out(f"  ✗ engine did not become ready in {args.timeout}s ({detail}).")
-                out("    find the container:  docker ps --filter ancestor=vllm")
-                out("    then tail its logs:  docker logs -f <container>")
+                em.blank()
+                em.err(f"engine did not become ready in {args.timeout}s ({detail}).")
+                em.hint("find the container:  docker ps --filter ancestor=vllm")
+                em.hint("then tail its logs:  docker logs -f <container>")
                 return 1
-            out("  [engine] ✓ ready")
+            em.line("  [engine] ✓ ready")
 
         # ── 2) daemon: start the existing gui-api server + wait ──────────────
-        out(f"  [gui] starting the product-API + GUI on {url} …")
+        em.line(f"  [gui] starting the product-API + GUI on {url} …")
         try:
             handle = _start_daemon(_DEFAULT_GUI_HOST, gui_port)
         except _DaemonStartError as exc:
-            out(f"  ✗ could not start the GUI daemon: {exc}")
-            out("    install the web extra:  pip install 'vllm-sndr-core[gui-api]'")
+            em.err(f"could not start the GUI daemon: {exc}")
+            em.hint("install the web extra:  pip install 'vllm-sndr-core[gui-api]'")
             return 3
         ready = _wait_daemon_ready(_DEFAULT_GUI_HOST, gui_port, timeout=_DAEMON_READY_TIMEOUT_S)
         if not ready:
-            out(f"  ✗ the GUI daemon did not answer on {url} within "
-                f"{_DAEMON_READY_TIMEOUT_S}s.")
-            out(f"    start it by hand to see the error:  sndr gui-api --port {gui_port}")
+            em.err(f"the GUI daemon did not answer on {url} within "
+                   f"{_DAEMON_READY_TIMEOUT_S}s.")
+            em.hint(f"start it by hand to see the error:  sndr gui-api --port {gui_port}")
             _detach_handle(handle)
             return 1
 
         # ── 3) up — print the local URL ──────────────────────────────────────
-        out("")
-        out(f"  ✓ sndr is up — open {url} or run `sndr open`")
+        em.blank()
+        em.ok(f"sndr is up — open {url} or run `sndr open`")
         if not no_engine:
-            out(f"    chat from the terminal instead:  sndr chat {preset_id}")
-        out(f"    stop everything:                 sndr down"
-            + (f" {preset_id}" if not no_engine and preset_id and not str(preset_id).startswith("prod-") else ""))
+            em.hint(f"chat from the terminal instead:  sndr chat {preset_id}")
+        em.hint("stop everything:                 sndr down"
+                + (f" {preset_id}" if not no_engine and preset_id and not str(preset_id).startswith("prod-") else ""))
         return 0
 
 
@@ -228,17 +229,15 @@ class OpenCommand:
         )
 
     def execute(self, args: argparse.Namespace) -> int:
+        em = Emitter()  # advisory output → stderr (stdout carries the URL)
         gui_port = int(getattr(args, "gui_port", _DEFAULT_GUI_PORT))
         url = _local_url(gui_port)
         # Always print the URL first so a headless operator can copy it even if
         # the browser open is a no-op.
-        print(f"  opening {url}", file=sys.stderr)
+        em.line(f"  opening {url}")
         opened = _open_browser(url)
         if not opened:
-            print(
-                f"  no browser available on this host — open it manually: {url}",
-                file=sys.stderr,
-            )
+            em.line(f"  no browser available on this host — open it manually: {url}")
         # Mirror the URL on stdout for scriptability (`sndr open | …`).
         print(url)
         return 0
@@ -275,42 +274,43 @@ class DownCommand:
         )
 
     def execute(self, args: argparse.Namespace) -> int:
-        def out(msg: str = "") -> None:
-            print(msg, file=sys.stderr)
+        em = Emitter()  # advisory output → stderr
 
         dry_run = bool(getattr(args, "dry_run", False))
-        out("")
-        out("  sndr down — stopping the stack" + (" (dry-run)" if dry_run else "") + " …")
+        em.blank()
+        em.line("  sndr down — stopping the stack" + (" (dry-run)" if dry_run else "") + " …")
 
         # Resolve the engine preset so we know which container to stop. Failure
-        # here is non-fatal — we still stop the daemon.
+        # here is non-fatal — we still stop the daemon (`down` is idempotent and
+        # best-effort: it never errors out just because nothing was running). We
+        # catch broadly (not just _ResolveError) so a corpus/import hiccup in
+        # resolution can never block the daemon teardown.
         preset_id: Optional[str] = None
         try:
-            from sndr.cli.commands.run import _ResolveError, _resolve_preset_and_port
+            from sndr.cli.commands.run import _resolve_preset_and_port
 
             preset_id, _ = _resolve_preset_and_port(
                 args.preset, rig_id=args.rig, fake_gpus=args.fake_gpus,
                 port_override=None,
             )
         except Exception as exc:  # noqa: BLE001 — keep going to stop the daemon
-            out(f"  (could not resolve an engine preset to stop: {exc})")
+            em.line(f"  (could not resolve an engine preset to stop: {exc})")
             preset_id = None
 
-        engine_stopped = False
         if preset_id is not None:
             engine_stopped = _stop_engine(preset_id, dry_run=dry_run)
             verb = "would stop" if dry_run else ("stopped" if engine_stopped else "no running engine for")
-            out(f"  [engine] {verb} {preset_id}")
+            em.line(f"  [engine] {verb} {preset_id}")
 
         daemon_stopped = _stop_daemon(dry_run=dry_run)
         verb = "would stop" if dry_run else ("stopped" if daemon_stopped else "no running")
-        out(f"  [gui]    {verb} the product-API + GUI daemon")
+        em.line(f"  [gui]    {verb} the product-API + GUI daemon")
 
-        out("")
+        em.blank()
         if dry_run:
-            out("  ✓ sndr down (dry-run) — nothing was stopped")
+            em.ok("sndr down (dry-run) — nothing was stopped")
         else:
-            out("  ✓ sndr is down")
+            em.ok("sndr is down")
         return 0
 
 
@@ -503,21 +503,6 @@ def _open_browser(url: str) -> bool:
         return bool(webbrowser.open(url))
     except Exception:  # noqa: BLE001 — a missing browser must not raise
         return False
-
-
-# ── shared progress heartbeat ────────────────────────────────────────────────
-
-
-def _progress(out: Callable[[str], None], label: str) -> Callable[[float], None]:
-    """A throttled readiness heartbeat (one line every ~10s)."""
-    state = {"dots": 0}
-
-    def _tick(_now: float) -> None:
-        state["dots"] += 1
-        if state["dots"] % 5 == 0:
-            out(f"    [{label}] … still warming up ({state['dots'] * 2}s)")
-
-    return _tick
 
 
 __all__ = ["UpCommand", "OpenCommand", "DownCommand"]

@@ -171,6 +171,14 @@ def _friendly_unknown_command(token: str) -> str:
     return "\n".join(lines)
 
 
+def _interrupt() -> int:
+    """Uniform Ctrl-C handling: one clean line on stderr, the conventional
+    130 exit code (128 + SIGINT), no traceback. Shared by every dispatch path
+    so a Ctrl-C anywhere in the CLI exits the same friendly way."""
+    sys.stderr.write("\nInterrupted.\n")
+    return 130
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the top-level argument parser."""
     parser = argparse.ArgumentParser(
@@ -219,8 +227,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             return cmd.execute(ns)  # type: ignore[attr-defined]
         except KeyboardInterrupt:
-            sys.stderr.write("\nInterrupted.\n")
-            return 130
+            return _interrupt()
 
     # UX R5: a leading positional token that is neither a flag (``-h`` etc.)
     # nor a known verb is a typo / unknown command. Intercept it BEFORE
@@ -248,8 +255,7 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 return _run_wizard_no_args([])
             except KeyboardInterrupt:
-                sys.stderr.write("\nInterrupted.\n")
-                return 130
+                return _interrupt()
         parser.print_help()
         return 0
 
@@ -260,8 +266,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return command.execute(args)
     except KeyboardInterrupt:
-        sys.stderr.write("\nInterrupted.\n")
-        return 130
+        return _interrupt()
 
 
 if __name__ == "__main__":
