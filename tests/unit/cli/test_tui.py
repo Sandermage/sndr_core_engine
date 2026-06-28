@@ -228,10 +228,11 @@ def test_catalog_rows_falls_back_to_candidates_without_menu():
     assert rows == [("✓", "p", "qa", "—")]
 
 
-def test_help_text_documents_the_read_only_keys():
+def test_help_text_documents_the_navigation_keys():
     assert "refresh" in HELP_TEXT
     assert "quit" in HELP_TEXT
-    assert "Phase 1" in HELP_TEXT  # honest about read-only scope
+    # the catalog fit glyphs are explained so a newcomer reads the ✓/✗ column
+    assert "fit this rig" in HELP_TEXT
 
 
 # ═════════════════════════════════════════════════════════════════════════════

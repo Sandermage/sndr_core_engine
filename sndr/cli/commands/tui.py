@@ -1,20 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-"""CLI command: ``sndr tui`` — interactive terminal cockpit (read-only Phase 1).
+"""CLI command: ``sndr tui`` — interactive terminal cockpit.
 
 A Textual dashboard over the live engine + the fit-ranked preset catalog +
 GPU/hosts + a status log, on one keyboard-driven screen. It REUSES the seams the
 CLI already exposes — ``launch_wizard.build_catalog`` for the catalog,
-``engine_client.engine_status`` / ``engine_metrics`` for live KPIs — and owns no
-business logic of its own (the same way ``sndr run`` / ``sndr up`` are thin
-orchestration over ``launch``).
+``engine_client.engine_status`` / ``engine_metrics`` for live KPIs, and the
+``sndr run`` / ``sndr down`` / ``sndr doctor`` / ``sndr chat`` pipelines for the
+operate verbs — and owns no business logic of its own.
+
+The cockpit both shows and DRIVES: Enter serves the selected preset, k stops it,
+d runs doctor, c chats — each routed through ``sndr.cli.tui.data`` so the TUI is
+a view-and-control-over-the-CLI, never a parallel implementation.
 
 Textual is an optional ``[tui]`` extra: the base CLI and daemon run without it.
 When textual is absent ``sndr tui`` prints a one-line install hint and exits
 non-zero — never a traceback (mirrors how ``sndr up`` gates the ``gui-api``
 extra).
-
-Phase 1 is READ-ONLY: refresh / filter / help / quit — no serve/stop actions
-yet (those are Phase 2).
 """
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ from sndr.cli._messages import Emitter
 
 class TuiCommand:
     name = "tui"
-    help = "Open the interactive terminal cockpit (read-only live dashboard)."
+    help = "Open the interactive terminal cockpit (live dashboard + serve/stop/chat)."
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(

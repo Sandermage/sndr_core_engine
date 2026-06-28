@@ -23,15 +23,20 @@ GLYPH_NOFIT = "✗"
 HELP_TEXT = """\
 sndr cockpit — keys
 
+  ↑/↓      move the catalog cursor
+  Enter    serve the selected preset   (pull if needed + launch)
+  k        stop the selected preset's engine
+  d        doctor — full system diagnostic
+  c        chat with the running engine
   r        refresh engine + catalog
   /        filter the catalog
-  ↑/↓      move the catalog cursor
   ?        this help
   q        quit
 
-Read-only (Phase 1): serve/stop/doctor actions arrive in Phase 2.
+serve / stop ask to confirm first; doctor / chat drop to the terminal and
+return to the cockpit on exit.
 The catalog shows ✓ for presets that fit this rig, ✗ for those that don't.
-No engine running yet?  exit and run:  sndr run
+No engine running yet?  select a ✓ row and press Enter — or exit and run: sndr run
 """
 
 
