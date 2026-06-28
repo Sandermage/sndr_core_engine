@@ -96,6 +96,46 @@ class TestClub43GrammarRejection:
         # single weak hit → INFO, not WARN
         assert result.severity in ("INFO", "WARN")  # tolerate either
 
+    def test_warn_remediation_uses_v012_structured_outputs_flag(self):
+        """vLLM 0.12.0 removed --guided-decoding-backend (and the guided_*
+        request API). The club#43 remediation hint must reference the
+        replacement --structured-outputs-config backend flag for the
+        0.23.1 pin, never the removed flag name.
+        """
+        log_text = (
+            "WARNING all 32 candidate tokens were rejected\n"
+            "INFO grammar reject something\n"
+        )
+        result = check_grammar_rejection_pattern(log_text)
+        assert result.severity == "WARN"
+        rem = result.remediation or ""
+        # NEW (0.12.0+) flag must be present
+        assert "--structured-outputs-config" in rem
+        # REMOVED names must be ABSENT (regression guard)
+        assert "guided-decoding-backend" not in rem
+        assert "guided_decoding_backend" not in rem
+        assert "guided_json" not in rem
+
+    def test_module_source_has_no_removed_guided_api_names(self):
+        """Drift guard: the whole preflight_checks module source must not
+        reference any vLLM-pre-0.12.0 guided_* CLI flag or request field.
+        Mirrors the repo audit grep for removed-API names.
+        """
+        import re
+
+        from sndr.compat import preflight_checks as mod
+
+        src = Path(mod.__file__).read_text(encoding="utf-8")
+        removed = re.compile(
+            r"guided[-_](?:json|decoding[-_]backend|grammar|regex|choice)",
+            re.IGNORECASE,
+        )
+        hit = removed.search(src)
+        assert hit is None, (
+            "removed pre-0.12.0 guided_* API reference in preflight_checks: "
+            f"{hit.group(0) if hit else ''}"
+        )
+
 
 # ─── club#34 spec-decode token-loop ─────────────────────────────────────
 

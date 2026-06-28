@@ -192,10 +192,11 @@ def check_grammar_rejection_pattern(
 
     Heuristic: if 3+ different rejection-pattern hits OR a single
     "all candidates rejected" event in the recent log window, emit WARN
-    with hint to (a) check tool schema strictness, (b) try
-    `--guided-decoding-backend outlines` instead of default, (c) upgrade
-    `--max-tokens` floor (some OpenClaw clients send max_tokens=1 by
-    accident).
+    with hint to (a) check tool schema strictness, (b) try an alternate
+    structured-outputs backend via `--structured-outputs-config.backend
+    guidance` (the 0.12.0+ replacement for the legacy backend-select
+    flag removed in that release), (c) upgrade `--max-tokens` floor
+    (some OpenClaw clients send max_tokens=1 by accident).
 
     Returns INFO if no pattern observed.
     """
@@ -226,8 +227,11 @@ def check_grammar_rejection_pattern(
                 "Check: (1) tool schema is not over-constrained "
                 "(test `tool_choice='auto'` instead of 'required'); "
                 "(2) max_tokens floor is sane (≥32); "
-                "(3) try `--guided-decoding-backend outlines` if using "
-                "default xgrammar. Cross-ref noonghunna club-3090#43."
+                "(3) try an alternate structured-outputs backend via "
+                "`--structured-outputs-config.backend guidance` if the "
+                "default xgrammar keeps rejecting (0.12.0+ replaces the "
+                "old backend-select flag). "
+                "Cross-ref noonghunna club-3090#43."
             ),
         )
 
