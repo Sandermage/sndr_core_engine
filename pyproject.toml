@@ -132,6 +132,13 @@ telemetry = [
 license = [
     "cryptography>=41.0",
 ]
+# `pip install vllm-sndr-core[tui]` for the interactive terminal cockpit
+# (`sndr tui`) — a read-only Textual dashboard over the live engine + catalog.
+# Optional: the base CLI/daemon run without it; `sndr tui` prints a friendly
+# install hint when textual is absent (never a traceback).
+tui = [
+    "textual>=0.50",
+]
 
 [project.urls]
 Homepage = "https://github.com/Sandermage/genesis-vllm-patches"

@@ -14,6 +14,7 @@ from sndr.cli.commands.pins import PinsListCommand
 from sndr.cli.commands.preflight import PreflightCommand
 from sndr.cli.commands.promoted import PROMOTED_COMMANDS
 from sndr.cli.commands.run import RunCommand
+from sndr.cli.commands.tui import TuiCommand
 from sndr.cli.commands.up import DownCommand, OpenCommand, UpCommand
 
 
@@ -59,6 +60,9 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     register(PinsListCommand())
     register(HealthCommand())
     register(PreflightCommand())
+    # TUI cockpit (read-only Phase 1) — the command gates on the optional [tui]
+    # extra (textual) with a friendly install hint when it's absent.
+    register(TuiCommand())
     register(KvCalcCommand())
     register(_FitAlias())
 
