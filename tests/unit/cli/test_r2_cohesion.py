@@ -136,6 +136,14 @@ class TestDottedAndSpacedResolve:
 
     def test_spaced_engines_list_help_does_not_error(self):
         # ``sndr engines list`` must not raise ``invalid choice``.
+        # ``engines list`` reaches the modular engines schemas (pydantic
+        # models); the light CI test leg installs no pydantic, so the
+        # subprocess would exit on ModuleNotFoundError before argparse ever
+        # resolves the verb. Skip cleanly there — matching the
+        # ``importorskip("pydantic")`` convention used across the modular
+        # domain tests — rather than failing on an unrelated env gap.
+        pytest.importorskip("pydantic")
+
         import subprocess
         import sys
 
