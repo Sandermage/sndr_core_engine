@@ -35,6 +35,7 @@ operators primarily use the GUI.
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import sys
@@ -122,6 +123,54 @@ def _normalize_spaced_verbs(argv: list[str]) -> list[str]:
     return argv
 
 
+# UX R5 (v12) — friendly unknown-command handling. Before R5 a typo'd verb
+# (``sndr lauch``) fell through to argparse's raw ``invalid choice`` wall: a
+# dump of every command with no pointer to the next action. We intercept the
+# unknown command BEFORE argparse and print a short, rustup/uv-style message
+# (matching install.sh's tone) that names the nearest valid verb AND the next
+# step. A bare ``sndr``, an introspection flag (``-h``/``--version``), and
+# every valid/aliased/promoted verb are left for the normal dispatch — only a
+# genuinely-unknown leading subcommand token reaches this path.
+
+
+def _known_verbs() -> list[str]:
+    """Every leading token a user could legitimately type as a subcommand.
+
+    The canonical registry verbs (``launch``, ``run``, ``doctor``, the dotted
+    resource names …) PLUS the first token of each spaced alias (``engines``,
+    ``pins``, ``model``) so ``engines list`` is never mis-flagged as unknown.
+    Builds the parser once to guarantee the registry is populated (the same
+    registration path ``main`` uses).
+    """
+    build_parser()  # ensure COMMAND_REGISTRY is populated
+    verbs = set(COMMAND_REGISTRY.keys())
+    verbs.update(prefix for (prefix, _verb) in _SPACED_ALIASES)
+    return sorted(verbs)
+
+
+def _friendly_unknown_command(token: str) -> str:
+    """Build the rustup-style message for an unknown leading subcommand.
+
+    Names the nearest valid verb via ``difflib`` (only when it is genuinely
+    close — no fabricated suggestion for a far-off token) and always points at
+    the next action: the bare ``sndr`` guided menu and ``sndr --help``.
+    """
+    verbs = _known_verbs()
+    # Suggest the dotted/spaced canonical for resource verbs, but match against
+    # the bare prefix too so ``enginez`` → ``engines`` reads naturally.
+    suggest_pool = sorted(set(verbs) | {v.split(".", 1)[0] for v in verbs})
+    near = difflib.get_close_matches(token, suggest_pool, n=1, cutoff=0.6)
+    lines = []
+    if near:
+        lines.append(f"sndr: unknown command {token!r} — did you mean {near[0]!r}?")
+    else:
+        lines.append(f"sndr: unknown command {token!r}.")
+    lines.append(
+        "      Run 'sndr' for the guided menu or 'sndr --help' for all commands."
+    )
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the top-level argument parser."""
     parser = argparse.ArgumentParser(
@@ -172,6 +221,16 @@ def main(argv: list[str] | None = None) -> int:
         except KeyboardInterrupt:
             sys.stderr.write("\nInterrupted.\n")
             return 130
+
+    # UX R5: a leading positional token that is neither a flag (``-h`` etc.)
+    # nor a known verb is a typo / unknown command. Intercept it BEFORE
+    # argparse so the user gets the friendly "did you mean …" + next-step hint
+    # instead of the raw ``invalid choice`` wall. Exit code stays non-zero (2,
+    # matching argparse's usage-error convention). Flags and valid/aliased
+    # verbs fall through untouched.
+    if argv and not argv[0].startswith("-") and argv[0] not in _known_verbs():
+        sys.stderr.write(_friendly_unknown_command(argv[0]) + "\n")
+        return 2
 
     parser = build_parser()
     args = parser.parse_args(argv)

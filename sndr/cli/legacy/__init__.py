@@ -315,7 +315,11 @@ def cli_main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.version:
-        from sndr import SNDR_CORE_VERSION
+        # Import from sndr.version (the single source of truth) — the symbol
+        # is NOT re-exported from the top-level `sndr` package, so the old
+        # `from sndr import SNDR_CORE_VERSION` raised ImportError and crashed
+        # `genesis --version` / `sndr.cli.legacy --version` (UX R5 fix).
+        from sndr.version import SNDR_CORE_VERSION
         print(f"SNDR Core {SNDR_CORE_VERSION}")
         return 0
 
