@@ -14,7 +14,7 @@
         test-pin-gate test-iron-rule test-family test-doc-sync \
         audit-upstream audit-yaml preflight lint-drift-markers \
         tokenizer-fingerprint rebuild-pin audit-pin summarize-rej bump-preflight \
-        docs-check docs-write doctor \
+        docs-check docs-write docs-site-build docs-site-serve doctor \
         evidence evidence-release evidence-json gui-build gui-lint test-gui-contract audit-i18n
 
 # Default target — show help.
@@ -492,6 +492,12 @@ docs-write: ## Regenerate auto-docs from registry + builtin YAMLs
 	@echo "✓ Regenerated docs/PATCHES_AUTO.md + docs/CONFIGS_AUTO.md"
 
 docs: docs-write docs-check ## Regenerate + verify auto-docs
+
+docs-site-build: ## Build the MkDocs Material site (strict) → site/ (needs: pip install mkdocs-material)
+	mkdocs build --strict
+
+docs-site-serve: ## Live-preview the MkDocs site at http://127.0.0.1:8000 (needs: pip install mkdocs-material)
+	mkdocs serve
 
 # ─── Pre-commit ────────────────────────────────────────────────────────
 

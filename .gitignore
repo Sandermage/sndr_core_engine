@@ -9,6 +9,9 @@ dist/
 node_modules/
 *.tsbuildinfo
 
+# MkDocs build output (docs site is published by .github/workflows/pages.yml)
+/site/
+
 # Built Carbon GUI assets (`make gui-build-carbon` → web_static_carbon/) are
 # gitignored. NOTE: the PRODUCTION `make gui-build` output lives at
 # sndr/product_api/legacy/web_static/ and is intentionally TRACKED/committed

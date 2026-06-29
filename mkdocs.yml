@@ -1,0 +1,100 @@
+# MkDocs Material config for the SNDR Core Engine docs site.
+# Build:  mkdocs build --strict      Serve:  mkdocs serve
+# Published to GitHub Pages by .github/workflows/pages.yml.
+site_name: SNDR Core Engine
+site_description: >-
+  Genesis vLLM Patches — runtime patch-overlay for vLLM running Qwen3.6 /
+  Gemma4 on consumer NVIDIA (RTX 3090/4090/5090, A5000). TurboQuant KV, MTP
+  spec-decode, hybrid GDN, 256K context.
+site_url: https://sandermage.github.io/sndr_core_engine/
+repo_url: https://github.com/Sandermage/sndr_core_engine
+repo_name: Sandermage/sndr_core_engine
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+# The RU promotion playbook + any other internal notes never publish.
+exclude_docs: |
+  _internal/
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: black
+      accent: green
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      primary: black
+      accent: green
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.details
+
+# Curated sidebar. Docs not listed here still build and land in sitemap.xml
+# (validation.nav.omitted_files: info) — the nav is a reading path, not a gate.
+nav:
+  - Home: README.md
+  - Getting started:
+      - Get started (2-min orientation): GETTING_STARTED.md
+      - Quickstart (clone to chat): QUICKSTART.md
+      - Install: INSTALL.md
+      - Local AI primer: LOCAL_AI_PRIMER.md
+      - Self-host vs cloud: COMPARISONS.md
+  - Models & hardware:
+      - Models: MODELS.md
+      - Hardware: HARDWARE.md
+      - Single card: SINGLE_CARD.md
+      - Presets: PRESETS.md
+      - Model config + launcher: MODEL_CONFIG_LAUNCHER.md
+  - Patches & decoding:
+      - Patch catalogue: PATCHES.md
+      - Patch designs: PATCH_DESIGNS.md
+      - Speculative decoding: SPEC_DECODE_GUIDE.md
+  - Operations:
+      - Operator manual: USAGE.md
+      - CLI reference: CLI_REFERENCE.md
+      - Configuration: CONFIGURATION.md
+      - Benchmarks: BENCHMARKS.md
+      - Troubleshooting: TROUBLESHOOTING.md
+  - Reference:
+      - Glossary: GLOSSARY.md
+      - FAQ: FAQ.md
+      - Contributing: CONTRIBUTING.md
+      - Announcement template: ANNOUNCEMENT_TEMPLATE.md
+      - Credits: CREDITS.md
+      - Sponsors: SPONSORS.md
+
+# mkdocs 1.6 validation: keep the build green without a full legacy-link sweep.
+# Un-navved docs and the GitHub-relative links in legacy docs are informational,
+# not fatal — every page still builds and is indexed.
+validation:
+  nav:
+    omitted_files: info
+    not_found: warn
+  links:
+    not_found: ignore
+    absolute_links: ignore
+    unrecognized_links: ignore
