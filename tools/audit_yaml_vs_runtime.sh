@@ -1,39 +1,74 @@
 #!/usr/bin/env bash
-# audit_yaml_vs_runtime.sh — drift audit for YAML config vs live container env
+# audit_yaml_vs_runtime.sh — drift audit for a model config vs live container env
 #
-# Compares the `genesis_env:` block of a builtin model_config YAML against
-# the actual environment variables of a running vLLM container. Reports any
-# drift between intended (YAML) and actual (live) state.
+# Compares the EFFECTIVE genesis_env of a builtin model config against the
+# actual environment variables of a running vLLM container. Reports drift
+# between intended (config) and actual (live) state — in BOTH directions, plus
+# value mismatches for keys present in both.
 #
-# Background: drift between YAML configs and start-scripts is a recurring
-# regression source on Genesis (audit 2026-05-11 Wave 8 found 11 drift sources
-# in single session; PN90 dropped from start-script alone cost -7% TPS until
-# fixed). This script catches drift before it causes silent performance loss.
+# Two config formats are handled transparently:
+#   * legacy monolithic YAML — GENESIS_* flags inline under `genesis_env:`;
+#   * V2 composed preset — a thin resolver referencing model/hardware/profile;
+#     the effective env is composed at launch time, so we resolve it the way the
+#     launcher does: `sndr launch --dry-run <key>` (key = preset filename stem).
+#   The V2 path is the fix for the silent failure where grepping the thin
+#   resolver found 0 flags → false "all-drift" AND an undetectable dangerous
+#   direction (config enables X, container lacks it).
+#
+# Background: drift between configs and start-scripts is a recurring regression
+# source on Genesis (2026-05-11 Wave 8 found 11 in one session; PN90 dropped
+# from a start-script cost -7% TPS until fixed). This script catches it early.
 #
 # Usage:
 #   ./tools/audit_yaml_vs_runtime.sh <yaml_path> <container_name> [<ssh_host>]
+#   ./tools/audit_yaml_vs_runtime.sh --dump-config-keys <yaml_path>   # debug/test
 #
 # Examples:
-#   # Audit local container (no SSH)
-#   ./tools/audit_yaml_vs_runtime.sh vllm/sndr_core/model_configs/builtin/a5000-2x-27b-int4-tq-k8v4.yaml vllm-server
-#
-#   # Audit remote PROD container via SSH
-#   ./tools/audit_yaml_vs_runtime.sh vllm/sndr_core/model_configs/builtin/a5000-2x-27b-int4-tq-k8v4.yaml vllm-pn95-2xa5000 <user>@127.0.0.1
+#   ./tools/audit_yaml_vs_runtime.sh sndr/model_configs/builtin/presets/prod-qwen3.6-35b-balanced.yaml vllm-qwen3.6-35b-balanced-k3 sander@192.168.1.10
+#   ./tools/audit_yaml_vs_runtime.sh --dump-config-keys sndr/model_configs/builtin/presets/prod-qwen3.6-35b-balanced.yaml
 #
 # Exit codes:
 #   0 — no real drift (only intentional disables / experiment-specific extras)
-#   1 — real drift found (YAML enables a flag not in live env, or vice versa with non-experiment key)
+#   1 — real drift (config enables a flag the container lacks, a non-experiment
+#       extra, or a value mismatch on a shared key)
 #   2 — usage error or file not found
-#
-# Output sections:
-#   - "YAML keys NOT in live env" — flags that YAML enables but container doesn't have
-#   - "Live env keys NOT in YAML" — flags container has but YAML doesn't specify
-#   - "Summary verdict" — drift severity assessment
 
 set -e
 
+# --- Resolve a config's EFFECTIVE genesis_env as KEY=VALUE lines -------------
+# Legacy monolithic config: GENESIS_ flags inline. V2 composed preset (no inline
+# flags): resolve via the launcher's dry-run render — the same composition the
+# real launch uses.
+resolve_config_kv() {
+  local yaml="$1" out="$2"
+  grep -E "^[[:space:]]+GENESIS_[A-Z0-9_]+:" "$yaml" 2>/dev/null \
+    | sed -E "s/^[[:space:]]+//; s/:[[:space:]]*/=/; s/[[:space:]]*#.*$//; s/[[:space:]]+$//; s/['\"]//g" \
+    | sort -u > "$out" || true
+  if [ -s "$out" ]; then return 0; fi
+  # V2 composed preset → resolve the effective launcher env.
+  local key
+  key="$(basename "$yaml" .yaml)"
+  python3 -m sndr launch --dry-run "$key" 2>/dev/null \
+    | grep -oE 'GENESIS_[A-Z0-9_]+=[^ \\"]+' \
+    | sort -u > "$out" || true
+}
+
+# --- --dump-config-keys mode (no docker/ssh — used by tests + debugging) -----
+if [ "${1:-}" = "--dump-config-keys" ]; then
+  if [ $# -ne 2 ] || [ ! -f "$2" ]; then
+    echo "Usage: $0 --dump-config-keys <yaml_path>" >&2
+    exit 2
+  fi
+  DUMP_TMP=$(mktemp)
+  trap 'rm -f "$DUMP_TMP"' EXIT
+  resolve_config_kv "$2" "$DUMP_TMP"
+  cat "$DUMP_TMP"
+  exit 0
+fi
+
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
   echo "Usage: $0 <yaml_path> <container_name> [<ssh_host>]" >&2
+  echo "       $0 --dump-config-keys <yaml_path>" >&2
   exit 2
 fi
 
@@ -47,88 +82,105 @@ if [ ! -f "$YAML_PATH" ]; then
 fi
 
 TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
+trap 'rm -rf "$TMPDIR"' EXIT
 
-# Extract GENESIS_* keys from YAML genesis_env block
-grep -E "^\s+GENESIS_" "$YAML_PATH" \
-  | sed -E 's/^[[:space:]]+//;s/:.*$//' \
-  | sort -u > "$TMPDIR/yaml_keys.txt"
+# Effective config env (KEY=VALUE), composing V2 presets when needed.
+resolve_config_kv "$YAML_PATH" "$TMPDIR/yaml_kv.txt"
+cut -d= -f1 "$TMPDIR/yaml_kv.txt" | sort -u > "$TMPDIR/yaml_keys.txt"
 
-# Get live container env via docker inspect
+# Live container env (KEY=VALUE + keys).
 if [ -n "$SSH_HOST" ]; then
   ssh "$SSH_HOST" "docker inspect $CONTAINER_NAME --format '{{range .Config.Env}}{{println .}}{{end}}'" 2>/dev/null \
-    | grep -oE '^GENESIS_[A-Z0-9_]+' \
-    | sort -u > "$TMPDIR/live_keys.txt"
+    | grep -E '^GENESIS_[A-Z0-9_]+=' | sort -u > "$TMPDIR/live_kv.txt"
 else
   docker inspect "$CONTAINER_NAME" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
-    | grep -oE '^GENESIS_[A-Z0-9_]+' \
-    | sort -u > "$TMPDIR/live_keys.txt"
+    | grep -E '^GENESIS_[A-Z0-9_]+=' | sort -u > "$TMPDIR/live_kv.txt"
 fi
+cut -d= -f1 "$TMPDIR/live_kv.txt" | sort -u > "$TMPDIR/live_keys.txt"
 
 if [ ! -s "$TMPDIR/live_keys.txt" ]; then
   echo "ERROR: Could not get live env from container $CONTAINER_NAME (is it running?)" >&2
   exit 2
 fi
 
-YAML_COUNT=$(wc -l < "$TMPDIR/yaml_keys.txt")
-LIVE_COUNT=$(wc -l < "$TMPDIR/live_keys.txt")
+YAML_COUNT=$(wc -l < "$TMPDIR/yaml_keys.txt" | tr -d ' ')
+LIVE_COUNT=$(wc -l < "$TMPDIR/live_keys.txt" | tr -d ' ')
+
+# Helper: value of a key in a KEY=VALUE file.
+val_of() { grep -E "^$1=" "$2" | head -1 | cut -d= -f2-; }
 
 echo "═══════════════════════════════════════════════════════════════════════"
 echo " YAML vs Runtime Drift Audit"
-echo "  YAML:      $YAML_PATH (${YAML_COUNT} keys)"
+echo "  Config:    $YAML_PATH (${YAML_COUNT} effective keys)"
 echo "  Container: $CONTAINER_NAME (${LIVE_COUNT} keys) ${SSH_HOST:+via $SSH_HOST}"
 echo "═══════════════════════════════════════════════════════════════════════"
 echo ""
 
+if [ "$YAML_COUNT" -eq 0 ]; then
+  echo "ERROR: resolved 0 config keys from $YAML_PATH — neither inline genesis_env" >&2
+  echo "       nor a launch --dry-run composition produced flags. Check the path." >&2
+  exit 2
+fi
+
 REAL_DRIFT=0
 
-echo "─── YAML keys NOT in live env ───"
+echo "─── Config keys NOT in live env (config wants, container lacks) ───"
 YAML_MINUS_LIVE=$(comm -23 "$TMPDIR/yaml_keys.txt" "$TMPDIR/live_keys.txt")
 if [ -z "$YAML_MINUS_LIVE" ]; then
   echo "  (none)"
 else
-  echo "$YAML_MINUS_LIVE" | while read key; do
-    # Check if YAML sets =0 (explicit disable — not drift)
-    yaml_val=$(grep -E "^\s+${key}:" "$YAML_PATH" | sed -E "s/.*${key}:[[:space:]]*//;s/[[:space:]]*#.*$//;s/[[:space:]]+$//" | tr -d "'\"")
+  while read -r key; do
+    [ -z "$key" ] && continue
+    yaml_val=$(val_of "$key" "$TMPDIR/yaml_kv.txt")
     if [ "$yaml_val" = "0" ]; then
-      echo "  $key  [OK — explicit disable in YAML, default-off in env]"
+      echo "  $key  [OK — explicit disable in config, default-off in env]"
     else
-      echo "  $key = $yaml_val  ⚠ DRIFT: YAML enables but container doesn't have"
+      echo "  $key = $yaml_val  ⚠ DRIFT: config enables but container lacks it"
+      REAL_DRIFT=1
     fi
-  done
-  # Re-count actual drift
-  WHILE_DRIFT=$(echo "$YAML_MINUS_LIVE" | while read key; do
-    yaml_val=$(grep -E "^\s+${key}:" "$YAML_PATH" | sed -E "s/.*${key}:[[:space:]]*//;s/[[:space:]]*#.*$//;s/[[:space:]]+$//" | tr -d "'\"")
-    if [ "$yaml_val" != "0" ]; then echo "drift"; fi
-  done | wc -l)
-  if [ "$WHILE_DRIFT" -gt 0 ]; then REAL_DRIFT=1; fi
+  done <<< "$YAML_MINUS_LIVE"
 fi
 
 echo ""
-echo "─── Live env keys NOT in YAML ───"
+echo "─── Live env keys NOT in config (container has, config lacks) ───"
 LIVE_MINUS_YAML=$(comm -13 "$TMPDIR/yaml_keys.txt" "$TMPDIR/live_keys.txt")
 if [ -z "$LIVE_MINUS_YAML" ]; then
   echo "  (none)"
 else
-  echo "$LIVE_MINUS_YAML" | while read key; do
-    # PN95-related keys are often added by experiment scripts on top of canonical YAML
-    if echo "$key" | grep -qE '^GENESIS_PN95_|^GENESIS_ENABLE_PN95_'; then
+  while read -r key; do
+    [ -z "$key" ] && continue
+    if echo "$key" | grep -qE '^GENESIS_(ENABLE_)?PN95_'; then
       echo "  $key  [INTENTIONAL — PN95 experiment additions, see start_pn95_*.sh]"
     else
-      echo "  $key  ⚠ EXTRA: container has env not specified in YAML"
+      echo "  $key  ⚠ EXTRA: container has env not in the resolved config"
+      REAL_DRIFT=1
     fi
-  done
-  EXTRA_REAL=$(echo "$LIVE_MINUS_YAML" | grep -vE '^GENESIS_PN95_|^GENESIS_ENABLE_PN95_' | wc -l)
-  if [ "$EXTRA_REAL" -gt 0 ]; then REAL_DRIFT=1; fi
+  done <<< "$LIVE_MINUS_YAML"
 fi
+
+echo ""
+echo "─── Value mismatches (key in both, different value) ───"
+MISMATCH=0
+while read -r key; do
+  [ -z "$key" ] && continue
+  yv=$(val_of "$key" "$TMPDIR/yaml_kv.txt")
+  lv=$(val_of "$key" "$TMPDIR/live_kv.txt")
+  if [ "$yv" != "$lv" ]; then
+    echo "  $key  ⚠ config='$yv'  live='$lv'"
+    MISMATCH=1
+    REAL_DRIFT=1
+  fi
+done <<< "$(comm -12 "$TMPDIR/yaml_keys.txt" "$TMPDIR/live_keys.txt")"
+[ "$MISMATCH" -eq 0 ] && echo "  (none)"
 
 echo ""
 echo "─── Summary ───"
 if [ "$REAL_DRIFT" -eq 0 ]; then
-  echo "  ✓ No real drift detected. YAML and live env are aligned."
+  echo "  ✓ No real drift detected. Config and live env are aligned."
   exit 0
 else
   echo "  ✗ Real drift detected. See above for details."
-  echo "  Action: update start-script to match YAML genesis_env, restart container, re-audit."
+  echo "  Action: reconcile the start-script / restart the container from the"
+  echo "          current preset (sndr launch <key>), then re-audit."
   exit 1
 fi
