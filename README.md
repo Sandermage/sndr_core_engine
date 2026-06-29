@@ -1,8 +1,11 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Genesis vLLM Patches" width="780">
+  <img src="assets/logo.png" alt="SNDR Core Engine — Genesis vLLM Patches" width="780">
 </p>
 
-# Genesis vLLM Patches
+# SNDR Core Engine
+
+> **Genesis vLLM Patches** — runtime patch-overlay for vLLM on consumer NVIDIA
+> Ampere / Ada / Blackwell.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev424+g3f5a1e173-orange.svg)](https://github.com/vllm-project/vllm)
@@ -16,6 +19,11 @@ cache, MTP K=5 spec-decode, tool-calling, and 256K-class context. 321 patches
 across ~23 families. Apache 2.0.**
 
 ---
+
+> 🚀 **New here?** → [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — who it's for, what you get, and the one install line.
+> 🧠 **New to local AI?** → [`docs/LOCAL_AI_PRIMER.md`](docs/LOCAL_AI_PRIMER.md) — GPUs, engines, MoE, and quants in plain English.
+> 📖 **Hit an unfamiliar term** (TPS · KV · MTP · TurboQuant · GDN)? → [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
+> 💸 **Self-host or cloud?** → [`docs/COMPARISONS.md`](docs/COMPARISONS.md) — the cost-crossover trade.
 
 ## What it is
 
@@ -145,6 +153,15 @@ Marlin N=352 thread-tile crash, then the `probs @ embed_weight` `[131072,2816]` 
 shape mismatch; the coherent generation confirms the soft-embed all-gather yields correct
 TP=2 output).
 
+## Pick your path
+
+| You have | Start here |
+| --- | --- |
+| **1× consumer card** (3090 / 4090 / 5090 / A5000) | [`docs/SINGLE_CARD.md`](docs/SINGLE_CARD.md) |
+| **2× cards** (TP=2 — the reference topology) | [`docs/HARDWARE.md`](docs/HARDWARE.md) + [`docs/MODELS.md`](docs/MODELS.md) |
+| **A model not in the catalog** | [`docs/MODELS.md`](docs/MODELS.md) (add-a-model + the V2 config system) |
+| **Brand-new / weighing self-host vs cloud** | [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) · [`docs/COMPARISONS.md`](docs/COMPARISONS.md) |
+
 ## Quick install
 
 ```bash
@@ -205,6 +222,19 @@ cross-rig bench reports are all welcome. The full workflow (anchor
 conventions, lifecycle ratchet, pin-bump playbook, PR template) is in
 [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md). Security disclosures go
 through [`SECURITY.md`](SECURITY.md).
+
+## Ecosystem / Related
+
+- **[vLLM](https://github.com/vllm-project/vllm)** — the upstream engine SNDR
+  Core patches. Genesis is an overlay, not a fork; patches retire as upstream
+  merges the underlying fix.
+- **[club-3090](https://github.com/noonghunna/club-3090)** — community,
+  multi-engine (vLLM · llama.cpp · ik_llama) serving recipes for consumer GPUs.
+  Complementary to this repo and cross-references Genesis in its
+  `TQ3_MTP_GENESIS.md`. **Where SNDR Core fits:** it is the deep, single-stack
+  vLLM patch engine; club-3090 is the broad multi-engine recipe hub. If you
+  want the widest engine/model menu, start there; if you want the fastest,
+  most-patched vLLM path on Ampere/Ada/Blackwell, you're in the right place.
 
 ## Credits + license
 

@@ -122,12 +122,12 @@ docker:
   port: 8000
   shm_size: 8g
   memory_limit: 64g
-  network: genesis-vllm-patches_default
+  network: sndr_core_engine_default
   gpus: all                          # all | '"device=0"' | '"device=0,1"'
   mounts:                            # host:container[:mode]
     - ${HOME}/models:/models:ro
     - ${HOME}/.cache/huggingface:/root/.cache/huggingface:ro
-    - /path/to/genesis-vllm-patches/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
+    - /path/to/sndr_core_engine/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro
   extra_run_flags:
     - --security-opt label=disable
 
@@ -272,8 +272,8 @@ paths:
   hf_cache: /home/user/.cache/huggingface
   triton_cache: /var/cache/triton      # auto-created if missing
   compile_cache: /var/cache/vllm-compile
-  sndr_src: /opt/genesis-vllm-patches/vllm/sndr_core
-  plugin_src: /opt/genesis-vllm-patches/tools/genesis_vllm_plugin
+  sndr_src: /opt/sndr_core_engine/vllm/sndr_core
+  plugin_src: /opt/sndr_core_engine/tools/genesis_vllm_plugin
 ```
 
 Re-run detection: `FORCE_REDETECT=1 install.sh` or manually:

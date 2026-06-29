@@ -10,6 +10,9 @@ never ship publicly.
 
 | If you want to... | Read |
 | --- | --- |
+| **Brand-new** — orient, then clone to first token | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
+| New to local AI itself (hardware / engines / quants, plain English) | [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) |
+| Weigh self-host vs a cloud API (cost crossover) | [`COMPARISONS.md`](COMPARISONS.md) |
 | Single-page operator manual covering all four layers (installer / launcher / configs / patches) | [`USAGE.md`](USAGE.md) |
 | Install Genesis end-to-end | [`INSTALL.md`](INSTALL.md) → [`QUICKSTART.md`](QUICKSTART.md) |
 | Get running in 5 minutes + Day 1 acceptance | [`QUICKSTART.md`](QUICKSTART.md) |
@@ -25,7 +28,15 @@ never ship publicly.
 | Browse the patch catalogue + compatibility matrix | [`PATCHES.md`](PATCHES.md) |
 | Read the technical design appendices (PN95, GDN, ...) | [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) |
 
-## File catalogue (26 markdown files)
+## File catalogue (30 markdown files)
+
+### Onboarding & concepts
+
+| Doc | Purpose |
+| --- | --- |
+| [`GETTING_STARTED.md`](GETTING_STARTED.md) | Two-minute orientation for newcomers — who it's for, what you get, the one install line, and where to go next. |
+| [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) | Plain-English explainer of local AI — GPU/VRAM, inference engine, model size & MoE, quantization — and how SNDR Core fits. |
+| [`COMPARISONS.md`](COMPARISONS.md) | Honest self-host-vs-cloud trade and the cost-crossover shape. |
 
 ### Installation & quickstart
 
@@ -84,6 +95,7 @@ never ship publicly.
 | --- | --- |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to author a new patch + community plugin paths (pip-installable and in-repo SDK) + project map (where every script / module / test lives). |
 | [`GLOSSARY.md`](GLOSSARY.md) | Term definitions — TQ, MTP, GDN, FA2, A3B, Marlin, ... |
+| [`ANNOUNCEMENT_TEMPLATE.md`](ANNOUNCEMENT_TEMPLATE.md) | Reusable skeleton for a "we shipped X" post + r/LocalLLaMA / Show HN / X variants. |
 
 ### Credits
 

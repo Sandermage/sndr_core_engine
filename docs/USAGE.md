@@ -97,7 +97,7 @@ curl -sSL .../install.sh | bash -s -- --pin dev --workload tool_agent -y
 
 # Manual clone path (no installer)
 git clone https://github.com/Sandermage/sndr_core_engine.git
-cd genesis-vllm-patches
+cd sndr_core_engine
 pip install -e tools/genesis_vllm_plugin
 ```
 

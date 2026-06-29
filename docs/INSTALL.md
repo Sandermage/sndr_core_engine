@@ -45,7 +45,7 @@ yet migrated to `sndr launch`, the old workflow still works:
 ```bash
 # 1. Clone this repo
 git clone https://github.com/Sandermage/sndr_core_engine.git
-cd genesis-vllm-patches
+cd sndr_core_engine
 
 # 2. Pull a recent vLLM nightly image
 docker pull vllm/vllm-openai:nightly
@@ -101,7 +101,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 ### 1. Repository layout (v12.0.0)
 
 ```
-genesis-vllm-patches/
+sndr_core_engine/
 ├── README.md                          # Overview + benchmarks
 ├── CHANGELOG.md                       # Version history (v7.0 → v11.0)
 ├── LICENSE                            # Apache 2.0 (core)
@@ -370,7 +370,7 @@ makes the patches actually fire, for two reasons:
 ```bash
 # Clone the Genesis patch repo
 git clone https://github.com/Sandermage/sndr_core_engine.git
-cd genesis-vllm-patches
+cd sndr_core_engine
 
 # Editable install of the repo ROOT into vLLM's venv.
 # This installs the `sndr` package AND registers the
@@ -445,7 +445,7 @@ These can also be run once after install — they modify files in `$VLLM_DIR` di
 ### 6. Run `sndr.apply` (text-patches vLLM source)
 
 ```bash
-cd genesis-vllm-patches  # or anywhere — the module is now importable
+cd sndr_core_engine  # or anywhere — the module is now importable
 
 # Set patch enable flags FIRST (env vars are read at apply time):
 # NOTE: P67b intentionally reuses P67's flag — same kernel family,
@@ -607,7 +607,7 @@ new `package-data`) the editable install must be refreshed so the
 
 ```bash
 # Pull latest patches from git
-cd ~/vllm-genesis/genesis-vllm-patches
+cd ~/vllm-genesis/sndr_core_engine
 git pull origin main
 
 # Refresh the editable install ONLY if packaging metadata changed
