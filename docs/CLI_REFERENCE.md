@@ -16,7 +16,7 @@ reference follows from §1 below.
 
 ```bash
 # Install + first boot
-curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
 sndr launch prod-qwen3.6-35b-balanced                            # V2 alias; V1 keys also accepted
 sndr launch prod-qwen3.6-35b-balanced --dry-run                  # render only, no exec
 sndr launch prod-qwen3.6-35b-balanced --preflight-only           # gate; never exec vLLM

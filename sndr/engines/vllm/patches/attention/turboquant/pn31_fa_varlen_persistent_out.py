@@ -4,7 +4,7 @@
 ================================================================
 Issue
 ================================================================
-https://github.com/Sandermage/genesis-vllm-patches/issues/15 (noonghunna)
+https://github.com/Sandermage/sndr_core_engine/issues/15 (noonghunna)
 
 OOM at `vllm/vllm_flash_attn/flash_attn_interface.py:300:flash_attn_varlen_func`
 on 1×3090 24GB single GPU when long-vision config + ~50K-token prefill.

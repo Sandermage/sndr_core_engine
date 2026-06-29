@@ -1290,7 +1290,7 @@ def write_markdown(out_md: Path, result: dict) -> None:
     lines.append("---")
     lines.append("")
     lines.append("Genesis Benchmark Suite v1.0 · Apache-2.0 · ")
-    lines.append("https://github.com/Sandermage/genesis-vllm-patches")
+    lines.append("https://github.com/Sandermage/sndr_core_engine")
     out_md.write_text("\n".join(lines))
 
 
@@ -1511,7 +1511,7 @@ def main(argv: list[str] | None = None) -> int:
     print("=" * 72)
     print()
     print("Share via GitHub Discussion:")
-    print("  https://github.com/Sandermage/genesis-vllm-patches/discussions")
+    print("  https://github.com/Sandermage/sndr_core_engine/discussions")
     print()
     return 0
 

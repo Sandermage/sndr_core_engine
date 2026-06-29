@@ -141,9 +141,9 @@ tui = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Sandermage/genesis-vllm-patches"
-Issues = "https://github.com/Sandermage/genesis-vllm-patches/issues"
-Changelog = "https://github.com/Sandermage/genesis-vllm-patches/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/Sandermage/sndr_core_engine"
+Issues = "https://github.com/Sandermage/sndr_core_engine/issues"
+Changelog = "https://github.com/Sandermage/sndr_core_engine/blob/main/CHANGELOG.md"
 
 [project.scripts]
 # v12.0 sndr-platform: canonical CLI entry points all live under sndr.cli.*

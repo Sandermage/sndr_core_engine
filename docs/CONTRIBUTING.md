@@ -758,7 +758,7 @@ python3 -m sndr.cli plugins validate
 Author etiquette:
 
 - Open an issue at
-  <https://github.com/Sandermage/genesis-vllm-patches/issues>
+  <https://github.com/Sandermage/sndr_core_engine/issues>
   describing your plugin's purpose before publishing.
 - Use a unique `patch_id` namespace (`MY_HANDLE_X`) to avoid future
   collisions with core patches.

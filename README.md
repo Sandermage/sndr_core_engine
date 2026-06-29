@@ -148,7 +148,7 @@ TP=2 output).
 ## Quick install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
 ```
 
 The installer detects your OS / Python / GPU / vLLM presence, clones into

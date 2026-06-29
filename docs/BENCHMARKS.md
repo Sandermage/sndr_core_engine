@@ -288,7 +288,7 @@ python3 tools/genesis_bench_suite.py --runs 50 --prompts short --max-tokens 256
 CUDA + drivers installed on the host; `pip install vllm` works.
 
 ```bash
-git clone https://github.com/Sandermage/genesis-vllm-patches.git
+git clone https://github.com/Sandermage/sndr_core_engine.git
 cd genesis-vllm-patches
 python3 -m pip install --user requests        # bench dep
 
@@ -311,7 +311,7 @@ The two forms are equivalent — the unified CLI is a thin shim over
 The supported reference path. All Genesis PROD runs use this image.
 
 ```bash
-git clone https://github.com/Sandermage/genesis-vllm-patches.git
+git clone https://github.com/Sandermage/sndr_core_engine.git
 cd genesis-vllm-patches
 docker pull vllm/vllm-openai:nightly             # current Genesis pin (0.23.1rc1.dev148+gb4c80ec0f)
 
@@ -515,7 +515,7 @@ The community is actively interested in cross-rig data.
 1. **Run with `--out my_results.json`** (or any name you'll
    recognise later).
 2. **Open a GitHub Discussion** at
-   <https://github.com/Sandermage/genesis-vllm-patches/discussions>.
+   <https://github.com/Sandermage/sndr_core_engine/discussions>.
 3. **Title format:** `[Bench] <model> on <GPU> — <wall_TPS> TPS`.
    Examples:
    - `[Bench] qwen3.6-35b-a3b-fp8 on 2× RTX A5000 — 239.7 TPS`

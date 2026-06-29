@@ -4,7 +4,7 @@
 > TP=2**. On a **single 24 GB card**, vLLM is fine for short / single-shot
 > workloads but **not reliable above ~50K context** and **not safe under
 > accumulating agentic traffic** — our **Cliff 2b is open** on consumer Ampere
-> ([genesis #22](https://github.com/Sandermage/genesis-vllm-patches/issues/22)).
+> ([genesis #22](https://github.com/Sandermage/sndr_core_engine/issues/22)).
 > If you have one card and an agentic coding client, use one of the **escape
 > hatches** below (llama.cpp MTP, or ik_llama two-stage) — they are slower per
 > token but cliff-immune, and the community has measured them honestly.
@@ -63,7 +63,7 @@ The two that bite single-card users:
 | Trigger | one prompt > ~50–60K tokens | ~21–26K **accumulated** context over 4–5 agentic turns |
 | Where | `chunk_gated_delta_rule_fwd` → `chunk_o.py` `torch.empty_like(v)` | same kernel, fires earlier under multi-turn KV pressure |
 | Why | FLA's `(B, NT, H, V, K)` h-tensor (~1.37 GiB at 60K) + KV pool > 24 GB | per-turn allocator reserve/fragmentation growth crosses the free budget |
-| Status on consumer Ampere | mitigated by env recipe, not closed | **OPEN** — [genesis #22](https://github.com/Sandermage/genesis-vllm-patches/issues/22) |
+| Status on consumer Ampere | mitigated by env recipe, not closed | **OPEN** — [genesis #22](https://github.com/Sandermage/sndr_core_engine/issues/22) |
 
 **Cliff 2b is the one to respect.** If your workload is **hermes / OpenHands /
 OpenCode / Cline / Roo / Aider / Cursor with retained context**, a single-card
@@ -77,7 +77,7 @@ and `max-num-batched-tokens` adjustments **do not close it** (all tested).
 > its eligibility gate rejects the `chunk_indices`/`chunk_offsets`-populated path
 > that vLLM's mandatory `--max-num-batched-tokens` always sets — so it falls back
 > to the vanilla path and OOMs at the same site. Tracked with a reproducer and
-> fix proposals in [genesis #22](https://github.com/Sandermage/genesis-vllm-patches/issues/22)
+> fix proposals in [genesis #22](https://github.com/Sandermage/sndr_core_engine/issues/22)
 > (cross-rig finding originally surfaced by club-3090). Until that lands, the
 > escape hatches below are the recommendation, not a single-card vLLM tweak.
 
@@ -189,5 +189,5 @@ on all come from **[noonghunna's club-3090](https://github.com/noonghunna/club-3
 — a community project doing the honest, cross-rig consumer-GPU testing that
 Genesis (a 2× A5000 patch tree) doesn't cover first-hand. Cliff 2b's cross-rig
 reproducer and the PN59 single-card finding came from that collaboration
-([genesis #22](https://github.com/Sandermage/genesis-vllm-patches/issues/22)).
+([genesis #22](https://github.com/Sandermage/sndr_core_engine/issues/22)).
 See [CREDITS.md](CREDITS.md) for the full attribution ledger.

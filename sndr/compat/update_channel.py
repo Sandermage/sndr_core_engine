@@ -54,7 +54,7 @@ log = logging.getLogger("genesis.compat.update_channel")
 
 KNOWN_CHANNELS = ("stable", "beta", "dev")
 DEFAULT_CHANNEL = "stable"
-GITHUB_REPO = "Sandermage/genesis-vllm-patches"
+GITHUB_REPO = "Sandermage/sndr_core_engine"
 CACHE_TTL_SECONDS = 24 * 3600  # 24h cache to avoid rate-limiting
 
 CHANNEL_REFS = {

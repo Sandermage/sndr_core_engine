@@ -152,7 +152,7 @@ jobs:
       # ───────────────────────────────────────────────────────────────
       # Publish to PyPI (Trusted Publisher / OIDC — no API token needed
       # if the PyPI project is configured with a Trusted Publisher
-      # pointing at github.com/Sandermage/genesis-vllm-patches +
+      # pointing at github.com/Sandermage/sndr_core_engine +
       # workflow=release.yml + environment=pypi).
       #
       # Setup steps (one-time, by the operator):

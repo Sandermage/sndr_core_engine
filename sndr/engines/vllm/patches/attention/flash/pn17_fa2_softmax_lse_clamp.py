@@ -39,7 +39,7 @@ Closing this mechanism widens the safe envelope for `long-text`
 no-vision configs to ~205K. (The dual mechanism B — FFN intermediate
 buffer cliff at 138 MiB on `long-vision` configs — is OUT OF SCOPE
 for this patch and requires upstream-FFN changes; see Genesis
-[Issue #11](https://github.com/Sandermage/genesis-vllm-patches/issues/11)
+[Issue #11](https://github.com/Sandermage/sndr_core_engine/issues/11)
 discussion thread for full analysis.)
 
 ================================================================

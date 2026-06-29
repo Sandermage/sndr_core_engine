@@ -10,12 +10,12 @@ import { PercentBar } from "../components/charts";
 import { formatVram } from "../lib/format";
 
 // Link to the single-card playbook. The GUI is served by the daemon; the doc
-// ships in-repo, so we point at the canonical GitHub-rendered copy для людей.
+// ships in-repo, so we point at the canonical GitHub-rendered copy for humans.
 const SINGLE_CARD_DOC_URL =
-  "https://github.com/Sandermage/genesis-vllm-patches/blob/main/docs/SINGLE_CARD.md";
+  "https://github.com/Sandermage/sndr_core_engine/blob/main/docs/SINGLE_CARD.md";
 
 /**
- * Genesis-specific "для людей" routing. When the live preflight FAILs a 2×
+ * Genesis-specific "human-friendly" routing. When the live preflight FAILs a 2×
  * preset on gpu_count for a single-card rig, we DON'T dead-end the user — we
  * render the honest escape hatch from docs/SINGLE_CARD.md: switch to the
  * card's declared `fallback_preset` (llama.cpp MTP, cliff-immune), or read why.

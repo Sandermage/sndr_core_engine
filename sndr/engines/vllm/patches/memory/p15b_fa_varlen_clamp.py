@@ -2,7 +2,7 @@
 """Wiring for Patch 15B — extend PN17-style clamp to TQ FA varlen call.
 
 Fixes Genesis Issue #15 (noonghunna 2026-05-01):
-https://github.com/Sandermage/genesis-vllm-patches/issues/15
+https://github.com/Sandermage/sndr_core_engine/issues/15
 
 ================================================================
 PROBLEM (root cause)

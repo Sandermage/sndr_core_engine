@@ -39,7 +39,7 @@ def _make_opts(**kwargs) -> argparse.Namespace:
         non_interactive=True,
         workload="balanced",
         pin="stable",
-        repo="https://github.com/Sandermage/genesis-vllm-patches.git",
+        repo="https://github.com/Sandermage/sndr_core_engine.git",
         home=None,
         bare_metal=False,
         no_plugin=True,

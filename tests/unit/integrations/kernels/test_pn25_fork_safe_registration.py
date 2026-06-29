@@ -20,7 +20,7 @@ This test simulates the worker-spawn condition by:
 3. Calling _register_op_once() again — must NOT trigger infer_schema
 
 Author: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
-Bug: https://github.com/Sandermage/genesis-vllm-patches/issues/16
+Bug: https://github.com/Sandermage/sndr_core_engine/issues/16
 """
 from __future__ import annotations
 

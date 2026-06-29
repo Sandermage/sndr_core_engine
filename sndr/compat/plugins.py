@@ -496,7 +496,7 @@ def main(argv=None) -> int:
         print("=" * 72)
         if not plugins:
             print("  (no plugins installed; see "
-                  "https://github.com/Sandermage/genesis-vllm-patches#plugins)")
+                  "https://github.com/Sandermage/sndr_core_engine#plugins)")
             return 0
         for p in plugins:
             for line in _format_plugin(p):

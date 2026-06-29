@@ -3,7 +3,7 @@
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
   "name": "vllm-sndr-core-11.0.0",
-  "documentNamespace": "https://github.com/Sandermage/genesis-vllm-patches/68df5d19-94f5-487f-9bfb-d96cc62b4424",
+  "documentNamespace": "https://github.com/Sandermage/sndr_core_engine/68df5d19-94f5-487f-9bfb-d96cc62b4424",
   "creationInfo": {
     "created": "2026-05-16T01:51:38.660802Z",
     "creators": [

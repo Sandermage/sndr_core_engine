@@ -4,7 +4,7 @@
 ================================================================
 Issue
 ================================================================
-https://github.com/Sandermage/genesis-vllm-patches/issues/17 (noonghunna)
+https://github.com/Sandermage/sndr_core_engine/issues/17 (noonghunna)
 
 `get_conv_copy_spec` in `vllm/model_executor/layers/mamba/mamba_utils.py`
 raises NotImplementedError when:

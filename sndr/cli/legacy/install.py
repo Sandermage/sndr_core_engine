@@ -53,7 +53,7 @@ from . import _io
 # ─── Constants ───────────────────────────────────────────────────────────
 
 
-_DEFAULT_REPO = "https://github.com/Sandermage/genesis-vllm-patches.git"
+_DEFAULT_REPO = "https://github.com/Sandermage/sndr_core_engine.git"
 _DEFAULT_HOME = Path.home() / ".sndr"
 _LEGACY_HOME = Path.home() / ".genesis"  # back-compat with v7.x operators
 _MIN_PYTHON = (3, 10)
@@ -357,7 +357,7 @@ def step_resolve_pin(opts: argparse.Namespace) -> StepResult:
 
 def _resolve_latest_tag(timeout: float = 10.0) -> Optional[str]:
     """Query GitHub tags API for the most recent tag. None on failure."""
-    url = ("https://api.github.com/repos/Sandermage/genesis-vllm-patches/"
+    url = ("https://api.github.com/repos/Sandermage/sndr_core_engine/"
            "tags?per_page=10")
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:  # nosec B310

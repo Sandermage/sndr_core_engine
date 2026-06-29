@@ -323,7 +323,7 @@ def emit_spdx(payload: dict[str, Any], out_path: Path) -> None:
         "dataLicense": "CC0-1.0",
         "SPDXID": "SPDXRef-DOCUMENT",
         "name": f"{name}-{version}",
-        "documentNamespace": f"https://github.com/Sandermage/genesis-vllm-patches/{uuid.uuid4()}",
+        "documentNamespace": f"https://github.com/Sandermage/sndr_core_engine/{uuid.uuid4()}",
         "creationInfo": {
             "created": payload["generated_at"],
             "creators": ["Tool: genesis-sbom-generator-1.0"],

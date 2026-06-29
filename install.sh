@@ -4,7 +4,7 @@
 # ──────────────────────────────────────────────────────────────────────
 #
 #  Usage:
-#    curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+#    curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
 #
 #    curl -sSL .../install.sh | bash -s -- --pin v7.69
 #    curl -sSL .../install.sh | bash -s -- --pin dev
@@ -40,7 +40,7 @@ set -euo pipefail
 
 # ─── Config (overridable via env or flags) ────────────────────────────
 
-GENESIS_REPO="${GENESIS_REPO:-https://github.com/Sandermage/genesis-vllm-patches.git}"
+GENESIS_REPO="${GENESIS_REPO:-https://github.com/Sandermage/sndr_core_engine.git}"
 # Primary path: ~/.sndr (new canonical home, post-rebrand). Legacy alias
 # GENESIS_HOME still honored for back-compat with v7.x operators — if
 # the operator already has $GENESIS_HOME set, prefer it; otherwise use
@@ -160,7 +160,7 @@ Flags:
   -h, --help           Show this help
 
 Examples:
-  curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+  curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
   curl -sSL .../install.sh | bash -s -- --pin v7.69 --workload tool_agent -y
   curl -sSL .../install.sh | bash -s -- --uninstall
 
@@ -593,7 +593,7 @@ resolve_pin() {
       local tags newest=""
       # Pull up to 30 tag names (newest first per GitHub API ordering).
       tags=$(curl -fsSL --max-time 10 \
-        "https://api.github.com/repos/Sandermage/genesis-vllm-patches/tags?per_page=30" \
+        "https://api.github.com/repos/Sandermage/sndr_core_engine/tags?per_page=30" \
         2>/dev/null | grep '"name":' | sed -E 's/.*"name": *"([^"]+)".*/\1/' || true)
       if [ -z "$tags" ]; then
         warn "Could not query GitHub tags API — falling back to 'main' branch."
@@ -892,8 +892,8 @@ print_next_steps() {
   echo "  sndr report bundle       # diagnostic bundle for issues"
   echo "  sndr --help              # full subcommand list"
   echo
-  echo "Docs:    https://github.com/Sandermage/genesis-vllm-patches"
-  echo "Issues:  https://github.com/Sandermage/genesis-vllm-patches/issues"
+  echo "Docs:    https://github.com/Sandermage/sndr_core_engine"
+  echo "Issues:  https://github.com/Sandermage/sndr_core_engine/issues"
 }
 
 # ─── Uninstall ────────────────────────────────────────────────────────
@@ -940,7 +940,7 @@ uninstall() {
 main() {
   echo
   printf '%b\n' "${C_BOLD}Genesis vLLM Patches — installer${C_RESET}"
-  printf '%b\n' "${C_GRAY}https://github.com/Sandermage/genesis-vllm-patches${C_RESET}"
+  printf '%b\n' "${C_GRAY}https://github.com/Sandermage/sndr_core_engine${C_RESET}"
   echo
 
   if [ "$GENESIS_UNINSTALL" = "1" ]; then

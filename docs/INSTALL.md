@@ -14,7 +14,7 @@ entry point, picks a preset, and runs a smoke test:
 
 ```bash
 # Interactive (one question: workload). Three minutes, working system.
-curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
 
 # Fully unattended.
 curl -sSL .../install.sh | bash -s -- --pin v12.0 --workload tool_agent -y
@@ -44,7 +44,7 @@ yet migrated to `sndr launch`, the old workflow still works:
 
 ```bash
 # 1. Clone this repo
-git clone https://github.com/Sandermage/genesis-vllm-patches.git
+git clone https://github.com/Sandermage/sndr_core_engine.git
 cd genesis-vllm-patches
 
 # 2. Pull a recent vLLM nightly image
@@ -369,7 +369,7 @@ makes the patches actually fire, for two reasons:
 
 ```bash
 # Clone the Genesis patch repo
-git clone https://github.com/Sandermage/genesis-vllm-patches.git
+git clone https://github.com/Sandermage/sndr_core_engine.git
 cd genesis-vllm-patches
 
 # Editable install of the repo ROOT into vLLM's venv.

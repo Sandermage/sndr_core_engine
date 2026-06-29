@@ -15,7 +15,7 @@ you into a chat prompt.
 ### 1. Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
 ```
 
 One paste. The installer detects your OS / Python / GPU / vLLM, clones

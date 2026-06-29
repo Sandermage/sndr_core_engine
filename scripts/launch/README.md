@@ -56,7 +56,7 @@ flags + `--tensor-parallel-size 1`, otherwise identical. Sander runs 2× A5000
 so these have NOT been benched / stress-tested end-to-end. Each script carries
 a prominent EXPERIMENTAL warning header and per-card sizing notes.
 
-If you run one and it works, please share results via [GitHub Discussions](https://github.com/Sandermage/genesis-vllm-patches/discussions) — we'll fold confirmed configs back into the main table and drop the experimental tag for that card class.
+If you run one and it works, please share results via [GitHub Discussions](https://github.com/Sandermage/sndr_core_engine/discussions) — we'll fold confirmed configs back into the main table and drop the experimental tag for that card class.
 
 | Model | Card class fit | Recommendation |
 |---|---|---|
@@ -122,7 +122,7 @@ python3 tools/genesis_bench_suite.py --quick --host 127.0.0.1
 pip install vllm flashinfer-python
 
 # 1. Clone genesis-vllm-patches
-git clone https://github.com/Sandermage/genesis-vllm-patches ~/genesis-vllm-patches
+git clone https://github.com/Sandermage/sndr_core_engine ~/genesis-vllm-patches
 
 # 2. Set GENESIS_REPO + model path
 export GENESIS_REPO=$HOME/genesis-vllm-patches

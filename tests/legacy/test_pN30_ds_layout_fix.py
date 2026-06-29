@@ -23,7 +23,7 @@ Test contract (CPU-runnable subset, no GPU needed):
 7. Stream sync + cleanup logic in part2 replacement
 
 Author: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
-Bug: github.com/Sandermage/genesis-vllm-patches/issues/17
+Bug: github.com/Sandermage/sndr_core_engine/issues/17
 """
 from __future__ import annotations
 

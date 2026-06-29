@@ -321,7 +321,7 @@ UPSTREAM_MARKERS: dict[str, dict[str, str]] = {
         "marker": "_genesis_p67b_syn_holders",
         "description": (
             "Quentin Machu (@Quentin-M) fix in his fork of "
-            "Sandermage/genesis-vllm-patches branch fix_p67b_illegal. "
+            "Sandermage/sndr_core_engine branch fix_p67b_illegal. "
             "Replaces shared buf_holder=layer in P67b upstream path with a "
             "per-K1 SimpleNamespace holder on `self`, preventing OOB write "
             "when synthetic K+1 rows (B*K1) exceed the decode-path "

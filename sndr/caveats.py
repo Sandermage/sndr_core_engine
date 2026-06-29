@@ -127,7 +127,7 @@ KNOWN_CAVEATS: tuple[Caveat, ...] = (
         match_fn=lambda f: (
             _is_proxmox_lxc(f) and _kernel_at_least(f, major=6, minor=17)
         ),
-        docs_url=("https://github.com/Sandermage/genesis-vllm-patches/"
+        docs_url=("https://github.com/Sandermage/sndr_core_engine/"
                   "blob/main/docs/RUNTIME_CAVEATS.md#proxmox-lxc-617"),
     ),
     Caveat(
@@ -145,7 +145,7 @@ KNOWN_CAVEATS: tuple[Caveat, ...] = (
         match_fn=lambda f: (
             _is_single_24g_gpu(f) and _has_pn95_disabled(f)
         ),
-        docs_url=("https://github.com/Sandermage/genesis-vllm-patches/"
+        docs_url=("https://github.com/Sandermage/sndr_core_engine/"
                   "blob/main/docs/_internal/research/"
                   "club3090_issue58_long_ctx_vision_oom_2026-05-09.md"),
     ),

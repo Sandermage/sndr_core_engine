@@ -653,7 +653,7 @@ watch:
     Add regression guard in P7/P7b ensuring int64 device-index dtype.
 
     '
-- upstream: Sandermage/genesis-vllm-patches#1
+- upstream: Sandermage/sndr_core_engine#1
   status: open
   local_patches: []
   action: cookbook

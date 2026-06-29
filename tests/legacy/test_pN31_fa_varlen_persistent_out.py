@@ -2,7 +2,7 @@
 """TDD tests for PN31 — FA varlen persistent out buffer (issue #15).
 
 Author: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
-Bug: github.com/Sandermage/genesis-vllm-patches/issues/15
+Bug: github.com/Sandermage/sndr_core_engine/issues/15
 """
 from __future__ import annotations
 

@@ -1528,7 +1528,7 @@ If you hit something that isn't here, please:
 3. Note the exact preset key, vLLM pin, driver version, and GPU
    model.
 4. Open an issue at
-   <https://github.com/Sandermage/genesis-vllm-patches/issues> with
+   <https://github.com/Sandermage/sndr_core_engine/issues> with
    the artefacts above.
 
 Patches that surface from new cliffs follow the

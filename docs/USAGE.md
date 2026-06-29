@@ -90,13 +90,13 @@ working Genesis install in **3-5 minutes**.
 
 ```bash
 # Default — interactive workload prompt, default pin
-curl -sSL https://raw.githubusercontent.com/Sandermage/genesis-vllm-patches/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
 
 # Non-interactive — pin + workload + skip prompt
 curl -sSL .../install.sh | bash -s -- --pin dev --workload tool_agent -y
 
 # Manual clone path (no installer)
-git clone https://github.com/Sandermage/genesis-vllm-patches.git
+git clone https://github.com/Sandermage/sndr_core_engine.git
 cd genesis-vllm-patches
 pip install -e tools/genesis_vllm_plugin
 ```

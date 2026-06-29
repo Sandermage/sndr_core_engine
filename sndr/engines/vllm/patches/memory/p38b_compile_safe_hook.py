@@ -2,7 +2,7 @@
 """Wiring for Patch 38b — P38 compile-safe in-source hook.
 
 Fixes Genesis Issue #14 (noonghunna 2026-05-01):
-https://github.com/Sandermage/genesis-vllm-patches/issues/14
+https://github.com/Sandermage/sndr_core_engine/issues/14
 
 ================================================================
 PROBLEM (root cause)
