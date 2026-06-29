@@ -17,6 +17,7 @@ reference follows from §1 below.
 ```bash
 # Install + first boot
 curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
+sndr tui                                        # interactive cockpit — serve/stop/chat from one screen
 sndr launch prod-qwen3.6-35b-balanced                            # V2 alias; V1 keys also accepted
 sndr launch prod-qwen3.6-35b-balanced --dry-run                  # render only, no exec
 sndr launch prod-qwen3.6-35b-balanced --preflight-only           # gate; never exec vLLM
@@ -267,6 +268,26 @@ Companion utilities:
   machine-readable for CI.
 - `sndr patches validate-schema` — schema validation only,
   exit 1 on violation.
+
+### `sndr tui` — **stable**
+
+Interactive terminal cockpit: one keyboard-driven screen showing the live engine
+(tok/s, KV%, TTFT), the fit-ranked preset catalog (`✓`/`✗`), GPU/rig and a status
+log — and driving them. `Enter` serves the selected preset (confirm → the same
+pull+launch pipeline as `sndr run`), `k` stops it, `d` runs doctor, `c` chats,
+`s` opens settings (model dir + HF token); `r` refresh, `?` help, `q` quit. Serve
+and stop confirm first.
+
+```bash
+sndr tui                                  # detected rig
+sndr tui --lean                           # beginner layout (hide operator panes)
+sndr tui --fake-gpus 'RTX A5000:24564:8.6'  # plan against a card you don't have
+```
+
+Needs the optional `tui` extra (`pip install 'vllm-sndr-core[tui]'`); without it,
+a one-line install hint + clean exit, never a traceback. Full guide:
+[`TUI.md`](TUI.md). It owns no logic — a view-and-control over the same seams the
+CLI uses.
 
 ---
 

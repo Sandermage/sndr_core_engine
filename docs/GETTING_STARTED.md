@@ -54,6 +54,7 @@ clone instead of the installer? That path is in [`INSTALL.md`](INSTALL.md).
 | If you want to... | Read |
 | --- | --- |
 | Clone → first token, with the actual commands | [`QUICKSTART.md`](QUICKSTART.md) |
+| Drive everything from one keyboard screen (no commands to memorise) | [`TUI.md`](TUI.md) |
 | Understand local AI from scratch (hardware / engines / quants) | [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) |
 | Decode a term — TPS, KV, MTP, TurboQuant, GDN | [`GLOSSARY.md`](GLOSSARY.md) |
 | Pick a model + hardware combo | [`MODELS.md`](MODELS.md) + [`HARDWARE.md`](HARDWARE.md) |
