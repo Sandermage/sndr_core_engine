@@ -20,6 +20,11 @@ across ~23 families. Apache 2.0.**
 
 ---
 
+> 🚀 **New here?** → [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — who it's for, what you get, and the one install line.
+> 🧠 **New to local AI?** → [`docs/LOCAL_AI_PRIMER.md`](docs/LOCAL_AI_PRIMER.md) — GPUs, engines, MoE, and quants in plain English.
+> 📖 **Hit an unfamiliar term** (TPS · KV · MTP · TurboQuant · GDN)? → [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
+> 💸 **Self-host or cloud?** → [`docs/COMPARISONS.md`](docs/COMPARISONS.md) — the cost-crossover trade.
+
 ## What it is
 
 A **drop-in runtime patcher** for vLLM. It pins to a specific vLLM nightly
@@ -147,6 +152,15 @@ at TP=2 on consumer Ampere** without a kernel rebuild — validated 2026-06-17 (
 Marlin N=352 thread-tile crash, then the `probs @ embed_weight` `[131072,2816]` TP-vocab
 shape mismatch; the coherent generation confirms the soft-embed all-gather yields correct
 TP=2 output).
+
+## Pick your path
+
+| You have | Start here |
+| --- | --- |
+| **1× consumer card** (3090 / 4090 / 5090 / A5000) | [`docs/SINGLE_CARD.md`](docs/SINGLE_CARD.md) |
+| **2× cards** (TP=2 — the reference topology) | [`docs/HARDWARE.md`](docs/HARDWARE.md) + [`docs/MODELS.md`](docs/MODELS.md) |
+| **A model not in the catalog** | [`docs/MODELS.md`](docs/MODELS.md) (add-a-model + the V2 config system) |
+| **Brand-new / weighing self-host vs cloud** | [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) · [`docs/COMPARISONS.md`](docs/COMPARISONS.md) |
 
 ## Quick install
 
