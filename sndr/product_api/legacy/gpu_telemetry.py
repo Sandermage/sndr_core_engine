@@ -238,16 +238,91 @@ def collect(run: Runner) -> HardwareTelemetry:
     return HardwareTelemetry(gpus=gpus, system=system, error=error)
 
 
-def collect_local() -> HardwareTelemetry:
-    """Collect from the daemon host via subprocess (argv list — no shell)."""
+def _run_in_engine(argv: list[str]) -> "tuple[int, str, str]":
+    """Run ``nvidia-smi`` in the RUNNING engine container (which has the GPU
+    runtime) when the daemon itself has none — the containerized-daemon case. Only
+    the GPU query is delegated; other commands (``/proc`` reads) stay local. A
+    fixed read-only exec, not the operator exec endpoint, so no SNDR_ENABLE_EXEC.
+    Returns 127 if there is no engine or the command is not nvidia-smi."""
+    if not argv or "nvidia-smi" not in str(argv[0]):
+        return 127, "", f"{argv[0] if argv else ''}: not found"
+    try:
+        from . import container_ops as co
+        from .patches.apply_summary import _running_engine_name
+
+        name = _running_engine_name()
+        if not name:
+            return 127, "", "no running engine container with a GPU runtime"
+        res = co.SocketContainerControl().exec(name, list(argv), timeout=15.0)
+        return res.exit_code, res.stdout, res.stderr
+    except Exception as exc:  # noqa: BLE001
+        return 127, "", f"{type(exc).__name__}: {exc}"
+
+
+def _sysctl(key: str) -> str:
     import subprocess
+
+    try:
+        p = subprocess.run(["sysctl", "-n", key], capture_output=True, text=True, timeout=4)
+        return p.stdout.strip() if p.returncode == 0 else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _collect_macos() -> HardwareTelemetry:
+    """macOS hardware facts via sysctl/system_profiler (no nvidia-smi, no /proc).
+    Apple Silicon has an integrated GPU sharing unified memory, so the 'GPU' is the
+    chip + its unified RAM; live util/temp/power are not exposed without privileged
+    powermetrics, so those stay null (the GUI shows them as N/A)."""
+    import platform as _pf
+    import socket
+    import subprocess
+
+    chip = _sysctl("machdep.cpu.brand_string") or _sysctl("hw.model") or "Apple Silicon"
+    mem_bytes = _i(_sysctl("hw.memsize"))
+    mem_mib = int(mem_bytes / 1024 / 1024) if mem_bytes else None
+    ncpu = _i(_sysctl("hw.logicalcpu")) or _i(_sysctl("hw.ncpu"))
+    gpu_cores: Optional[int] = None
+    try:  # GPU core count — best-effort; system_profiler is slow, so keep it bounded.
+        p = subprocess.run(["system_profiler", "SPDisplaysDataType"], capture_output=True, text=True, timeout=6)
+        m = re.search(r"Total Number of Cores:\s*(\d+)", p.stdout or "")
+        gpu_cores = _i(m.group(1)) if m else None
+    except Exception:  # noqa: BLE001
+        pass
+    apple = chip.startswith("Apple")
+    gpu = {
+        "name": (f"{chip} GPU" + (f" · {gpu_cores}-core" if gpu_cores else "")) if apple else chip,
+        "mem_total": mem_mib, "mem_used": None, "mem_free": None,
+        "gpu_util": None, "mem_util": None, "temp_gpu": None, "power": None,
+    }
+    system: dict[str, Any] = {
+        "hostname": socket.gethostname(),
+        "cpu": chip, "cpu_count": ncpu,
+        "ram_total_gb": round(mem_bytes / 1e9, 1) if mem_bytes else None,
+        "platform": f"{_pf.system()} {_pf.release()} {_pf.machine()}".strip(),
+        "apple_silicon": apple,
+    }
+    return HardwareTelemetry(gpus=(gpu,), system=system, error=None)
+
+
+def collect_local() -> HardwareTelemetry:
+    """Collect from the daemon host. macOS → sysctl/system_profiler (Apple Silicon);
+    Linux → nvidia-smi via subprocess, falling back to the running engine container
+    when the daemon (a management container) has no GPU runtime of its own."""
+    import platform
+    import subprocess
+
+    if platform.system() == "Darwin":
+        return _collect_macos()
 
     def run(argv: list[str]) -> "tuple[int, str, str]":
         try:
             p = subprocess.run(argv, capture_output=True, text=True, timeout=8)
+            if p.returncode == 127:  # not found on the daemon → try the engine
+                return _run_in_engine(argv)
             return p.returncode, p.stdout, p.stderr
         except FileNotFoundError:
-            return 127, "", f"{argv[0]}: not found"
+            return _run_in_engine(argv)
         except subprocess.TimeoutExpired:
             return 124, "", f"{argv[0]}: timed out"
 
