@@ -165,23 +165,47 @@ def _known_verbs() -> list[str]:
     return sorted(verbs)
 
 
+# Muscle-memory synonyms (Docker / Ollama / systemd) → the canonical sndr verb.
+# A beginner's first reflex (``serve`` / ``ps`` / ``stop`` / ``models`` …) should
+# be pointed at the REAL verb — a curated, correct hint that beats difflib's
+# fuzzy guess (which mis-matched ``ps`` → ``pins`` and ``models`` → ``model``).
+_SYNONYM_HINTS: dict[str, str] = {
+    "serve": "run",          # serve/host a model → sndr run
+    "start": "run",          # start a model → sndr run  (or `sndr up` for the stack)
+    "up-model": "run",
+    "stop": "down",          # stop the engine/stack → sndr down
+    "kill": "down",
+    "status": "engines",     # what's running → sndr engines
+    "ps": "engines",         # docker ps → sndr engines
+    "ls": "list-models",     # list available models → sndr list-models
+    "models": "list-models",
+    "model-list": "list-models",
+}
+
+
 def _friendly_unknown_command(token: str) -> str:
     """Build the rustup-style message for an unknown leading subcommand.
 
-    Names the nearest valid verb via ``difflib`` (only when it is genuinely
-    close — no fabricated suggestion for a far-off token) and always points at
-    the next action: the bare ``sndr`` guided menu and ``sndr --help``.
+    A curated muscle-memory synonym (``serve`` → ``run``, ``ps`` → ``engines`` …)
+    wins first with a precise pointer. Otherwise names the nearest valid verb via
+    ``difflib`` (only when genuinely close — no fabricated suggestion for a
+    far-off token). Always points at the next action: the bare ``sndr`` guided
+    menu and ``sndr --help``.
     """
-    verbs = _known_verbs()
-    # Suggest the dotted/spaced canonical for resource verbs, but match against
-    # the bare prefix too so ``enginez`` → ``engines`` reads naturally.
-    suggest_pool = sorted(set(verbs) | {v.split(".", 1)[0] for v in verbs})
-    near = difflib.get_close_matches(token, suggest_pool, n=1, cutoff=0.6)
     lines = []
-    if near:
-        lines.append(f"sndr: unknown command {token!r} — did you mean {near[0]!r}?")
+    synonym = _SYNONYM_HINTS.get(token)
+    if synonym is not None:
+        lines.append(f"sndr: no {token!r} command — use 'sndr {synonym}' instead.")
     else:
-        lines.append(f"sndr: unknown command {token!r}.")
+        verbs = _known_verbs()
+        # Suggest the dotted/spaced canonical for resource verbs, but match
+        # against the bare prefix too so ``enginez`` → ``engines`` reads naturally.
+        suggest_pool = sorted(set(verbs) | {v.split(".", 1)[0] for v in verbs})
+        near = difflib.get_close_matches(token, suggest_pool, n=1, cutoff=0.6)
+        if near:
+            lines.append(f"sndr: unknown command {token!r} — did you mean {near[0]!r}?")
+        else:
+            lines.append(f"sndr: unknown command {token!r}.")
     lines.append(
         "      Run 'sndr' for the guided menu or 'sndr --help' for all commands."
     )

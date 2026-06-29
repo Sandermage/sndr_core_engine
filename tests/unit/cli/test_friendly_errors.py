@@ -92,6 +92,44 @@ class TestCloseTypoSuggestion:
         assert expected in err, f"`sndr {typo}` should suggest {expected!r}: {err!r}"
 
 
+# ── 1b. muscle-memory synonym → the canonical verb (curated, beats fuzzy) ───
+
+
+class TestSynonymHints:
+    @pytest.mark.parametrize(
+        "synonym,expected",
+        [
+            ("serve", "run"),
+            ("start", "run"),
+            ("stop", "down"),
+            ("status", "engines"),
+            ("ps", "engines"),
+            ("models", "list-models"),
+            ("ls", "list-models"),
+        ],
+    )
+    def test_muscle_memory_synonym_points_to_canonical(self, synonym, expected):
+        # A Docker/Ollama/systemd reflex (serve / ps / stop / models …) should
+        # be pointed at the real sndr verb, not left as a bare "unknown command"
+        # or a misleading fuzzy match.
+        rc, _out, err = _run([synonym])
+        assert rc != 0, "an unknown command must still exit non-zero"
+        assert synonym in err, "the offending token must be echoed back"
+        assert expected in err, f"`sndr {synonym}` should point to {expected!r}: {err!r}"
+
+    def test_curated_synonym_beats_misleading_fuzzy_match(self):
+        # Before the synonym table, difflib matched 'ps' → 'pins' and
+        # 'models' → 'model' — both wrong. The curated hint must win.
+        _rc, _out, err_ps = _run(["ps"])
+        assert "engines" in err_ps and "pins" not in err_ps, (
+            f"'ps' must point to 'engines', not 'pins': {err_ps!r}"
+        )
+        _rc, _out, err_models = _run(["models"])
+        assert "list-models" in err_models, (
+            f"'models' must point to 'list-models': {err_models!r}"
+        )
+
+
 # ── 2. no close match → next-step pointer, no bogus suggestion ──────────────
 
 
