@@ -1,8 +1,11 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Genesis vLLM Patches" width="780">
+  <img src="assets/logo.png" alt="SNDR Core Engine — Genesis vLLM Patches" width="780">
 </p>
 
-# Genesis vLLM Patches
+# SNDR Core Engine
+
+> **Genesis vLLM Patches** — runtime patch-overlay for vLLM on consumer NVIDIA
+> Ampere / Ada / Blackwell.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev424+g3f5a1e173-orange.svg)](https://github.com/vllm-project/vllm)
