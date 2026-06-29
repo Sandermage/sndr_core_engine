@@ -59,7 +59,7 @@ platformdirs==4.3.7
 pluggy==1.6.0
 poetry==2.3.4
 poetry-core==2.1.2
-pycparser==2.22
+pycparser==3.0
 Pygments==2.20.0
 pyparsing==3.2.3
 pypdf==6.13.3
