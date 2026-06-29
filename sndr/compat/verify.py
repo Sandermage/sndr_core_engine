@@ -584,8 +584,10 @@ def run_verify(level: str = "quick") -> VerifyReport:
 
     # ─── Full checks (--full only) ───
     if level == "full":
-        # F1 + F2: real boot probe + tool-call probe.
-        # These need a model + free VRAM. Stub for now (Day 4 implements).
+        # F1 + F2: live vLLM boot probe + tool-call probe. These need a model +
+        # free VRAM, so they are NOT auto-run here — they stay operator-driven
+        # (the scripts below), and we record an honest SKIP with guidance rather
+        # than a misleading PASS or a silent omission.
         report.add(CheckResult(
             "F1 vLLM boot probe",
             SKIP,
@@ -674,7 +676,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_const",
         dest="level",
         const="full",
-        help="boot + real vllm boot probe + tool-call probe (~3 min)",
+        help="all static + boot checks; the live vLLM boot + tool-call probes are operator-run (reported as SKIP with run-it-yourself guidance)",
     )
     parser.set_defaults(level="quick")
     parser.add_argument(

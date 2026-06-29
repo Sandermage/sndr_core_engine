@@ -540,7 +540,7 @@ def _run_doctor(opts: argparse.Namespace) -> int:
     return 0
 
 
-# ─── `sndr memory report --live` ─ Phase 2 stub ─────────────────────────
+# ─── `sndr memory report --live` ─ live nvidia-smi probe + estimate diff ────
 
 
 def _probe_live_vram() -> dict:
@@ -715,10 +715,9 @@ def add_argparser(subparsers: Any) -> None:
         "memory",
         help="VRAM budget estimator + live memory diagnostics.",
         description=(
-            "`sndr memory` — preflight VRAM accounting. Phase 1 ships "
-            "`explain`, `simulate`, and `doctor` (static estimators); "
-            "`report --live` wraps the runtime memory_metrics collector. "
-            "Phase 2 will integrate live probe-vs-estimate diff."
+            "`sndr memory` — preflight VRAM accounting. `explain`, `simulate`, "
+            "and `doctor` are static estimators; `report --live` probes real "
+            "VRAM via nvidia-smi and diffs it against the estimate."
         ),
     )
     sub = parent.add_subparsers(dest="memory_cmd", title="Subcommands",

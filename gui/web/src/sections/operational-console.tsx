@@ -34,7 +34,10 @@ export function CliMirror({ lines }: { lines: string[] }) {
 const CONSOLE_TABS: Array<{ id: ConsoleTab; label: string }> = [
   { id: "jobs", label: tr("Jobs") },
   { id: "events", label: tr("Events") },
-  { id: "logs", label: tr("Logs") },
+  // "Status" not "Logs": this tab is a derived readiness digest (catalog /
+  // planner / doctor / gates), not a real log stream. Live container logs live
+  // in the Containers panel (containerLogs / containerLogStream).
+  { id: "logs", label: tr("Status") },
   { id: "cli", label: tr("CLI Mirror") }
 ];
 
@@ -87,7 +90,7 @@ export function OperationalConsole({
         {activeTab === "events" && <EventLog events={events} />}
         {activeTab === "logs" && (
           <section className="cli-mirror">
-            <CodeBlock lines={logLines} title={tr("Logs")} />
+            <CodeBlock lines={logLines} title={tr("Status")} />
           </section>
         )}
         {activeTab === "cli" && <CliMirror lines={lines} />}
