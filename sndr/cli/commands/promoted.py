@@ -101,6 +101,11 @@ class ConfigCommand(_PassthroughCommand):
     help = "Preset config browser — diff / explain / new (scaffold)."
 
 
+class PatchesCommand(_PassthroughCommand):
+    name = "patches"
+    help = "Patch registry — list / explain / doctor / plan / bundles (runtime overlays)."
+
+
 # ── UX R2 (v12) — beginner-verb cohesion ────────────────────────────────────
 #
 # These five verbs were the canonical-vs-legacy split-brain: a novice reading
@@ -143,6 +148,7 @@ PROMOTED_COMMANDS = (
     BenchCommand(),
     TuneCommand(),
     ConfigCommand(),
+    PatchesCommand(),
     # UX R2 beginner verbs:
     VerifyCommand(),
     PullCommand(),
@@ -158,6 +164,7 @@ __all__ = [
     "BenchCommand",
     "TuneCommand",
     "ConfigCommand",
+    "PatchesCommand",
     "VerifyCommand",
     "PullCommand",
     "ListModelsCommand",
