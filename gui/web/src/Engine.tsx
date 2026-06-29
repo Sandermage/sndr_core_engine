@@ -727,7 +727,7 @@ function ChatRoutingHint({ value, onChange }: { value: string; onChange: (w: str
   );
 }
 
-export function ChatConsole({ defaultHost, target }: { defaultHost?: string; target?: ChatTarget | null }) {
+export function ChatConsole({ defaultHost, target, proxyEnabled = false }: { defaultHost?: string; target?: ChatTarget | null; proxyEnabled?: boolean }) {
   const initial = useRef(loadChatState());
   const [conversations, setConversations] = useState<Conversation[]>(initial.current.conversations);
   const [activeId, setActiveId] = useState<string>(initial.current.activeId);
@@ -1021,7 +1021,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                   <select value={settings.port === 8318 ? "proxy" : settings.port === 8000 ? "engine" : ""} onChange={(e) => { const v = e.target.value; if (v === "proxy") set({ port: 8318 }); else if (v === "engine") set({ port: 8000 }); }} title={tr("Route through the Genesis proxy (smart-router + failover) or talk to the local engine directly")}>
                     <option value="">{tr("custom")}</option>
                     <option value="engine">{tr("Local engine")} :8000</option>
-                    <option value="proxy">{tr("Genesis proxy")} :8318</option>
+                    {proxyEnabled && <option value="proxy">{tr("Genesis proxy")} :8318</option>}
                   </select>
                 </label>
                 <label className="chat-field"><span>{tr("Host")}</span><input value={settings.host} onChange={(e) => set({ host: e.target.value })} spellCheck={false} /></label>
@@ -1032,7 +1032,7 @@ export function ChatConsole({ defaultHost, target }: { defaultHost?: string; tar
                 <span className={`chat-status ${reachable ? (status && !status.models?.length ? "warn" : "ok") : "down"}`}><span className="chat-dot" />{reachable ? `${tr("up")}${status?.version ? ` · v${status.version}` : ""}${status && !status.models?.length ? ` · ${tr("no models (API key?)")}` : ""}` : tr("down")}</span>
                 <LiveModelInline host={settings.host} port={settings.port} apiKey={settings.apiKey || undefined} hostId={settings.hostId || undefined} />
               </div>
-              {settings.port === 8318 && <p className="chat-set-note"><Server size={12} /> {tr("Routing through the Genesis proxy — smart-router + failover across providers; the model list comes from the proxy.")}</p>}
+              {proxyEnabled && settings.port === 8318 && <p className="chat-set-note"><Server size={12} /> {tr("Routing through the Genesis proxy — smart-router + failover across providers; the model list comes from the proxy.")}</p>}
             </section>
 
             <section className="chat-set-section">

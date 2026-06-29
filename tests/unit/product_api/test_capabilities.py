@@ -68,3 +68,18 @@ def test_engine_features_are_available_when_engine_is_present():
 
     assert snapshot.platform.engine_installed is True
     assert features["engine_fleet"].status == "available"
+
+
+def test_external_services_feature_reflects_the_opt_in_key(monkeypatch):
+    """The 'external_services' feature mirrors the SNDR_ENABLE_EXTERNAL_SERVICES
+    key — available only when the operator opts in (so the GUI gates on it)."""
+    monkeypatch.delenv("SNDR_ENABLE_EXTERNAL_SERVICES", raising=False)
+    snap = capabilities.collect_capabilities(which=_fake_which(set()), engine_installed=False)
+    feats = {i.id: i for i in snap.features}
+    assert "external_services" in feats, "the proxy/aggregator connector feature must be advertised"
+    assert feats["external_services"].status != "available", "off without the key"
+
+    monkeypatch.setenv("SNDR_ENABLE_EXTERNAL_SERVICES", "1")
+    snap2 = capabilities.collect_capabilities(which=_fake_which(set()), engine_installed=False)
+    feats2 = {i.id: i for i in snap2.features}
+    assert feats2["external_services"].status == "available", "on with the key set"

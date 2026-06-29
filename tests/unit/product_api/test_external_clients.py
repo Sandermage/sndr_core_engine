@@ -12,6 +12,38 @@ import pytest
 from sndr.product_api.legacy import external_clients as ext
 
 
+@pytest.fixture(autouse=True)
+def _enable_external_services(monkeypatch):
+    """The adjacent-service integration is opt-in (gated by the key). The
+    working-path tests below run with it enabled; the gate tests delenv it."""
+    monkeypatch.setenv("SNDR_ENABLE_EXTERNAL_SERVICES", "1")
+
+
+def test_external_services_disabled_by_default(monkeypatch):
+    """Off without the key: no network, a clear ServiceError naming the key."""
+    monkeypatch.delenv("SNDR_ENABLE_EXTERNAL_SERVICES", raising=False)
+
+    def _no_net(*a, **k):
+        raise AssertionError("must not touch the network when disabled")
+
+    monkeypatch.setattr(ext, "_request", _no_net)
+    assert ext.external_services_enabled() is False
+    with pytest.raises(ext.ServiceError) as ei:
+        ext.proxy_health()
+    assert "SNDR_ENABLE_EXTERNAL_SERVICES" in str(ei.value)
+
+
+def test_external_services_enabled_with_key(monkeypatch):
+    """With the key set, calls reach the network layer (no disabled error)."""
+    monkeypatch.setenv("SNDR_ENABLE_EXTERNAL_SERVICES", "1")
+    assert ext.external_services_enabled() is True
+    monkeypatch.setattr(ext, "_request", _fake_request({
+        "/health/providers": (200, {"providers": []}),
+    }))
+    out = ext.proxy_health()  # must NOT raise the disabled error
+    assert isinstance(out, dict)
+
+
 def _fake_request(responses):
     """Build a fake `_request`. `responses` maps a URL-substring to either
     (status, json-body) or an Exception to raise."""

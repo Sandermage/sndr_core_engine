@@ -17,6 +17,7 @@ from typing import Optional
 from sndr.brand import PUBLIC_BRAND_COMMUNITY, PKG_NAME_CORE
 from sndr.version import SNDR_CORE_VERSION
 
+from .external_clients import external_services_enabled
 from .types import (
     PlatformSnapshot,
     ProductCapabilities,
@@ -182,6 +183,23 @@ def collect_capabilities(
             status="available",
             detail="Typed Product API exposes V2 preset records, explain payloads and recommendations.",
             module="sndr.product_api.legacy.presets",
+        ),
+        ProductCapability(
+            id="external_services",
+            title="Adjacent services (proxy + aggregator)",
+            kind="feature",
+            # Opt-in: 'available' only when the operator sets the key. Proxy and
+            # aggregator stay external projects; SNDR only CONNECTS to them, and
+            # only when SNDR_ENABLE_EXTERNAL_SERVICES is set. The GUI/copilot gate
+            # their proxy-routing + market-data surfaces on this status.
+            status="available" if external_services_enabled() else "deferred",
+            detail=(
+                "Proxy routing/cost/health + aggregator search/signals/patterns/"
+                "anomalies via the read-only connector, exposed only when "
+                "SNDR_ENABLE_EXTERNAL_SERVICES=1 (off by default; both remain "
+                "separate external projects — SNDR just connects)."
+            ),
+            module="sndr.product_api.legacy.external_clients",
         ),
         ProductCapability(
             id="patch_inventory",

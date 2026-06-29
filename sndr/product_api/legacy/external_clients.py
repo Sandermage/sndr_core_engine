@@ -44,6 +44,21 @@ class ServiceError(RuntimeError):
     operator-friendly message; the copilot surfaces it as a tool error."""
 
 
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def external_services_enabled() -> bool:
+    """Whether the adjacent-service (proxy + aggregator) integration is unlocked.
+
+    Opt-in by the operator key ``SNDR_ENABLE_EXTERNAL_SERVICES`` — OFF by default,
+    matching the ``SNDR_ENABLE_EXEC`` / ``SNDR_ENABLE_APPLY`` discipline. A default
+    SNDR install never reaches out to proxy/aggregator; the GUI and copilot only
+    expose this functionality when the key is set. Both projects stay external —
+    SNDR only *connects* to them, and only when the operator turns it on.
+    """
+    return str(os.environ.get("SNDR_ENABLE_EXTERNAL_SERVICES", "")).strip().lower() in _TRUTHY
+
+
 def _base(env_name: str, default: str) -> str:
     raw = (os.environ.get(env_name) or default).strip().rstrip("/")
     return raw if _URL_RE.match(raw) else default
@@ -83,6 +98,11 @@ def _json_or_error(status: int, text: str) -> tuple[Any, Optional[str]]:
 def _call(env_name: str, default_base: str, path: str, *, method: str = "GET",
           payload: Optional[dict] = None, headers: Optional[dict[str, str]] = None,
           timeout: float = 8.0, service: str = "service") -> Any:
+    if not external_services_enabled():
+        raise ServiceError(
+            "external services are disabled — set SNDR_ENABLE_EXTERNAL_SERVICES=1 "
+            "to enable the proxy/aggregator integration"
+        )
     base = _base(env_name, default_base)
     url = f"{base}{path}"
     try:
