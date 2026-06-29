@@ -289,7 +289,7 @@ CUDA + drivers installed on the host; `pip install vllm` works.
 
 ```bash
 git clone https://github.com/Sandermage/sndr_core_engine.git
-cd genesis-vllm-patches
+cd sndr_core_engine
 python3 -m pip install --user requests        # bench dep
 
 # Boot vLLM via the unified launcher (v12.0.0 canonical):
@@ -312,7 +312,7 @@ The supported reference path. All Genesis PROD runs use this image.
 
 ```bash
 git clone https://github.com/Sandermage/sndr_core_engine.git
-cd genesis-vllm-patches
+cd sndr_core_engine
 docker pull vllm/vllm-openai:nightly             # current Genesis pin (0.23.1rc1.dev148+gb4c80ec0f)
 
 sndr launch prod-qwen3.6-35b-balanced                            # docker emission

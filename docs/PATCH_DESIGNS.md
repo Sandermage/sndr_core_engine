@@ -588,7 +588,7 @@ problems forced a hard rename in v11.0.0:
 
 ```bash
 # 1. Pull the v11+ release
-cd /path/to/genesis-vllm-patches
+cd /path/to/sndr_core_engine
 git fetch && git checkout main
 
 # 2. Re-install the plugin so it points at sndr_core.plugin:register
