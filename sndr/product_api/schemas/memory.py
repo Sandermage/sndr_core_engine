@@ -34,6 +34,12 @@ class LinkOut(BaseModel):
     created: int
 
 
+class ConsolidateOut(BaseModel):
+    linked: int
+    communities: int
+    nodes: int
+
+
 class HitOut(BaseModel):
     id: int
     content: str
@@ -88,6 +94,7 @@ class GraphOut(BaseModel):
 
 
 __all__ = [
-    "GraphEdgeOut", "GraphNodeOut", "GraphOut", "HitOut", "LinkIn", "LinkOut",
-    "NeighborOut", "NodeOut", "RecallIn", "RememberIn", "RememberOut", "StatsOut",
+    "ConsolidateOut", "GraphEdgeOut", "GraphNodeOut", "GraphOut", "HitOut",
+    "LinkIn", "LinkOut", "NeighborOut", "NodeOut", "RecallIn", "RememberIn",
+    "RememberOut", "StatsOut",
 ]

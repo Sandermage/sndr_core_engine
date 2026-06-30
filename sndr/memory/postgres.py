@@ -331,6 +331,36 @@ class PostgresStore(MemoryStore):
             )
             return cur.rowcount
 
+    def set_communities(self, mapping: dict[int, int]) -> None:
+        if not mapping:
+            return
+        ids = list(mapping.keys())
+        vals = [mapping[i] for i in ids]
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute(
+                sql.SQL(
+                    "UPDATE {node} AS n SET community_id = v.c"
+                    " FROM unnest(%(ids)s::bigint[], %(vals)s::int[]) AS v(id, c)"
+                    " WHERE n.id = v.id"
+                ).format(node=self._node),
+                {"ids": ids, "vals": vals},
+            )
+
+    def set_importance(self, mapping: dict[int, float]) -> None:
+        if not mapping:
+            return
+        ids = list(mapping.keys())
+        vals = [float(mapping[i]) for i in ids]
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute(
+                sql.SQL(
+                    "UPDATE {node} AS n SET importance = v.imp"
+                    " FROM unnest(%(ids)s::bigint[], %(vals)s::double precision[])"
+                    " AS v(id, imp) WHERE n.id = v.id"
+                ).format(node=self._node),
+                {"ids": ids, "vals": vals},
+            )
+
     def count_nodes(self, owner_id: int | None = None) -> int:
         with self._lock, self._conn.cursor() as cur:
             if owner_id is None:

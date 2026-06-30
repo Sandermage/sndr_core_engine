@@ -72,8 +72,9 @@ export function MemoryPanel() {
   const rebuildLinks = useCallback(async () => {
     setBusy(true); setErr(null);
     try {
-      const r = await api.memoryLink(OWNER, { tau: 0.8, k: 10 });
-      setErr(tr("Linked") + `: +${r.created} ` + tr("edges"));
+      // Consolidate = auto-link + detect communities (clouds) + rank importance.
+      const r = await api.memoryConsolidate(OWNER, { tau: 0.8, k: 10 });
+      setErr(`+${r.linked} ${tr("links")}, ${r.communities} ${tr("clouds")}`);
       loadStats();
       if (view === "graph") loadGraph();
     } catch (e) { setErr(String(e)); }

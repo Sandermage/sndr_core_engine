@@ -117,6 +117,16 @@ class TestNodeCrud:
         b = store.add_node(owner_id=1, kind="note", content="b", embedding=_vec(0, 1))
         assert a != b
 
+    def test_set_communities_and_importance_persist(self, store: InMemoryStore):
+        a = store.add_node(owner_id=1, kind="note", content="a", embedding=_vec(1, 0))
+        b = store.add_node(owner_id=1, kind="note", content="b", embedding=_vec(0, 1))
+        store.set_communities({a: 3, b: 7})
+        store.set_importance({a: 0.5, b: 0.9})
+        assert store.get_node(a).community_id == 3
+        assert store.get_node(b).community_id == 7
+        assert store.get_node(a).importance == pytest.approx(0.5)
+        assert store.get_node(b).importance == pytest.approx(0.9, abs=1e-6)
+
     def test_iter_nodes_is_owner_scoped(self, store: InMemoryStore):
         a = store.add_node(owner_id=1, kind="note", content="a", embedding=_vec(1, 0))
         b = store.add_node(owner_id=1, kind="note", content="b", embedding=_vec(0, 1))

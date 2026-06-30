@@ -42,6 +42,49 @@ class TestRememberRecall:
         assert hits == []
 
 
+class TestCommunitiesAndImportance:
+    def test_detect_communities_separates_clusters(self):
+        eng = _engine()
+        # two disjoint fully-linked triplets -> two "clouds"
+        a = [eng.remember(owner_id=1, text=f"alpha topic note number {i}") for i in range(3)]
+        b = [eng.remember(owner_id=1, text=f"beta unrelated subject row {i}") for i in range(3)]
+        # wire each triplet internally (no cross edges)
+        for grp in (a, b):
+            for i in range(len(grp)):
+                for j in range(i + 1, len(grp)):
+                    eng.store.add_edge(min(grp[i], grp[j]), max(grp[i], grp[j]), "similar_to", weight=0.9)
+        comms = eng.detect_communities(owner_id=1)
+        ca = {comms[n] for n in a}
+        cb = {comms[n] for n in b}
+        assert len(ca) == 1 and len(cb) == 1   # each triplet shares one community
+        assert ca.isdisjoint(cb)                # the two clouds are different
+        # persisted on the nodes
+        assert eng.store.get_node(a[0]).community_id == comms[a[0]]
+
+    def test_recompute_importance_ranks_hub_over_leaf(self):
+        eng = _engine()
+        hub = eng.remember(owner_id=1, text="central hub fact")
+        leaves = [eng.remember(owner_id=1, text=f"leaf fact {i}") for i in range(4)]
+        for lf in leaves:
+            eng.store.add_edge(min(hub, lf), max(hub, lf), "similar_to", weight=0.9)
+        isolated = eng.remember(owner_id=1, text="lonely disconnected fact")
+        eng.recompute_importance(owner_id=1)
+        assert eng.store.get_node(hub).importance > eng.store.get_node(leaves[0]).importance
+        assert eng.store.get_node(leaves[0]).importance > eng.store.get_node(isolated).importance
+
+    def test_consolidate_links_and_clusters(self):
+        eng = _engine()
+        eng.remember(owner_id=1, text="postgres vector memory graph")
+        eng.remember(owner_id=1, text="postgres vector memory engine")
+        eng.remember(owner_id=1, text="postgres vector memory store")
+        report = eng.consolidate(owner_id=1, tau=0.5)
+        assert report["linked"] >= 1
+        assert report["communities"] >= 1
+        # similar notes ended up in one cloud
+        comm = {eng.store.get_node(n.id).community_id for n in eng.store.iter_nodes(1)}
+        assert None not in comm
+
+
 class TestSemanticLinking:
     def test_links_similar_notes_not_dissimilar(self):
         eng = _engine()

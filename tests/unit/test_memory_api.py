@@ -88,6 +88,21 @@ class TestNodeNeighborsStats:
         assert any(n["rel"] == "similar_to" for n in nb)
 
 
+class TestConsolidate:
+    def test_consolidate_links_and_clusters(self, client):
+        _remember(client, "postgres vector memory graph")
+        _remember(client, "postgres vector memory engine")
+        _remember(client, "banana orange weather guitar")
+        rep = client.post("/api/v1/memory/consolidate", json={"tau": 0.5, "k": 10},
+                          headers={"X-Owner-Id": "1"}).json()["data"]
+        assert rep["linked"] >= 1
+        assert rep["communities"] >= 1
+        assert rep["nodes"] == 3
+        # community_id is now populated (clouds exist) for at least the linked pair
+        g = client.get("/api/v1/memory/graph", headers={"X-Owner-Id": "1"}).json()["data"]
+        assert any(n["community_id"] is not None for n in g["nodes"])
+
+
 class TestGraph:
     def test_graph_returns_nodes_and_edges(self, client):
         a = _remember(client, "postgres vector memory graph")

@@ -1490,6 +1490,11 @@ export const api = {
   memoryGraph: (owner = 1, limit = 200) =>
     request<{ data: MemGraph }>(`/api/v1/memory/graph${query({ limit })}`, { headers: memHead(owner) })
       .then((r) => r.data),
+  memoryConsolidate: (owner = 1, opts?: { tau?: number; k?: number }) =>
+    request<{ data: { linked: number; communities: number; nodes: number } }>("/api/v1/memory/consolidate", {
+      method: "POST", headers: memHead(owner, true),
+      body: JSON.stringify(opts ?? {}),
+    }).then((r) => r.data),
   presets: (params: {
     family?: string;
     workload?: string;

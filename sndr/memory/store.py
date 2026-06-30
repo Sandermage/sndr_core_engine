@@ -177,6 +177,14 @@ class MemoryStore(ABC):
         """
 
     @abstractmethod
+    def set_communities(self, mapping: dict[int, int]) -> None:
+        """Bulk-assign community_id (the "cloud") for the given node ids."""
+
+    @abstractmethod
+    def set_importance(self, mapping: dict[int, float]) -> None:
+        """Bulk-assign importance for the given node ids."""
+
+    @abstractmethod
     def count_nodes(self, owner_id: int | None = None) -> int:
         """Total node count, or the count for one owner."""
 

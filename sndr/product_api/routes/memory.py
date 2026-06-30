@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from sndr.product_api.schemas.common import Envelope, ResponseMeta
 from sndr.product_api.schemas.memory import (
+    ConsolidateOut,
     GraphEdgeOut,
     GraphNodeOut,
     GraphOut,
@@ -161,6 +162,13 @@ async def link(body: LinkIn, request: Request) -> Envelope[LinkOut]:
     eng = _engine(request)
     created = eng.link_semantic(owner_id=_owner_from(request), tau=body.tau, k=body.k)
     return Envelope(data=LinkOut(created=created), meta=_meta())
+
+
+@router.post("/consolidate", summary="Batch: auto-link + detect communities + importance")
+async def consolidate(body: LinkIn, request: Request) -> Envelope[ConsolidateOut]:
+    eng = _engine(request)
+    rep = eng.consolidate(owner_id=_owner_from(request), tau=body.tau, k=body.k)
+    return Envelope(data=ConsolidateOut(**rep), meta=_meta())
 
 
 def _owner_from(request: Request) -> int:

@@ -77,6 +77,74 @@ class MemoryEngine:
             reinforce=reinforce,
         )
 
+    # ── consolidation (the "nightly batch": link -> cluster -> rank) ──────
+    def detect_communities(self, *, owner_id: int, max_iter: int = 20) -> dict[int, int]:
+        """Assign community ids (the "clouds") via deterministic weighted label
+        propagation over the owner's graph. Pure-Python (no igraph/Leiden dep);
+        good enough for homelab-scale graphs. Persists community_id and returns
+        {node_id: community}."""
+        nodes = list(self.store.iter_nodes(owner_id))
+        ids = {n.id for n in nodes}
+        adj: dict[int, list[tuple[int, float]]] = {n.id: [] for n in nodes}
+        for nid in ids:
+            for neigh_id, _rel, weight in self.store.neighbors(nid):
+                if neigh_id in ids:
+                    adj[nid].append((neigh_id, weight))
+        label = {nid: nid for nid in ids}
+        order = sorted(ids)  # deterministic sweep
+        for _ in range(max_iter):
+            changed = False
+            for nid in order:
+                if not adj[nid]:
+                    continue
+                tally: dict[int, float] = {}
+                for neigh_id, weight in adj[nid]:
+                    tally[label[neigh_id]] = tally.get(label[neigh_id], 0.0) + weight
+                # highest weighted label; tie-break on smallest id -> deterministic
+                best = max(sorted(tally), key=lambda lab: tally[lab])
+                if label[nid] != best:
+                    label[nid] = best
+                    changed = True
+            if not changed:
+                break
+        # renumber to dense 0..k-1 (stable)
+        remap = {lab: i for i, lab in enumerate(sorted(set(label.values())))}
+        result = {nid: remap[label[nid]] for nid in ids}
+        self.store.set_communities(result)
+        return result
+
+    def recompute_importance(self, *, owner_id: int) -> dict[int, float]:
+        """Heuristic importance in [0,1] from connectivity + use: a hub (many
+        strong edges, frequently accessed) matters more than a leaf or an
+        isolated note. Persists importance and returns {node_id: importance}."""
+        nodes = list(self.store.iter_nodes(owner_id))
+        ids = {n.id for n in nodes}
+        raw: dict[int, float] = {}
+        for node in nodes:
+            degree = sum(
+                w for nb, _rel, w in self.store.neighbors(node.id) if nb in ids
+            )
+            raw[node.id] = degree + 0.25 * node.access_count
+        hi = max(raw.values(), default=0.0)
+        result = {nid: (v / hi if hi > 0 else 0.0) for nid, v in raw.items()}
+        self.store.set_importance(result)
+        return result
+
+    def consolidate(
+        self, *, owner_id: int, tau: float = SEMANTIC_EDGE_TAU, k: int = 10
+    ) -> dict[str, int]:
+        """The full batch the design calls for, as one call: semantic auto-link
+        -> community detection -> importance. Returns a small report. Cheap
+        enough to run on demand (the GUI's button) or on a schedule."""
+        linked = self.link_semantic(owner_id=owner_id, tau=tau, k=k)
+        communities = self.detect_communities(owner_id=owner_id)
+        self.recompute_importance(owner_id=owner_id)
+        return {
+            "linked": linked,
+            "communities": len(set(communities.values())),
+            "nodes": len(communities),
+        }
+
     # ── graph view ───────────────────────────────────────────────────────
     def graph(
         self, *, owner_id: int, limit: int = 200

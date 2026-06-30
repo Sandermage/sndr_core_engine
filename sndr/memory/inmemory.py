@@ -193,6 +193,18 @@ class InMemoryStore(MemoryStore):
                     self._incident.get(other, set()).discard(key)
         return len(remove_ids)
 
+    def set_communities(self, mapping: dict[int, int]) -> None:
+        for nid, community in mapping.items():
+            node = self._nodes.get(nid)
+            if node is not None:
+                node.community_id = community
+
+    def set_importance(self, mapping: dict[int, float]) -> None:
+        for nid, importance in mapping.items():
+            node = self._nodes.get(nid)
+            if node is not None:
+                node.importance = importance
+
     def count_nodes(self, owner_id: int | None = None) -> int:
         if owner_id is None:
             return len(self._nodes)
