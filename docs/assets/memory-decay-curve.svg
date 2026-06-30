@@ -1,0 +1,40 @@
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 760 440' width='760' height='440' role='img' aria-label='Ebbinghaus retention'>
+<rect width='760' height='440' rx='14' fill='#15171c'/>
+<text x='28' y='38' fill='#e8eaed' font-size='20' font-weight='700' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>Ebbinghaus retention — retrieval slows decay (spacing effect)</text>
+<line x1='64.0' y1='64' x2='64.0' y2='384' stroke='#262a31' stroke-width='1'/>
+<text x='64.0' y='404' fill='#9aa0a6' font-size='11' text-anchor='middle' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>0d</text>
+<line x1='160.0' y1='64' x2='160.0' y2='384' stroke='#262a31' stroke-width='1'/>
+<text x='160.0' y='404' fill='#9aa0a6' font-size='11' text-anchor='middle' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>2d</text>
+<line x1='256.0' y1='64' x2='256.0' y2='384' stroke='#262a31' stroke-width='1'/>
+<text x='256.0' y='404' fill='#9aa0a6' font-size='11' text-anchor='middle' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>4d</text>
+<line x1='352.0' y1='64' x2='352.0' y2='384' stroke='#262a31' stroke-width='1'/>
+<text x='352.0' y='404' fill='#9aa0a6' font-size='11' text-anchor='middle' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>6d</text>
+<line x1='448.0' y1='64' x2='448.0' y2='384' stroke='#262a31' stroke-width='1'/>
+<text x='448.0' y='404' fill='#9aa0a6' font-size='11' text-anchor='middle' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>8d</text>
+<line x1='544.0' y1='64' x2='544.0' y2='384' stroke='#262a31' stroke-width='1'/>
+<text x='544.0' y='404' fill='#9aa0a6' font-size='11' text-anchor='middle' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>10d</text>
+<line x1='640.0' y1='64' x2='640.0' y2='384' stroke='#262a31' stroke-width='1'/>
+<text x='640.0' y='404' fill='#9aa0a6' font-size='11' text-anchor='middle' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>12d</text>
+<line x1='736.0' y1='64' x2='736.0' y2='384' stroke='#262a31' stroke-width='1'/>
+<text x='736.0' y='404' fill='#9aa0a6' font-size='11' text-anchor='middle' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>14d</text>
+<line x1='64' y1='384.0' x2='736' y2='384.0' stroke='#262a31' stroke-width='1'/>
+<text x='54' y='388.0' fill='#9aa0a6' font-size='11' text-anchor='end' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>0.00</text>
+<line x1='64' y1='304.0' x2='736' y2='304.0' stroke='#262a31' stroke-width='1'/>
+<text x='54' y='308.0' fill='#9aa0a6' font-size='11' text-anchor='end' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>0.25</text>
+<line x1='64' y1='224.0' x2='736' y2='224.0' stroke='#262a31' stroke-width='1'/>
+<text x='54' y='228.0' fill='#9aa0a6' font-size='11' text-anchor='end' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>0.50</text>
+<line x1='64' y1='144.0' x2='736' y2='144.0' stroke='#262a31' stroke-width='1'/>
+<text x='54' y='148.0' fill='#9aa0a6' font-size='11' text-anchor='end' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>0.75</text>
+<line x1='64' y1='64.0' x2='736' y2='64.0' stroke='#262a31' stroke-width='1'/>
+<text x='54' y='68.0' fill='#9aa0a6' font-size='11' text-anchor='end' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>1.00</text>
+<text x='400' y='428' fill='#c7ccd1' font-size='12' text-anchor='middle' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>time since last access</text>
+<polyline points='64.0,64.0 76.0,134.8 88.0,189.9 100.0,232.8 112.0,266.3 124.0,292.3 136.0,312.6 148.0,328.4 160.0,340.7 172.0,350.3 184.0,357.7 196.0,363.5 208.0,368.1 220.0,371.6 232.0,374.3 244.0,376.5 256.0,378.1 268.0,379.4 280.0,380.4 292.0,381.2 304.0,381.8 316.0,382.3 328.0,382.7 340.0,383.0 352.0,383.2 364.0,383.4 376.0,383.5 388.0,383.6 400.0,383.7 412.0,383.8 424.0,383.8 436.0,383.9 448.0,383.9 460.0,383.9 472.0,383.9 484.0,383.9 496.0,384.0 508.0,384.0 520.0,384.0 532.0,384.0 544.0,384.0 556.0,384.0 568.0,384.0 580.0,384.0 592.0,384.0 604.0,384.0 616.0,384.0 628.0,384.0 640.0,384.0 652.0,384.0 664.0,384.0 676.0,384.0 688.0,384.0 700.0,384.0 712.0,384.0 724.0,384.0 736.0,384.0' fill='none' stroke='#f97362' stroke-width='2.4'/>
+<line x1='516' y1='80' x2='538' y2='80' stroke='#f97362' stroke-width='3'/>
+<text x='544' y='84' fill='#c7ccd1' font-size='12' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>never recalled (strength 1.0)</text>
+<polyline points='64.0,64.0 76.0,107.9 88.0,145.8 100.0,178.5 112.0,206.7 124.0,231.1 136.0,252.1 148.0,270.2 160.0,285.8 172.0,299.3 184.0,310.9 196.0,320.9 208.0,329.6 220.0,337.1 232.0,343.5 244.0,349.1 256.0,353.9 268.0,358.0 280.0,361.6 292.0,364.6 304.0,367.3 316.0,369.6 328.0,371.6 340.0,373.3 352.0,374.7 364.0,376.0 376.0,377.1 388.0,378.1 400.0,378.9 412.0,379.6 424.0,380.2 436.0,380.7 448.0,381.2 460.0,381.6 472.0,381.9 484.0,382.2 496.0,382.4 508.0,382.6 520.0,382.8 532.0,383.0 544.0,383.1 556.0,383.2 568.0,383.4 580.0,383.4 592.0,383.5 604.0,383.6 616.0,383.6 628.0,383.7 640.0,383.7 652.0,383.8 664.0,383.8 676.0,383.8 688.0,383.9 700.0,383.9 712.0,383.9 724.0,383.9 736.0,383.9' fill='none' stroke='#4f9cf9' stroke-width='2.4'/>
+<line x1='516' y1='100' x2='538' y2='100' stroke='#4f9cf9' stroke-width='3'/>
+<text x='544' y='104' fill='#c7ccd1' font-size='12' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>recalled 1× (1.69)</text>
+<polyline points='64.0,64.0 76.0,91.4 88.0,116.5 100.0,139.4 112.0,160.3 124.0,179.5 136.0,197.0 148.0,213.0 160.0,227.7 172.0,241.1 184.0,253.3 196.0,264.5 208.0,274.7 220.0,284.1 232.0,292.7 244.0,300.5 256.0,307.6 268.0,314.2 280.0,320.2 292.0,325.6 304.0,330.6 316.0,335.2 328.0,339.4 340.0,343.2 352.0,346.7 364.0,349.9 376.0,352.8 388.0,355.5 400.0,357.9 412.0,360.2 424.0,362.2 436.0,364.1 448.0,365.8 460.0,367.3 472.0,368.8 484.0,370.1 496.0,371.3 508.0,372.4 520.0,373.4 532.0,374.3 544.0,375.1 556.0,375.9 568.0,376.6 580.0,377.2 592.0,377.8 604.0,378.3 616.0,378.8 628.0,379.2 640.0,379.7 652.0,380.0 664.0,380.4 676.0,380.7 688.0,381.0 700.0,381.2 712.0,381.5 724.0,381.7 736.0,381.9' fill='none' stroke='#5fd07d' stroke-width='2.4'/>
+<line x1='516' y1='120' x2='538' y2='120' stroke='#5fd07d' stroke-width='3'/>
+<text x='544' y='124' fill='#c7ccd1' font-size='12' font-family='ui-sans-serif,Segoe UI,Helvetica,Arial,sans-serif'>recalled 5× (2.79)</text>
+</svg>

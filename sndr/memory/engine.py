@@ -161,17 +161,21 @@ class MemoryEngine:
         return result
 
     def recompute_importance(self, *, owner_id: int) -> dict[int, float]:
-        """Heuristic importance in [0,1] from connectivity + use: a hub (many
-        strong edges, frequently accessed) matters more than a leaf or an
-        isolated note. Persists importance and returns {node_id: importance}."""
+        """Heuristic importance in [0,1] from connectivity + use: a hub matters
+        more than a leaf or an isolated note. Blends degree COUNT (centrality —
+        how many things connect here), weighted degree (how strongly), and access
+        count (how often used), so neither a single very strong edge nor raw
+        popularity alone dominates. Persists importance; returns {node_id: value}."""
         nodes = list(self.store.iter_nodes(owner_id))
         ids = {n.id for n in nodes}
         raw: dict[int, float] = {}
         for node in nodes:
-            degree = sum(
+            neighbours = [
                 w for nb, _rel, w in self.store.neighbors(node.id) if nb in ids
-            )
-            raw[node.id] = degree + 0.25 * node.access_count
+            ]
+            degree_count = len(neighbours)          # centrality (# connections)
+            weighted_degree = sum(neighbours)        # connection strength
+            raw[node.id] = degree_count + weighted_degree + 0.25 * node.access_count
         hi = max(raw.values(), default=0.0)
         result = {nid: (v / hi if hi > 0 else 0.0) for nid, v in raw.items()}
         self.store.set_importance(result)

@@ -72,6 +72,20 @@ class TestCommunitiesAndImportance:
         assert eng.store.get_node(hub).importance > eng.store.get_node(leaves[0]).importance
         assert eng.store.get_node(leaves[0]).importance > eng.store.get_node(isolated).importance
 
+    def test_importance_rewards_connection_count_not_just_strength(self):
+        eng = _engine()
+        # hub: many (weak) connections; rival: one very strong connection
+        hub = eng.remember(owner_id=1, text="hub")
+        rival = eng.remember(owner_id=1, text="rival")
+        for i in range(5):
+            leaf = eng.remember(owner_id=1, text=f"leaf {i}")
+            eng.store.add_edge(min(hub, leaf), max(hub, leaf), "similar_to", weight=0.2)
+        one = eng.remember(owner_id=1, text="single strong partner")
+        eng.store.add_edge(min(rival, one), max(rival, one), "similar_to", weight=1.0)
+        eng.recompute_importance(owner_id=1)
+        # the well-connected hub outranks the single-strong-edge rival (centrality)
+        assert eng.store.get_node(hub).importance > eng.store.get_node(rival).importance
+
     def test_consolidate_links_and_clusters(self):
         eng = _engine()
         eng.remember(owner_id=1, text="postgres vector memory graph")

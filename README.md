@@ -173,6 +173,16 @@ across the graph, and **decays / reinforces like human memory**. It ships as one
 **CPU-only container** (Postgres + pgvector + API + GUI + gateway) — the GPU
 engines are untouched.
 
+<p align="center">
+  <img src="docs/assets/memory-graph-clouds.svg" alt="Neural-graph memory — knowledge clusters into colored community clouds" width="860">
+</p>
+
+**By the numbers (v12, all verified):** 2 storage backends (in-memory + Postgres/
+pgvector) proven *identical* in CI · real CPU embedder (Model2Vec) semantic match
+**0.85** related vs **0.01** unrelated · ~100 unit tests + a leak-soak, run on both
+backends (Postgres against a live pgvector in CI) · one container · zero GPU on the
+hot path.
+
 ```mermaid
 flowchart LR
   Client([client / app])
@@ -212,6 +222,20 @@ flowchart TD
   CONS --> IMP["importance = f(degree, access)"]
   CONS --> PRN["prune to cap (leak-bound)"]
 ```
+
+<p align="center">
+  <img src="docs/assets/memory-decay-curve.svg" alt="Ebbinghaus retention curves — retrieval slows decay (spacing effect)" width="680">
+</p>
+
+**Tuned constants** (one source of truth, `sndr/memory/model.py`; both backends identical):
+
+| Mechanic | Formula | Constant |
+|---|---|---|
+| Hebbian co-access | `w ← min(1, (1−λ)·w + η)` | η = 0.02 · λ = 0.995 |
+| Ebbinghaus decay | `R = exp(−age / (S·strength·(1+importance)))` | S = 86 400 s |
+| Strength reinforce | `strength = 1 + ln(1 + access_count)` | (unbounded, log) |
+| Spreading activation | `act × weight × β` per hop | β = 0.5 · depth ≤ 3 |
+| Semantic auto-link | kNN cosine ≥ τ → `similar_to` | τ = 0.8 |
 
 | Capability | What it does |
 |---|---|
