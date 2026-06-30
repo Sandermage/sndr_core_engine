@@ -116,6 +116,11 @@ class ModelConfig:
     max_num_seqs: int = 2
     max_num_batched_tokens: int = 4096
     enable_chunked_prefill: bool = True
+    # Automatic prefix caching. Validated 2026-06-30 on the 35B-AWQ rig: 6-10x
+    # TTFT reduction on repeated context (RAG / multi-turn / agentic history),
+    # fully compatible with turboquant_k8v4 + MTP + the 280k window. On by
+    # default (matches vLLM V1); a profile may disable it via RuntimeOverrides.
+    enable_prefix_caching: bool = True
     dtype: str = "float16"
     enforce_eager: bool = False
     disable_custom_all_reduce: bool = True

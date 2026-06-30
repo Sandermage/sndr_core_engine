@@ -637,6 +637,7 @@ class HardwareSizing:
     max_num_seqs: int = 2
     max_num_batched_tokens: int = 4096
     enable_chunked_prefill: bool = True
+    enable_prefix_caching: bool = True  # APC: 6-10x TTFT on repeated context (validated 2026-06-30); set False to disable
     enforce_eager: bool = False
     disable_custom_all_reduce: bool = True
     # vLLM stat logger. Default True keeps --disable-log-stats in the launcher;

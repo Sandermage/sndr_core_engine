@@ -637,6 +637,7 @@ def compose(
         max_num_seqs=sizing.max_num_seqs,
         max_num_batched_tokens=sizing.max_num_batched_tokens,
         enable_chunked_prefill=sizing.enable_chunked_prefill,
+        enable_prefix_caching=sizing.enable_prefix_caching,
         dtype=model.dtype,
         enforce_eager=sizing.enforce_eager,
         disable_custom_all_reduce=sizing.disable_custom_all_reduce,

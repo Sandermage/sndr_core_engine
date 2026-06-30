@@ -103,6 +103,8 @@ def build_runtime_command(cfg: "ModelConfig") -> RuntimeCommandSpec:
         argv.append("--enable-auto-tool-choice")
     if cfg.enable_chunked_prefill:
         argv.append("--enable-chunked-prefill")
+    if cfg.enable_prefix_caching:
+        argv.append("--enable-prefix-caching")
     if cfg.enforce_eager:
         argv.append("--enforce-eager")
     if cfg.language_model_only:

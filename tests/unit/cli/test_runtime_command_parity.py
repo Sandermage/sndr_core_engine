@@ -167,3 +167,16 @@ class TestArgvToShell:
         out = argv_to_shell(["--env", "${VAR}"])
         # $ must be quoted so the shell does not interpret it
         assert "'${VAR}'" in out or '"${VAR}"' in out
+
+
+class TestPrefixCachingFlag:
+    """APC persisted into the launcher renderer (validated 2026-06-30:
+    6-10x TTFT on repeated context, compatible with TQ + MTP + 280k)."""
+
+    def test_prefix_caching_emitted_by_default(self):
+        spec = build_runtime_command(_make_cfg())
+        assert "--enable-prefix-caching" in spec.argv
+
+    def test_prefix_caching_absent_when_disabled(self):
+        spec = build_runtime_command(_make_cfg(enable_prefix_caching=False))
+        assert "--enable-prefix-caching" not in spec.argv
