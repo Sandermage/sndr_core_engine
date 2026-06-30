@@ -1,0 +1,148 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Persistent-memory routes (/api/v1/memory/*), owner-scoped.
+
+The neural-graph memory engine exposed over HTTP for the proxy memory-middleware
+(server-to-server) and, later, the GUI graph panel. Owner scoping comes from the
+`X-Owner-Id` header — the service path the proxy uses. A session-auth dependency
+plugs in here later without changing the routes (the store enforces owner
+scoping regardless).
+
+The MemoryEngine lives on `app.state.memory_engine` (set by `create_app` /
+`init_memory_engine`), so tests can inject an in-memory engine.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+from uuid import uuid4
+
+from fastapi import APIRouter, HTTPException, Request
+
+from sndr.product_api.schemas.common import Envelope, ResponseMeta
+from sndr.product_api.schemas.memory import (
+    HitOut,
+    LinkIn,
+    LinkOut,
+    NeighborOut,
+    NodeOut,
+    RecallIn,
+    RememberIn,
+    RememberOut,
+    StatsOut,
+)
+
+if TYPE_CHECKING:
+    from sndr.memory.engine import MemoryEngine
+
+router = APIRouter(prefix="/api/v1/memory", tags=["memory"])
+
+
+def _engine(request: Request) -> MemoryEngine:
+    engine = getattr(request.app.state, "memory_engine", None)
+    if engine is None:
+        raise HTTPException(status_code=503, detail="memory engine not configured")
+    return engine
+
+
+def _meta() -> ResponseMeta:
+    return ResponseMeta(request_id=uuid4().hex, timestamp=datetime.now(timezone.utc))
+
+
+def _hit(h) -> HitOut:
+    return HitOut(id=h.id, content=h.node.content, kind=h.node.kind, score=h.score)
+
+
+def _node_out(n) -> NodeOut:
+    return NodeOut(
+        id=n.id, owner_id=n.owner_id, kind=n.kind, content=n.content,
+        importance=n.importance, strength=n.strength, access_count=n.access_count,
+        community_id=n.community_id, properties=n.properties,
+        created_at=n.created_at, accessed_at=n.accessed_at,
+    )
+
+
+@router.post("/remember", summary="Store a memory")
+async def remember(
+    body: RememberIn, request: Request
+) -> Envelope[RememberOut]:
+    eng = _engine(request)
+    owner = _owner_from(request)
+    nid = eng.remember(
+        owner_id=owner, text=body.text, kind=body.kind,
+        importance=body.importance, properties=body.properties,
+    )
+    return Envelope(data=RememberOut(id=nid), meta=_meta())
+
+
+@router.get("/search", summary="Pure ANN search (no side effects)")
+async def search(
+    request: Request, q: str, limit: int = 10
+) -> Envelope[list[HitOut]]:
+    eng = _engine(request)
+    hits = eng.search(owner_id=_owner_from(request), query=q, limit=limit)
+    return Envelope(data=[_hit(h) for h in hits], meta=_meta())
+
+
+@router.post("/recall", summary="Brain recall (graph expand + reinforce)")
+async def recall(body: RecallIn, request: Request) -> Envelope[list[HitOut]]:
+    eng = _engine(request)
+    hits = eng.recall(
+        owner_id=_owner_from(request), query=body.query, limit=body.limit,
+        expand_depth=body.expand_depth, reinforce=body.reinforce,
+    )
+    return Envelope(data=[_hit(h) for h in hits], meta=_meta())
+
+
+@router.get("/node/{node_id}", summary="Fetch one node")
+async def get_node(node_id: int, request: Request) -> Envelope[NodeOut]:
+    eng = _engine(request)
+    owner = _owner_from(request)
+    node = eng.store.get_node(node_id)
+    if node is None or node.owner_id != owner:
+        raise HTTPException(status_code=404, detail="node not found")
+    return Envelope(data=_node_out(node), meta=_meta())
+
+
+@router.get("/neighbors/{node_id}", summary="Adjacent nodes")
+async def neighbors(node_id: int, request: Request) -> Envelope[list[NeighborOut]]:
+    eng = _engine(request)
+    owner = _owner_from(request)
+    node = eng.store.get_node(node_id)
+    if node is None or node.owner_id != owner:
+        raise HTTPException(status_code=404, detail="node not found")
+    out = [
+        NeighborOut(id=nid, rel=rel, weight=w)
+        for nid, rel, w in eng.store.neighbors(node_id)
+    ]
+    return Envelope(data=out, meta=_meta())
+
+
+@router.get("/stats", summary="Owner memory counts")
+async def stats(request: Request) -> Envelope[StatsOut]:
+    eng = _engine(request)
+    owner = _owner_from(request)
+    return Envelope(
+        data=StatsOut(
+            nodes=eng.store.count_nodes(owner_id=owner),
+            edges=eng.store.count_edges(),
+        ),
+        meta=_meta(),
+    )
+
+
+@router.post("/link", summary="Run the semantic auto-linker (batch)")
+async def link(body: LinkIn, request: Request) -> Envelope[LinkOut]:
+    eng = _engine(request)
+    created = eng.link_semantic(owner_id=_owner_from(request), tau=body.tau, k=body.k)
+    return Envelope(data=LinkOut(created=created), meta=_meta())
+
+
+def _owner_from(request: Request) -> int:
+    raw = request.headers.get("X-Owner-Id", "1")
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="invalid X-Owner-Id") from None
+
+
+__all__ = ["router"]

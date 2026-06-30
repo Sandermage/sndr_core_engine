@@ -21,11 +21,15 @@ Phase 11 will fully migrate the legacy routes here.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
 
 log = logging.getLogger("sndr.product_api.server")
 
 
-def create_app() -> "FastAPI":  # type: ignore[name-defined]
+def create_app() -> FastAPI:
     """Build a FastAPI application with all sndr routers mounted.
 
     FastAPI is imported lazily so that ``import sndr.product_api`` does not
@@ -48,8 +52,10 @@ def create_app() -> "FastAPI":  # type: ignore[name-defined]
     from sndr.product_api.routes.containers import router as containers_router
     from sndr.product_api.routes.engines import router as engines_router
     from sndr.product_api.routes.health import router as health_router
-    from sndr.product_api.routes.hosts import fleet_router, router as hosts_router
+    from sndr.product_api.routes.hosts import fleet_router
+    from sndr.product_api.routes.hosts import router as hosts_router
     from sndr.product_api.routes.licensing import router as licensing_router
+    from sndr.product_api.routes.memory import router as memory_router
     from sndr.product_api.routes.observability import (
         bench_router,
         configs_router,
@@ -73,6 +79,11 @@ def create_app() -> "FastAPI":  # type: ignore[name-defined]
     app.include_router(configs_router)
     app.include_router(evidence_router)
     app.include_router(jobs_router)
+    app.include_router(memory_router)
+
+    # Persistent neural-graph memory engine on app.state (Postgres if
+    # GENESIS_MEMORY_DSN is set, else the in-memory reference backend).
+    _init_memory_engine(app)
 
     # Serve the built Carbon Control Center SPA from the daemon itself.
     # API routes are registered above, so they take precedence over the mount.
@@ -90,7 +101,35 @@ def create_app() -> "FastAPI":  # type: ignore[name-defined]
     return app
 
 
-def _mount_carbon_ui(app: "FastAPI") -> None:  # type: ignore[name-defined]
+def _init_memory_engine(app: FastAPI) -> None:
+    """Attach a MemoryEngine to ``app.state.memory_engine``.
+
+    Backend by env: ``GENESIS_MEMORY_DSN`` -> Postgres+pgvector, else the
+    in-memory reference backend (dev default). ``GENESIS_MEMORY_DIM`` sets the
+    embedding dimension (must match the Postgres ``vector(dim)`` column).
+    Embedder is the dependency-free HashEmbedder until a CPU embedder is wired.
+    """
+    import os
+
+    from sndr.memory.embedder import HashEmbedder
+    from sndr.memory.engine import MemoryEngine
+
+    dim = int(os.environ.get("GENESIS_MEMORY_DIM", "256"))
+    dsn = os.environ.get("GENESIS_MEMORY_DSN")
+    if dsn:
+        from sndr.memory.postgres import PostgresStore
+
+        store = PostgresStore(dsn, dim=dim)
+        log.info("product_api.memory.backend", extra={"backend": "postgres"})
+    else:
+        from sndr.memory.inmemory import InMemoryStore
+
+        store = InMemoryStore()
+        log.info("product_api.memory.backend", extra={"backend": "inmemory"})
+    app.state.memory_engine = MemoryEngine(store=store, embedder=HashEmbedder(dim=dim))
+
+
+def _mount_carbon_ui(app: FastAPI) -> None:
     """Mount the built Carbon GUI as a static SPA, if a build is present.
 
     Resolution order: ``SNDR_GUI_STATIC_CARBON`` env → packaged

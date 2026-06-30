@@ -50,6 +50,15 @@ class MemoryEngine:
         )
 
     # ── read ─────────────────────────────────────────────────────────────
+    def search(
+        self, *, owner_id: int, query: str, limit: int = 10
+    ) -> list[SearchHit]:
+        """Pure ANN search by text — no graph expand, no side effects (the
+        idempotent GET path). Use `recall` for the brain op."""
+        return self.store.search(
+            owner_id=owner_id, query=self.embedder.embed_one(query), limit=limit
+        )
+
     def recall(
         self,
         *,
