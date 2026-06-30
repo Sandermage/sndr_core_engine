@@ -20,11 +20,16 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Third-party deps in their own cached layer (no vllm).
+# Third-party deps in their own cached layer (no vllm; model2vec is CPU/numpy,
+# no torch at inference).
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
     "pyyaml>=6.0" "packaging>=23.0" \
     "fastapi>=0.110" "uvicorn[standard]>=0.27" "h11>=0.16.0" \
-    "psycopg[binary]>=3.1"
+    "psycopg[binary]>=3.1" "model2vec>=0.3"
+
+# Bake the static embedder model into the image so runtime is fully offline.
+ENV HF_HOME="/app/hf-cache"
+RUN python3 -c "from model2vec import StaticModel; StaticModel.from_pretrained('minishlab/potion-base-8M')"
 
 # Then the package itself (--no-deps): only this fast layer re-runs on a code change.
 COPY . /app
@@ -36,7 +41,7 @@ COPY --from=gui /gui/dist /app/gui-static
 # Postgres is loopback-only inside the container (port 5432 is never published),
 # so trust auth on localhost is safe and avoids baking any secret into the image.
 ENV GENESIS_MEMORY_DSN="postgresql://genesis@127.0.0.1:5432/genesis_memory" \
-    GENESIS_MEMORY_DIM="256" \
+    GENESIS_MEMORY_EMBEDDER="model2vec" \
     POSTGRES_USER="genesis" \
     POSTGRES_DB="genesis_memory" \
     POSTGRES_HOST_AUTH_METHOD="trust" \
