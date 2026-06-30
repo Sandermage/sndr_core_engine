@@ -39,8 +39,11 @@ class MemoryHTTPClient:
         self._token = token
         self._timeout = timeout
 
-    def _call(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
-        headers = {"X-Owner-Id": str(self._owner)}
+    def _call(
+        self, method: str, path: str, body: dict[str, Any] | None = None,
+        owner: int | None = None,
+    ) -> Any:
+        headers = {"X-Owner-Id": str(self._owner if owner is None else owner)}
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
         data = None
@@ -54,11 +57,11 @@ class MemoryHTTPClient:
             payload = json.loads(resp.read().decode("utf-8"))
         return payload["data"]
 
-    def _hits(self, rows: list[dict[str, Any]]) -> list[SearchHit]:
+    def _hits(self, rows: list[dict[str, Any]], owner: int) -> list[SearchHit]:
         return [
             SearchHit(
                 node=MemoryNode(
-                    id=r["id"], owner_id=self._owner, kind=r.get("kind", "note"),
+                    id=r["id"], owner_id=owner, kind=r.get("kind", "note"),
                     content=r["content"],
                 ),
                 score=r["score"],
@@ -79,8 +82,8 @@ class MemoryHTTPClient:
         rows = self._call("POST", "/api/v1/memory/recall", {
             "query": query, "limit": limit,
             "expand_depth": expand_depth, "reinforce": reinforce,
-        })
-        return self._hits(rows)
+        }, owner=owner_id)
+        return self._hits(rows, owner_id)
 
     def remember(
         self,
@@ -94,10 +97,12 @@ class MemoryHTTPClient:
         data = self._call("POST", "/api/v1/memory/remember", {
             "text": text, "kind": kind, "importance": importance,
             "properties": properties or {},
-        })
+        }, owner=owner_id)
         return int(data["id"])
 
     def search(self, *, owner_id: int, query: str, limit: int = 10) -> list[SearchHit]:
         from urllib.parse import quote
-        rows = self._call("GET", f"/api/v1/memory/search?q={quote(query)}&limit={limit}")
-        return self._hits(rows)
+        rows = self._call(
+            "GET", f"/api/v1/memory/search?q={quote(query)}&limit={limit}", owner=owner_id
+        )
+        return self._hits(rows, owner_id)

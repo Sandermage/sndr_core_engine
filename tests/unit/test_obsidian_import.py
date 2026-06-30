@@ -73,6 +73,26 @@ def test_owner_scoped(tmp_path):
     assert eng.store.count_nodes(owner_id=1) == 0
 
 
+def test_symlink_escaping_vault_is_skipped(tmp_path):
+    import os
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "Inside.md").write_text("inside note\n", encoding="utf-8")
+    secret = tmp_path / "secret.md"
+    secret.write_text("SECRET outside the vault\n", encoding="utf-8")
+    try:
+        os.symlink(secret, vault / "Leak.md")  # in-vault symlink pointing outside
+    except (OSError, NotImplementedError):
+        import pytest
+        pytest.skip("symlinks not supported here")
+    eng = _engine()
+    report = import_vault(engine=eng, owner_id=1, vault_path=str(vault))
+    contents = [n.content for n in eng.store.iter_nodes(1)]
+    assert any("inside note" in c for c in contents)
+    assert not any("SECRET" in c for c in contents)  # escaping symlink not ingested
+    assert report["notes"] == 1
+
+
 def test_missing_vault_raises(tmp_path):
     import pytest
     with pytest.raises((FileNotFoundError, NotADirectoryError)):

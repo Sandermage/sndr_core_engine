@@ -43,6 +43,7 @@ def import_vault(
     root = Path(vault_path)
     if not root.is_dir():
         raise NotADirectoryError(f"vault is not a directory: {vault_path}")
+    root_real = root.resolve()
 
     files = sorted(p for p in root.rglob("*.md") if p.is_file())
 
@@ -51,8 +52,16 @@ def import_vault(
     wikilinks: dict[int, list[str]] = {}
     notes = 0
     for path in files:
+        # Defense in depth: skip files (e.g. symlinks) that resolve OUTSIDE the
+        # vault root, so an in-vault symlink can't exfiltrate arbitrary files.
         try:
-            text = path.read_text(encoding="utf-8")
+            real = path.resolve()
+        except OSError:
+            continue
+        if real != root_real and root_real not in real.parents:
+            continue
+        try:
+            text = real.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
         title = path.stem
