@@ -247,3 +247,19 @@ def test_list_user_presets_returns_applied_drafts(monkeypatch, tmp_path):
 def test_list_user_presets_empty_when_no_user_dir(monkeypatch, tmp_path):
     _use_temp_config_dir(monkeypatch, tmp_path)
     assert list_user_presets() == ()
+
+
+def test_get_v2_layer_rejects_unsafe_id():
+    """M2: the read path must validate layer_id (parity with the write path's
+    _check_id) so a crafted id can't reach path-building / traverse the catalog
+    dir or leak the resolved filesystem path in the error."""
+    for bad in ("../../../../etc/passwd", "bad/id", "UPPER", "a b"):
+        with pytest.raises(Exception) as ei:
+            get_v2_layer("model", bad)
+        msg = str(ei.value).lower()
+        assert "must be" in msg or "lowercase" in msg or "required" in msg, (
+            f"expected an id-validation rejection for {bad!r}, got: {ei.value}"
+        )
+        assert "not found" not in msg, (
+            f"{bad!r} reached path-building (leaks path) instead of being rejected: {ei.value}"
+        )

@@ -354,8 +354,14 @@ def get_v2_layer(kind: str, layer_id: str) -> dict[str, Any]:
         load_preset_def,
         load_profile,
     )
+    from sndr.model_configs.schema_v2 import _check_id
 
     normalized = kind.lower()
+    # M2: validate the id BEFORE it reaches path-building (parity with the
+    # write path apply_v2_layer). _source_path/load_* interpolate `<id>.yaml`,
+    # so an unvalidated id like "../../etc/passwd" would traverse the catalog
+    # dir and leak the resolved filesystem path in the not-found error.
+    _check_id(layer_id, f"{normalized}.id")
     if normalized == "model":
         obj: Any = load_model(layer_id)
         source_layer = "model"
