@@ -256,6 +256,17 @@ class PostgresStore(MemoryStore):
             row = cur.fetchone()
         return float(row[0]) if row else 0.0
 
+    def invalidate_edge(self, src_id: int, dst_id: int, rel: str) -> bool:
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute(
+                sql.SQL(
+                    "UPDATE {edge} SET invalid_at=%s"
+                    " WHERE src_id=%s AND dst_id=%s AND rel=%s AND invalid_at IS NULL"
+                ).format(edge=self._edge),
+                (self._clock(), src_id, dst_id, rel),
+            )
+            return cur.rowcount > 0
+
     # ── recall primitives ────────────────────────────────────────────────
     def search(
         self, *, owner_id: int, query: Sequence[float], limit: int = 15

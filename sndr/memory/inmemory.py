@@ -119,6 +119,13 @@ class InMemoryStore(MemoryStore):
         edge = self._edges.get((src_id, dst_id, rel))
         return edge.weight if edge is not None else 0.0
 
+    def invalidate_edge(self, src_id: int, dst_id: int, rel: str) -> bool:
+        edge = self._edges.get((src_id, dst_id, rel))
+        if edge is None or edge.invalid_at is not None:
+            return False
+        edge.invalid_at = self._clock()
+        return True
+
     # ── recall ───────────────────────────────────────────────────────────
     def search(
         self,

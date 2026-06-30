@@ -76,6 +76,12 @@ class MemoryStore(ABC):
     def edge_weight(self, src_id: int, dst_id: int, rel: str) -> float:
         """Return the edge weight, or 0.0 if the edge does not exist."""
 
+    @abstractmethod
+    def invalidate_edge(self, src_id: int, dst_id: int, rel: str) -> bool:
+        """Bi-temporal: mark an edge invalid (set invalid_at=now) so it is
+        excluded from active traversal/recall, while keeping the record for
+        audit. Returns True if an edge was invalidated."""
+
     # ── recall primitives ────────────────────────────────────────────────
     @abstractmethod
     def search(

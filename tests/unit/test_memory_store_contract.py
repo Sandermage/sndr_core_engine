@@ -224,6 +224,16 @@ class TestHebbianCoAccess:
             store.reinforce_co_access([a, b])
         assert store.edge_weight(a, b, rel="co_access") == pytest.approx(1.0)
 
+    def test_invalidate_edge_excludes_from_traversal_but_keeps_record(self, store: InMemoryStore):
+        a = store.add_node(owner_id=1, kind="note", content="a", embedding=_vec(1, 0))
+        b = store.add_node(owner_id=1, kind="note", content="b", embedding=_vec(0, 1))
+        store.add_edge(a, b, "co_access", weight=0.5)
+        assert any(n == b for n, _r, _w in store.neighbors(a))  # active
+        store.invalidate_edge(a, b, "co_access")
+        # bi-temporal: excluded from active traversal, but the record persists
+        assert not any(n == b for n, _r, _w in store.neighbors(a))
+        assert store.edge_weight(a, b, "co_access") == pytest.approx(0.5)  # record kept
+
     def test_co_access_is_undirected_pairing(self, store: InMemoryStore):
         a = store.add_node(owner_id=1, kind="note", content="a", embedding=_vec(1, 0))
         b = store.add_node(owner_id=1, kind="note", content="b", embedding=_vec(0, 1))

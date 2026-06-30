@@ -250,6 +250,7 @@ def _init_maintenance(app: FastAPI) -> None:
       GENESIS_MEMORY_MAINTENANCE_INTERVAL   seconds between passes (0 = off)
       GENESIS_MEMORY_MAX_NODES              per-owner cap (default 10000)
     """
+    import logging
     import os
     import threading
     import time
@@ -261,6 +262,10 @@ def _init_maintenance(app: FastAPI) -> None:
 
     from sndr.memory.engine import run_maintenance
 
+    # Log via uvicorn's logger so maintenance is visible in `docker logs` (the
+    # bare "sndr.*" logger has no handler under uvicorn).
+    oplog = logging.getLogger("uvicorn.error")
+
     def _loop() -> None:
         while True:
             time.sleep(interval)
@@ -269,14 +274,17 @@ def _init_maintenance(app: FastAPI) -> None:
                 continue
             try:
                 report = run_maintenance(engine, max_nodes=max_nodes)
-                log.info("product_api.memory.maintained", extra=report)
+                oplog.info(
+                    "memory maintenance: owners=%s pruned=%s",
+                    report.get("owners"), report.get("pruned"),
+                )
             except Exception:  # noqa: BLE001 - a maintenance failure must not kill the loop
-                log.exception("product_api.memory.maintenance_failed")
+                oplog.exception("memory maintenance failed")
 
     threading.Thread(target=_loop, name="memory-maintenance", daemon=True).start()
-    log.info(
-        "product_api.memory.maintenance_started",
-        extra={"interval": interval, "max_nodes": max_nodes},
+    oplog.info(
+        "memory maintenance scheduler started (interval=%ss, max_nodes=%s)",
+        interval, max_nodes,
     )
 
 
