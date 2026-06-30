@@ -90,6 +90,11 @@ export function sectionSpec(sectionId: SectionId) {
       title: tr("GPU & Hardware"),
       description: tr("Live per-GPU utilisation, VRAM, temperature, power, clocks, fan, PCIe, pstate and ECC over nvidia-smi — for the daemon host or a registered host via SSH."),
     },
+    memory: {
+      kicker: tr("Neural-graph memory"),
+      title: tr("Memory"),
+      description: tr("Persistent, brain-like memory: knowledge as nodes that auto-form connections and cluster into clouds. Remember, search/recall across the graph, and inspect a node's connections."),
+    },
     routing: {
       kicker: tr("Spec-decode routing"),
       title: tr("Workload routing"),

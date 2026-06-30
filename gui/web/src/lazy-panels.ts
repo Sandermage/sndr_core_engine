@@ -30,5 +30,6 @@ export const VirtualizationPanel = lazy(() => import("./sections/virtualization"
 export const ChooseLaunch = lazy(() => import("./sections/choose-launch").then((m) => ({ default: m.ChooseLaunchSection })));
 export const HardwarePanel = lazy(() => import("./Hardware").then((m) => ({ default: m.HardwarePanel })));
 export const RoutingPanel = lazy(() => import("./Routing").then((m) => ({ default: m.RoutingPanel })));
+export const MemoryPanel = lazy(() => import("./Memory").then((m) => ({ default: m.MemoryPanel })));
 export const FlagsPanel = lazy(() => import("./Flags").then((m) => ({ default: m.FlagsPanel })));
 export const LicensePanel = lazy(() => import("./License").then((m) => ({ default: m.LicensePanel })));

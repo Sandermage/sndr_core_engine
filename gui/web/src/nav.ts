@@ -3,7 +3,7 @@
 // extracted section panels (GateRow, SetupWizard, …) can reference SectionId /
 // RuntimeMode / Gate without importing back into the app shell.
 import { type GateStatus } from "./components/primitives";
-import { type LucideIcon, BarChart3, Box, Boxes, Cpu, Database, FileText, Gauge, Home, LayoutGrid, Link2, MessageSquare, Network, Rocket, Route, Server, Settings, ShieldCheck, SlidersHorizontal, Table2, Wand2, Wrench } from "lucide-react";
+import { type LucideIcon, BarChart3, Box, Boxes, Brain, Cpu, Database, FileText, Gauge, Home, LayoutGrid, Link2, MessageSquare, Network, Rocket, Route, Server, Settings, ShieldCheck, SlidersHorizontal, Table2, Wand2, Wrench } from "lucide-react";
 
 /**
  * Which detail tier a section belongs to. "simple" sections show in BOTH
@@ -41,6 +41,7 @@ export const NAV_SECTIONS = [
   { id: "launch-plan", label: "Launch Plan", group: "Deploy", icon: Rocket, tier: "expert" },
   { id: "services", label: "Services", group: "Deploy", icon: Network, tier: "expert" },
   { id: "chat", label: "Chat & Copilot", group: "Engine", icon: MessageSquare, tier: "simple" },
+  { id: "memory", label: "Memory", group: "Engine", icon: Brain, tier: "expert" },
   { id: "routing", label: "Routing", group: "Engine", icon: Route, tier: "expert" },
   { id: "clients", label: "Clients", group: "Engine", icon: Link2, tier: "expert" },
   { id: "doctor", label: "Doctor", group: "Validate", icon: ShieldCheck, tier: "simple" },

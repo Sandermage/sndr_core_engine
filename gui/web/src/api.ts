@@ -1431,6 +1431,25 @@ function containerBase(src: ContainerSource): string {
     : "/api/v1/containers";
 }
 
+// ── Persistent neural-graph memory (modular server /api/v1/memory/*) ──────
+// These routes wrap responses in {data, meta}; the helpers unwrap `.data`.
+// Owner scoping is the X-Owner-Id header (single homelab owner = 1 for now).
+export type MemHit = { id: number; content: string; kind: string; score: number };
+export type MemNode = {
+  id: number; owner_id: number; kind: string; content: string;
+  importance: number; strength: number; access_count: number;
+  community_id: number | null; properties: Record<string, unknown>;
+  created_at: number; accessed_at: number;
+};
+export type MemNeighbor = { id: number; rel: string; weight: number };
+export type MemStats = { nodes: number; edges: number };
+
+function memHead(owner: number, json = false): Record<string, string> {
+  return json
+    ? { "Content-Type": "application/json", "X-Owner-Id": String(owner) }
+    : { "X-Owner-Id": String(owner) };
+}
+
 export const api = {
   get baseUrl() {
     return getApiBase();
@@ -1438,6 +1457,33 @@ export const api = {
   setBaseUrl: setApiBase,
   overview: () => request<ProductOverview>("/api/v1/overview"),
   capabilities: () => request<ProductCapabilities>("/api/v1/capabilities"),
+  memoryStats: (owner = 1) =>
+    request<{ data: MemStats }>("/api/v1/memory/stats", { headers: memHead(owner) })
+      .then((r) => r.data),
+  memorySearch: (q: string, owner = 1, limit = 20) =>
+    request<{ data: MemHit[] }>(`/api/v1/memory/search${query({ q, limit })}`, { headers: memHead(owner) })
+      .then((r) => r.data),
+  memoryRecall: (q: string, owner = 1, opts?: { limit?: number; expand_depth?: number; reinforce?: boolean }) =>
+    request<{ data: MemHit[] }>("/api/v1/memory/recall", {
+      method: "POST", headers: memHead(owner, true),
+      body: JSON.stringify({ query: q, ...opts }),
+    }).then((r) => r.data),
+  memoryRemember: (text: string, owner = 1, opts?: { kind?: string; importance?: number }) =>
+    request<{ data: { id: number } }>("/api/v1/memory/remember", {
+      method: "POST", headers: memHead(owner, true),
+      body: JSON.stringify({ text, ...opts }),
+    }).then((r) => r.data),
+  memoryNode: (id: number, owner = 1) =>
+    request<{ data: MemNode }>(`/api/v1/memory/node/${id}`, { headers: memHead(owner) })
+      .then((r) => r.data),
+  memoryNeighbors: (id: number, owner = 1) =>
+    request<{ data: MemNeighbor[] }>(`/api/v1/memory/neighbors/${id}`, { headers: memHead(owner) })
+      .then((r) => r.data),
+  memoryLink: (owner = 1, opts?: { tau?: number; k?: number }) =>
+    request<{ data: { created: number } }>("/api/v1/memory/link", {
+      method: "POST", headers: memHead(owner, true),
+      body: JSON.stringify(opts ?? {}),
+    }).then((r) => r.data),
   presets: (params: {
     family?: string;
     workload?: string;

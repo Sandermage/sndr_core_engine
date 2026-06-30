@@ -5,7 +5,7 @@
 // shell keeps only state/routing/composition and renders <SectionWorkspace/>
 // inside one Suspense boundary. Pure presentation — no App-local coupling.
 import { Suspense, useMemo } from "react";
-import { Boxes, Command, Cpu, Gauge, GitCompare, LayoutGrid, Link2, MessageSquare, Rocket, Route, Server, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Boxes, Brain, Command, Cpu, Gauge, GitCompare, LayoutGrid, Link2, MessageSquare, Rocket, Route, Server, SlidersHorizontal, Sparkles } from "lucide-react";
 import { tr } from "../i18n";
 import type { ChatTarget } from "../Engine";
 import type { ViewportTier } from "../hooks/useViewport";
@@ -31,7 +31,7 @@ import { TabbedSection } from "../components/tabbed-section";
 import { toast } from "../components/toast";
 import { FleetPanel } from "../Fleet";
 import { SkeletonCards } from "../Skeleton";
-import { ChatConsole, ConfigsSection, HostsSection, KvCalcPanel, BaselinePanel, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel } from "../lazy-panels";
+import { ChatConsole, ConfigsSection, HostsSection, KvCalcPanel, BaselinePanel, CopilotPanel, ContainersPanel, VirtualizationPanel, HardwarePanel, RoutingPanel, FlagsPanel, MemoryPanel } from "../lazy-panels";
 import { ModelsWorkbench } from "./models-workbench";
 import { OperationsConsole } from "./operations";
 import { ChooseLaunch } from "../lazy-panels";
@@ -277,6 +277,16 @@ export function SectionWorkspace({
           <ModuleCard title={tr("GPU & Hardware")} icon={<Cpu size={18} />} desc={tr("Live per-GPU telemetry over nvidia-smi — utilisation, VRAM, temperature, power vs limits, clocks, fan, PCIe link, pstate and ECC — plus host CPU/RAM. Pick the local daemon host or a registered host (over SSH).")} wide>
             <Suspense fallback={<SkeletonCards count={2} />}>
               <HardwarePanel hosts={hostOptions} initialHostId={focusHostId ?? undefined} />
+            </Suspense>
+          </ModuleCard>
+        </ModuleGrid>
+      )}
+
+      {sectionId === "memory" && (
+        <ModuleGrid>
+          <ModuleCard title={tr("Memory")} icon={<Brain size={18} />} desc={tr("The persistent neural-graph memory — knowledge as nodes that auto-form connections and cluster into clouds. Remember facts, search/recall (vector + spreading activation across the graph), inspect a node's connections, and rebuild the semantic links.")} wide>
+            <Suspense fallback={<SkeletonCards count={2} />}>
+              <MemoryPanel />
             </Suspense>
           </ModuleCard>
         </ModuleGrid>
