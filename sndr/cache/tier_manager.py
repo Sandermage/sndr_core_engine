@@ -289,6 +289,39 @@ class TierManager:
         self._tick_counter: int = 0
         self._active_last_tick: dict[Hashable, int] = {}
 
+        # Bookkeeping cap (H1 fix): the live demote path never calls
+        # demote_to_threshold (which is the only thing that reaches
+        # evict_terminal), so without a cap _pages / _admit_order /
+        # _active_last_tick grew one entry per request-block FOREVER — an
+        # unbounded host-RAM leak plus an O(n^2) scheduler_tick. TierManager is
+        # an ADVISORY cache over vLLM's own block pool: dropping a stale entry
+        # costs at most a future cache miss (the KV is reconstructable), never
+        # correctness — so we self-evict the oldest bookkeeping past the cap.
+        self._max_tracked_pages = self._resolve_max_tracked(self.tiers, self.slot_nbytes)
+
+    @staticmethod
+    def _resolve_max_tracked(tiers: tuple, slot_nbytes: int) -> int:
+        """Cap = 2x total tier capacity in pages (you can never have more LIVE
+        cached pages than the tiers physically hold, so anything beyond this is
+        provably stale). Floored at 50k; overridable via
+        GENESIS_PN95_MAX_TRACKED_PAGES."""
+        env = os.environ.get("GENESIS_PN95_MAX_TRACKED_PAGES")
+        if env:
+            try:
+                v = int(env)
+                if v > 0:
+                    return v
+            except ValueError:
+                pass
+        total_pages = 0
+        slot = max(1, int(slot_nbytes))
+        for t in tiers:
+            try:
+                total_pages += int(float(t.capacity_gib) * (1 << 30) // slot)
+            except Exception:  # noqa: BLE001 — defensive; cap falls back to floor
+                pass
+        return max(50_000, total_pages * 2)
+
     # ─── API surface ────────────────────────────────────────────────────
 
     def admit(self, key: Hashable, *,
@@ -300,12 +333,18 @@ class TierManager:
                 key=key, tier_idx=0, mm_origin=mm_origin, group_id=group_id,
             )
             self._policies[0].admit(key)
+            self._enforce_page_cap()
             return
         self._pages[key] = _PageMeta(
             key=key, tier_idx=0, mm_origin=mm_origin, group_id=group_id,
         )
         self._policies[0].admit(key)
         self._admit_order.append(key)
+        # Lazily compact the non-mamba admit-order list when stale entries (from
+        # forget()/cap eviction) pile up — bounds it to ~live size cheaply.
+        if len(self._admit_order) > 2 * len(self._pages) + 64:
+            self._admit_order = [k for k in self._admit_order if k in self._pages]
+        self._enforce_page_cap()
 
     def touch(self, key: Hashable) -> Optional[bytes]:
         """Record a hit on `key`. Returns CPU bytes if demoted, else None.
@@ -515,6 +554,49 @@ class TierManager:
             self._cpu_slab.free(meta.cpu_slot_idx)
         return victim
 
+    def _forget_meta(self, key: Hashable) -> bool:
+        """Remove a single page's bookkeeping (frees its CPU slot, drops it from
+        the residence policy + the active-window map). Does NOT scan
+        ``_admit_order`` (O(n)) — stale entries there are skipped by the
+        ``meta is None`` guard in the candidate walks and bulk-compacted in
+        ``admit``. Returns True if the page was present."""
+        meta = self._pages.pop(key, None)
+        if meta is None:
+            return False
+        if meta.cpu_slot_idx is not None and self._cpu_slab is not None:
+            self._cpu_slab.free(meta.cpu_slot_idx)
+        if 0 <= meta.tier_idx < len(self._policies):
+            pol = self._policies[meta.tier_idx]
+            if hasattr(pol, "remove"):
+                pol.remove(key)
+        self._active_last_tick.pop(key, None)
+        return True
+
+    def forget(self, key: Hashable) -> bool:
+        """Drop a page from all bookkeeping — call this when a block is freed /
+        a request finishes so the manager doesn't retain dead entries. Safe:
+        the page's KV lives in vLLM's block pool; forgetting only drops the
+        advisory tier metadata."""
+        return self._forget_meta(key)
+
+    def _enforce_page_cap(self) -> None:
+        """Evict the oldest-admitted bookkeeping once past ``_max_tracked_pages``.
+        ``_pages`` is insertion-ordered, so ``next(iter())`` is the oldest entry —
+        overwhelmingly from a long-finished request once we are over a cap set at
+        2x total tier capacity. O(1) per eviction; one bulk ``_admit_order``
+        compaction afterwards."""
+        cap = self._max_tracked_pages
+        if len(self._pages) <= cap:
+            return
+        n_evict = len(self._pages) - cap
+        for _ in range(n_evict):
+            try:
+                oldest = next(iter(self._pages))
+            except StopIteration:
+                break
+            self._forget_meta(oldest)
+        self._admit_order = [k for k in self._admit_order if k in self._pages]
+
     def register_mamba_excluded(self, group_id: str) -> None:
         """Mark `group_id` as containing Mamba/SSM state — never demote.
 
@@ -664,11 +746,13 @@ class TierManager:
                 continue
             candidates_pool.append(key)
         if self.vision_demote_first:
-            # mm_origin first, then LRU within each bucket
+            # mm_origin first, then LRU within each bucket. Precompute the
+            # admit-order positions ONCE (dict) instead of per-element
+            # list.index() — the latter made this O(n^2) as _admit_order grew.
+            pos = {k: i for i, k in enumerate(self._admit_order)}
             candidates_pool.sort(
                 key=lambda k: (not self._pages[k].mm_origin,
-                               self._admit_order.index(k)
-                               if k in self._admit_order else 1 << 30),
+                               pos.get(k, 1 << 30)),
             )
         for key in candidates_pool[:n]:
             out.append(key)

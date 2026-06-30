@@ -133,6 +133,27 @@ _GENESIS_P38_MARKER_ATTR = "_genesis_p38_wrapped"
 # v7.48 (2026-04-27): one-time mode-decision log gate.
 _P38_MODE_LOGGED = False
 
+
+def _p38_default_max_model_len(fallback: int = 262144) -> int:
+    """Default ceiling for the standing TQ continuation K/V dequant pool when
+    GENESIS_TQ_MAX_MODEL_LEN is unset.
+
+    Was a hardcoded 262144 — which over-allocated the (allocate-once) dequant
+    buffers on any engine whose context ceiling is lower (e.g. ~512 MiB/rank
+    standing for a model run at 131072). Now defaults to the engine's REAL
+    max_model_len. The env var still overrides; falls back to 262144 only when
+    the running config can't be read (torch-less / pre-config-init)."""
+    try:
+        from vllm.config import get_current_vllm_config
+        cfg = get_current_vllm_config()
+        mml = getattr(getattr(cfg, "model_config", None), "max_model_len", None)
+        if mml and int(mml) > 0:
+            return int(mml)
+    except Exception:  # noqa: BLE001 — config unavailable yet / no vllm
+        pass
+    return fallback
+
+
 # Class-name candidate list — mirrors P22. If upstream renames, add here.
 _CANDIDATE_TQ_IMPL_NAMES = (
     "TurboQuantAttentionImpl",
@@ -325,11 +346,14 @@ def _genesis_continuation_prefill(
         # Maximum size we'll ever need (env-controllable; defaults to engine
         # max_model_len). Rounded to block_size so dequant kernel grid math
         # stays clean.
-        _max_env = os.environ.get("GENESIS_TQ_MAX_MODEL_LEN", "262144")
-        try:
-            max_tq_len = int(_max_env)
-        except ValueError:
-            max_tq_len = 262144
+        _max_env = os.environ.get("GENESIS_TQ_MAX_MODEL_LEN", "").strip()
+        if _max_env:
+            try:
+                max_tq_len = int(_max_env)
+            except ValueError:
+                max_tq_len = _p38_default_max_model_len()
+        else:
+            max_tq_len = _p38_default_max_model_len()
         max_tq_len = math.ceil(max_tq_len / block_size) * block_size
         # Single namespace per layer-shape signature — same across all 36
         # attention layers because Hk/D/dtype/device identical for them.

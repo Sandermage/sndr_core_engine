@@ -67,6 +67,18 @@ except Exception:  # noqa: BLE001
     _PN354_RCP_LN2 = 1.4426950216  # fp32 1/ln(2) (vllm's own constant)
 _PN354_KW = {"use_exp2": True} if _PN354_USE_EXP2 else {}
 
+# Boot flags read ONCE at import (same convention as _PN354_USE_EXP2): the
+# strict-metadata gate was read via os.environ.get().strip().lower() on EVERY
+# call before the bypass check — paid even by short-decode calls that bypass
+# immediately, across all 48 GDN layers. These are container-boot flags, so a
+# per-call lookup is pure hot-path overhead.
+_PN59_STRICT_NO_METADATA = os.environ.get(
+    "GENESIS_PN59_STRICT_NO_METADATA", "0",
+).strip().lower() in ("1", "true", "yes", "y", "on")
+_PN59_DEBUG = os.environ.get(
+    "GENESIS_PN59_DEBUG", "",
+).strip().lower() in ("1", "true", "yes", "y", "on")
+
 
 # Hot-path bypass threshold — below this, vanilla path wins on overhead.
 # Threshold = window_nt × _FLA_CHUNK_SIZE × _BYPASS_T_MULTIPLIER.
@@ -275,9 +287,7 @@ def streaming_chunk_gated_delta_rule_fwd(
     # remains as escape hatch for paranoid operators on 48+ GiB rigs who
     # want bit-equivalent legacy behavior until Level 2 has soaked in
     # PROD; opt-in via GENESIS_PN59_STRICT_NO_METADATA=1.
-    strict_metadata_gate = os.environ.get(
-        "GENESIS_PN59_STRICT_NO_METADATA", "0"  # ← Level 2 default flipped 1→0
-    ).strip().lower() in ("1", "true", "yes", "y", "on")
+    strict_metadata_gate = _PN59_STRICT_NO_METADATA  # boot flag, read once at import
     metadata_gate_passes = has_no_chunk_metadata or not strict_metadata_gate
     metadata_decision_note = (
         "GENESIS_PN59_STRICT_NO_METADATA=1 (legacy escape hatch active)"
@@ -320,9 +330,7 @@ def streaming_chunk_gated_delta_rule_fwd(
                 "every bypass.)",
                 reason,
             )
-        elif os.environ.get("GENESIS_PN59_DEBUG", "").strip().lower() in (
-            "1", "true", "yes", "y", "on",
-        ):
+        elif _PN59_DEBUG:
             log.info("[PN59] vanilla path (reason: %s)", reason)
         return _vanilla_path(
             q, k, v, g, beta, scale, initial_state, output_final_state,

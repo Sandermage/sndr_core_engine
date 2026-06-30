@@ -307,3 +307,54 @@ def test_single_tier_admit_works():
     tm.admit("blk1")
     assert tm.touch("blk1") is None
     assert tm.demote_to_threshold(payloads={"blk1": b"x" * SLOT}) == 0
+
+
+# ─── H1 regression: bookkeeping must not grow unbounded ──────────────────
+
+def test_admit_bounds_bookkeeping_under_request_churn(monkeypatch):
+    """_pages / _admit_order / _active_last_tick must stay bounded as distinct
+    request-blocks churn. The only deleter (evict_terminal) is unreachable in
+    the live demote path, so without a self-cap the bookkeeping leaked host RAM
+    forever and degraded scheduler_tick to O(n^2)."""
+    monkeypatch.setenv("GENESIS_PN95_MAX_TRACKED_PAGES", "100")
+    tm = _two_tier()
+    tm.set_active_ttl(50)
+    for i in range(5000):
+        key = (f"req{i}", "g", 0)
+        tm.admit(key, group_id="g")
+        tm.mark_active(key)
+    assert tm.n_pages() <= 100, f"_pages leaked: {tm.n_pages()}"
+    assert len(tm._admit_order) <= 300, f"_admit_order leaked: {len(tm._admit_order)}"
+    assert len(tm._active_last_tick) <= 300, f"_active_last_tick leaked: {len(tm._active_last_tick)}"
+
+
+def test_forget_removes_all_traces_and_is_idempotent():
+    tm = _two_tier()
+    key = ("r", "g", 0)
+    tm.admit(key, group_id="g")
+    assert key in tm._pages
+    assert tm.forget(key) is True
+    assert key not in tm._pages
+    assert key not in tm._active_last_tick
+    assert tm.forget(key) is False  # already gone — idempotent, no raise
+
+
+def test_cap_eviction_frees_demoted_cpu_slots():
+    """Evicting an over-cap page that was demoted to a CPU slot must return the
+    slot to the slab (else the CPU pool leaks slots as bookkeeping churns)."""
+    import os
+    os.environ["GENESIS_PN95_MAX_TRACKED_PAGES"] = "10"
+    try:
+        tm = _two_tier()
+        # admit + demote a page to tier 1 (occupies a cpu slot)
+        tm.admit(("d", "g", 0), group_id="g")
+        moved = tm.demote_to_threshold({("d", "g", 0): b"x" * 16})
+        used_before = tm.cpu_slab_n_used()
+        # churn well past the cap → forces eviction of old pages incl. the demoted one
+        for i in range(200):
+            tm.admit((f"c{i}", "g", 0), group_id="g")
+        assert tm.n_pages() <= 10
+        # the demoted page's slot must have been freed during cap eviction
+        assert tm.cpu_slab_n_used() <= used_before
+    finally:
+        os.environ.pop("GENESIS_PN95_MAX_TRACKED_PAGES", None)

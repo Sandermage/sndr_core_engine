@@ -226,7 +226,14 @@ class GenesisPreallocBuffer:
         still references the tensor pointer — callers are responsible
         for ensuring no live graph depends on the released buffer.
         """
-        return cls._REGISTRY.pop(namespace, None) is not None
+        # Keys are (namespace, shape, dtype, device) tuples, so popping by the
+        # bare namespace string never matched — release() was a silent no-op and
+        # every grown pool leaked its prior tensor. Drop ALL keys for this
+        # namespace (a grown pool registers one key per shape it passed through).
+        stale = [k for k in cls._REGISTRY if k[0] == namespace]
+        for k in stale:
+            del cls._REGISTRY[k]
+        return bool(stale)
 
 
 def _humanize_bytes(nbytes: int) -> str:

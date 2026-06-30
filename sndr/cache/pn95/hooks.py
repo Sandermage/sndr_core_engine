@@ -68,6 +68,11 @@ from .gates import (
     _pn95_prefetch_window,
     _read_env_int,
 )
+# Hoisted from inside scheduler_tick() — metrics.py has no back-import of hooks
+# (only os + typing), so this can live at module scope and stop re-importing on
+# every scheduler step. The call stays in scheduler_tick (it self-throttles via
+# GENESIS_PN95_STATS_INTERVAL on _TICK_COUNTER, so its dump cadence is unchanged).
+from .metrics import _pn95_dump_stats_if_due
 
 log = logging.getLogger("genesis.pn95")
 
@@ -600,7 +605,7 @@ def scheduler_tick() -> None:
     # OBS1 — periodic stats dump to JSON file for operator visibility
     # Throttled by GENESIS_PN95_STATS_INTERVAL (default 100 ticks),
     # disabled via GENESIS_PN95_STATS_FILE="" env. Fail-silent.
-    from .metrics import _pn95_dump_stats_if_due
+    # (import hoisted to module scope — see top of file)
     _pn95_dump_stats_if_due()
 
     if _rt._TICK_EVERY_CACHED is None:

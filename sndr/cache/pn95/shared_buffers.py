@@ -77,6 +77,33 @@ import logging
 import os
 from typing import Any, Optional
 
+# L3: per-call slice stats are debug-only — reading os.environ on every
+# pooled-buffer fetch (48 GDN layers × per-chunk) is itself hot-path overhead,
+# so the flag is resolved ONCE. Set GENESIS_PN95_DEBUG_STATS=1 to re-enable.
+_PN106_DEBUG_STATS: Optional[bool] = None
+
+
+def _pn106_debug_stats() -> bool:
+    global _PN106_DEBUG_STATS
+    if _PN106_DEBUG_STATS is None:
+        _PN106_DEBUG_STATS = os.environ.get("GENESIS_PN95_DEBUG_STATS", "") not in ("", "0", "false", "False")
+    return _PN106_DEBUG_STATS
+
+
+def _pn106_pool_max_bytes() -> int:
+    """Per-pool persistent ceiling in bytes (0 = unlimited, the default). Read on
+    the rare grow path only, so env lookup cost is negligible. Operators set
+    GENESIS_PN106_POOL_MAX_BYTES on a memory-tight box once the live peak
+    (`_PN95_STATS["pn106_pool_*_bytes"]`) is measured."""
+    raw = os.environ.get("GENESIS_PN106_POOL_MAX_BYTES", "")
+    if not raw:
+        return 0
+    try:
+        v = int(raw)
+        return v if v > 0 else 0
+    except ValueError:
+        return 0
+
 from .gates import _enabled
 
 log = logging.getLogger("genesis.pn95")
@@ -185,6 +212,27 @@ def pn106_get_pooled_buf(name: str, shape: tuple, dtype: Any, device: Any,
         target = max(n_elems, int(n_elems * 1.25))
         # Round up to 4K elements to dampen growth churn
         target = ((target + 4095) // 4096) * 4096
+        # H2 ceiling: a single huge prefill must not grow the PERSISTENT pool to
+        # its peak forever (gdn_h reaches multi-GiB at long context and could
+        # exceed the profiler-reserved budget → OOM headroom risk). When the grow
+        # target would cross GENESIS_PN106_POOL_MAX_BYTES, serve this (rare,
+        # over-cap) request from a TRANSIENT tensor instead — these pools are
+        # eager prefill scratch (they grow, so they're never CUDA-graph-captured),
+        # so a one-off allocation is safe. Default 0 = unlimited (prior behavior).
+        max_bytes = _pn106_pool_max_bytes()
+        if max_bytes > 0:
+            try:
+                elem_bytes = torch.empty((), dtype=dtype).element_size()
+            except Exception:
+                elem_bytes = 0
+            if elem_bytes and target * elem_bytes > max_bytes:
+                try:
+                    transient = torch.empty(n_elems, dtype=dtype, device=device).view(*shape)
+                except Exception:
+                    return None
+                if zero:
+                    transient.zero_()
+                return transient
         try:
             pool = torch.empty(target, dtype=dtype, device=device)
         except Exception:
@@ -199,9 +247,10 @@ def pn106_get_pooled_buf(name: str, shape: tuple, dtype: Any, device: Any,
     view = pool[:n_elems].view(*shape)
     if zero:
         view.zero_()
-    _rt._PN95_STATS[f"pn106_pool_{name}_slices"] = (
-        _rt._PN95_STATS.get(f"pn106_pool_{name}_slices", 0) + 1
-    )
+    if _pn106_debug_stats():
+        _rt._PN95_STATS[f"pn106_pool_{name}_slices"] = (
+            _rt._PN95_STATS.get(f"pn106_pool_{name}_slices", 0) + 1
+        )
     return view
 
 
