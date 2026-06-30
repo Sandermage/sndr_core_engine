@@ -117,6 +117,19 @@ class PostgresStore(MemoryStore):
                     " accessed_at DOUBLE PRECISION NOT NULL DEFAULT 0)"
                 ).format(node=self._node, dim=sql.Literal(self._dim))
             )
+            # Fail fast on an embedder/column dim mismatch (e.g. reusing a volume
+            # after switching embedders): pgvector stores the dim in atttypmod.
+            cur.execute(
+                "SELECT atttypmod FROM pg_attribute"
+                " WHERE attrelid = %s::regclass AND attname = 'embedding'",
+                (f"{self._schema}.mem_node",),
+            )
+            row = cur.fetchone()
+            if row and row[0] and row[0] > 0 and row[0] != self._dim:
+                raise ValueError(
+                    f"embedding dim mismatch: existing column is vector({row[0]}) but "
+                    f"this store/embedder uses {self._dim}. Re-embed or use a fresh DB."
+                )
             cur.execute(
                 sql.SQL(
                     "CREATE TABLE IF NOT EXISTS {edge} ("
