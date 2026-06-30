@@ -1,193 +1,216 @@
-# Persistent, brain-like, self-evolving memory — architecture & engine selection
+# Universal persistent, brain-like, self-evolving memory — architecture & engine selection
 
-**Status:** design / recommendation (2026-06-30). Grounded in a live web + HuggingFace
-research sweep of 15+ systems; every option below was checked for license, maturity,
-self-hostability, and OpenAI-compatible/vLLM fit. Sources inline.
+**Status:** design / discussion (rev 2, 2026-06-30). Grounded in a live web + HuggingFace
+research sweep of 25+ systems, the commercial landscape, eval benchmarks, governance, and
+the self-improvement literature. Every option was checked for license, maturity,
+self-hostability, and OpenAI-compatible/vLLM fit. Sources inline. **No build yet — this is
+the decision document we iterate on.**
 
-## 1. Goal (restated)
+## 0. Goal
 
-A persistent knowledge + memory layer for the Genesis stack that is:
+A single persistent memory that is:
 
-1. **Brain-like** — entities as nodes, relationships as edges, connections that
-   *strengthen with use and prune when stale* (Hebbian-ish), not a flat vector blob.
-2. **Structurally sound** — ontology / coreference so the same entity isn't
-   duplicated; contradictions are resolved, not stacked.
-3. **Self-evolving** — the store reorganizes over time; the system *gets smarter*
-   the longer it runs.
-4. **Shared** — one memory that **external models (via the proxy/aggregator)** AND
-   the **internal vLLM models** both read and write.
-5. **Capability-growing for the internal models** — not just retrieval; a path where
-   accumulated memory turns into new *weights-level* ability for the local Qwen3.6.
+1. **Universal** — shared by **every** model: local (Qwen3.6, **Gemma-4**, Llama, Mistral)
+   AND external (GPT, Claude, Gemini) via the proxy/aggregator. Not Qwen-specific.
+2. **Brain-like** — entities as nodes, relationships as edges, connections that
+   strengthen with use and decay when stale; structural integrity (no duplicate entities,
+   contradictions resolved).
+3. **Self-evolving** — reorganizes over time; gets smarter the longer it runs.
+4. **Capability-growing for the local models** — not just retrieval; a path where
+   accumulated memory becomes new *weights-level* ability for the local fleet.
 
-These map to two distinct mechanisms that must NOT be conflated:
+## 1. Universality — the load-bearing principle (this is the answer to "not just Qwen")
 
-- **(A) A memory/KG service** → makes *any* model smarter *at inference* by injecting
-  connected, consolidated knowledge. Works identically for external and internal models.
-- **(B) A self-improvement loop** → Reflexion/ExpeL accumulate reusable insights (works
-  for all models); **memory→LoRA distillation** is the *only* path that makes the
-  **internal** model smarter *in its weights* (external API models can't take adapters).
+The research is unanimous and verified across mem0, Letta, Zep/Graphiti, and LiteLLM: a
+shared memory is **model-agnostic by design**, achieved with **pattern (a) — inject
+retrieved memory as plain text into the request at the proxy/middleware layer** — *not*
+pattern (b) per-model tool-calls.
 
-## 2. Recommended architecture
+- **Why (a) is universal:** retrieval returns *plain text*; every model family ingests it
+  identically as ordinary prompt context. The model never sees a vector or a memory schema.
+  One retrieve→inject path serves Qwen, Gemma, Llama, Mistral, GPT, Claude, Gemini with zero
+  per-model branching. (LiteLLM's `async_pre_call_hook` modifies the `messages` array
+  uniformly regardless of provider — https://docs.litellm.ai/docs/proxy/call_hooks; Hindsight
+  injects memory via exactly this hook — https://hindsight.vectorize.io/cookbook/recipes/litellm-memory-demo.)
+- **Why NOT (b):** tool-call formats differ per family (vLLM needs a different
+  `--tool-call-parser` for hermes/mistral/llama3_json/pythonic — https://docs.vllm.ai/en/latest/features/tool_calling/);
+  using memory-as-tool would break on any model with a missing/wrong parser. Reserve tool
+  calls for *actual* tools; never for the shared memory channel.
+
+### 1a. The embedder is NOT the chat model (the key clarification)
+
+Picking **Qwen3-Embedding does NOT make the memory "Qwen-only."** The retrieval encoder is
+a separate, pluggable component that emits a generic L2-normalized float vector; the chat
+model is a downstream text consumer that never touches the vectors. Gemma/Llama/GPT/Claude
+all retrieve from the same store identically. (Confirmed: RAG is a 3-part pipeline where
+embedder ⟂ generation model — https://docs.langchain.com/oss/python/langchain/rag; vLLM
+serves embeddings on a separate `/v1/embeddings` runner — https://docs.vllm.ai/en/latest/models/pooling_models.html.)
+
+**The one real constraint** is internal to the store: **one embedder builds and queries the
+entire index**; switching it later means re-embedding everything (old/new vector spaces are
+incompatible — https://arxiv.org/pdf/2509.23471). So: pick ONE embedder deliberately,
+version-pin its name into the store metadata, keep the chat layer freely swappable on top.
+
+### 1b. Cross-model correctness invariant (5 axes, all mitigated by pattern (a))
+
+| Divergence | Breaks naive memory | Mitigation |
+|---|---|---|
+| Chat templates (ChatML / `<start_of_turn>` Gemma / `[INST]` Mistral) | wrong control tokens → silent quality loss | emit neutral OpenAI `role`/`content`; let each backend's `apply_chat_template` render it (https://huggingface.co/docs/transformers/en/chat_templating) |
+| Context window (32k→1M) | over-stuffing 32k models; lost-in-the-middle | per-model token budget `Avail = Limit − (prompt+query+output)`, ranked top-k, headroom |
+| Tokenizers (different vocabs) | one counter mis-budgets another → overflow | count with the *target* model's own tokenizer |
+| Tool-call formats | memory-as-tool breaks per missing parser | deliver memory as plain context, never tool calls |
+| Provider schema (Anthropic top-level `system`, Gemini `contents`/`parts`) | naive passthrough breaks | neutral OpenAI messages → per-provider adapter remaps; put recalled (untrusted) text in a non-system message + sanitize (prompt-injection defense — https://www.promptfoo.dev/docs/red-team/rag/) |
+
+### 1c. The weights-loop is per-architecture (the only non-universal part)
+
+The retrieval layer is universal; the *"model gets smarter in weights"* layer is
+irreducibly per-base-architecture. A LoRA adapter is bound to one architecture's module
+shapes/names (PEFT: `target_modules` chosen by architecture, error if unknown —
+https://huggingface.co/docs/peft/developer_guides/lora). So:
+
+- **One shared memory store** (universal, retrieval-time).
+- **One LoRA per base architecture** — a Qwen3.6 LoRA, a **Gemma-4 LoRA**, etc. — distilled
+  from the same shared memory (MemLoRA https://hf.co/papers/2512.04763, TMEM https://hf.co/papers/2606.04536).
+- **One vLLM instance per base model**, each `--enable-lora` + hot-reload via
+  `/v1/load_lora_adapter` (https://docs.vllm.ai/en/latest/features/lora/); a single engine
+  hosts only its own family's adapters (vLLM #13633 — one base per engine, "run multiple
+  instances + a routing layer").
+- **The aggregator routes** by architecture + per-request `model`. **This is exactly the
+  existing Genesis topology** (aggregator in front of multiple vLLM engines) — the design
+  fits what we already run.
+
+## 2. Architecture
 
 ```
-                         ┌──────────────────────────────────────────┐
-   user / agents ───────▶│  OpenAI-compatible PROXY  (Genesis_proxy) │
-                         │  memory-middleware:                       │
-                         │   • READ  → inject retrieved memory       │
-                         │   • WRITE → capture turn (async)          │
-                         └───────┬───────────────────────┬──────────┘
-                                 │ routes to             │ calls on every request
-                  ┌──────────────▼─────┐        ┌────────▼──────────────────────┐
-                  │ external model APIs │        │  MEMORY SERVICE (self-hosted)  │
-                  │ (via aggregator)    │        │  brain = temporal/onto KG +    │
-                  └─────────────────────┘        │  vector; self-evolving         │
-                  ┌─────────────────────┐        │  exposes REST + MCP            │
-                  │ internal vLLM 35B    │◀───────┤  embed/rerank via vLLM         │
-                  │ (chat) + LoRA hot-   │        └────────┬───────────────────────┘
-                  │ swap                 │                 │ nightly
-                  └──────────▲───────────┘        ┌────────▼──────────┐
-                             └───────────────────-│ memory→LoRA       │  (Phase 3: internal
-                                                   │ distiller         │   model gains weights)
-                                                   └───────────────────┘
+   any client / agent ─▶ OpenAI-compatible PROXY (memory-middleware: inject on READ, capture on WRITE)
+                              │ routes to                       │ calls every request
+              ┌───────────────┼────────────────┐       ┌───────▼─────────────────────────┐
+        external APIs   vLLM: Qwen3.6 (+LoRA)  vLLM: Gemma-4 (+LoRA)   MEMORY SERVICE (universal)
+        (via aggregator)      └──────── share ─────────┘ ──────▶ brain = temporal/onto KG + vector
+                                                                  embed/rerank via vLLM /v1/embeddings
+                                                                  REST + MCP; async consolidation worker
+                                                          nightly memory→LoRA distiller (per-arch) ──┘
 ```
 
-**Why the hook lives in the proxy:** the aggregator already routes *both* external
-APIs and the internal vLLM through one OpenAI-compatible proxy — that is the only
-layer every request crosses, so a memory hook there is shared *by construction* and
-provider-agnostic (the model never knows). An MCP surface is exposed *in addition*,
-as an optional explicit tool for agents that want to manage memory directly — but it
-is **not** the primary capture path, because external API models you don't control
-won't reliably call MCP tools. (Pattern corroborated by the agent-memory surveys:
-memory should be a standalone component layered on the LLM, not embedded per-agent.)
+## 3. Engine selection — the brain (all Apache-2.0/MIT, self-hostable, vLLM via base_url)
 
-## 3. Engine selection — the "brain"
+Commercial reality: the leaders are **open-core** — the engine is OSS-self-hostable, the
+cloud sells managed hosting/compliance. So we self-host the engine.
 
-Two front-runners, both Apache-2.0, self-hostable, native vLLM/OpenAI-compatible,
-and actively maintained (live GitHub metrics, 2026-06-30):
-
-| Engine | Brain mechanism | Self-evolution | Shared store | vLLM fit | Stars / release |
-|---|---|---|---|---|---|
-| **cognee** (topoteretes) | ECL graph+vector; ontology + cross-doc coreference | **`memify`: strengthens frequent connections, reweights edges by usage, prunes stale nodes** + `improve()` feedback | **FastAPI API-mode + MCP — many models share one graph** | LiteLLM `hosted_vllm/` + `LLM_ENDPOINT` | 26k / v1.2.2 (2026-06-26) |
-| **Graphiti** (getzep) | bi-temporal KG; LLM-extracted entities+edges | **temporal edge invalidation** — facts get validity windows; contradictions close old edges, don't delete | `group_id` namespacing; MCP + REST | `OpenAIGenericClient` + `base_url`, JSON-schema decode | 28k / v0.29.2 (2026-06-08) |
-
-- **Primary recommendation: cognee.** It is the closest literal match to "connections
-  like neurons that strengthen over time + structural integrity": `memify` does
-  usage-weighted edge reinforcement + stale-node pruning (Hebbian-like consolidation),
-  the ontology/coreference step keeps the graph structurally clean, and `improve()`
-  is explicit feedback-driven learning. Its **API-mode** lets external + internal
-  models hit one shared graph — exactly requirement (4). Backends are all self-hostable
-  (Postgres-graph or Neo4j/Kuzu/FalkorDB + pgvector/LanceDB/Qdrant). vLLM via LiteLLM
-  is first-class.
-- **Alternative: Graphiti**, when rigorous *temporal correctness* matters more than
-  Hebbian consolidation — bi-temporal validity windows make "what did we believe, and
-  when" auditable; superseded facts are invalidated, never silently overwritten.
-- **Neurobiological note: HippoRAG 2** ("From RAG to Memory: Non-Parametric Continual
-  Learning", arXiv 2502.14802) is the most *literally* brain-modeled — artificial
-  neocortex (LLM) + hippocampus (open KG) + Personalized PageRank, first-class vLLM
-  (online + 3× faster offline batch indexing). But it's a research library with no
-  service/multi-tenant layer — best used as the *retrieval engine behind* the memory
-  service, not the service itself.
-
-Lighter agent-memory layers (consider if a full KG is overkill): **Mem0** (59k stars,
-ADD/UPDATE/DELETE/NOOP self-consolidation, simplest to adopt), **MemOS** (richest
-evolution + `user_id` sharing, heaviest stack), **Supermemory** (best contradiction
-handling + time-based forgetting). All Apache-2.0/MIT, all vLLM-compatible.
-
-> Honesty note: most headline benchmark numbers (LongMemEval/LoCoMo %, token-savings)
-> are vendor-reported. The hard facts above (license, stars, releases, backends, vLLM
-> config) are verified against GitHub/docs; the comparative quality claims are not
-> independently reproduced and should be validated on our own data before committing.
-
-## 4. Retrieval models (self-hosted, Apache-2.0, vLLM-served)
-
-| Role | Pick | HF id | VRAM (fp16) | Why |
+| Engine | Brain mechanism | Self-evolution | Universal-share | Stars / release |
 |---|---|---|---|---|
-| Embedding (primary) | Qwen3-Embedding-4B | `Qwen/Qwen3-Embedding-4B` | ~8 GB | MTEB-multilingual top tier (~69.5), 32k seq, instruction-aware, Russian; sweet spot for the 2× A5000 budget |
-| Embedding (max quality) | Qwen3-Embedding-8B | `Qwen/Qwen3-Embedding-8B` | ~16 GB | MTEB-multilingual #1 (~70.6) if VRAM allows |
-| Embedding (light fallback) | BGE-M3 | `BAAI/bge-m3` | ~2 GB | hybrid dense+sparse+ColBERT in one, battle-tested, MIT |
-| Reranker | Qwen3-Reranker-4B | `Qwen/Qwen3-Reranker-4B` | ~8 GB | same family, vLLM `/v1/rerank` |
-| Reranker (light) | bge-reranker-v2-m3 | `BAAI/bge-reranker-v2-m3` | ~2 GB | CPU-friendly, multilingual |
+| **cognee** | ECL graph+vector + ontology + coreference | `memify`: usage-weighted edge reinforcement + stale-node pruning (Hebbian-like) + `improve()` | FastAPI **API-mode** — many models share one graph; MCP | 26k / v1.2.2 (2026-06) |
+| **Graphiti** (Zep OSS) | bi-temporal KG | edge **invalidation** (validity windows; contradictions close old edges, never delete) → audit-preserving "forget" | `group_id` namespacing; MCP+REST | 28k / v0.29.2 (2026-06) |
+| **Mem0** | vector + entity-graph | ADD/UPDATE/DELETE/NOOP (paper) → append-only v3 | `user_id`/`agent_id` scoping; "universal memory layer" | 60k / 2026-06 |
+| **Letta** (MemGPT) | tiered blocks (RAM/disk) | self-editing blocks + **sleep-time** consolidation agent | shared memory blocks across agents | 24k / 2026-05 |
+| **HippoRAG 2** | neocortex(LLM)+hippocampus(KG)+PPR | non-parametric continual learning | library (wrap it) | 4k / 2025 |
 
-vLLM serves embeddings (`/v1/embeddings`) and rerank (`/v1/rerank`) as first-class
-endpoints. Caveat: the OpenAI-compatible server does not yet pass a per-request
-`instruction` field to the Qwen3 instruction-aware models — prepend the task
-instruction to the query text inside the memory service before embedding.
+- **Primary: cognee** — closest literal fit for "neuron-like connections that strengthen +
+  structural integrity + self-evolving," and its **API-mode is explicitly the universal
+  shared store** ("Claude, GPT-4, local Llama talk to the same cognee instance"). vLLM via
+  LiteLLM `hosted_vllm/`. (https://github.com/topoteretes/cognee, https://docs.cognee.ai/cognee-mcp/mcp-overview)
+- **Alternative/companion: Graphiti** — best when auditable bi-temporal fact validity +
+  provenance (every fact → source episode) matter most. (https://github.com/getzep/graphiti)
+- **HippoRAG 2** as the retrieval engine behind the service for multi-hop reasoning.
 
-## 5. Self-improvement — making models smarter over time (ranked by practicality)
+### Retrieval models (pick ONE embedder, version-pin; all Apache-2.0, vLLM-served, multilingual incl. Russian)
+- Embedding: **Qwen3-Embedding-4B** (~8 GB, MTEB-multi ~69.5) or **-8B** (~16 GB, #1 ~70.6);
+  **BGE-M3** (MIT, ~2 GB, dense+sparse+ColBERT) as the pragmatic light default.
+- Reranker: **Qwen3-Reranker-4B** or **bge-reranker-v2-m3** (light).
+- (Avoid Jina/Cohere-open — CC-BY-NC non-commercial.)
 
-1. **Reflexion** — verbal self-correction stored as episodic memory; zero training,
-   works for external + internal alike. First to wire in.
-2. **ExpeL** — abstracts cross-task natural-language *insights/rules* from successful
-   + failed trajectories; stored in the memory service, injected as few-shot. Pure
-   memory layer.
-3. **Voyager-style skill library** — verified executable skills indexed by NL
-   description; compounding capability for tool/code agents (needs a sandbox to verify).
-4. **Self-RAG** — train (or prompt) a critic to gate retrieval + self-validate.
-5. **Memory → LoRA distillation** — periodically distill accumulated high-value
-   memory/trajectories into a LoRA adapter via continual instruction tuning;
-   **vLLM hot-swaps LoRA adapters natively.** This is the realistic *"internal model
-   gains new capabilities in weights"* path (requirement 5). External API models can't
-   take adapters → for them the memory layer is the ceiling.
-6. **SEAL** (Self-Adapting LLMs, MIT 2025) — model writes its own training data +
-   self-edits weights. Highest ceiling, but research-grade: needs SFT+RL infra and has
-   documented catastrophic forgetting on sequential edits. Roadmap target, not a near-term build.
+## 4. Memory tiers + build-blocks (CoALA taxonomy, arXiv 2309.02427)
 
-**Practical sequence:** Reflexion + ExpeL first (no training, immediate, universal) →
-Voyager skills if there are tool agents → memory→LoRA as the weights-level loop for the
-internal Qwen3.6 → SEAL only as a long-horizon experiment.
+Working / episodic / semantic / procedural. Coverage: **Letta** + **LangGraph+LangMem** are
+the only OSS that cleanly span all four (LangMem adds procedural = evolving system prompts).
+cognee/Graphiti/Mem0 = strong episodic+semantic.
 
-## 6. Phased rollout
+- **Ingestion/extraction:** LLM entity+relation extraction on the local fleet (Graphiti
+  `OpenAIGenericClient` json_schema; or **GLiNER** Apache-2.0 no-LLM NER for cheap/deterministic).
+  Avoid GLiREL/ReLiK (CC-BY-NC).
+- **Entity resolution / dedup (structural integrity):** the production pattern is
+  **embedding-similarity blocking → LLM judge** (Graphiti `resolve_extracted_nodes`: cosine
+  top-15 @ 0.6 → LLM; Mem0 ADD/UPDATE/DELETE/NOOP). Classical add-on: **Splink** (MIT) or
+  **SemHash** (MIT, cosine@0.9) / **datasketch** MinHash-LSH.
+- **Decay / forgetting (brain-like):** Generative-Agents `recency×importance×relevance`
+  (decay 0.995) or **MemoryBank** Ebbinghaus `R=e^(−t/S)` (MIT); LangChain
+  `TimeWeightedVectorStoreRetriever` (decay_rate default 0.01) is the drop-in.
+- **Async consolidation (off the hot path):** keep retrieval cheap+sync; push
+  extraction/dedup/reflection to a background worker (**Celery**/RQ/**arq**) or **Letta
+  sleep-time** (arXiv 2504.13171, ~5× test-time-compute reduction) — batch the cold LLM work
+  on the local vLLM via `LLM.generate()` / `run_batch`. We have idle GPU at night for this.
 
-- **Phase 1 — shared retrieval brain (1–2 weeks).** Stand up the memory service
-  (cognee API-mode) on the homelab: Postgres + pgvector (+ Neo4j or Kuzu for the
-  graph). Point its LLM/embedding at the proxy/vLLM (`hosted_vllm/`). Serve
-  Qwen3-Embedding-4B + Qwen3-Reranker-4B on vLLM. Add the proxy memory-middleware
-  (inject on read, async capture on write). Seed the graph from the existing
-  `chat_rag` corpus (the current simple project-knowledge RAG becomes the bootstrap
-  dataset; the service supersedes it). → external + internal models share one
-  connected memory immediately.
-- **Phase 2 — self-evolution (1 week).** Turn on `memify` consolidation (edge
-  reweighting + stale pruning) + ontology; add Reflexion/ExpeL insight capture. →
-  the brain reorganizes and improves with use.
-- **Phase 3 — internal weights loop (2–4 weeks).** Nightly distiller selects
-  high-value, validated memory → builds a small SFT set → trains a LoRA adapter →
-  hot-swaps into vLLM. Guard against forgetting (held-out eval gate before swap). →
-  the internal model gains new capability, not just recall.
+## 5. Governance & security (a shared store is a poisoning target — OWASP Agentic T1)
 
-## 7. Integration constraints / risks (verified)
+- **Isolation:** do NOT rely on metadata-filter-only (confirmed leakage + injection-bypass).
+  Use DB-enforced isolation: **pgvector + Postgres Row-Level Security** (predicate in the
+  engine), or per-tenant Qdrant collections / Weaviate tenants for regulated data.
+- **PII at ingestion:** **Microsoft Presidio (MIT) + GLiNER-PII (Apache-2.0)**; redact the
+  stored chunks, not just the live turn. (Avoid Piiranha — CC-BY-NC-ND.)
+- **Poisoning (the dominant threat):** MINJA (arXiv 2503.03704) shows an *unprivileged* user
+  can plant memories that later hit others (>95% injection success). Defenses: isolation +
+  ingestion scrubbing + **write-time provenance & source trust-scoring** (down-weight/quarantine
+  by author) + retrieval audit logs.
+- **Forget/GDPR:** Graphiti's two ops — soft invalidation (audit-preserving) + hard delete
+  for erasure; track lineage so deletion reaches derived embeddings/summaries.
+- **Provenance:** Graphiti gives native answer→fact→source-episode backlinks; else store
+  `source_id`/`chunk_id` per row + log retrieved IDs per answer.
 
-- **Tool-calling models only:** memory-tool frameworks (Letta etc.) require the routed
-  model to support function calling — fine for Qwen3.6 + major external APIs, but the
-  middleware approach (inject-into-prompt) avoids this dependency entirely and is why
-  it's preferred over a tool-only design.
-- **Embeddings endpoint required:** the graph engines need an embeddings endpoint
-  alongside chat — ensure the proxy/aggregator exposes one (or point the service at the
-  vLLM embed server directly).
-- **Ingestion is LLM-heavy:** graph extraction (cognee `cognify`, Graphiti per-episode)
-  costs tokens/latency on every write — run it on the internal 35B (off the user path,
-  async) and budget for it; APC (now enabled) makes the repeated-context part cheap.
-- **API churn:** cognee (121 releases) and Mem0 (v3 dropped external graph DBs)
-  iterate fast — pin a version.
-- **Separate-repo touch:** the proxy middleware + aggregator wiring live in
-  `Genesis_proxy_ai` / `Genesis_agregator_ai` (separate projects) — those changes are
-  scoped there, not in this engine repo.
+## 6. Self-improvement — smarter over time (ranked by practicality)
 
-## 8. Bottom line
+1. **Reflexion** + **2. ExpeL** — verbal self-correction + abstracted reusable insights;
+   zero training, pure memory layer, **work for external + internal alike**.
+3. **Voyager skill library** — verified executable skills (for tool/code agents).
+4. **Self-RAG** — critic gates retrieval + self-validates.
+5. **Memory → LoRA distillation** — the realistic *weights-level* path for the **local
+   models** (per §1c, one adapter per architecture; vLLM hot-swaps). MemLoRA/TMEM confirm.
+6. **SEAL** (self-adapting LLMs) — highest ceiling, research-grade (catastrophic forgetting);
+   long-horizon target, not a near-term build.
 
-Stand up **cognee** (API-mode, Postgres+pgvector+graph) as the shared brain behind the
-**proxy memory-middleware**, with **Qwen3-Embedding-4B + Qwen3-Reranker-4B** on vLLM;
-layer **Reflexion + ExpeL** for immediate cross-model learning; and add the
-**memory→LoRA nightly distiller** as the one path that makes the *internal* Qwen3.6
-smarter in weights. Use **Graphiti** instead of cognee if auditable bi-temporal fact
-validity outranks Hebbian consolidation. Validate the comparative quality claims on
-our own data before locking the choice.
+## 7. Evaluation — measure that memory actually helps (adopt before/with build)
+
+- **LongMemEval** (primary, MIT, arXiv 2410.10813) — natively runs the system-under-test on a
+  **self-hosted vLLM** (`serve_vllm.sh`); 5 abilities incl. temporal + abstention. Use a fixed
+  grader.
+- **ConvoMem** (arXiv 2511.10523) — 75k QA, statistical power; **and its key finding gates our
+  whole effort: below ~150 conversations, long-context beats RAG (70-82% vs 30-45%); the heavy
+  memory layer only pays off past ~150-300 interactions.** → don't over-build; gate the KG
+  layer behind a conversation-volume threshold.
+- **Skip LoCoMo as primary** — answer-key 6.4% wrong, lenient judge accepts ~63% of wrong
+  answers, and the public Mem0↔Zep dispute shows the numbers aren't reproducible. Treat all
+  vendor "#1 on LoCoMo/LongMemEval" claims as marketing; **validate on our own data**.
+- Optional: **HHEM-2.1-Open** (Apache-2.0, <600 MB CPU) as a factual-consistency gate on
+  answers (replicates Vectara's hallucination score self-hosted).
+
+## 8. Recommendation & phased rollout
+
+- **Phase 0 — gate (cheap):** measure conversation volume; if a workload is < ~150 repeated
+  interactions, plain long-context + the existing `chat_rag` vector RAG is enough — don't
+  build the KG yet (ConvoMem). Stand up **LongMemEval** self-hosted as the scoreboard first.
+- **Phase 1 — universal retrieval brain:** deploy **cognee API-mode** (Postgres+pgvector
+  (+Neo4j/Kuzu graph)) on the homelab; point its LLM/embed at the proxy/vLLM; serve
+  **Qwen3-Embedding-4B + Qwen3-Reranker-4B**. Add the **proxy memory-middleware**
+  (LiteLLM-style pre-call hook: inject on read, async capture on write) — **shared by all
+  models (Gemma, Qwen, external) by construction**. Seed from the existing `chat_rag` corpus.
+  Add Presidio PII scrubbing + pgvector RLS isolation from day one.
+- **Phase 2 — self-evolution:** enable cognee `memify` (edge reinforcement + pruning) +
+  decay weighting; run extraction/consolidation on the async worker (sleep-time, batched on
+  idle GPU); add Reflexion/ExpeL insight capture.
+- **Phase 3 — per-architecture weights loop:** nightly distiller selects high-value validated
+  memory → SFT set → **one LoRA per local architecture** (Qwen3.6, Gemma-4) → hot-swap into
+  the matching vLLM engine, gated by a held-out eval (forgetting guard). The aggregator routes.
+
+**Bottom line for your concern:** the memory is **universal for every model** because it
+lives in the proxy and injects plain text — Gemma, Qwen, Llama, and external GPT/Claude all
+share one brain. The embedder choice is an internal detail, not a model lock-in. The only
+per-model piece is the optional weights-loop, which is one small LoRA per local architecture,
+served by the engines + aggregator we already run.
 
 ### Key sources
-- cognee: https://github.com/topoteretes/cognee · https://docs.cognee.ai/setup-configuration/llm-providers
-- Graphiti: https://github.com/getzep/graphiti · https://arxiv.org/abs/2501.13956
-- HippoRAG 2: https://arxiv.org/abs/2502.14802 · https://github.com/OSU-NLP-Group/HippoRAG
-- Mem0: https://github.com/mem0ai/mem0 · https://arxiv.org/abs/2504.19413
-- MemOS: https://github.com/MemTensor/MemOS · https://arxiv.org/abs/2505.22101
-- LightRAG: https://github.com/HKUDS/LightRAG · https://arxiv.org/abs/2410.05779
-- SEAL: https://arxiv.org/abs/2506.10943 · ExpeL: https://arxiv.org/abs/2308.10144
-- Qwen3-Embedding/Reranker: https://github.com/QwenLM/Qwen3-Embedding · https://hf.co/Qwen/Qwen3-Embedding-4B
+- Universality/injection: https://docs.litellm.ai/docs/proxy/call_hooks · https://docs.langchain.com/oss/python/langchain/rag · https://huggingface.co/docs/transformers/en/chat_templating
+- Per-arch LoRA: https://docs.vllm.ai/en/latest/features/lora/ · https://github.com/vllm-project/vllm/issues/13633 · https://hf.co/papers/2512.04763 (MemLoRA) · https://hf.co/papers/2606.04536 (TMEM)
+- Engines: https://github.com/topoteretes/cognee · https://github.com/getzep/graphiti · https://github.com/mem0ai/mem0 · https://github.com/letta-ai/letta · https://github.com/OSU-NLP-Group/HippoRAG
+- Tiers/decay: https://arxiv.org/abs/2309.02427 (CoALA) · https://arxiv.org/abs/2305.10250 (MemoryBank) · https://arxiv.org/abs/2304.03442 (Generative Agents) · https://arxiv.org/abs/2504.13171 (sleep-time)
+- Governance: https://arxiv.org/abs/2503.03704 (MINJA) · https://github.com/microsoft/presidio · OWASP Agentic T1
+- Eval: https://github.com/xiaowu0162/LongMemEval · https://arxiv.org/abs/2511.10523 (ConvoMem) · https://huggingface.co/vectara/hallucination_evaluation_model
+- Embedders: https://hf.co/Qwen/Qwen3-Embedding-4B · https://hf.co/BAAI/bge-m3 · https://huggingface.co/spaces/mteb/leaderboard
