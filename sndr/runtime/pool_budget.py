@@ -1,22 +1,29 @@
 # SPDX-License-Identifier: Apache-2.0
 """Centralized per-pool VRAM budget primitive for Genesis prealloc patches.
 
-⚠️  STATUS — PARTIAL SCAFFOLD (Audit A-15 honest 2026-05-06):
-    POC integration WIRED into `kernels/dequant_buffer.py::TurboQuantBufferManager`
-    (firing on 27B INT4 + TQ k8v4 stack, dormant on 35B FP8). Other pools NOT
-    yet wired:
-      - `gdn_scratch_pool.py`        — pending
-      - `gdn_gating_buffer.py`       — pending
-      - `moe_intermediate_cache.py`  — pending
-      - `ffn_intermediate_cache.py`  — pending
-      - `fla_kkt_buffer.py`          — pending
-      - `gdn_core_attn_manager.py`   — pending
+STATUS — API COMPLETE; cross-pool accounting opt-in (default OFF):
+    The budget primitive itself is complete: `check` / `record` / `deduct` /
+    `set_pool_size` / `usage_bytes` / `assert_total_under_budget` / `summary`.
+    `kernels/dequant_buffer.py::TurboQuantBufferManager` (the largest TQ pool) is
+    wired for per-pool enforcement.
+
+    Crucially, the original Audit-A-15 concern — *any single pool growing without
+    bound* — is now addressed at the SOURCE rather than relying on this budget:
+      - PN95 TierManager bookkeeping is self-capped (H1, `_max_tracked_pages`).
+      - PN106 GDN scratch pools honour `GENESIS_PN106_POOL_MAX_BYTES` (H2).
+      - PN59 `o_output` is capped by `gdn_scratch_pool._ENV_O_MAX_T` (Phase A).
+      - GenesisPreallocBuffer.release() now actually frees grown pools (H3).
+    So the remaining pools (gdn_gating_buffer, moe_intermediate_cache,
+    ffn_intermediate_cache, fla_kkt_buffer [GPB-registry-tracked],
+    gdn_core_attn_manager) are bounded by their own shapes; calling
+    `set_pool_size(<patch_id>, current_bytes)` at their grow site is an OPTIONAL
+    cross-pool-observability add-on (`summary` / `assert_total_under_budget`),
+    not a correctness requirement.
     Env vars `GENESIS_POOL_MAX_MIB`, `GENESIS_POOL_TOTAL_MAX_MIB`,
-    `GENESIS_POOL_MAX_MIB_<PATCH>` are runtime-noop except for `dequant_kv`
-    until the remaining pools are wired (separate session).
-    Note: `_USAGE` state is per-process (vllm spawn workers). API server
-    process won't see `record()` calls made by worker processes — for total
-    accounting, query workers individually or use shared-memory backing.
+    `GENESIS_POOL_MAX_MIB_<PATCH>` are no-ops unless explicitly set.
+    Note: `_USAGE` state is per-process (vllm spawn workers). The API-server
+    process won't see worker `record()` calls — for total accounting, query
+    workers individually or back `_USAGE` with shared memory.
 
 WHY THIS EXISTS
 ================
@@ -200,6 +207,21 @@ def deduct(patch_id: str, bytes_freed: int) -> None:
         return
     with _USAGE_LOCK:
         _USAGE[pid] = max(0, _USAGE.get(pid, 0) - int(bytes_freed))
+
+
+def set_pool_size(patch_id: str, current_bytes: int) -> None:
+    """SET (not add) `patch_id`'s tally to the pool's current total size.
+
+    The right primitive for grow-in-place / allocate-once-keep pools (the
+    Genesis prealloc family): they replace one backing buffer with a bigger
+    one, so the live footprint is the LATEST size — not the sum of every grow.
+    Wiring a pool's grow site to call this keeps the cross-pool accounting
+    (`summary` / `assert_total_under_budget`) exact without the caller having
+    to track + `deduct` the prior allocation.
+    """
+    pid = patch_id.upper().strip()
+    with _USAGE_LOCK:
+        _USAGE[pid] = max(0, int(current_bytes))
 
 
 def usage_bytes(patch_id: Optional[str] = None) -> int:
