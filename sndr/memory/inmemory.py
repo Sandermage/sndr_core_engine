@@ -15,7 +15,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Iterator, Sequence
 
 from sndr.memory.model import (
     CO_ACCESS_REL,
@@ -87,6 +87,9 @@ class InMemoryStore(MemoryStore):
 
     def get_node(self, node_id: int) -> MemoryNode | None:
         return self._nodes.get(node_id)
+
+    def iter_nodes(self, owner_id: int) -> Iterator[MemoryNode]:
+        return (n for n in self._nodes.values() if n.owner_id == owner_id)
 
     # ── edges ────────────────────────────────────────────────────────────
     def add_edge(

@@ -13,6 +13,9 @@ Design: docs/design/memory-engine-production-design.md
 """
 from __future__ import annotations
 
+from sndr.memory.embedder import Embedder, HashEmbedder
+from sndr.memory.engine import MemoryEngine
+from sndr.memory.inmemory import InMemoryStore
 from sndr.memory.model import (
     HEBBIAN_ETA,
     HEBBIAN_LAMBDA,
@@ -25,7 +28,11 @@ from sndr.memory.store import MemoryStore
 __all__ = [
     "HEBBIAN_ETA",
     "HEBBIAN_LAMBDA",
+    "Embedder",
+    "HashEmbedder",
+    "InMemoryStore",
     "MemoryEdge",
+    "MemoryEngine",
     "MemoryNode",
     "MemoryStore",
     "SearchHit",

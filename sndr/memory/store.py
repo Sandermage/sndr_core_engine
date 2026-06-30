@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
 
     from sndr.memory.model import MemoryNode, SearchHit
 
@@ -43,6 +43,10 @@ class MemoryStore(ABC):
     @abstractmethod
     def get_node(self, node_id: int) -> MemoryNode | None:
         """Return the node, or None if absent."""
+
+    @abstractmethod
+    def iter_nodes(self, owner_id: int) -> Iterator[MemoryNode]:
+        """Iterate every node belonging to `owner_id` (for the batch linker)."""
 
     # ── edges ────────────────────────────────────────────────────────────
     @abstractmethod

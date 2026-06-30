@@ -75,6 +75,13 @@ class TestNodeCrud:
         b = store.add_node(owner_id=1, kind="note", content="b", embedding=_vec(0, 1))
         assert a != b
 
+    def test_iter_nodes_is_owner_scoped(self, store: InMemoryStore):
+        a = store.add_node(owner_id=1, kind="note", content="a", embedding=_vec(1, 0))
+        b = store.add_node(owner_id=1, kind="note", content="b", embedding=_vec(0, 1))
+        store.add_node(owner_id=2, kind="note", content="other", embedding=_vec(1, 0))
+        got = sorted(n.id for n in store.iter_nodes(owner_id=1))
+        assert got == sorted([a, b])
+
 
 class TestVectorSearch:
     def test_search_ranks_by_cosine(self, store: InMemoryStore):
