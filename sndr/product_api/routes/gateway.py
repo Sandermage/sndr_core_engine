@@ -46,12 +46,37 @@ def _memory(request: Request) -> ConversationMemory:
     return ConversationMemory(engine=engine)
 
 
+def _resolve_upstream(request: Request) -> dict[str, Any]:
+    """Pick the named upstream for this request: X-Memory-Upstream header, else
+    the configured default. 503 if none configured, 400 if the name is unknown."""
+    upstreams: dict[str, Any] = getattr(request.app.state, "gateway_upstreams", None) or {}
+    if not upstreams:
+        raise HTTPException(status_code=503, detail="gateway upstream not configured")
+    name = request.headers.get("X-Memory-Upstream") or getattr(
+        request.app.state, "gateway_default", None
+    )
+    if name is None:
+        name = next(iter(upstreams))
+    up = upstreams.get(name)
+    if up is None:
+        raise HTTPException(status_code=400, detail=f"unknown upstream: {name}")
+    return up
+
+
+@router.get("/v1/upstreams", summary="List configured gateway upstreams (for the GUI)")
+async def list_upstreams(request: Request) -> Any:
+    upstreams: dict[str, Any] = getattr(request.app.state, "gateway_upstreams", None) or {}
+    return JSONResponse({
+        "upstreams": sorted(upstreams),
+        "default": getattr(request.app.state, "gateway_default", None),
+    })
+
+
 @router.post("/v1/chat/completions", summary="Memory-augmented OpenAI chat completions")
 async def chat_completions(request: Request) -> Any:
-    forward = getattr(request.app.state, "gateway_forward", None)
-    stream_fn = getattr(request.app.state, "gateway_stream", None)
-    if forward is None:
-        raise HTTPException(status_code=503, detail="gateway upstream not configured")
+    upstream = _resolve_upstream(request)
+    forward = upstream["forward"]
+    stream_fn = upstream.get("stream")
 
     body: dict[str, Any] = await request.json()
     owner = _owner_from(request)

@@ -52,14 +52,20 @@ The same container exposes an OpenAI-compatible `POST /v1/chat/completions` that
 transparently adds memory to ANY model — recall+inject before the upstream,
 capture after. Point clients at the gateway; it forwards to the upstream you set:
 
+**Choose how it works — multiple named upstreams, selected per request.** Run
+with your CLIProxyAPI *and* another proxy *and* the internal vLLM, and pick one
+per call with the `X-Memory-Upstream: <name>` header (else the default):
+
 | Var | Example | Meaning |
 |---|---|---|
-| `GATEWAY_UPSTREAM_URL` | `http://cliproxy:8317/v1` (external) · `http://127.0.0.1:8102/v1` (internal vLLM) | OpenAI-compatible upstream |
-| `GATEWAY_UPSTREAM_KEY` | `<bearer>` | token the upstream expects (optional) |
+| `GATEWAY_UPSTREAMS` | `{"cliproxy":{"url":"http://cliproxyapi:8317/v1","key":"K"},"local":{"url":"http://vllm:8102/v1","key":"genesis-local"}}` | JSON registry of named upstreams |
+| `GATEWAY_DEFAULT_UPSTREAM` | `cliproxy` | used when no `X-Memory-Upstream` header is sent |
+| `GATEWAY_UPSTREAM_URL` / `GATEWAY_UPSTREAM_KEY` | `http://cliproxy:8317/v1` | single-upstream shortcut (registered as `default`) |
 
-Flow: `client → :8811/v1/chat/completions → recall+inject → UPSTREAM → capture → client`
+`GET /v1/upstreams` → `{"upstreams":[...],"default":"..."}` lists the choices (for a UI/picker).
+Flow: `client → :8811/v1/chat/completions (X-Memory-Upstream?) → recall+inject → UPSTREAM → capture → client`
 (SSE streaming is teed through and the reply reassembled for capture). The
-gateway stays dormant (503) until `GATEWAY_UPSTREAM_URL` is set.
+gateway stays dormant (503) until at least one upstream is configured.
 
 **CLIProxyAPI (external models), unmodified** — run the stock image and bind it
 private; our gateway is the only client:

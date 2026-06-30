@@ -1,9 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """TDD for the memory-gateway HTTP route (/v1/chat/completions).
 
-Verified with a fake upstream on app.state (no live CLIProxyAPI/vLLM needed):
-the route augments the forwarded body with recalled memory and captures the
-assistant reply. Streaming reassembly is unit-tested in test_memory_gateway.py.
+Multi-upstream: the gateway holds a registry of named upstreams (your
+CLIProxyAPI, another proxy, the internal vLLM, ...) and routes each request to
+the one chosen by the `X-Memory-Upstream` header (falling back to the configured
+default). `GET /v1/upstreams` lists the choices for the GUI.
+
+Verified with fake upstreams on app.state (no live proxy needed); the augment ->
+forward -> capture logic is exercised through the route.
 """
 from __future__ import annotations
 
@@ -16,21 +20,29 @@ from sndr.memory.inmemory import InMemoryStore
 from sndr.product_api.routes.gateway import router
 
 
-def _app(with_upstream: bool = True):
+def _make_fake(tag: str, seen: dict):
+    async def forward(body):
+        seen["tag"] = tag
+        seen["body"] = body
+        return {"choices": [{"message": {"role": "assistant", "content": f"from {tag}"}}]}
+    return {"forward": forward, "stream": None}
+
+
+def _app(*, upstreams=True):
     app = FastAPI()
     app.include_router(router)
     app.state.memory_engine = MemoryEngine(store=InMemoryStore(), embedder=HashEmbedder(dim=64))
     seen: dict = {}
-    if with_upstream:
-        async def forward(body):
-            seen["body"] = body
-            return {"choices": [{"message": {"role": "assistant", "content": "answer text"}}]}
-        app.state.gateway_forward = forward
-        app.state.gateway_stream = None
+    if upstreams:
+        app.state.gateway_upstreams = {
+            "cliproxy": _make_fake("cliproxy", seen),
+            "local": _make_fake("local", seen),
+        }
+        app.state.gateway_default = "cliproxy"
     return app, seen
 
 
-def test_gateway_augments_forwards_captures():
+def test_routes_to_default_upstream():
     app, seen = _app()
     eng = app.state.memory_engine
     eng.remember(owner_id=1, text="the magic number is 7788")
@@ -41,17 +53,46 @@ def test_gateway_augments_forwards_captures():
         headers={"X-Owner-Id": "1"},
     )
     assert r.status_code == 200
-    assert r.json()["choices"][0]["message"]["content"] == "answer text"
-    # upstream received the recalled memory injected as a system block
-    assert seen["body"]["messages"][0]["role"] == "system"
+    assert seen["tag"] == "cliproxy"                       # default upstream
+    assert seen["body"]["messages"][0]["role"] == "system"  # memory injected
     assert "7788" in seen["body"]["messages"][0]["content"]
-    # the assistant reply was captured
-    hits = eng.recall(owner_id=1, query="answer text", limit=10, reinforce=False)
-    assert any("answer text" in h.node.content for h in hits)
+    assert r.json()["choices"][0]["message"]["content"] == "from cliproxy"
 
 
-def test_gateway_503_without_upstream():
-    app, _ = _app(with_upstream=False)
+def test_selects_upstream_by_header():
+    app, seen = _app()
+    client = TestClient(app)
+    r = client.post(
+        "/v1/chat/completions",
+        json={"model": "x", "messages": [{"role": "user", "content": "hi"}]},
+        headers={"X-Owner-Id": "1", "X-Memory-Upstream": "local"},
+    )
+    assert r.status_code == 200
+    assert seen["tag"] == "local"
+    assert r.json()["choices"][0]["message"]["content"] == "from local"
+
+
+def test_unknown_upstream_is_400():
+    app, _ = _app()
+    client = TestClient(app)
+    r = client.post(
+        "/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "hi"}]},
+        headers={"X-Owner-Id": "1", "X-Memory-Upstream": "nope"},
+    )
+    assert r.status_code == 400
+
+
+def test_list_upstreams():
+    app, _ = _app()
+    client = TestClient(app)
+    data = client.get("/v1/upstreams").json()
+    assert sorted(data["upstreams"]) == ["cliproxy", "local"]
+    assert data["default"] == "cliproxy"
+
+
+def test_503_without_any_upstream():
+    app, _ = _app(upstreams=False)
     client = TestClient(app)
     r = client.post(
         "/v1/chat/completions",

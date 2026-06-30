@@ -147,22 +147,9 @@ def _init_memory_engine(app: FastAPI) -> None:
     app.state.memory_engine = MemoryEngine(store=store, embedder=embedder)
 
 
-def _init_gateway(app: FastAPI) -> None:
-    """Configure the memory-gateway upstream from env (httpx). When
-    GATEWAY_UPSTREAM_URL is unset, the gateway route stays dormant (503) — the
-    rest of the app is unaffected.
-
-      GATEWAY_UPSTREAM_URL  e.g. http://cliproxy:8317/v1 (external) or
-                            http://127.0.0.1:8102/v1 (internal vLLM)
-      GATEWAY_UPSTREAM_KEY  bearer token the upstream expects (optional)
-    """
-    import os
-
-    url = os.environ.get("GATEWAY_UPSTREAM_URL")
-    if not url:
-        return
+def _make_upstream(url: str, key: str | None) -> dict:
+    """Build httpx forward/stream closures for one OpenAI-compatible upstream."""
     base = url.rstrip("/")
-    key = os.environ.get("GATEWAY_UPSTREAM_KEY")
 
     def _headers() -> dict[str, str]:
         h = {"Content-Type": "application/json"}
@@ -189,9 +176,53 @@ def _init_gateway(app: FastAPI) -> None:
             async for chunk in resp.aiter_bytes():
                 yield chunk
 
-    app.state.gateway_forward = forward
-    app.state.gateway_stream = stream
-    log.info("product_api.gateway.upstream", extra={"upstream": base})
+    return {"forward": forward, "stream": stream, "url": base}
+
+
+def _init_gateway(app: FastAPI) -> None:
+    """Configure the memory-gateway upstream registry from env. Each request
+    picks an upstream by the `X-Memory-Upstream` header, else the default; the
+    route stays dormant (503) until at least one upstream is configured.
+
+    Two ways to configure (combinable), so you can run with your CLIProxyAPI,
+    another proxy, and/or the internal vLLM and choose per request:
+
+      GATEWAY_UPSTREAMS   JSON map, e.g.
+        {"cliproxy":{"url":"http://cliproxyapi:8317/v1","key":"..."},
+         "local":{"url":"http://vllm:8102/v1","key":"genesis-local"}}
+      GATEWAY_DEFAULT_UPSTREAM   name used when no header is sent
+      GATEWAY_UPSTREAM_URL / GATEWAY_UPSTREAM_KEY   single-upstream shortcut
+        (registered as "default")
+    """
+    import json
+    import os
+
+    upstreams: dict[str, dict] = {}
+    raw = os.environ.get("GATEWAY_UPSTREAMS")
+    if raw:
+        try:
+            cfg = json.loads(raw)
+        except (ValueError, TypeError):
+            log.warning("product_api.gateway.bad_upstreams_json")
+            cfg = {}
+        for name, spec in (cfg or {}).items():
+            if isinstance(spec, dict) and spec.get("url"):
+                upstreams[name] = _make_upstream(spec["url"], spec.get("key"))
+
+    url = os.environ.get("GATEWAY_UPSTREAM_URL")
+    if url and "default" not in upstreams:
+        upstreams["default"] = _make_upstream(url, os.environ.get("GATEWAY_UPSTREAM_KEY"))
+
+    if not upstreams:
+        return
+    app.state.gateway_upstreams = upstreams
+    app.state.gateway_default = (
+        os.environ.get("GATEWAY_DEFAULT_UPSTREAM") or next(iter(upstreams))
+    )
+    log.info(
+        "product_api.gateway.upstreams",
+        extra={"names": sorted(upstreams), "default": app.state.gateway_default},
+    )
 
 
 def _mount_carbon_ui(app: FastAPI) -> None:
