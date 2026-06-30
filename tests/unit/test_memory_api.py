@@ -104,6 +104,30 @@ class TestNodeNeighborsStats:
         assert any(n["rel"] == "similar_to" for n in nb)
 
 
+class TestInvalidateEdge:
+    def test_invalidate_edge_removes_from_graph(self, client):
+        a = _remember(client, "alpha note one")
+        b = _remember(client, "beta note two")
+        client.post("/api/v1/memory/link", json={"tau": 0.0, "k": 10},
+                    headers={"X-Owner-Id": "1"})
+        nb_before = client.get(f"/api/v1/memory/neighbors/{a}",
+                               headers={"X-Owner-Id": "1"}).json()["data"]
+        rel = nb_before[0]["rel"]
+        r = client.post("/api/v1/memory/edge/invalidate",
+                        json={"src": min(a, b), "dst": max(a, b), "rel": rel},
+                        headers={"X-Owner-Id": "1"})
+        assert r.json()["data"]["invalidated"] is True
+        g = client.get("/api/v1/memory/graph", headers={"X-Owner-Id": "1"}).json()["data"]
+        assert not any(e["rel"] == rel for e in g["edges"])  # excluded from graph
+
+    def test_invalidate_edge_owner_scoped_404(self, client):
+        _remember(client, "x", owner=1)
+        r = client.post("/api/v1/memory/edge/invalidate",
+                        json={"src": 1, "dst": 2, "rel": "co_access"},
+                        headers={"X-Owner-Id": "2"})
+        assert r.status_code == 404
+
+
 class TestObsidianImport:
     def test_import_confined_and_creates_graph(self, client, tmp_path, monkeypatch):
         (tmp_path / "A.md").write_text("links [[B]]\n", encoding="utf-8")

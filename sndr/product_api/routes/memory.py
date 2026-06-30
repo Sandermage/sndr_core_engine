@@ -27,6 +27,8 @@ from sndr.product_api.schemas.memory import (
     GraphNodeOut,
     GraphOut,
     HitOut,
+    InvalidateEdgeIn,
+    InvalidateEdgeOut,
     LinkIn,
     LinkOut,
     NeighborOut,
@@ -113,6 +115,17 @@ async def get_node(node_id: int, request: Request) -> Envelope[NodeOut]:
     if node is None or node.owner_id != owner:
         raise HTTPException(status_code=404, detail="node not found")
     return Envelope(data=_node_out(node), meta=_meta())
+
+
+@router.post("/edge/invalidate", summary="Invalidate (bi-temporally retire) an edge")
+async def invalidate_edge(body: InvalidateEdgeIn, request: Request) -> Envelope[InvalidateEdgeOut]:
+    eng = _engine(request)
+    owner = _owner_from(request)
+    src = eng.store.get_node(body.src)
+    if src is None or src.owner_id != owner:
+        raise HTTPException(status_code=404, detail="source node not found")
+    ok = eng.store.invalidate_edge(body.src, body.dst, body.rel)
+    return Envelope(data=InvalidateEdgeOut(invalidated=ok), meta=_meta())
 
 
 @router.get("/neighbors/{node_id}", summary="Adjacent nodes")
