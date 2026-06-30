@@ -88,6 +88,26 @@ class TestNodeNeighborsStats:
         assert any(n["rel"] == "similar_to" for n in nb)
 
 
+class TestGraph:
+    def test_graph_returns_nodes_and_edges(self, client):
+        a = _remember(client, "postgres vector memory graph")
+        b = _remember(client, "postgres vector memory engine")
+        client.post("/api/v1/memory/link", json={"tau": 0.5, "k": 10},
+                    headers={"X-Owner-Id": "1"})
+        g = client.get("/api/v1/memory/graph", headers={"X-Owner-Id": "1"}).json()["data"]
+        assert {n["id"] for n in g["nodes"]} == {a, b}
+        assert any(
+            e["rel"] == "similar_to" and {e["src"], e["dst"]} == {a, b}
+            for e in g["edges"]
+        )
+
+    def test_graph_is_owner_scoped(self, client):
+        _remember(client, "owner one note", owner=1)
+        _remember(client, "owner two note", owner=2)
+        g = client.get("/api/v1/memory/graph", headers={"X-Owner-Id": "2"}).json()["data"]
+        assert all(n["content"] == "owner two note" for n in g["nodes"])
+
+
 class TestRecallBrain:
     def test_recall_reaches_linked_neighbor_via_expand(self, client):
         a = _remember(client, "postgres vector memory graph")

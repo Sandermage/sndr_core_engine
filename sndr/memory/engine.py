@@ -77,6 +77,28 @@ class MemoryEngine:
             reinforce=reinforce,
         )
 
+    # ── graph view ───────────────────────────────────────────────────────
+    def graph(
+        self, *, owner_id: int, limit: int = 200
+    ) -> tuple[list, list[tuple[int, int, str, float]]]:
+        """Return (nodes, edges) for an owner's memory graph, bounded to `limit`
+        nodes — the data the GUI force-graph renders. Edges are the undirected
+        set among the returned nodes (deduped). Storage-agnostic."""
+        nodes = list(self.store.iter_nodes(owner_id))[:limit]
+        ids = {n.id for n in nodes}
+        edges: list[tuple[int, int, str, float]] = []
+        seen: set[tuple[int, int, str]] = set()
+        for node in nodes:
+            for neigh_id, rel, weight in self.store.neighbors(node.id):
+                if neigh_id not in ids:
+                    continue
+                key = (min(node.id, neigh_id), max(node.id, neigh_id), rel)
+                if key in seen:
+                    continue
+                seen.add(key)
+                edges.append((key[0], key[1], rel, weight))
+        return nodes, edges
+
     # ── batch graph building ─────────────────────────────────────────────
     def link_semantic(
         self,

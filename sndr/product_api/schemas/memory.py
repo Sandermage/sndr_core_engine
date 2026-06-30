@@ -66,7 +66,28 @@ class StatsOut(BaseModel):
     edges: int
 
 
+class GraphNodeOut(BaseModel):
+    id: int
+    content: str
+    kind: str
+    community_id: int | None
+    importance: float
+    access_count: int
+
+
+class GraphEdgeOut(BaseModel):
+    src: int
+    dst: int
+    rel: str
+    weight: float
+
+
+class GraphOut(BaseModel):
+    nodes: list[GraphNodeOut]
+    edges: list[GraphEdgeOut]
+
+
 __all__ = [
-    "HitOut", "LinkIn", "LinkOut", "NeighborOut", "NodeOut",
-    "RecallIn", "RememberIn", "RememberOut", "StatsOut",
+    "GraphEdgeOut", "GraphNodeOut", "GraphOut", "HitOut", "LinkIn", "LinkOut",
+    "NeighborOut", "NodeOut", "RecallIn", "RememberIn", "RememberOut", "StatsOut",
 ]

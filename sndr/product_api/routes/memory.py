@@ -20,6 +20,9 @@ from fastapi import APIRouter, HTTPException, Request
 
 from sndr.product_api.schemas.common import Envelope, ResponseMeta
 from sndr.product_api.schemas.memory import (
+    GraphEdgeOut,
+    GraphNodeOut,
+    GraphOut,
     HitOut,
     LinkIn,
     LinkOut,
@@ -125,6 +128,29 @@ async def stats(request: Request) -> Envelope[StatsOut]:
         data=StatsOut(
             nodes=eng.store.count_nodes(owner_id=owner),
             edges=eng.store.count_edges(),
+        ),
+        meta=_meta(),
+    )
+
+
+@router.get("/graph", summary="Owner memory graph (nodes + edges) for visualization")
+async def graph(request: Request, limit: int = 200) -> Envelope[GraphOut]:
+    eng = _engine(request)
+    nodes, edges = eng.graph(owner_id=_owner_from(request), limit=limit)
+    return Envelope(
+        data=GraphOut(
+            nodes=[
+                GraphNodeOut(
+                    id=n.id, content=n.content, kind=n.kind,
+                    community_id=n.community_id, importance=n.importance,
+                    access_count=n.access_count,
+                )
+                for n in nodes
+            ],
+            edges=[
+                GraphEdgeOut(src=s, dst=d, rel=r, weight=w)
+                for (s, d, r, w) in edges
+            ],
         ),
         meta=_meta(),
     )
