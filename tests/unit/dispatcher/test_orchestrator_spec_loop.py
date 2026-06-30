@@ -200,6 +200,15 @@ class TestSpecOnlySupplement:
     PN392 is the canonical probe: spec-only, apply_module imports torch-less
     (so dry-run yields a deterministic 'applied: dry-run ready'), env flag
     GENESIS_ENABLE_PN392_QWEN3CODER_STREAMING_COALESCE.
+
+    NOTE: PN392 was lifecycle-retired (upstream streaming coalesce merged). The
+    GAP4 lifecycle gate (decision._check_lifecycle_gate) now hard-skips retired
+    patches on every apply path, so the two tests that assert PN392 *applies*
+    set GENESIS_ALLOW_RETIRED=1 — they exercise the supplement WIRING on the
+    known torch-less probe, not lifecycle policy (that is covered by
+    test_decision_lifecycle_gate.py). The disabled/absent and spec-boot tests
+    need no escape hatch: a should_apply=False patch is silently dropped by the
+    supplement and emits a skip-row in the spec loop.
     """
 
     PN392_FLAG = "GENESIS_ENABLE_PN392_QWEN3CODER_STREAMING_COALESCE"
@@ -223,6 +232,7 @@ class TestSpecOnlySupplement:
         appears as applied. Before the supplement it was absent."""
         monkeypatch.delenv("SNDR_APPLY_VIA_SPECS", raising=False)
         monkeypatch.setenv(self.PN392_FLAG, "1")
+        monkeypatch.setenv("GENESIS_ALLOW_RETIRED", "1")  # PN392 is retired; test the wiring
         o = _orch()
         stats = o.run(verbose=False, apply=False)
         pn392 = [r for r in stats.results if r.name.startswith("PN392")]
@@ -256,6 +266,7 @@ class TestSpecOnlySupplement:
         spec-only patch appears exactly once (never via both paths)."""
         monkeypatch.delenv("SNDR_APPLY_VIA_SPECS", raising=False)
         monkeypatch.setenv(self.PN392_FLAG, "1")
+        monkeypatch.setenv("GENESIS_ALLOW_RETIRED", "1")  # PN392 is retired; test the wiring
         o = _orch()
         stats = o.run(verbose=False, apply=False)
         pn392 = [r for r in stats.results if r.name.startswith("PN392")]

@@ -337,6 +337,10 @@ def _resolve_env_override(
     override; ``config_detect`` is consulted for the reason string but
     cannot block the apply.
     """
+    # GAP4: a retired patch never engages, even under an explicit env override.
+    lifecycle_skip = _check_lifecycle_gate(patch_id, meta)
+    if lifecycle_skip is not None:
+        return lifecycle_skip
     # Layer 2 applies_to is informational under env-override
     compat, compat_reason = _check_applies_to(patch_id, meta)
     if not compat:
@@ -378,6 +382,10 @@ def _resolve_legacy_default_on(
     ``default_on=True`` patches enforce ``applies_to`` as a Layer-2
     HARD skip and then consult ``config_detect``.
     """
+    # GAP4: a retired patch never engages, even in legacy default-on mode.
+    lifecycle_skip = _check_lifecycle_gate(patch_id, meta)
+    if lifecycle_skip is not None:
+        return lifecycle_skip
     if not meta.get("default_on", False):
         if meta.get("deprecated", False):
             return False, (
@@ -519,6 +527,37 @@ def _check_version_gate(
             "(GENESIS_ENFORCE_VERSION_RANGE=1 — version range excludes the "
             "running engine; this patch is for a different pin window)"
         )
+    return None
+
+
+def _allow_retired() -> bool:
+    return os.environ.get(
+        "GENESIS_ALLOW_RETIRED", ""
+    ).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _check_lifecycle_gate(
+    patch_id: str, meta: dict[str, Any],
+) -> Optional[tuple[bool, str]]:
+    """GAP4 — hard-skip a ``lifecycle=retired`` patch on any apply path, even
+    when its ENABLE flag is set and its apply_module is still present in the
+    tree.
+
+    Pin-upgrade break-safety: a patch retired because upstream merged it (or
+    because it no longer fits the running engine) must not silently re-engage
+    when a stale ``GENESIS_ENABLE_*`` flag is carried across a bump. The
+    version-range gate only catches patches that *declare* an upper bound and
+    only when ``GENESIS_ENFORCE_VERSION_RANGE=1``; this gate is the unconditional
+    backstop for the retired lifecycle state. Escape for diagnostics:
+    ``GENESIS_ALLOW_RETIRED=1``. Returns a skip-decision, or ``None`` to proceed.
+    """
+    try:
+        from sndr.compat.lifecycle import is_engageable
+    except Exception:
+        return None  # fail-open: never block dispatch on a lifecycle import error
+    ok, reason = is_engageable(meta, allow_gated=_allow_retired())
+    if not ok:
+        return False, f"LIFECYCLE: {reason}"
     return None
 
 
