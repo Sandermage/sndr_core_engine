@@ -81,7 +81,7 @@ docker run -d \
   # See full instantiated version at /tmp/start_35b_optimal.sh on rig.
   --entrypoint /bin/bash \
   vllm/vllm-openai:nightly-4c626633159887b0f2c962058c17c78f1434556d \
-  -c "set -e; \
+  -c "set -eo pipefail; \
       pip install --quiet --disable-pip-version-check --root-user-action=ignore \
         pandas==2.2.3 scipy==1.14.1 xxhash==3.5.0 pyyaml packaging zstandard==0.23.0 2>&1 | tail -2; \
       pip install -e /genesis-vllm-patches --no-deps --quiet --disable-pip-version-check --root-user-action=ignore 2>&1 | tail -2; \
