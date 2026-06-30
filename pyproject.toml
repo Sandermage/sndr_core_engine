@@ -96,6 +96,12 @@ http = [
 memory = [
     "psycopg[binary]>=3.1",
 ]
+# `pip install vllm-sndr-core[memory-embed]` for the real CPU embedder
+# (Model2Vec static distillation, ~30 MB, no GPU/torch at inference). The engine
+# defaults to the dependency-free HashEmbedder; this enables GENESIS_MEMORY_EMBEDDER=model2vec.
+memory-embed = [
+    "model2vec>=0.3",
+]
 # `pip install vllm-sndr-core[gui-api]` for the local read-only Product
 # API daemon consumed by GUI/web/desktop clients. Authentication (local
 # accounts, TOTP 2FA, sessions, OAuth) uses only the standard library — no

@@ -13,7 +13,7 @@ Design: docs/design/memory-engine-production-design.md
 """
 from __future__ import annotations
 
-from sndr.memory.embedder import Embedder, HashEmbedder
+from sndr.memory.embedder import Embedder, HashEmbedder, Model2VecEmbedder
 from sndr.memory.engine import MemoryEngine
 from sndr.memory.inmemory import InMemoryStore
 from sndr.memory.middleware import ConversationMemory
@@ -33,6 +33,7 @@ __all__ = [
     "Embedder",
     "HashEmbedder",
     "InMemoryStore",
+    "Model2VecEmbedder",
     "MemoryEdge",
     "MemoryEngine",
     "MemoryNode",

@@ -75,3 +75,32 @@ class HashEmbedder(Embedder):
         if norm == 0.0:
             return vec  # empty / token-less text -> zero vector
         return [x / norm for x in vec]
+
+
+class Model2VecEmbedder(Embedder):
+    """Real CPU embedder — Model2Vec static distillation (no GPU, ~30 MB).
+
+    Default minishlab/potion-base-8M (256-dim). `model2vec` is an optional
+    dependency ([memory-embed] extra), lazy-imported so this module stays
+    importable without it. Output is L2-normalized for cosine consistency with
+    the rest of the engine.
+    """
+
+    def __init__(self, model: str = "minishlab/potion-base-8M") -> None:
+        from model2vec import StaticModel  # lazy: optional dependency
+
+        self._model = StaticModel.from_pretrained(model)
+        # Probe one vector to learn the dimension (robust across model versions).
+        self._dim = len(self._model.encode(["x"])[0])
+
+    @property
+    def dim(self) -> int:
+        return self._dim
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        out: list[list[float]] = []
+        for row in self._model.encode(list(texts)):
+            vec = [float(x) for x in row]
+            norm = math.sqrt(sum(x * x for x in vec))
+            out.append([x / norm for x in vec] if norm else vec)
+        return out

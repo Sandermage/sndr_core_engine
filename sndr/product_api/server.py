@@ -111,10 +111,24 @@ def _init_memory_engine(app: FastAPI) -> None:
     """
     import os
 
-    from sndr.memory.embedder import HashEmbedder
     from sndr.memory.engine import MemoryEngine
 
-    dim = int(os.environ.get("GENESIS_MEMORY_DIM", "256"))
+    # Embedder by env: model2vec (real CPU embedder) or the dep-free hash fallback.
+    # The store's vector dim derives from the embedder, so they always match.
+    if os.environ.get("GENESIS_MEMORY_EMBEDDER", "hash").lower() == "model2vec":
+        from sndr.memory.embedder import Model2VecEmbedder
+
+        embedder = Model2VecEmbedder(
+            os.environ.get("GENESIS_MEMORY_MODEL", "minishlab/potion-base-8M")
+        )
+        log.info("product_api.memory.embedder", extra={"embedder": "model2vec"})
+    else:
+        from sndr.memory.embedder import HashEmbedder
+
+        embedder = HashEmbedder(dim=int(os.environ.get("GENESIS_MEMORY_DIM", "256")))
+        log.info("product_api.memory.embedder", extra={"embedder": "hash"})
+    dim = embedder.dim
+
     dsn = os.environ.get("GENESIS_MEMORY_DSN")
     if dsn:
         from sndr.memory.postgres import PostgresStore
@@ -126,7 +140,7 @@ def _init_memory_engine(app: FastAPI) -> None:
 
         store = InMemoryStore()
         log.info("product_api.memory.backend", extra={"backend": "inmemory"})
-    app.state.memory_engine = MemoryEngine(store=store, embedder=HashEmbedder(dim=dim))
+    app.state.memory_engine = MemoryEngine(store=store, embedder=embedder)
 
 
 def _mount_carbon_ui(app: FastAPI) -> None:
