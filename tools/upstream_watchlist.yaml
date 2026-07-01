@@ -27,9 +27,16 @@ watch:
         (Gemma 4 dual-RoPE base-freq divergence guard).
     (b) truncate_prompt_tokens (#41800): native in v0.24.0; we vendor no equivalent.
     (c) marlin-pad native: audit our marlin-path patches (P37/P81 family).
-    Two club findings worth our OWN measurement (not a directive):
-    (d) MTP measured SLOWER on Gemma-4 MoE -> their dual repointed MTP-off (#537);
-        verify-per-model on our gemma-4-*-mtp presets before shipping MTP there.
+    Two club findings — for (d) we already have the answer by design:
+    (d) club found MTP SLOWER on Gemma-4 MoE with a FIXED K -> they repointed their
+        dual to MTP-off (#537). We do NOT ship a fixed K: SNDR_MTP_DYNAMIC_K_001
+        (per-seq adaptive-K MTP proposer, port of vllm#26504 — rolling accept-rate
+        window len=10 + hysteresis; K++ when acceptance high, K-- down to 1 when low)
+        + PN40-C (adaptive K) + per-task K presets (gemma4-*-mtp-chat-k3 /
+        -structured-k4). Our adaptive-K lowers K exactly on the low-acceptance tasks
+        where club's fixed-K lost -> their finding VALIDATES our design. Action:
+        confirm adaptive-K is enabled/tuned on the gemma-4 MTP presets (per-task,
+        acceptance-driven) — NOT disable MTP wholesale.
     (e) W8A8 int8 (weights+activations) ~zero quality cost, +17-51% prefill,
         TTFT 122 vs 158 ms (their experimental v0.24.0 row) -> a prefill-optimised
         variant worth an A/B if we add one.
