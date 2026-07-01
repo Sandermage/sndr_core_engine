@@ -109,6 +109,14 @@ EXPECTED_PINS = (
     # previous/rollback per CLAUDE.md ≤2-pin policy.
     "0.23.1rc1.dev424+g3f5a1e173",                       # setuptools_scm-derived
     "nightly-3f5a1e1733200760169ff31ebe60a271072b199e",  # docker tag form (full SHA)
+    # PROD pin PROMOTED 2026-07-01 — image nightly-93d8f834 (0.23.1rc1.dev672
+    # +g93d8f834d, +248 commits over dev424). Operator-authorized bump, live 35B
+    # window: boot failed=0, 240.55 wall_TPS (98.4% of dev424, within CV), 7/7
+    # tool-call. TurboQuant KV now upstream-native (P5 defers on #39931, P8
+    # retired); PN8 native (#40849); PN30 version-gated <0.23.0. dev424 retained
+    # as previous/rollback; dev301 dropped per CLAUDE.md ≤2-pin policy.
+    "0.23.1rc1.dev672+g93d8f834d",                       # setuptools_scm-derived
+    "nightly-93d8f834dd8acf33eb0e2a75b2711b628cb6e226",  # docker tag form (full SHA)
 )
 
 
