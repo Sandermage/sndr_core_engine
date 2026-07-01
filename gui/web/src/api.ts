@@ -575,7 +575,7 @@ export type NodeSetupResult = { ok: boolean; applied: boolean; port?: number; st
 
 export type ModelArch = { name: string; num_layers: number; num_kv_heads: number; head_dim: number; params_b: number; weight_bits: number; is_moe: boolean; active_params_b: number | null };
 export type CalcModels = { models: Record<string, ModelArch>; kv_dtypes: Record<string, number> };
-export type KvEstimate = { model: string; weights_per_gpu_mib: number; kv_per_gpu_mib: number; kv_total_mib: number; overhead_mib: number; total_per_gpu_mib: number; budget_per_gpu_mib: number; headroom_mib: number; fits: boolean; max_context: number; kv_bytes_per_token: number; tp: number; concurrency: number; context: number };
+export type KvEstimate = { model: string; weights_per_gpu_mib: number; kv_per_gpu_mib: number; kv_total_mib: number; overhead_mib: number; total_per_gpu_mib: number; budget_per_gpu_mib: number; headroom_mib: number; fits: boolean; verdict?: "pass" | "tight" | "fail"; kv_pool_capped_mib?: number | null; warnings?: string[]; max_context: number; kv_bytes_per_token: number; tp: number; concurrency: number; context: number };
 export type KvCurvePoint = { context: number; weights_mib: number; kv_mib: number; overhead_mib: number; total_mib: number; fits: boolean };
 export type EnvelopeCell = { context: number; concurrency: number; fits: boolean; headroom_mib: number; total_per_gpu_mib: number };
 export type KvRec = { kv_dtype: string; kv_bytes: number; fits: boolean; headroom_mib: number; max_context: number; total_per_gpu_mib: number; recommended: boolean };

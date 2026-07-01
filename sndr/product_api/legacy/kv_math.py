@@ -152,6 +152,39 @@ def estimate(
             denom = glob if glob else n_grow
             max_context = int((budget_layer_tokens - local * window) / denom) if denom else 0
 
+    # Three-way verdict (vLLM reality, not a binary fits/doesn't). vLLM boots even
+    # when the requested KV pool exceeds free VRAM — it CAPS the pool (TIGHT:
+    # effective concurrency/context reduced) instead of failing. FAIL is reserved
+    # for when the fixed weights+overhead can't even fit a minimal boot pool. The
+    # boot floor is per-sequence, not a flat 1 GB (a flat floor false-FAILs
+    # KV-light MoE/SWA models).
+    _gib = 1024 * _MIB
+    fixed_per_gpu = weights_per_gpu + overhead_b
+    min_kv_per_gpu = max(0.01 * _gib, min(1.0 * _gib, kv_per_gpu / concurrency))
+    if fixed_per_gpu + min_kv_per_gpu > budget_per_gpu:
+        verdict = "fail"
+    elif total_per_gpu > budget_per_gpu:
+        verdict = "tight"
+    else:
+        verdict = "pass"
+    kv_pool_capped_mib = (
+        round(max(0.0, budget_per_gpu - fixed_per_gpu) / _MIB) if verdict == "tight" else None
+    )
+
+    warnings: list[str] = []
+    # Valid-TP: tensor-parallel width must divide the KV heads (GQA) — vLLM errors otherwise.
+    if tp > 1 and arch.num_kv_heads % tp != 0:
+        warnings.append(
+            f"TP={tp} does not divide {arch.num_kv_heads} KV heads — invalid tensor-parallel width"
+        )
+    # Cliff 2: hybrid GDN forward OOMs at ~50-60K single-prompt tokens on one 24GB
+    # card regardless of mem-util, for non-fp16 KV — a hard ceiling a byte budget misses.
+    if arch.attn_layers is not None and tp == 1 and context > 50000 and kv_bytes < 2.0:
+        warnings.append(
+            "Cliff 2: hybrid GDN may OOM past ~50-60K single-prompt tokens on one card "
+            "(kv≠fp16), regardless of budget — split across GPUs or use fp16 KV"
+        )
+
     mib = lambda b: round(b / _MIB)  # noqa: E731
     return {
         "model": arch.name,
@@ -163,6 +196,9 @@ def estimate(
         "budget_per_gpu_mib": mib(budget_per_gpu),
         "headroom_mib": mib(budget_per_gpu - total_per_gpu),
         "fits": total_per_gpu <= budget_per_gpu,
+        "verdict": verdict,                       # "pass" | "tight" | "fail"
+        "kv_pool_capped_mib": kv_pool_capped_mib,  # capped KV pool when TIGHT
+        "warnings": warnings,
         "max_context": max(0, max_context),
         "kv_bytes_per_token": kv_bpt,
         "tp": tp,

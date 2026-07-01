@@ -2720,6 +2720,7 @@ button.chip { font-family: inherit; line-height: 1.2; }
 .kvcalc-slider input[type=range] { width: 100%; accent-color: var(--accent); }
 .kvcalc-verdict { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
 .kvcalc-verdict.ok { color: var(--ok); } .kvcalc-verdict.bad { color: var(--danger); }
+.kvcalc-verdict.warn { color: var(--warn); }
 .kvcalc-bar { display: flex; height: 26px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border); background: var(--surface-inset); }
 .kvcalc-seg { height: 100%; transition: width 0.15s; }
 .seg-weights, .kvcalc-legend i.seg-weights { background: var(--info); }

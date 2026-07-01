@@ -150,9 +150,17 @@ export function KvCalcPanel() {
           </div>
         </div>
       )}
+      {r?.warnings && r.warnings.length > 0 && (
+        <div className="kvcalc-rec bad" role="alert">
+          <AlertTriangle size={16} />
+          <div className="kvcalc-rec-text">
+            {r.warnings.map((w) => <span key={w}>{w}</span>)}
+          </div>
+        </div>
+      )}
 
       <label className="kvcalc-slider">
-        <div className="kvcalc-slider-head"><span>{tr("Context")}</span><strong>{ctx.toLocaleString()} {tr("tokens")}</strong>{r && <span className={`kvcalc-verdict ${r.fits ? "ok" : "bad"}`}>{r.fits ? <><CheckCircle2 size={13} /> {tr("fits")} · {fmtGb(r.headroom_mib)} {tr("free")}</> : <><AlertTriangle size={13} /> {fmtGb(-r.headroom_mib)} {tr("over budget")}</>}</span>}</div>
+        <div className="kvcalc-slider-head"><span>{tr("Context")}</span><strong>{ctx.toLocaleString()} {tr("tokens")}</strong>{r && (() => { const v = r.verdict ?? (r.fits ? "pass" : "fail"); return <span className={`kvcalc-verdict ${v === "pass" ? "ok" : v === "tight" ? "warn" : "bad"}`}>{v === "pass" ? <><CheckCircle2 size={13} /> {tr("fits")} · {fmtGb(r.headroom_mib)} {tr("free")}</> : v === "tight" ? <><AlertTriangle size={13} /> {tr("tight — vLLM caps KV pool to")} {fmtGb(r.kv_pool_capped_mib ?? 0)}</> : <><AlertTriangle size={13} /> {fmtGb(-r.headroom_mib)} {tr("over budget")}</>}</span>; })()}</div>
         <input type="range" min={1024} max={Math.max(262144, (r?.max_context ?? 0) + 8192)} step={1024} value={ctx} onChange={(e) => setCtx(Number(e.target.value))} />
       </label>
 

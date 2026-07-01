@@ -36,6 +36,35 @@ def test_new_kv_dtypes_have_exact_bytes():
     assert kv_math.KV_DTYPE_BYTES["int8_per_token_head"] == 1.01
 
 
+def test_three_way_verdict_pass_tight_fail():
+    arch = kv_math.ModelArch(name="v", num_layers=64, num_kv_heads=8, head_dim=128, params_b=27.0, weight_bits=4)  # ~13.5 GB weights
+    # PASS: comfy budget, small context.
+    e = kv_math.estimate(arch, context=8192, tp=1, kv_bytes=1.0, gpu_vram_mib=24564, util=0.9)
+    assert e["verdict"] == "pass" and e["fits"] is True
+    # TIGHT: weights+overhead fit, but the requested KV pool pushes past budget →
+    # vLLM caps the pool (boots) rather than failing.
+    e = kv_math.estimate(arch, context=200000, tp=1, kv_bytes=2.0, gpu_vram_mib=24564, util=0.9)
+    assert e["verdict"] == "tight" and e["fits"] is False
+    assert e["kv_pool_capped_mib"] and e["kv_pool_capped_mib"] > 0
+    # FAIL: weights alone blow the budget (tiny card) — can't even boot.
+    e = kv_math.estimate(arch, context=8192, tp=1, kv_bytes=1.0, gpu_vram_mib=8192, util=0.9)
+    assert e["verdict"] == "fail"
+
+
+def test_warnings_invalid_tp_and_cliff2():
+    hybrid = kv_math.ModelArch(name="h", num_layers=64, attn_layers=16, num_kv_heads=4, head_dim=256, params_b=27.0, weight_bits=4)
+    # invalid TP (3 does not divide 4 KV heads)
+    e = kv_math.estimate(hybrid, context=8192, tp=3, kv_bytes=0.5, gpu_vram_mib=24564)
+    assert any("does not divide" in w for w in e["warnings"])
+    # Cliff-2: hybrid, single card, >50K ctx, non-fp16 KV
+    e = kv_math.estimate(hybrid, context=131072, tp=1, kv_bytes=0.5, gpu_vram_mib=24564)
+    assert any("Cliff 2" in w for w in e["warnings"])
+    # ...but not for a comfortable dense fp16 case
+    dense = kv_math.ModelArch(name="d", num_layers=32, num_kv_heads=8, head_dim=128, params_b=8.0, weight_bits=16)
+    e = kv_math.estimate(dense, context=8192, tp=2, kv_bytes=2.0, gpu_vram_mib=24564)
+    assert e["warnings"] == []
+
+
 def test_weights_bytes_respect_quant_bits():
     arch = kv_math.ModelArch(name="t", num_layers=64, num_kv_heads=8, head_dim=128, params_b=27.0, weight_bits=4)
     # 27e9 params * 4 bits / 8 = 13.5 GB.
