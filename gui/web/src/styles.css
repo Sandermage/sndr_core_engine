@@ -4801,9 +4801,12 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
    leaks here because the overview `.ov-kpi` rule doesn't reset it — force a row. */
 .ov-hero .ov-kpi { flex-direction: row; align-items: center; }
 .ov-hero .ov-kpi-body { flex: 1 1 auto; }
-.ov-hero .ov-kpi-label,
-.ov-hero .ov-kpi-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.ov-hero .ov-kpi-value { margin-left: auto; padding-left: var(--sp-3); text-align: right; white-space: nowrap; font-size: clamp(20px, 1.4vw, 26px); }
+.ov-hero .ov-kpi-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* sub + value WRAP instead of truncating, and the value font adapts to length so
+   a long model id (e.g. qwen3.6-35b-a3b) or "57 default-on" shows in full at any
+   width — the KPI strip stays legible from a laptop to an ultrawide. */
+.ov-hero .ov-kpi-sub { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; max-width: 100%; }
+.ov-hero .ov-kpi-value { margin-left: auto; padding-left: var(--sp-3); text-align: right; white-space: normal; overflow-wrap: anywhere; word-break: break-word; min-width: 0; font-size: clamp(14px, 1.2vw, 24px); }
 .ov-hero .ov-kpi.clickable::after { content: "\203A"; flex: none; margin-left: 2px; font-size: 18px; line-height: 1; color: var(--text-muted); opacity: 0.5; }
 
 /* Overview content grid fills the width fluidly (more columns on wide/ultra, a

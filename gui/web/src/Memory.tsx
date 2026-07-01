@@ -91,6 +91,7 @@ export function MemoryPanel() {
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Brain size={15} /> <b>{tr("Memory")}</b></span>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Gauge size={13} /> {tr("Nodes")}: <b>{stats?.nodes ?? "—"}</b></span>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Network size={13} /> {tr("Edges")}: <b>{stats?.edges ?? "—"}</b></span>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Share2 size={13} /> {tr("Communities")}: <b>{stats?.communities ?? "—"}</b></span>
         <button className="btn btn-ghost" onClick={rebuildLinks} disabled={busy} style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <RefreshCw size={13} /> {tr("Rebuild links")}
         </button>

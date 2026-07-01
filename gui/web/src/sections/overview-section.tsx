@@ -93,7 +93,11 @@ export function OverviewSection({
                   <OvKpi icon={<Wrench size={15} />} label={tr("Patches")} value={patchRows.length || patches?.total || "—"} sub={`${patchRows.filter((p) => p.default_on).length} ${tr("default-on")}`} onClick={() => onSection("patches")} />
                   <OvKpi icon={<Server size={15} />} label={tr("Hosts")} value={hostProfiles.length} sub={runtimeMode === "remote" ? tr("remote + local") : tr("local fleet")} onClick={() => onSection("hosts")} />
                   <OvKpi icon={<ShieldCheck size={15} />} label={tr("Doctor")} value={doctorReport ? (doctorReport.findings.length ? `${doctorReport.findings.length} ${tr("findings")}` : tr("clean")) : "—"} sub={doctorReport && doctorReport.findings.length ? `${doctorReport.findings.filter((f) => f.severity === "blocked").length} ${tr("blocked")} · ${doctorReport.findings.filter((f) => f.severity === "warning").length} ${tr("warn")}` : undefined} tone={doctorReport?.findings?.some((f) => f.severity === "blocked") ? "warn" : "ok"} onClick={() => onSection("doctor")} />
-                  <OvKpi icon={<Rocket size={15} />} label={tr("Engine")} value={environment?.engine_installed ? tr("ready") : "—"} sub={environment?.engine_installed ? `${environment.engine_name ?? "vLLM"} ${environment.engine_version ?? ""}`.trim() : tr("not installed")} tone={environment?.engine_installed ? "ok" : undefined} onClick={() => onSection("services")} />
+                  <OvKpi icon={<Rocket size={15} />} label={tr("Engine")}
+                    value={liveModel?.reachable ? tr("reachable") : environment?.engine_installed ? tr("ready") : "—"}
+                    sub={liveModel?.reachable ? `vLLM ${liveModel.version ?? ""}`.trim() : environment?.engine_installed ? `${environment.engine_name ?? "vLLM"} ${environment.engine_version ?? ""}`.trim() : tr("not installed")}
+                    tone={(liveModel?.reachable || environment?.engine_installed) ? "ok" : undefined}
+                    onClick={() => onSection("services")} />
                   {viewport === "ultra" && (
                     <>
                       <OvKpi icon={<GitBranch size={15} />} label={tr("Profiles")} value={overview?.catalog.profiles_count ?? "—"} sub={tr("runtime recipes")} onClick={() => onSection("configs")} />

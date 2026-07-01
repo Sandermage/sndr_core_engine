@@ -1453,7 +1453,7 @@ export type MemNode = {
   created_at: number; accessed_at: number;
 };
 export type MemNeighbor = { id: number; rel: string; weight: number };
-export type MemStats = { nodes: number; edges: number };
+export type MemStats = { nodes: number; edges: number; communities?: number };
 export type MemGraphNode = { id: number; content: string; kind: string; community_id: number | null; importance: number; access_count: number };
 export type MemGraphEdge = { src: number; dst: number; rel: string; weight: number };
 export type MemGraph = { nodes: MemGraphNode[]; edges: MemGraphEdge[] };

@@ -86,6 +86,20 @@ class TestCommunitiesAndImportance:
         # the well-connected hub outranks the single-strong-edge rival (centrality)
         assert eng.store.get_node(hub).importance > eng.store.get_node(rival).importance
 
+    def test_count_communities_after_consolidate(self):
+        eng = _engine()
+        # two disjoint fully-linked triplets -> two communities
+        a = [eng.remember(owner_id=1, text=f"alpha topic note number {i}") for i in range(3)]
+        b = [eng.remember(owner_id=1, text=f"beta unrelated subject row {i}") for i in range(3)]
+        for grp in (a, b):
+            for i in range(len(grp)):
+                for j in range(i + 1, len(grp)):
+                    eng.store.add_edge(min(grp[i], grp[j]), max(grp[i], grp[j]), "similar_to", weight=0.9)
+        assert eng.store.count_communities(owner_id=1) == 0  # none until detected
+        eng.detect_communities(owner_id=1)
+        assert eng.store.count_communities(owner_id=1) == 2
+        assert eng.store.count_communities(owner_id=2) == 0  # owner-scoped
+
     def test_consolidate_links_and_clusters(self):
         eng = _engine()
         eng.remember(owner_id=1, text="postgres vector memory graph")

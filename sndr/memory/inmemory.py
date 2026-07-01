@@ -251,5 +251,11 @@ class InMemoryStore(MemoryStore):
     def count_edges(self) -> int:
         return len(self._edges)
 
+    def count_communities(self, owner_id: int) -> int:
+        return len({
+            n.community_id for n in self._nodes.values()
+            if n.owner_id == owner_id and n.community_id is not None
+        })
+
     def owner_ids(self) -> list[int]:
         return sorted({n.owner_id for n in self._nodes.values()})

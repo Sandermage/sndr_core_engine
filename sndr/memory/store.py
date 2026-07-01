@@ -230,5 +230,9 @@ class MemoryStore(ABC):
         """Total edge count (for leak/soak assertions)."""
 
     @abstractmethod
+    def count_communities(self, owner_id: int) -> int:
+        """Number of distinct communities ("clouds") for one owner (non-null)."""
+
+    @abstractmethod
     def owner_ids(self) -> list[int]:
         """Distinct owner ids present (for the maintenance scheduler)."""

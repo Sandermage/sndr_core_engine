@@ -90,6 +90,7 @@ class NeighborOut(BaseModel):
 class StatsOut(BaseModel):
     nodes: int
     edges: int
+    communities: int = 0
 
 
 class GraphNodeOut(BaseModel):

@@ -464,6 +464,17 @@ class PostgresStore(MemoryStore):
             cur.execute(sql.SQL("SELECT count(*) FROM {edge}").format(edge=self._edge))
             return cur.fetchone()[0]
 
+    def count_communities(self, owner_id: int) -> int:
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute(
+                sql.SQL(
+                    "SELECT count(DISTINCT community_id) FROM {node} "
+                    "WHERE owner_id = %s AND community_id IS NOT NULL"
+                ).format(node=self._node),
+                (owner_id,),
+            )
+            return cur.fetchone()[0]
+
     def owner_ids(self) -> list[int]:
         with self._lock, self._conn.cursor() as cur:
             cur.execute(

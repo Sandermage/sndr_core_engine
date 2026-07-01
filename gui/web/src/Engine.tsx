@@ -962,14 +962,22 @@ export function ChatConsole({ defaultHost, target, proxyEnabled = false }: { def
     set({ host: discovered.host, port: discovered.port ?? 8000, hostId: discovered.host_id ?? "" });
     chatToast(`${tr("Connecting to")} ${discoveredModel?.id ?? tr("the engine")} ${tr("on")} ${discovered.host_id || discovered.host}…`, "info");
   }
-  // We intentionally do NOT auto-adopt the discovered engine. A one-shot effect
-  // that called connectDiscovered() on pristine defaults raced the Connect
-  // banner away: adopting set settings.host = discovered.host, which flipped
-  // discoveredElsewhere to false on the very next render, so the banner appeared
-  // and vanished mid-frame before the operator could click it. The banner is the
-  // explicit, operator-clickable affordance — one transparent click beats a
-  // surprise auto-connect, and it now behaves uniformly whether the target host
-  // is a pristine default or manually set.
+  // Auto-detect: when the CONFIGURED engine is unreachable but discovery found a
+  // live one elsewhere (e.g. the vLLM on :8102), adopt it ONCE so the chat just
+  // connects — no manual endpoint hunting. This only fires while the current
+  // target is down, so there is no banner race (that race was the "current works
+  // AND a better one exists elsewhere" case, which still shows the click-banner
+  // below). The operator can always change the endpoint by hand afterwards.
+  const autoAdopted = useRef(false);
+  useEffect(() => {
+    if (autoAdopted.current) return;
+    if (!reachable && discoveredElsewhere && discovered?.host) {
+      autoAdopted.current = true;
+      set({ host: discovered.host, port: discovered.port ?? 8000, hostId: discovered.host_id ?? "" });
+      chatToast(`${tr("Auto-connected to")} ${discoveredModel?.id ?? tr("the engine")} ${tr("on")} ${discovered.host_id || discovered.host}`, "ok");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reachable, discoveredElsewhere, discovered]);
   function applyRecommended() {
     if (!recSampling) return;
     set({

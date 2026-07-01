@@ -131,9 +131,9 @@ export function OvKpi({
       <span className="ov-kpi-icon">{icon}</span>
       <span className="ov-kpi-body">
         <span className="ov-kpi-label">{label}</span>
-        {sub && <span className="ov-kpi-sub">{sub}</span>}
+        {sub && <span className="ov-kpi-sub" title={sub}>{sub}</span>}
       </span>
-      <strong className="ov-kpi-value">{value}</strong>
+      <strong className="ov-kpi-value" title={typeof value === "string" || typeof value === "number" ? String(value) : undefined}>{value}</strong>
     </Tag>
   );
 }

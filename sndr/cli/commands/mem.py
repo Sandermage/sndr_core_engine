@@ -162,8 +162,8 @@ class MemStatsCommand:
             if getattr(args, "output", "text") == "json":
                 print(json.dumps(stats))
             else:
-                print(f"memory: {stats.get('nodes', 0)} nodes, {stats.get('edges', 0)} edges "
-                      f"(owner {_owner(args)})")
+                print(f"memory: {stats.get('nodes', 0)} nodes, {stats.get('edges', 0)} edges, "
+                      f"{stats.get('communities', 0)} communities (owner {_owner(args)})")
             return 0
         return _run(args, _do)
 

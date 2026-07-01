@@ -213,4 +213,4 @@ class TestAppWiring:
         client = TestClient(app)
         r = client.get("/api/v1/memory/stats", headers={"X-Owner-Id": "1"})
         assert r.status_code == 200
-        assert r.json()["data"] == {"nodes": 0, "edges": 0}
+        assert r.json()["data"] == {"nodes": 0, "edges": 0, "communities": 0}

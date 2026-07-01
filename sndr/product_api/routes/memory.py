@@ -151,6 +151,7 @@ async def stats(request: Request) -> Envelope[StatsOut]:
         data=StatsOut(
             nodes=eng.store.count_nodes(owner_id=owner),
             edges=eng.store.count_edges(),
+            communities=eng.store.count_communities(owner_id=owner),
         ),
         meta=_meta(),
     )
