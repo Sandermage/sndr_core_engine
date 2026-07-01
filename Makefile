@@ -195,6 +195,19 @@ rebuild-pin: ## Phase 4: regenerate the per-pin anchor source-of-truth on the ri
 	rsync -a "$${SSH_HOST}:$(RIG_REPO)/sndr/engines/vllm/pins/" sndr/engines/vllm/pins/
 	@echo "rebuild-pin done — review + commit sndr/engines/vllm/pins/<pin>/anchors.json"
 
+fleet-boot-smoke: ## Phase 4 (DYNAMIC): boot every fleet preset on a CANDIDATE pin + assert apply failed=0 + smoke + tool-call — catches runtime boot regressions the static gates miss (env: SSH_HOST IMAGE FLEET [REPO] [RESTORE_CONTAINER])
+	@test -n "$${SSH_HOST}" -a -n "$${IMAGE}" -a -n "$${FLEET}" || { \
+		echo "Usage: make fleet-boot-smoke SSH_HOST=<user@host> IMAGE=<candidate-tag> \\"; \
+		echo "         FLEET='prod-qwen3.6-27b-tq-k8v4:qwen3.6-27b prod-gemma4-31b-tq-default:gemma-4-31b prod-gemma4-26b-multiconc:gemma-4-26b-a4b:notool prod-diffusiongemma-tp2:diffusiongemma' \\"; \
+		echo "         [REPO=/home/sander/gvp-mainsync] [RESTORE_CONTAINER=vllm-35b-dev672]"; \
+		echo "  Stops the live engine, boots each preset on IMAGE, asserts apply failed=0 + smoke + tool-call, restores."; \
+		echo "  Non-zero exit = a model regressed at runtime → do NOT promote the pin. (The static gates can't see this.)"; \
+		exit 2; }
+	@echo "=== sync boot-smoke tooling to rig ($${REPO:-/home/sander/gvp-mainsync}) ==="
+	rsync -a scripts/anchor_sot "$${SSH_HOST}:$${REPO:-/home/sander/gvp-mainsync}/scripts/"
+	@echo "=== fleet boot-smoke on rig (live engine down for the window) ==="
+	ssh "$${SSH_HOST}" "IMAGE='$${IMAGE}' FLEET='$${FLEET}' REPO='$${REPO:-/home/sander/gvp-mainsync}' RESTORE_CONTAINER='$${RESTORE_CONTAINER:-vllm-35b-dev672}' bash $${REPO:-/home/sander/gvp-mainsync}/scripts/anchor_sot/fleet_boot_smoke.sh"
+
 audit-pin: ## Phase 4: verify the committed per-pin manifest still matches a fresh rig regen (R2 drift gate; env: SSH_HOST [CONTAINER] [IMAGE])
 	@test -n "$${SSH_HOST}" || { \
 		echo "Usage: make audit-pin SSH_HOST=<user@host> [CONTAINER=...] [IMAGE=...]"; \

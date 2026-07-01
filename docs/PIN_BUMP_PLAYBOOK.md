@@ -195,6 +195,35 @@ with the Genesis tree mounted, watch the boot apply summary
 skip/apply sets against the preflight prediction — disagreements are
 pipeline bugs or env-conditional patches; investigate both.
 
+## 5a. Fleet boot-smoke gate (all models, automated) — `make fleet-boot-smoke`
+
+The static preflight (steps 2–4) and the single-model boot (step 5) miss a whole
+class: a **runtime boot regression where Genesis `apply=failed=0` but the engine
+still crashes on upstream config validation**. Concrete case (dev424 → dev672):
+upstream began forcing `disable_chunked_mm_input` for Gemma-4 (mm-prefix-lm),
+which then asserts `max_num_batched_tokens >= max_tokens_per_mm_item (2496)` —
+but **G4_09**'s #39914 SWA-prefill clamp was 2048. Both Gemma-4 failed to boot;
+apply was failed=0, so no static gate flagged it. Only a live boot surfaced it
+(fixed: G4_09 default 2048 → 3072 + MM-item-aware floor).
+
+`make fleet-boot-smoke` automates the fleet-wide dynamic gate — it serially boots
+every prod preset on the candidate image and per model asserts health-200 +
+`apply failed=0` + `boot_smoke_probe.py` (coherent generation + streaming
+tool-call, no content-leak). Non-zero exit ⇒ a model regressed at runtime ⇒ do
+NOT promote:
+
+```bash
+make fleet-boot-smoke SSH_HOST=<user@host> IMAGE=<candidate-tag> \
+  FLEET='prod-qwen3.6-27b-tq-k8v4:qwen3.6-27b \
+         prod-gemma4-31b-tq-default:gemma-4-31b \
+         prod-gemma4-26b-multiconc:gemma-4-26b-a4b:notool \
+         prod-diffusiongemma-tp2:diffusiongemma'
+```
+
+It stops the live engine for the window and always restores it (trap EXIT). Run
+after the static preflight passes and before promotion (step 7). The `:notool`
+suffix skips the tool-call check for throughput presets that omit a tool parser.
+
 ## 5b. Tokenizer-fingerprint gate (in-container, BEFORE any bench)
 
 Lesson from upstream #45109 (AWQ expected outputs changed under the
