@@ -234,18 +234,9 @@ curl -s localhost:8811/api/v1/memory/remember -H 'X-Owner-Id:1' -H 'Authorizatio
 
 **GUI — Memory panel** (Control Center → Engine → 🧠 Memory; served same-origin):
 
-```text
-┌─ 🧠 Memory ──────────────────────────────────────────  [ List | Graph ] ┐
-│ nodes 1,284 · edges 3,902 · communities 17          [ Remember ][ Rebuild ]│
-│ search: ▢ deploy server ____________  ☑ Brain recall            [Search]   │
-│ ╭──────────────── force-graph (Sigma.js) ───────────────╮  ╭ node detail ╮│
-│ │   ●─────●   ● cloud A      ●──●        ● cloud C       │  │ #842 · note ││
-│ │  ╱│╲   ╲   ╱        ●───●──╱    ╲                      │  │ "the deploy ││
-│ │ ● ● ●   ●─●  cloud B   ●        ●                      │  │  server …"  ││
-│ │  colors = communities · size = importance · click=open│  │ → #311 sim  ││
-│ ╰────────────────────────────────────────────────────────╯  ╰────────────╯│
-└──────────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="docs/assets/memory-gui-panel.svg" alt="GUI Memory panel — toolbar (nodes/edges/communities, Rebuild links, List/Graph), search with Brain recall, community-colored force graph, and a node-detail card with typed connections" width="900">
+</p>
 
 > Live screenshots of the rendered React GUI live under `docs/assets/screenshots/`
 > (capture from `:8811` / `npm run dev`). The diagrams above render directly on GitHub.

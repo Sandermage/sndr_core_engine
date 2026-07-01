@@ -18,17 +18,34 @@ docker build -f deploy/memory/Dockerfile -t genesis-memory:dev .
 
 ## Run
 
+Use the reproducible deploy script — it wires full Control Center visibility
+(engine auto-detect, GPU telemetry, container management) and carries secrets
+forward from the running container:
+
 ```bash
-docker run -d --name genesis-memory \
-  -p 8800:8800 \
-  -v genesis_memory_pgdata:/var/lib/postgresql/data \
-  --restart unless-stopped \
-  genesis-memory:dev
+./deploy/memory/run.sh          # (re)deploy on :8811, healthcheck-gated
 ```
 
-- API: `http://<host>:8800/api/v1/memory/...` (and `/api/v1/health`).
+It runs, in effect:
+
+```bash
+docker run -d --name genesis-memory --restart unless-stopped \
+  -p 8811:8800 \
+  -v genesis_memory_pgdata:/var/lib/postgresql/data \
+  -v /var/run/docker.sock:/var/run/docker.sock \        # container mgmt + host inventory (socket-direct; no docker CLI)
+  --device nvidia.com/gpu=all \                          # GPU telemetry via nvidia-smi (CDI)
+  -e SNDR_OPENAI_BASE_URL=http://<engine>:8102/v1 \      # engine to auto-connect to…
+  -e SNDR_METRICS_URL=http://<engine>:8102/metrics \     # …model + version + KPIs auto-detect FROM it
+  -e SNDR_ENGINE_API_KEY=<engine-key> \
+  --env-file <secrets> genesis-memory:dev
+docker network connect genesis_project_genesis genesis-memory   # reach engine/cliproxy by name
+```
+
+- API: `http://<host>:8811/api/v1/memory/...` (and `/api/v1/health`); GUI at `/`.
 - Postgres data persists in the `genesis_memory_pgdata` volume.
 - Owner scoping: send `X-Owner-Id: <id>` (the proxy middleware sets this).
+- **Auto-detect:** only the engine's *address* is configured; the running model,
+  version and live KPIs are read from the engine (`/v1/models` + `/metrics`).
 
 > **⚠ One postmaster per data directory.** This container runs its *own* bundled
 > Postgres on `genesis_memory_pgdata`, so it must be the **sole** mounter of that
