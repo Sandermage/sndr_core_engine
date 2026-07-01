@@ -183,45 +183,15 @@ pgvector) proven *identical* in CI · real CPU embedder (Model2Vec) semantic mat
 backends (Postgres against a live pgvector in CI) · one container · zero GPU on the
 hot path.
 
-```mermaid
-flowchart LR
-  Client([client / app])
-  subgraph C["genesis-memory container (CPU, :8811)"]
-    GW["/v1/chat/completions<br/>memory gateway"]
-    API["/api/v1/memory/*<br/>REST API"]
-    GUI["GUI graph panel<br/>(Sigma.js)"]
-    ENG["MemoryEngine"]
-    EMB["Embedder<br/>Model2Vec / Hash"]
-    PG[("Postgres + pgvector<br/>nodes · edges")]
-    MNT["maintenance loop<br/>consolidate + prune"]
-    GW --> ENG
-    API --> ENG
-    GUI -. same-origin .-> API
-    ENG --> EMB
-    ENG --> PG
-    MNT --> ENG
-  end
-  Client -->|"X-Memory-Upstream"| GW
-  GW -->|"augment → forward → capture"| EXT["CLIProxyAPI →<br/>Claude · Gemini · …"]
-  GW --> VLLM["vLLM engine<br/>(the 35B)"]
-```
+<p align="center">
+  <img src="docs/assets/memory-architecture.svg" alt="Architecture — one CPU container: client → memory gateway (recall+inject → forward → capture) → CLIProxyAPI / vLLM; inside: REST, GUI graph, MemoryEngine, Embedder, Postgres+pgvector, maintenance loop" width="900">
+</p>
 
 **The brain mechanics** (deterministic, no per-write LLM):
 
-```mermaid
-flowchart TD
-  R["remember(text)"] --> N["node + embedding"]
-  Q["recall(query)"] --> ANN["vector ANN seeds"]
-  ANN --> SP["spreading activation<br/>act × weight × β, ≤3 hops, cycle-safe"]
-  SP --> DEC["× Ebbinghaus retention<br/>exp(-age / (S·strength·(1+importance)))"]
-  DEC --> TOP["top-N"]
-  TOP --> TCH["touch → strength↑ (spacing)"]
-  TOP --> HEB["Hebbian: co-recalled wire together<br/>w ← min(1,(1-λ)w+η)"]
-  CONS["consolidate / nightly"] --> LNK["kNN → similar_to edges"]
-  CONS --> COM["communities (label propagation) → clouds"]
-  CONS --> IMP["importance = f(degree, access)"]
-  CONS --> PRN["prune to cap (leak-bound)"]
-```
+<p align="center">
+  <img src="docs/assets/memory-brain-mechanics.svg" alt="Brain mechanics — write (remember → node + embedding), recall (ANN seeds → spreading activation → Ebbinghaus decay → top-N → touch + Hebbian), consolidate (kNN links → communities → importance → prune)" width="920">
+</p>
 
 <p align="center">
   <img src="docs/assets/memory-decay-curve.svg" alt="Ebbinghaus retention curves — retrieval slows decay (spacing effect)" width="680">
