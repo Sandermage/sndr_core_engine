@@ -231,6 +231,21 @@ class InMemoryStore(MemoryStore):
                     self._incident.get(other, set()).discard(key)
         return len(remove_ids)
 
+    def delete_node(self, node_id: int, *, owner_id: int) -> bool:
+        node = self._nodes.get(node_id)
+        if node is None or node.owner_id != owner_id:
+            return False
+        self._nodes.pop(node_id, None)
+        # Drop every edge touching this node (O(degree) via the incidence index);
+        # detach the surviving endpoint so no dangling reference remains.
+        for key in self._incident.pop(node_id, set()):
+            if self._edges.pop(key, None) is None:
+                continue
+            src, dst, _rel = key
+            other = dst if src == node_id else src
+            self._incident.get(other, set()).discard(key)
+        return True
+
     def set_communities(self, mapping: dict[int, int]) -> None:
         for nid, community in mapping.items():
             node = self._nodes.get(nid)

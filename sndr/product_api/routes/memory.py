@@ -118,6 +118,16 @@ async def get_node(node_id: int, request: Request) -> Envelope[NodeOut]:
     return Envelope(data=_node_out(node), meta=_meta())
 
 
+@router.delete("/node/{node_id}", summary="Forget one memory (delete node + its edges)")
+async def delete_node(node_id: int, request: Request) -> Envelope[dict]:
+    eng = _engine(request)
+    owner = owner_from_request(request)
+    deleted = eng.store.delete_node(node_id, owner_id=owner)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="node not found")
+    return Envelope(data={"deleted": True, "id": node_id}, meta=_meta())
+
+
 @router.post("/edge/invalidate", summary="Invalidate (bi-temporally retire) an edge")
 async def invalidate_edge(body: InvalidateEdgeIn, request: Request) -> Envelope[InvalidateEdgeOut]:
     eng = _engine(request)

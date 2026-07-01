@@ -86,6 +86,25 @@ class TestCommunitiesAndImportance:
         # the well-connected hub outranks the single-strong-edge rival (centrality)
         assert eng.store.get_node(hub).importance > eng.store.get_node(rival).importance
 
+    def test_delete_node_forgets_node_and_its_edges(self):
+        eng = _engine()
+        a = eng.remember(owner_id=1, text="fact to keep around")
+        b = eng.remember(owner_id=1, text="fact to forget entirely")
+        eng.store.add_edge(min(a, b), max(a, b), "similar_to", weight=0.9)
+        assert eng.store.edge_weight(min(a, b), max(a, b), "similar_to") > 0.0
+        assert eng.store.delete_node(b, owner_id=1) is True
+        assert eng.store.get_node(b) is None            # gone
+        assert eng.store.get_node(a) is not None         # survivor kept
+        assert eng.store.edge_weight(min(a, b), max(a, b), "similar_to") == 0.0  # edge dropped
+        assert eng.store.delete_node(b, owner_id=1) is False  # idempotent
+
+    def test_delete_node_is_owner_scoped(self):
+        eng = _engine()
+        n = eng.remember(owner_id=1, text="owner-one private fact")
+        assert eng.store.delete_node(n, owner_id=2) is False  # other owner can't delete
+        assert eng.store.get_node(n) is not None
+        assert eng.store.delete_node(n, owner_id=1) is True
+
     def test_count_communities_after_consolidate(self):
         eng = _engine()
         # two disjoint fully-linked triplets -> two communities

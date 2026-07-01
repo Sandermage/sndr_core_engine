@@ -1490,6 +1490,9 @@ export const api = {
   memoryNode: (id: number, owner = 1) =>
     request<{ data: MemNode }>(`/api/v1/memory/node/${id}`, { headers: memHead(owner) })
       .then((r) => r.data),
+  memoryDelete: (id: number, owner = 1) =>
+    request<{ data: { deleted: boolean; id: number } }>(`/api/v1/memory/node/${id}`, { method: "DELETE", headers: memHead(owner) })
+      .then((r) => r.data),
   memoryNeighbors: (id: number, owner = 1) =>
     request<{ data: MemNeighbor[] }>(`/api/v1/memory/neighbors/${id}`, { headers: memHead(owner) })
       .then((r) => r.data),

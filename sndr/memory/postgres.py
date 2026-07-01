@@ -414,6 +414,29 @@ class PostgresStore(MemoryStore):
             )
             return cur.rowcount
 
+    def delete_node(self, node_id: int, *, owner_id: int) -> bool:
+        with self._lock, self._conn.cursor() as cur:
+            # Owner-scoped guard first: only proceed if the node is this owner's.
+            cur.execute(
+                sql.SQL("SELECT 1 FROM {node} WHERE id = %s AND owner_id = %s").format(
+                    node=self._node),
+                (node_id, owner_id),
+            )
+            if cur.fetchone() is None:
+                return False
+            # No FK cascade on mem_edge — drop edges touching the node first.
+            cur.execute(
+                sql.SQL("DELETE FROM {edge} WHERE src_id = %s OR dst_id = %s").format(
+                    edge=self._edge),
+                (node_id, node_id),
+            )
+            cur.execute(
+                sql.SQL("DELETE FROM {node} WHERE id = %s AND owner_id = %s").format(
+                    node=self._node),
+                (node_id, owner_id),
+            )
+            return cur.rowcount > 0
+
     def set_communities(self, mapping: dict[int, int]) -> None:
         if not mapping:
             return

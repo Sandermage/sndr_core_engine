@@ -214,6 +214,12 @@ class MemoryStore(ABC):
         """
 
     @abstractmethod
+    def delete_node(self, node_id: int, *, owner_id: int) -> bool:
+        """Forget one memory: delete the node and every edge touching it
+        (no dangling). Owner-scoped: only deletes if the node belongs to
+        `owner_id`. Returns True if a node was removed, False otherwise."""
+
+    @abstractmethod
     def set_communities(self, mapping: dict[int, int]) -> None:
         """Bulk-assign community_id (the "cloud") for the given node ids."""
 

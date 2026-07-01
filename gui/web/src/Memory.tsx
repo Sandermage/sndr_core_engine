@@ -4,7 +4,7 @@
 // recall / remember / neighbors / stats / rebuild-links). The Obsidian-like
 // Sigma.js force-graph is layered on in 1c-ii.
 import { useCallback, useEffect, useState } from "react";
-import { Brain, Search, Plus, RefreshCw, Network, Gauge, Share2, List } from "lucide-react";
+import { Brain, Search, Plus, RefreshCw, Network, Gauge, Share2, List, Trash2, Download } from "lucide-react";
 import { api, type MemGraph, type MemHit, type MemNode, type MemNeighbor, type MemStats } from "./api";
 import { MemoryGraph } from "./MemoryGraph";
 import { tr } from "./i18n";
@@ -72,6 +72,36 @@ export function MemoryPanel() {
     finally { setBusy(false); }
   }, [remember, loadStats, loadGraph, view]);
 
+  const doForget = useCallback(async (id: number) => {
+    if (!window.confirm(tr("Forget this memory? This permanently deletes the node and its connections."))) return;
+    setBusy(true); setErr(null); setNotice(null);
+    try {
+      await api.memoryDelete(id, OWNER);
+      setSelected(null); setNeighbors([]);
+      setHits((h) => h.filter((x) => x.id !== id));
+      setNotice(tr("Forgotten."));
+      loadStats();
+      if (view === "graph") loadGraph();
+    } catch (e) { setErr(String(e)); }
+    finally { setBusy(false); }
+  }, [loadStats, loadGraph, view]);
+
+  const doExport = useCallback(async () => {
+    setBusy(true); setErr(null); setNotice(null);
+    try {
+      // Backup the owner's whole graph (nodes + edges) as JSON — a portable
+      // snapshot of the persistent memory DB.
+      const g = await api.memoryGraph(OWNER, 100000);
+      const blob = new Blob([JSON.stringify(g, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = `sndr-memory-owner-${OWNER}.json`; link.click();
+      URL.revokeObjectURL(url);
+      setNotice(`${tr("Exported")} ${g.nodes.length} ${tr("nodes")}, ${g.edges.length} ${tr("edges")}.`);
+    } catch (e) { setErr(String(e)); }
+    finally { setBusy(false); }
+  }, []);
+
   const rebuildLinks = useCallback(async () => {
     setBusy(true); setErr(null); setNotice(null);
     try {
@@ -94,6 +124,9 @@ export function MemoryPanel() {
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Share2 size={13} /> {tr("Communities")}: <b>{stats?.communities ?? "—"}</b></span>
         <button className="btn btn-ghost" onClick={rebuildLinks} disabled={busy} style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <RefreshCw size={13} /> {tr("Rebuild links")}
+        </button>
+        <button className="btn btn-ghost" onClick={doExport} disabled={busy} title={tr("Download the memory graph as JSON (backup)")} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Download size={13} /> {tr("Export")}
         </button>
         <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
           <button className="btn btn-ghost" aria-pressed={view === "list"} onClick={() => setView("list")} title={tr("List")} style={{ display: "flex", alignItems: "center", gap: 4, opacity: view === "list" ? 1 : 0.6 }}>
@@ -166,7 +199,12 @@ export function MemoryPanel() {
         )}
         {selected && (
           <div className="mem-detail" style={{ flex: 1, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: 12, background: "var(--surface)", opacity: detailBusy ? 0.55 : 1, transition: "opacity 0.15s" }}>
-            <div style={{ fontSize: 12, opacity: 0.6 }}>#{selected.id} · {selected.kind} · {tr("accessed")} {selected.access_count}×</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 12, opacity: 0.6, flex: 1 }}>#{selected.id} · {selected.kind} · {tr("accessed")} {selected.access_count}×</div>
+              <button className="btn btn-ghost" onClick={() => doForget(selected.id)} disabled={busy} title={tr("Forget this memory")} style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--danger)" }}>
+                <Trash2 size={13} /> {tr("Forget")}
+              </button>
+            </div>
             <p style={{ margin: "6px 0 12px" }}>{selected.content}</p>
             <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>{tr("Connections")} ({neighbors.length})</div>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
