@@ -47,6 +47,23 @@ def test_wikilinks_become_edges(tmp_path):
     assert report["missing"] == 1  # [[Nope]] had no target
 
 
+def test_wikilinks_resolve_case_insensitively_and_by_h1_title(tmp_path):
+    # Obsidian resolves [[Note]] ignoring case and against the display title,
+    # not just the exact filename — so a link can differ in case or use the H1.
+    (tmp_path / "genesis.md").write_text(
+        "# Genesis\nUses [[Memory]] and [[Qwen3.6-35B]].\n", encoding="utf-8"
+    )
+    (tmp_path / "memory.md").write_text("# Memory\nPart of [[genesis]].\n", encoding="utf-8")
+    (tmp_path / "qwen.md").write_text("# Qwen3.6-35B\nA model.\n", encoding="utf-8")
+    eng = _engine()
+    report = import_vault(engine=eng, owner_id=1, vault_path=str(tmp_path))
+    t = _by_title(eng)
+    assert eng.store.edge_weight(t["genesis"], t["memory"], "wikilink") > 0.0   # [[Memory]] -> memory.md (case)
+    assert eng.store.edge_weight(t["genesis"], t["qwen"], "wikilink") > 0.0     # [[Qwen3.6-35B]] -> qwen.md (H1)
+    assert eng.store.edge_weight(t["memory"], t["genesis"], "wikilink") > 0.0   # [[genesis]] -> genesis.md (case)
+    assert report["missing"] == 0
+
+
 def test_tags_captured_in_properties(tmp_path):
     (tmp_path / "Note.md").write_text("body #project #genesis\n", encoding="utf-8")
     eng = _engine()

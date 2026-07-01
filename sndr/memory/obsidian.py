@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 _TAG_RE = re.compile(r"(?:^|\s)#(\w[\w/-]*)")
+_H1_RE = re.compile(r"^#\s+(.+?)\s*$", re.M)  # the note's display title (first H1)
 
 
 def _wikilink_target(raw: str) -> str:
@@ -73,7 +74,13 @@ def import_vault(
             properties={"title": title, "source": "obsidian", "tags": tags},
             dedup=True,
         )
-        title_to_id[title] = node_id
+        # Index by BOTH the filename stem AND the first H1, case-INSENSITIVELY —
+        # Obsidian resolves [[Note]] to either, ignoring case, so a link like
+        # [[Qwen3.6-35B]] finds qwen.md whose H1 is "# Qwen3.6-35B".
+        title_to_id[title.lower()] = node_id
+        h1 = _H1_RE.search(text)
+        if h1:
+            title_to_id.setdefault(h1.group(1).strip().lower(), node_id)
         wikilinks[node_id] = [_wikilink_target(m) for m in _WIKILINK_RE.findall(text)]
         notes += 1
 
@@ -82,7 +89,7 @@ def import_vault(
     missing = 0
     for src_id, targets in wikilinks.items():
         for target in targets:
-            dst_id = title_to_id.get(target)
+            dst_id = title_to_id.get(target.strip().lower())
             if dst_id is None:
                 missing += 1
                 continue
