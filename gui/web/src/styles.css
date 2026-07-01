@@ -4807,7 +4807,7 @@ html[data-theme="lime"] .side-nav button.active { box-shadow: inset 3px 0 0 var(
    a long model id (e.g. qwen3.6-35b-a3b) or "57 default-on" shows in full at any
    width — the KPI strip stays legible from a laptop to an ultrawide. */
 .ov-hero .ov-kpi-sub { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; max-width: 100%; }
-.ov-hero .ov-kpi-value { margin-left: auto; padding-left: var(--sp-3); text-align: right; white-space: normal; overflow-wrap: anywhere; word-break: break-word; min-width: 0; font-size: clamp(14px, 1.2vw, 24px); }
+.ov-hero .ov-kpi-value { margin-left: auto; padding-left: var(--sp-2); text-align: right; white-space: normal; overflow-wrap: anywhere; word-break: break-word; min-width: 0; line-height: 1.2; font-size: clamp(13px, 1vw, 20px); }
 .ov-hero .ov-kpi.clickable::after { content: "\203A"; flex: none; margin-left: 2px; font-size: 18px; line-height: 1; color: var(--text-muted); opacity: 0.5; }
 
 /* Overview content grid fills the width fluidly (more columns on wide/ultra, a

@@ -124,6 +124,18 @@ export function OvKpi({
   onClick?: () => void;
 }) {
   const Tag = onClick ? "button" : "div";
+  // Content-aware value sizing: a short number ("15", "321") stays large and
+  // punchy, but a long text value (a model id like "qwen3.6-35b-a3b-fp8", a
+  // version, "16 findings", "reachable") shrinks so it reads on one/two lines
+  // instead of wrapping into a blob. Length-bucketed so it's stable across
+  // window sizes — the tile itself flexes via the auto-fit grid.
+  const valStr = typeof value === "string" || typeof value === "number" ? String(value) : null;
+  const valLen = valStr?.length ?? 0;
+  const valSize = valStr == null ? undefined
+    : valLen <= 4 ? 22
+    : valLen <= 8 ? 18
+    : valLen <= 14 ? 15
+    : 13;
   return (
     // Layout: icon · (label + sub) on the left, the value pushed to the right so
     // a wide tile is filled rather than left-packed. `.ov-hero .ov-kpi` styles it.
@@ -133,7 +145,8 @@ export function OvKpi({
         <span className="ov-kpi-label">{label}</span>
         {sub && <span className="ov-kpi-sub" title={sub}>{sub}</span>}
       </span>
-      <strong className="ov-kpi-value" title={typeof value === "string" || typeof value === "number" ? String(value) : undefined}>{value}</strong>
+      <strong className="ov-kpi-value" style={valSize ? { fontSize: valSize } : undefined}
+        title={valStr ?? undefined}>{value}</strong>
     </Tag>
   );
 }

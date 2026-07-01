@@ -138,26 +138,26 @@ export function MemoryPanel() {
         </div>
       </div>
 
-      <div className="mem-remember" style={{ display: "flex", gap: 8 }}>
+      <div className="mem-remember" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <input
           value={remember}
           onChange={(e) => setRemember(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") doRemember(); }}
           placeholder={tr("Remember a fact, note, or idea…")}
-          style={{ flex: 1 }}
+          style={{ flex: "1 1 220px", minWidth: 0 }}
         />
         <button className="btn" onClick={doRemember} disabled={busy || !remember.trim()} style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <Plus size={13} /> {tr("Remember")}
         </button>
       </div>
 
-      <div className="mem-search" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div className="mem-search" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") runSearch(); }}
           placeholder={tr("Search memory…")}
-          style={{ flex: 1 }}
+          style={{ flex: "1 1 200px", minWidth: 0 }}
         />
         <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }} title={tr("Spread activation across the graph (brain recall) vs pure vector search")}>
           <input type="checkbox" checked={brain} onChange={(e) => setBrain(e.target.checked)} /> {tr("Brain recall")}
@@ -177,8 +177,8 @@ export function MemoryPanel() {
       )}
 
       {view === "list" && (
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-        <ul className="mem-hits" style={{ flex: 1, listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <ul className="mem-hits" style={{ flex: "1 1 300px", minWidth: 0, listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
           {hits.map((h) => (
             <li key={h.id}>
               <button
@@ -198,7 +198,7 @@ export function MemoryPanel() {
           <div style={{ flex: 1, opacity: 0.6, fontSize: 13, padding: 12 }}>{tr("Loading…")}</div>
         )}
         {selected && (
-          <div className="mem-detail" style={{ flex: 1, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: 12, background: "var(--surface)", opacity: detailBusy ? 0.55 : 1, transition: "opacity 0.15s" }}>
+          <div className="mem-detail" style={{ flex: "1 1 300px", minWidth: 0, border: "1px solid var(--border)", borderRadius: "var(--r-sm)", padding: 12, background: "var(--surface)", opacity: detailBusy ? 0.55 : 1, transition: "opacity 0.15s" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ fontSize: 12, opacity: 0.6, flex: 1 }}>#{selected.id} · {selected.kind} · {tr("accessed")} {selected.access_count}×</div>
               <button className="btn btn-ghost" onClick={() => doForget(selected.id)} disabled={busy} title={tr("Forget this memory")} style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--danger)" }}>
