@@ -1983,4 +1983,4 @@ function AlertsModal({ onClose }: { onClose: () => void }) {
 // Renders shimmer lines instead of a spinner so the panel holds its layout.
 function Loading(_props: { label?: string }) { return <SkeletonLines count={4} />; }
 function NotRunning() { return <div className="containers-empty"><Activity size={20} /><strong>{tr("Container not running")}</strong><span>{tr("Start it to see live data.")}</span></div>; }
-function ErrBox({ msg }: { msg: string }) { return <div className="containers-err"><AlertTriangle size={13} /> {msg}</div>; }
+function ErrBox({ msg }: { msg: string }) { return <div className="containers-err" role="alert"><AlertTriangle size={13} /> {msg}</div>; }

@@ -8,14 +8,20 @@ const DRIFT_LABEL: Record<string, string> = { missing: tr("missing"), extra: tr(
 export function FlagsPanel() {
   const [data, setData] = useState<FlagMatrix | null>(null);
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [family, setFamily] = useState("");
   const [def, setDef] = useState<"" | "on" | "off">("");
   const [container, setContainer] = useState("");
 
   const load = (c?: string) => {
-    setLoading(true);
-    api.flagsMatrix(c || undefined).then(setData).catch(() => setData(null)).finally(() => setLoading(false));
+    setLoading(true); setErr(null);
+    api.flagsMatrix(c || undefined)
+      .then((d) => { setData(d); setErr(null); })
+      // Distinguish a real failure from a genuinely empty matrix — otherwise a
+      // network error looks identical to "no flags match".
+      .catch((e) => { setData(null); setErr(e instanceof Error ? e.message : String(e)); })
+      .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
 
@@ -70,7 +76,8 @@ export function FlagsPanel() {
           {data?.has_live && <span>{tr("Live")}</span>}
         </div>
         {rows.map((f) => <FlagRowView key={f.env_flag} f={f} hasLive={data?.has_live ?? false} />)}
-        {rows.length === 0 && <div className="fm-empty">{tr("No flags match the filters.")}</div>}
+        {err && <div className="fm-empty" role="alert" style={{ color: "var(--danger)" }}>{err}</div>}
+        {!err && rows.length === 0 && <div className="fm-empty">{tr("No flags match the filters.")}</div>}
       </div>
     </div>
   );

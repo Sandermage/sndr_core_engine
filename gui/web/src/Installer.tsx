@@ -27,8 +27,11 @@ export function InstallWizard({ initial }: { initial?: { hostId?: string; target
   const [applied, setApplied] = useState<import("./api").InstallApplyResult | null>(null);
 
   useEffect(() => {
-    api.installTargets().then((m) => { setMeta(m); if (!initial?.hostId && m.hosts[0]) setHostId(m.hosts[0].id); }).catch(() => {});
-    api.presets({}).then((p) => { setPresets(p.presets); if (p.presets[0]) setPresetId(p.presets[0].id); }).catch(() => {});
+    // Surface load failures instead of silently rendering an empty form (the
+    // operator otherwise sees blank host/preset pickers with no reason why).
+    const fail = (e: unknown) => setErr(e instanceof Error ? e.message : String(e));
+    api.installTargets().then((m) => { setMeta(m); if (!initial?.hostId && m.hosts[0]) setHostId(m.hosts[0].id); }).catch(fail);
+    api.presets({}).then((p) => { setPresets(p.presets); if (p.presets[0]) setPresetId(p.presets[0].id); }).catch(fail);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

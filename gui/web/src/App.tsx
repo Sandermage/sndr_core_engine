@@ -955,14 +955,14 @@ export default function App() {
         </header>
 
         {error && (
-          <section className="alert">
+          <section className="alert" role="alert">
             <AlertCircle size={18} />
             <span>{error}</span>
           </section>
         )}
 
         {state === "error" && (
-          <section className="daemon-down">
+          <section className="daemon-down" role="alert">
             <PlugZap size={18} />
             <div className="daemon-down-text">
               <strong>{tr("Can't reach a SNDR daemon at")} {apiBase}</strong>

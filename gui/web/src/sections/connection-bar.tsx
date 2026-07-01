@@ -71,7 +71,14 @@ export function ServerSwitcher({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  const dot = (id: string) => <span className={`srv-dot ${health[id] === "ok" ? "ok" : health[id] === "down" ? "down" : "checking"}`} />;
+  const dot = (id: string) => {
+    // Reachability was color-only (green/red/grey) — invisible to screen readers
+    // and ambiguous on hover. Give it a role + label so the state is announced
+    // and shown on hover, not just implied by color.
+    const state = health[id] === "ok" ? tr("reachable") : health[id] === "down" ? tr("unreachable") : tr("checking…");
+    return <span className={`srv-dot ${health[id] === "ok" ? "ok" : health[id] === "down" ? "down" : "checking"}`}
+      role="img" aria-label={state} title={state} />;
+  };
 
   return (
     <div className="server-switcher">
