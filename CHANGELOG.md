@@ -170,6 +170,25 @@ holds the release version.)
   0.55 PASS). Tool-call 7/7 + `get_weather {"city":"Berlin"}` (qwen3_xml, no
   XML→content leak); "Paris" coherent finish=stop.
 
+### Full-fleet validation (live serial boots, 2026-07-01)
+
+All 5 fleet models booted on dev672 with **Genesis apply failed=0** (no patch
+broke). Per-model fell-off (applied on dev424 → not on dev672), all benign:
+- **35B / 27B** (Qwen): PN8 skips — `get_draft_quant_config` native in dev672
+  (vllm#40849 region). Both boot + coherent + streaming tool-call (get_weather).
+- **DiffusionGemma-26B**: G4_26 skips — native `diffusion_gemma.py` does the
+  TP>1 soft-embed `all_reduce` (vllm#45774 region). Boots + tool-call clean.
+- **Gemma-4-31B / 26B**: nothing fell off, but boot initially **failed on a
+  Genesis×dev672 interaction** — dev672 forces `disable_chunked_mm_input` for
+  Gemma-4 (mm-prefix-lm), which then requires `max_num_batched_tokens >=
+  max_tokens_per_mm_item (2496)`, but **G4_09** (SWA prefill chunker, #39914
+  workaround) clamped it to 2048. **Fixed:** G4_09 default 2048 → 3072 (still
+  < the ~4096 #39914 hang threshold) + a dev672-aware floor that raises the
+  clamp to the model's `max_tokens_per_mm_item` when chunked-MM is disabled.
+  Both Gemma-4 then boot (26B smoke "Paris"; 31B reaches "startup complete").
+  (Gemma-26B *multiconc* preset returns 400 on tool-call — that preset simply
+  omits `--tool-call-parser`; the default preset has it — not a dev672 issue.)
+
 ### Migration notes (executed at promotion)
 
 - `:nightly` re-tagged to dev672; dev424 kept as `nightly-3f5a1e173…` (rollback);

@@ -93,10 +93,21 @@ _ENV_CHUNK_SIZE = "GENESIS_G4_09_CHUNK_SIZE"  # tunable override; audit P0 follo
 # Audit GEMMA4_PATCH_OPTIMIZATION_PLAN_2026-05-17_RU notes:
 #   "G4_09 stable but limit 2048 may cut throughput; provide profiles
 #    2048 / 4096 / 8192".
-# 2048 is the empirically-safe minimum from issue #39914 reproducer
+# 2048 was the empirically-safe minimum from issue #39914 reproducer
 # comments. 4096 has been tested on dev371 without hang. 8192 is the
 # aggressive ceiling — operator must validate per checkpoint.
-_DEFAULT_CHUNK_SIZE_TOKENS = 2048
+#
+# 2026-07-01 (0.23.1 dev672 bump, full-fleet validation): raised 2048 → 3072.
+# dev672 (vllm cuda.py) FORCES `disable_chunked_mm_input=True` for Gemma 4
+# (mm-prefix-lm / bidirectional attention). With chunked-MM disabled, an MM
+# item can no longer be split, so the scheduler asserts
+# `max_num_batched_tokens >= max_tokens_per_mm_item` (2496 for Gemma-4-26B/31B).
+# The old 2048 clamp violated that → boot ValueError. 3072 satisfies the MM
+# floor (>=2496) AND stays below the ~4096 #39914 hang threshold, and improves
+# prefill throughput per the audit note. The wrapper below also raises the
+# clamp to the model's actual max_tokens_per_mm_item when it can read it, so
+# this stays correct for future MM-item sizes.
+_DEFAULT_CHUNK_SIZE_TOKENS = 3072
 
 # Hard ceiling — anything above this approaches the hang threshold per
 # #39914 measurements (~4096 was reported as triggering on FP8_BLOCK;
@@ -206,14 +217,38 @@ def apply() -> tuple[str, str]:
             sc = getattr(vllm_config, "scheduler_config", None)
             mc = getattr(vllm_config, "model_config", None)
             if sc is not None and mc is not None and is_gemma4_arch(mc):
+                # dev672+ forces `disable_chunked_mm_input=True` for Gemma 4
+                # (mm-prefix-lm). An un-splittable MM item then requires
+                # max_num_batched_tokens >= max_tokens_per_mm_item, so the
+                # #39914 chunk clamp must not drop below that floor (else the
+                # scheduler raises a boot ValueError). Read the MM-item size
+                # defensively and raise the effective chunk to cover it.
+                effective_chunk = chunk_size
+                if getattr(sc, "disable_chunked_mm_input", False):
+                    mm_floor = 0
+                    for obj in (mc, sc):
+                        try:
+                            v = int(getattr(obj, "max_tokens_per_mm_item", 0) or 0)
+                        except (TypeError, ValueError):
+                            v = 0
+                        if v > 0:
+                            mm_floor = v
+                            break
+                    if mm_floor > effective_chunk:
+                        effective_chunk = min(mm_floor, _MAX_CHUNK_SIZE_TOKENS)
+                        log.warning(
+                            "[G4_09] disable_chunked_mm_input set — raising chunk "
+                            "%d → %d to fit un-splittable MM item (dev672 MM floor)",
+                            chunk_size, effective_chunk,
+                        )
                 current = getattr(sc, "max_num_batched_tokens", None)
-                if current is None or current > chunk_size:
+                if current is None or current > effective_chunk:
                     log.warning(
                         "[G4_09] clamping scheduler.max_num_batched_tokens "
                         "%s → %d (Gemma 4 + #39914 workaround)",
-                        current, chunk_size,
+                        current, effective_chunk,
                     )
-                    sc.max_num_batched_tokens = chunk_size
+                    sc.max_num_batched_tokens = effective_chunk
                 # Force chunked prefill on (its absence triggers single-batch path)
                 if hasattr(sc, "enable_chunked_prefill"):
                     if not sc.enable_chunked_prefill:
