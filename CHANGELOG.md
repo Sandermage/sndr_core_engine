@@ -118,12 +118,13 @@ holds the release version.)
 
 ---
 
-## [Unreleased · dev672-candidate] — pin bump dev424 → dev672 (validation PENDING) (2026-07-01)
+## [Unreleased · dev672] — pin bump dev424 → dev672 · TurboQuant upstreamed (PROMOTED 2026-07-01)
 
-> Operator-authorized bump to the latest nightly. Static assessment complete;
-> live 35B window validation PENDING. dev424 (`3f5a1e173`) remains the shipped
-> pin + instant rollback until dev672 is promoted. No change to the running
-> `vllm-qwen3.6-35b-balanced-k3` container yet.
+> Operator-authorized bump to the latest nightly, **PROMOTED after a live 35B
+> window**. dev672 (`93d8f834`) is now the shipped pin; `:nightly` re-tagged to
+> it. dev424 (`3f5a1e173`) retained as the previous/rollback pin; dev301
+> (`04c2a8dea`) dropped per the CLAUDE.md ≤2-pin policy. Live engine runs the
+> **main-sync** tree (now the canonical source; the server mounts it).
 
 ### Highlights
 
@@ -157,18 +158,32 @@ holds the release version.)
 - Anchor-drift probe (enforcement OFF): PN38 / PN40 / G4_26 anchors moved, but
   all three are disabled/gated on the A5000-2x fleet → non-blocking for the 35B.
 
-### Migration notes (PENDING — executed at promotion, post-window)
+### Bench / measurements (live 35B window, 2026-07-01)
 
-- Live window: boot dev672 on the 35B ports, smoke + streaming tool-call +
-  canonical `genesis_bench_suite.py --quick` vs dev424; promote-or-rollback
-  (dev424 image stays tagged for an instant `docker` rollback).
-- On promote: bump `vllm_pin_required` dev424 → dev672 across the ModelDefs +
-  the a5000-2x hardware `image:` tag (R-MD-HW-2 SHA-match), regen the
-  `pins/0.23.1_93d8f834d` anchor-SOT (`make rebuild-pin`), move dev672 to
-  `KNOWN_GOOD_VLLM_PINS`, and drop dev301 per the CLAUDE.md ≤2-pin policy.
-- GPU note: the model-level TurboQuant CUDA path (P67 split-M kernel, TQ decode
-  kernels, G4_61/62) only *applies* on the live GPU — its interaction with the
-  now-native TQ backend is validated by the window bench, not the no-GPU probe.
+- Boot on GPU: **applied=87 / skipped=166 / failed=0.** TurboQuant CUDA stack
+  applies and coexists with the now-native upstream TQ backend: PN119 (k8v4 GQA
+  kernel), P67/P67b (multi-query spec-decode), PN116/PN118/PN399, PN130 TQ-decode
+  warmup ✓.
+- `genesis_bench_suite.py --quick` (5×5×1024, temp 0.7), 35B-A3B FP8 TQ k8v4 +
+  MTP K=5: **240.55 wall_TPS (CV 6.0%) = 98.4 % of dev424 (244.35), within CV —
+  NO regression.** decode_TPOT 3.93 ms; TTFT 86 ms; MTP accept-rate 0.679 (floor
+  0.55 PASS). Tool-call 7/7 + `get_weather {"city":"Berlin"}` (qwen3_xml, no
+  XML→content leak); "Paris" coherent finish=stop.
+
+### Migration notes (executed at promotion)
+
+- `:nightly` re-tagged to dev672; dev424 kept as `nightly-3f5a1e173…` (rollback);
+  dev301 image dropped (≤2-pin policy).
+- `vllm_pin_required` bumped dev424 → dev672 across the ModelDefs + a5000-2x/1x
+  and single-3090 hardware `image:` tags (R-MD-HW-2 SHA-match) + prod presets.
+  Only the 35B was bench-validated this window; the other A5000-2x models are
+  carried with the shared hardware pin and boot-validate on next launch.
+- dev672 moved `PROMOTION_PENDING` → `KNOWN_GOOD_VLLM_PINS` in `guards.py`.
+- Live engine `vllm-35b-dev672` serves on `:8102`, network-aliased as
+  `vllm-qwen3.6-35b-balanced-k3` so the memory/Control-Center container reaches
+  it by the canonical name. It mounts the main-sync tree (`/home/sander/gvp-mainsync`).
+- Follow-up: regen the `pins/0.23.1_93d8f834d` anchor-SOT (`make rebuild-pin`)
+  for drift-tracking completeness.
 
 ---
 

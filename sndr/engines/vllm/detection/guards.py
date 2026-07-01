@@ -665,6 +665,26 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     # validated).
     "0.23.1rc1.dev424+g3f5a1e173",                       # setuptools_scm-derived
     "nightly-3f5a1e1733200760169ff31ebe60a271072b199e",  # docker tag form (full SHA)
+    # ── PROD pin PROMOTION dev672 2026-07-01 ──────────────────────────
+    # Image: vllm/vllm-openai:nightly-93d8f834dd8acf33eb0e2a75b2711b628cb6e226
+    # (0.23.1rc1.dev672+g93d8f834d, commit 93d8f834, +248 commits over dev424).
+    # PROMOTED 2026-07-01: operator-authorized bump dev424 -> dev672, validated
+    # in a live 35B window on the main-sync tree (canonical). Boot apply
+    # applied=87 / skipped=166 / failed=0 (TurboQuant CUDA stack applies on GPU:
+    # PN119 k8v4 GQA kernel + P67/P67b + PN116/PN118/PN399 + PN130 TQ-decode
+    # warmup ✓ — coexist with the now-native upstream TurboQuant backend without
+    # conflict). Canonical genesis_bench_suite.py --quick (5x5x1024, temp 0.7):
+    #   - 35B-A3B FP8 TQ k8v4 + MTP K=5: 240.55 wall_TPS (CV 6.0%) vs dev424
+    #     244.35 = -1.55% (within CV noise, NO regression); decode_TPOT 3.93 ms;
+    #     TTFT 86 ms; MTP accept-rate 0.679 (floor 0.55 PASS); tool-call 7/7 +
+    #     get_weather {"city":"Berlin"} (qwen3_xml, no XML->content leak); "Paris"
+    #     coherent finish=stop. Upstream absorbed (iron-rule #11, auto-handled):
+    #     TurboQuant KV native (P5 defers on #39931, P8 retired), PN8 native
+    #     (#40849 graceful-skip), PN30 version-gated <0.23.0 (fused postproc
+    #     kernel). dev424 (nightly-3f5a1e173) retained as previous/rollback;
+    #     dev301 (nightly-04c2a8dea) dropped per CLAUDE.md <=2-pin policy.
+    "0.23.1rc1.dev672+g93d8f834d",                       # setuptools_scm-derived
+    "nightly-93d8f834dd8acf33eb0e2a75b2711b628cb6e226",  # docker tag form (full SHA)
 )
 
 
@@ -682,20 +702,10 @@ PROMOTION_PENDING_VLLM_PINS: tuple[str, ...] = (
     # validation (35B / 27B / Gemma4-31B / DiffusionGemma all apply failed=0 +
     # smoke + tool-call PASS, 35B bench 210.7 TPS = 101% of dev491). See the
     # KNOWN_GOOD_VLLM_PINS "PROD pin PROMOTION 0.23.1" block above.
-    # ── PROD pin CANDIDATE dev672 (added 2026-07-01, validation PENDING) ──
-    # Image: vllm/vllm-openai:nightly-93d8f834dd8acf33eb0e2a75b2711b628cb6e226
-    # (0.23.1rc1.dev672+g93d8f834d, commit 93d8f834, +248 commits over dev424).
-    # Operator-authorized bump dev424 -> dev672 (2026-07-01). Static assessment
-    # in the candidate container with GENESIS_ENFORCE_VERSION_RANGE=1 against the
-    # main-sync tree: apply applied=84 / skipped=169 / failed=0. PN30 is version-
-    # gated (<0.23.0 — upstream fused postprocess kernel supersedes the DS conv
-    # spec-decode path); PN8 graceful-skips (get_draft_quant_config is native now,
-    # vllm#40849). TurboQuant KV is upstream-native at this pin (quantization/
-    # turboquant/ + TurboQuantAttentionBackend + triton_turboquant_decode/store).
-    # PROMOTION PENDING the live window: 35B boot + smoke + tool-call + bench vs
-    # dev424 (rollback). Move to KNOWN_GOOD after validation + CHANGELOG.
-    "0.23.1rc1.dev672+g93d8f834d",                       # setuptools_scm-derived
-    "nightly-93d8f834dd8acf33eb0e2a75b2711b628cb6e226",  # docker tag form (full SHA)
+    # dev672 (93d8f834) GRADUATED to KNOWN_GOOD on 2026-07-01 after the live 35B
+    # window (boot apply failed=0, smoke + tool-call 7/7, 240.55 TPS = 98.4% of
+    # dev424 within CV). See the KNOWN_GOOD_VLLM_PINS "PROD pin PROMOTION dev672"
+    # block above.
 )
 
 

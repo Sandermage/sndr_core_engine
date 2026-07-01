@@ -63,7 +63,7 @@ card:
     tensor_parallel: 2                             # TP=2 across both A5000s
     requires_min_gpu_count: 2                      # INT4 weights + 8-way conc KV pool need both cards
     requires_min_cuda_capability: [8, 6]           # Ampere SM 8.6
-    engine_pin: 0.23.1rc1.dev424+g3f5a1e173        # validated vLLM build
+    engine_pin: 0.23.1rc1.dev672+g93d8f834d        # validated vLLM build
   routing_family: qwen3_6_27b_int4_tq
   default_for_family: false
   fallback_preset: prod-qwen3.6-27b-tq-k8v4
