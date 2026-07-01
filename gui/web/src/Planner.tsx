@@ -186,15 +186,18 @@ export function KvCalcPanel() {
           <summary style={{ cursor: "pointer", opacity: 0.85 }}>{tr("Measured throughput reference (real rigs — not a prediction)")}</summary>
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 6 }}>
             <thead><tr style={{ textAlign: "left", opacity: 0.7 }}>
-              <th>{tr("Model")}</th><th>{tr("Hardware")}</th><th>TP</th><th>{tr("link")}</th><th>{tr("TPS 1 / N")}</th><th>{tr("ctx")}</th></tr></thead>
+              <th>{tr("Model")}</th><th>{tr("Hardware")}</th><th>TP</th><th>{tr("link")}</th><th title={tr("primary single-stream TPS, then the second number and its axis")}>{tr("TPS · alt")}</th><th>{tr("ctx")}</th></tr></thead>
             <tbody>
               {calc.measured_reference.map((m, i) => {
                 const fam = (calc.arch?.name || "").split(" ")[0];
                 const match = fam && m.model.includes(fam);
+                // honest second-axis label: club rigs report a code-prompt single
+                // stream ("code"), our rigs report a concurrency aggregate ("×N").
+                const alt = m.alt_kind === "code" ? "code" : (m.alt_kind || "").replace("conc", "×");
                 return (
                   <tr key={i} style={{ fontWeight: match ? 600 : 400, background: match ? "rgba(59,130,246,0.08)" : undefined }}>
                     <td>{m.model}</td><td>{m.hardware}</td><td>{m.tp}</td><td>{m.link}</td>
-                    <td>{m.tps_single}{m.tps_multi ? ` / ${m.tps_multi}` : ""}</td><td>{m.context_k}K</td>
+                    <td>{m.tps_single}{m.tps_multi ? ` / ${m.tps_multi}` : ""}{m.tps_multi && alt ? ` (${alt})` : ""}</td><td>{m.context_k}K</td>
                   </tr>
                 );
               })}

@@ -138,11 +138,17 @@ export function ModelsWorkbench({
 }) {
   const models = catalog?.models ?? [];
   const [filter, setFilter] = useState("");
+  const [scope, setScope] = useState("");  // model-family scope (c3 catalog #495); "" = all
   const [picked, setPicked] = useState<string | null>(null);
   const { data: liveModel } = useEngineModel();
   const activeId = picked ?? selectedModel ?? models[0]?.id ?? "";
   const active = models.find((model) => model.id === activeId) ?? null;
+  const allFamilies = useMemo(
+    () => Array.from(new Set(models.map((m) => modelFamily(m.id)))).sort(),
+    [models],
+  );
   const visible = models.filter((model) => {
+    if (scope && modelFamily(model.id) !== scope) return false;
     const needle = filter.trim().toLowerCase();
     if (!needle) return true;
     return [model.id, model.title, model.summary]
@@ -216,6 +222,12 @@ export function ModelsWorkbench({
         <label className="search-box">
           <Search size={15} />
           <input aria-label={tr("Search models")} value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={tr("Search model")} />
+        </label>
+        <label className="search-box" title={tr("Scope the catalog to one model family")} style={{ minWidth: 0 }}>
+          <select aria-label={tr("Model family scope")} value={scope} onChange={(event) => setScope(event.target.value)}>
+            <option value="">{tr("All families")}</option>
+            {allFamilies.map((fam) => <option key={fam} value={fam}>{fam}</option>)}
+          </select>
         </label>
         <div className="catalog-list">
           {groupedModels.map(([family, items]) => (

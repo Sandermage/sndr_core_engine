@@ -180,6 +180,9 @@ def test_measured_reference_is_grounded_and_sourced():
         assert r["source"]  # must cite where the number came from
         assert r["hardware"] and r["model"]
         assert r["link"] in ("pcie", "nvlink", "single", "n/a")
+        # the second number's axis must be labelled honestly (never conflate
+        # concurrency-aggregate with a code-prompt single-stream number)
+        assert r["alt_kind"] in ("code", "conc4", "conc8") or r["alt_kind"].startswith("conc")
     # must include the club-3090 27B NVLink point and a genesis A5000 point
     assert any("nvlink" == r["link"] and "27" in r["model"] for r in ref)
     assert any("A5000" in r["hardware"] for r in ref)

@@ -1,4 +1,39 @@
 watch:
+- upstream: vllm#40886
+  status: merged
+  fix_status: absorbed-in-v0.24.0
+  severity: P2-cleanup
+  local_patches:
+  - G4_04
+  action: retire-audit-on-v0.24-bump
+  since: 2026-07-02
+  notes: |
+    club-3090 shipped vllm-stable v0.24.0 "overlay-free" (their #533, 2026-06-30):
+    upstream absorbed the Gemma-4 AWQ MoE keys remap (#40886) that G4_04 vendors.
+    We are NOT on v0.24.0 yet (current pin dev672 = 0.23.1). ON A v0.24.0 BUMP,
+    deep-diff G4_04 remap vs native #40886 (iron-rule #11): RETIRE if byte-equivalent,
+    else KEEP the extra keys. Source: club-3090 CHANGELOG (v0.22.0 -> v0.24.0).
+- upstream: v0.24.0-overlay-free
+  status: club-on-v0.24.0
+  severity: P3-intel
+  local_patches:
+  - G4_25
+  action: audit-on-v0.24-bump
+  since: 2026-07-02
+  notes: |
+    Further overlays club-3090 dropped on v0.24.0 (retire-audit candidates for our
+    next bump; iron-rule #11 - do NOT retire on a title match):
+    (a) Gemma p-RoPE long-context: upstream config fix supersedes -> audit G4_25
+        (Gemma 4 dual-RoPE base-freq divergence guard).
+    (b) truncate_prompt_tokens (#41800): native in v0.24.0; we vendor no equivalent.
+    (c) marlin-pad native: audit our marlin-path patches (P37/P81 family).
+    Two club findings worth our OWN measurement (not a directive):
+    (d) MTP measured SLOWER on Gemma-4 MoE -> their dual repointed MTP-off (#537);
+        verify-per-model on our gemma-4-*-mtp presets before shipping MTP there.
+    (e) W8A8 int8 (weights+activations) ~zero quality cost, +17-51% prefill,
+        TTFT 122 vs 158 ms (their experimental v0.24.0 row) -> a prefill-optimised
+        variant worth an A/B if we add one.
+    Source: club-3090 CHANGELOG + BENCHMARKS (2026-06-27..07-01).
 - upstream: vllm#43409
   status: merged
   fix_upstream: vllm#45656

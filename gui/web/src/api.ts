@@ -592,7 +592,7 @@ export type KvCalcResult = {
   single_card?: SingleCardAlt[];
   single_card_suggested?: boolean;
 };
-export type MeasuredRef = { model: string; hardware: string; tp: number; link: "pcie" | "nvlink" | "single" | "n/a"; tps_single: number; tps_multi: number; context_k: number; source: string };
+export type MeasuredRef = { model: string; hardware: string; tp: number; link: "pcie" | "nvlink" | "single" | "n/a"; tps_single: number; tps_multi: number; alt_kind: string; context_k: number; source: string };
 export type SingleCardAlt = { engine: string; config: string; tps_single: number; tps_code: number; context_k: number; vram_gb: number; note: string; source: string };
 
 // ── Fleet overview (all engine hosts at a glance) ───────────────────────────

@@ -344,26 +344,39 @@ def arch_from_dict(data: dict[str, Any]) -> ModelArch:
 # throughput their config is likely to see. Sources: our own canonical
 # genesis_bench_suite runs, and the noonghunna/club-3090 BENCHMARKS.md
 # (public, cross-rig 3090/4090/5090 data). No fabricated multipliers.
+#   `alt_kind` labels the SECOND number honestly — the two rig families measure
+#   different axes: our genesis rows report single-stream + concurrency-aggregate
+#   ("concN"); the club-3090 rows report narration + code single-stream ("code").
+#   Never conflate them into one "1/N" — the GUI shows the label.
 MEASURED_REFERENCE: list[dict[str, Any]] = [
-    # model, hardware, tp, link, tps_single, tps_multi, context_k, source
+    # model, hardware, tp, link, tps_single, tps_multi, alt_kind, context_k, source
     {"model": "Qwen3.6-35B-A3B FP8 TQ k8v4 (MTP K=5)", "hardware": "2× A5000 24GB", "tp": 2, "link": "pcie",
-     "tps_single": 240.6, "tps_multi": 644, "context_k": 280, "source": "genesis bench dev672 2026-07-01 (multi @conc=8)"},
-    {"model": "Qwen3.6-35B-A3B FP8", "hardware": "2× 3090 24GB", "tp": 2, "link": "pcie",
-     "tps_single": 178.5, "tps_multi": 173.7, "context_k": 262, "source": "club-3090 qwen-35b-a3b-dual (7.81× conc)"},
+     "tps_single": 240.6, "tps_multi": 644, "alt_kind": "conc8", "context_k": 280, "source": "genesis bench dev672 2026-07-01"},
     {"model": "Qwen3.6-27B INT4 TQ k8v4 (MTP K=3)", "hardware": "2× A5000 24GB", "tp": 2, "link": "pcie",
-     "tps_single": 120, "tps_multi": 292, "context_k": 280, "source": "genesis bench (multi @conc=4)"},
-    {"model": "Qwen3.6-27B", "hardware": "2× 3090 24GB", "tp": 2, "link": "pcie",
-     "tps_single": 70, "tps_multi": 90, "context_k": 262, "source": "club-3090 dual.yml baseline"},
-    {"model": "Qwen3.6-27B DFlash", "hardware": "2× 3090 24GB (NVLink)", "tp": 2, "link": "nvlink",
-     "tps_single": 103, "tps_multi": 167, "context_k": 188, "source": "club-3090 dual-nvlink-dflash-noviz"},
-    {"model": "Qwen3.6-27B ik-llama iq4ks-two-stage", "hardware": "1× 3090 24GB", "tp": 1, "link": "single",
-     "tps_single": 59, "tps_multi": 98, "context_k": 200, "source": "club-3090 (code-optimized, decode)"},
-    {"model": "Qwen3.6-27B DFlash", "hardware": "1× 5090 32GB", "tp": 1, "link": "single",
-     "tps_single": 127, "tps_multi": 200, "context_k": 49, "source": "club-3090 5090 single-card"},
+     "tps_single": 120, "tps_multi": 292, "alt_kind": "conc4", "context_k": 280, "source": "genesis bench"},
+    # ── club-3090 cross-rig (narration / code single-stream, alt_kind=code) ──
+    {"model": "Qwen3.6-35B-A3B FP8", "hardware": "2× 3090 24GB", "tp": 2, "link": "pcie",
+     "tps_single": 178.5, "tps_multi": 173.7, "alt_kind": "code", "context_k": 262, "source": "club-3090 qwen-35b-a3b-dual (7.81× conc separately)"},
+    {"model": "Qwen3.6-27B FP8", "hardware": "2× 3090 24GB", "tp": 2, "link": "pcie",
+     "tps_single": 70, "tps_multi": 90, "alt_kind": "code", "context_k": 262, "source": "club-3090 dual.yml baseline"},
+    {"model": "Qwen3.6-27B INT4 int8-PTH KV", "hardware": "4× 3090 PCIe", "tp": 4, "link": "pcie",
+     "tps_single": 92.5, "tps_multi": 121.9, "alt_kind": "code", "context_k": 262, "source": "club-3090 multi-fast v0.24.0 (int8-PTH = +57%/+65% vs fp8 KV, verify 7/7)"},
+    {"model": "Qwen3.6-27B FP8 int8-PTH KV", "hardware": "2× 3090 24GB", "tp": 2, "link": "pcie",
+     "tps_single": 82.0, "tps_multi": 104.6, "alt_kind": "code", "context_k": 262, "source": "club-3090 dual-max v0.24.0"},
+    {"model": "Qwen3.6-27B W8A8 int8-PTH (experimental)", "hardware": "2× 3090 24GB", "tp": 2, "link": "pcie",
+     "tps_single": 76.2, "tps_multi": 96.4, "alt_kind": "code", "context_k": 262, "source": "club-3090 v0.24.0 EXPERIMENTAL — prefill +17-51% vs fp8, TTFT 122ms, quality tied (activation-quant ~free)"},
+    {"model": "Qwen3.6-27B (NVLink baseline)", "hardware": "2× 3090 NVLink", "tp": 2, "link": "nvlink",
+     "tps_single": 67.2, "tps_multi": 86.1, "alt_kind": "code", "context_k": 262, "source": "club-3090 dual.yml NVLink = +56-60% vs SAME rig PHB/no-P2P (42.7/53.5)"},
+    {"model": "Qwen3.6-27B DFlash (NVLink)", "hardware": "2× 3090 NVLink", "tp": 2, "link": "nvlink",
+     "tps_single": 103, "tps_multi": 167, "alt_kind": "code", "context_k": 188, "source": "club-3090 dual-nvlink-dflash-noviz"},
+    {"model": "Qwen3.6-27B DFlash", "hardware": "1× 3090 24GB", "tp": 1, "link": "single",
+     "tps_single": 50.2, "tps_multi": 99.7, "alt_kind": "code", "context_k": 160, "source": "club-3090 single-card DEFAULT (ships 102K)"},
+    {"model": "Qwen3.6-27B FP8", "hardware": "2× 5090 PCIe5", "tp": 2, "link": "pcie",
+     "tps_single": 153.4, "tps_multi": 196.9, "alt_kind": "code", "context_k": 262, "source": "club-3090 dual.yml 5090 (8-pack quality 110/150)"},
     {"model": "Gemma-4 31B bf16 MTP", "hardware": "2× 3090 24GB", "tp": 2, "link": "pcie",
-     "tps_single": 118.8, "tps_multi": 154.3, "context_k": 131, "source": "club-3090 gemma-bf16-mtp"},
-    {"model": "Gemma-4 31B MTP", "hardware": "1× 5090 32GB", "tp": 1, "link": "single",
-     "tps_single": 159.7, "tps_multi": 215.1, "context_k": 131, "source": "club-3090 5090 (first single-card boot)"},
+     "tps_single": 118.8, "tps_multi": 154.3, "alt_kind": "code", "context_k": 131, "source": "club-3090 gemma-bf16-mtp"},
+    {"model": "Gemma-4 31B int8-mtp", "hardware": "1× 5090 32GB", "tp": 1, "link": "single",
+     "tps_single": 159.7, "tps_multi": 215.1, "alt_kind": "code", "context_k": 131, "source": "club-3090 5090 single-card"},
 ]
 
 # Single-card "escape hatch" lanes for when TP=2 won't fit (or you only have one
@@ -377,7 +390,7 @@ _SINGLE_CARD: dict[str, list[dict[str, Any]]] = {
         {"engine": "llama.cpp", "config": "mtp Q4_K_M", "tps_single": 50.3, "tps_code": 58.9, "context_k": 200,
          "vram_gb": 22.3, "note": "mainline llama.cpp; 1025 tok/s prefill", "source": "club-3090"},
         {"engine": "beellama", "config": "dflash", "tps_single": 50.2, "tps_code": 99.7, "context_k": 160,
-         "vram_gb": 23.0, "note": "single-card DFlash default", "source": "club-3090"},
+         "vram_gb": 23.0, "note": "PROMOTED single-card DEFAULT (ships 102K ctx); fastest single-card code path", "source": "club-3090 v0.24.0"},
     ],
 }
 # alias the registry keys to the escape-hatch table
@@ -408,11 +421,13 @@ def topology_note(tp: int) -> dict[str, Any] | None:
         "level": "info",
         "applies_to_estimate": False,
         "text": (
-            "TP≥2 throughput scales with interconnect: NVLink measured ~+15% "
-            "narrative / +16% code vs identical PCIe; consumer patched-P2P "
-            "(no NVLink) ~+10% / +14%. Affects tokens/s only, not the VRAM budget."
+            "TP≥2 throughput scales with interconnect. Biggest lift vs a "
+            "no-P2P board (PHB): NVLink measured ~+56–60% (club-3090 27B "
+            "dual.yml 67/86 NVLink vs 43/54 PHB, same rig). Vs P2P-capable "
+            "PCIe the gap is smaller (~+15%). Patched-P2P (no NVLink) recovers "
+            "~+10–14%. Affects tokens/s only, not the VRAM budget."
         ),
-        "source": "club-3090 27B dual PCIe vs NVLink (measured)",
+        "source": "club-3090 27B dual.yml NVLink-vs-PHB toggle (measured, 2026-06-26)",
     }
 
 
