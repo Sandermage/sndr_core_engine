@@ -8,6 +8,7 @@ import { formatTokens, targetTitle } from "./lib/format";
 import { lsSet } from "./lib/safe-storage";
 import { buildReadinessGates, countGates } from "./lib/readiness-gates";
 import { useLiveEvents } from "./hooks/useLiveEvents";
+import { UpdateBanner } from "./UpdateBanner";
 import { LiveModelChip } from "./components/live-model";
 import { SectionWorkspace } from "./sections/section-workspace";
 import { buildEvents, buildCliMirror, runtimeHost } from "./lib/overview-presenters";
@@ -816,6 +817,7 @@ export default function App() {
 
   return (
     <main className={shellClass} data-viewport={viewport.tier}>
+      <UpdateBanner />
       <aside className={`sidebar${settings.sidebarCollapsed ? " collapsed" : ""}`}>
         <div className="brand-row">
           <div className="brand-mark">S</div>

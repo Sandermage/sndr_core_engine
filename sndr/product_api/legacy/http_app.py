@@ -397,6 +397,21 @@ def create_app(
             response.headers.setdefault("Content-Security-Policy", _csp)
         return response
 
+    def _gui_build_id() -> "str | None":
+        # Build-id stamped into web_static by `make gui-build`. The SPA captures
+        # it on first /health and offers a one-click reload when it changes — so a
+        # fresh GUI deploy is picked up automatically instead of a manual
+        # hard-refresh (content-hashed assets already bust per-file; this closes
+        # the "which build am I looking at" gap after a version/pin bump).
+        try:
+            from pathlib import Path
+            txt = (Path(__file__).parent / "web_static" / "build-id.txt").read_text(encoding="utf-8")
+            return txt.strip() or None
+        except OSError:
+            return None
+
+    _gui_build = _gui_build_id()
+
     @app.get("/api/v1/health")
     async def health() -> dict[str, Any]:
         # read_only must reflect the ACTUAL apply gate (apply_on) — reporting a
@@ -411,6 +426,7 @@ def create_app(
             "read_only": not apply_on,
             "apply_enabled": apply_on,
             "auth_required": auth_config.enabled,
+            "gui_build_id": _gui_build,
         }
 
     @app.get("/api/v1/capabilities")

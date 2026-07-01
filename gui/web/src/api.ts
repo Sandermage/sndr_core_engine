@@ -286,6 +286,7 @@ export type Job = {
 
 export type DependencyInfo = { name: string; version: string | null; present: boolean; kind: string };
 
+export type HealthReport = { status: string; service: string; version: string; read_only: boolean; apply_enabled: boolean; auth_required: boolean; gui_build_id?: string | null };
 export type EnvironmentReport = {
   brand: string;
   package_name: string;
@@ -1650,6 +1651,7 @@ export const api = {
   reportBundle: (payload: { report_type: string; preset_id?: string; redact?: boolean }) =>
     postJson<ReportBundleResult>("/api/v1/reports/bundle", payload),
   environment: () => request<EnvironmentReport>("/api/v1/environment"),
+  health: (signal?: AbortSignal) => request<HealthReport>("/api/v1/health", { signal }),
   operations: () => request<OperationsResult>("/api/v1/operations"),
   operationRun: (operation: string) => postJson<Job>("/api/v1/operations/run", { operation }),
   caveats: () => request<CaveatsResult>("/api/v1/caveats"),

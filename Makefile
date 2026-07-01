@@ -546,7 +546,11 @@ gui-build: ## Build the web UI and bundle it into the package for the daemon to 
 	cd gui/web && npm ci && npm run build
 	rm -rf sndr/product_api/legacy/web_static
 	cp -R gui/web/dist sndr/product_api/legacy/web_static
-	@echo "✓ GUI built and copied to sndr/product_api/legacy/web_static (the path the daemon serves from)"
+	@id="$$(git rev-parse --short HEAD 2>/dev/null || echo nogit)-$$(ls -1 sndr/product_api/legacy/web_static/assets 2>/dev/null | shasum | cut -c1-8)"; \
+	 printf '%s\n' "$$id" > sndr/product_api/legacy/web_static/build-id.txt; \
+	 echo "✓ GUI built + copied to sndr/product_api/legacy/web_static (build-id: $$id)"
+	@echo "  build-id.txt is surfaced via /api/v1/health.gui_build_id; the SPA polls it and"
+	@echo "  offers a one-click reload on change (no manual hard-refresh after a deploy)."
 	@echo "  Run: $(PYTHON) -m sndr.cli gui-api  → serves UI + API on one port"
 
 gui-lint: ## Typecheck + lint the GUI (tsc strict + eslint with a11y enforced as errors)
