@@ -23,5 +23,9 @@ done
 
 echo "postgres ready; starting product-API on :8800"
 # Schema is created idempotently by the API's PostgresStore at startup.
-exec python3 -m uvicorn "sndr.product_api.server:create_app" \
+# Default to the UNIFIED daemon: the full Control Center (every /api route the
+# GUI calls) + memory, so the same-origin GUI has no missing routes (which would
+# otherwise 404 -> SPA HTML -> "Unexpected token '<'" in the panels) and memory
+# rides the platform auth instead of a separate key. Override with $SNDR_APP.
+exec python3 -m uvicorn "${SNDR_APP:-sndr.product_api.unified:create_app}" \
     --factory --host 0.0.0.0 --port 8800

@@ -188,18 +188,31 @@ def attach_maintenance(app: FastAPI) -> None:
     )
 
 
-def mount_memory_routes(app: FastAPI) -> None:
-    """Mount the memory + gateway routers (API-key guarded) and wire the engine,
-    gateway upstreams, and maintenance loop. Shared by both app factories so the
-    GUI Memory panel behaves identically everywhere."""
-    from fastapi import Depends
+def mount_memory_routes(app: FastAPI, *, guard: bool = True) -> None:
+    """Mount the memory + gateway routers and wire the engine, gateway upstreams,
+    and maintenance loop. Shared by both app factories so the GUI Memory panel
+    behaves identically everywhere.
 
+    ``guard`` adds the per-route ``GENESIS_MEMORY_API_KEY`` dependency. The
+    standalone modular ``server`` sets it (it has NO other auth). The composed
+    ``unified`` daemon sets ``guard=False``: it already sits behind the legacy
+    platform auth middleware, so the SAME session/token protects memory as every
+    other Control Center route — no second, GUI-breaking key. (With the homelab
+    default ``SNDR_AUTH=off`` everything, memory included, is open; with
+    ``SNDR_AUTH=on`` the login protects everything, memory included.)
+    """
     from sndr.product_api.routes.gateway import router as gateway_router
     from sndr.product_api.routes.memory import router as memory_router
-    from sndr.product_api.security import require_api_key
 
-    app.include_router(memory_router, dependencies=[Depends(require_api_key)])
-    app.include_router(gateway_router, dependencies=[Depends(require_api_key)])
+    deps = None
+    if guard:
+        from fastapi import Depends
+
+        from sndr.product_api.security import require_api_key
+        deps = [Depends(require_api_key)]
+
+    app.include_router(memory_router, dependencies=deps)
+    app.include_router(gateway_router, dependencies=deps)
     attach_memory_engine(app)
     attach_gateway(app)
     attach_maintenance(app)

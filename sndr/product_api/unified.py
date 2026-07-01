@@ -47,7 +47,10 @@ def create_app() -> FastAPI:
             spa = routes.pop(i)
             break
 
-    mount_memory_routes(app)
+    # guard=False: memory rides the SAME legacy platform auth middleware as every
+    # other Control Center route, instead of a separate GENESIS_MEMORY_API_KEY the
+    # same-origin GUI can't send (which 401'd the Memory panel).
+    mount_memory_routes(app, guard=False)
 
     if spa is not None:
         routes.append(spa)
