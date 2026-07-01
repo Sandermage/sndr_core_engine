@@ -210,13 +210,15 @@ hot path.
 | Capability | What it does |
 |---|---|
 | **Storage** | Postgres + pgvector (HNSW ANN + lexical GIN); pure-stdlib in-memory reference backend (identical results, CI-verified) |
-| **Recall** | vector ANN seeds → bounded, cycle-safe spreading activation over the graph, blended with decay |
+| **Recall** | vector ANN seeds → bounded, cycle-safe spreading activation over the graph, blended with decay; operator-tunable **limit** + **expand-depth** |
 | **Brain mechanics** | Hebbian co-access, Ebbinghaus decay + **strength reinforcement** (spacing effect), communities ("clouds"), importance, bi-temporal edge invalidation |
 | **Search** | `vector` · `keyword` · `hybrid` (catches exact terms / names / IDs) |
 | **Universal augment** | OpenAI-compatible **gateway**: recall → inject (plain-text system block) → forward → capture, for **any** model. Multi-upstream — choose per request (`X-Memory-Upstream`) |
-| **Ingest** | **Obsidian** vault import (notes → nodes, `[[wikilinks]]` → edges, `#tags`), path-confined |
-| **GUI** | Obsidian-like force-directed graph (Sigma.js + ForceAtlas2): nodes colored by community, sized by importance |
+| **Ingest** | **Obsidian** vault import (notes → nodes, `[[wikilinks]]` → edges, `#tags`), path-confined; wikilinks resolve case-insensitively and by H1 title, not just exact filename |
+| **Manage** | remember · **forget** (delete node + its edges, owner-scoped) · **export** (whole graph → JSON backup) · **import** (Obsidian vault) — all from the GUI or CLI |
+| **GUI** | Obsidian-like force-directed graph (Sigma.js + ForceAtlas2): nodes colored by community, sized by importance. Toolbar shows nodes/edges/**communities**; List⇄Graph toggle; recall with operator **limit** + **expand-depth**; node-detail card with importance/strength/cloud badges + typed connections; Forget/Export/Import actions |
 | **Embedders** | `Model2Vec` (real static CPU, 256-dim, no torch) · `HashEmbedder` (dependency-free) |
+| **CLI** | `sndr mem remember\|recall\|search\|stats` (+ TUI Memory panel) — same engine, no GUI required |
 | **Ops** | API-key auth · owner-scoping · auto consolidate + prune (**leak-bounded**) · graceful Postgres-down fallback · upstream-error 502/504 |
 
 **Use it** (one container) — point any OpenAI client at the gateway and it gains memory:

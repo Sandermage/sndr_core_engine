@@ -134,8 +134,9 @@ Responses are enveloped: `{"data": <payload>, "meta": {request_id, timestamp, ..
 | GET | `/api/v1/memory/search` | `?q=&limit=10&mode=vector\|hybrid` | `[{id,content,kind,score}]` |
 | POST | `/api/v1/memory/recall` | `{query, limit?, expand_depth?, reinforce?}` | `[{id,content,kind,score}]` |
 | GET | `/api/v1/memory/node/{id}` | — | full node |
+| DELETE | `/api/v1/memory/node/{id}` | — (owner-scoped) | `{deleted, id}` — **forget**: removes node + all its edges; 404 if absent/not owned |
 | GET | `/api/v1/memory/neighbors/{id}` | — | `[{id,rel,weight}]` |
-| GET | `/api/v1/memory/stats` | — | `{nodes,edges}` |
+| GET | `/api/v1/memory/stats` | — | `{nodes,edges,communities}` |
 | GET | `/api/v1/memory/graph` | `?limit=200` | `{nodes:[…],edges:[…]}` |
 | POST | `/api/v1/memory/link` | `{tau?,k?}` | `{created}` |
 | POST | `/api/v1/memory/consolidate` | `{tau?,k?}` | `{linked,communities,nodes}` |
@@ -372,12 +373,21 @@ container too if it's on the default bridge). Smoke: `curl localhost:8811/api/v1
 ## 12. GUI panel
 
 The "Memory" section (Engine group, Brain icon) of the Control Center, served
-same-origin by the container:
-- **List view** — remember, search (toggle "Brain recall" for graph expand),
-  click a result to inspect its node + connections, "Rebuild" to consolidate.
+same-origin by the container. The toolbar shows live **nodes / edges /
+communities** counts and a List⇄Graph toggle; the panel is fully responsive
+(flex-wraps down to narrow viewports).
+- **List view** — remember, search (toggle "Brain recall" for graph-expanded
+  recall, with operator-tunable **limit** and **expand-depth**), click a result
+  to inspect its node + connections, "Rebuild links" to consolidate.
 - **Graph view** — Obsidian-like force-directed graph (graphology + ForceAtlas2):
   nodes colored by community ("clouds"), sized by importance/access, edges by
   Hebbian weight; hover to label, click to inspect. Refreshes after rebuild.
+- **Node-detail card** — importance / strength / community ("cloud") badges plus
+  the node's typed connections; **Forget** deletes the node and its edges
+  (`DELETE /node/{id}`).
+- **Export** — downloads the owner's graph (`/graph`) as a JSON backup, client-side.
+- **Import** — Obsidian vault import (`POST /import/obsidian`); an empty path
+  imports the whole mounted vault root. Requires `GENESIS_MEMORY_VAULT_ROOT`.
 
 ---
 
@@ -428,8 +438,9 @@ job): schema + HNSW/GIN indexes + ANN tuning; all brain mechanics
 (Hebbian/decay/strength/communities/importance/recall/prune); hybrid search;
 dedup; bi-temporal invalidation; consolidation + the wired maintenance scheduler;
 the full HTTP API; the multi-upstream gateway (stream + non-stream); API-key auth;
-graceful Postgres-down + upstream-error handling; Obsidian import; both embedders;
-the unified container; the GUI panel.
+graceful Postgres-down + upstream-error handling; Obsidian import (case-insensitive
+and H1-title wikilink resolution); node deletion (forget); both embedders;
+the unified container; the GUI panel; the `sndr mem` CLI and TUI Memory panel.
 
 **Deferred** (see [§14](#14-scale-up-paths)): async pool, pgvectorscale, alembic;
 RLS decided-against; Leiden replaced by label propagation.
