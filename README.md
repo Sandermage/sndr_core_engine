@@ -8,7 +8,7 @@
 > Ampere / Ada / Blackwell.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev672+g93d8f834d-orange.svg)](https://github.com/vllm-project/vllm)
+[![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev714+g09663abde-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/registry-321%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![Memory](https://img.shields.io/badge/memory-neural--graph-ff69b4.svg)](docs/memory/MANUAL.md)
@@ -76,8 +76,8 @@ two ("≤2-pin policy"). A bump happens only on an explicit instruction
 naming the target pin; there are **no proactive pulls**. The candidate is
 validated before promotion (anchor-drift resolved, the `bump-preflight`
 gate clean, boot-smoke + tokenizer-fingerprint + canonical bench), then the
-old 2-back pin is dropped. Current: `dev672` (`93d8f834`); rollback:
-`dev424` (`3f5a1e173`). See [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md)
+old 2-back pin is dropped. Current: `dev714` (`09663abde`); rollback:
+`dev672` (`93d8f834`). See [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md)
 (canonical) + [`docs/ANCHOR_SOT.md`](docs/ANCHOR_SOT.md).
 
 **Model catalog (current registry).**
@@ -122,7 +122,7 @@ comparisons, and per-rig reproduction recipes:
 
 ![Sustained TPS — Genesis vs stock](assets/charts/tps_genesis_vs_stock.png)
 
-> **Current pin (2026-07-01):** the vLLM pin is `0.23.1rc1.dev672+g93d8f834d`
+> **Current pin (2026-07-02):** the vLLM pin is `0.23.1rc1.dev714+g09663abde`
 > (image `vllm/vllm-openai:nightly-93d8f834…`, commit `93d8f834`, +248 commits
 > over dev424). `dev424` (`0.23.1rc1.dev424+g3f5a1e173`, commit `3f5a1e173`)
 > is retained as the previous / rollback pin per the ≤2-pin policy; `dev301` is

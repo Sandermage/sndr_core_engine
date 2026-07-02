@@ -117,6 +117,14 @@ EXPECTED_PINS = (
     # as previous/rollback; dev301 dropped per CLAUDE.md ≤2-pin policy.
     "0.23.1rc1.dev672+g93d8f834d",                       # setuptools_scm-derived
     "nightly-93d8f834dd8acf33eb0e2a75b2711b628cb6e226",  # docker tag form (full SHA)
+    # PROD pin PROMOTED 2026-07-02 — image nightly-09663abde (0.23.1rc1.dev714
+    # +g09663abde, +42 commits over dev672). Operator-authorized bump, live 35B
+    # window: boot applied=87/skipped=166/failed=0 (identical to dev672), 236.5
+    # wall_TPS (within CV of dev672), 7/7 tool-call. Improved wiring-aware drift
+    # tool: identical profile to dev672 (0 new drifts). dev672 retained as
+    # previous/rollback; dev424 dropped per CLAUDE.md ≤2-pin policy.
+    "0.23.1rc1.dev714+g09663abde",                       # setuptools_scm-derived
+    "nightly-09663abde0f50944a8d5ea30120666024b503faa",  # docker tag form (full SHA)
 )
 
 

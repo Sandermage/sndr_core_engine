@@ -685,6 +685,22 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     #     dev301 (nightly-04c2a8dea) dropped per CLAUDE.md <=2-pin policy.
     "0.23.1rc1.dev672+g93d8f834d",                       # setuptools_scm-derived
     "nightly-93d8f834dd8acf33eb0e2a75b2711b628cb6e226",  # docker tag form (full SHA)
+    # ── PROD pin PROMOTION dev714 2026-07-02 ──────────────────────────
+    # Image: vllm/vllm-openai:nightly-09663abde0f50944a8d5ea30120666024b503faa
+    # (0.23.1rc1.dev714+g09663abde, +42 commits over dev672). PROMOTED
+    # 2026-07-02: operator-authorized bump dev672 -> dev714, live 35B window on
+    # the main-sync tree. Boot apply applied=87 / skipped=166 / failed=0
+    # (identical to dev672 — the +42 commits touch no patch anchor/binding).
+    # Improved wiring-aware drift tool vs dev672: IDENTICAL profile (0 new
+    # drifts, 0 resolved, same 13 carried + 4 review + same 4 merged markers).
+    # Canonical genesis_bench_suite.py --quick (5x5x1024, temp 0.7) @190W cap:
+    #   235B-A3B FP8 TQ k8v4 + MTP K=5: 236.46 wall_TPS (CV 6.3%) within CV of
+    #   dev672 240.55 (NO regression); decode_TPOT 4.00 ms; tool-call 7/7 +
+    #   get_weather {"city":"Berlin"} (qwen3_xml, no XML->content leak); MTP
+    #   accept 0.666 (floor 0.55 PASS). dev672 (nightly-93d8f834) retained as
+    #   previous/rollback; dev424 (nightly-3f5a1e173) dropped per <=2-pin policy.
+    "0.23.1rc1.dev714+g09663abde",                       # setuptools_scm-derived
+    "nightly-09663abde0f50944a8d5ea30120666024b503faa",  # docker tag form (full SHA)
 )
 
 
@@ -706,15 +722,9 @@ PROMOTION_PENDING_VLLM_PINS: tuple[str, ...] = (
     # window (boot apply failed=0, smoke + tool-call 7/7, 240.55 TPS = 98.4% of
     # dev424 within CV). See the KNOWN_GOOD_VLLM_PINS "PROD pin PROMOTION dev672"
     # block above.
-    # ── dev714 (09663abde) CANDIDATE 2026-07-02 ───────────────────────────
-    # Image: vllm/vllm-openai:nightly-09663abde0f50944a8d5ea30120666024b503faa
-    # (0.23.1rc1.dev714+g09663abde, +42 commits over dev672). Pending the live
-    # boot-smoke + bench window. STATIC drift check (improved tool w/ wiring
-    # coverage) vs dev672: IDENTICAL profile — 0 new drifts, 0 resolved, same 13
-    # carried drifts, same 4 merged markers. Graduates to KNOWN_GOOD on a clean
-    # window; remove here + drop dev424 on promotion (<=2-pin policy).
-    "0.23.1rc1.dev714+g09663abde",                       # setuptools_scm-derived
-    "nightly-09663abde0f50944a8d5ea30120666024b503faa",  # docker tag form (full SHA)
+    # dev714 (09663abde) GRADUATED to KNOWN_GOOD on 2026-07-02 after the live 35B
+    # window (boot apply failed=0, tool-call 7/7, 236.5 TPS within CV of dev672).
+    # See the KNOWN_GOOD_VLLM_PINS "PROD pin PROMOTION dev714" block above.
 )
 
 
