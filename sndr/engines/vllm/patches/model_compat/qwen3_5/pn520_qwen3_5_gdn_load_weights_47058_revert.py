@@ -78,6 +78,8 @@ def _build_load_weights():
         )
 
     def load_weights(self, weights):
+        log.warning("[PN520] imperative load_weights ACTIVE (this loader is running)")
+        _ba_loaded = [0]
         # (param_name, shard_name, shard_id) — the pre-#47058 explicit mapping.
         stacked_params_mapping = [
             # GDN split projections (the shards #47058's declarative mapper drops)
@@ -126,6 +128,8 @@ def _build_load_weights():
                     continue
                 param = params_dict[mapped]
                 param.weight_loader(param, loaded_weight, shard_id)
+                if "in_proj_ba" in mapped:
+                    _ba_loaded[0] += 1
                 name = mapped
                 break
             else:
@@ -167,6 +171,8 @@ def _build_load_weights():
                     weight_loader = getattr(param, "weight_loader", default_weight_loader)
                     weight_loader(param, loaded_weight)
             loaded_params.add(name)
+        log.warning("[PN520] load_weights done: %d in_proj_ba shards routed, %d params total",
+                    _ba_loaded[0], len(loaded_params))
         return loaded_params
 
     return load_weights
