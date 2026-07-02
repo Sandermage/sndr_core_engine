@@ -573,42 +573,111 @@ def _check_one_spec(spec, tree_root: Path, tree_pin: str | None) -> dict[str, An
             result.update(wiring)
             return result
 
-    # Text-patch / inline-builder patches — build patcher, scan anchors.
-    builder_attrs = ("_make_patcher", "_make_patcher_for_drift")
-    if not any(getattr(mod, a, None) for a in builder_attrs):
-        result["status"] = STATUS_NEEDS_FIXTURE
-        result["detail"] = (
-            "non-text-patch wiring (no _make_patcher / "
-            "_make_patcher_for_drift / _parser_targets) — not statically "
-            "checkable; covered by runtime self-test"
-        )
-        return result
-
     # Point Genesis path resolution at the TREE for the duration of the
     # build. We patch guards.vllm_install_root ONCE — resolve_vllm_file
     # dispatches through it (see guards.resolve_vllm_file), so every wiring
     # module's resolution flows to the tree regardless of how it imported
     # the helper. Far more robust than per-module attribute patching.
+    from sndr.engines.vllm.anchor_discovery import discover_patchers
     from sndr.engines.vllm.detection import guards
     orig_root = guards.vllm_install_root
     try:
         guards.vllm_install_root = lambda: str(tree_root / "vllm")
-        patcher, note = _build_patcher_for_module(mod)
-        if patcher is None:
-            result["status"] = STATUS_NEEDS_FIXTURE
-            result["detail"] = note
-            return result
+        # Layer A — text-patch anchors. discover_patchers finds ALL builders
+        # (multi-file patches expose several _make_*_patcher fns; the old
+        # singular lookup saw only the first canonical name and dropped the
+        # rest to needs_fixture despite real anchors).
         try:
-            anchor_result = check_patcher_anchors(patcher, tree_root)
-        except Exception as e:  # noqa: BLE001
-            result["status"] = STATUS_NEEDS_FIXTURE
-            result["detail"] = f"anchor check raised: {e}\n{traceback.format_exc()}"
+            patchers = discover_patchers(mod)
+        except Exception:  # noqa: BLE001 — treat as no-builders, fall to bindings
+            patchers = []
+        if patchers:
+            sub_results = []
+            for patcher, _note in patchers:
+                try:
+                    sub_results.append(check_patcher_anchors(patcher, tree_root))
+                except Exception as e:  # noqa: BLE001
+                    sub_results.append({
+                        "status": STATUS_NEEDS_FIXTURE,
+                        "detail": f"anchor check raised: {e}",
+                        "anchor_count": 0,
+                    })
+            result.update(_aggregate_patcher_results(sub_results))
+            result["module"] = spec.apply_module
             return result
-        result.update(anchor_result)
+        # Layer B — class-rebind wiring (no text anchors). Resolve the upstream
+        # symbols the patch imports/declares against the tree. This is what
+        # converts the bulk of the old "needs_fixture" punt into a real signal.
+        result.update(_check_bindings(mod, tree_root))
         result["module"] = spec.apply_module
         return result
     finally:
         guards.vllm_install_root = orig_root
+
+
+# Aggregate priority: a blocking drift on ANY sub-file wins; then ambiguity;
+# then a benign state; ok only if every sub is clean.
+_STATUS_SEVERITY = {
+    STATUS_ANCHOR_DRIFT: 0,
+    STATUS_IMPORT_DRIFT: 1,
+    STATUS_TARGET_MISSING: 2,
+    STATUS_AMBIGUOUS: 3,
+    STATUS_NEEDS_FIXTURE: 4,
+    STATUS_UPSTREAM_MERGED: 5,
+    STATUS_ALREADY_APPLIED: 6,
+    STATUS_OK: 7,
+}
+
+
+def _aggregate_patcher_results(sub_results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Worst-of over a multi-file patch's per-file anchor results."""
+    if not sub_results:
+        return {"status": STATUS_NEEDS_FIXTURE, "detail": "no patchers built"}
+    worst = min(sub_results, key=lambda r: _STATUS_SEVERITY.get(r.get("status"), 4))
+    total_anchors = sum(int(r.get("anchor_count") or 0) for r in sub_results)
+    detail = worst.get("detail")
+    if len(sub_results) > 1:
+        detail = f"{detail}  (worst of {len(sub_results)} target files)"
+    return {"status": worst.get("status"), "detail": detail,
+            "file": worst.get("file"), "anchor_count": total_anchors}
+
+
+def _check_bindings(mod, tree_root: Path) -> dict[str, Any]:
+    """Static upstream-binding check for a class-rebind/wiring patch: resolve
+    the ``vllm.*`` symbols it imports (AST) + any it declares via
+    ``_upstream_bindings()`` against the tree. Genuine drift → import_drift."""
+    from sndr.engines.vllm.upstream_bindings import (
+        check_module_bindings,
+        iter_declared_bindings,
+        resolve_binding,
+    )
+    source = ""
+    mod_file = getattr(mod, "__file__", None)
+    if mod_file and Path(mod_file).is_file():
+        source = Path(mod_file).read_text(encoding="utf-8", errors="ignore")
+    res = check_module_bindings(source, tree_root)
+    unresolved = list(res.get("unresolved") or [])
+    checked = int(res.get("checked") or 0)
+    for b in iter_declared_bindings(mod):
+        checked += 1
+        verdict = resolve_binding(tree_root, b.module, b.symbol)
+        if verdict != "ok":
+            sym = f".{b.symbol}" if b.symbol else ""
+            unresolved.append(f"{b.module}{sym} [{verdict}] (declared)")
+    if unresolved:
+        return {
+            "status": STATUS_IMPORT_DRIFT,
+            "detail": "upstream binding(s) unresolved: " + "; ".join(unresolved),
+        }
+    if checked:
+        return {
+            "status": STATUS_OK,
+            "detail": f"{checked} upstream binding(s) resolve (class-rebind wiring, no text anchors)",
+        }
+    return {
+        "status": STATUS_NEEDS_FIXTURE,
+        "detail": "no static upstream bindings (fully reflective) — runtime self-test only",
+    }
 
 
 # ─── Upstream-merged marker scan (unchanged contract) ────────────────────

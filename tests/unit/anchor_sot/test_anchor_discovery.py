@@ -103,3 +103,45 @@ def test_R1_no_anchor_bearing_patch_dropped():
             expected.add(getattr(spec, "patch_id", "?"))
     missing = expected - discovered
     assert not missing, f"R1 VIOLATION: discovery missed {sorted(missing)}"
+
+
+# ── discover_patchers: generalized multi-builder enumeration ─────────────
+# The blind spot: _build_patcher_for_module recognized only _make_patcher /
+# _make_patcher_for_drift, so multi-file patches (P58: _make_request_patcher +
+# _make_scheduler_patcher + _make_async_sched_patcher) fell to needs_fixture
+# despite having real anchors. discover_patchers must find ALL builders.
+import types
+
+
+def _fake_patcher(name):
+    return types.SimpleNamespace(patch_name=name, target_file=f"/x/{name}.py",
+                                 marker=f"m-{name}", sub_patches=[])
+
+
+def test_discover_patchers_finds_all_named_builders():
+    from sndr.engines.vllm.anchor_discovery import discover_patchers
+    mod = types.ModuleType("fake_multi")
+    mod._make_request_patcher = lambda: _fake_patcher("request")
+    mod._make_scheduler_patcher = lambda: _fake_patcher("scheduler")
+    mod._make_patcher = lambda: _fake_patcher("main")
+    mod._helper = lambda: "not a patcher"          # ignored (bad name)
+    mod._is_enabled = lambda: True                  # ignored (bad name)
+    got = discover_patchers(mod)
+    names = sorted(p.patch_name for p, _ in got if p)
+    assert names == ["main", "request", "scheduler"]
+
+
+def test_discover_patchers_skips_none_returns():
+    from sndr.engines.vllm.anchor_discovery import discover_patchers
+    mod = types.ModuleType("fake_absent")
+    mod._make_a_patcher = lambda: None              # target file absent at pin
+    mod._make_b_patcher = lambda: _fake_patcher("b")
+    got = [p for p, _ in discover_patchers(mod) if p]
+    assert [p.patch_name for p in got] == ["b"]
+
+
+def test_discover_patchers_empty_for_pure_wiring():
+    from sndr.engines.vllm.anchor_discovery import discover_patchers
+    mod = types.ModuleType("fake_wiring")
+    mod.apply = lambda: ("ok", "ok")                # class-rebind, no builders
+    assert discover_patchers(mod) == []

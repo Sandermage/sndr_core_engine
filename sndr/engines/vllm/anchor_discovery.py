@@ -77,7 +77,13 @@ def _build_patcher_for_module(mod):
         builder = getattr(mod, "_make_patcher_for_drift", None)
     if builder is None:
         return None, "no _make_patcher() or _make_patcher_for_drift() shim"
+    return _call_builder(builder)
 
+
+def _call_builder(builder):
+    """Invoke a patcher-builder with conservative defaults guessed from its
+    annotations (never feeds ``None`` to a non-optional positional silently).
+    Returns ``(patcher, note)`` — ``(None, reason)`` when it can't build."""
     try:
         sig = inspect.signature(builder)
         kwargs: dict[str, Any] = {}
@@ -112,6 +118,50 @@ def _build_patcher_for_module(mod):
     if patcher is None:
         return None, "builder returned None (target file absent at this pin)"
     return patcher, "ok"
+
+
+# Builder-name convention: the canonical two, plus ANY module-level callable
+# named `_make_*patcher*` (e.g. P58's _make_request_patcher /
+# _make_scheduler_patcher for a multi-file patch). This is what recovers the
+# ~65 anchor-bearing patches the singular discovery missed.
+def _is_builder_name(name: str) -> bool:
+    if name in ("_make_patcher", "_make_patcher_for_drift"):
+        return True
+    return name.startswith("_make_") and "patcher" in name
+
+
+def discover_patchers(mod) -> list[tuple[Any, str]]:
+    """Return ``[(patcher, note), ...]`` for EVERY patcher-builder in `mod`.
+
+    A single-file patch has one builder; a multi-file patch (P58 class) has
+    several `_make_*_patcher()` functions — the singular
+    ``_build_patcher_for_module`` only ever saw the first canonical name and
+    dropped the rest to ``needs_fixture`` despite real anchors. Builders that
+    return None (target absent at this pin) are skipped. Order-stable by
+    definition order in the module. Returns ``[]`` when the module exposes no
+    builder (pure class-rebind wiring — handled by the binding resolver)."""
+    builders: list[tuple[str, Any]] = []
+    seen: set[int] = set()
+    for name in dir(mod):
+        if not _is_builder_name(name):
+            continue
+        fn = getattr(mod, name, None)
+        if not callable(fn) or id(fn) in seen:
+            continue
+        seen.add(id(fn))
+        builders.append((name, fn))
+    # Stable order: definition order via __code__.co_firstlineno when available.
+    def _order(item):
+        code = getattr(item[1], "__code__", None)
+        return getattr(code, "co_firstlineno", 1_000_000) if code else 1_000_000
+    builders.sort(key=_order)
+
+    out: list[tuple[Any, str]] = []
+    for _name, fn in builders:
+        patcher, note = _call_builder(fn)
+        if patcher is not None:
+            out.append((patcher, note))
+    return out
 
 
 def _target_rel(target_file: Optional[str]) -> Optional[str]:
