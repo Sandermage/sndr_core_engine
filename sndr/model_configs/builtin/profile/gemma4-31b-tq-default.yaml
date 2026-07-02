@@ -101,7 +101,7 @@ validation: null                                  # no functional artifact gate 
 #
 # This is a CONFIG fix only — no runtime / kernel / registry change.
 sizing_override:
-  max_model_len: 262144                          # was 200000 — 256K via TQ 4×-compress KV path. Rig-validated 2026-06-23: 146K-token ingestion + retrieval PASS (dense 31B, TQ KV)
+  max_model_len: 196608                          # 192K — fits the ACTUAL render path (kv-auto fp16) on dev714. 2026-07-02: the fleet gate caught this ModelDef rendering kv-auto (TQ still pin-held from the 0.22.1 block, see header) where fp16 KV at 262144 OOMs (needs 11.96 GiB > 9.75 available; engine-estimated ceiling 204128). 192K boots with margin. The 262144/256K TQ path is restorable once Gemma-4 TQ is unblocked + validated on dev714 (TQ is now upstream-native) — raise both this and GENESIS_TQ_MAX_MODEL_LEN back together then.
   gpu_memory_utilization: 0.90
   max_num_seqs: 2
   max_num_batched_tokens: 4096
@@ -118,7 +118,7 @@ sizing_override:
 # shared gemma-4-31b-it-awq ModelDef (the kvauto-chat sibling has no TQ
 # workspace and must not inherit this); compose layers hw < model < profile.
 system_env:
-  GENESIS_TQ_MAX_MODEL_LEN: "262144"             # must match max_model_len (hardware-YAML rule); 256K worst-case TQ workspace
+  GENESIS_TQ_MAX_MODEL_LEN: "196608"             # must match max_model_len (hardware-YAML rule); lowered 262144 -> 196608 with the max_model_len fit-fix above (kv-auto fp16 path boots at 192K on dev714)
 
 # ─── Patches delta ─────────────────────────────────────────────────────
 # Default profile uses the ModelDef's canonical patches as-is — Gemma 4
