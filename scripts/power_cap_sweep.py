@@ -24,6 +24,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import statistics
 import subprocess
@@ -84,10 +85,8 @@ class PowerSampler(threading.Thread):
 
     def run(self) -> None:
         while not self._stop.is_set():
-            try:
+            with contextlib.suppress(Exception):  # transient nvidia-smi hiccup
                 self.samples.append(_power_draw_total())
-            except Exception:  # noqa: BLE001 - transient nvidia-smi hiccup
-                pass
             self._stop.wait(self._period)
 
     def stop(self) -> float:
@@ -122,7 +121,7 @@ def _probe_decode_tps(base_url: str, api_key: str, model: str,
     return statistics.median(tps) if tps else 0.0
 
 
-def main() -> int:
+def main() -> int:  # noqa: PLR0915 - a linear CLI main
     ap = argparse.ArgumentParser(description="Power-cap sweep against a live engine.")
     ap.add_argument("--base-url", default="http://127.0.0.1:8102")
     ap.add_argument("--api-key", default="genesis-local")
