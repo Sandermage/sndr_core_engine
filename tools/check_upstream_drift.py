@@ -111,8 +111,16 @@ STATUS_IMPORT_DRIFT = "import_drift"      # genuine: import target unresolvable
 STATUS_AMBIGUOUS = "ambiguous_anchor"     # anchor matches >1 (needs tightening)
 STATUS_NEEDS_FIXTURE = "needs_fixture"    # could not build patcher / no anchors
 STATUS_TARGET_MISSING = "target_file_missing"  # file absent at this pin
+STATUS_BINDING_REVIEW = "binding_review"  # imports a vllm module OK but a symbol
+                                          # isn't statically found — could be an
+                                          # upstream rename, a Genesis-created
+                                          # symbol, or a dynamic attr. Human review,
+                                          # NOT a confident blocking drift.
 
 # The ONLY statuses that mean "operator must re-anchor before pin bump".
+# import_drift here is the HARD tier only: a whole upstream MODULE the patch
+# imports from is gone (always breaks apply). Symbol-level questions live in the
+# soft STATUS_BINDING_REVIEW bucket so the gate never cries wolf.
 DRIFT_STATUSES = frozenset({STATUS_ANCHOR_DRIFT, STATUS_IMPORT_DRIFT})
 
 # Canonical Genesis wiring-marker prefix written by TextPatcher.apply()
@@ -656,18 +664,27 @@ def _check_bindings(mod, tree_root: Path) -> dict[str, Any]:
     if mod_file and Path(mod_file).is_file():
         source = Path(mod_file).read_text(encoding="utf-8", errors="ignore")
     res = check_module_bindings(source, tree_root)
-    unresolved = list(res.get("unresolved") or [])
     checked = int(res.get("checked") or 0)
+    hard = [u for u in (res.get("unresolved") or []) if "module_missing" in u]
+    soft = [u for u in (res.get("unresolved") or []) if "symbol_missing" in u]
+    # Declared bindings (opt-in _upstream_bindings) — same hard/soft split.
     for b in iter_declared_bindings(mod):
         checked += 1
         verdict = resolve_binding(tree_root, b.module, b.symbol)
-        if verdict != "ok":
-            sym = f".{b.symbol}" if b.symbol else ""
-            unresolved.append(f"{b.module}{sym} [{verdict}] (declared)")
-    if unresolved:
+        if verdict == "module_missing":
+            hard.append(f"{b.module} [module_missing] (declared)")
+        elif verdict == "symbol_missing":
+            soft.append(f"{b.module}.{b.symbol} [symbol_missing] (declared)")
+    if hard:
         return {
             "status": STATUS_IMPORT_DRIFT,
-            "detail": "upstream binding(s) unresolved: " + "; ".join(unresolved),
+            "detail": "upstream MODULE(s) gone (patch import breaks): " + "; ".join(hard + soft),
+        }
+    if soft:
+        return {
+            "status": STATUS_BINDING_REVIEW,
+            "detail": ("symbol(s) not statically found (rename? Genesis-created? "
+                       "dynamic?) — review: " + "; ".join(soft)),
         }
     if checked:
         return {
@@ -800,7 +817,7 @@ def run_drift_check(
     warnings = [
         pid for pid, r in anchors_report.items()
         if r["status"] in (STATUS_AMBIGUOUS, STATUS_NEEDS_FIXTURE,
-                            STATUS_TARGET_MISSING)
+                            STATUS_TARGET_MISSING, STATUS_BINDING_REVIEW)
     ]
     newly_merged = [m for m in markers_report if m.get("newly_merged")]
 

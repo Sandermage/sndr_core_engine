@@ -89,20 +89,31 @@ def test_resolve_package_init(tmp_path):
 
 # ── check_module_bindings aggregate ──────────────────────────────────────
 
-def test_check_flags_symbol_drift_when_any_binding_unresolved(tmp_path):
+def test_resolve_ok_when_module_has_dynamic_getattr(tmp_path):
+    # vllm/envs.py + platforms/__init__.py resolve any attr via __getattr__ —
+    # a hard symbol_missing there would be a FALSE POSITIVE.
+    root = _tree(tmp_path, {"vllm/envs.py": "def __getattr__(name):\n    return None\n"})
+    assert resolve_binding(root, "vllm.envs", "VLLM_ANY_FLAG") == "ok"
+
+
+def test_resolve_ok_for_symbol_declared_under_type_checking(tmp_path):
     root = _tree(tmp_path, {
-        "vllm/v1/request.py": "class Request:\n    pass\n",
-        "vllm/model_executor/models/gemma4.py": "class Gemma4Model:\n    pass\n",
+        "vllm/platforms/__init__.py":
+        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    current_platform: object\n",
     })
-    src = (
-        "def a():\n"
-        "    from vllm.v1.request import Request\n"          # ok
-        "def b():\n"
-        "    from vllm.model_executor.models.gemma4 import GoneClass\n"  # drift
-    )
-    res = check_module_bindings(src, root)
-    assert res["status"] == "symbol_drift"
-    assert any("GoneClass" in d for d in res["unresolved"])
+    assert resolve_binding(root, "vllm.platforms", "current_platform") == "ok"
+
+
+def test_hard_module_missing_vs_soft_symbol_review(tmp_path):
+    root = _tree(tmp_path, {"vllm/present.py": "class A:\n    pass\n"})
+    # module the patch imports FROM is gone -> hard drift (always breaks apply)
+    hard = check_module_bindings("def f():\n    from vllm.gone.mod import X\n", root)
+    assert hard["status"] == "symbol_drift"
+    # module present but the symbol isn't statically found -> soft review
+    # (could be a real rename, a Genesis-created symbol, or a dynamic attr)
+    soft = check_module_bindings("def f():\n    from vllm.present import Missing\n", root)
+    assert soft["status"] == "binding_review"
+    assert any("Missing" in d for d in soft["unresolved"])
 
 
 def test_check_ok_when_all_bindings_resolve(tmp_path):

@@ -93,31 +93,61 @@ def _module_file(tree_root: Path, dotted: str) -> Path | None:
     return None
 
 
+def _names_defined_in_body(body) -> tuple[set[str], bool]:
+    """Collect the names a block defines, and whether it declares a module-level
+    ``__getattr__`` (dynamic-attribute escape hatch). Descends ONE level into
+    ``if`` / ``try`` / ``with`` guards so symbols declared under
+    ``if TYPE_CHECKING:`` (vllm's env + platform attributes) are seen."""
+    names: set[str] = set()
+    dynamic = False
+
+    def _add_stmt(node) -> None:
+        nonlocal dynamic
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            names.add(node.name)
+            if node.name == "__getattr__":
+                dynamic = True
+        elif isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Name):
+                    names.add(t.id)
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name):
+                names.add(node.target.id)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                names.add(alias.asname or alias.name.split(".")[0])
+
+    for node in body:
+        _add_stmt(node)
+        # one level into guard blocks (TYPE_CHECKING / try-except / with)
+        if isinstance(node, ast.If):
+            for inner in [*node.body, *node.orelse]:
+                _add_stmt(inner)
+        elif isinstance(node, ast.Try):
+            for inner in [*node.body, *node.handlers, *node.orelse, *node.finalbody]:
+                if isinstance(inner, ast.ExceptHandler):
+                    for h in inner.body:
+                        _add_stmt(h)
+                else:
+                    _add_stmt(inner)
+        elif isinstance(node, ast.With):
+            for inner in node.body:
+                _add_stmt(inner)
+    return names, dynamic
+
+
 def _symbol_defined(path: Path, symbol: str) -> bool:
-    """True iff `symbol` is a top-level def / class / assignment / import in
-    `path` (AST — no import side-effects). Covers the forms an upstream module
-    exposes: class, function, module-level binding, or a re-export."""
+    """True iff `symbol` is resolvable from `path` (AST — no import side-effects):
+    a top-level (or TYPE_CHECKING-guarded) def / class / assignment / re-export,
+    OR the module exposes a ``__getattr__`` (then any attribute resolves
+    dynamically — as vllm/envs.py and vllm/platforms/__init__.py do)."""
     try:
         tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
     except (OSError, SyntaxError):
         return False
-    for node in tree.body:
-        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-            if node.name == symbol:
-                return True
-        elif isinstance(node, ast.Assign):
-            for t in node.targets:
-                if isinstance(t, ast.Name) and t.id == symbol:
-                    return True
-        elif isinstance(node, ast.AnnAssign):
-            if isinstance(node.target, ast.Name) and node.target.id == symbol:
-                return True
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            for alias in node.names:
-                name = alias.asname or alias.name.split(".")[0]
-                if name == symbol:
-                    return True
-    return False
+    names, dynamic = _names_defined_in_body(tree.body)
+    return dynamic or symbol in names
 
 
 def resolve_binding(tree_root: Path, module: str, symbol: str | None) -> str:
@@ -143,21 +173,36 @@ def resolve_binding(tree_root: Path, module: str, symbol: str | None) -> str:
 def check_module_bindings(source: str, tree_root: Path) -> dict:
     """Aggregate binding check for one patch module's source.
 
-    - ``no_static_bindings`` — no ``vllm.*`` imports found (honestly runtime-only)
-    - ``symbol_drift``       — at least one binding does not resolve
-    - ``ok``                 — every binding resolves
+    Two tiers, to keep the signal ACCURATE (low false-positive):
+
+    - ``symbol_drift`` (HARD) — a whole ``vllm.*`` MODULE the patch imports from
+      is gone/moved in the tree. That always breaks the patch's ``apply()``; a
+      confident, blocking drift.
+    - ``binding_review`` (SOFT) — the module is present but an imported SYMBOL
+      isn't statically found. Could be a genuine upstream rename (act on it), a
+      Genesis-created symbol a sibling patch adds at runtime (ignore), or a
+      residual dynamic attribute — so it is surfaced for human review, NOT
+      counted as blocking drift.
+    - ``ok`` — every binding resolves.
+    - ``no_static_bindings`` — no ``vllm.*`` imports (honestly runtime-only).
     """
     binds = extract_vllm_imports(source)
     if not binds:
         return {"status": "no_static_bindings", "checked": 0, "unresolved": []}
-    unresolved: list[str] = []
+    module_missing: list[str] = []
+    symbol_missing: list[str] = []
     for b in binds:
         verdict = resolve_binding(tree_root, b.module, b.symbol)
-        if verdict != "ok":
-            sym = f".{b.symbol}" if b.symbol else ""
-            unresolved.append(f"{b.module}{sym} [{verdict}]")
-    if unresolved:
-        return {"status": "symbol_drift", "checked": len(binds), "unresolved": unresolved}
+        if verdict == "module_missing":
+            module_missing.append(f"{b.module} [module_missing]")
+        elif verdict == "symbol_missing":
+            symbol_missing.append(f"{b.module}.{b.symbol} [symbol_missing]")
+    if module_missing:
+        return {"status": "symbol_drift", "checked": len(binds),
+                "unresolved": module_missing + symbol_missing}
+    if symbol_missing:
+        return {"status": "binding_review", "checked": len(binds),
+                "unresolved": symbol_missing}
     return {"status": "ok", "checked": len(binds), "unresolved": []}
 
 
