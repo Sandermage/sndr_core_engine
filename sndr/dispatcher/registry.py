@@ -6213,6 +6213,46 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # injects a new method + WARN, touching no existing dispatch.
         "composes_with": ["PN400", "P91", "P91B", "PN347"],
     },
+    "PN520": {
+        "title": "Qwen3.5/3.6 GDN imperative weight-loader restore — reverts vllm#47058 (fixes 27B AutoRound garbage output)",
+        "tier": "community",
+        "family": "model_compat",
+        "env_flag": "GENESIS_ENABLE_PN520_QWEN3_5_LOAD_WEIGHTS",
+        "default_on": False,
+        "apply_module": "sndr.engines.vllm.patches.model_compat.qwen3_5.pn520_qwen3_5_gdn_load_weights_47058_revert",
+        "lifecycle": "experimental",
+        "category": "correctness",
+        "applies_to": {
+            "vllm_version_range": [">=0.23.0", "<0.24.0"],
+        },
+        "upstream_pr": "https://github.com/vllm-project/vllm/pull/47058",
+        "credit": (
+            "Genesis revert of vllm#47058 ('Remove more unnecessary load_weights "
+            "methods', merged 2026-06-30 = 0.23.1rc1.dev630), which replaced "
+            "Qwen3_5Model.load_weights' imperative stacked_params_mapping with a "
+            "declarative WeightsMapper(orig_to_new_stacked). For the Lorbus "
+            "Qwen3.6-27B-int4-AutoRound checkpoint the GDN linear_attn.in_proj_a/"
+            "in_proj_b shards are unquantized BF16 (extra_config bits:16); the new "
+            "declarative loader fails to route those split BF16 shards into the "
+            "fused in_proj_ba param, leaving the Gated-DeltaNet layers effectively "
+            "uninitialised -> boots clean (apply failed=0, health 200) but emits "
+            "degenerate garbage (finish=length, '\\n\\n\\n' / 'is is is', never EOS) "
+            "in EVERY runtime config (MTP/KV/template/sampling-independent), "
+            "identical on dev672 and dev714 (both post-#47058). v0.24.0 (branched "
+            "2026-06-23, pre-#47058) is clean; club-3090 serves this exact model "
+            "on v0.24.0. Upstream revert #47233 + MoE-zero-weights fix #47221 both "
+            "CLOSED UNMERGED, so main is still affected. PN520 rebinds "
+            "Qwen3_5Model.load_weights (class-rebind, setattr) to the pre-#47058 "
+            "imperative loader ported verbatim from v0.24.0 qwen3_5.py, routing "
+            "each shard through the destination param's own weight_loader(param, w, "
+            "shard_id) so the BF16 in_proj_ba shards land correctly. MoE-expert "
+            "branch guarded (no-op for the dense 27B). Root-caused by bisection "
+            "(works pre-dev630, garbage post; sole qwen3_5.py delta = #47058) + "
+            "live confirmation on the 27B. Auto-retires on a v0.24.0+ bump. "
+            "Author: Sandermage (Sander) Barzov Aleksandr."
+        ),
+        "composes_with": ["P91", "P91B", "PN400", "PN518"],
+    },
     "PN347": {
         "title": "MarlinFP8 N==K silent corruption correctness fix (vendor of CLOSED vllm#44113; superseded by MERGED vllm#44735 on dev491+ — active only on <dev491 rollback pins, version-gated)",
         "tier": "community",
