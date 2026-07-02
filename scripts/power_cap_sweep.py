@@ -81,16 +81,16 @@ class PowerSampler(threading.Thread):
         super().__init__(daemon=True)
         self.samples: list[float] = []
         self._period = period
-        self._stop = threading.Event()
+        self._halt = threading.Event()
 
     def run(self) -> None:
-        while not self._stop.is_set():
+        while not self._halt.is_set():
             with contextlib.suppress(Exception):  # transient nvidia-smi hiccup
                 self.samples.append(_power_draw_total())
-            self._stop.wait(self._period)
+            self._halt.wait(self._period)
 
     def stop(self) -> float:
-        self._stop.set()
+        self._halt.set()
         self.join(timeout=3)
         return statistics.median(self.samples) if self.samples else 0.0
 
