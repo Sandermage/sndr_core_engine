@@ -706,6 +706,15 @@ PROMOTION_PENDING_VLLM_PINS: tuple[str, ...] = (
     # window (boot apply failed=0, smoke + tool-call 7/7, 240.55 TPS = 98.4% of
     # dev424 within CV). See the KNOWN_GOOD_VLLM_PINS "PROD pin PROMOTION dev672"
     # block above.
+    # ── dev714 (09663abde) CANDIDATE 2026-07-02 ───────────────────────────
+    # Image: vllm/vllm-openai:nightly-09663abde0f50944a8d5ea30120666024b503faa
+    # (0.23.1rc1.dev714+g09663abde, +42 commits over dev672). Pending the live
+    # boot-smoke + bench window. STATIC drift check (improved tool w/ wiring
+    # coverage) vs dev672: IDENTICAL profile — 0 new drifts, 0 resolved, same 13
+    # carried drifts, same 4 merged markers. Graduates to KNOWN_GOOD on a clean
+    # window; remove here + drop dev424 on promotion (<=2-pin policy).
+    "0.23.1rc1.dev714+g09663abde",                       # setuptools_scm-derived
+    "nightly-09663abde0f50944a8d5ea30120666024b503faa",  # docker tag form (full SHA)
 )
 
 
