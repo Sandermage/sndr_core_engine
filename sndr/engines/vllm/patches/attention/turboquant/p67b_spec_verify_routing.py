@@ -66,14 +66,30 @@ try:
 except ValueError:
     _BAKED_NUM_KV_SPLITS = None
 
-log.info(
-    "[Genesis P67b B2] baked env at module load: USE_UPSTREAM=%s NUM_KV_SPLITS=%s "
-    "(no per-dispatch env reads)",
-    _BAKED_USE_UPSTREAM,
-    _BAKED_NUM_KV_SPLITS if _BAKED_NUM_KV_SPLITS is not None else "(default = self.max_num_kv_splits)",
+# ─── PN521 (2026-07-02): raw-bf16-tail spec-verify for INT4 non-pow2-GQA ─────
+# On the INT4 AutoRound 27B (GQA=24/4=6, non-pow-2), the upstream synth-decode
+# verify path reads the just-written 4-bit-V speculative K/V back out of the
+# compressed cache; on INT4 weights that crosses the divergence threshold and
+# the model collapses into token-repetition ("TQ×MTP garbage"). PN521 routes
+# those K+1 verify batches through the custom P67 split-M kernel with
+# use_raw_tail=1, which attends the K+1 speculative tokens from the RAW bf16
+# key/value chunk (never through 4-bit-V) and stops the compressed read at
+# prior_seq_len. Gated (below, at runtime) on non-pow-2 GQA so the FP8 35B
+# (GQA=16/2=8, pow-2) keeps _use_upstream unchanged — byte-identical path.
+# Baked at module load (launch-time env), mirroring _BAKED_USE_UPSTREAM.
+_BAKED_PN521 = (
+    os.environ.get("GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY", "0") == "1"
 )
 
-GENESIS_P67B_MARKER = "Genesis P67b spec-verify forward() routing v7.63.x_nopow2_gqa_perf_cache"
+log.info(
+    "[Genesis P67b B2] baked env at module load: USE_UPSTREAM=%s NUM_KV_SPLITS=%s "
+    "PN521_RAW_TAIL=%s (no per-dispatch env reads)",
+    _BAKED_USE_UPSTREAM,
+    _BAKED_NUM_KV_SPLITS if _BAKED_NUM_KV_SPLITS is not None else "(default = self.max_num_kv_splits)",
+    _BAKED_PN521,
+)
+
+GENESIS_P67B_MARKER = "Genesis P67b spec-verify forward() routing v7.63.x_nopow2_gqa_perf_cache_pn521_rawtail"
 
 
 # Anchor: existing `forward()` method just before the dispatch branches.
@@ -153,7 +169,19 @@ P67B_NEW = (
     "                    # ROUTE: env GENESIS_P67_USE_UPSTREAM=1 → upstream kernel\n"
     "                    # (drift-free, multi-CTA), else → P67 (custom Triton kernel).\n"
     "                    # [Genesis P67b B2 v7.62.12] baked at module load (no per-dispatch env read)\n"
-    f"                    _use_upstream = {_BAKED_USE_UPSTREAM}\n"
+    "                    # [Genesis PN521] raw-bf16-tail spec-verify. When PN521 is\n"
+    "                    # baked ON and this is a non-pow-2-GQA model (INT4 27B), force\n"
+    "                    # the custom P67 kernel and attend the K+1 speculative tokens\n"
+    "                    # from the raw bf16 chunk (use_raw_tail=1) instead of reading\n"
+    "                    # them back through the 4-bit-V compressed cache. pow-2 GQA\n"
+    "                    # (FP8 35B) leaves _use_upstream unchanged → byte-identical.\n"
+    f"                    _genesis_pn521 = {_BAKED_PN521}\n"
+    "                    _genesis_hpk_nonpow2 = (\n"
+    "                        _genesis_p67b_hpk >= 2\n"
+    "                        and (_genesis_p67b_hpk & (_genesis_p67b_hpk - 1)) != 0\n"
+    "                    )\n"
+    "                    _genesis_raw_tail = _genesis_pn521 and _genesis_hpk_nonpow2\n"
+    f"                    _use_upstream = ({_BAKED_USE_UPSTREAM}) and not _genesis_raw_tail\n"
     "                    import torch as _genesis_p67b_torch\n"
     "                    if _use_upstream:\n"
     "                        # ─── Upstream kernel path (drift-free, multi-CTA) ───\n"
@@ -287,6 +315,7 @@ P67B_NEW = (
     "                            kps=_genesis_p67b_kps,\n"
     "                            val_data_bytes=_genesis_p67b_vdb,\n"
     "                            output=_genesis_p67b_out_buf,\n"
+    "                            use_raw_tail=(1 if _genesis_raw_tail else 0),\n"
     "                        )\n"
     "                    # Write to engine output buffer in (N, Hq*D) or (N, Hq, D) layout.\n"
     "                    _genesis_p67b_attn_flat = _genesis_p67b_attn_out.view(\n"

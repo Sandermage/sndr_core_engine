@@ -727,6 +727,90 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
+    "PN521": {
+        "title": (
+            "TurboQuant raw-bf16-tail spec-verify — fix INT4 non-pow2-GQA "
+            "(Qwen3.6-27B AutoRound) TQ k8v4 × MTP token-repetition collapse"
+        ),
+        "tier": "community",
+        "family": "attention.turboquant",
+        # Flag-only entry (no apply_module): the behaviour is baked INTO P67b
+        # (p67b_spec_verify_routing reads GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY
+        # at module load and emits _use_upstream=False + use_raw_tail=1 for
+        # non-pow2-GQA). Registered here for discoverability + flag coverage.
+        "env_flag": "GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": (
+            "Genesis-original (2026-07-02). Root cause: TurboQuant is the only "
+            "attention backend with supports_spec_as_decode=False, so MTP K+1 "
+            "verify batches are emulated as single-query decodes that read the "
+            "just-written 4-bit-V speculative K/V back out of the compressed "
+            "cache. On INT4 AutoRound weights (27B, GQA=24/4=6, head_dim 256) "
+            "that read-back crosses the divergence threshold -> both target and "
+            "drafter lock onto a degenerate token, rejection sampling accepts it "
+            "-> token-repetition collapse for any num_speculative_tokens>=1. FP8 "
+            "35B (GQA=16/2=8, pow-2) stays below the threshold and is unaffected. "
+            "Fix: route the K+1 verify through the custom P67 split-M kernel with "
+            "use_raw_tail=1 — attend the speculative tokens from the RAW bf16 "
+            "key/value chunk (never through 4-bit-V) and read the compressed "
+            "cache only for committed tokens [0, prior_seq_len). Kernel also "
+            "generalized to non-pow-2 K_PLUS_1 (KP1_PAD=next_pow2 + qt_valid mask) "
+            "so MTP K=5 (K_PLUS_1=6) compiles. External precedent: QuantSpec "
+            "(arXiv 2502.10424) and TensorRT-LLM keep speculative K/V in full "
+            "precision. Validated 2026-07-02: kernel L2 numeric-equivalence "
+            "(rel~2e-4, K1 in {2,4,6}); 27B end-to-end coherent at n=1 AND n=5 "
+            "with TQ k8v4 + MTP; tool-call get_weather (qwen3_xml, no leak); 35B "
+            "regression coherent + tool-call with the flag ON (pow-2-GQA gate)."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            "is_turboquant": [True],
+            # TQ + spec-decode window (P67/P67b are version-capped <0.24.0).
+            "vllm_version_range": (">=0.21.0", "<0.24.0"),
+        },
+        "requires_patches": ["P67", "P67b"],
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+    },
+    "PN522": {
+        "title": (
+            "PN521 raw-tail kernel pre-capture warmup — remove the first-request "
+            "JIT latency spike on the INT4 non-pow2-GQA 27B spec-verify path"
+        ),
+        "tier": "community",
+        "family": "compile_safety",
+        "env_flag": "GENESIS_ENABLE_PN522_TQ_RAW_TAIL_WARMUP",
+        "default_on": False,
+        "category": "compile_safety",
+        "credit": (
+            "Genesis-original (2026-07-02). The PN521 use_raw_tail=1 / K1=6 "
+            "split-M kernel is a Triton specialization no existing warmup "
+            "(PN126 dummy_run, PN128 spec-decode helper, G4_62 TQ-decode, PN130) "
+            "compiles, so it JIT-compiles on the FIRST MTP verify request — "
+            "confirmed live via the vLLM jit_monitor warning 'Triton kernel JIT "
+            "compilation during inference: cutlass_genesis_p67_v17_split_m' and a "
+            "first-request spike (~4-8 TPS vs ~77 steady). PN522 wraps "
+            "vllm.model_executor.warmup.kernel_warmup (the G4_62 hook) and, per "
+            "unique TurboQuant layer geometry, calls call_p67_attention("
+            "use_raw_tail=1) once with synthetic prior_seq_len=0 inputs (compressed "
+            "loop empty -> kv_cache never read; same compiled variant as prior>0). "
+            "Gated on PN521 + non-pow2 GQA so pow-2-GQA FP8 models never run it. "
+            "Bit-exact (dummy-zeros compile, output discarded)."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            "is_turboquant": [True],
+            "vllm_version_range": (">=0.21.0", "<0.24.0"),
+        },
+        # PN521 is a flag-only entry (no apply_module -> never dispatch-"APPLY"),
+        # so it cannot be a requires_patches target; PN522.apply() checks the
+        # PN521 env flag directly at runtime and no-ops when it is off.
+        "requires_patches": ["P67", "P67b"],
+        "apply_module": "sndr.engines.vllm.patches.compile_safety.pn522_tq_raw_tail_kernel_warmup",
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+    },
     "PN398": {
         "title": "Async spec-decode accepted-counts race fix (vllm#45100 backport)",
         "tier": "community",
@@ -6212,46 +6296,6 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # PN347 (MarlinFP8 N==K — different kernel). No overlap; PN518 only
         # injects a new method + WARN, touching no existing dispatch.
         "composes_with": ["PN400", "P91", "P91B", "PN347"],
-    },
-    "PN520": {
-        "title": "Qwen3.5/3.6 GDN imperative weight-loader restore — reverts vllm#47058 (fixes 27B AutoRound garbage output)",
-        "tier": "community",
-        "family": "model_compat",
-        "env_flag": "GENESIS_ENABLE_PN520_QWEN3_5_LOAD_WEIGHTS",
-        "default_on": False,
-        "apply_module": "sndr.engines.vllm.patches.model_compat.qwen3_5.pn520_qwen3_5_gdn_load_weights_47058_revert",
-        "lifecycle": "experimental",
-        "category": "correctness",
-        "applies_to": {
-            "vllm_version_range": [">=0.23.0", "<0.24.0"],
-        },
-        "upstream_pr": "https://github.com/vllm-project/vllm/pull/47058",
-        "credit": (
-            "Genesis revert of vllm#47058 ('Remove more unnecessary load_weights "
-            "methods', merged 2026-06-30 = 0.23.1rc1.dev630), which replaced "
-            "Qwen3_5Model.load_weights' imperative stacked_params_mapping with a "
-            "declarative WeightsMapper(orig_to_new_stacked). For the Lorbus "
-            "Qwen3.6-27B-int4-AutoRound checkpoint the GDN linear_attn.in_proj_a/"
-            "in_proj_b shards are unquantized BF16 (extra_config bits:16); the new "
-            "declarative loader fails to route those split BF16 shards into the "
-            "fused in_proj_ba param, leaving the Gated-DeltaNet layers effectively "
-            "uninitialised -> boots clean (apply failed=0, health 200) but emits "
-            "degenerate garbage (finish=length, '\\n\\n\\n' / 'is is is', never EOS) "
-            "in EVERY runtime config (MTP/KV/template/sampling-independent), "
-            "identical on dev672 and dev714 (both post-#47058). v0.24.0 (branched "
-            "2026-06-23, pre-#47058) is clean; club-3090 serves this exact model "
-            "on v0.24.0. Upstream revert #47233 + MoE-zero-weights fix #47221 both "
-            "CLOSED UNMERGED, so main is still affected. PN520 rebinds "
-            "Qwen3_5Model.load_weights (class-rebind, setattr) to the pre-#47058 "
-            "imperative loader ported verbatim from v0.24.0 qwen3_5.py, routing "
-            "each shard through the destination param's own weight_loader(param, w, "
-            "shard_id) so the BF16 in_proj_ba shards land correctly. MoE-expert "
-            "branch guarded (no-op for the dense 27B). Root-caused by bisection "
-            "(works pre-dev630, garbage post; sole qwen3_5.py delta = #47058) + "
-            "live confirmation on the 27B. Auto-retires on a v0.24.0+ bump. "
-            "Author: Sandermage (Sander) Barzov Aleksandr."
-        ),
-        "composes_with": ["P91", "P91B", "PN400", "PN518"],
     },
     "PN347": {
         "title": "MarlinFP8 N==K silent corruption correctness fix (vendor of CLOSED vllm#44113; superseded by MERGED vllm#44735 on dev491+ — active only on <dev491 rollback pins, version-gated)",

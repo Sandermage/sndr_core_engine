@@ -375,6 +375,20 @@ def _build_kernel():
         SPARSE_V: tl.constexpr = 0,
         SPARSE_V_THRESHOLD: tl.constexpr = 0.0,
         SINK_TOKENS: tl.constexpr = 4,
+        # ───── Genesis PN521 raw-bf16-tail verify (2026-07-02) ─────
+        # When USE_RAW_TAIL=1 the compressed-cache loop stops at prior_seq_len
+        # and the K_PLUS_1 speculative tokens are attended from the RAW bf16
+        # K_chunk/V_chunk instead of read back through the 4-bit-V compressed
+        # cache. This removes the INT4-AutoRound spec-verify collapse (the
+        # 27B TQ×MTP garbage): reading just-written 4-bit-V speculative K/V
+        # back during verify crosses the divergence threshold on INT4 weights.
+        # When USE_RAW_TAIL=0 (default) the loop covers [0,total) exactly as
+        # before → byte-identical to the pre-PN521 kernel (35B FP8 path).
+        # KP1_PAD = next_power_of_2(K_PLUS_1) lets split-M compile for non-pow2
+        # K_PLUS_1 (e.g. MTP K=5 → K_PLUS_1=6 → KP1_PAD=8, 2 padding rows masked
+        # via qt_valid). For pow2 K_PLUS_1 (KP1_PAD==K_PLUS_1) it is a no-op.
+        USE_RAW_TAIL: tl.constexpr = 0,
+        KP1_PAD: tl.constexpr = 0,
     ):
         """Grid: (B, num_kv_heads, 1).
 
@@ -423,13 +437,21 @@ def _build_kernel():
         vb_idx = offs_d // 2
         vb_shift = (offs_d % 2) * 4
 
-        # Per-q_t accumulator state stored as [K_PLUS_1, BLOCK_QH] / [K_PLUS_1, BLOCK_QH, BLOCK_D]
+        # Per-q_t accumulator state stored as [KP1_EFF, BLOCK_QH] / [KP1_EFF, BLOCK_QH, BLOCK_D].
+        # KP1_EFF = next_power_of_2(K_PLUS_1) (passed as KP1_PAD) so tl.zeros/tl.arange
+        # compile for non-pow2 K_PLUS_1 (MTP K=5 → K_PLUS_1=6 → KP1_EFF=8). Padding rows
+        # [K_PLUS_1, KP1_EFF) are never processed (static_range bound stays K_PLUS_1) and
+        # never stored (qt_valid mask). For pow2 K_PLUS_1 (KP1_EFF==K_PLUS_1) this is a no-op.
+        # Fallback to K_PLUS_1 when KP1_PAD is unset (old callers / warm cache) — the
+        # launcher always passes KP1_PAD=next_power_of_2(K_PLUS_1).
+        KP1_EFF: tl.constexpr = KP1_PAD if KP1_PAD > 0 else K_PLUS_1
         # Triton can't dynamically index by constexpr — use where-masking for writes.
-        M_state = tl.zeros([K_PLUS_1, BLOCK_QH], dtype=tl.float32) - float("inf")
-        L_state = tl.zeros([K_PLUS_1, BLOCK_QH], dtype=tl.float32)
-        acc = tl.zeros([K_PLUS_1, BLOCK_QH, BLOCK_D], dtype=tl.float32)
+        M_state = tl.zeros([KP1_EFF, BLOCK_QH], dtype=tl.float32) - float("inf")
+        L_state = tl.zeros([KP1_EFF, BLOCK_QH], dtype=tl.float32)
+        acc = tl.zeros([KP1_EFF, BLOCK_QH, BLOCK_D], dtype=tl.float32)
 
-        q_t_range = tl.arange(0, K_PLUS_1)
+        q_t_range = tl.arange(0, KP1_EFF)
+        qt_valid = q_t_range < K_PLUS_1
         q_base = bid * stride_qb
 
         bt_base = bid * stride_bt_b
@@ -457,10 +479,15 @@ def _build_kernel():
         #        hint, lets the compiler overlap async-copy with MMA across
         #        iterations. Adopted from vllm#33529 (merged 2026-04-02).
         # v7.62.22 reverted: Triton 3.6 flags regressed -6.5% on 35B split-M.
+        # PN521: when USE_RAW_TAIL, the compressed cache is read ONLY for the
+        # committed tokens [0, prior_seq_len); the K_PLUS_1 speculative tokens
+        # at [prior_seq_len, total_seq_len) are attended from the raw bf16 chunk
+        # in the second phase below (never through the 4-bit-V cache).
         # ════════════════════════════════════════════════════════════════
-        for start_n in tl.range(0, total_seq_len, BLOCK_KV):
+        compressed_end = prior_seq_len if USE_RAW_TAIL else total_seq_len
+        for start_n in tl.range(0, compressed_end, BLOCK_KV):
             seq_offset = start_n + offs_kv
-            tile_mask = seq_offset < total_seq_len
+            tile_mask = seq_offset < compressed_end
 
             page_idx = seq_offset // BLOCK_SIZE
             page_off = seq_offset % BLOCK_SIZE
@@ -653,6 +680,71 @@ def _build_kernel():
                     acc,
                 )
 
+        # ════════════════════════════════════════════════════════════════
+        # PN521 RAW-BF16-TAIL PHASE (USE_RAW_TAIL only; constexpr-DCE'd to
+        # nothing when USE_RAW_TAIL=0 → byte-identical to pre-PN521 kernel).
+        # Continue the SAME online-softmax accumulators over the K_PLUS_1
+        # speculative tokens, read from the RAW bf16 K_chunk/V_chunk instead
+        # of the 4-bit-V compressed cache. Raw token j is at absolute position
+        # prior_seq_len + j; query q_t (abs pos prior_seq_len + t) attends it
+        # iff j <= t. K_PLUS_1 is tiny (<=8) so scores are element-wise
+        # reductions (no MMA / no dot-size constraint on the K1 axis).
+        # ════════════════════════════════════════════════════════════════
+        if USE_RAW_TAIL:
+            kchunk_base = bid * stride_kkb + kv_head * stride_kkh
+            vchunk_base = bid * stride_vkb + kv_head * stride_vkh
+            for t in tl.static_range(0, K_PLUS_1):
+                q_addrs_rt = (
+                    q_base
+                    + t * stride_qt
+                    + abs_head[:, None] * stride_qh
+                    + offs_d[None, :] * stride_qd
+                )
+                Q_rt = tl.load(
+                    Q_ptr + q_addrs_rt,
+                    mask=head_mask[:, None] & d_mask[None, :],
+                    other=0.0,
+                    cache_modifier=".ca",
+                ).to(tl.float32)  # [BLOCK_QH, BLOCK_D]
+
+                t_mask_rt = q_t_range == t  # [KP1_EFF] one-hot (compile-time)
+                M_t = tl.sum(tl.where(t_mask_rt[:, None], M_state, 0.0), axis=0)
+                L_t = tl.sum(tl.where(t_mask_rt[:, None], L_state, 0.0), axis=0)
+                acc_t = tl.sum(tl.where(t_mask_rt[:, None, None], acc, 0.0), axis=0)
+
+                # Attend raw positions j <= t. Both j and t are constexpr
+                # (static_range) so `j <= t` is resolved at compile time —
+                # only the valid iterations are emitted, no runtime branch.
+                for j in tl.static_range(0, K_PLUS_1):
+                    if j <= t:
+                        k_addr_j = (
+                            kchunk_base + j * stride_kkt + offs_d * stride_kkd
+                        )
+                        K_j = tl.load(
+                            K_chunk_ptr + k_addr_j, mask=d_mask, other=0.0,
+                        ).to(tl.float32)  # [BLOCK_D]
+                        v_addr_j = (
+                            vchunk_base + j * stride_vkt + offs_d * stride_vkd
+                        )
+                        V_j = tl.load(
+                            V_chunk_ptr + v_addr_j, mask=d_mask, other=0.0,
+                        ).to(tl.float32)  # [BLOCK_D]
+                        # s_j = scale * (Q_t . K_j)  → [BLOCK_QH]
+                        s_j = SCALE_LOG2E_split * tl.sum(
+                            Q_rt * K_j[None, :], axis=1
+                        )
+                        s_j = tl.where(head_mask, s_j, -float("inf"))
+                        M_new = tl.maximum(M_t, s_j)
+                        alpha = tl.exp2(M_t - M_new)
+                        p_j = tl.exp2(s_j - M_new)
+                        L_t = L_t * alpha + p_j
+                        acc_t = acc_t * alpha[:, None] + p_j[:, None] * V_j[None, :]
+                        M_t = M_new
+
+                M_state = tl.where(t_mask_rt[:, None], M_t[None, :], M_state)
+                L_state = tl.where(t_mask_rt[:, None], L_t[None, :], L_state)
+                acc = tl.where(t_mask_rt[:, None, None], acc_t[None, :, :], acc)
+
         # ───── Epilogue: normalize and store ─────
         safe_L = tl.where(L_state > 0.0, L_state, 1.0)
         out = acc / safe_L[:, :, None]  # [K_PLUS_1, BLOCK_QH, BLOCK_D]
@@ -666,7 +758,12 @@ def _build_kernel():
         )
         tl.store(
             O_ptr + o_addrs_3d, out.to(tl.float16),
-            mask=head_mask[None, :, None] & d_mask[None, None, :],
+            # qt_valid gates padding rows [K_PLUS_1, KP1_PAD): O_ptr has only
+            # K_PLUS_1 slots, so writing rows >= K_PLUS_1 would be OOB. For pow2
+            # K_PLUS_1 (KP1_EFF==K_PLUS_1) qt_valid is all-true → no-op.
+            mask=qt_valid[:, None, None]
+            & head_mask[None, :, None]
+            & d_mask[None, None, :],
         )
 
     return cutlass_genesis_p67_v17_split_m
@@ -839,8 +936,17 @@ def call_p67_attention(
     kps: int,
     val_data_bytes: int,
     output=None,
+    use_raw_tail: int = 0,
 ):
-    """Production launcher for P67 v7.34 split-M multi-query attention."""
+    """Production launcher for P67 v7.34 split-M multi-query attention.
+
+    PN521: when ``use_raw_tail=1`` the K_PLUS_1 speculative tokens supplied in
+    ``k_chunk``/``v_chunk`` (raw bf16) are attended directly during verify and
+    the compressed 4-bit-V cache is read only for committed tokens
+    ``[0, prior_seq_len)``. This is the fix for the INT4-AutoRound TQ×MTP
+    spec-verify collapse (reading just-written 4-bit-V speculative K/V back
+    during verify diverges on INT4 weights). ``use_raw_tail=0`` (default) keeps
+    the pre-PN521 behaviour byte-for-byte (35B FP8 path)."""
     import torch
     import triton
 
@@ -853,17 +959,26 @@ def call_p67_attention(
     assert Hq % Hk == 0
     heads_per_kv = Hq // Hk
 
-    # v7.62.19b: defensive guard — Triton tl.zeros requires power-of-2 dims
-    # so K_PLUS_1 must be power of 2. With MTP K=3 the typical value is 4,
-    # but post-rejection or extension paths can produce K_PLUS_1 ∈ {3, 5, 6,
-    # 7, 9, ...}. Refuse those — caller (P67b dispatcher) catches and falls
-    # through to upstream kernel cleanly. This was causing CompilationError
-    # spam + bimodal variance under fp16-dot rebuild (v777 35B regression
-    # root cause; pre-existed but masked by warm Triton cache on prior names).
-    if K_PLUS_1 < 2 or (K_PLUS_1 & (K_PLUS_1 - 1)) != 0:
+    # PN521 (2026-07-02): split-M is now generalized to non-pow-2 K_PLUS_1 via
+    # KP1_PAD = next_power_of_2(K_PLUS_1) + qt_valid masking (mirrors the
+    # BLOCK_QH/lane_valid non-pow-2-GQA generalization). MTP K=5 → K_PLUS_1=6 →
+    # KP1_PAD=8 now compiles cleanly, so we no longer refuse it here. Only
+    # K_PLUS_1 < 2 is rejected (no speculative chunk to verify). The fused path
+    # (opt-in) still bakes K_PLUS_1 into the MMA m-dim and is guarded below.
+    if K_PLUS_1 < 2:
         raise ValueError(
-            f"P67 kernel requires K_PLUS_1 power-of-2, got {K_PLUS_1}; "
+            f"P67 kernel requires K_PLUS_1 >= 2, got {K_PLUS_1}; "
             "caller should fall through to upstream kernel"
+        )
+    # PN521 gate: non-pow-2 K_PLUS_1 (e.g. MTP K=5 → 6) is only enabled on the
+    # raw-tail path (27B INT4 fix). Without use_raw_tail (e.g. 35B FP8) keep the
+    # historical behaviour EXACTLY — refuse non-pow-2 so the caller falls
+    # through to the upstream synth-decode kernel. This guarantees the 35B path
+    # is byte-unchanged (it never enters split-M at K_PLUS_1=6 anyway).
+    if (K_PLUS_1 & (K_PLUS_1 - 1)) != 0 and not use_raw_tail:
+        raise ValueError(
+            f"P67 split-M requires pow-2 K_PLUS_1 without raw-tail, got "
+            f"{K_PLUS_1}; caller should fall through to upstream kernel"
         )
     if heads_per_kv < 1:
         raise ValueError(
@@ -876,15 +991,40 @@ def call_p67_attention(
     _fused_mode = os.environ.get("GENESIS_P67_USE_FUSED", "").strip().lower() in (
         "1", "true", "yes", "on"
     )
-    if _fused_mode and (heads_per_kv & (heads_per_kv - 1)) != 0:
+    if _fused_mode and (
+        (heads_per_kv & (heads_per_kv - 1)) != 0
+        or (K_PLUS_1 & (K_PLUS_1 - 1)) != 0
+    ):
         raise ValueError(
-            f"GENESIS_P67_USE_FUSED=1 requires heads_per_kv power-of-2, "
-            f"got {heads_per_kv}; either unset GENESIS_P67_USE_FUSED or use "
-            "default split-M which supports any GQA factor"
+            f"GENESIS_P67_USE_FUSED=1 requires heads_per_kv AND K_PLUS_1 "
+            f"power-of-2, got heads_per_kv={heads_per_kv} K_PLUS_1={K_PLUS_1}; "
+            "either unset GENESIS_P67_USE_FUSED or use default split-M which "
+            "supports any GQA factor and non-pow-2 K_PLUS_1"
         )
 
     cap = torch.cuda.get_device_capability()
     cfg = _autoconfig(cap[0], cap[1], D)
+
+    # PN521: the raw-tail path pads K_PLUS_1 up to a pow-2 (KP1_PAD) and runs on
+    # head_dim=256 (27B), which pushes per-tile SMEM (K+V tiles × num_stages)
+    # past the sm_86 ~100 KB limit at the default (BLOCK_KV=32, num_stages=3).
+    # Trim to a SMEM-safe config on this path ONLY (27B-gated) so we never touch
+    # the pow-2 / smaller-head configs used elsewhere. On sm_86 (100 KB SMEM) the
+    # KP1_PAD=8 × BLOCK_QH=8 × BLOCK_D=256 fp32 accumulator (~64 KB) plus the K+V
+    # tiles forces BOTH num_stages=2 AND BLOCK_KV=16 to fit (BLOCK_KV=32 OOMs even
+    # at num_stages=2). This narrow KV tile is the current steady-state cost
+    # (~77 TPS single-stream vs the pre-PN521 upstream path); recovering it needs
+    # kernel restructuring (smaller acc footprint / BLOCK_D split), tracked as a
+    # PN521 perf follow-up. Env override (GENESIS_P67_BLOCK_KV/_NUM_STAGES) A/B-able.
+    if use_raw_tail and D >= 256 and cap[0] < 9:
+        cfg = dict(cfg)
+        # Auto-clamp to the SMEM-safe point, but let an explicit operator env
+        # override reach the kernel unclamped so BLOCK_KV/num_stages are A/B-able
+        # (the SMEM-shrink work — PV D-split — is validated by benching 32 vs 16).
+        if "GENESIS_P67_NUM_STAGES" not in os.environ:
+            cfg["num_stages"] = min(cfg["num_stages"], 2)
+        if "GENESIS_P67_BLOCK_KV" not in os.environ:
+            cfg["BLOCK_KV"] = min(cfg["BLOCK_KV"], 16)
 
     BLOCK_D = triton.next_power_of_2(D)
     # v7.63.x non-pow-2 generalization: pad BLOCK_QH up to next_power_of_2 so
@@ -893,6 +1033,10 @@ def call_p67_attention(
     # heads_per_kv is already power-of-2 (35B GQA=8 → BLOCK_QH=8) this is a
     # no-op — bit-exact to pre-generalization split-M kernel.
     BLOCK_QH = triton.next_power_of_2(heads_per_kv)
+    # PN521: pad K_PLUS_1 up to next_power_of_2 so tl.zeros / tl.arange on the
+    # per-q_t accumulators compile for non-pow-2 K_PLUS_1 (MTP K=5 → 6 → 8).
+    # Padding rows are masked (qt_valid) — no-op when K_PLUS_1 is already pow-2.
+    KP1_PAD = triton.next_power_of_2(K_PLUS_1)
 
     if output is None:
         output = torch.empty_like(q)
@@ -939,6 +1083,8 @@ def call_p67_attention(
         SPARSE_V=sparse_v_enabled,
         SPARSE_V_THRESHOLD=sparse_v_thr,
         SINK_TOKENS=sink_tokens,
+        USE_RAW_TAIL=(1 if use_raw_tail else 0),
+        KP1_PAD=KP1_PAD,
         num_warps=cfg["num_warps"],
         num_stages=cfg["num_stages"],
     )
