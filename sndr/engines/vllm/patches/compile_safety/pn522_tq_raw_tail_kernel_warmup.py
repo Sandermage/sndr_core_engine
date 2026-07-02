@@ -108,6 +108,8 @@ def _warmup_raw_tail_layer(impl, *, device, k1: int, batch: int, block_size: int
 
     from sndr.engines.vllm.kernels_legacy.p67_multi_query_kernel import (
         call_p67_attention,
+        call_p67_splitk,
+        _resolve_p67_num_splits,
     )
 
     hq = impl.num_heads
@@ -130,11 +132,25 @@ def _warmup_raw_tail_layer(impl, *, device, k1: int, batch: int, block_size: int
                            device=device)
     block_table = torch.zeros((batch, 1), dtype=torch.int32, device=device)
 
+    # Always warm the single-CTA raw-tail variant (the SPLIT_K-off fallback).
     call_p67_attention(
         q, kv_cache, block_table, seq_lens, k_chunk, v_chunk,
         scale=impl.scale, block_size=block_size, kps=kps,
         val_data_bytes=val_data_bytes, use_raw_tail=1,
     )
+    # When split-K is enabled, also pre-compile the stage-1 + stage-2 kernels
+    # at the real num_splits so the first MTP verify (and cudagraph capture)
+    # never JIT-compiles them.
+    if _truthy(os.environ.get("GENESIS_ENABLE_PN521_SPLIT_K", "")):
+        try:
+            call_p67_splitk(
+                q, kv_cache, block_table, seq_lens, k_chunk, v_chunk,
+                scale=impl.scale, block_size=block_size, kps=kps,
+                val_data_bytes=val_data_bytes,
+                num_splits=_resolve_p67_num_splits(),
+            )
+        except Exception as e:  # noqa: BLE001
+            log.warning("[PN522] split-K warmup failed: %r (first verify may JIT)", e)
     return True
 
 

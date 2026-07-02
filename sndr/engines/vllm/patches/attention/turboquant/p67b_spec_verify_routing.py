@@ -80,6 +80,15 @@ except ValueError:
 _BAKED_PN521 = (
     os.environ.get("GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY", "0") == "1"
 )
+# PN521 split-K (Flash-Decoding) occupancy fix for the raw-tail verify. When on
+# (AND PN521 raw-tail active), the K+1 verify runs the two-stage split-K kernels
+# (grid-z NUM_SPLITS+1 CTAs) instead of the single-CTA split-M — ~11x faster
+# single-stream (grid (B,Hk,1)=4 CTAs starves the 64-SM A5000). Same numerics
+# (fp32 stage-2 LSE-combine ~1e-6); validated kernel-numeric vs single-CTA.
+# Off -> the validated single-CTA raw-tail path (safe fallback). Baked at load.
+_BAKED_SPLIT_K = (
+    os.environ.get("GENESIS_ENABLE_PN521_SPLIT_K", "0") == "1"
+)
 
 log.info(
     "[Genesis P67b B2] baked env at module load: USE_UPSTREAM=%s NUM_KV_SPLITS=%s "
@@ -89,7 +98,7 @@ log.info(
     _BAKED_PN521,
 )
 
-GENESIS_P67B_MARKER = "Genesis P67b spec-verify forward() routing v7.63.x_nopow2_gqa_perf_cache_pn521_rawtail"
+GENESIS_P67B_MARKER = "Genesis P67b spec-verify forward() routing v7.63.x_nopow2_gqa_perf_cache_pn521_rawtail_splitk"
 
 
 # Anchor: existing `forward()` method just before the dispatch branches.
@@ -129,10 +138,12 @@ P67B_NEW = (
     "                from sndr.engines.vllm.kernels_legacy.p67_multi_query_kernel import (\n"
     "                    is_active as _genesis_p67b_active,\n"
     "                    call_p67_attention as _genesis_p67b_call,\n"
+    "                    call_p67_splitk as _genesis_p67b_splitk,\n"
+    "                    _resolve_p67_num_splits as _genesis_p67b_nsplits,\n"
     "                )\n"
-    "                self._genesis_p67b_refs = (_genesis_p67b_active, _genesis_p67b_call)\n"
+    "                self._genesis_p67b_refs = (_genesis_p67b_active, _genesis_p67b_call, _genesis_p67b_splitk, _genesis_p67b_nsplits)\n"
     "            else:\n"
-    "                _genesis_p67b_active, _genesis_p67b_call = _genesis_p67b_refs\n"
+    "                _genesis_p67b_active, _genesis_p67b_call, _genesis_p67b_splitk, _genesis_p67b_nsplits = _genesis_p67b_refs\n"
     "            _genesis_p67b_Hk = key.shape[1]\n"
     "            # v7.63.x_nopow2: HEADS_PER_KV pow-2 requirement DROPPED.\n"
     "            # Split-M kernel was generalized via BLOCK_QH = next_power_of_2(hpk)\n"
@@ -181,6 +192,7 @@ P67B_NEW = (
     "                        and (_genesis_p67b_hpk & (_genesis_p67b_hpk - 1)) != 0\n"
     "                    )\n"
     "                    _genesis_raw_tail = _genesis_pn521 and _genesis_hpk_nonpow2\n"
+    f"                    _genesis_use_splitk = ({_BAKED_SPLIT_K}) and _genesis_raw_tail\n"
     f"                    _use_upstream = ({_BAKED_USE_UPSTREAM}) and not _genesis_raw_tail\n"
     "                    import torch as _genesis_p67b_torch\n"
     "                    if _use_upstream:\n"
@@ -303,20 +315,50 @@ P67B_NEW = (
     "                                _genesis_p67b_buf_key, dtype=q.dtype, device=q.device\n"
     "                            )\n"
     "                            self._genesis_p67b_out_buffers[_genesis_p67b_buf_key] = _genesis_p67b_out_buf\n"
-    "                        _genesis_p67b_attn_out = _genesis_p67b_call(\n"
-    "                            q=_genesis_p67b_q,\n"
-    "                            kv_cache=kv_cache,\n"
-    "                            block_table=attn_metadata.block_table,\n"
-    "                            seq_lens=attn_metadata.seq_lens,\n"
-    "                            k_chunk=_genesis_p67b_k,\n"
-    "                            v_chunk=_genesis_p67b_v,\n"
-    "                            scale=self.scale,\n"
-    "                            block_size=_genesis_p67b_block_size,\n"
-    "                            kps=_genesis_p67b_kps,\n"
-    "                            val_data_bytes=_genesis_p67b_vdb,\n"
-    "                            output=_genesis_p67b_out_buf,\n"
-    "                            use_raw_tail=(1 if _genesis_raw_tail else 0),\n"
-    "                        )\n"
+    "                        if _genesis_use_splitk:\n"
+    "                            # [Genesis PN521 split-K] ~11x single-stream: two-stage\n"
+    "                            # (B,Hk,NUM_SPLITS+1) CTAs vs single-CTA (B,Hk,1). Same\n"
+    "                            # fp32 numerics (validated kernel-numeric vs single-CTA).\n"
+    "                            _genesis_num_splits = getattr(self, '_genesis_num_splits', 0)\n"
+    "                            if _genesis_num_splits == 0:\n"
+    "                                _genesis_num_splits = _genesis_p67b_nsplits()\n"
+    "                                self._genesis_num_splits = _genesis_num_splits\n"
+    "                            _genesis_nsp1 = _genesis_num_splits + 1\n"
+    "                            _genesis_mid_key = (_genesis_p67b_B, _genesis_p67b_Hk, _genesis_nsp1, _genesis_p67b_K1)\n"
+    "                            if not hasattr(self, '_genesis_p67b_mid_buffers'):\n"
+    "                                self._genesis_p67b_mid_buffers = {}\n"
+    "                            _genesis_mid = self._genesis_p67b_mid_buffers.get(_genesis_mid_key)\n"
+    "                            if _genesis_mid is None:\n"
+    "                                import triton as _genesis_tr\n"
+    "                                _genesis_kp1 = _genesis_tr.next_power_of_2(_genesis_p67b_K1)\n"
+    "                                _genesis_bqh = _genesis_tr.next_power_of_2(_genesis_p67b_hpk)\n"
+    "                                _genesis_bd = _genesis_tr.next_power_of_2(self.head_size)\n"
+    "                                _genesis_mid = _genesis_p67b_torch.empty(\n"
+    "                                    (_genesis_p67b_B, _genesis_p67b_Hk, _genesis_nsp1, _genesis_kp1, _genesis_bqh, _genesis_bd + 1),\n"
+    "                                    dtype=_genesis_p67b_torch.float32, device=q.device,\n"
+    "                                )\n"
+    "                                self._genesis_p67b_mid_buffers[_genesis_mid_key] = _genesis_mid\n"
+    "                            _genesis_p67b_attn_out = _genesis_p67b_splitk(\n"
+    "                                q=_genesis_p67b_q, kv_cache=kv_cache,\n"
+    "                                block_table=attn_metadata.block_table,\n"
+    "                                seq_lens=attn_metadata.seq_lens,\n"
+    "                                k_chunk=_genesis_p67b_k, v_chunk=_genesis_p67b_v,\n"
+    "                                scale=self.scale, block_size=_genesis_p67b_block_size,\n"
+    "                                kps=_genesis_p67b_kps, val_data_bytes=_genesis_p67b_vdb,\n"
+    "                                output=_genesis_p67b_out_buf,\n"
+    "                                num_splits=_genesis_num_splits, mid_o=_genesis_mid,\n"
+    "                            )\n"
+    "                        else:\n"
+    "                            _genesis_p67b_attn_out = _genesis_p67b_call(\n"
+    "                                q=_genesis_p67b_q, kv_cache=kv_cache,\n"
+    "                                block_table=attn_metadata.block_table,\n"
+    "                                seq_lens=attn_metadata.seq_lens,\n"
+    "                                k_chunk=_genesis_p67b_k, v_chunk=_genesis_p67b_v,\n"
+    "                                scale=self.scale, block_size=_genesis_p67b_block_size,\n"
+    "                                kps=_genesis_p67b_kps, val_data_bytes=_genesis_p67b_vdb,\n"
+    "                                output=_genesis_p67b_out_buf,\n"
+    "                                use_raw_tail=(1 if _genesis_raw_tail else 0),\n"
+    "                            )\n"
     "                    # Write to engine output buffer in (N, Hq*D) or (N, Hq, D) layout.\n"
     "                    _genesis_p67b_attn_flat = _genesis_p67b_attn_out.view(\n"
     "                        N, self.num_heads, self.head_size\n"

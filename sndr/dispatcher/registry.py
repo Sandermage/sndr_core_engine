@@ -811,6 +811,50 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
+    "PN521_SPLIT_K": {
+        "title": (
+            "PN521 split-K (Flash-Decoding) occupancy fix for the raw-tail "
+            "verify — ~11x faster verify kernel single-stream"
+        ),
+        "tier": "community",
+        "family": "attention.turboquant",
+        # Flag-only entry (behaviour baked into p67b_spec_verify_routing, which
+        # reads GENESIS_ENABLE_PN521_SPLIT_K at module load and routes the K+1
+        # verify to the two-stage split-K kernels when PN521 raw-tail is active).
+        "env_flag": "GENESIS_ENABLE_PN521_SPLIT_K",
+        "default_on": False,
+        "category": "spec_decode",
+        "credit": (
+            "Genesis-original (2026-07-03). The PN521 single-CTA split-M verify "
+            "kernel has grid (B,Hk,1) = Hk CTAs; at single-stream B=1 that is 4 "
+            "CTAs on the 64-SM A5000 -> severe under-occupancy (~77 TPS). Split-K "
+            "(Flash-Decoding) partitions the committed range [0,prior) across "
+            "NUM_SPLITS CTAs plus a dedicated raw-tail slot (grid (B,Hk,NUM_SPLITS"
+            "+1)), each writing a normalized log2 partial (tv=acc/L, lse2=M+log2L) "
+            "to a pointer-stable scratch, then a stage-2 kernel LSE-combines them. "
+            "Recovers occupancy: verify kernel ~11x faster single-stream (2276->204 "
+            "us at the 27B geom), +~10% end-to-end single-stream TPS (attention is "
+            "not the sole decode bottleneck; GDN/MLP/MTP dominate) and larger "
+            "headroom at concurrency. Same within-split fp32/tf32x3 numerics; the "
+            "only new error is the fp32 stage-2 combine (~1e-6 reassociation) — NOT "
+            "bit-exact, greedy tokens can differ ~5e-4. Committed splits clamp "
+            "split_end to prior (never re-read the 4-bit-V spec tokens); raw slot "
+            "gated on sid==RAW_SID; empty-split -inf/0 sentinel + both_ninf NaN "
+            "guard. Validated 2026-07-03: kernel-numeric vs single-CTA (prior=0 "
+            "bit-exact, prior>0 rel~5e-4 incl. non-divisible clamp/empty/long-ctx), "
+            "stage-2 unit (all-(-inf) split -> 0, no NaN), 27B end-to-end coherent "
+            "n=5 + tool-call. NUM_SPLITS via GENESIS_P67_SPLITK_NUM_SPLITS (default "
+            "15 -> grid-z 16). Off -> validated single-CTA raw-tail (safe fallback)."
+        ),
+        "upstream_pr": None,
+        "applies_to": {
+            "is_turboquant": [True],
+            "vllm_version_range": (">=0.21.0", "<0.24.0"),
+        },
+        "requires_patches": ["P67", "P67b"],
+        "lifecycle": "experimental",
+        "implementation_status": "full",
+    },
     "PN398": {
         "title": "Async spec-decode accepted-counts race fix (vllm#45100 backport)",
         "tier": "community",

@@ -769,6 +769,392 @@ def _build_kernel():
     return cutlass_genesis_p67_v17_split_m
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# PN521 split-K stage-2: log2 LSE-combine of the per-split partials.
+# (Flash-Decoding stage-2.) The stage-1 split-K kernel writes NUM_SPLITS
+# committed partials [0,NUM_SPLITS) over disjoint sub-ranges of [0,prior)
+# plus one raw-tail partial at sid==NUM_SPLITS over [prior,total); this
+# kernel recombines them into the exact softmax. Math validated in pure
+# torch: sndr_private/planning/proto_splitk_lse_combine_VALIDATED.py
+# (rel ~1e-6 incl. empty splits, non-divisible prior, padding rows).
+# ═══════════════════════════════════════════════════════════════════════
+_CACHED_STAGE2 = None
+
+
+def _build_stage2_kernel():
+    try:
+        from vllm.triton_utils import tl, triton
+    except Exception:
+        try:
+            import triton
+            import triton.language as tl
+        except Exception:
+            return None
+
+    @triton.jit
+    def p67_splitk_stage2(
+        Mid_o_ptr,
+        O_ptr,
+        stride_mb, stride_mh, stride_ms, stride_mq, stride_moh, stride_md,
+        stride_ob, stride_ot, stride_oh, stride_od,
+        NUM_SPLITS_P1: tl.constexpr,   # NUM_SPLITS + 1 (committed splits + raw slot)
+        K_PLUS_1: tl.constexpr,
+        KP1_PAD: tl.constexpr,
+        BLOCK_D: tl.constexpr,
+        HEAD_DIM: tl.constexpr,
+        HEADS_PER_KV: tl.constexpr,
+        BLOCK_QH: tl.constexpr,
+        Hq_TOTAL: tl.constexpr,
+    ):
+        """Grid: (B, num_kv_heads). One CTA reduces all NUM_SPLITS_P1 partials
+        for one (batch, kv_head) into the final [K_PLUS_1, Hq_group, D] output.
+
+        Mid_o layout [B, Hk, NUM_SPLITS_P1, KP1_PAD, BLOCK_QH, BLOCK_D+1]:
+        [...,:BLOCK_D] = normalized partial tv = acc_s/L_s; [...,BLOCK_D] =
+        lse2_s = M_s + log2(L_s) (log2 score domain, matching stage-1's
+        SCALE_LOG2E + exp2). Empty/padding partials carry the sentinel
+        tv=0, lse2=-inf, neutralized by the both_ninf guard.
+        """
+        bid = tl.program_id(0)
+        kv_head = tl.program_id(1)
+
+        KP1_EFF: tl.constexpr = KP1_PAD if KP1_PAD > 0 else K_PLUS_1
+        offs_h = tl.arange(0, BLOCK_QH)
+        abs_head = kv_head * HEADS_PER_KV + offs_h
+        head_mask = (offs_h < HEADS_PER_KV) & (abs_head < Hq_TOTAL)
+        offs_d = tl.arange(0, BLOCK_D)
+        d_mask = offs_d < HEAD_DIM
+        q_t_range = tl.arange(0, KP1_EFF)
+        qt_valid = q_t_range < K_PLUS_1
+
+        # Running online-LSE state across splits.
+        m = tl.zeros([KP1_EFF, BLOCK_QH], dtype=tl.float32) - float("inf")
+        l = tl.zeros([KP1_EFF, BLOCK_QH], dtype=tl.float32)
+        acc = tl.zeros([KP1_EFF, BLOCK_QH, BLOCK_D], dtype=tl.float32)
+
+        mid_base = bid * stride_mb + kv_head * stride_mh
+        # RUNTIME range (not static_range) — 17 unrolled [KP1_EFF,BLOCK_QH,BLOCK_D]
+        # loads would blow the register file at BLOCK_D=256; one loop body reused.
+        for s in tl.range(0, NUM_SPLITS_P1):
+            s_base = mid_base + s * stride_ms
+            tv_addr = (
+                s_base
+                + q_t_range[:, None, None] * stride_mq
+                + offs_h[None, :, None] * stride_moh
+                + offs_d[None, None, :] * stride_md
+            )
+            tv = tl.load(
+                Mid_o_ptr + tv_addr,
+                mask=qt_valid[:, None, None] & head_mask[None, :, None] & d_mask[None, None, :],
+                other=0.0,
+            )
+            lse_addr = (
+                s_base
+                + q_t_range[:, None] * stride_mq
+                + offs_h[None, :] * stride_moh
+                + BLOCK_D * stride_md
+            )
+            lse2 = tl.load(
+                Mid_o_ptr + lse_addr,
+                mask=qt_valid[:, None] & head_mask[None, :],
+                other=-float("inf"),
+            )
+            m_new = tl.maximum(m, lse2)
+            # both_ninf NaN guard: exp2(-inf - -inf)=NaN, NaN*0=NaN would poison
+            # padding rows / masked lanes / empty committed splits.
+            both_ninf = (m == -float("inf")) & (lse2 == -float("inf"))
+            a_old = tl.where(both_ninf, 0.0, tl.exp2(m - m_new))
+            a_s = tl.where(both_ninf, 0.0, tl.exp2(lse2 - m_new))
+            l = l * a_old + a_s
+            acc = acc * a_old[:, :, None] + a_s[:, :, None] * tv
+            m = tl.where(both_ninf, -float("inf"), m_new)
+
+        safe_l = tl.where(l > 0.0, l, 1.0)
+        out = acc / safe_l[:, :, None]
+        o_addrs = (
+            bid * stride_ob
+            + q_t_range[:, None, None] * stride_ot
+            + abs_head[None, :, None] * stride_oh
+            + offs_d[None, None, :] * stride_od
+        )
+        tl.store(
+            O_ptr + o_addrs, out.to(tl.float16),
+            mask=qt_valid[:, None, None] & head_mask[None, :, None] & d_mask[None, None, :],
+        )
+
+    return p67_splitk_stage2
+
+
+def _get_stage2_kernel():
+    global _CACHED_STAGE2
+    if _CACHED_STAGE2 is None:
+        _CACHED_STAGE2 = _build_stage2_kernel()
+    return _CACHED_STAGE2
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PN521 split-K stage-1: per-split partial attention (Flash-Decoding stage-1).
+# grid (B, Hk, NUM_SPLITS+1). Committed splits sid in [0,NUM_SPLITS) each
+# process a DISJOINT sub-range of the committed range [0, prior_seq_len)
+# (clamped to prior — never total, which would re-read the 4-bit-V spec
+# tokens). The reserved raw slot sid==RAW_SID(=NUM_SPLITS) attends the K+1
+# speculative tokens from the RAW bf16 chunk over [prior,total), causal j<=t,
+# with FRESH state. Each writes a normalized partial (tv=acc/L, lse2=M+log2L)
+# to Mid_o; stage-2 recombines. The existing single-CTA split-M kernel is
+# left UNTOUCHED (SPLIT_K=0 fallback = validated PN521 path + 35B-safe).
+# Body is the split-M compressed loop + raw-tail with a sub-range bound and
+# a partial-store epilogue. Math: proto_splitk_lse_combine_VALIDATED.py.
+# ═══════════════════════════════════════════════════════════════════════
+_CACHED_STAGE1_SPLITK = None
+
+
+def _build_stage1_splitk_kernel():
+    try:
+        from vllm.triton_utils import tl, triton
+    except Exception:
+        try:
+            import triton
+            import triton.language as tl
+        except Exception:
+            return None
+
+    dot_fp16 = 1 if os.environ.get(
+        "GENESIS_P67_DOT_PRECISION", "tf32x3"
+    ).strip().lower() == "fp16" else 0
+
+    @triton.jit
+    def p67_stage1_splitk(
+        Q_ptr,
+        KV_cache_ptr,
+        Block_table_ptr,
+        Seq_lens_ptr,
+        K_chunk_ptr,
+        V_chunk_ptr,
+        Mid_o_ptr,
+        stride_qb, stride_qt, stride_qh, stride_qd,
+        stride_cache_block, stride_cache_pos, stride_cache_head,
+        stride_bt_b,
+        stride_kkb, stride_kkt, stride_kkh, stride_kkd,
+        stride_vkb, stride_vkt, stride_vkh, stride_vkd,
+        stride_mb, stride_mh, stride_ms, stride_mq, stride_moh, stride_md,
+        SCALE: tl.constexpr,
+        K_PLUS_1: tl.constexpr,
+        BLOCK_D: tl.constexpr,
+        HEAD_DIM: tl.constexpr,
+        BLOCK_SIZE: tl.constexpr,
+        BLOCK_KV: tl.constexpr,
+        HEADS_PER_KV: tl.constexpr,
+        BLOCK_QH: tl.constexpr,
+        Hq_TOTAL: tl.constexpr,
+        KPS: tl.constexpr,
+        VAL_DATA_BYTES: tl.constexpr,
+        NUM_SPLITS: tl.constexpr,
+        RAW_SID: tl.constexpr,
+        KP1_PAD: tl.constexpr,
+        FP8_E4B15: tl.constexpr = 0,
+        DOT_FP16: tl.constexpr = 0,
+    ):
+        bid = tl.program_id(0)
+        kv_head = tl.program_id(1)
+        sid = tl.program_id(2)
+        is_raw = sid == RAW_SID
+
+        offs_h = tl.arange(0, BLOCK_QH)
+        abs_head = kv_head * HEADS_PER_KV + offs_h
+        lane_valid = offs_h < HEADS_PER_KV
+        head_mask = lane_valid & (abs_head < Hq_TOTAL)
+
+        total_seq_len = tl.load(Seq_lens_ptr + bid)
+        prior_seq_len = total_seq_len - K_PLUS_1
+
+        offs_d = tl.arange(0, BLOCK_D)
+        d_mask = offs_d < HEAD_DIM
+        offs_kv = tl.arange(0, BLOCK_KV)
+        vb_idx = offs_d // 2
+        vb_shift = (offs_d % 2) * 4
+
+        KP1_EFF: tl.constexpr = KP1_PAD if KP1_PAD > 0 else K_PLUS_1
+        M_state = tl.zeros([KP1_EFF, BLOCK_QH], dtype=tl.float32) - float("inf")
+        L_state = tl.zeros([KP1_EFF, BLOCK_QH], dtype=tl.float32)
+        acc = tl.zeros([KP1_EFF, BLOCK_QH, BLOCK_D], dtype=tl.float32)
+        q_t_range = tl.arange(0, KP1_EFF)
+        qt_valid = q_t_range < K_PLUS_1
+        q_base = bid * stride_qb
+        bt_base = bid * stride_bt_b
+        _kv_head_byte_offset = tl.cast(kv_head, tl.int64) * stride_cache_head
+        SCALE_LOG2E_split = SCALE * 1.4426950408889634
+
+        # This split's committed sub-range of [0, prior_seq_len). The raw slot
+        # does NO committed work (empty range). split_end CLAMPED to prior — a
+        # split reading into [prior,total) would re-read the 4-bit-V spec tokens.
+        split_len = tl.cdiv(prior_seq_len, NUM_SPLITS)
+        c_start = sid * split_len
+        c_end = tl.minimum((sid + 1) * split_len, prior_seq_len)
+        c_start = tl.where(is_raw, 0, c_start)
+        c_end = tl.where(is_raw, 0, c_end)
+
+        for start_n in tl.range(c_start, c_end, BLOCK_KV):
+            seq_offset = start_n + offs_kv
+            tile_mask = seq_offset < c_end
+            page_idx = seq_offset // BLOCK_SIZE
+            page_off = seq_offset % BLOCK_SIZE
+            physical_block = tl.load(
+                Block_table_ptr + bt_base + page_idx,
+                mask=tile_mask, other=0, cache_modifier=".ca",
+            ).to(tl.int64)
+            slot_bases = (
+                physical_block * stride_cache_block
+                + page_off.to(tl.int64) * stride_cache_pos
+                + _kv_head_byte_offset
+            )
+            k_addrs = slot_bases[None, :] + offs_d[:, None]
+            k_raw = tl.load(
+                KV_cache_ptr + k_addrs,
+                mask=d_mask[:, None] & tile_mask[None, :],
+                other=0, cache_modifier=".cg",
+            )
+            if FP8_E4B15:
+                k_float = k_raw.to(tl.float8e4b15, bitcast=True).to(tl.float32)
+            else:
+                k_float = k_raw.to(tl.float8e4nv, bitcast=True).to(tl.float32)
+            K_tile = k_float
+
+            val_bases = slot_bases + KPS
+            val_addrs = val_bases[:, None] + vb_idx[None, :]
+            val_raw = tl.load(
+                KV_cache_ptr + val_addrs,
+                mask=tile_mask[:, None] & d_mask[None, :],
+                other=0, cache_modifier=".cg",
+            ).to(tl.int32)
+            v_idx = ((val_raw >> vb_shift[None, :]) & 0xF).to(tl.float32)
+            sc_bases = val_bases + VAL_DATA_BYTES
+            sc_lo = tl.load(KV_cache_ptr + sc_bases, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
+            sc_hi = tl.load(KV_cache_ptr + sc_bases + 1, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
+            v_scales = (sc_lo | (sc_hi << 8)).to(tl.float16, bitcast=True).to(tl.float32)
+            zr_lo = tl.load(KV_cache_ptr + sc_bases + 2, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
+            zr_hi = tl.load(KV_cache_ptr + sc_bases + 3, mask=tile_mask, other=0,
+                            cache_modifier=".ca").to(tl.uint16)
+            v_zeros = (zr_lo | (zr_hi << 8)).to(tl.float16, bitcast=True).to(tl.float32)
+            V_tile = v_idx * v_scales[:, None] + v_zeros[:, None]
+
+            for t in tl.static_range(0, K_PLUS_1):
+                q_abs_pos_t = prior_seq_len + t
+                q_addrs_t = (
+                    q_base + t * stride_qt
+                    + abs_head[:, None] * stride_qh + offs_d[None, :] * stride_qd
+                )
+                Q_t = tl.load(
+                    Q_ptr + q_addrs_t,
+                    mask=head_mask[:, None] & d_mask[None, :],
+                    other=0.0, cache_modifier=".ca",
+                ).to(tl.float32)
+                if DOT_FP16:
+                    S_t = SCALE_LOG2E_split * tl.dot(
+                        Q_t.to(tl.float16), K_tile.to(tl.float16), out_dtype=tl.float32)
+                else:
+                    S_t = SCALE_LOG2E_split * tl.dot(
+                        Q_t, K_tile, out_dtype=tl.float32, input_precision='tf32')
+                # committed causal is always true (seq_offset<prior<=q_abs_pos_t);
+                # keep the mask for tail-tile padding correctness.
+                causal = q_abs_pos_t >= seq_offset
+                valid = head_mask[:, None] & tile_mask[None, :] & causal[None, :]
+                S_t = tl.where(valid, S_t, -float("inf"))
+                t_mask = q_t_range == t
+                M_old_t = tl.sum(tl.where(t_mask[:, None], M_state, 0.0), axis=0)
+                L_old_t = tl.sum(tl.where(t_mask[:, None], L_state, 0.0), axis=0)
+                acc_old_t = tl.sum(tl.where(t_mask[:, None, None], acc, 0.0), axis=0)
+                M_new_t = tl.maximum(tl.max(S_t, axis=1), M_old_t)
+                alpha_t = tl.exp2(M_old_t - M_new_t)
+                P_t = tl.exp2(S_t - M_new_t[:, None])
+                L_new_t = L_old_t * alpha_t + tl.sum(P_t, axis=1)
+                if DOT_FP16:
+                    acc_new_t = acc_old_t * alpha_t[:, None] + tl.dot(
+                        P_t.to(tl.float16), V_tile.to(tl.float16), out_dtype=tl.float32)
+                else:
+                    acc_new_t = acc_old_t * alpha_t[:, None] + tl.dot(
+                        P_t, V_tile, out_dtype=tl.float32, input_precision='tf32x3')
+                M_state = tl.where(t_mask[:, None], M_new_t[None, :], M_state)
+                L_state = tl.where(t_mask[:, None], L_new_t[None, :], L_state)
+                acc = tl.where(t_mask[:, None, None], acc_new_t[None, :, :], acc)
+
+        # Raw slot ONLY: attend the K+1 raw bf16 chunk (fresh state), causal j<=t.
+        if is_raw:
+            kchunk_base = bid * stride_kkb + kv_head * stride_kkh
+            vchunk_base = bid * stride_vkb + kv_head * stride_vkh
+            for t in tl.static_range(0, K_PLUS_1):
+                q_addrs_rt = (
+                    q_base + t * stride_qt
+                    + abs_head[:, None] * stride_qh + offs_d[None, :] * stride_qd
+                )
+                Q_rt = tl.load(
+                    Q_ptr + q_addrs_rt,
+                    mask=head_mask[:, None] & d_mask[None, :],
+                    other=0.0, cache_modifier=".ca",
+                ).to(tl.float32)
+                t_mask_rt = q_t_range == t
+                M_t = tl.sum(tl.where(t_mask_rt[:, None], M_state, 0.0), axis=0)
+                L_t = tl.sum(tl.where(t_mask_rt[:, None], L_state, 0.0), axis=0)
+                acc_t = tl.sum(tl.where(t_mask_rt[:, None, None], acc, 0.0), axis=0)
+                for j in tl.static_range(0, K_PLUS_1):
+                    if j <= t:
+                        k_addr_j = kchunk_base + j * stride_kkt + offs_d * stride_kkd
+                        K_j = tl.load(K_chunk_ptr + k_addr_j, mask=d_mask, other=0.0).to(tl.float32)
+                        v_addr_j = vchunk_base + j * stride_vkt + offs_d * stride_vkd
+                        V_j = tl.load(V_chunk_ptr + v_addr_j, mask=d_mask, other=0.0).to(tl.float32)
+                        s_j = SCALE_LOG2E_split * tl.sum(Q_rt * K_j[None, :], axis=1)
+                        s_j = tl.where(head_mask, s_j, -float("inf"))
+                        M_new = tl.maximum(M_t, s_j)
+                        alpha = tl.exp2(M_t - M_new)
+                        p_j = tl.exp2(s_j - M_new)
+                        L_t = L_t * alpha + p_j
+                        acc_t = acc_t * alpha[:, None] + p_j[:, None] * V_j[None, :]
+                        M_t = M_new
+                M_state = tl.where(t_mask_rt[:, None], M_t[None, :], M_state)
+                L_state = tl.where(t_mask_rt[:, None], L_t[None, :], L_state)
+                acc = tl.where(t_mask_rt[:, None, None], acc_t[None, :, :], acc)
+
+        # Partial-store epilogue: tv=acc/L, lse2=M+log2(L) (log2 domain).
+        # Empty split -> L=0 -> tv=0, lse2=-inf sentinel (ALWAYS written for
+        # consumed valid lanes so stage-2 never reads stale cudagraph scratch).
+        safe_L = tl.where(L_state > 0.0, L_state, 1.0)
+        tv = acc / safe_L[:, :, None]
+        lse2 = tl.where((L_state > 0.0) & head_mask, M_state + tl.log2(safe_L),
+                        -float("inf"))
+        m_qbase = bid * stride_mb + kv_head * stride_mh + sid * stride_ms
+        tv_addr = (
+            m_qbase
+            + q_t_range[:, None, None] * stride_mq
+            + offs_h[None, :, None] * stride_moh
+            + offs_d[None, None, :] * stride_md
+        )
+        tl.store(
+            Mid_o_ptr + tv_addr, tv,
+            mask=qt_valid[:, None, None] & head_mask[None, :, None] & d_mask[None, None, :],
+        )
+        lse_addr = (
+            m_qbase
+            + q_t_range[:, None] * stride_mq
+            + offs_h[None, :] * stride_moh
+            + BLOCK_D * stride_md
+        )
+        tl.store(
+            Mid_o_ptr + lse_addr, lse2,
+            mask=qt_valid[:, None] & head_mask[None, :],
+        )
+
+    return p67_stage1_splitk
+
+
+def _get_stage1_splitk_kernel():
+    global _CACHED_STAGE1_SPLITK
+    if _CACHED_STAGE1_SPLITK is None:
+        _CACHED_STAGE1_SPLITK = _build_stage1_splitk_kernel()
+    return _CACHED_STAGE1_SPLITK
+
+
 def _get_kernel():
     global _CACHED_KERNEL
     if _CACHED_KERNEL is None:
@@ -922,6 +1308,111 @@ def alloc_output_buffer(B, K_PLUS_1, Hq, D, device, dtype):
     """Pre-allocate reusable output buffer (cudagraph-safe)."""
     import torch
     return torch.empty((B, K_PLUS_1, Hq, D), dtype=dtype, device=device)
+
+
+def _resolve_p67_num_splits() -> int:
+    """NUM_SPLITS for the PN521 split-K path. Default 15 -> grid-z 16 -> 16x Hk
+    CTAs = one 64-CTA wave on the 2x A5000 (64 SMs). Boot-time int constexpr —
+    NEVER per-request (would retrigger JIT / break cudagraph capture)."""
+    try:
+        n = int(os.environ.get("GENESIS_P67_SPLITK_NUM_SPLITS", "15"))
+    except ValueError:
+        n = 15
+    return max(1, n)
+
+
+def call_p67_splitk(
+    q,
+    kv_cache,
+    block_table,
+    seq_lens,
+    k_chunk,
+    v_chunk,
+    scale: float,
+    block_size: int,
+    kps: int,
+    val_data_bytes: int,
+    output=None,
+    num_splits: int | None = None,
+    mid_o=None,
+):
+    """Two-stage split-K launcher for the PN521 raw-tail verify.
+
+    Stage-1 (grid B,Hk,NUM_SPLITS+1): each committed split attends a disjoint
+    sub-range of [0,prior); the raw slot attends the K+1 bf16 chunk. Each writes
+    a normalized log2 partial to Mid_o. Stage-2 (grid B,Hk) LSE-combines them.
+    Recovers single-stream occupancy (grid-z ~16x Hk CTAs) vs the single-CTA
+    split-M path. Same fp32/tf32x3 numerics; only the stage-2 combine is new
+    (fp32 reassociation ~1e-6). Falls back to call_p67_attention(use_raw_tail=1)
+    when GENESIS_P67_SPLIT_K is not enabled (wired in the caller)."""
+    import torch
+    import triton
+
+    stage1 = _get_stage1_splitk_kernel()
+    stage2 = _get_stage2_kernel()
+    if stage1 is None or stage2 is None:
+        raise ImportError("P67 split-K kernels not available")
+
+    B, K_PLUS_1, Hq, D = q.shape
+    Hk = k_chunk.shape[2]
+    assert Hq % Hk == 0
+    heads_per_kv = Hq // Hk
+    if K_PLUS_1 < 2:
+        raise ValueError(f"split-K requires K_PLUS_1>=2, got {K_PLUS_1}")
+    if num_splits is None:
+        num_splits = _resolve_p67_num_splits()
+    nsp1 = num_splits + 1
+
+    BLOCK_D = triton.next_power_of_2(D)
+    BLOCK_QH = triton.next_power_of_2(heads_per_kv)
+    KP1_PAD = triton.next_power_of_2(K_PLUS_1)
+
+    cap = torch.cuda.get_device_capability()
+    cfg = _autoconfig(cap[0], cap[1], D)
+    if D >= 256 and cap[0] < 9:
+        cfg = dict(cfg)
+        if "GENESIS_P67_NUM_STAGES" not in os.environ:
+            cfg["num_stages"] = min(cfg["num_stages"], 2)
+        if "GENESIS_P67_BLOCK_KV" not in os.environ:
+            cfg["BLOCK_KV"] = min(cfg["BLOCK_KV"], 16)
+    fp8_e4b15 = _detect_fp8_mode()
+    dot_fp16 = 1 if os.environ.get(
+        "GENESIS_P67_DOT_PRECISION", "tf32x3"
+    ).strip().lower() == "fp16" else 0
+
+    if output is None:
+        output = torch.empty_like(q)
+    if mid_o is None:
+        mid_o = torch.empty(
+            (B, Hk, nsp1, KP1_PAD, BLOCK_QH, BLOCK_D + 1),
+            dtype=torch.float32, device=q.device,
+        )
+
+    stage1[(B, Hk, nsp1)](
+        q, kv_cache, block_table, seq_lens, k_chunk, v_chunk, mid_o,
+        q.stride(0), q.stride(1), q.stride(2), q.stride(3),
+        kv_cache.stride(0), kv_cache.stride(1), kv_cache.stride(2),
+        block_table.stride(0),
+        k_chunk.stride(0), k_chunk.stride(1), k_chunk.stride(2), k_chunk.stride(3),
+        v_chunk.stride(0), v_chunk.stride(1), v_chunk.stride(2), v_chunk.stride(3),
+        mid_o.stride(0), mid_o.stride(1), mid_o.stride(2),
+        mid_o.stride(3), mid_o.stride(4), mid_o.stride(5),
+        SCALE=scale, K_PLUS_1=K_PLUS_1, BLOCK_D=BLOCK_D, HEAD_DIM=D,
+        BLOCK_SIZE=block_size, BLOCK_KV=cfg["BLOCK_KV"], HEADS_PER_KV=heads_per_kv,
+        BLOCK_QH=BLOCK_QH, Hq_TOTAL=Hq, KPS=kps, VAL_DATA_BYTES=val_data_bytes,
+        NUM_SPLITS=num_splits, RAW_SID=num_splits, KP1_PAD=KP1_PAD,
+        FP8_E4B15=fp8_e4b15, DOT_FP16=dot_fp16,
+        num_warps=cfg["num_warps"], num_stages=cfg["num_stages"],
+    )
+    stage2[(B, Hk)](
+        mid_o, output,
+        mid_o.stride(0), mid_o.stride(1), mid_o.stride(2),
+        mid_o.stride(3), mid_o.stride(4), mid_o.stride(5),
+        output.stride(0), output.stride(1), output.stride(2), output.stride(3),
+        NUM_SPLITS_P1=nsp1, K_PLUS_1=K_PLUS_1, KP1_PAD=KP1_PAD, BLOCK_D=BLOCK_D,
+        HEAD_DIM=D, HEADS_PER_KV=heads_per_kv, BLOCK_QH=BLOCK_QH, Hq_TOTAL=Hq,
+    )
+    return output
 
 
 def call_p67_attention(
