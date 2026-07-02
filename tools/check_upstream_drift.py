@@ -378,6 +378,22 @@ def check_patcher_anchors(patcher, tree_root: Path) -> dict[str, Any]:
         )
         return result
 
+    # FN-5: a patcher whose subs ALL declare anchors but NONE match applies
+    # nothing (apply() returns SKIPPED). With every sub optional, zero_required
+    # is empty, so without this it falls through to a misleading "ok".
+    checkable = sum(
+        1 for sp in sub_patches
+        if getattr(sp, "anchor", None)
+        and not any(um in content for um in (getattr(sp, "upstream_merged_markers", []) or []))
+    )
+    if checkable and total == 0:
+        result["status"] = STATUS_NEEDS_FIXTURE
+        result["detail"] = (
+            "no sub-patch anchor matched — patch would apply nothing here "
+            "(all-optional anchor drift; re-anchor before relying on it)"
+        )
+        return result
+
     result["status"] = STATUS_OK
     return result
 

@@ -55,7 +55,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # canonical pin so torch-less audit runs (CI / collection envs) evaluate
 # ranges against the version actually deployed — the 0.21.1 default
 # false-flagged every correct `>=0.22.0` range as stale.
-DEFAULT_PIN = "0.23.1rc1.dev101+g4c6266331"  # pin-bump candidate 2026-06-17 (was dev259)
+DEFAULT_PIN = "0.23.1rc1.dev714+g09663abde"  # static fallback; _resolve_current_pin now derives from guards KNOWN_GOOD so this only bites if that import fails
 
 
 # v11.3.0 BUG #14 baseline allowlist — known patches with stale
@@ -198,6 +198,20 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
 })
 
 
+def _canonical_pin_from_guards() -> str | None:
+    """Derive the current canonical pin from the guards allowlist (last
+    version-form KNOWN_GOOD entry) so this default AUTO-TRACKS pin bumps
+    instead of drifting stale (it was hardcoded 600+ revs behind at dev101)."""
+    try:
+        from sndr.engines.vllm.detection.guards import KNOWN_GOOD_VLLM_PINS
+        # entries alternate version-form ("0.23.1rc1.devN+g…") and tag-form
+        # ("nightly-<sha>"); the last version-form is the freshest promotion.
+        versions = [p for p in KNOWN_GOOD_VLLM_PINS if p and p[0].isdigit()]
+        return versions[-1] if versions else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _resolve_current_pin(override: str | None = None) -> str:
     if override:
         return override
@@ -208,7 +222,7 @@ def _resolve_current_pin(override: str | None = None) -> str:
             return ver
     except Exception:
         pass
-    return DEFAULT_PIN
+    return _canonical_pin_from_guards() or DEFAULT_PIN
 
 
 def _parse_pep440(spec: str) -> tuple[str | None, str | None]:

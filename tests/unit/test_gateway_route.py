@@ -116,3 +116,31 @@ def test_503_without_any_upstream():
         headers={"X-Owner-Id": "1"},
     )
     assert r.status_code == 503
+
+
+def test_gateway_propagates_4xx_upstream_status(monkeypatch):
+    # F2: a 4xx from upstream (bad model/params) is the CALLER's error — it must
+    # surface as that 4xx, not a 502 that wrongly blames the gateway.
+    import httpx
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from sndr.product_api.routes.gateway import router
+    from sndr.memory.engine import MemoryEngine
+    from sndr.memory.inmemory import InMemoryStore
+    from sndr.memory.embedder import HashEmbedder
+
+    async def forward(body):
+        req = httpx.Request("POST", "http://up/v1/chat/completions")
+        resp = httpx.Response(400, text='{"error":"model not found"}', request=req)
+        raise httpx.HTTPStatusError("400", request=req, response=resp)
+
+    app = FastAPI()
+    app.include_router(router)
+    app.state.memory_engine = MemoryEngine(store=InMemoryStore(), embedder=HashEmbedder(dim=64))
+    app.state.gateway_upstreams = {"default": {"forward": forward}}
+    app.state.gateway_default = "default"
+    c = TestClient(app, raise_server_exceptions=False)
+    r = c.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": "hi"}]},
+               headers={"X-Owner-Id": "1"})
+    assert r.status_code == 400  # not 502
+    assert "model not found" in r.json()["detail"]

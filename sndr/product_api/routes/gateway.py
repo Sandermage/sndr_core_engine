@@ -134,7 +134,13 @@ async def chat_completions(request: Request) -> Any:
             up_text = ""
             with contextlib.suppress(Exception):
                 up_text = (up_resp.text or "")[:300]
-            detail = f"upstream {up_status}: {up_text}" if up_status else detail
+            if up_status:
+                detail = f"upstream {up_status}: {up_text}"
+                # A 4xx is the CALLER's error (bad model, bad params) — surface it
+                # as a 4xx, not a 502 (which wrongly blames the gateway/upstream
+                # infra and makes clients retry a request that will never succeed).
+                if 400 <= up_status < 500:
+                    status = up_status
         raise HTTPException(status_code=status, detail=detail) from exc
     assistant = extract_assistant_text(response)
     await asyncio.to_thread(
