@@ -89,11 +89,12 @@ def test_resolve_package_init(tmp_path):
 
 # ── check_module_bindings aggregate ──────────────────────────────────────
 
-def test_resolve_ok_when_module_has_dynamic_getattr(tmp_path):
-    # vllm/envs.py + platforms/__init__.py resolve any attr via __getattr__ —
-    # a hard symbol_missing there would be a FALSE POSITIVE.
+def test_resolve_dynamic_when_module_has_getattr_only(tmp_path):
+    # __getattr__ means a hard symbol_missing would be a false POSITIVE, but a
+    # flat "ok" would be a false NEGATIVE (FN-1: masks a removed class). The
+    # honest answer is the soft "symbol_dynamic" — can't confirm nor refute.
     root = _tree(tmp_path, {"vllm/envs.py": "def __getattr__(name):\n    return None\n"})
-    assert resolve_binding(root, "vllm.envs", "VLLM_ANY_FLAG") == "ok"
+    assert resolve_binding(root, "vllm.envs", "VLLM_ANY_FLAG") == "symbol_dynamic"
 
 
 def test_resolve_ok_for_symbol_declared_under_type_checking(tmp_path):
@@ -129,3 +130,45 @@ def test_check_needs_fixture_when_no_vllm_bindings(tmp_path):
     # uncheckable here — must NOT be a false ok.
     res = check_module_bindings("import os\nx = 1\n", tmp_path)
     assert res["status"] == "no_static_bindings"
+
+
+# ── FN-1: __getattr__ must NOT mask a genuinely-removed symbol (false-negative) ──
+
+def test_getattr_module_does_not_false_green_a_removed_symbol(tmp_path):
+    # vllm/envs.py-style module: has __getattr__ but the specific symbol is NOT
+    # statically defined. The OLD code returned "ok" (dynamic) — masking exactly
+    # the 'upstream removed the class' case the tool exists to catch. Must be a
+    # SOFT review, not a confident ok.
+    root = _tree(tmp_path, {"vllm/platforms/__init__.py": "def __getattr__(n):\n    return None\n"})
+    src = "def f():\n    from vllm.platforms import GoneClass\n"
+    res = check_module_bindings(src, root)
+    assert res["status"] == "binding_review"   # NOT "ok"
+    assert any("GoneClass" in u for u in res["unresolved"])
+
+
+def test_getattr_module_still_ok_for_statically_declared_symbol(tmp_path):
+    # A symbol declared under TYPE_CHECKING resolves statically → stays ok even
+    # though the module also has __getattr__ (envs.py real shape).
+    root = _tree(tmp_path, {
+        "vllm/envs.py":
+        "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    VLLM_X: bool\ndef __getattr__(n):\n    return None\n",
+    })
+    res = check_module_bindings("def f():\n    from vllm.envs import VLLM_X\n", root)
+    assert res["status"] == "ok"
+
+
+# ── FP-6: AST coverage — tuple-unpack / star / deep nesting (false-positive) ──
+
+def test_symbol_via_tuple_unpack_resolves(tmp_path):
+    root = _tree(tmp_path, {"vllm/config.py": "A, B = 1, 2\n"})
+    assert resolve_binding(root, "vllm.config", "B") == "ok"
+
+
+def test_symbol_via_star_reexport_is_not_flagged_missing(tmp_path):
+    # `from x import *` can re-export the symbol — must not hard-claim missing.
+    root = _tree(tmp_path, {
+        "vllm/pkg/__init__.py": "from vllm.pkg.impl import *\n",
+        "vllm/pkg/impl.py": "class Thing:\n    pass\n",
+    })
+    # Thing may be re-exported via the star — resolver must not say symbol_missing
+    assert resolve_binding(root, "vllm.pkg", "Thing") != "symbol_missing"

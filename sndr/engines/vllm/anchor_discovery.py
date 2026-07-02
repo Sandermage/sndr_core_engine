@@ -158,8 +158,30 @@ def discover_patchers(mod) -> list[tuple[Any, str]]:
 
     out: list[tuple[Any, str]] = []
     for _name, fn in builders:
+        # FP-2: a real runtime patcher-builder takes NO required args (apply()
+        # calls it bare). A helper/fixture builder that requires args
+        # (_make_patcher_for_target(cls), _make_*_for_fixture(...)) must be
+        # skipped — feeding it guessed defaults fabricates a bogus patcher
+        # (often target_file=None/"") that then wins worst-of aggregation and
+        # cries wolf on an otherwise-clean patch.
+        try:
+            sig = inspect.signature(fn)
+            if any(
+                p.default is inspect.Parameter.empty
+                and p.kind in (
+                    inspect.Parameter.POSITIONAL_ONLY,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    inspect.Parameter.KEYWORD_ONLY,
+                )
+                for p in sig.parameters.values()
+            ):
+                continue
+        except (TypeError, ValueError):
+            pass
         patcher, note = _call_builder(fn)
-        if patcher is not None:
+        # Skip patchers with no usable target — a fabricated/empty patcher must
+        # not enter aggregation (defensive belt for the arg-guess path).
+        if patcher is not None and str(getattr(patcher, "target_file", "") or "").strip():
             out.append((patcher, note))
     return out
 

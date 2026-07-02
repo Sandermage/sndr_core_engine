@@ -101,6 +101,16 @@ def _names_defined_in_body(body) -> tuple[set[str], bool]:
     names: set[str] = set()
     dynamic = False
 
+    def _add_names_from_target(target) -> None:
+        # Handle plain names AND tuple/list unpack targets: `a, (b, c) = ...`.
+        if isinstance(target, ast.Name):
+            names.add(target.id)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for elt in target.elts:
+                _add_names_from_target(elt)
+        elif isinstance(target, ast.Starred):
+            _add_names_from_target(target.value)
+
     def _add_stmt(node) -> None:
         nonlocal dynamic
         if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -109,65 +119,77 @@ def _names_defined_in_body(body) -> tuple[set[str], bool]:
                 dynamic = True
         elif isinstance(node, ast.Assign):
             for t in node.targets:
-                if isinstance(t, ast.Name):
-                    names.add(t.id)
+                _add_names_from_target(t)   # covers tuple-unpack (FP-6)
         elif isinstance(node, ast.AnnAssign):
             if isinstance(node.target, ast.Name):
                 names.add(node.target.id)
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             for alias in node.names:
-                names.add(alias.asname or alias.name.split(".")[0])
-
-    for node in body:
-        _add_stmt(node)
-        # one level into guard blocks (TYPE_CHECKING / try-except / with)
-        if isinstance(node, ast.If):
-            for inner in [*node.body, *node.orelse]:
-                _add_stmt(inner)
-        elif isinstance(node, ast.Try):
-            for inner in [*node.body, *node.handlers, *node.orelse, *node.finalbody]:
-                if isinstance(inner, ast.ExceptHandler):
-                    for h in inner.body:
-                        _add_stmt(h)
+                if alias.name == "*":
+                    dynamic = True   # star re-export: any symbol may be re-exported (FP-6)
                 else:
-                    _add_stmt(inner)
-        elif isinstance(node, ast.With):
-            for inner in node.body:
-                _add_stmt(inner)
+                    names.add(alias.asname or alias.name.split(".")[0])
+
+    def _walk(stmts) -> None:
+        # Recurse fully into guard blocks (TYPE_CHECKING / try / with / if-elif),
+        # not just one level — a symbol nested two guards deep still resolves.
+        for node in stmts:
+            _add_stmt(node)
+            if isinstance(node, ast.If):
+                _walk(node.body); _walk(node.orelse)
+            elif isinstance(node, ast.Try):
+                _walk(node.body); _walk(node.orelse); _walk(node.finalbody)
+                for h in node.handlers:
+                    _walk(h.body)
+            elif isinstance(node, ast.With):
+                _walk(node.body)
+
+    _walk(body)
     return names, dynamic
 
 
-def _symbol_defined(path: Path, symbol: str) -> bool:
-    """True iff `symbol` is resolvable from `path` (AST — no import side-effects):
-    a top-level (or TYPE_CHECKING-guarded) def / class / assignment / re-export,
-    OR the module exposes a ``__getattr__`` (then any attribute resolves
-    dynamically — as vllm/envs.py and vllm/platforms/__init__.py do)."""
+def _symbol_defined(path: Path, symbol: str) -> str:
+    """Tri-state resolution of `symbol` in `path` (AST, no import side-effects):
+
+    - ``"static"`` — a top-level / guarded def / class / (tuple-)assignment /
+      re-export explicitly binds the name. Confident hit.
+    - ``"dynamic"`` — the module exposes ``__getattr__`` or a star re-export and
+      the name is NOT explicitly bound, so it MIGHT resolve at runtime but a
+      genuine removal cannot be ruled out. This is the critical distinction
+      (FN-1): the old code returned a flat True here and false-greened exactly
+      the 'upstream removed the class' case the tool exists to catch.
+    - ``"missing"`` — not bound and no dynamic escape hatch. Confident miss.
+    """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
     except (OSError, SyntaxError):
-        return False
+        return "missing"
     names, dynamic = _names_defined_in_body(tree.body)
-    return dynamic or symbol in names
+    if symbol in names:
+        return "static"
+    return "dynamic" if dynamic else "missing"
 
 
 def resolve_binding(tree_root: Path, module: str, symbol: str | None) -> str:
     """Resolve one binding against the pristine tree.
 
-    Returns ``"ok"`` | ``"module_missing"`` | ``"symbol_missing"``. When the
-    imported name is itself a submodule (``from vllm.a import b`` where
-    ``vllm/a/b.py`` exists) that also counts as resolved.
+    Returns ``"ok"`` | ``"module_missing"`` | ``"symbol_missing"`` |
+    ``"symbol_dynamic"``. A statically-bound symbol or a real submodule is
+    ``ok``; a ``__getattr__``/star-only match is ``symbol_dynamic`` (soft — can't
+    be confirmed nor refuted statically); absent is ``symbol_missing``.
     """
     src = _module_file(tree_root, module)
     if src is None:
         return "module_missing"
     if symbol is None:
         return "ok"
-    if _symbol_defined(src, symbol):
+    hit = _symbol_defined(src, symbol)
+    if hit == "static":
         return "ok"
     # `from vllm.a import b` where b is a submodule/subpackage, not a name.
     if _module_file(tree_root, f"{module}.{symbol}") is not None:
         return "ok"
-    return "symbol_missing"
+    return "symbol_dynamic" if hit == "dynamic" else "symbol_missing"
 
 
 def check_module_bindings(source: str, tree_root: Path) -> dict:
@@ -190,19 +212,18 @@ def check_module_bindings(source: str, tree_root: Path) -> dict:
     if not binds:
         return {"status": "no_static_bindings", "checked": 0, "unresolved": []}
     module_missing: list[str] = []
-    symbol_missing: list[str] = []
+    soft: list[str] = []   # symbol_missing OR symbol_dynamic — human review, not blocking
     for b in binds:
         verdict = resolve_binding(tree_root, b.module, b.symbol)
         if verdict == "module_missing":
             module_missing.append(f"{b.module} [module_missing]")
-        elif verdict == "symbol_missing":
-            symbol_missing.append(f"{b.module}.{b.symbol} [symbol_missing]")
+        elif verdict in ("symbol_missing", "symbol_dynamic"):
+            soft.append(f"{b.module}.{b.symbol} [{verdict}]")
     if module_missing:
         return {"status": "symbol_drift", "checked": len(binds),
-                "unresolved": module_missing + symbol_missing}
-    if symbol_missing:
-        return {"status": "binding_review", "checked": len(binds),
-                "unresolved": symbol_missing}
+                "unresolved": module_missing + soft}
+    if soft:
+        return {"status": "binding_review", "checked": len(binds), "unresolved": soft}
     return {"status": "ok", "checked": len(binds), "unresolved": []}
 
 

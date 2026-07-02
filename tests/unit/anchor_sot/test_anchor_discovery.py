@@ -145,3 +145,25 @@ def test_discover_patchers_empty_for_pure_wiring():
     mod = types.ModuleType("fake_wiring")
     mod.apply = lambda: ("ok", "ok")                # class-rebind, no builders
     assert discover_patchers(mod) == []
+
+
+def test_discover_patchers_skips_arg_requiring_helper_builders():
+    # FP-2: a helper/fixture builder that REQUIRES args (e.g. _make_patcher_for_target(cls))
+    # must not be called with guessed defaults — that fabricates a bogus patcher.
+    from sndr.engines.vllm.anchor_discovery import discover_patchers
+    mod = types.ModuleType("fake_fixture")
+    mod._make_patcher = lambda: _fake_patcher("real")            # zero-arg runtime builder
+    mod._make_patcher_for_target = lambda cls: _fake_patcher(cls or "bogus")  # helper — REQUIRES cls
+    got = [p.patch_name for p, _ in discover_patchers(mod) if p]
+    assert got == ["real"]  # the arg-requiring helper is skipped
+
+
+def test_discover_patchers_drops_empty_target_patchers():
+    # A builder that returns a patcher with no target_file must not enter aggregation.
+    from sndr.engines.vllm.anchor_discovery import discover_patchers
+    import types as _t
+    mod = _t.ModuleType("fake_empty")
+    mod._make_a_patcher = lambda: _t.SimpleNamespace(patch_name="empty", target_file="", marker="m", sub_patches=[])
+    mod._make_b_patcher = lambda: _fake_patcher("good")
+    got = [p.patch_name for p, _ in discover_patchers(mod) if p]
+    assert got == ["good"]

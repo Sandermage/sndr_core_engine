@@ -666,15 +666,17 @@ def _check_bindings(mod, tree_root: Path) -> dict[str, Any]:
     res = check_module_bindings(source, tree_root)
     checked = int(res.get("checked") or 0)
     hard = [u for u in (res.get("unresolved") or []) if "module_missing" in u]
-    soft = [u for u in (res.get("unresolved") or []) if "symbol_missing" in u]
+    # soft = symbol_missing (rename?/Genesis-created) OR symbol_dynamic
+    # (__getattr__/star — can't confirm; FN-1: must NOT be a silent ok).
+    soft = [u for u in (res.get("unresolved") or []) if "symbol_missing" in u or "symbol_dynamic" in u]
     # Declared bindings (opt-in _upstream_bindings) — same hard/soft split.
     for b in iter_declared_bindings(mod):
         checked += 1
         verdict = resolve_binding(tree_root, b.module, b.symbol)
         if verdict == "module_missing":
             hard.append(f"{b.module} [module_missing] (declared)")
-        elif verdict == "symbol_missing":
-            soft.append(f"{b.module}.{b.symbol} [symbol_missing] (declared)")
+        elif verdict in ("symbol_missing", "symbol_dynamic"):
+            soft.append(f"{b.module}.{b.symbol} [{verdict}] (declared)")
     if hard:
         return {
             "status": STATUS_IMPORT_DRIFT,
