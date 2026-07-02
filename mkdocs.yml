@@ -80,6 +80,17 @@ nav:
       - Configuration: CONFIGURATION.md
       - Benchmarks: BENCHMARKS.md
       - Troubleshooting: TROUBLESHOOTING.md
+  - Internals:
+      - Product API: PRODUCT_API.md
+      - GUI (Control Center): GUI.md
+      - MCP server: MCP.md
+      - KV projector (sndr fit): KV_PROJECTOR.md
+      - Routing table: ROUTING.md
+      - Pin-bump playbook: PIN_BUMP_PLAYBOOK.md
+      - Anchor source-of-truth: ANCHOR_SOT.md
+      - Quality gate: QUALITY_GATE.md
+      - Release policy: RELEASE_POLICY.md
+      - Memory manual: memory/MANUAL.md
   - Reference:
       - Glossary: GLOSSARY.md
       - FAQ: FAQ.md
