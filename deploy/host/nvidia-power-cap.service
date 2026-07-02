@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+# Persist the validated GPU power cap across reboots (nvidia-smi -pl is not
+# persistent). Install on the rig host:
+#   sudo cp deploy/host/nvidia-power-cap.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now nvidia-power-cap
+#
+# Why 190 W per A5000 (stock 230 W): measured on the live 35B engine
+# (2026-07-02). Decode is memory-bandwidth-bound and draws ~198 W/GPU
+# naturally; 190 W caps only the compute-bound prefill bursts. Canonical
+# genesis_bench_suite, interleaved n=3 vs stock: 243.3 vs 246.0 wall_TPS
+# = -1.1%, within CV 5-6% -> NO measurable performance loss, while board
+# power drops ~4.5% in decode and burst peaks are shaved ~17% (380 W vs
+# 460 W for the pair). The deeper 170 W point costs a real -4.1% TPS for
+# -14.7% power (eco option, validated n=3) — flip both ExecStart lines to
+# 170 if power matters more than the last 4%.
+# Re-run scripts/power_cap_sweep.py after any GPU/driver/model change.
+
+[Unit]
+Description=Set validated NVIDIA GPU power caps (Genesis rig)
+After=nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nvidia-smi -i 0 -pl 190
+ExecStart=/usr/bin/nvidia-smi -i 1 -pl 190
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
