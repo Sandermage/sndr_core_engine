@@ -102,6 +102,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--skip-stress", action="store_true")
     p.add_argument("--skip-ctx-probe", action="store_true")
     p.add_argument("--skip-multi-turn", action="store_true")
+    p.add_argument("--skip-ctx-scaling", action="store_true")
+    # Context-scaling decode sweep (operator ask 2026-07-04): decode TPS
+    # must degrade linearly with prompt volume — CLIFF / DEGRADED verdicts
+    # catch the Cliff-2b class and gradual super-linear erosion.
+    p.add_argument("--ctx-scale", default=None,
+                   help="Ceiling label for the ctx-scaling sweep "
+                        "(1K..512K; default by mode: quick=16K, "
+                        "standard=32K, full=64K)")
+    p.add_argument("--ctx-scale-gen-tokens", type=int, default=256,
+                   help="Tokens generated per scaling tier (default 256)")
+    p.add_argument("--ctx-scale-step-drop", type=float, default=None,
+                   help="Successive-tier relative-drop cliff threshold "
+                        "(default 0.35)")
+    p.add_argument("--ctx-scale-endpoint-floor", type=float, default=None,
+                   help="Endpoint/first-tier TPS ratio floor (default 0.45)")
     # Spec-decode accept-rate floor (PN380 / vllm#44943 companion):
     # a partially-loaded MTP draft serves fine — the only external
     # symptom is the windowed accept rate collapsing (~0.65-0.78
@@ -149,9 +164,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 # Mode presets
 
 MODE_DEFAULTS = {
-    "quick":    dict(runs=5,  stress=0,  ctx="1K",  prompts="short"),
-    "standard": dict(runs=25, stress=30, ctx="8K",  prompts="standard"),
-    "full":     dict(runs=25, stress=100, ctx="all", prompts="standard"),
+    "quick":    dict(runs=5,  stress=0,  ctx="1K",  prompts="short",
+                     ctx_scale="16K"),
+    "standard": dict(runs=25, stress=30, ctx="8K",  prompts="standard",
+                     ctx_scale="32K"),
+    "full":     dict(runs=25, stress=100, ctx="all", prompts="standard",
+                     ctx_scale="64K"),
 }
 
 CTX_TARGETS = {
@@ -759,6 +777,168 @@ def test_ctx_probe(host: str, port: int, key: str, model: str,
                 max_stable_label=f"{max_pass//1024}K" if max_pass else "none")
 
 
+# ── Context-scaling decode sweep (operator ask 2026-07-04) ────────────────
+# Decode speed must degrade *linearly* (bounded, smooth) as the prompt
+# volume grows. Two real failure shapes exist in the wild:
+#   * CLIFF — one tier where TPS collapses (Cliff-2b class, club-3090
+#     #149/#182: fine at 16K, ~4x slower past the streaming-GDN threshold);
+#   * DEGRADED — no single cliff, but the endpoint TPS erodes to a small
+#     fraction of the small-context TPS (super-linear decay).
+# The analysis is a pure function over (prompt_tokens, decode_tps) points —
+# unit-tested in tests/unit/tools/test_ctx_scaling_linearity.py (same
+# pattern as evaluate_accept_rate_floor / PN380).
+
+CTX_SCALING_MAX_STEP_DROP = 0.35     # successive-tier relative drop → CLIFF
+CTX_SCALING_ENDPOINT_FLOOR = 0.45    # tps@max_ctx / tps@min_ctx floor
+CTX_SCALING_FLAT_TOLERANCE = 0.10    # total relative range below this → FLAT_OK
+
+
+def analyze_ctx_scaling(points: list,
+                        max_step_drop: float | None = None,
+                        endpoint_floor_ratio: float | None = None,
+                        flat_range_tolerance: float | None = None) -> dict:
+    """Classify the decode-TPS-vs-context curve.
+
+    ``points`` is a list of ``(prompt_tokens, decode_tps)`` pairs (any
+    order). Returns a dict with ``classification`` in:
+
+      INSUFFICIENT — fewer than 3 usable points;
+      CLIFF        — a successive tier dropped more than ``max_step_drop``;
+      DEGRADED     — endpoint TPS below ``endpoint_floor_ratio`` × first-tier
+                     TPS (gradual super-linear decay, no single cliff);
+      FLAT_OK      — total relative range within ``flat_range_tolerance``
+                     (noise on a flat curve must not false-alarm);
+      LINEAR_OK    — bounded decay, no cliff, endpoint above the floor.
+
+    The least-squares linear fit (slope per 1K tokens + r²) is reported as
+    diagnostics — it is deliberately NOT a pass/fail axis: noisy-but-bounded
+    curves (e.g. a dip that recovers) are healthy, and r² is meaningless at
+    tiny variance.
+    """
+    if max_step_drop is None:
+        max_step_drop = CTX_SCALING_MAX_STEP_DROP
+    if endpoint_floor_ratio is None:
+        endpoint_floor_ratio = CTX_SCALING_ENDPOINT_FLOOR
+    if flat_range_tolerance is None:
+        flat_range_tolerance = CTX_SCALING_FLAT_TOLERANCE
+
+    pts = sorted((float(c), float(t)) for c, t in points if t and t > 0)
+    n = len(pts)
+    out: dict = dict(n_points=n, params=dict(
+        max_step_drop=max_step_drop,
+        endpoint_floor_ratio=endpoint_floor_ratio,
+        flat_range_tolerance=flat_range_tolerance,
+    ), steps=[], reasons=[], linear=dict(slope_per_1k_tokens=None, r2=None),
+        endpoint_ratio=None)
+    if n < 3:
+        out["classification"] = "INSUFFICIENT"
+        out["reasons"].append(f"only {n} usable point(s); need >= 3")
+        return out
+
+    # Successive-tier drops.
+    cliff = False
+    for (c0, t0), (c1, t1) in zip(pts, pts[1:]):
+        drop = (t0 - t1) / t0 if t0 > 0 else 0.0
+        is_cliff = drop > max_step_drop
+        cliff = cliff or is_cliff
+        out["steps"].append(dict(
+            from_ctx=int(c0), to_ctx=int(c1),
+            drop_pct=round(drop * 100, 1), is_cliff=is_cliff,
+        ))
+
+    # Endpoint erosion.
+    first_tps, last_tps = pts[0][1], pts[-1][1]
+    endpoint_ratio = last_tps / first_tps if first_tps > 0 else 0.0
+    out["endpoint_ratio"] = round(endpoint_ratio, 4)
+
+    # Diagnostic linear fit tps = a + b*ctx.
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    mx = sum(xs) / n
+    my = sum(ys) / n
+    sxx = sum((x - mx) ** 2 for x in xs)
+    if sxx > 0:
+        slope = sum((x - mx) * (y - my) for x, y in pts) / sxx
+        intercept = my - slope * mx
+        ss_res = sum((y - (intercept + slope * x)) ** 2 for x, y in pts)
+        ss_tot = sum((y - my) ** 2 for y in ys)
+        r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 1.0
+        out["linear"] = dict(slope_per_1k_tokens=round(slope * 1024, 3),
+                             r2=round(r2, 4))
+
+    tps_max, tps_min = max(ys), min(ys)
+    rel_range = (tps_max - tps_min) / tps_max if tps_max > 0 else 0.0
+
+    if cliff:
+        out["classification"] = "CLIFF"
+        worst = max(out["steps"], key=lambda s: s["drop_pct"])
+        out["reasons"].append(
+            f"tier {worst['from_ctx']}→{worst['to_ctx']} tokens dropped "
+            f"{worst['drop_pct']}% (> {max_step_drop*100:.0f}% cliff "
+            f"threshold) — Cliff-2b class")
+    elif endpoint_ratio < endpoint_floor_ratio:
+        out["classification"] = "DEGRADED"
+        out["reasons"].append(
+            f"endpoint TPS ratio {endpoint_ratio:.2f} below the "
+            f"{endpoint_floor_ratio:.2f} floor — super-linear decay")
+    elif rel_range <= flat_range_tolerance:
+        out["classification"] = "FLAT_OK"
+        out["reasons"].append(
+            f"total relative range {rel_range*100:.1f}% within the "
+            f"{flat_range_tolerance*100:.0f}% flat tolerance")
+    else:
+        out["classification"] = "LINEAR_OK"
+        out["reasons"].append(
+            f"bounded decay: max step "
+            f"{max(s['drop_pct'] for s in out['steps'])}%, endpoint ratio "
+            f"{endpoint_ratio:.2f}")
+    return out
+
+
+def test_ctx_scaling(host: str, port: int, key: str, model: str,
+                     max_ctx_label: str, gen_tokens: int, timeout_s: int,
+                     max_step_drop: float | None = None,
+                     endpoint_floor_ratio: float | None = None) -> dict:
+    """Decode-TPS sweep across context tiers + linearity verdict.
+
+    Sends one streamed generation per tier (1K, 4K, 8K, ... up to the
+    ceiling label) with a filler prompt of ~tier tokens and measures the
+    decode-side TPS exactly like test_decode_bench (wall minus TTFT).
+    """
+    ceiling = CTX_TARGETS.get(max_ctx_label.upper())
+    if ceiling is None:
+        return dict(error=f"unknown ctx label {max_ctx_label}")
+    tiers = sorted(v for v in CTX_TARGETS.values() if v <= ceiling)
+    probes = []
+    points = []
+    for tgt in tiers:
+        prompt_words = max(1, (tgt - 100) // 2)
+        prompt = "hello " * prompt_words
+        payload = dict(model=model,
+                       messages=[{"role": "user", "content": prompt}],
+                       max_tokens=gen_tokens)
+        r = http_post_stream(_build_url(host, port, "/v1/chat/completions"),
+                             _bearer(key), payload, timeout=timeout_s)
+        if r["error"] or r["completion_tokens"] < 2:
+            probes.append(dict(target=tgt, target_label=f"{tgt//1024}K",
+                               verdict="FAIL", error=str(r["error"])[:200]))
+            break  # stop on first failure (saves time, matches ctx_probe)
+        ttft = r["ttft_ms"] or 0
+        decode_part = max(0.001, r["elapsed_s"] - ttft / 1000.0)
+        decode_tps = (r["completion_tokens"] - 1) / decode_part
+        probes.append(dict(target=tgt, target_label=f"{tgt//1024}K",
+                           ttft_ms=ttft, elapsed_s=r["elapsed_s"],
+                           completion_tokens=r["completion_tokens"],
+                           decode_tps=round(decode_tps, 1),
+                           verdict="OK"))
+        points.append((tgt, decode_tps))
+    analysis = analyze_ctx_scaling(points,
+                                   max_step_drop=max_step_drop,
+                                   endpoint_floor_ratio=endpoint_floor_ratio)
+    return dict(gen_tokens=gen_tokens, ceiling_label=max_ctx_label,
+                probes=probes, analysis=analysis)
+
+
 def test_stability_stress(host: str, port: int, key: str, model: str,
                           iterations: int, prompts: list[str],
                           max_tokens: int) -> dict:
@@ -1286,6 +1466,30 @@ def write_markdown(out_md: Path, result: dict) -> None:
             lines.append(f"| {p['target_label']} | {p.get('prompt_tokens','-')} | "
                          f"{p.get('elapsed_s','-')} | {p.get('prefill_tps_est','-')} | {p['verdict']} |")
         lines.append("")
+    if "ctx_scaling" in result:
+        cs = result["ctx_scaling"]
+        an = cs.get("analysis", {})
+        lines.append("## Context-scaling decode sweep (TPS-vs-volume linearity)")
+        lines.append("")
+        lines.append(f"**Verdict:** {an.get('classification','?')} — "
+                     f"{'; '.join(an.get('reasons', []))}")
+        lines.append("")
+        lines.append(f"- endpoint TPS ratio: **{an.get('endpoint_ratio')}** "
+                     f"(floor {an.get('params',{}).get('endpoint_floor_ratio')})")
+        lines.append(f"- linear fit: slope "
+                     f"{an.get('linear',{}).get('slope_per_1k_tokens')} tps per "
+                     f"1K tokens, r² {an.get('linear',{}).get('r2')}")
+        lines.append("")
+        lines.append("| Tier | decode_tps | TTFT_ms | drop vs prev | Verdict |")
+        lines.append("|---|---|---|---|---|")
+        steps = {s["to_ctx"]: s for s in an.get("steps", [])}
+        for pr in cs.get("probes", []):
+            step = steps.get(pr.get("target"))
+            drop = (f"{step['drop_pct']}%" + (" ⚠CLIFF" if step["is_cliff"] else "")) if step else "—"
+            lines.append(f"| {pr['target_label']} | {pr.get('decode_tps','-')} | "
+                         f"{pr.get('ttft_ms','-') if not isinstance(pr.get('ttft_ms'), float) else round(pr['ttft_ms'])} | "
+                         f"{drop} | {pr['verdict']} |")
+        lines.append("")
 
     lines.append("---")
     lines.append("")
@@ -1435,6 +1639,33 @@ def main(argv: list[str] | None = None) -> int:
                   f"finish={p['finish_reason']}  vram_delta={v_delta}  "
                   f"verdict={p['verdict']}")
 
+    # 5d. Context-scaling decode sweep — TPS-vs-volume linearity verdict
+    if not args.skip_ctx_scaling:
+        ctx_scale = args.ctx_scale or defaults["ctx_scale"]
+        print(f"\n[5d/8] Context-scaling decode sweep (1K..{ctx_scale}, "
+              f"{args.ctx_scale_gen_tokens} tok/tier)...")
+        result["ctx_scaling"] = test_ctx_scaling(
+            args.host, args.port, args.api_key, model, ctx_scale,
+            args.ctx_scale_gen_tokens, args.ctx_timeout,
+            max_step_drop=args.ctx_scale_step_drop,
+            endpoint_floor_ratio=args.ctx_scale_endpoint_floor,
+        )
+        cs = result["ctx_scaling"]
+        for pr in cs.get("probes", []):
+            if pr["verdict"] == "OK":
+                print(f"      {pr['target_label']:>5}: decode_tps "
+                      f"{pr['decode_tps']:>7}  ttft {pr['ttft_ms']:.0f}ms")
+            else:
+                print(f"      {pr['target_label']:>5}: {pr['verdict']} "
+                      f"{pr.get('error','')}")
+        an = cs.get("analysis", {})
+        print(f"      verdict: {an.get('classification','?')}  "
+              f"(endpoint ratio {an.get('endpoint_ratio')}, "
+              f"slope {an.get('linear',{}).get('slope_per_1k_tokens')} "
+              f"tps/1K tok, r2 {an.get('linear',{}).get('r2')})")
+        if an.get("classification") in ("CLIFF", "DEGRADED"):
+            print(f"      WARN: {'; '.join(an.get('reasons', []))}")
+
     # 5c. Post-bench accept_rate (delta over the run)
     accept_post = scrape_accept_rate(args.host, args.port, args.api_key)
     if accept_post.get("accept_rate") is not None:
@@ -1503,6 +1734,10 @@ def main(argv: list[str] | None = None) -> int:
     if "ctx_probe" in result:
         c = result["ctx_probe"]
         print(f"  Context probe:    max stable {c.get('max_stable_label','?')}")
+    if "ctx_scaling" in result:
+        an = result["ctx_scaling"].get("analysis", {})
+        print(f"  Ctx-scaling:      {an.get('classification','?')}  "
+              f"(endpoint ratio {an.get('endpoint_ratio')})")
     if result.get("accept_rate_floor", {}).get("checked"):
         f = result["accept_rate_floor"]
         print(f"  Accept-rate floor: {f['verdict']}  "
