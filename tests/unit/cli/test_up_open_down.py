@@ -73,6 +73,10 @@ def _patch_pipeline(monkeypatch, *, events, engine_ok=True, daemon_ok=True):
     ``events`` is a list the stubs append to, in call order.
     """
 
+    def fake_ensure_weights(preset_id, *, dry_run=False):
+        events.append(("ensure_weights", preset_id, dry_run))
+        return 0
+
     def fake_launch_engine(preset_id, *, port=None, dry_run=False):
         events.append(("launch_engine", preset_id, port, dry_run))
         return 0
@@ -89,6 +93,7 @@ def _patch_pipeline(monkeypatch, *, events, engine_ok=True, daemon_ok=True):
         events.append(("wait_daemon", host, port, timeout))
         return daemon_ok
 
+    monkeypatch.setattr(up_mod, "_ensure_weights", fake_ensure_weights)
     monkeypatch.setattr(up_mod, "_launch_engine_detached", fake_launch_engine)
     monkeypatch.setattr(up_mod, "_wait_engine_ready", fake_wait_engine)
     monkeypatch.setattr(up_mod, "_start_daemon", fake_start_daemon)
@@ -142,8 +147,40 @@ class TestUpCallSequence:
         with redirect_stderr(err), redirect_stdout(io.StringIO()):
             rc = UpCommand().execute(_up_ns(preset="example-2x-tier-aware", fake_gpus=TWO_A5000))
         assert rc == 0
-        # Engine first (launch → wait), then daemon (start → wait).
-        assert [e[0] for e in events] == ["launch_engine", "wait_engine", "start_daemon", "wait_daemon"]
+        # Weights first (turnkey — matches `sndr run`), then engine (launch →
+        # wait), then daemon (start → wait).
+        assert [e[0] for e in events] == [
+            "ensure_weights", "launch_engine", "wait_engine", "start_daemon", "wait_daemon",
+        ]
+
+    def test_weights_are_ensured_before_the_engine_launches(self, monkeypatch):
+        """The GUI path must download the model first, exactly like `sndr run`,
+        so `sndr up` is genuinely one-command turnkey (no silent in-container
+        HF pull with no CLI progress)."""
+        events: list = []
+        _patch_pipeline(monkeypatch, events=events)
+        with redirect_stderr(io.StringIO()), redirect_stdout(io.StringIO()):
+            rc = UpCommand().execute(_up_ns(preset="example-2x-tier-aware", fake_gpus=TWO_A5000))
+        assert rc == 0
+        kinds = [e[0] for e in events]
+        assert "ensure_weights" in kinds
+        assert kinds.index("ensure_weights") < kinds.index("launch_engine")
+
+    def test_weight_pull_failure_aborts_before_launch(self, monkeypatch):
+        """A failed download must stop the bring-up before the engine launches,
+        with a clear rc — not boot an engine against absent weights."""
+        events: list = []
+        _patch_pipeline(monkeypatch, events=events)
+
+        def failing_weights(preset_id, *, dry_run=False):
+            events.append(("ensure_weights", preset_id, dry_run))
+            return 1
+
+        monkeypatch.setattr(up_mod, "_ensure_weights", failing_weights)
+        with redirect_stderr(io.StringIO()), redirect_stdout(io.StringIO()):
+            rc = UpCommand().execute(_up_ns(preset="example-2x-tier-aware", fake_gpus=TWO_A5000))
+        assert rc == 1
+        assert [e[0] for e in events] == ["ensure_weights"]  # never reached launch
 
     def test_up_prints_local_url_pointer(self, monkeypatch):
         events: list = []
@@ -192,7 +229,9 @@ class TestUpCallSequence:
             rc = UpCommand().execute(_up_ns(preset="example-2x-tier-aware", fake_gpus=TWO_A5000))
         assert rc != 0
         # The engine came up, the daemon was started, but readiness failed.
-        assert [e[0] for e in events] == ["launch_engine", "wait_engine", "start_daemon", "wait_daemon"]
+        assert [e[0] for e in events] == [
+            "ensure_weights", "launch_engine", "wait_engine", "start_daemon", "wait_daemon",
+        ]
         assert "daemon" in err.getvalue().lower()
 
 

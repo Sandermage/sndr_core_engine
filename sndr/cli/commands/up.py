@@ -51,7 +51,8 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from sndr.cli._messages import Emitter, heartbeat
 
@@ -123,10 +124,10 @@ class UpCommand:
         url = _local_url(gui_port)
 
         # ── resolve the engine preset (unless --no-engine) ───────────────────
-        preset_id: Optional[str] = None
-        engine_port: Optional[int] = None
+        preset_id: str | None = None
+        engine_port: int | None = None
         if not no_engine:
-            from sndr.cli.commands.run import _ResolveError, _resolve_preset_and_port
+            from sndr.cli.commands.run import _resolve_preset_and_port, _ResolveError
 
             try:
                 preset_id, engine_port = _resolve_preset_and_port(
@@ -150,6 +151,9 @@ class UpCommand:
             em.line("  (dry-run) plan:")
             step = 1
             if not no_engine:
+                em.line(f"    {step}. ensure model weights     (pull {preset_id}, no-op if present)")
+                step += 1
+                _ensure_weights(preset_id, dry_run=True)
                 em.line(f"    {step}. launch engine            (sndr launch {preset_id})")
                 step += 1
                 em.line(f"    {step}. wait for engine ready    (127.0.0.1:{engine_port}/health)")
@@ -164,9 +168,19 @@ class UpCommand:
             print(f"sndr up plan: engine={target} gui={url}")
             return 0
 
-        # ── 1) engine: launch + wait (skipped with --no-engine) ──────────────
+        # ── 1) engine: ensure weights → launch + wait (skipped with --no-engine) ──
         if not no_engine:
             assert preset_id is not None and engine_port is not None
+            # Download the model first (no-op when already complete) so the GUI
+            # path is as turnkey as `sndr run` — otherwise the container would
+            # block on a slow in-container HF pull with no CLI progress.
+            em.line("  [engine] ensuring model weights are present …")
+            wrc = _ensure_weights(preset_id, dry_run=False)
+            if wrc not in (0, None):
+                em.err(f"weights not ready (pull rc={wrc}).")
+                em.hint(f"fetch them manually: python3 -m sndr.compat.models.pull "
+                        f"--config {preset_id}")
+                return wrc or 1
             em.line("  [engine] launching …")
             rc = _launch_engine_detached(preset_id, port=args.port, dry_run=False)
             if rc not in (0, None):
@@ -285,7 +299,7 @@ class DownCommand:
         # best-effort: it never errors out just because nothing was running). We
         # catch broadly (not just _ResolveError) so a corpus/import hiccup in
         # resolution can never block the daemon teardown.
-        preset_id: Optional[str] = None
+        preset_id: str | None = None
         try:
             from sndr.cli.commands.run import _resolve_preset_and_port
 
@@ -317,7 +331,15 @@ class DownCommand:
 # ── engine seams (each mocked in tests) — reuse the R1 run path ──────────────
 
 
-def _launch_engine_detached(preset_id: str, *, port: Optional[int] = None, dry_run: bool = False) -> int:
+def _ensure_weights(preset_id: str, *, dry_run: bool = False) -> int:
+    """Download the preset's weights if missing (no-op when present). Shared
+    with `sndr run` so the GUI path is equally turnkey — see
+    sndr.cli.commands._weights."""
+    from sndr.cli.commands._weights import ensure_weights
+    return ensure_weights(preset_id, dry_run=dry_run)
+
+
+def _launch_engine_detached(preset_id: str, *, port: int | None = None, dry_run: bool = False) -> int:
     """Launch the engine detached via the R1 child-process launcher (reused)."""
     from sndr.cli.commands.run import _launch_detached
 
@@ -326,7 +348,7 @@ def _launch_engine_detached(preset_id: str, *, port: Optional[int] = None, dry_r
 
 def _wait_engine_ready(
     host: str, port: int, *, timeout: int,
-    on_progress: Optional[Callable[[float], None]] = None,
+    on_progress: Callable[[float], None] | None = None,
 ) -> dict[str, Any]:
     """Poll the engine's ``/health`` until ready (reuses the R1 run probe)."""
     from sndr.cli.commands.run import _wait_ready
@@ -350,7 +372,7 @@ def _stop_engine(preset_id: str, *, dry_run: bool = False) -> bool:
     return _docker_stop(name)
 
 
-def _engine_container_name(preset_id: str) -> Optional[str]:
+def _engine_container_name(preset_id: str) -> str | None:
     """The container name the preset's launch renders (``cfg.docker.container_name``)."""
     try:
         from sndr.model_configs.registry_v2 import load_alias
@@ -487,7 +509,7 @@ def _detach_handle(handle: Any) -> None:
         terminate = getattr(handle, "terminate", None)
         if callable(terminate):
             terminate()
-    except Exception:  # noqa: BLE001 — best-effort cleanup
+    except Exception:  # noqa: BLE001,S110 — best-effort cleanup, nothing to log
         pass
 
 

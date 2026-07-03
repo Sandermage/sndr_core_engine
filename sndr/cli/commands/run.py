@@ -42,7 +42,8 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from sndr.cli._messages import Emitter, heartbeat
 
@@ -181,11 +182,11 @@ class _ResolveError(Exception):
 
 
 def _resolve_preset_and_port(
-    preset: Optional[str],
+    preset: str | None,
     *,
-    rig_id: Optional[str],
-    fake_gpus: Optional[str],
-    port_override: Optional[int],
+    rig_id: str | None,
+    fake_gpus: str | None,
+    port_override: int | None,
 ) -> tuple[str, int]:
     """Resolve (preset_id, host_port). Explicit preset wins; otherwise the
     wizard's top-ranked fitting preset for the rig. Raises :class:`_ResolveError`
@@ -213,7 +214,7 @@ def _resolve_preset_and_port(
     return preset_id, int(port)
 
 
-def _top_fit_preset(*, rig_id: Optional[str], fake_gpus: Optional[str]) -> str:
+def _top_fit_preset(*, rig_id: str | None, fake_gpus: str | None) -> str:
     """Return the wizard's top-ranked fitting preset for the rig (the same
     ranking ``sndr launch`` / ``sndr`` shows). Raises when nothing fits."""
     from sndr.cli.wizard.launch_wizard import build_catalog
@@ -252,47 +253,20 @@ def _top_fit_preset(*, rig_id: Optional[str], fake_gpus: Optional[str]) -> str:
 # ── pipeline steps (each is a seam mocked in tests) ──────────────────────────
 
 
+# Weight-ensuring is shared with `sndr up` (the GUI path) so "one command
+# downloads everything" is identical on both verbs — see sndr.cli.commands._weights.
 def _has_artifacts_block(preset_id: str) -> bool:
-    """True when the preset declares an ``artifacts.models`` block to pull.
-
-    Many V2 presets resolve their model via a host-side mount rather than a
-    declared HF artifact; for those there is nothing for the puller to do, and
-    calling it would emit a misleading "no artifacts.models block" ERROR. This
-    pre-check lets us skip the puller cleanly in that case.
-    """
-    try:
-        from sndr.model_configs.registry_v2 import load_alias
-
-        cfg = load_alias(preset_id)
-        artifacts = getattr(cfg, "artifacts", None)
-        return bool(artifacts and getattr(artifacts, "models", None))
-    except Exception:
-        return False
+    from sndr.cli.commands._weights import has_artifacts_block
+    return has_artifacts_block(preset_id)
 
 
 def _pull_if_missing(preset_id: str, *, dry_run: bool = False) -> int:
-    """Ensure the preset's model weights are present. Reuses the existing
-    artifacts puller, which verifies before downloading (so this is a no-op
-    when the weights are already complete). Returns the puller's rc.
-
-    A preset without an ``artifacts.models`` block has nothing to pull (its
-    model comes from a host mount) — skip the puller so the launch path's own
-    mount resolution / preflight catches a truly missing model path with a
-    precise message, instead of a misleading puller ERROR here.
-    """
-    if not _has_artifacts_block(preset_id):
-        return 0
-    from sndr.compat.models.pull import pull_via_artifacts
-
-    rc = pull_via_artifacts(preset_id, dry_run=dry_run)
-    if rc == 2:
-        # Defensive: a late artifacts/verify edge — not a download failure.
-        return 0
-    return rc
+    from sndr.cli.commands._weights import ensure_weights
+    return ensure_weights(preset_id, dry_run=dry_run)
 
 
 def _launch_detached(
-    preset_id: str, *, port: Optional[int] = None, dry_run: bool = False,
+    preset_id: str, *, port: int | None = None, dry_run: bool = False,
     quiet: bool = False,
 ) -> int:
     """Launch the preset as a CHILD process so this orchestrator survives.
@@ -333,7 +307,7 @@ def _wait_ready(
     port: int,
     *,
     timeout: int,
-    on_progress: Optional[Callable[[float], None]] = None,
+    on_progress: Callable[[float], None] | None = None,
 ) -> dict[str, Any]:
     """Poll the engine's ``/health`` until ``reachable`` or the timeout. Returns
     the last :func:`engine_status` payload (``reachable=False`` on timeout)."""
