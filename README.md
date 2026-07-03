@@ -12,21 +12,37 @@
 [![Patches](https://img.shields.io/badge/registry-324%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![Memory](https://img.shields.io/badge/memory-neural--graph-ff69b4.svg)](docs/memory/MANUAL.md)
-[![GPU](https://img.shields.io/badge/GPU-RTX%203090%20%7C%204090%20%7C%205090%20%7C%20A5000%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
+[![GPU](https://img.shields.io/badge/GPU-A5000%20%7C%20RTX%204090%20%7C%205090%20%7C%203090%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
 
 <!-- Topics for GitHub indexing/discovery (set via repo Settings → Topics):
      vllm · llm-inference · qwen · gemma · spec-decode · kv-cache-quantization ·
      gpu · cuda · memory · pgvector · rag · knowledge-graph · openai-api ·
      llm-proxy · obsidian · self-hosted · ampere · ada · blackwell -->
 
-**Two products in one engine:** ⚙️ a runtime **vLLM patch-overlay** (faster inference
-on consumer GPUs) **+** 🧠 a **persistent neural-graph memory** that makes every model —
-local and external — smarter over time. Apache-2.0, self-hosted, one container each.
+**Turn a consumer NVIDIA card into a production local-AI server.** SNDR Core
+transforms the open-source [vLLM](https://github.com/vllm-project/vllm) engine
+*in memory at boot* — no fork, no rebuild — so a frontier-class **35B** model runs
+**~1.5× faster than stock vLLM**, with a **256K-token context** and tool-calling
+that actually works, on hardware you can actually buy (A5000, RTX 4090 / 5090,
+A6000 — and yes, the 3090). One paste installs it; a real **GUI Control Center**
+drives it — no `docker` flags to memorize.
 
-**Runtime patches for [vLLM](https://github.com/vllm-project/vllm) — Qwen3.6-class
-inference on consumer NVIDIA Ampere / Ada / Blackwell with TurboQuant k8v4 KV
-cache, MTP K=5 spec-decode, tool-calling, and 256K-class context. 321 patches
-across ~23 families. Apache 2.0.**
+**Two products, one engine:** ⚙️ the runtime **vLLM patch-overlay** (faster
+inference) **+** 🧠 a **persistent neural-graph memory** that makes every model —
+local *and* cloud — remember and get smarter over time. Apache-2.0, self-hosted,
+fully auditable. 324 patches across ~23 families.
+
+## Get running — two commands
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
+sndr up          # auto-picks a preset for your GPU → downloads the model → launches → opens the GUI
+```
+
+That's it — `sndr up` detects your rig, downloads the weights (skipped if
+present), starts the engine **and** the Control Center, and opens your browser.
+Prefer the terminal? `sndr run` does the same and drops you straight into a chat
+prompt. New here? Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
 
 ---
 
@@ -35,13 +51,25 @@ across ~23 families. Apache 2.0.**
 > 📖 **Hit an unfamiliar term** (TPS · KV · MTP · TurboQuant · GDN)? → [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
 > 💸 **Self-host or cloud?** → [`docs/COMPARISONS.md`](docs/COMPARISONS.md) — the cost-crossover trade.
 
+## Why SNDR Core — what you get
+
+| You get | How |
+| --- | --- |
+| **A frontier-class 35B model with 256K context on a card you can buy** | No A100/H100 needed — TurboQuant k8v4 KV-cache quant makes the context fit; consumer Ampere / Ada / Blackwell are first-class targets, not an afterthought. |
+| **~1.5× the tokens/sec of stock vLLM — measured, not projected** | MTP speculative decode + surgical kernel/scheduler patches. Same wheel, transformed at boot. The numbers below are reproduced on a 2× A5000 rig. |
+| **Tool-calling and agent workflows that don't break** | The speed patches keep function-call output clean — 7/7 on the 35B, 8/8 on the 27B in the tool-call harness. |
+| **A long-term memory for every model — local *and* cloud** | A brain-like neural-graph memory in one CPU container: recall by meaning, self-organizing "clouds", human-like decay/reinforcement. Zero GPU on the hot path. |
+| **Nothing to memorize — one paste, then a real GUI** | `install.sh` + `sndr up` gets you a running server; the Control Center drives launch, live patch summary, benches, remote hosts, and the memory graph. |
+| **Never stuck on a stale fork** | It is the *same* upstream vLLM wheel, patched in memory — and each patch removes itself the moment upstream merges the underlying fix. |
+| **Fully yours** | Apache-2.0, self-hosted, every applied patch logged and auditable. No black box; nothing phones home. |
+
 ## What it is
 
 A **drop-in runtime patcher** for vLLM. It pins to a specific vLLM nightly
 commit and applies 324 small, surgical changes — text edits at known anchors,
 class-rebind wrappers, and FastAPI middleware — that together turn an
 out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
-*consumer* NVIDIA hardware (3090, 4090, 5090, A5000, A6000, …) where vLLM
+*consumer* NVIDIA hardware (A5000, RTX 4090 / 5090, A6000, 3090, …) where vLLM
 upstream mostly targets datacenter SKUs.
 
 It is **not** a fork of vLLM, a quantizer, a new inference engine, or a
@@ -62,7 +90,7 @@ overlay: the same wheel, transformed at boot, with a structured apply
 summary (`applied=N skipped=M failed=0`) and an audit trail. Nothing is
 written to the vLLM package tree.
 
-**Patch families.** The 321 entries group into ~23 canonical families. The
+**Patch families.** The 324 entries group into ~23 canonical families. The
 largest: `attention.turboquant` (k8v4 KV-cache quant), `spec_decode` (MTP /
 ngram speculative decoding), `attention.gdn` (hybrid Gated-DeltaNet linear
 attention), `gemma4` (Gemma-4 enablement), `kv_cache`, `compile_safety`,
@@ -85,7 +113,7 @@ old 2-back pin is dropped. Current: `dev714` (`09663abde`); rollback:
 | Model | Quant | KV cache | Spec-decode | Status |
 | --- | --- | --- | --- | --- |
 | Qwen3.6-35B-A3B-FP8 | FP8 dense MoE | TurboQuant k8v4 | MTP K=5 | ✅ PROD (default) |
-| Qwen3.6-27B-int4-AutoRound | INT4 AutoRound (hybrid GDN+Mamba) | TurboQuant k8v4 | MTP K=5 | ✅ PROD |
+| Qwen3.6-27B-int4-AutoRound | INT4 AutoRound (hybrid GDN+Mamba) | TurboQuant k8v4 | MTP K=4 | ✅ PROD |
 | Gemma-4-31B | INT4 / kv-auto | TurboQuant or uniform fp16 | MTP K=3 (separate drafter) | ⚙️ boots + patches apply; serving needs MM-budget config |
 | DiffusionGemma-26B-A4B-FP8 | FP8-dynamic block-diffusion MoE | TP=2 | — | ✅ serving at TP=2 |
 
@@ -107,13 +135,14 @@ Full operator manual: [`docs/USAGE.md`](docs/USAGE.md).
 ## Headline numbers (v12.0.0 current registry)
 
 Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6), driver 580.142,
-CUDA 13.0.2, MTP K=5 + TurboQuant k8v4, TP=2.
+CUDA 13.0.2, TurboQuant k8v4, TP=2 (35B at MTP K=5; 27B at MTP K=4 — the max
+coherent K for its INT4 tool-calls).
 
-| Model | Stock vLLM | Genesis (v12.0.0) | Δ |
+| Model | Stock vLLM | Genesis | Δ |
 | --- | ---: | ---: | ---: |
 | Qwen3.6-35B-A3B-FP8 (single-conc, K=5) | ~157 t/s | **239.7 t/s** | +53 % |
-| Qwen3.6-35B-A3B-FP8 (8-way multi-conc, K=3) | n/a | **~675 t/s agg** | 3.21× scaling |
-| Qwen3.6-27B-int4-AutoRound (single-conc, K=5) | ~87 t/s | **127.4 t/s** | +46 % |
+| Qwen3.6-35B-A3B-FP8 (8-way multi-conc, K=3) | n/a | **~672 t/s agg** | 8-way scaling |
+| Qwen3.6-27B-int4-AutoRound (single-conc, K=4) | ~87 t/s | **~125 t/s** | +44 % |
 | Tool-call clean rate (35B / 27B) | 2–6 / 10 | **7/7 · 8/8** | qualitative |
 
 256K context hardware-verified on both models. Full methodology, historical
@@ -122,32 +151,32 @@ comparisons, and per-rig reproduction recipes:
 
 ![Sustained TPS — Genesis vs stock](assets/charts/tps_genesis_vs_stock.png)
 
-> **Current pin (2026-07-02):** the vLLM pin is `0.23.1rc1.dev714+g09663abde`
-> (image `vllm/vllm-openai:nightly-93d8f834…`, commit `93d8f834`, +248 commits
-> over dev424). `dev424` (`0.23.1rc1.dev424+g3f5a1e173`, commit `3f5a1e173`)
-> is retained as the previous / rollback pin per the ≤2-pin policy; `dev301` is
-> **dropped**. Validated in a live 35B window (boot apply failed=0, 240.55 TPS
-> = 98.4% of dev424 within CV, tool-call 7/7) — see
-> [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md) (canonical) and
+> **Current pin (2026-07-03):** vLLM `0.23.1rc1.dev714+g09663abde` (commit
+> `09663abde`, image `vllm/vllm-openai:nightly-09663abde…`). Per the ≤2-pin
+> policy, `dev672` (`0.23.1rc1.dev672+g93d8f834d`, commit `93d8f834`) is retained
+> as the rollback pin; `dev424` is **dropped**. dev714 was validated in a live
+> 35B window (boot apply failed=0, decode within CV of dev672, tool-call 7/7) —
+> see [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md) (canonical) and
 > [`docs/ANCHOR_SOT.md`](docs/ANCHOR_SOT.md). The per-model bench table below is
-> the validated dev148 K=5 re-tune cycle (still the canonical sustained-bench
-> evidence; decode carried forward across the dev301 and dev424 bumps with no
-> regression).
+> the canonical dev148 K-tune cycle, carried forward across each subsequent bump
+> with no decode regression (anchor regen confirmed at each).
 
 ### Validated rig baseline — 2026-06-19 (measured on pin `0.23.1rc1.dev148+gb4c80ec0f`)
 
 Full model-cycle re-test on the reference 2× A5000 rig after the MTP K=3→K=5 re-tune. These are
-the canonical sustained-bench numbers; the pin has since bumped dev148 → dev301 → **dev424**
-(current) with the decode results carried forward (no regression — anchor regen confirmed at each
-bump). Each model boots the Genesis apply pipeline, applies its patch set, and is benchmarked /
-smoke-tested live (`tools/genesis_bench_suite.py`, single-stream warm sweep). The 35B / 27B
-single-stream rows are the K=5 re-tune numbers; Gemma stays K=3 (its separate drafter is optimal
-at K=3).
+the canonical sustained-bench numbers; the pin has since bumped dev148 → dev301 → dev424 → dev672
+→ **dev714** (current) with the decode results carried forward (no regression — anchor regen
+confirmed at each bump). Each model boots the Genesis apply pipeline, applies its patch set, and is
+benchmarked / smoke-tested live (`tools/genesis_bench_suite.py`, single-stream warm sweep). The 35B
+and 27B single-stream rows are the dev148 K=5 re-tune record; Gemma stays K=3 (its separate drafter
+is optimal at K=3). **Note:** the live 27B config has since moved to **MTP K=4** — the max coherent
+K for its INT4 tool-calls (K=5 emitted unparseable tool-call tokens on dev714); K=4 warm decode is
+~125 t/s, within CV of the K=5 record below.
 
 | Model | Quant / KV | Patches | Decode TPS | Tool-call | Status |
 | --- | --- | ---: | ---: | :---: | --- |
 | Qwen3.6-35B-A3B-FP8 | FP8 dense · TQ k8v4 · MTP K=5 | 95 | **239.7** (CV 4.9 %) | 7/7 | ✅ serving — +15.8 % vs K=3 |
-| Qwen3.6-27B-int4-AutoRound | INT4 AutoRound · TQ k8v4 · MTP K=5 | 93 | **127.4** (CV 8.3 %) | 7/7 | ✅ serving — +8.2 % vs K=3 |
+| Qwen3.6-27B-int4-AutoRound | INT4 AutoRound · TQ k8v4 · MTP K=5 *(dev148 record; live now K=4)* | 93 | **127.4** (CV 8.3 %) | 7/7 | ✅ serving — +8.2 % vs K=3 |
 | Gemma-4-31B | INT4 · TQ k8v4 · MTP K=3 | 81 | — | — | ⚙️ boots + patches apply; serving needs MM-budget config (multimodal-bidirectional × spec-decode) |
 | DiffusionGemma-26B-A4B-FP8 | FP8-dynamic · block-diffusion · TP=2 | 45 | coherent | — | ✅ **serving at TP=2** — `PN-FP8MOE-KPAD` (Marlin N=352) + `G4_26` (TP-vocab soft-embed); enforce-eager · max-num-seqs 2 · gpu-util 0.80 |
 
@@ -252,23 +281,28 @@ security, deployment, troubleshooting, examples): **[`docs/memory/MANUAL.md`](do
 
 | You have | Start here |
 | --- | --- |
-| **1× consumer card** (3090 / 4090 / 5090 / A5000) | [`docs/SINGLE_CARD.md`](docs/SINGLE_CARD.md) |
+| **1× consumer card** (A5000 / 4090 / 5090 / 3090) | [`docs/SINGLE_CARD.md`](docs/SINGLE_CARD.md) |
 | **2× cards** (TP=2 — the reference topology) | [`docs/HARDWARE.md`](docs/HARDWARE.md) + [`docs/MODELS.md`](docs/MODELS.md) |
 | **A model not in the catalog** | [`docs/MODELS.md`](docs/MODELS.md) (add-a-model + the V2 config system) |
 | **Brand-new / weighing self-host vs cloud** | [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) · [`docs/COMPARISONS.md`](docs/COMPARISONS.md) |
 
-## Quick install
+## Install & run
 
 ```bash
+# 1. install — detects OS / Python / GPU / vLLM, installs the plugin + `sndr` CLI
 curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
+
+# 2. run — auto-picks a preset for your GPU, downloads the model, launches, opens the GUI
+sndr up            # …or `sndr run` for a terminal chat prompt instead of the GUI
 ```
 
-The installer detects your OS / Python / GPU / vLLM presence, clones into
-`~/.sndr/`, installs the plugin, writes a tailored launch script, and runs a
-60-second smoke test. Five-minute walk-through and Day-1 acceptance steps:
-[`docs/QUICKSTART.md`](docs/QUICKSTART.md).
+`sndr up` and `sndr run` both **download the model if it isn't already present**
+(skipped when it is), so step 2 is genuinely one command. Want to see the plan
+first? Add `--dry-run`. Pick a named preset with `sndr up <preset>` (browse them
+with `sndr preset list`).
 
-To pick a different vLLM pin, workload, or non-interactive flag set:
+Five-minute walk-through + Day-1 acceptance: [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
+A different vLLM pin, workload, or non-interactive flag set:
 [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ## Documentation map
@@ -324,15 +358,12 @@ through [`SECURITY.md`](SECURITY.md).
 ## Ecosystem / Related
 
 - **[vLLM](https://github.com/vllm-project/vllm)** — the upstream engine SNDR
-  Core patches. Genesis is an overlay, not a fork; patches retire as upstream
-  merges the underlying fix.
-- **[club-3090](https://github.com/noonghunna/club-3090)** — community,
-  multi-engine (vLLM · llama.cpp · ik_llama) serving recipes for consumer GPUs.
-  Complementary to this repo and cross-references Genesis in its
-  `TQ3_MTP_GENESIS.md`. **Where SNDR Core fits:** it is the deep, single-stack
-  vLLM patch engine; club-3090 is the broad multi-engine recipe hub. If you
-  want the widest engine/model menu, start there; if you want the fastest,
-  most-patched vLLM path on Ampere/Ada/Blackwell, you're in the right place.
+  Core patches. Genesis is an overlay, not a fork; each patch retires as
+  upstream merges the underlying fix.
+- **[Hugging Face](https://huggingface.co)** — where the model weights the
+  presets pull come from.
+- A community multi-engine recipe hub cross-references Genesis as its canonical
+  deep-dive for the TurboQuant + MTP vLLM path.
 
 ## Credits + license
 
