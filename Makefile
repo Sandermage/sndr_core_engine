@@ -80,6 +80,10 @@ audit-v2-runtime-pins: ## V2 runtime image + ModelDef pin harmonization (R-PIN-1
 audit-pin-consistency: ## Cross-artifact pin SSOT gate — current pin present in every allowlist + anchor dir + model YAMLs
 	$(PYTHON) scripts/audit_pin_consistency.py
 
+bump-pin: ## Propagate a pin bump across pins.yaml + CANONICAL + model YAMLs (NEW=<pin> [DRY=1]); then rebuild-pin + audit-pin-consistency
+	@test -n "$${NEW}" || { echo "Usage: make bump-pin NEW=0.23.1rc1.devNNN+g<sha> [DRY=1]"; exit 2; }
+	$(PYTHON) scripts/bump_pin.py "$${NEW}" $${DRY:+--dry-run}
+
 audit-v2-modeldef-vs-hardware-pin: ## V2 ModelDef ↔ hardware canonical-pin drift (R-MD-HW-1/2, waiver-aware via pin_hold)
 	$(PYTHON) scripts/audit_v2_modeldef_vs_hardware_pin.py
 
