@@ -72,8 +72,31 @@ SAFETY MODEL
 
 - Default OFF; opt-in via `GENESIS_ENABLE_P100=1`
 - Idempotent via marker
-- 7 anchor sites — drift detection on each
+- 11 sub-patches; the 6 refactor-drifted ones are dual-variant (dev714 +
+  dev748), apply() enforces at-least-one per pair — drift detection on each
 - DCP guard preserved (BatchDCPPrefillWrapper not wired for CG spec-decode)
+
+================================================================
+RE-ANCHOR HISTORY / dev748 VALIDATION STATUS
+================================================================
+
+2026-07-02 — dual-variant re-anchor for pin 0.23.1rc1.dev748+g2dfaae752, kept
+ALONGSIDE the dev714 anchors so P100 spans the current pin AND the rollback pin
+(same multi-anchor pin-bump protection PN351 uses). Verified #41127 is NOT merged
+on dev748 (no FISpecDecode / _get_spec_decode_prefill_wrapper; UniformTypeKVCacheSpecs
+still used) — the flashinfer.py drift is an unrelated refactor: SM90 XQA
+integration, TRTLLMDecode -> FlashInferTrtllmAPIDecode, decode_use_trtllm ->
+decode_with_flashinfer_trtllm_api, self.q_data_type -> self.q_data_type_decode,
+a new FlashInferDecodeKernel(Enum) inserted between FIDecode and TRTLLMPrefill,
+and a maybe_quant_query step + q_scale / kv_cache_sf kwargs on the decode run().
+
+⚠ dev748 RUNTIME-UNVALIDATED. The re-anchor is static-only: it applies cleanly on
+both pins (AST-valid, idempotent) but the FISpecDecode branch routes through
+BatchPrefillWithPagedKVCacheWrapper whose run() kwargs (q_scale / kv_cache_sf) are
+a best-guess mirror of the *decode* wrapper's new signature — the prefill wrapper
+API may differ. P100 is opt-in and NOT on PROD (TQ backend), so a wrong guess
+cannot regress PROD, but a 27B-FlashInfer + spec-decode boot-smoke is a HARD gate
+before enabling P100 on dev748.
 
 Author backport: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 Original PR: vllm#41127. Cross-reference: SGLang flashinfer_backend.py.
@@ -577,6 +600,360 @@ P100_FORWARD_NEW = (
 )
 
 
+# ═════════════════════════════════════════════════════════════════════════
+# dev748 (candidate-pin) anchor variants — re-anchored 2026-07-02 for pin
+# 0.23.1rc1.dev748+g2dfaae752. Kept ALONGSIDE the dev714 anchors above so P100
+# spans BOTH the current pin (dev714) and the candidate/rollback pin — the same
+# multi-anchor pin-bump protection PN351 uses. Exactly one variant of each
+# drifted pair matches on a given pin; the other soft-skips (required=False).
+# apply() enforces at-least-one per pair (see _P100_DUAL_VARIANT_BASES).
+#
+# Verified 2026-07-02: vllm#41127 is NOT merged on dev748 (no FISpecDecode /
+# _get_spec_decode_prefill_wrapper; UniformTypeKVCacheSpecs still used). The
+# flashinfer.py drift is an unrelated refactor: SM90 XQA integration,
+# TRTLLMDecode -> FlashInferTrtllmAPIDecode, decode_use_trtllm ->
+# decode_with_flashinfer_trtllm_api, self.q_data_type -> self.q_data_type_decode,
+# a new FlashInferDecodeKernel(Enum) between FIDecode and TRTLLMPrefill, and a
+# maybe_quant_query step + q_scale/kv_cache_sf kwargs on the decode run().
+# ═════════════════════════════════════════════════════════════════════════
+
+# Sub-2 (dataclass): dev748 inserted FlashInferDecodeKernel(Enum) between
+# FIDecode and TRTLLMPrefill.
+P100_FISPECDECODE_DEV748_OLD = (
+    "@dataclass\n"
+    "class FIDecode:\n"
+    '    """Metadata for the native FlashInfer decode pathway (non-TRTLLM)."""\n'
+    "\n"
+    "    wrapper: BatchDecodeWithPagedKVCacheWrapper\n"
+    "\n"
+    "\n"
+    "class FlashInferDecodeKernel(Enum):\n"
+)
+P100_FISPECDECODE_DEV748_NEW = (
+    "@dataclass\n"
+    "class FIDecode:\n"
+    '    """Metadata for the native FlashInfer decode pathway (non-TRTLLM)."""\n'
+    "\n"
+    "    wrapper: BatchDecodeWithPagedKVCacheWrapper\n"
+    "\n"
+    "\n"
+    "# [Genesis P100 vllm#41127 backport] FISpecDecode dataclass for native\n"
+    "# FlashInfer spec-decode verification through prefill wrapper in CG mode.\n"
+    "@dataclass\n"
+    "class FISpecDecode:\n"
+    '    """Metadata for native FlashInfer spec-decode verification (non-TRTLLM).\n'
+    "\n"
+    "    Used when the decode bucket has uniform query_len > 1 (1 + num_spec_tokens)\n"
+    "    and TRTLLM decode attention is unavailable. Routes through the prefill\n"
+    "    wrapper in cudagraph mode with zero_rows padding for padded request slots.\n"
+    '    """\n'
+    "\n"
+    "    wrapper: BatchPrefillWithPagedKVCacheWrapper\n"
+    "\n"
+    "\n"
+    "class FlashInferDecodeKernel(Enum):\n"
+)
+
+# Sub-3 (decode union): TRTLLMDecode -> FlashInferTrtllmAPIDecode.
+P100_METADATA_DECODE_DEV748_OLD = (
+    "    decode: FIDecode | FlashInferTrtllmAPIDecode | None\n"
+)
+P100_METADATA_DECODE_DEV748_NEW = (
+    "    # [Genesis P100 vllm#41127 backport] add FISpecDecode variant\n"
+    "    decode: FIDecode | FISpecDecode | FlashInferTrtllmAPIDecode | None\n"
+)
+
+# Sub-4 (get_cudagraph_support): dev748 rewrote the docstring + added an SM90
+# early-return + an is_prefill=False kwarg. Anchor on the full dev748 body
+# (dev748-unique via the SM90 docstring) and replace with the P100 intent
+# (SM90 preserved, DCP single-token, else UNIFORM_BATCH).
+P100_CGSUPPORT_DEV748_OLD = (
+    '        """Get the cudagraph support level for FlashInfer attention.\n'
+    "\n"
+    "        The SM90 XQA integration only enables single-token decode today. Keep\n"
+    "        specdec CUDA graphs limited to trtllm-gen until vLLM wires the XQA\n"
+    "        specdec mask.\n"
+    '        """\n'
+    "        if current_platform.is_device_capability(90):\n"
+    "            return AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE\n"
+    "\n"
+    "        # For UniformTypeKVCacheSpecs, check all contained specs\n"
+    "        kv_specs = (\n"
+    "            kv_cache_spec.kv_cache_specs.values()\n"
+    "            if isinstance(kv_cache_spec, UniformTypeKVCacheSpecs)\n"
+    "            else [kv_cache_spec]\n"
+    "        )\n"
+    "        num_qo_heads = vllm_config.model_config.get_num_attention_heads(\n"
+    "            vllm_config.parallel_config\n"
+    "        )\n"
+    "        has_trtllm_support: bool = len(kv_specs) > 0\n"
+    "        for spec in kv_specs:\n"
+    "            if not isinstance(spec, AttentionSpec):\n"
+    "                # FlashInfer only applies to attention, so we don't consider other types\n"
+    "                # of KV spec (e.g. Mamba) here. This is mostly for type checking.\n"
+    "                continue\n"
+    "            if not can_use_trtllm_attention(\n"
+    "                num_qo_heads=num_qo_heads,\n"
+    "                num_kv_heads=spec.num_kv_heads,\n"
+    "                is_prefill=False,\n"
+    "            ):\n"
+    "                has_trtllm_support = False\n"
+    "                break\n"
+    "\n"
+    "        if has_trtllm_support:\n"
+    "            return AttentionCGSupport.UNIFORM_BATCH\n"
+    "        else:\n"
+    "            return AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE\n"
+)
+P100_CGSUPPORT_DEV748_NEW = (
+    '        """Get the cudagraph support level for FlashInfer attention.\n'
+    "\n"
+    "        [Genesis P100 vllm#41127 backport]\n"
+    "        Native FlashInfer captures UNIFORM_BATCH full cudagraphs for\n"
+    "        spec-decode by routing uniform query_len > 1 batches through the\n"
+    "        prefill wrapper in cudagraph mode (verified zero_rows padding yields\n"
+    "        bit-identical real-row numerics). TRTLLM decode attention is not\n"
+    "        required for this path. SM90 keeps upstream's single-token\n"
+    "        restriction (XQA specdec mask not wired); DCP uses\n"
+    "        BatchDCPPrefillWrapper which is not wired for CG spec-decode.\n"
+    '        """\n'
+    "        if current_platform.is_device_capability(90):\n"
+    "            return AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE\n"
+    "        if vllm_config.parallel_config.decode_context_parallel_size > 1:\n"
+    "            return AttentionCGSupport.UNIFORM_SINGLE_TOKEN_DECODE\n"
+    "        return AttentionCGSupport.UNIFORM_BATCH\n"
+)
+
+# Sub for reorder threshold: dev748 replaced the inline can_use_trtllm flag
+# with a multi-line supports_spec_as_decode computed from the trtllm decode
+# kernel, and split the call across lines.
+P100_INIT_REORDER_DEV748_OLD = (
+    "        supports_spec_as_decode = (\n"
+    "            self.flashinfer_trtllm_api_decode_kernel\n"
+    "            == FlashInferDecodeKernel.TRTLLM_GEN\n"
+    "        )\n"
+    "        self._init_reorder_batch_threshold(\n"
+    "            1, supports_spec_as_decode=supports_spec_as_decode\n"
+    "        )\n"
+)
+P100_INIT_REORDER_DEV748_NEW = (
+    "        supports_spec_as_decode = (\n"
+    "            self.flashinfer_trtllm_api_decode_kernel\n"
+    "            == FlashInferDecodeKernel.TRTLLM_GEN\n"
+    "        )\n"
+    "        # [Genesis P100 vllm#41127 backport] Non-DCP native FlashInfer can\n"
+    "        # also route spec-decode through the decode bucket by using the\n"
+    "        # prefill wrapper in cudagraph mode with zero_rows padding. DCP keeps\n"
+    "        # threshold=1 (BatchDCPPrefillWrapper is not wired for CG spec-decode).\n"
+    "        _genesis_p100_native_spec_as_decode = self.dcp_world_size <= 1\n"
+    "        self._init_reorder_batch_threshold(\n"
+    "            1,\n"
+    "            supports_spec_as_decode=(\n"
+    "                supports_spec_as_decode or _genesis_p100_native_spec_as_decode\n"
+    "            ),\n"
+    "        )\n"
+)
+
+# Sub-7 (build): dev748 renamed self.q_data_type -> self.q_data_type_decode in
+# the fast_plan_decode call. Same per-row scan + FIDecode/FISpecDecode branch.
+P100_BUILD_DEV748_OLD = (
+    "                num_input_tokens = num_decode_tokens\n"
+    "\n"
+    "                decode_wrapper = self._get_decode_wrapper(\n"
+    "                    num_input_tokens, use_cudagraph\n"
+    "                )\n"
+    "                # Use the persistent buffer with padding length,\n"
+    "                # instead of the same address but chunked version\n"
+    "                # in atten_metadata when using cudagraph.\n"
+    "                # NVFP4 trtllm kernel only supports FP8 output;\n"
+    "                # use FP8 o_data_type so the wrapper matches the\n"
+    "                # FP8 output buffer allocated in forward().\n"
+    "                o_dtype = (\n"
+    "                    FP8_DTYPE if self.is_kvcache_nvfp4 else self.model_config.dtype\n"
+    "                )\n"
+    "                fast_plan_decode(\n"
+    "                    decode_wrapper,\n"
+    "                    indptr_cpu=self.paged_kv_indptr.cpu[: num_input_tokens + 1],\n"
+    "                    indices=paged_kv_indices,\n"
+    "                    last_page_len_cpu=self.paged_kv_last_page_len.cpu[\n"
+    "                        :num_input_tokens\n"
+    "                    ],\n"
+    "                    num_qo_heads=self.num_qo_heads * self.dcp_world_size,\n"
+    "                    num_kv_heads=self.num_kv_heads,\n"
+    "                    head_dim=self.head_dim,\n"
+    "                    page_size=self.page_size,\n"
+    "                    # Disable flashinfer's pos encoding and use vllm's rope.\n"
+    "                    pos_encoding_mode=\"NONE\",\n"
+    "                    sm_scale=self.sm_scale,\n"
+    "                    window_left=self.window_left,\n"
+    "                    logits_soft_cap=self.logits_soft_cap,\n"
+    "                    q_data_type=self.q_data_type_decode,\n"
+    "                    kv_data_type=self.kv_cache_dtype,\n"
+    "                    o_data_type=o_dtype,\n"
+    "                    fixed_split_size=self.decode_fixed_split_size,\n"
+    "                    disable_split_kv=self.disable_split_kv,\n"
+    "                )\n"
+    "                attn_metadata.decode = FIDecode(wrapper=decode_wrapper)\n"
+)
+P100_BUILD_DEV748_NEW = (
+    "                # ════════════════════════════════════════════════════════════════\n"
+    "                # [Genesis P100 vllm#41127 backport] Per-row qo_indptr delta scan\n"
+    "                # ════════════════════════════════════════════════════════════════\n"
+    "                _genesis_p100_decode_query_lens = (\n"
+    "                    qo_indptr_cpu[1 : num_decodes + 1] - qo_indptr_cpu[:num_decodes]\n"
+    "                )\n"
+    "                _genesis_p100_nonzero = _genesis_p100_decode_query_lens[\n"
+    "                    _genesis_p100_decode_query_lens > 0\n"
+    "                ]\n"
+    "                if _genesis_p100_nonzero.numel() == 0:\n"
+    "                    _genesis_p100_query_len = 1\n"
+    "                else:\n"
+    "                    _genesis_p100_query_len = int(_genesis_p100_nonzero[0].item())\n"
+    "\n"
+    "                o_dtype = (\n"
+    "                    FP8_DTYPE if self.is_kvcache_nvfp4 else self.model_config.dtype\n"
+    "                )\n"
+    "\n"
+    "                if _genesis_p100_query_len <= 1:\n"
+    "                    num_input_tokens = num_decode_tokens\n"
+    "\n"
+    "                    decode_wrapper = self._get_decode_wrapper(\n"
+    "                        num_input_tokens, use_cudagraph\n"
+    "                    )\n"
+    "                    fast_plan_decode(\n"
+    "                        decode_wrapper,\n"
+    "                        indptr_cpu=self.paged_kv_indptr.cpu[: num_input_tokens + 1],\n"
+    "                        indices=paged_kv_indices,\n"
+    "                        last_page_len_cpu=self.paged_kv_last_page_len.cpu[\n"
+    "                            :num_input_tokens\n"
+    "                        ],\n"
+    "                        num_qo_heads=self.num_qo_heads * self.dcp_world_size,\n"
+    "                        num_kv_heads=self.num_kv_heads,\n"
+    "                        head_dim=self.head_dim,\n"
+    "                        page_size=self.page_size,\n"
+    "                        # Disable flashinfer's pos encoding and use vllm's rope.\n"
+    "                        pos_encoding_mode=\"NONE\",\n"
+    "                        sm_scale=self.sm_scale,\n"
+    "                        window_left=self.window_left,\n"
+    "                        logits_soft_cap=self.logits_soft_cap,\n"
+    "                        q_data_type=self.q_data_type_decode,\n"
+    "                        kv_data_type=self.kv_cache_dtype,\n"
+    "                        o_data_type=o_dtype,\n"
+    "                        fixed_split_size=self.decode_fixed_split_size,\n"
+    "                        disable_split_kv=self.disable_split_kv,\n"
+    "                    )\n"
+    "                    attn_metadata.decode = FIDecode(wrapper=decode_wrapper)\n"
+    "                else:\n"
+    "                    # [Genesis P100] Spec-decode: uniform query_len > 1 in\n"
+    "                    # decode bucket. Route through prefill wrapper in CG mode.\n"
+    "                    _genesis_p100_spec_wrapper = self._get_spec_decode_prefill_wrapper(\n"
+    "                        num_decodes, use_cudagraph\n"
+    "                    )\n"
+    "                    _genesis_p100_spec_wrapper.plan(\n"
+    "                        qo_indptr=qo_indptr_cpu[: num_decodes + 1],\n"
+    "                        paged_kv_indptr=self.paged_kv_indptr.cpu[: num_decodes + 1],\n"
+    "                        paged_kv_indices=paged_kv_indices,\n"
+    "                        paged_kv_last_page_len=self.paged_kv_last_page_len.cpu[\n"
+    "                            :num_decodes\n"
+    "                        ],\n"
+    "                        num_qo_heads=self.num_qo_heads * self.dcp_world_size,\n"
+    "                        num_kv_heads=self.num_kv_heads,\n"
+    "                        head_dim_qk=self.head_dim,\n"
+    "                        page_size=self.page_size,\n"
+    "                        causal=True,\n"
+    "                        sm_scale=self.sm_scale,\n"
+    "                        window_left=self.window_left,\n"
+    "                        logits_soft_cap=self.logits_soft_cap,\n"
+    "                        q_data_type=self.q_data_type_decode,\n"
+    "                        kv_data_type=self.kv_cache_dtype,\n"
+    "                        o_data_type=o_dtype,\n"
+    "                        fixed_split_size=self.prefill_fixed_split_size,\n"
+    "                        disable_split_kv=self.disable_split_kv,\n"
+    "                    )\n"
+    "                    attn_metadata.decode = FISpecDecode(wrapper=_genesis_p100_spec_wrapper)\n"
+)
+
+# Sub-8 (forward): dev748 renamed decode_use_trtllm ->
+# decode_with_flashinfer_trtllm_api and the decode run() now takes q_scale +
+# kv_cache_sf; the FISpecDecode run mirrors that sibling signature.
+P100_FORWARD_DEV748_OLD = (
+    "            if not decode_with_flashinfer_trtllm_api:\n"
+    "                assert isinstance(attn_metadata.decode, FIDecode)\n"
+    "                decode_wrapper = attn_metadata.decode.wrapper\n"
+    "                assert decode_wrapper is not None\n"
+    "                assert decode_wrapper._window_left == self.window_left\n"
+    "                assert decode_wrapper._logits_soft_cap == (self.logits_soft_cap or 0.0)\n"
+    "                assert decode_wrapper._sm_scale == self.scale\n"
+    "\n"
+    "                if self.is_kvcache_nvfp4:\n"
+    "                    kv_cache_permute = nvfp4_kv_data\n"
+    "                kv_cache_sf = nvfp4_kv_block_scales if self.is_kvcache_nvfp4 else None\n"
+    "\n"
+    "                # NVFP4 kernel only supports FP8 output.\n"
+    "                # Use a pre-allocated FP8 buffer and dequantize afterwards.\n"
+    "                needs_fp8_out = self.is_kvcache_nvfp4 and output.dtype != FP8_DTYPE\n"
+    "                if needs_fp8_out:\n"
+    "                    out_decode = self._nvfp4_fp8_out[:num_decode_tokens]\n"
+    "                else:\n"
+    "                    out_decode = output[:num_decode_tokens]\n"
+    "\n"
+    "                if use_dcp:\n"
+)
+P100_FORWARD_DEV748_NEW = (
+    "            if not decode_with_flashinfer_trtllm_api:\n"
+    "                # [Genesis P100 vllm#41127 backport] Allow FISpecDecode too\n"
+    "                assert isinstance(attn_metadata.decode, (FIDecode, FISpecDecode))\n"
+    "                decode_wrapper = attn_metadata.decode.wrapper\n"
+    "                assert decode_wrapper is not None\n"
+    "                assert decode_wrapper._window_left == self.window_left\n"
+    "                assert decode_wrapper._logits_soft_cap == (self.logits_soft_cap or 0.0)\n"
+    "                assert decode_wrapper._sm_scale == self.scale\n"
+    "\n"
+    "                if self.is_kvcache_nvfp4:\n"
+    "                    kv_cache_permute = nvfp4_kv_data\n"
+    "                kv_cache_sf = nvfp4_kv_block_scales if self.is_kvcache_nvfp4 else None\n"
+    "\n"
+    "                # NVFP4 kernel only supports FP8 output.\n"
+    "                # Use a pre-allocated FP8 buffer and dequantize afterwards.\n"
+    "                needs_fp8_out = self.is_kvcache_nvfp4 and output.dtype != FP8_DTYPE\n"
+    "                if needs_fp8_out:\n"
+    "                    out_decode = self._nvfp4_fp8_out[:num_decode_tokens]\n"
+    "                else:\n"
+    "                    out_decode = output[:num_decode_tokens]\n"
+    "\n"
+    "                if isinstance(attn_metadata.decode, FISpecDecode):\n"
+    "                    # [Genesis P100] Spec-decode verification through the\n"
+    "                    # prefill wrapper. Non-DCP only. run() mirrors the sibling\n"
+    "                    # decode signature (q_scale + kv_cache_sf added on dev748).\n"
+    "                    assert not use_dcp, (\n"
+    "                        \"FISpecDecode is not supported under DCP\"\n"
+    "                    )\n"
+    "                    assert decode_wrapper._causal\n"
+    "                    decode_wrapper.run(\n"
+    "                        decode_query,\n"
+    "                        kv_cache_permute,\n"
+    "                        q_scale=layer._q_scale_float,\n"
+    "                        k_scale=layer._k_scale_float,\n"
+    "                        v_scale=layer._v_scale_float,\n"
+    "                        out=out_decode,\n"
+    "                        kv_cache_sf=kv_cache_sf,\n"
+    "                    )\n"
+    "                elif use_dcp:\n"
+)
+
+# Logical drifted sub-patches that carry a (dev714, dev748) anchor pair. apply()
+# asserts at least one variant of each fired — a total miss means the pin moved
+# to a NEW flashinfer.py shape neither anchor covers (re-derive before promoting).
+_P100_DUAL_VARIANT_BASES = (
+    "p100_fispecdecode_dataclass",
+    "p100_metadata_decode_union",
+    "p100_cgsupport_uniform_batch",
+    "p100_init_reorder_threshold",
+    "p100_build_query_len_scan_branch",
+    "p100_forward_fispecdecode_case",
+)
+
+
 def _make_patcher() -> TextPatcher | None:
     target = resolve_vllm_file("v1/attention/backends/flashinfer.py")
     if target is None:
@@ -586,29 +963,51 @@ def _make_patcher() -> TextPatcher | None:
         target_file=str(target),
         marker=GENESIS_P100_MARKER,
         sub_patches=[
+            # Intact on both dev714 + dev748 (regions untouched by the refactor)
+            # — kept single-anchor required=True.
             TextPatch(
                 name="p100_imports_drop_uniform",
                 anchor=P100_IMPORTS_OLD,
                 replacement=P100_IMPORTS_NEW,
                 required=True,
             ),
+            # Drifted subs — dual-variant (dev714 + dev748), required=False each;
+            # exactly one matches per pin, apply() enforces at-least-one.
             TextPatch(
                 name="p100_fispecdecode_dataclass",
                 anchor=P100_FISPECDECODE_OLD,
                 replacement=P100_FISPECDECODE_NEW,
-                required=True,
+                required=False,
+            ),
+            TextPatch(
+                name="p100_fispecdecode_dataclass_dev748",
+                anchor=P100_FISPECDECODE_DEV748_OLD,
+                replacement=P100_FISPECDECODE_DEV748_NEW,
+                required=False,
             ),
             TextPatch(
                 name="p100_metadata_decode_union",
                 anchor=P100_METADATA_DECODE_OLD,
                 replacement=P100_METADATA_DECODE_NEW,
-                required=True,
+                required=False,
+            ),
+            TextPatch(
+                name="p100_metadata_decode_union_dev748",
+                anchor=P100_METADATA_DECODE_DEV748_OLD,
+                replacement=P100_METADATA_DECODE_DEV748_NEW,
+                required=False,
             ),
             TextPatch(
                 name="p100_cgsupport_uniform_batch",
                 anchor=P100_CGSUPPORT_OLD,
                 replacement=P100_CGSUPPORT_NEW,
-                required=True,
+                required=False,
+            ),
+            TextPatch(
+                name="p100_cgsupport_uniform_batch_dev748",
+                anchor=P100_CGSUPPORT_DEV748_OLD,
+                replacement=P100_CGSUPPORT_DEV748_NEW,
+                required=False,
             ),
             TextPatch(
                 name="p100_init_decode_wrap_field",
@@ -626,7 +1025,13 @@ def _make_patcher() -> TextPatcher | None:
                 name="p100_init_reorder_threshold",
                 anchor=P100_INIT_REORDER_OLD,
                 replacement=P100_INIT_REORDER_NEW,
-                required=True,
+                required=False,
+            ),
+            TextPatch(
+                name="p100_init_reorder_threshold_dev748",
+                anchor=P100_INIT_REORDER_DEV748_OLD,
+                replacement=P100_INIT_REORDER_DEV748_NEW,
+                required=False,
             ),
             TextPatch(
                 name="p100_init_qo_indptr_buffer",
@@ -644,13 +1049,25 @@ def _make_patcher() -> TextPatcher | None:
                 name="p100_build_query_len_scan_branch",
                 anchor=P100_BUILD_OLD,
                 replacement=P100_BUILD_NEW,
-                required=True,
+                required=False,
+            ),
+            TextPatch(
+                name="p100_build_query_len_scan_branch_dev748",
+                anchor=P100_BUILD_DEV748_OLD,
+                replacement=P100_BUILD_DEV748_NEW,
+                required=False,
             ),
             TextPatch(
                 name="p100_forward_fispecdecode_case",
                 anchor=P100_FORWARD_OLD,
                 replacement=P100_FORWARD_NEW,
-                required=True,
+                required=False,
+            ),
+            TextPatch(
+                name="p100_forward_fispecdecode_case_dev748",
+                anchor=P100_FORWARD_DEV748_OLD,
+                replacement=P100_FORWARD_DEV748_NEW,
+                required=False,
             ),
         ],
         upstream_drift_markers=[
@@ -718,17 +1135,38 @@ def apply() -> tuple[str, str]:
             )
 
     result, failure = patcher.apply()
-    # Audit P1 fix 2026-05-05: 11-subpatch hotfix MUST surface SKIPPED honestly
+
+    # [dev748 re-anchor 2026-07-02] At-least-one-per-pair enforcement. The 6
+    # drifted subs each carry a (dev714, dev748) anchor pair, both required=False
+    # so the non-matching variant soft-skips. If BOTH variants miss for any pair,
+    # the pin moved to a flashinfer.py shape neither anchor covers — fail loudly
+    # rather than emit an incoherent partial patch (5 required subs applied but a
+    # load-bearing dual-variant sub silently absent).
+    from sndr.kernel import TextPatchResult
+    if result == TextPatchResult.APPLIED:
+        applied = set(patcher.applied_sub_patches)
+        for base in _P100_DUAL_VARIANT_BASES:
+            if base not in applied and f"{base}_dev748" not in applied:
+                return "failed", (
+                    f"P100 FAILED — neither the dev714 nor the dev748 anchor of "
+                    f"{base!r} matched. flashinfer.py drifted past a NEW pin shape "
+                    f"neither variant covers — re-derive before promoting."
+                )
+
+    # Audit P1 fix 2026-05-05: multi-subpatch hotfix MUST surface SKIPPED honestly
     # — was the highest-blast-radius silent-mask in the original 35-file set.
     from sndr.kernel import result_to_wiring_status
     return result_to_wiring_status(
         result, failure,
         applied_message=(
-            "P100 v7.62.17 applied: 11 sub-patches on flashinfer.py for native "
-            "FULL CUDA graph + spec-decode without TRTLLM. 27B variants now "
-            "get UNIFORM_BATCH cudagraph (was PIECEWISE) for K+1 spec-verify. "
-            "Expected: +5-10% TPS on Ampere SM 8.6. NO-OP for PROD (TQ backend). "
-            "Composes with P67/P67b/P98/P99 (different backends)."
+            "P100 v7.62.17 applied (dual-variant, spans dev714 + dev748) on "
+            "flashinfer.py for native FULL CUDA graph + spec-decode without "
+            "TRTLLM. 27B FlashInfer variants get UNIFORM_BATCH cudagraph (was "
+            "PIECEWISE) for K+1 spec-verify. Expected: +5-10% TPS on Ampere SM 8.6. "
+            "NO-OP for PROD (TQ backend). ⚠ dev748 spec-decode path is "
+            "RUNTIME-UNVALIDATED (FISpecDecode prefill-wrapper run() signature is "
+            "a best-guess mirror of the refactored decode run) — a 27B-FlashInfer "
+            "+ spec-decode boot-smoke is a HARD gate before enabling P100 on dev748."
         ),
         patch_name=patcher.patch_name,
     )
