@@ -76,9 +76,16 @@ def test_idempotent_on_synthetic(tmp_path):
 
 
 def test_pn56_consolidated_into_p64_via_env_flag_alias(monkeypatch):
-    """PN56 consolidated into the P64 entry 2026-06-20 as an env_flag_alias.
-    With version enforcement OFF, all flags cleared -> P64 skips; setting ONLY
-    the PN56 alias engages should_apply('P64') (alias-honoring path)."""
+    """PN56 consolidated into the P64 entry 2026-06-20 as an env_flag_alias
+    (that consolidation is preserved — see test_registry_entry_consolidated_
+    into_p64, which still asserts the alias lives on the P64 entry).
+
+    Retired reality (2026-06, commit c9a01f81): upstream vllm#45413 (Streaming
+    Parser Engine refactor, merged in the current pin) DELETED the qwen3coder
+    tool parser target file, so P64 is now lifecycle="retired" — an inert
+    strand on the current pin, retained in place only for rollback to a
+    pre-#45413 pin. The dispatcher skips retired patches, so the PN56 alias no
+    longer engages should_apply('P64') on the current pin even when set."""
     from sndr.dispatcher import should_apply
     monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "0")
     for f in (
@@ -90,7 +97,10 @@ def test_pn56_consolidated_into_p64_via_env_flag_alias(monkeypatch):
         monkeypatch.delenv(f, raising=False)
     assert should_apply("P64")[0] is False
     monkeypatch.setenv("GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK", "1")
-    assert should_apply("P64")[0] is True
+    # Retired per vllm#45413: alias no longer engages on the current pin.
+    decision, reason = should_apply("P64")
+    assert decision is False
+    assert "retired" in reason.lower() or "superseded" in reason.lower()
 
 
 def test_registry_entry_consolidated_into_p64():

@@ -152,7 +152,16 @@ class TestIdempotency:
 
 class TestDispatcher:
     """P61c consolidated into the P64 entry 2026-06-20 as an env_flag_alias;
-    the dispatcher decision is now exercised via the surviving P64 id."""
+    the dispatcher decision is now exercised via the surviving P64 id (the
+    consolidation itself is still asserted by
+    test_p61c_no_longer_standalone_registry_id).
+
+    Retired reality (2026-06, commit c9a01f81): upstream vllm#45413 (Streaming
+    Parser Engine refactor, merged in the current pin) DELETED the qwen3coder
+    tool parser target file, so P64 is now lifecycle="retired" — inert on the
+    current pin, retained in place only for rollback to a pre-#45413 pin. The
+    dispatcher short-circuits retired patches, so the P61c alias no longer
+    engages should_apply('P64') on the current pin even when its flag is set."""
 
     def test_p61c_no_longer_standalone_registry_id(self):
         from sndr.dispatcher import PATCH_REGISTRY
@@ -181,11 +190,15 @@ class TestDispatcher:
     def test_env_flag_engages_when_set(self, monkeypatch):
         from sndr.dispatcher import should_apply
         monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "0")
-        # alias-only enable engages the merged module via should_apply('P64')
+        # Even with the alias flag set, a retired patch does NOT engage on the
+        # current pin — the dispatcher short-circuits on lifecycle=retired
+        # (P64 retired per vllm#45413: qwen3coder tool parser file deleted).
         monkeypatch.setenv(
             "GENESIS_ENABLE_P61C_QWEN3CODER_DEFERRED_COMMIT", "1"
         )
-        assert should_apply("P64")[0] is True
+        decision, reason = should_apply("P64")
+        assert decision is False
+        assert "retired" in reason.lower() or "superseded" in reason.lower()
 
 
 class TestSemanticInvariants:

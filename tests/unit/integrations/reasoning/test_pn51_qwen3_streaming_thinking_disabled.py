@@ -130,9 +130,17 @@ def test_apply_idempotent_on_synthetic(tmp_path: Path, monkeypatch):
 
 def test_pn51_consolidated_into_p61b_via_env_flag_alias(monkeypatch):
     """PN51 was consolidated into the P61b entry 2026-06-20; its enable flag
-    is retained as an env_flag_alias on P61b. With version enforcement OFF,
-    setting ONLY the PN51 alias must engage should_apply('P61b') (the
-    alias-honoring _resolve_env_state path), and clearing all flags must skip.
+    is retained as an env_flag_alias on P61b. That consolidation is preserved
+    (the alias still lives on the P61b registry entry — see
+    test_registry_entry_consolidated_into_p61b).
+
+    Retired reality (2026-06, commit c9a01f81): upstream vllm#45413 (Streaming
+    Parser Engine refactor, merged in the current pin) DELETED the qwen3
+    reasoning parser target file, so P61b is now lifecycle="retired" — an inert
+    strand on the current pin, retained in place only for rollback to a
+    pre-#45413 pin. Because the dispatcher skips retired patches, the PN51
+    alias no longer engages should_apply('P61b') on the current pin even when
+    set: the decision stays False and the reason reports the retirement.
     """
     from sndr.dispatcher import should_apply
     monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "0")
@@ -150,8 +158,11 @@ def test_pn51_consolidated_into_p61b_via_env_flag_alias(monkeypatch):
     monkeypatch.setenv(
         "GENESIS_ENABLE_PN51_QWEN3_STREAMING_THINKING_DISABLED", "1",
     )
-    decision, _ = should_apply("P61b")
-    assert decision is True  # alias-only engages the merged module
+    decision, reason = should_apply("P61b")
+    # Retired per vllm#45413: the alias no longer engages the merged module on
+    # the current pin — the dispatcher short-circuits on lifecycle=retired.
+    assert decision is False
+    assert "retired" in reason.lower() or "superseded" in reason.lower()
 
 
 def test_registry_entry_consolidated_into_p61b():
