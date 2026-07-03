@@ -38,7 +38,6 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MODEL_DIR = REPO_ROOT / "sndr" / "model_configs" / "builtin" / "model"
 
@@ -110,6 +109,31 @@ ALLOWED_RETIRED_PATCHES: dict[str, str] = {
         "lifecycle='retired' makes the dispatcher skip it, so leaving "
         "the env set is harmless on the new pin. Will be cleaned out of "
         "the YAML at next config audit cycle."
+    ),
+    # ── 2026-07-03: qwen3 parser family retired (superseded by the #45413/
+    # #45588/#45171 streaming parser-engine refactor, which DELETED their
+    # target files — verified live on dev714). Env flags still set in the
+    # qwen3.6-27b dflash / int4-autoround-fp8kv YAMLs; the wiring version-gate-
+    # skips (<0.23.0) AND the target file is gone (file-not-found skip), so
+    # leaving the env set is doubly harmless on the deployed pin. Will be
+    # cleaned out of the YAMLs at next config audit cycle.
+    "P61b": (
+        "Retired 2026-07-03 — superseded by #45413/#45588 (reasoning/"
+        "qwen3_reasoning_parser.py DELETED). Enabled in qwen3.6-27b dflash + "
+        "int4-autoround-fp8kv YAMLs; capped <0.23.0 + target gone → self-skips "
+        "on the deployed pin. Cleaned from YAMLs at next config audit."
+    ),
+    "P64": (
+        "Retired 2026-07-03 — superseded by #45413/#45171/#45588 (tool_parsers/"
+        "qwen3coder_tool_parser.py DELETED). Enabled in qwen3.6-27b dflash + "
+        "int4-autoround-fp8kv YAMLs; capped <0.23.0 + target gone → self-skips "
+        "on the deployed pin. Cleaned from YAMLs at next config audit."
+    ),
+    "PN287": (
+        "Retired 2026-07-03 — superseded by #45413/#45171/#45588 (wraps the "
+        "deleted qwen3coder tool parser). Enabled in qwen3.6-27b int4-autoround-"
+        "fp8kv YAML; capped <0.23.0 + target gone → self-skips on the deployed "
+        "pin. Cleaned from YAMLs at next config audit."
     ),
 }
 
