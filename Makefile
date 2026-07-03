@@ -275,6 +275,9 @@ audit-silent-except: ## Burndown visibility: count silent broad-except-then-pass
 	echo "  burn these down by logging / narrowing, or mark deliberate ones"; \
 	echo "  '# noqa: S110 — <reason>'. This target is visibility-only (never fails)."
 
+audit-lifecycle-triage: ## Visibility: lifecycle / test_status / production_default distribution + the review_required graduation backlog (NOT a gate)
+	@$(PYTHON) scripts/audit_lifecycle_triage.py
+
 audit-docs-stale: ## Supplement §3: forbid stale tokens (wiring/, _genesis, retired CLI verbs) in active public docs
 	@$(PYTHON) scripts/docs_stale_scan.py
 
