@@ -200,6 +200,7 @@ def test_registry_family_values_valid(registry_env_flags):
         "detection",            # PN296/PN300/PN302 — patches/detection/
         "attention",            # PN351 — patches/attention/ (area-level, no subarea)
         "model_compat.gemma4",  # PN349 — patches/model_compat/gemma4/
+        "model_compat.qwen3_5",  # PN520 — patches/model_compat/qwen3_5/
         "quantization.marlin",  # PN347 — patches/quantization/marlin/
     }
     bad = [

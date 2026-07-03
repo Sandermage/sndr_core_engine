@@ -346,6 +346,13 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # no legacy @register_patch hook by design (category c, same
                        # class as PN519). Wraps Worker.compile_or_warm_up_model;
                        # non-pow2-GQA + PN521 gated, bit-exact no-op otherwise.
+    "PN520",           # Revert vllm#47058 GDN loader regression (Qwen3.5/3.6).
+                       # apply_module set (model_compat.qwen3_5.pn520_qwen3_5_
+                       # gdn_load_weights_47058_revert) + own apply() class-rebind
+                       # of Qwen3_5Model.load_weights, no legacy @register_patch
+                       # hook by design (category c, same class as PN519/PN522).
+                       # Default-OFF; restores the imperative stacked_params_
+                       # mapping that routes the BF16 in_proj_ba GDN shards.
 })
 
 

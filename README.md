@@ -9,7 +9,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev714+g09663abde-orange.svg)](https://github.com/vllm-project/vllm)
-[![Patches](https://img.shields.io/badge/registry-324%20patches-green.svg)](docs/PATCHES.md)
+[![Patches](https://img.shields.io/badge/registry-325%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![Memory](https://img.shields.io/badge/memory-neural--graph-ff69b4.svg)](docs/memory/MANUAL.md)
 [![GPU](https://img.shields.io/badge/GPU-A5000%20%7C%20RTX%204090%20%7C%205090%20%7C%203090%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
@@ -66,7 +66,7 @@ prompt. New here? Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md
 ## What it is
 
 A **drop-in runtime patcher** for vLLM. It pins to a specific vLLM nightly
-commit and applies 324 small, surgical changes — text edits at known anchors,
+commit and applies 325 small, surgical changes — text edits at known anchors,
 class-rebind wrappers, and FastAPI middleware — that together turn an
 out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
 *consumer* NVIDIA hardware (A5000, RTX 4090 / 5090, A6000, 3090, …) where vLLM

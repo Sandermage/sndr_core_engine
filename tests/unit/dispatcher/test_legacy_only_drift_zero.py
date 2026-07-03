@@ -292,6 +292,12 @@ def test_spec_only_truly_orphan_baseline():
         # PN518/PN519. PN521 + PN521_SPLIT_K are NOT here: they are marker_only
         # flag rows with no apply_module (not orphans in this test's sense).
         "PN522",
+        # 2026-07-04 — PN520 (revert vllm#47058 GDN loader regression):
+        # apply_module + own apply() class-rebind of Qwen3_5Model.load_weights,
+        # no legacy @register_patch hook — same spec-only-by-design class as
+        # PN518/PN519/PN522. Default-OFF, applied at legacy boot via
+        # _run_spec_only_supplement.
+        "PN520",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

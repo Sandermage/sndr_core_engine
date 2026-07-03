@@ -738,6 +738,49 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "lifecycle": "experimental",
         "implementation_status": "full",
     },
+    "PN520": {
+        "title": (
+            "restore imperative Qwen3.5/3.6 GDN weight loader "
+            "(revert vllm#47058)"
+        ),
+        "tier": "community",
+        "family": "model_compat.qwen3_5",
+        "env_flag": "GENESIS_ENABLE_PN520_QWEN3_5_LOAD_WEIGHTS",
+        "default_on": False,
+        "apply_module": (
+            "sndr.engines.vllm.patches.model_compat.qwen3_5."
+            "pn520_qwen3_5_gdn_load_weights_47058_revert"
+        ),
+        "lifecycle": "experimental",
+        "category": "correctness",
+        "credit": (
+            "Genesis backport of the pre-#47058 upstream loader (v0.24.0). "
+            "vllm#47058 (merged 0.23.1rc1.dev630) replaced "
+            "Qwen3_5Model.load_weights — an imperative loader with an explicit "
+            "stacked_params_mapping fusing the split GDN shards "
+            "in_proj_b/in_proj_a -> in_proj_ba and in_proj_qkv/in_proj_z -> "
+            "in_proj_qkvz — with a declarative WeightsMapper + AutoWeightsLoader "
+            "path. For the Lorbus Qwen3.6-27B-int4-AutoRound checkpoint the GDN "
+            "in_proj_a/in_proj_b shards are kept unquantized BF16 while "
+            "everything else is INT4; the declarative loader drops those split "
+            "BF16 shards from the fused in_proj_ba param, leaving the "
+            "Gated-DeltaNet layers uninitialised. The model boots clean (apply "
+            "failed=0, health 200) but the linear-attention path computes "
+            "garbage — the classic degenerate collapse (never hits EOS, "
+            "finish_reason=length), identical on dev672/dev714. Upstream revert "
+            "#47233 + MoE-zero fix #47221 both CLOSED WITHOUT MERGING, so main "
+            "is still affected. Fix: class-rebind Qwen3_5Model.load_weights "
+            "(setattr, robust to line drift) to the pre-#47058 imperative "
+            "loader; the BF16 in_proj_ba shards land correctly; the MoE-expert "
+            "branch is guarded (no-op for the dense 27B). Opt-in, default OFF."
+        ),
+        "upstream_pr": 47058,
+        # PN520 counters the regression #47058 introduced (removed the imperative
+        # GDN loader) — controlled-vocab value for a revert-of-a-regression.
+        "upstream_pr_relationship": "counter_regression",
+        "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev630", "<0.24.0")},
+        "implementation_status": "full",
+    },
     "PN521": {
         "title": (
             "TurboQuant raw-bf16-tail spec-verify — fix INT4 non-pow2-GQA "

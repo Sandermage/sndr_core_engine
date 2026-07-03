@@ -6,7 +6,7 @@ pulls the weights, launches the engine, waits until it is ready, and drops
 you into a chat prompt.
 
 > Stack as of 2026-06-25:
-> Genesis `v12.0.0` (324 PATCH_REGISTRY entries) ·
+> Genesis `v12.0.0` (325 PATCH_REGISTRY entries) ·
 > vLLM `0.23.1rc1.dev424+g3f5a1e173` · Reference rig: 2× RTX A5000 24 GB ·
 > driver ≥ 580.126 · CUDA 13.
 

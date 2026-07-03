@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-07-03T19:15:28Z
-Total entries: **324**
+Generated: 2026-07-03T22:08:44Z
+Total entries: **325**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **324**
+- `tier=community`: **325**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **234**
+- `lifecycle=experimental`: **235**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
 - `lifecycle=retired`: **41**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **56** / 324
+### Default-on at boot: **56** / 325
 
 ### By family
 - `attention`: 2
@@ -37,6 +37,7 @@ Total entries: **324**
 - `memory`: 5
 - `middleware`: 3
 - `model_compat.gemma4`: 1
+- `model_compat.qwen3_5`: 1
 - `moe`: 12
 - `multimodal`: 2
 - `observability`: 6
@@ -303,6 +304,12 @@ Total entries: **324**
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
 | **PN349** | `community` | `experimental` | · | `GENESIS_ENABLE_PN349` | [#44797](https://github.com/vllm-project/vllm/pull/44797) | Gemma 4 KV-shared k_norm/v_norm skip (vendor of OPEN vllm#44797) |
+
+### `model_compat.qwen3_5` (1)
+
+| ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
+|---|---|---|:---:|---|:---:|---|
+| **PN520** | `community` | `experimental` | · | `GENESIS_ENABLE_PN520_QWEN3_5_LOAD_WEIGHTS` | [#47058](https://github.com/vllm-project/vllm/pull/47058) | restore imperative Qwen3.5/3.6 GDN weight loader (revert vllm#47058) |
 
 ### `moe` (12)
 

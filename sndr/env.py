@@ -588,6 +588,8 @@ class Flags:
     PN346B = "PN346B"  # PN346B: coordinator-half min() clamp for #45614 (sibling of PN346)
     # model_compat.gemma4 family
     PN349 = "PN349"  # PN349: Gemma 4 KV-shared k_norm/v_norm skip
+    # model_compat.qwen3_5 family
+    PN520_QWEN3_5_LOAD_WEIGHTS = "PN520_QWEN3_5_LOAD_WEIGHTS"  # PN520: revert vllm#47058 GDN load_weights regression
     # moe family
     PN352 = "PN352"  # PN352: Triton moe_sum for unsupported topk
     PN352B_MARLIN_MOE_SUM = "PN352B_MARLIN_MOE_SUM"  # PN352B: Triton moe_sum for unsupported-topk Marlin path (sibling of PN352)
