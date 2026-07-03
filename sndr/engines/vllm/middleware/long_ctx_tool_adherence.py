@@ -328,6 +328,18 @@ def apply_hook(serving_chat: Any, request: Any) -> dict[str, Any]:
         return result
 
     # Gate 3: prompt length threshold
+    #
+    # GENESIS_P68_FORCE_ON_ALL_TOOLS bypasses the length threshold entirely:
+    # force required on EVERY tool request, not just long-context ones. This is
+    # required for models where tool_choice="auto" yields NO grammar and thus
+    # garbled tool-calls — vLLM builds no schema for "auto" (_get_json_schema_
+    # from_tools returns None), so an INT4 model like the 27B emits invalid
+    # tool-call structure ("<function>" / quoted names / <|tool|> spam,
+    # tool_calls=None); "required" builds the combined schema and xgrammar then
+    # constrains output to a VALID tool_call (validated 2026-07-03 on the 27B:
+    # auto=garbage, required=get_weather {"city":"Berlin"}). Default off — only
+    # enable on tool-agent presets where every tool request expects a call.
+    force_all_tools = _env_flag("GENESIS_P68_FORCE_ON_ALL_TOOLS")
     messages = getattr(request, "messages", None)
     if not messages:
         result["reason"] = "no messages; no-op"
@@ -336,7 +348,7 @@ def apply_hook(serving_chat: Any, request: Any) -> dict[str, Any]:
     threshold = _get_threshold_chars()
     result["prompt_chars"] = chars
     result["threshold"] = threshold
-    if chars < threshold:
+    if chars < threshold and not force_all_tools:
         result["reason"] = (
             f"prompt chars {chars} < threshold {threshold}; no-op"
         )

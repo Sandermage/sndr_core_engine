@@ -163,6 +163,7 @@ patches:
   GENESIS_ENABLE_PN59_STREAMING_GDN: '1'             # required for ctx ≥ 64K hybrid (Cliff 2b OOM guard). v7.72.5 Level 2 markers verified via CI gate audit_pn59_cliff2b_markers (4/4 present). club-3090 #182: silently no-ops on v7.72.2 — pre-CI-gate catch path.
   # ── Tool-call safety net ──
   GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # auto-set tool_choice=required when prompt mentions tools
+  GENESIS_P68_FORCE_ON_ALL_TOOLS: '1'               # 2026-07-03: force tool_choice=auto->required on EVERY tool request (not just long-ctx). REQUIRED on this INT4 model: tool_choice=auto builds NO grammar (vllm returns None schema), so the INT4 27B emits invalid tool-call structure (<function>/quoted names/<|tool|> spam, tool_calls=None). 'required' builds the schema -> xgrammar constrains a VALID tool_call. Validated 2026-07-03: auto=garbage, required/named=get_weather {"city":"Berlin"} (name unquoted). Trade-off: forces a tool call whenever tools are present (fine for tool-agent workloads; drop this flag for mixed chat presets).
   GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # inject system-message reminder of tool format at long-ctx
   GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM: '1'          # auto-set prompt_lookup_min=8; closes club-3090#34 ngram quality cliff
   GENESIS_ENABLE_PN56_QWEN3CODER_XML_FALLBACK: '1'   # vllm#41466 — XML parse fallback when JSON tool-call parse fails
