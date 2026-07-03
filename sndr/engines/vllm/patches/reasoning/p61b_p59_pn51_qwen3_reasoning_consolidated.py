@@ -2,6 +2,14 @@
 """Consolidated wiring for P61b + P59 + PN51 — all three text-patch the SAME
 engine file ``reasoning/qwen3_reasoning_parser.py`` at DISJOINT regions.
 
+RETIRED 2026-07-03 (lifecycle: retired, capped <0.23.0): superseded by the
+upstream streaming parser-engine refactor vllm#45413/#45588 (MERGED 2026-06-15),
+which DELETED ``reasoning/qwen3_reasoning_parser.py`` — the engine-native
+Qwen3Parser now owns embedded-tool-call recovery + partial-tag overlap on 0.23.x.
+The target file is gone on the deployed pin (verified live dev714 2026-07-03) and
+on the rollback pin dev672, so all three subs are inert across the ≤2-pin set.
+Kept for reference / pins <0.23.0.
+
 ================================================================
 WHY THIS MODULE EXISTS (maintainability refactor, 2026-06-20)
 ================================================================

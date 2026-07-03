@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN287 — qwen3_coder × MTP arg-corruption frequency observer.
 
+RETIRED 2026-07-03 (lifecycle: retired, capped <0.23.0): superseded by the
+upstream streaming parser-engine refactor vllm#45413/#45171/#45588 (MERGED
+2026-06-15), which DELETED the qwen3coder tool parser this observer wraps. The
+target parser is gone on the deployed pin (verified live dev714 2026-07-03) and
+the rollback pin dev672, so the observer is inert across the ≤2-pin set. Kept
+for reference / pins <0.23.0.
+
 Why this patch exists
 ---------------------
 Server-validated bench 2026-05-29 on 35B-A3B FP8 PROD (pin 626fa9bb, MTP

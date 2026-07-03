@@ -130,8 +130,7 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     # would have re-engaged and corrupted the native parser. #45588 DELETED
     # tool_parsers/qwen3coder_tool_parser.py + the gemma4 parser; the engine
     # state machine supersedes. Skip 0.23.x, apply <0.23.0 (dev259 rollback).
-    "P64",    # qwen3_coder MTP streaming wrap — engine state machine
-              # supersedes; the dev259-era wrap leaks tool-call XML to content.
+    # P64 formally RETIRED 2026-07-03 (lifecycle=retired) — auto-excluded here.
     "P61c",   # qwen3_coder deferred-commit streaming wrap — same #45588 parser
               # deletion; engine state machine supersedes.
     "PN56",   # qwen3_coder XML-fallback streaming wrap — same #45588 parser
@@ -172,17 +171,10 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
               # #41696 CLOSED-unmerged. Skip 0.23.x, apply <0.23.0.
     "PN110",  # BlockPool dedup (#42615 OPEN) — SimpleCPUOffload-only path,
               # dormant on our non-offload PROD; anchor drifted on 0.23.x.
-    # ── 0.23.1 dev148 TIER-1 audit 2026-06-19: honesty caps on patches
-    # superseded by the engine parser (parser reorg #45413, qwen3coder/gemma4
-    # parser deletion #45588). Each capped <0.23.0 + enabled in builtin YAMLs,
-    # so they surface CRITICAL under the deployed pin — correct & intentional
-    # (the native engine handles the surface; the dev259-era wrap is harmful
-    # on 0.23.x). Kept ENABLED in the shared qwen3.6 YAMLs so a dev259 rollback
-    # keeps protection; the runtime version-gate makes the per-pin decision.
-    "P61b",   # qwen3 streaming partial-tag overlap guard — parser reorg
-              # #45413/#45588 restructured the target; native parser supersedes.
-    "PN287",  # qwen3_coder/qwen3_xml args-validity observer — wraps the
-              # Qwen3CoderToolParser/Qwen3XMLToolParser DELETED by #45588.
+    # P61b + PN287 formally RETIRED 2026-07-03 (lifecycle=retired, superseded by
+    # the #45413/#45588 parser-engine refactor that DELETED their target files —
+    # verified live on dev714) — now auto-excluded from this audit, so they no
+    # longer need a baseline entry.
     # The ONE default_on=True allowlist entry (see the "Default-on" note at the
     # top of this set). PN252 is a SECURITY patch (M-RoPE prompt_embeds-only DoS,
     # GHSA-33cg-gxv8-3p8g) — kept default_on so it protects by default on every

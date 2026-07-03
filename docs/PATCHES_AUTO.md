@@ -4,7 +4,7 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-07-03T18:51:30Z
+Generated: 2026-07-03T19:15:28Z
 Total entries: **324**
 
 ## Statistics
@@ -14,10 +14,10 @@ Total entries: **324**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **237**
+- `lifecycle=experimental`: **234**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
-- `lifecycle=retired`: **38**
+- `lifecycle=retired`: **41**
 - `lifecycle=stable`: **14**
 
 ### Default-on at boot: **56** / 324
@@ -378,7 +378,7 @@ Total entries: **324**
 | **PN58** | `community` | `experimental` | · | `GENESIS_ENABLE_PN58_SPEC_REASONING_BOUNDARY` | [#40962](https://github.com/vllm-project/vllm/pull/40962) | Spec-decode reasoning boundary validation — narrower alt to P62 (vllm#40962) |
 | **PN66** | `community` | `experimental` | · | `GENESIS_ENABLE_PN66` | [#41696](https://github.com/vllm-project/vllm/pull/41696) | Multiturn </think> leak fix in DelegatingParser (vllm#41696 backport) |
 | **PN71** | `community` | `experimental` | · | `GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE` | — | PN71 — `</thinking>` hallucination runtime normalizer |
-| **P61b** | `community` | `experimental` | · | `GENESIS_ENABLE_P61B_STREAMING_OVERLAP` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | qwen3_reasoning_parser consolidated: streaming partial-tag overlap guard (vll... |
+| **P61b** | `community` | `retired` | · | `GENESIS_ENABLE_P61B_STREAMING_OVERLAP` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | qwen3_reasoning_parser consolidated: streaming partial-tag overlap guard (vll... |
 
 ### `scheduler` (9)
 
@@ -481,8 +481,8 @@ Total entries: **324**
 |---|---|---|:---:|---|:---:|---|
 | **P15** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P15` | — | Qwen3 None/null tool arg parser |
 | **P29** | `community` | `legacy` | ✓ | `GENESIS_LEGACY_P29` | — | tool parser IndexError guard |
-| **P64** | `community` | `experimental` | · | `GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING` | [#39598](https://github.com/vllm-project/vllm/pull/39598) | qwen3coder_tool_parser consolidated: MTP streaming early-return fix (vllm#395... |
-| **PN287** | `community` | `experimental` | · | `GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER` | — | "qwen3_coder × MTP arg-corruption frequency observer (club-3090 |
+| **P64** | `community` | `retired` | · | `GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING` | [#39598](https://github.com/vllm-project/vllm/pull/39598) | qwen3coder_tool_parser consolidated: MTP streaming early-return fix (vllm#395... |
+| **PN287** | `community` | `retired` | · | `GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER` | — | "qwen3_coder × MTP arg-corruption frequency observer (club-3090 |
 | **PN374** | `community` | `experimental` | · | `GENESIS_ENABLE_PN374_QWEN3XML_QUOTED_KEYS` | [#44877](https://github.com/vllm-project/vllm/pull/44877) | "qwen3xml quoted parameter-name strip (Gemma4 |
 | **PN375** | `community` | `experimental` | · | `GENESIS_ENABLE_PN375_GEMMA4_MULTIBOUNDARY_STREAMING` | [#44741](https://github.com/vllm-project/vllm/pull/44741) | Gemma4 multi-boundary streaming tool-call deltas under MTP (vllm#44741) |
 | **PN385** | `community` | `experimental` | · | `GENESIS_ENABLE_PN385_FORCED_NAMED_EMPTY_PARAMS` | [#45290](https://github.com/vllm-project/vllm/pull/45290) | Forced-named empty-params tool schema -> JSON object (vendor of vllm#45290) |

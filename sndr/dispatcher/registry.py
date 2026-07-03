@@ -225,8 +225,14 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # composed from a5000-2x hardware yaml), so the whole module
         # version-gate-SKIPs on dev148.
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
+        "vllm_version_range": "<0.23.0",
+        "superseded_by": "vllm#45413/#45588 (streaming parser-engine refactor, MERGED 2026-06-15) — reasoning/qwen3_reasoning_parser.py DELETED and the engine-native Qwen3Parser owns embedded-tool-call recovery + tag-overlap on 0.23.x. Target file gone on the deployed pin (verified live dev714 2026-07-03).",
         "apply_module": "sndr.engines.vllm.patches.reasoning.p61b_p59_pn51_qwen3_reasoning_consolidated",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-03: superseded by the #45413/#45588 parser refactor —
+        # target file deleted upstream, inert on the whole ≤2-pin set (dev714 +
+        # dev672 are both >=0.23.0). Capped <0.23.0 already; retire-provenance via
+        # the superseded_by + version range above.
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "P63": {
@@ -326,8 +332,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # (GENESIS_ENFORCE_VERSION_RANGE), so the whole module version-gate-
         # SKIPs on dev148.
         "applies_to": {"model_class": ["qwen3", "qwen3_5", "qwen3_6", "qwen3_moe", "qwen3_next"], "vllm_version_range": (">=0.20.0", "<0.23.0")},
+        "vllm_version_range": "<0.23.0",
+        "superseded_by": "vllm#45413/#45171/#45588 (streaming parser-engine refactor, MERGED 2026-06-15) — tool_parsers/qwen3coder_tool_parser.py DELETED and the engine-native qwen3 tool adapter owns streaming coalescing / deferred-commit on 0.23.x. Target file gone on the deployed pin (verified live dev714 2026-07-03).",
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.p64_p61c_pn56_qwen3coder_consolidated",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-03: superseded by the #45413/#45171/#45588 parser
+        # refactor — target file deleted upstream, inert on the whole ≤2-pin set
+        # (dev714 + dev672 are >=0.23.0). Capped <0.23.0; provenance above.
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "P65": {
@@ -5082,8 +5093,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "tool_call_parser": ["qwen3_coder", "qwen3_xml"],
             "vllm_version_range": (">=0.20.0", "<0.23.0"),
         },
+        "vllm_version_range": "<0.23.0",
+        "superseded_by": "vllm#45413/#45171/#45588 (streaming parser-engine refactor, MERGED 2026-06-15) — tool_parsers/qwen3coder_tool_parser.py DELETED; the engine-native qwen3 tool adapter handles args on 0.23.x. Target parser gone on the deployed pin (verified live dev714 2026-07-03).",
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn287_qwen3coder_args_validity_observer",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-03: superseded by the parser-engine refactor — target
+        # parser deleted upstream, inert across the ≤2-pin set. Provenance above.
+        "lifecycle": "retired",
         "implementation_status": "full",
         # 2026-06-20: PN56 + P61c were consolidated into the P64 entry, so the
         # former ["P64", "PN56", "P61c"] composes_with is deduped to the

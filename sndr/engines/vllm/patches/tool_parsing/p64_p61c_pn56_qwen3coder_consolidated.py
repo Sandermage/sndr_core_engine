@@ -3,6 +3,14 @@
 engine file ``tool_parsers/qwen3coder_tool_parser.py`` at DISJOINT regions
 (P64 ALSO has a second, 0-match-on-pristine target ``serving.py``).
 
+RETIRED 2026-07-03 (lifecycle: retired, capped <0.23.0): superseded by the
+upstream streaming parser-engine refactor vllm#45413/#45171/#45588 (MERGED
+2026-06-15), which DELETED ``tool_parsers/qwen3coder_tool_parser.py`` — the
+engine-native qwen3 tool adapter owns streaming coalescing + deferred-commit on
+0.23.x. Target file gone on the deployed pin (verified live dev714 2026-07-03)
+and the rollback pin dev672, so all three subs are inert across the ≤2-pin set.
+Kept for reference / pins <0.23.0.
+
 ================================================================
 WHY THIS MODULE EXISTS (maintainability refactor, 2026-06-20)
 ================================================================
