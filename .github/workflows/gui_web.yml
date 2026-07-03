@@ -1,17 +1,19 @@
 # SNDR Control Center web app — CI gate for the React/TypeScript GUI.
 #
 # Runs the public-tree quality gates on every change under gui/web:
-#   build job: typecheck (tsc) -> lint (eslint) -> production build (vite).
+#   build job: typecheck (tsc) -> lint (eslint) -> unit tests (vitest) ->
+#              production build (vite).
 #
-# The vitest unit suite + the hermetic Playwright e2e harness (with the
-# axe-core accessibility scan) were extracted to the operator-private
-# archive in 2026 (`chore(gui): extract tests to sndr_private (release
-# hygiene)`). Those gates — and the dev-box specs that need a live daemon
-# (smoke / host_wiring / server_switch / chat_rag) — run on the operator
-# box, not on the public CI, because their fixtures (e2e/fixtures.ts,
-# tests/**) are not part of the published source tree. The public gate
-# therefore validates exactly what ships: types compile, lint is clean,
-# the production bundle builds.
+# The public vitest suite is the CO-LOCATED unit + component-smoke tests
+# (src/**/*.test.{ts,tsx}) — pure lib logic (coerce/format/config-utils/
+# readiness-gates/safe-storage) and prop-only presentational primitives. They
+# need no external fixtures and no live daemon, so they ship with the source
+# and run here. The hermetic Playwright e2e harness (with the axe-core
+# accessibility scan) and the dev-box specs that need a live daemon (smoke /
+# host_wiring / server_switch / chat_rag) still run on the operator box, not on
+# the public CI, because their fixtures (e2e/fixtures.ts) are not part of the
+# published tree. The public gate validates exactly what ships: types compile,
+# lint is clean, the unit/smoke suite passes, the production bundle builds.
 #
 # Triggered:
 #   - push to main (only when gui/web changes)
@@ -54,6 +56,9 @@ jobs:
 
       - name: Lint (eslint)
         run: npm run lint
+
+      - name: Unit tests (vitest)
+        run: npm test
 
       - name: Production build (vite)
         run: npm run build
