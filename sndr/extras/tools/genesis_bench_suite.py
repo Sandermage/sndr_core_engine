@@ -738,7 +738,7 @@ def test_ctx_probe(host: str, port: int, key: str, model: str,
     else:
         ceiling = CTX_TARGETS.get(max_ctx_label.upper())
         if ceiling is None:
-            return dict(error=f"unknown ctx label {max_ctx_label}")
+            return {"error": f"unknown ctx label {max_ctx_label}"}
         for k, v in CTX_TARGETS.items():
             if v <= ceiling and v >= 8192:
                 targets.append(v)
@@ -824,12 +824,17 @@ def analyze_ctx_scaling(points: list,
 
     pts = sorted((float(c), float(t)) for c, t in points if t and t > 0)
     n = len(pts)
-    out: dict = dict(n_points=n, params=dict(
-        max_step_drop=max_step_drop,
-        endpoint_floor_ratio=endpoint_floor_ratio,
-        flat_range_tolerance=flat_range_tolerance,
-    ), steps=[], reasons=[], linear=dict(slope_per_1k_tokens=None, r2=None),
-        endpoint_ratio=None)
+    out: dict = {
+        "n_points": n,
+        "params": {
+            "max_step_drop": max_step_drop,
+            "endpoint_floor_ratio": endpoint_floor_ratio,
+            "flat_range_tolerance": flat_range_tolerance,
+        },
+        "steps": [], "reasons": [],
+        "linear": {"slope_per_1k_tokens": None, "r2": None},
+        "endpoint_ratio": None,
+    }
     if n < 3:
         out["classification"] = "INSUFFICIENT"
         out["reasons"].append(f"only {n} usable point(s); need >= 3")
@@ -837,14 +842,14 @@ def analyze_ctx_scaling(points: list,
 
     # Successive-tier drops.
     cliff = False
-    for (c0, t0), (c1, t1) in zip(pts, pts[1:]):
+    for (c0, t0), (c1, t1) in zip(pts, pts[1:], strict=False):
         drop = (t0 - t1) / t0 if t0 > 0 else 0.0
         is_cliff = drop > max_step_drop
         cliff = cliff or is_cliff
-        out["steps"].append(dict(
-            from_ctx=int(c0), to_ctx=int(c1),
-            drop_pct=round(drop * 100, 1), is_cliff=is_cliff,
-        ))
+        out["steps"].append({
+            "from_ctx": int(c0), "to_ctx": int(c1),
+            "drop_pct": round(drop * 100, 1), "is_cliff": is_cliff,
+        })
 
     # Endpoint erosion.
     first_tps, last_tps = pts[0][1], pts[-1][1]
@@ -863,8 +868,8 @@ def analyze_ctx_scaling(points: list,
         ss_res = sum((y - (intercept + slope * x)) ** 2 for x, y in pts)
         ss_tot = sum((y - my) ** 2 for y in ys)
         r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 1.0
-        out["linear"] = dict(slope_per_1k_tokens=round(slope * 1024, 3),
-                             r2=round(r2, 4))
+        out["linear"] = {"slope_per_1k_tokens": round(slope * 1024, 3),
+                         "r2": round(r2, 4)}
 
     tps_max, tps_min = max(ys), min(ys)
     rel_range = (tps_max - tps_min) / tps_max if tps_max > 0 else 0.0
@@ -897,8 +902,8 @@ def analyze_ctx_scaling(points: list,
 
 def test_ctx_scaling(host: str, port: int, key: str, model: str,
                      max_ctx_label: str, gen_tokens: int, timeout_s: int,
-                     max_step_drop: float | None = None,
-                     endpoint_floor_ratio: float | None = None) -> dict:
+                     max_step_drop: float | None,
+                     endpoint_floor_ratio: float | None) -> dict:
     """Decode-TPS sweep across context tiers + linearity verdict.
 
     Sends one streamed generation per tier (1K, 4K, 8K, ... up to the
@@ -914,29 +919,29 @@ def test_ctx_scaling(host: str, port: int, key: str, model: str,
     for tgt in tiers:
         prompt_words = max(1, (tgt - 100) // 2)
         prompt = "hello " * prompt_words
-        payload = dict(model=model,
-                       messages=[{"role": "user", "content": prompt}],
-                       max_tokens=gen_tokens)
+        payload = {"model": model,
+                   "messages": [{"role": "user", "content": prompt}],
+                   "max_tokens": gen_tokens}
         r = http_post_stream(_build_url(host, port, "/v1/chat/completions"),
                              _bearer(key), payload, timeout=timeout_s)
         if r["error"] or r["completion_tokens"] < 2:
-            probes.append(dict(target=tgt, target_label=f"{tgt//1024}K",
-                               verdict="FAIL", error=str(r["error"])[:200]))
+            probes.append({"target": tgt, "target_label": f"{tgt//1024}K",
+                           "verdict": "FAIL", "error": str(r["error"])[:200]})
             break  # stop on first failure (saves time, matches ctx_probe)
         ttft = r["ttft_ms"] or 0
         decode_part = max(0.001, r["elapsed_s"] - ttft / 1000.0)
         decode_tps = (r["completion_tokens"] - 1) / decode_part
-        probes.append(dict(target=tgt, target_label=f"{tgt//1024}K",
-                           ttft_ms=ttft, elapsed_s=r["elapsed_s"],
-                           completion_tokens=r["completion_tokens"],
-                           decode_tps=round(decode_tps, 1),
-                           verdict="OK"))
+        probes.append({"target": tgt, "target_label": f"{tgt//1024}K",
+                       "ttft_ms": ttft, "elapsed_s": r["elapsed_s"],
+                       "completion_tokens": r["completion_tokens"],
+                       "decode_tps": round(decode_tps, 1),
+                       "verdict": "OK"})
         points.append((tgt, decode_tps))
     analysis = analyze_ctx_scaling(points,
                                    max_step_drop=max_step_drop,
                                    endpoint_floor_ratio=endpoint_floor_ratio)
-    return dict(gen_tokens=gen_tokens, ceiling_label=max_ctx_label,
-                probes=probes, analysis=analysis)
+    return {"gen_tokens": gen_tokens, "ceiling_label": max_ctx_label,
+            "probes": probes, "analysis": analysis}
 
 
 def test_stability_stress(host: str, port: int, key: str, model: str,
