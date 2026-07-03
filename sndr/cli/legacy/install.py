@@ -1073,7 +1073,7 @@ def add_argparser(subparsers: Any) -> None:
     # knows which preset they want; --prepare hands them a ready-to-go
     # launcher script without the wizard prompts.
     p.add_argument("--config", default=None,
-                   help="C5: model_config preset key (e.g. a5000-2x-35b-prod). "
+                   help="C5: model_config preset key (e.g. prod-qwen3.6-35b-balanced). "
                         "When set, --prepare bypasses workload heuristics.")
     p.add_argument("--prepare", action="store_true",
                    help="C5: prepare-only mode. Requires --config <key>. "

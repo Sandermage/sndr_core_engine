@@ -7,19 +7,20 @@
 > The canonical operator UX is now:
 >
 > ```bash
-> sndr launch prod-qwen3.6-35b-balanced                  # 35B latency
+> sndr launch prod-qwen3.6-35b-balanced         # 35B latency
 > sndr launch prod-qwen3.6-35b-multiconc        # 35B throughput (multi-conc)
-> sndr launch prod-qwen3.6-35b-dflash           # 35B DFlash N=3 (single-stream)
-> sndr launch prod-qwen3.6-35b-dflash-multiconc # 35B DFlash multi-conc
-> sndr launch prod-qwen3.6-27b-tq-k8v4               # 27B + TurboQuant k8v4 (latency)
+> sndr launch prod-qwen3.6-27b-tq-k8v4          # 27B + TurboQuant k8v4 (latency)
 > sndr launch prod-qwen3.6-27b-tq-multiconc     # 27B + TQ k8v4 multi-conc
-> sndr launch prod-qwen3.6-27b-dflash           # 27B DFlash N=5 (single-stream)
-> sndr launch prod-qwen3.6-27b-dflash-multiconc # 27B DFlash multi-conc
 > ```
 >
 > Each preset resolves to a (model, hardware, profile) triplet under
 > [`sndr/model_configs/builtin/`](../../sndr/model_configs/builtin/).
-> See `sndr launch --help` for `--dry-run` and other flags.
+> Run `sndr launch` with no arguments for the interactive wizard listing
+> every registered preset (including the Gemma 4 prod cards), or
+> `sndr launch --help` for `--dry-run` and other flags.
+> The four DFlash preset cards (`prod-qwen3.6-{35b,27b}-dflash[-multiconc]`)
+> were archived to `sndr/model_configs/builtin/presets/_archive/` pending
+> re-validation — restore from there to reproduce the DFlash benchmarks.
 
 Historical context (pre-Wave-10, kept for archeology):
 

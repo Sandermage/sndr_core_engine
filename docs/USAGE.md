@@ -147,7 +147,7 @@ boot summary.
 ```bash
 # Boot a preset
 sndr launch prod-qwen3.6-35b-balanced                  # V2 alias (3-pointer model+hw+profile)
-sndr launch a5000-2x-35b-prod         # V1 monolithic key (legacy form)
+sndr launch prod-qwen3.6-35b-balanced   # canonical V2 preset (V1 keys retired in Phase 10)
 
 # Inspect the rendered command without booting
 sndr launch prod-qwen3.6-35b-balanced --dry-run

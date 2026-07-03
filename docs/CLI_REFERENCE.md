@@ -557,8 +557,8 @@ and proceeding.
 Print one resolved `ModelConfig` (V1).
 
 ```bash
-sndr model-config show a5000-2x-35b-prod
-sndr model-config show a5000-2x-35b-prod --json
+sndr model-config show prod-qwen3.6-35b-balanced
+sndr model-config show prod-qwen3.6-35b-balanced --json
 ```
 
 ### `sndr model-config list` — **stable**
@@ -584,7 +584,7 @@ sndr model-config explain prod-qwen3.6-35b-balanced
 Create a user preset from a template.
 
 ```bash
-sndr model-config new my-preset --template a5000-2x-35b-prod
+sndr model-config new my-preset --template prod-qwen3.6-35b-balanced
 sndr model-config new my-preset --template prod-qwen3.6-35b-balanced --force
 ```
 

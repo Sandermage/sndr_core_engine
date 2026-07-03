@@ -150,7 +150,8 @@ def _resolve_cfg(preset_id: str):
 
     Accepts both the V2 alias ids the GUI presents (``prod-qwen3.6-35b-multiconc``,
     composed via ``registry_v2.load_alias``) and the legacy V1 monolithic keys
-    (``a5000-2x-35b-prod``). Raises ``KeyError`` if neither resolves.
+    (the V1 registry is empty post-Phase-10 sunset). Raises ``KeyError`` if
+    neither resolves.
     """
     from . import presets
 

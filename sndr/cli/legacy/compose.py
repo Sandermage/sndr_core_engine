@@ -153,7 +153,7 @@ def _resolve(key: str):
     switched from V1-only `registry.get()` to
     the same V1+V2 helper memory.py / patches.py already use, so
     `sndr compose render prod-qwen3.6-35b-balanced` works alongside the legacy
-    `sndr compose render a5000-2x-35b-prod`.
+    `sndr compose render prod-qwen3.6-35b-balanced`.
     """
     try:
         from sndr.cli.legacy.memory import _resolve_preset_v1_or_v2

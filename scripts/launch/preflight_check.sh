@@ -109,16 +109,21 @@ done
 echo
 echo "--- Genesis patcher checkout ---"
 PATCHER_DIR="${GENESIS_PATCHER_DIR:-${HOME}/genesis-vllm-patches}"
-if [ -d "$PATCHER_DIR/vllm/_genesis" ]; then
-  PATCH_COUNT=$(find "$PATCHER_DIR/vllm/_genesis/wiring" -maxdepth 1 -name "patch_*.py" -not -name "__*" | wc -l)
-  ok "Patcher: $PATCHER_DIR ($PATCH_COUNT wiring patches)"
+# v12 layout: the overlay package lives at top-level sndr/ (the pre-v11
+# vllm/_genesis/ and v11 vllm/sndr_core/ layouts are retired). Patches are
+# registry entries now, not loose wiring files — count via the registry.
+if [ -d "$PATCHER_DIR/sndr" ] && [ -f "$PATCHER_DIR/sndr/__init__.py" ]; then
+  PATCH_COUNT=$(cd "$PATCHER_DIR" && python3 -c \
+    "from sndr.dispatcher import PATCH_REGISTRY; print(len(PATCH_REGISTRY))" \
+    2>/dev/null || echo "?")
+  ok "Patcher: $PATCHER_DIR ($PATCH_COUNT registered patches)"
   if [ -f "$PATCHER_DIR/.git/HEAD" ]; then
     HEAD=$(cd "$PATCHER_DIR" && git rev-parse --short HEAD 2>/dev/null)
     BRANCH=$(cd "$PATCHER_DIR" && git rev-parse --abbrev-ref HEAD 2>/dev/null)
     ok "  ↳ branch=$BRANCH HEAD=$HEAD"
   fi
 else
-  fail "$PATCHER_DIR/vllm/_genesis/ not found (set GENESIS_PATCHER_DIR or clone genesis-vllm-patches)"
+  fail "$PATCHER_DIR/sndr/ not found (set GENESIS_PATCHER_DIR or clone the sndr-platform repo)"
 fi
 
 # ─── 8. vLLM nightly image cached ───────────────────────────────────

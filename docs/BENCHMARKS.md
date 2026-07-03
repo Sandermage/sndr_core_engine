@@ -117,7 +117,7 @@ long-context probe (skippable).
 ```bash
 # 1. Install + boot
 sndr install                # or `bash install.sh --workload tool_agent -y`
-sndr launch a5000-2x-35b-prod    # V1 key, or use V2 alias `prod-qwen3.6-35b-balanced`
+sndr launch prod-qwen3.6-35b-balanced    # canonical V2 preset (V1 keys retired in Phase 10)
 
 # 2. Wait for the structured boot summary in docker logs
 
@@ -586,12 +586,16 @@ The four PROD-ready configs launched through the unified CLI:
 | --- | --- |
 | 35B-A3B-FP8 PROD (TQ k8v4 + MTP K=5, latency) | `sndr launch prod-qwen3.6-35b-balanced` |
 | 35B-A3B-FP8 multi-conc (TQ k8v4 + max_num_seqs=8) | `sndr launch prod-qwen3.6-35b-multiconc` |
-| 35B-A3B-FP8 + DFlash N=3 (latency) | `sndr launch prod-qwen3.6-35b-dflash` |
-| 35B-A3B-FP8 + DFlash N=3 (multi-conc) | `sndr launch prod-qwen3.6-35b-dflash-multiconc` |
+| 35B-A3B-FP8 + DFlash N=3 (latency) | `prod-qwen3.6-35b-dflash` — archived preset¹ |
+| 35B-A3B-FP8 + DFlash N=3 (multi-conc) | `prod-qwen3.6-35b-dflash-multiconc` — archived preset¹ |
 | 27B-INT4-AutoRound + TQ k8v4 (latency) | `sndr launch prod-qwen3.6-27b-tq-k8v4` |
 | 27B-INT4-AutoRound + TQ k8v4 (multi-conc) | `sndr launch prod-qwen3.6-27b-tq-multiconc` |
-| 27B-INT4-AutoRound + DFlash N=5 (latency) | `sndr launch prod-qwen3.6-27b-dflash` |
-| 27B-INT4-AutoRound + DFlash N=5 (multi-conc) | `sndr launch prod-qwen3.6-27b-dflash-multiconc` |
+| 27B-INT4-AutoRound + DFlash N=5 (latency) | `prod-qwen3.6-27b-dflash` — archived preset¹ |
+| 27B-INT4-AutoRound + DFlash N=5 (multi-conc) | `prod-qwen3.6-27b-dflash-multiconc` — archived preset¹ |
+
+¹ The DFlash preset cards were archived to
+`sndr/model_configs/builtin/presets/_archive/` pending re-validation;
+restore from there to reproduce the DFlash rows.
 
 V2 presets resolve to a (model, hardware, profile) triplet under
 `sndr/model_configs/builtin/`. The legacy per-config

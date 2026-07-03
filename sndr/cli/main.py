@@ -17,7 +17,7 @@ Promoted operator + beginner commands (v12 split-brain closure / UX R2) —
 thin pass-throughs to the legacy/compat implementation, so the canonical and
 ``genesis`` entry points cannot drift::
 
-    sndr report bundle --preset a5000-2x-35b-prod
+    sndr report bundle --preset prod-qwen3.6-35b-balanced
     sndr doctor --full
     sndr verify --quick
     sndr pull Qwen/Qwen3-32B      # or: sndr model pull Qwen/Qwen3-32B
@@ -26,8 +26,8 @@ thin pass-throughs to the legacy/compat implementation, so the canonical and
     sndr preset list
     sndr preset recommend --workload agentic-coding
     sndr bench --help
-    sndr tune plan a5000-2x-35b-prod
-    sndr config explain a5000-2x-35b-prod
+    sndr tune plan prod-qwen3.6-35b-balanced
+    sndr config explain prod-qwen3.6-35b-balanced
 
 The CLI exists for headless automation (CI scripts, cron jobs, scripts);
 operators primarily use the GUI.

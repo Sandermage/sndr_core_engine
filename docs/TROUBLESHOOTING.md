@@ -780,9 +780,12 @@ ssh server 'cd /path/to/... && git stash pop && git add -A && git commit -m "...
 ### R-007 — V1 preset stops working post-Phase-9 freeze
 
 **Trigger.** Operator runs `sndr launch a5000-2x-35b-prod` (V1 key)
-post-Phase-9 and gets `DeprecationWarning` followed by failure. The
-Phase-9 freeze added the warning + a no-new-V1 CI gate but does NOT
-remove the V1 loader; if V1 is gone, revert the freeze SHA.
+and gets `config not found`. Phase 9 froze V1 (DeprecationWarning +
+no-new-V1 CI gate); Phase 10 (`607385f1`, 2026-06-01) then deleted the
+shipped V1 YAMLs, so a bare V1 key no longer resolves at all. The
+supported answer is the V2 successor (`prod-qwen3.6-35b-balanced`);
+for an emergency V1 bisect see "Restoring a V1 baseline from history"
+below.
 
 **Revert.** `git revert --no-edit <SHA_OF_PHASE_9_FREEZE>`.
 
@@ -1402,7 +1405,7 @@ suite cleanly with no overlap and no gap.
 
 1. Render + start the chat-k3 upstream on a sibling port:
    ```bash
-   sndr launch prod-gemma4-31b-tq-mtp-chat-k3 --port 8113
+   sndr launch prod-gemma4-31b-kvauto-chat --port 8113
    ```
 
 2. Keep the structured-k4 upstream running on its current port:

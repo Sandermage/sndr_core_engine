@@ -603,7 +603,7 @@ def _parse_args(argv=None):
     # the legacy compat.models.registry. When --config is set, model_key
     # becomes optional (we pull ALL artifacts in the config).
     p.add_argument("--config", default=None,
-                   help="B4: model_config preset key (e.g. a5000-2x-35b-prod). "
+                   help="B4: model_config preset key (e.g. prod-qwen3.6-35b-balanced). "
                         "When set, pulls all models declared in "
                         "cfg.artifacts.models instead of using the legacy "
                         "compat.models.registry. model_key becomes optional.")

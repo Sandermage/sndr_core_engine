@@ -26,8 +26,8 @@ curl -sSL .../install.sh | bash -s -- --bare-metal
 After bootstrap:
 
 ```bash
-sndr launch a5000-2x-35b-prod --dry-run    # render + preview
-sndr launch a5000-2x-35b-prod              # apply patches + exec vllm
+sndr launch prod-qwen3.6-35b-balanced --dry-run    # render + preview
+sndr launch prod-qwen3.6-35b-balanced              # apply patches + exec vllm
 sndr doctor                                # full system diagnostic
 sndr verify                                # post-apply smoke
 ```
@@ -57,7 +57,7 @@ huggingface-cli download Qwen/Qwen3.6-35B-A3B-FP8 \
     --local-dir "$MODELS_DIR/Qwen3.6-35B-A3B-FP8"
 
 # 4. Render a launch script from a builtin preset
-sndr launch --dry-run a5000-2x-35b-prod > start_35b.sh
+sndr launch --dry-run prod-qwen3.6-35b-balanced > start_35b.sh
 chmod +x start_35b.sh
 
 # 5. Run it (5-8 min cold compile cache; 1-2 min warm)
@@ -103,65 +103,57 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 ```
 sndr_core_engine/
 ├── README.md                          # Overview + benchmarks
-├── CHANGELOG.md                       # Version history (v7.0 → v11.0)
+├── CHANGELOG.md                       # Version history (v7.0 → v12.0)
 ├── LICENSE                            # Apache 2.0 (core)
 ├── NOTICE                             # Authorship attribution
-├── pyproject.toml                     # Core wheel build (Apache 2.0)
-├── pyproject-engine.toml              # Engine wheel build (commercial; gitignored)
-├── install.sh                         # 106-line bootstrap → exec sndr install
+├── pyproject.toml                     # sndr-platform wheel build (Apache 2.0)
+├── install.sh                         # self-contained bootstrap (venv + pip install + doctor)
 │
-├── vllm/
-│   ├── sndr_core/                     # ◄── Public Apache 2.0 package
-│   │   ├── cli/                       # sndr install / launch / doctor / verify
-│   │   ├── dispatcher/                # registry · spec · decision · audit
-│   │   ├── apply/                     # orchestrator · shadow · per-patch dispatch
-│   │   ├── integrations/              # 325 community patches (lazy __init__.py)
-│   │   │   ├── attention/{flash,gdn,turboquant}/
-│   │   │   ├── compile_safety/  kv_cache/  loader/  lora/  memory/
-│   │   │   ├── middleware/  moe/  multimodal/  observability/  quantization/
-│   │   │   ├── reasoning/  scheduler/  serving/  spec_decode/
-│   │   │   └── tool_parsing/  worker/  kernels/
-│   │   ├── kernels/                   # public helpers (+ 1 redirect to engine)
-│   │   ├── core/  detection/  env/  locations/  bundles/
-│   │   ├── compat/                    # legacy CLI / model_detect / model-pull
-│   │   ├── manifests/                 # anchor_manifest.json (PN79 today)
-│   │   ├── model_configs/             # YAML schema + builtin/community presets
-│   │   ├── license.py                 # Ed25519-signed token gate
-│   │   ├── plugin.py                  # vllm.general_plugins entry point
-│   │   ├── version.py                 # SNDR_CORE_VERSION = "11.0.0"
-│   │   ├── dispatcher/                # PATCH_REGISTRY spec + decision + audit
-│   │   ├── apply/                     # boot apply loop + per-patch dispatch
-│   │   └── integrations/              # 325 community patches grouped by 23 families
-│   │                                  # (attention.*/spec_decode/kv_cache/gemma4/etc.)
-│   │
-│   └── sndr_engine/                   # ◄── Commercial package (gitignored)
-│       ├── kernels/                   # private helpers (ngram_frequency_filter)
-│       ├── patches/spec_decode/       # PN72 frequency ngram drafter
-│       ├── version.py                 # matches sndr_core major
-│       └── LICENSE-NOTICE             # commercial scope
+├── sndr/                              # ◄── Public Apache 2.0 package (v12 top-level layout)
+│   ├── cli/                           # sndr launch / up / doctor / tui / chat / ...
+│   ├── dispatcher/                    # PATCH_REGISTRY · spec · decision · audit
+│   ├── apply/                         # orchestrator · shadow · per-patch dispatch
+│   ├── engines/vllm/patches/          # 325 community patches grouped by family
+│   │   ├── attention/{flash,turboquant}/  compile_safety/  kv_cache/
+│   │   ├── loader/  lora/  memory/  middleware/  model_compat/{gemma4,qwen3_5}/
+│   │   ├── moe/  multimodal/  observability/  quantization/  reasoning/
+│   │   └── scheduler/  serving/  spec_decode/  streaming/  tool_parsing/  worker/
+│   ├── engines/vllm/pins/             # per-pin anchor manifests (anchors.json)
+│   ├── kernel/                        # TextPatcher apply/validate engine
+│   ├── model_configs/                 # V2 schema + builtin/{model,hardware,profile,presets}
+│   ├── product_api/                   # GUI/daemon backend (legacy monolith + modular seam)
+│   ├── compat/                        # legacy CLI / model_detect / model-pull
+│   ├── memory/  cache/  runtime/  observability/  bundles/  deps/
+│   ├── license.py                     # Ed25519-signed token gate
+│   ├── plugin.py                      # vllm.general_plugins entry point
+│   ├── pins.py / pins.yaml            # vLLM pin SSOT (current / rollback / stable)
+│   └── version.py                     # 12.0.0
+│
+├── gui/web/                           # React GUI source (served by the product_api daemon)
 │
 ├── tests/                             # ◄── Single canonical test root
-│   ├── unit/{core,dispatcher,env,detection,infra,patches/<family>}/
-│   ├── installer/                     # sndr install dry-run smoke
+│   ├── unit/{dispatcher,env,infra,integrations/<family>,cli,model_configs,...}/
+│   ├── installer/                     # install dry-run smoke
 │   ├── bundles/                       # umbrella-flag bundle smoke
-│   └── legacy/                        # pre-v11 tests (153 migrated with import rewrites)
+│   └── legacy/                        # pre-v11 tests (migrated with import rewrites)
 │
 ├── tools/
-│   ├── genesis_vllm_plugin/           # back-compat thin re-export from sndr_core.plugin
+│   ├── genesis_bench_suite.py         # canonical bench methodology
 │   ├── check_upstream_drift.py        # drift watcher (walks iter_patch_specs)
-│   ├── examples/genesis-plugin-hello-world/
-│   └── external_probe/                # pre-vllm startup probes
+│   ├── kv_calc.py                     # KV-cache budget calculator
+│   └── pn521/                         # opt-in kernel validation/bench harness
 │
-├── scripts/                           # Public bash helpers
-│   ├── launch.sh                      # universal model launcher
+├── scripts/                           # Public bash helpers + audit gates
+│   ├── launch/                        # preflight_check.sh + launcher docs
 │   ├── verify-full.sh                 # 7-stage smoke test (localhost defaults)
 │   ├── probe_max_ctx.sh               # binary-search max context
 │   ├── fetch_models.sh                # SHA-verified HF download
 │   ├── moe_lookup_helper.sh           # MoE config staging
-│   └── build_anchor_manifest.py       # build the Site Map manifest
+│   └── audit_*.py / check_*.py        # CI consistency gates
 │
-├── compose/                           # Generic docker-compose templates
-│   └── docker-compose.example.yml     # variable-driven, no hardcoded paths
+├── compose/                           # docker-compose artifacts
+│   ├── docker-compose.full.yml        # full product: engine + GUI daemon (≙ `sndr up`)
+│   └── prod-*.yml                     # rendered prod presets (regenerate via `sndr compose render`)
 │
 ├── assets/                            # Logo + 12 README charts
 │   └── charts/_generate.py            # matplotlib chart regenerator
@@ -218,7 +210,7 @@ ls -lh ~/models/Qwen3.6-35B-A3B-FP8
 First run takes 5-8 minutes for torch.compile + cudagraph capture. Subsequent runs (warm cache) take 1-2 minutes.
 
 ```bash
-docker compose -f compose/docker-compose.example.yml up -d
+docker compose -f compose/docker-compose.full.yml up -d
 docker logs -f vllm-genesis 2>&1 | grep -E "Genesis|Capturing CUDA|Loading|Started server"
 ```
 
@@ -742,7 +734,7 @@ All Genesis patches are opt-in by default. Set the matching env var to `1` to en
 Use MTP. No env tweaks needed.
 
 ```yaml
-# compose/docker-compose.example.yml (snippet)
+# compose/prod-35b.yml (snippet — rendered by `sndr compose render`)
 command:
   - "exec vllm serve --model /models/Qwen3.6-35B-A3B-FP8
      --speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":3}'

@@ -50,7 +50,8 @@ docker run -d \
   -v "${HF_HOME}:/root/.cache/huggingface:ro" \
   -v "${TRITON_CACHE_DIR}:/root/.triton/cache" \
   -v "${VLLM_COMPILE_CACHE}:/root/.cache/vllm/torch_compile_cache" \
-  -v "${GENESIS_REPO_ROOT}/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro" \
+  -v "${GENESIS_REPO_ROOT}/sndr:/usr/local/lib/python3.12/dist-packages/sndr:ro" \
+  -v "${GENESIS_REPO_ROOT}/sndr:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro" \
   -e SNDR_DEV_INSTALL_PLUGIN=1 \
   -e GENESIS_BUFFER_MODE=shared \
   -e GENESIS_ENABLE_P101=1 \

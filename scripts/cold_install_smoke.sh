@@ -14,8 +14,10 @@
 #   2. Verify CLI entry point parses + reports version.
 #   3. Verify the registry imports without GPU dependencies.
 #   4. Run self-test (8/8 PASS expected).
-#   5. Smoke compose for one V1 preset (`a5000-2x-35b-prod`) and one V2
-#      alias (`prod-qwen3.6-35b-balanced`) — `--preflight-only`, no live launch.
+#   5. Smoke compose for two V2 presets (`prod-qwen3.6-27b-tq-k8v4` and
+#      `prod-qwen3.6-35b-balanced`) — `--preflight-only`, no live launch.
+#      (The V1 leg was retired with the Phase-10 V1 sunset: the V1
+#      registry ships empty, so a V1 key can no longer resolve.)
 #
 # Modes:
 #
@@ -171,20 +173,21 @@ fi
 # ─── 6. V1 / V2 preset preflight smoke ───────────────────────────────
 
 if [ "$SKIP_LAUNCH" -eq 0 ]; then
-    _step "6. V1 + V2 preset preflight smoke (--preflight-only, no live launch)"
+    _step "6. V2 preset preflight smoke x2 (--preflight-only, no live launch)"
 
-    # Use V1 monolithic preset key first — the floor that V2 falls back to.
-    V1_KEY="a5000-2x-35b-prod"
-    if python3 -m sndr.cli launch "$V1_KEY" --preflight-only \
+    # Second V2 preset (27B TQ lane) — the V1 leg was retired with the
+    # Phase-10 V1 sunset (empty V1 registry; a V1 key cannot resolve).
+    V2_KEY_27B="prod-qwen3.6-27b-tq-k8v4"
+    if python3 -m sndr.cli launch "$V2_KEY_27B" --preflight-only \
             >>"$SMOKE_LOG" 2>&1; then
-        _pass "V1 preset '$V1_KEY' preflight OK"
+        _pass "V2 preset '$V2_KEY_27B' preflight OK"
     else
         # Common reason: vllm not installed on this host (CI / Mac dev).
         # Treat as informational unless --fresh-venv (where it should work).
         if [ "$FRESH_VENV" -eq 1 ]; then
-            _fail "V1 preset '$V1_KEY' preflight failed (fresh venv) — see $SMOKE_LOG"
+            _fail "V2 preset '$V2_KEY_27B' preflight failed (fresh venv) — see $SMOKE_LOG"
         else
-            echo "  · V1 preset '$V1_KEY' preflight skipped (vllm likely not installed in current env)"
+            echo "  · V2 preset '$V2_KEY_27B' preflight skipped (vllm likely not installed in current env)"
         fi
     fi
 
