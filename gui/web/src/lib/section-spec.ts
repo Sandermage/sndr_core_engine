@@ -58,7 +58,7 @@ export function sectionSpec(sectionId: SectionId) {
     "choose-launch": {
       kicker: tr("Get running"),
       title: tr("Choose & Launch"),
-      description: tr("Four steps from your card to a running model — check your rig, pick a model that fits, confirm the fit, then launch. The honest path для людей."),
+      description: tr("Four steps from your card to a running model — check your rig, pick a model that fits, confirm the fit, then launch. The honest path for humans."),
     },
     "launch-plan": {
       kicker: tr("Operator workbench"),
