@@ -54,7 +54,9 @@ import logging
 
 from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 from sndr.kernel import (
-    TextPatch, TextPatcher, TextPatchResult,
+    TextPatch,
+    TextPatcher,
+    TextPatchResult,
 )
 
 log = logging.getLogger("genesis.wiring.p12_tool_call_reasoning")
@@ -68,6 +70,23 @@ GENESIS_P12_MARKER = "Genesis P12 Qwen3 <tool_call> implicit reasoning end v7.0"
 # multi-tool agentic flows. Legacy sub-patches now self-skip on upstream
 # merge (required=False); the new `p12_last_to_first_occurrence` sub-patch
 # applies the FIRST-occurrence flip on top of upstream code.
+#
+# ⚠ NOTE 2026-07-03 (live dev714 verification): P12 is currently INERT on the
+# deployed pin. Upstream refactored the whole reasoning/tool-call stack into
+# the new `vllm/parser/engine/` adapter architecture — `reasoning/
+# qwen3_reasoning_parser.py` is now a 6-line shim re-exporting
+# `Qwen3ParserReasoningAdapter`, and `extract_content_ids` /
+# `_tool_call_token_id` / the LAST-occurrence body no longer exist there. So
+# `_make_patcher()` resolves a path that is absent → apply() returns a benign
+# "skipped: file not found" (logged at INFO, NOT surfaced as drift), and the
+# FIRST-occurrence correctness fix does NOT apply. `required=True` cannot fix
+# this: apply() skips at file-resolution, before any anchor scan. Re-targeting
+# to the parser/engine Qwen3 adapter is a correctness task gated on (a) reading
+# the new adapter and (b) a live multi-tool agentic stress test to confirm the
+# earlier-<tool_call>-drop bug still exists post-refactor. Tracked here so the
+# inert state is visible rather than silently rotting. Do NOT retire blind
+# (would drop a possibly-still-needed fix) nor re-target blind (unverified
+# anchor).
 UPSTREAM_DRIFT_MARKERS: list[str] = []
 
 
