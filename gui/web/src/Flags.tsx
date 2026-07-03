@@ -3,7 +3,11 @@ import { Box, RefreshCw, Search, ToggleLeft, ToggleRight } from "lucide-react";
 import { api, type FlagMatrix, type FlagRow } from "./api";
 import { tr } from "./i18n";
 
-const DRIFT_LABEL: Record<string, string> = { missing: tr("missing"), extra: tr("extra"), in_sync: tr("in sync") };
+// Call tr() at render time (not module-import time) so the labels re-translate
+// when the operator flips EN/RU — a module-scope const would freeze to the
+// import-time language.
+const driftLabel = (k: string): string =>
+  (({ missing: tr("missing"), extra: tr("extra"), in_sync: tr("in sync") }) as Record<string, string>)[k] ?? k;
 
 export function FlagsPanel() {
   const [data, setData] = useState<FlagMatrix | null>(null);
@@ -93,7 +97,7 @@ const FlagRowView = memo(function FlagRowView({ f, hasLive }: { f: FlagRow; hasL
       {hasLive && (
         <span className="fm-livecell">
           {f.live_on === undefined ? "—" : <span className={`fm-livebadge ${f.live_on ? "on" : "off"}`}>{f.live_on ? "ON" : "OFF"}</span>}
-          {f.drift && f.drift !== "in_sync" && <em className={`fm-drift ${f.drift}`}>{DRIFT_LABEL[f.drift]}</em>}
+          {f.drift && f.drift !== "in_sync" && <em className={`fm-drift ${f.drift}`}>{driftLabel(f.drift)}</em>}
         </span>
       )}
     </div>

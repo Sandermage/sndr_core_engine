@@ -1697,7 +1697,10 @@ function ContainerVersions({ state }: { state: HostSndrState | null }) {
   );
 }
 
-const MODE_LABEL: Record<UpdateMode, string> = { manual: tr("Manual"), semi: tr("Semi-auto"), auto: tr("Automatic") };
+// Call tr() at render time (not module-import time) so labels re-translate on
+// an EN/RU flip — a module-scope const would freeze to the import-time language.
+const modeLabel = (m: UpdateMode): string =>
+  ({ manual: tr("Manual"), semi: tr("Semi-auto"), auto: tr("Automatic") } as Record<UpdateMode, string>)[m];
 const MODE_DESC: Record<UpdateMode, string> = {
   manual: tr("Never auto-pulls. Updates are applied by hand. Safe default — required for vLLM engines (pin policy)."),
   semi: tr("Auto-downloads the new image and notifies you; you click Apply (restart) when traffic allows — so a warm KV cache is never dropped mid-request."),
@@ -1716,7 +1719,7 @@ function UpdateModeSelector({ plan, mode, onChange, busy }: { plan: ContainerUpd
               className={`seg-btn ${mode === m ? "active" : ""}${blocked ? " blocked" : ""}`}
               title={blocked ? tr("Critical container (vLLM engine) — automatic updates are blocked by the pin policy") : MODE_DESC[m]}
               onClick={() => onChange(m)}>
-              {MODE_LABEL[m]}{blocked && <Lock size={11} />}
+              {modeLabel(m)}{blocked && <Lock size={11} />}
             </button>
           );
         })}
@@ -1754,7 +1757,7 @@ function UpdatePanel({ source, name, onClose }: { source: ContainerSource; name:
     try {
       const r = await api.containerSetUpdateMode(source, name, m);
       if (!r.ok) { setMode(prev); toast(r.error || tr("mode not allowed"), "error"); }
-      else { setMode(r.mode); toast(`${tr("Update mode")} → ${MODE_LABEL[r.mode]}`, "success"); }
+      else { setMode(r.mode); toast(`${tr("Update mode")} → ${modeLabel(r.mode)}`, "success"); }
     } catch (e) { setMode(prev); setErr(e instanceof Error ? e.message : String(e)); }
   }
 
