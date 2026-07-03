@@ -148,6 +148,27 @@ ALLOWED_MODELDEF_PINS = frozenset({
     # EXPECTED_PINS. dev301 retained as previous/rollback per CLAUDE.md
     # ≤2-pin policy.
     "0.23.1rc1.dev424+g3f5a1e173",
+    # ── Canonical PROD pin 0.23.1 dev672 (PROMOTED 2026-07-01) ───────────
+    # Image vllm/vllm-openai:nightly-93d8f834 (0.23.1rc1.dev672+g93d8f834d,
+    # +248 commits over dev424). Operator-authorized bump dev424 -> dev672.
+    # 35B-A3B window-validated on the main-sync tree: boot apply failed=0,
+    # 7/7 tool-call + get_weather Berlin (qwen3_xml, no leak), 240.55 wall_TPS
+    # (CV 6.0%) = 98.4% of dev424 244.35 within CV (no regression), MTP K=5
+    # accept 0.679. Matches guards.py KNOWN_GOOD + test_pin_gate EXPECTED_PINS
+    # (both already list it). dev424 retained one window then dropped ≤2-pin.
+    "0.23.1rc1.dev672+g93d8f834d",
+    # ── Canonical PROD pin 0.23.1 dev714 (PROMOTED 2026-07-02) — CURRENT ──
+    # Image vllm/vllm-openai:nightly (0.23.1rc1.dev714+g09663abde, +42 commits
+    # over dev672 touching no patch anchor/binding). Operator-authorized bump
+    # dev672 -> dev714. 35B-A3B live-window validated: boot apply applied=87/
+    # skipped=166/failed=0, 7/7 tool-call (qwen3_xml, no leak), 236.5 wall_TPS
+    # (CV 6.3%) within CV of dev672 240.55 (no regression), MTP K=5 accept
+    # 0.666. Wiring-aware drift: IDENTICAL profile to dev672 (0 new drifts).
+    # All 11 ModelDef vllm_pin_required values carry it; live 35B PROD runs it.
+    # dev672 (nightly-93d8f834) retained as previous/rollback per ≤2-pin policy.
+    # Allowlist sync completed here 2026-07-02 (guards.py + test_pin_gate led;
+    # this file + CANONICAL_PIN_SUBSTRING were the lagging artifacts).
+    "0.23.1rc1.dev714+g09663abde",
 })
 
 # Gemma family ModelDefs are expected to be on dev371 (validated path).
@@ -182,7 +203,7 @@ QWEN_PREFIX = "qwen"
 # validated (35B +4.08% / 27B net-neutral / Gemma 26B+31B smoke PASS). All
 # 11 ModelDef vllm_pin_required values move to 0.23.1rc1.dev424+g3f5a1e173.
 # dev301 stays in ALLOWED_MODELDEF_PINS as the rollback bucket.
-CANONICAL_PIN_SUBSTRING = "dev424"
+CANONICAL_PIN_SUBSTRING = "dev714"
 
 # ─── DFlash dev371 hold (P2.DFlash 2026-05-21) ─────────────────────────
 #
