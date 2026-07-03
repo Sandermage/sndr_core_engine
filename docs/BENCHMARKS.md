@@ -10,18 +10,19 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 >
 > - Genesis `v12.0.0` — 324 PATCH_REGISTRY entries
 >   (174 full + 17 marker-only + 4 retired + 7 partial + 2 placeholder).
-> - vLLM **current pin** `0.23.1rc1.dev424+g3f5a1e173`
->   (`dev301` = `0.23.1rc1.dev301+g04c2a8dea` = previous / rollback pin per the
->   ≤2-pin policy; `dev148` dropped). The canonical bench numbers below are the
->   **validated dev148 baseline** — decode was carried forward across the dev301
->   and dev424 bumps (anchor regen + smoke confirmed at each bump; no decode
+> - vLLM **current pin** `0.23.1rc1.dev714+g09663abde`
+>   (`dev672` = `0.23.1rc1.dev672+g93d8f834d` = previous / rollback pin per the
+>   ≤2-pin policy; `dev424` dropped). The canonical bench numbers below are the
+>   **validated dev148 baseline** — decode was carried forward across every
+>   subsequent bump (anchor regen + smoke confirmed at each; no decode
 >   regression). They are re-benched on a pin bump only when a perf-relevant
 >   change is suspected.
 > - Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6),
 >   driver 580.142, CUDA 13.0.2.
-> - Spec-decode: MTP K=5 on Qwen 35B/27B (re-tuned 2026-06-19; Gemma drafter
->   stays K=3 — optimal for its separate drafter). Probabilistic draft
->   rejection, vllm#40269.
+> - Spec-decode: MTP K=5 on Qwen 35B; **K=4 on the 27B** (the max coherent K
+>   for its INT4 tool-calls — set 2026-07-03; the dev148 rows below are the
+>   historical K=5 record). Gemma drafter stays K=3 (optimal for its separate
+>   drafter). Probabilistic draft rejection, vllm#40269.
 > - Attention: TurboQuant k8v4 KV cache + FlashAttention 2, TP=2.
 
 ## Latest PROD numbers (v12.0.0 current registry; single-stream re-benched 2026-06-19 on dev148, K=5)

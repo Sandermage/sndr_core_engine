@@ -1,4 +1,4 @@
-# Single card (3090 / 4090 / A5000) — what fits, what doesn't, and the honest escape hatches
+# Single card (A5000 / 4090 / 5090 / 3090) — what fits, what doesn't, and the honest escape hatches
 
 > **TL;DR.** Genesis is tuned and validated for **2× RTX A5000 (24 GB, SM 8.6),
 > TP=2**. On a **single 24 GB card**, vLLM is fine for short / single-shot

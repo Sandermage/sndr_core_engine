@@ -425,17 +425,15 @@ stats, the Planner, benchmarks, the Inference panel):
 | **KV dtype** | Precision the KV cache is stored in (fp16 → int8 → TQ3); lower halves VRAM at a small quality cost. The Planner + Hardware/Fleet arch notes recommend the best one your GPU accelerates. |
 | **Quant (AWQ / GPTQ / AutoRound / FP8 / TQ)** | Weight/KV compression schemes; what your GPU runs _natively_ vs _emulated_ depends on its arch (the Planner's "Arch-aware notes" and the Fleet card's "Arch-aware flags" show this per-GPU). |
 
-## Further reading (community recipes)
+## Further reading
 
-For deeper reference on the exact models and consumer/Ada/Blackwell GPUs this
-stack targets, the community **club-3090** project keeps high-quality recipes
-(our catalog is cross-referenced against it — see the per-model recommended
-sampling in chat, and the arch-aware dtype notes in the Planner/Fleet):
+Deeper reference for the models, GPUs, and quant/KV math this stack targets —
+all in this repo:
 
-- KV-cache VRAM math (behind the Planner) — [`club-3090/docs/KV_MATH.md`](https://github.com/noonghunna/club-3090/blob/master/docs/KV_MATH.md)
-- GPU dtype/quant capability matrix (Ampere/Ada/Hopper/Blackwell) — [`DTYPE_MATRIX.md`](https://github.com/noonghunna/club-3090/blob/master/docs/DTYPE_MATRIX.md), [`QUANTIZATION.md`](https://github.com/noonghunna/club-3090/blob/master/docs/QUANTIZATION.md)
-- Performance cliffs (long-context / sustained-agent OOM) — [`CLIFFS.md`](https://github.com/noonghunna/club-3090/blob/master/docs/CLIFFS.md)
-- Terminology primer — [`GLOSSARY.md`](https://github.com/noonghunna/club-3090/blob/master/docs/GLOSSARY.md), [`LOCAL_AI_PRIMER.md`](https://github.com/noonghunna/club-3090/blob/master/docs/LOCAL_AI_PRIMER.md)
+- KV-cache VRAM math (behind the Planner) — [`HARDWARE.md`](HARDWARE.md) + [`KV_PROJECTOR.md`](KV_PROJECTOR.md)
+- GPU dtype/quant capability, per arch (Ampere / Ada / Blackwell) — [`HARDWARE.md`](HARDWARE.md)
+- Performance cliffs (long-context / sustained-agent OOM) — [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)
+- Terminology primer — [`GLOSSARY.md`](GLOSSARY.md) + [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md)
 
 ## See also
 
