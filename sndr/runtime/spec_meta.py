@@ -5,6 +5,22 @@ Per Sander 2026-04-28: study TRT-LLM's first-class `SpecMetadata.is_cuda_graph`
 architecture, adapt to Genesis vLLM Patches.
 
 ================================================================
+STATUS: DESIGN PLACEHOLDER — NOT WIRED (verdict 2026-07-03, ADR 0002)
+================================================================
+This module is a first-class design for the planned unified spec-decode
+dispatcher, but it is NOT on any runtime path today: nothing imports it, and
+its predicate helpers (`should_dispatch_p67`, `should_use_perlayer_workspace`,
+`should_skip_tolist`, `should_use_workspace_cache`) have zero live callers — the
+spec-decode-aware patches (P67/P67b/P78/P98/P99) still re-derive state from
+local hints. The registry row P102 is correspondingly marked
+`implementation_status=placeholder`, `apply_module=None`, `default_on=False`.
+
+KEEP verdict rationale: it costs nothing at runtime (never imported), it is a
+coherent, reviewed design worth preserving, and it is honestly flagged. Do NOT
+treat it as live wiring. When the unified dispatcher is actually built, route
+the scattered predicate sites through here (and add the apply/consumer wiring);
+if the next cleanup finds it still unwired, move it to _archive.
+================================================================
 PROBLEM
 ================================================================
 
@@ -64,7 +80,6 @@ import logging
 import os
 import threading
 from dataclasses import dataclass, field
-from typing import Optional
 
 log = logging.getLogger("genesis.spec_meta")
 
@@ -108,7 +123,7 @@ class GenesisSpecMeta:
 # In TP, each worker has its own _CTX. _LOCK protects against test races.
 
 _LOCK = threading.Lock()
-_CTX: Optional[GenesisSpecMeta] = None
+_CTX: GenesisSpecMeta | None = None
 
 
 def current() -> GenesisSpecMeta:
@@ -158,7 +173,7 @@ def should_dispatch_p67(
     layer_kind: str = "turboquant",
     max_kp1: int = 16,
     max_prior: int = 4096,
-    inline_decision: Optional[bool] = None,
+    inline_decision: bool | None = None,
 ) -> bool:
     """Centralized P67 dispatch predicate.
 

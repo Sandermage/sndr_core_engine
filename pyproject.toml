@@ -381,6 +381,11 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["PLR2004", "N802", "N803"]   # test names are looser
 "sndr/exceptions.py" = ["N818"]                 # we don't use "Error" suffix everywhere
+# spec_meta.py (P102 design placeholder, ADR 0002): runtime_K mirrors the
+# spec-decode "K" math notation, and _CTX is a deliberate module-context
+# singleton set by the runner prelude — both are intentional, so exempt the
+# two rules that fight them here rather than scatter inline noqas in the file.
+"sndr/runtime/spec_meta.py" = ["N815", "PLW0603"]
 
 [tool.ruff.format]
 quote-style = "double"
