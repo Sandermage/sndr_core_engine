@@ -29,6 +29,7 @@ canonical_substring: "dev714"
 
 # Derived operational handles for the current pin.
 current_sha_short: "09663abde"                       # anchor dir = 0.23.1_<this>
+current_sha_full: "09663abde0f50944a8d5ea30120666024b503faa"  # for git fetch@sha (CI drift)
 current_image: "vllm/vllm-openai:nightly-09663abde0f50944a8d5ea30120666024b503faa"
 current_container: "vllm-35b-dev714"                 # live restore/boot-smoke default
 current_anchor_dir: "0.23.1_09663abde"               # under sndr/engines/vllm/pins/

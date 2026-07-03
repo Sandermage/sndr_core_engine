@@ -53,10 +53,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Clone vllm-project/vllm at main (shallow)
+      - name: Clone vllm-project/vllm at the PINNED sha (ground-truth, not main)
         run: |
-          git clone --depth=1 https://github.com/vllm-project/vllm.git /tmp/upstream-vllm
-          cd /tmp/upstream-vllm && git rev-parse HEAD
+          # Check anchors against the EXACT upstream commit we run, not main —
+          # main drifts daily and gives false anchor_drift for patches that are
+          # perfectly fine on the deployed pin. SHA comes from the pin SSOT.
+          SHA=$(grep -m1 'current_sha_full:' sndr/pins.yaml \
+            | sed -E 's/.*current_sha_full:[[:space:]]*"?([a-f0-9]+)"?.*/\1/')
+          echo "cloning vllm @ pinned $SHA"
+          git init /tmp/upstream-vllm && cd /tmp/upstream-vllm
+          git remote add origin https://github.com/vllm-project/vllm.git
+          git fetch --depth=1 origin "$SHA"
+          git checkout --detach FETCH_HEAD
+          git rev-parse HEAD
 
       - name: Run drift check
         id: drift
@@ -83,10 +92,11 @@ jobs:
           # That keeps the early-warning report focused on GENUINE drift of
           # patches that actually apply on the deployed pin. Stays fresh on a
           # pin bump because it is derived, not hardcoded.
-          PIN=$(grep -m1 'vllm_pin_required:' \
-            sndr/model_configs/builtin/model/qwen3.6-35b-a3b-fp8.yaml \
-            | sed -E 's/.*vllm_pin_required:[[:space:]]*([^[:space:]#]+).*/\1/')
-          echo "canonical pin for version-gating: $PIN"
+          # Version-gate pin from the SSOT (sndr/pins.yaml), not scraped from one
+          # model YAML — a rename/empty-match there used to silently break the gate.
+          PIN=$(grep -m1 '^current:' sndr/pins.yaml \
+            | sed -E 's/^current:[[:space:]]*"?([^"[:space:]#]+)"?.*/\1/')
+          echo "canonical pin for version-gating (from pin SSOT): $PIN"
           python3 tools/check_upstream_drift.py /tmp/upstream-vllm \
             --expect-pin "$PIN" --json \
             > drift-report.json 2> drift-summary.txt

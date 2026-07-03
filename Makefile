@@ -242,15 +242,18 @@ audit-public-paths: ## Etap 6.7: forbid private LAN IPs / home paths / usernames
 	@# grep is universally available; previous `rg` invocation silently
 	@# returned empty (false-clean) on systems without ripgrep installed.
 	@bad=$$(grep -rEn "(^|[^0-9])(10|172\.(1[6-9]|2[0-9]|3[01])|192\.168)\.[0-9]+\.[0-9]+|/home/sander|sander@|User=sander" \
-	    README.md docs/ scripts/ tools/ benchmarks/ vllm/ \
+	    README.md Makefile docs/ scripts/ tools/ benchmarks/ vllm/ sndr/ gui/web/src/ \
 	    --include='*.py' --include='*.sh' --include='*.md' \
 	    --include='*.yaml' --include='*.yml' --include='*.json' \
 	    --include='*.toml' --include='*.jinja' --include='*.txt' \
+	    --include='*.ts' --include='*.tsx' \
 	    --exclude-dir='sndr_private' \
 	    --exclude-dir='_archive' \
 	    --exclude-dir='_internal' \
 	    --exclude-dir='superpowers' \
 	    --exclude-dir='baselines' \
+	    --exclude-dir='tests' \
+	    --exclude-dir='node_modules' \
 	    --exclude-dir='__pycache__' \
 	    2>/dev/null || true); \
 	if [ -n "$$bad" ]; then \

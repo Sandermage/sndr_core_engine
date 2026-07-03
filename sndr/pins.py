@@ -59,6 +59,11 @@ def current_sha_short() -> str:
     return _load().get("current_sha_short", "")
 
 
+def current_sha_full() -> str:
+    """Full 40-char upstream commit SHA for the current pin (git fetch@sha)."""
+    return _load().get("current_sha_full", "")
+
+
 def current_image() -> str | None:
     return _load().get("current_image")
 
