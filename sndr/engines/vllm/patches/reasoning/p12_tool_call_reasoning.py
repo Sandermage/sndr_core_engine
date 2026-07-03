@@ -71,22 +71,25 @@ GENESIS_P12_MARKER = "Genesis P12 Qwen3 <tool_call> implicit reasoning end v7.0"
 # merge (required=False); the new `p12_last_to_first_occurrence` sub-patch
 # applies the FIRST-occurrence flip on top of upstream code.
 #
-# ⚠ NOTE 2026-07-03 (live dev714 verification): P12 is currently INERT on the
-# deployed pin. Upstream refactored the whole reasoning/tool-call stack into
-# the new `vllm/parser/engine/` adapter architecture — `reasoning/
-# qwen3_reasoning_parser.py` is now a 6-line shim re-exporting
-# `Qwen3ParserReasoningAdapter`, and `extract_content_ids` /
-# `_tool_call_token_id` / the LAST-occurrence body no longer exist there. So
-# `_make_patcher()` resolves a path that is absent → apply() returns a benign
-# "skipped: file not found" (logged at INFO, NOT surfaced as drift), and the
-# FIRST-occurrence correctness fix does NOT apply. `required=True` cannot fix
-# this: apply() skips at file-resolution, before any anchor scan. Re-targeting
-# to the parser/engine Qwen3 adapter is a correctness task gated on (a) reading
-# the new adapter and (b) a live multi-tool agentic stress test to confirm the
-# earlier-<tool_call>-drop bug still exists post-refactor. Tracked here so the
-# inert state is visible rather than silently rotting. Do NOT retire blind
-# (would drop a possibly-still-needed fix) nor re-target blind (unverified
-# anchor).
+# NOTE 2026-07-03 (live dev714 verification — CLOSED): P12 is correctly
+# version-capped out of dev714 (registry applies_to.vllm_version_range
+# "<0.23.0") and its FIRST-occurrence fix is SUPERSEDED, not merely inert.
+# Upstream #45413 ("Streaming Parser Engine and new Qwen3 Parser", MERGED
+# 2026-06-15) DELETED `reasoning/qwen3_reasoning_parser.py` (and
+# `tool_parsers/qwen3coder_tool_parser.py`) and rewrote Qwen3 reasoning/tool
+# parsing as a config-driven streaming FSM (`vllm/parser/engine/` +
+# `parser/qwen3.py`). In that architecture content is NOT sliced on the
+# <tool_call> token at all (the base ParserEngine.extract_content_ids keys on
+# the </think> reasoning-end token, and the FSM emits a TOOL_CALL_START for
+# EVERY <tool_call> block), so the earlier-<tool_call>-block-drop bug P12 fixed
+# is STRUCTURALLY IMPOSSIBLE. Confirmed by two independent live-container
+# investigations (parser/qwen3.py has no [::-1].index(tool_call) anywhere; the
+# live 35B runs --reasoning-parser qwen3 --tool-call-parser qwen3_xml on the new
+# engine). Rollback-safe: the refactor is present on both current (dev714) and
+# rollback (dev672) pins. So there is nothing to re-target — the module is kept
+# only for pins < 0.23.0 that still ship the old parser. See ADR 0002 and
+# scripts/audit_patch_targets_exist.py (the gate that verifies no patch is
+# SILENTLY stranded — this one is excused by its version cap).
 UPSTREAM_DRIFT_MARKERS: list[str] = []
 
 

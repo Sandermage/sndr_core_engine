@@ -278,6 +278,10 @@ audit-silent-except: ## Burndown visibility: count silent broad-except-then-pass
 audit-lifecycle-triage: ## Visibility: lifecycle / test_status / production_default distribution + the review_required graduation backlog (NOT a gate)
 	@$(PYTHON) scripts/audit_lifecycle_triage.py
 
+audit-patch-targets: ## Pin-bump preflight: text-patches whose target file vanished on the pin (silent-inert / P12 class). Needs VLLM_ROOT=<installed vllm dir>; excuses retired + version-capped patches
+	@test -n "$(VLLM_ROOT)" || { echo "set VLLM_ROOT=<path to installed vllm> (e.g. site-packages/vllm in the live container)"; exit 2; }
+	@$(PYTHON) scripts/audit_patch_targets_exist.py --vllm-root "$(VLLM_ROOT)" --strict
+
 audit-docs-stale: ## Supplement §3: forbid stale tokens (wiring/, _genesis, retired CLI verbs) in active public docs
 	@$(PYTHON) scripts/docs_stale_scan.py
 
