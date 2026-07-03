@@ -58,7 +58,7 @@ def main() -> int:
             "  - sndr/extras/tools/genesis_bench_suite.py  (Wave 12+ canonical)\n"
             "  - vllm/sndr_core/tools/genesis_bench_suite.py  (Wave 10 legacy)\n"
             "Genesis Wave 12 (2026-06-01+) removed vllm/sndr_core/ from the\n"
-            "wheel. See docs/BENCHMARK_GUIDE.md or use:\n"
+            "wheel. See docs/BENCHMARKS.md or use:\n"
             "  python3 tools/genesis_full_bench.py  (multi-metric harness)\n"
         )
         return 2

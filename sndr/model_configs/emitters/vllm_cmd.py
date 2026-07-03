@@ -40,6 +40,12 @@ def build_vllm_cmd(cfg: "ModelConfig") -> list[str]:
         parts.append(f"--reasoning-parser {shell_quote(cfg.reasoning_parser)}")
     if cfg.enable_chunked_prefill:
         parts.append("--enable-chunked-prefill")
+    if cfg.enable_prefix_caching:
+        # Parity with build_runtime_command (runtime_command.py:106): the
+        # compose/quadlet path emits this, so the dry-run render must too —
+        # otherwise a prefix-caching model boots WITHOUT it under any tool that
+        # runs the dry-run payload (e.g. fleet_boot_smoke), a dry-run≠real gap.
+        parts.append("--enable-prefix-caching")
     if cfg.enforce_eager:
         parts.append("--enforce-eager")
     if cfg.disable_custom_all_reduce:

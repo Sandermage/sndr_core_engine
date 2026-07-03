@@ -505,6 +505,13 @@ def main() -> int:
     else:
         print(render(audit))
 
+    if args.ci_strict and (audit.get("error") or "verification_results" not in audit):
+        # The live probe never produced results (ssh/scp/exec/parse failed) → no
+        # evidence, not a pass. Fail loudly instead of a false green.
+        print(f"\nCI-strict: live probe did not run "
+              f"({audit.get('error', 'no verification_results')}) — exit 1",
+              file=sys.stderr)
+        return 1
     if args.ci_strict and "verification_results" in audit:
         bad = [r for r in audit["verification_results"]
                if r.get("status") in ("SILENT_FAILURE_SUSPECT", "FUNCTION_MISSING")]

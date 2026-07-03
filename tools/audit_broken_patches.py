@@ -265,6 +265,12 @@ def main() -> int:
     else:
         print(render(audit, live=args.live))
 
+    if args.ci_strict and audit.get("error"):
+        # The live audit (ssh/scp/docker exec/parse) failed → we have NO evidence,
+        # not a clean bill of health. Fail loudly instead of a false green.
+        print(f"\nCI-strict: live audit did not run ({audit['error']}) — exit 1",
+              file=sys.stderr)
+        return 1
     if args.ci_strict and audit.get("real_broken"):
         print(f"\nCI-strict: {len(audit['real_broken'])} real broken — exit 1",
               file=sys.stderr)

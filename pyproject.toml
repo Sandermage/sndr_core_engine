@@ -21,7 +21,7 @@
 # Usage
 # ─────
 #   pip install -e .                 # editable install for development
-#   pip install vllm-sndr-core       # from PyPI when published
+#   pip install sndr-platform       # from PyPI when published
 #
 # After install:
 #   sndr install                     # interactive setup wizard
@@ -64,7 +64,7 @@ classifiers = [
 
 # DA-007 (audit 2026-05-08): minimum self-contained runtime deps.
 # Previously `dependencies = []` assumed PyYAML came in via vllm — but
-# `pip install vllm-sndr-core` in a clean venv (without vllm yet
+# `pip install sndr-platform` in a clean venv (without vllm yet
 # installed) would fail at first `import yaml`. Now declare the bare
 # minimum so the wheel is genuinely self-contained.
 #
@@ -76,19 +76,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# `pip install vllm-sndr-core[dev]` for development tooling.
+# `pip install sndr-platform[dev]` for development tooling.
 dev = [
     "pytest>=8.0",
     "pytest-cov>=4.0",
     "cryptography>=41.0",  # signed-license token verification
 ]
-# `pip install vllm-sndr-core[http]` for upstream PR drift watcher,
+# `pip install sndr-platform[http]` for upstream PR drift watcher,
 # image-digest verification, and outbound telemetry signals.
 http = [
     "requests>=2.28",
     "urllib3>=2.7.0",  # CVE-2026-44431 / GHSA-qccp-gfcp-xxvc pin floor (transitive via requests)
 ]
-# `pip install vllm-sndr-core[memory]` for the persistent neural-graph memory
+# `pip install sndr-platform[memory]` for the persistent neural-graph memory
 # engine's Postgres + pgvector backend. The engine core + in-memory reference
 # backend are pure stdlib (no dependency); only the production PostgresStore
 # needs psycopg. Vectors are passed as pgvector string literals, so neither
@@ -96,13 +96,13 @@ http = [
 memory = [
     "psycopg[binary]>=3.1",
 ]
-# `pip install vllm-sndr-core[memory-embed]` for the real CPU embedder
+# `pip install sndr-platform[memory-embed]` for the real CPU embedder
 # (Model2Vec static distillation, ~30 MB, no GPU/torch at inference). The engine
 # defaults to the dependency-free HashEmbedder; this enables GENESIS_MEMORY_EMBEDDER=model2vec.
 memory-embed = [
     "model2vec>=0.3",
 ]
-# `pip install vllm-sndr-core[gui-api]` for the local read-only Product
+# `pip install sndr-platform[gui-api]` for the local read-only Product
 # API daemon consumed by GUI/web/desktop clients. Authentication (local
 # accounts, TOTP 2FA, sessions, OAuth) uses only the standard library — no
 # extra dependency. The optional PAM backend (system-account login on a host)
@@ -113,7 +113,7 @@ gui-api = [
     "h11>=0.16.0",  # CVE-2025-43859 / GHSA-vqfr-h8mv-ghfj pin floor (transitive via uvicorn)
     "httpx>=0.27",  # memory-gateway upstream forwarding (/v1/chat/completions)
 ]
-# `pip install vllm-sndr-core[k8s]` for the GUI's read-only Kubernetes mode
+# `pip install sndr-platform[k8s]` for the GUI's read-only Kubernetes mode
 # (cluster status, nodes with GPU capacity, pods/logs/exec). The daemon imports
 # and runs without it — k8s endpoints report a structured "not configured" so
 # the GUI shows "connect a cluster" rather than failing.
@@ -121,7 +121,7 @@ k8s = [
     "kubernetes>=29.0",
     "urllib3>=2.7.0",  # CVE-2026-44431 / GHSA-qccp-gfcp-xxvc pin floor (kubernetes requires urllib3 directly)
 ]
-# `pip install vllm-sndr-core[gui-remote]` for the GUI's remote-host features:
+# `pip install sndr-platform[gui-remote]` for the GUI's remote-host features:
 # SSH/SFTP connectivity + checks, an embedded PTY terminal, and encrypted
 # at-rest storage of SSH passwords / engine API keys. All optional — the daemon
 # imports and runs without these; the remote features simply report unavailable.
@@ -131,23 +131,23 @@ gui-remote = [
     "keyring>=24.0",       # OS keychain backend (preferred over the file fallback)
     "websockets>=12.0",    # PTY terminal transport (uvicorn websocket protocol)
 ]
-# `pip install vllm-sndr-core[gui-auth-pam]` to authenticate GUI logins against
+# `pip install sndr-platform[gui-auth-pam]` to authenticate GUI logins against
 # the host's system accounts via PAM (host deployments only; in a container PAM
 # sees the container's users unless host auth files are bind-mounted).
 gui-auth-pam = [
     "python-pam>=2.0",
 ]
-# `pip install vllm-sndr-core[telemetry]` for opt-in usage reporting.
+# `pip install sndr-platform[telemetry]` for opt-in usage reporting.
 # Telemetry stays opt-in — base install does not include it.
 telemetry = [
     "requests>=2.28",
     "urllib3>=2.7.0",  # CVE-2026-44431 / GHSA-qccp-gfcp-xxvc pin floor (transitive via requests)
 ]
-# `pip install vllm-sndr-core[license]` for signed-token verification.
+# `pip install sndr-platform[license]` for signed-token verification.
 license = [
     "cryptography>=41.0",
 ]
-# `pip install vllm-sndr-core[tui]` for the interactive terminal cockpit
+# `pip install sndr-platform[tui]` for the interactive terminal cockpit
 # (`sndr tui`) — a read-only Textual dashboard over the live engine + catalog.
 # Optional: the base CLI/daemon run without it; `sndr tui` prints a friendly
 # install hint when textual is absent (never a traceback).
@@ -228,6 +228,10 @@ exclude = [
     "engines/*/configs/*.yaml",
     # JSON schemas for license tokens and config validation.
     "schemas/*.json",
+    # Chat-template .jinja assets (qwen3.6 enhanced/froggeric + the gemma4
+    # template G4_11 installs at plugin-register time). Without these in the
+    # wheel the chat-template install patches no-op on a pip-installed Genesis.
+    "assets/chat_templates/*.jinja",
     # GUI static bundle (built by `make gui-build`, served by the legacy
     # product_api the daemon resolves from `legacy/web_static`). v12.x moved
     # it here from vllm/sndr_core/product_api/web_static.

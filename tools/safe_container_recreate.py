@@ -469,6 +469,22 @@ def main() -> int:
     print(f"  pid1_autotune_env:\n    "
           + results["pid1_autotune_env"].replace("\n", "\n    "))
 
+    # Gate the exit on the smoke result: a recreated-but-unhealthy container must
+    # NOT report success (the operator would trust a false green and drop the
+    # rollback). models_http must be 200 and the boot must show apply failed=0.
+    smoke_ok = str(results.get("models_http")) == "200" \
+        and "failed=0" in (results.get("patch_summary") or "")
+    if not smoke_ok:
+        print(f"\n⚠️  SMOKE FAILED (models_http={results['models_http']}, "
+              f"patch_summary={results['patch_summary']!r}). The new container "
+              f"is NOT healthy. Roll back with the one-liner below, then "
+              f"investigate before retrying.")
+        print(f"\nRollback (one-liner):")
+        print(f"  ssh {args.host} 'docker stop {new_name} && docker rm {new_name} "
+              f"&& docker rename {rollback_name} {args.container} "
+              f"&& docker start {args.container}'")
+        return 1
+
     print(f"\nDONE. New container running. Rollback container preserved:")
     print(f"  {rollback_name}")
     print(f"\nRollback (one-liner):")
