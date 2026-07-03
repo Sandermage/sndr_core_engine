@@ -29,8 +29,8 @@ v12.0.0 release scope; these tests pin the prerequisites).
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
-
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ORCHESTRATOR_PATH = (
@@ -195,6 +195,88 @@ def test_lifecycle_distribution_is_known():
         f"unknown lifecycle values in registry: {unknown}. "
         f"Update the parity test + the audit script categorization."
     )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 5. Single-dispatch blocker lock (spec_boot_unsafe)
+# ──────────────────────────────────────────────────────────────────────
+#
+# `shadow.spec_boot_unsafe` = patches that apply TODAY via a legacy
+# @register_patch hook but have NO apply_module, so flipping the boot to the
+# spec-driven loop (SNDR_APPLY_VIA_SPECS=1) would SILENTLY DROP them. This is
+# THE concrete blocker to a single dispatch path. These tests lock the set so
+# the divergence can only shrink, never silently grow: a new default_on-legacy
+# patch added without an apply_module fails CI here and is forced onto the
+# single-dispatch path instead of quietly widening the two-loop gap.
+
+# The known, reviewed blocker set (2026-07-03). P1/P17/P32 are default_on
+# bundled preflight/decision hooks (FP8 dispatcher, Marlin MoE tuning, TQ
+# preallocs) whose real wiring is consulted elsewhere at runtime; P20 is
+# retired. Shrinking this set (migrating a member to apply_module + reconciling
+# its gate) is welcome — GROWING it is the regression this test guards.
+_KNOWN_SPEC_BOOT_UNSAFE = {"P1", "P17", "P20", "P32"}
+
+
+def test_spec_boot_unsafe_set_is_the_known_locked_set():
+    from sndr.apply.shadow import compare_apply_orders
+    unsafe = set(compare_apply_orders().spec_boot_unsafe)
+    new = unsafe - _KNOWN_SPEC_BOOT_UNSAFE
+    assert not new, (
+        f"NEW spec-boot-unsafe patch(es) {sorted(new)} — a legacy "
+        "@register_patch hook with NO apply_module. The spec-driven boot "
+        "would SILENTLY DROP them. Give each an apply_module (single-dispatch "
+        "path) instead of widening the legacy/spec divergence, or justify + "
+        "add to _KNOWN_SPEC_BOOT_UNSAFE with a review note."
+    )
+    # If the set shrank, that's progress — nudge to update the lock so it keeps
+    # ratcheting downward rather than silently tolerating the old ceiling.
+    assert unsafe <= _KNOWN_SPEC_BOOT_UNSAFE, "unreachable"
+    if unsafe != _KNOWN_SPEC_BOOT_UNSAFE:
+        # A member was migrated — good. Tighten the lock in this test.
+        assert unsafe, (
+            "all spec-boot-unsafe patches migrated to apply_module — the "
+            "single-dispatch blocker is cleared; drop this lock and pursue the "
+            "SNDR_APPLY_VIA_SPECS default flip (with live PROD smoke)."
+        )
+
+
+def test_shadow_reports_no_unexpected_divergence():
+    """The legacy parking lot and the spec registry must stay reconciled: no
+    legacy_only, no unexpected spec_only, no unparseable legacy names. Locks
+    the overall two-loop parity the single-dispatch migration depends on."""
+    from sndr.apply.shadow import compare_apply_orders
+    diff = compare_apply_orders()
+    assert diff.is_clean, (
+        f"shadow DIVERGENT — legacy_only={diff.legacy_only} "
+        f"spec_only_unexpected={diff.spec_only_unexpected} "
+        f"legacy_unparseable={diff.legacy_unparseable}"
+    )
+
+
+def test_default_on_legacy_blockers_gate_differently_across_the_two_loops(monkeypatch):
+    """WHY the SNDR_APPLY_VIA_SPECS default flip is still deferred (the trap a
+    naive 'just add apply_module' would miss):
+
+    The LEGACY loop applies P1/P17/P32 by calling the hook directly — its only
+    gate is the hook's internal is_nvidia_cuda() check, so on a clean-env
+    NVIDIA boot they APPLY. The SPEC loop calls should_apply() FIRST, which
+    under strict opt-in returns False for these (default_on is informational,
+    env_flag unset). So adding an apply_module is necessary but NOT sufficient:
+    without reconciling the gate, the spec loop would SKIP FP8/Marlin/TQ tuning
+    that the legacy loop applies. This test pins that divergence so the flip
+    isn't attempted until the gate is reconciled (needs live PROD smoke)."""
+    from sndr.dispatcher.decision import should_apply
+    # Clean env — the default PROD boot condition (no per-patch opt-in flags).
+    for key in list(os.environ):
+        if key.startswith(("GENESIS_", "SNDR_")):
+            monkeypatch.delenv(key, raising=False)
+    for pid in ("P1", "P17", "P32"):
+        decision, _reason = should_apply(pid)
+        assert decision is False, (
+            f"{pid} should_apply() is now {decision} on a clean env — if the "
+            "gate was reconciled to genuinely default-on, update this test AND "
+            "verify the spec-loop applies it on live PROD before the flip."
+        )
 
 
 def test_marker_only_lifecycle_has_no_apply_module():
