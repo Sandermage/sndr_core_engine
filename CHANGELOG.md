@@ -200,7 +200,7 @@ broke). Per-model fell-off (applied on dev424 → not on dev672), all benign:
 - dev672 moved `PROMOTION_PENDING` → `KNOWN_GOOD_VLLM_PINS` in `guards.py`.
 - Live engine `vllm-35b-dev672` serves on `:8102`, network-aliased as
   `vllm-qwen3.6-35b-balanced-k3` so the memory/Control-Center container reaches
-  it by the canonical name. It mounts the main-sync tree (`/home/sander/gvp-mainsync`).
+  it by the canonical name. It mounts the main-sync tree (`$HOME/gvp-mainsync`).
 - Follow-up: regen the `pins/0.23.1_93d8f834d` anchor-SOT (`make rebuild-pin`)
   for drift-tracking completeness.
 

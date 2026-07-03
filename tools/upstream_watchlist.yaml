@@ -1,10 +1,10 @@
 watch:
 - upstream: vllm#39598
-  status: residual-unmitigated-upstream
+  status: open            # residual unmitigated upstream; enum-mapped
   severity: P1-correctness
   local_patches:
   - P64
-  action: probe-on-our-stack
+  action: a-b-test        # probe-on-our-stack (stream_toolcall_probe.py); enum-mapped
   since: 2026-07-02
   notes: |
     club-3090 #145 close-out (2026-06-13, read from issue comments): v0.22.0
@@ -29,7 +29,7 @@ watch:
   severity: P2-cleanup
   local_patches:
   - G4_04
-  action: retire-audit-on-v0.24-bump
+  action: retire          # retire-audit on v0.24.0 bump (iron-rule #11); enum-mapped
   since: 2026-07-02
   notes: |
     club-3090 shipped vllm-stable v0.24.0 "overlay-free" (their #533, 2026-06-30):
@@ -37,21 +37,18 @@ watch:
     We are NOT on v0.24.0 yet (current pin dev672 = 0.23.1). ON A v0.24.0 BUMP,
     deep-diff G4_04 remap vs native #40886 (iron-rule #11): RETIRE if byte-equivalent,
     else KEEP the extra keys. Source: club-3090 CHANGELOG (v0.22.0 -> v0.24.0).
-- upstream: v0.24.0-overlay-free
-  status: club-on-v0.24.0
-  severity: P3-intel
-  local_patches:
-  - G4_25
-  action: audit-on-v0.24-bump
-  since: 2026-07-02
-  notes: |
-    Further overlays club-3090 dropped on v0.24.0 (retire-audit candidates for our
-    next bump; iron-rule #11 - do NOT retire on a title match):
-    (a) Gemma p-RoPE long-context: upstream config fix supersedes -> audit G4_25
-        (Gemma 4 dual-RoPE base-freq divergence guard).
+
+    ALSO ON THE v0.24.0 BUMP — further overlay-free retire-audit candidates club
+    dropped (was a separate `v0.24.0-overlay-free` entry; folded here because none
+    of these track a single mergeable PR — G4_25 is genesis_original/upstream_pr=None
+    — so they cannot be schema-modeled as standalone PR entries). iron-rule #11: do
+    NOT retire on a title match.
+    (a) Gemma p-RoPE long-context: a v0.24.0 config fix may supersede G4_25 (Gemma 4
+        dual-RoPE base-freq divergence guard) — but G4_25 is a genesis_original
+        DIAGNOSTIC (warns on rope_theta == global_rope_theta), not a PR backport;
+        keep unless the upstream config validation makes the warning unreachable.
     (b) truncate_prompt_tokens (#41800): native in v0.24.0; we vendor no equivalent.
     (c) marlin-pad native: audit our marlin-path patches (P37/P81 family).
-    Two club findings — for (d) we already have the answer by design:
     (d) club found MTP SLOWER on Gemma-4 MoE with a FIXED K -> they repointed their
         dual to MTP-off (#537). We do NOT ship a fixed K: SNDR_MTP_DYNAMIC_K_001
         (per-seq adaptive-K MTP proposer, port of vllm#26504 — rolling accept-rate

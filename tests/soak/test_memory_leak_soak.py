@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Leak-soak: the memory store must stay BOUNDED under sustained churn.
 
-This is the executable form of the operator requirement "без утечек памяти".
+This is the executable form of the operator requirement "no memory leaks".
 We hammer the store with thousands of add/recall/prune cycles and assert that
 node and edge counts converge to the cap rather than growing with the step
 count — and that pruning a node drops its edges (no dangling references that

@@ -4,30 +4,30 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-06-25T18:43:16Z
-Total entries: **321**
+Generated: 2026-07-02T23:47:26Z
+Total entries: **324**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **321**
+- `tier=community`: **324**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **234**
+- `lifecycle=experimental`: **237**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
 - `lifecycle=retired`: **38**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **57** / 321
+### Default-on at boot: **57** / 324
 
 ### By family
 - `attention`: 2
 - `attention.flash`: 3
 - `attention.gdn`: 34
-- `attention.turboquant`: 62
-- `compile_safety`: 16
+- `attention.turboquant`: 64
+- `compile_safety`: 17
 - `detection`: 3
 - `gemma4`: 20
 - `kernels`: 9
@@ -107,7 +107,7 @@ Total entries: **321**
 | **PN79_V2_MD5_CHUNK** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk.py scope) |
 | **PN79_V2_MD5_CHUNK_DELTA_H** | `community` | `experimental` | · | `GENESIS_ENABLE_PN79_V2_MD5_CHUNK_DELTA_H` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | PN79 v2 — md5+full-file PoC (PN119 reference pattern, chunk_delta_h.py scope) |
 
-### `attention.turboquant` (62)
+### `attention.turboquant` (64)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -140,6 +140,7 @@ Total entries: **321**
 | **PN353B** | `community` | `experimental` | · | `GENESIS_ENABLE_PN353B` | [#43747](https://github.com/vllm-project/vllm/pull/43747) | TurboQuant prefill CUDA-graph capture safety (backport OPEN vllm#43747, close... |
 | **PN399** | `community` | `experimental` | · | `GENESIS_ENABLE_PN399_TQ_DECODE_SCRATCH_IMA` | [#46067](https://github.com/vllm-project/vllm/pull/46067) | Consolidated single-owner TurboQuant decode-scratch fixed-buffer — fix CUDA I... |
 | **PN401** | `community` | `experimental` | · | `GENESIS_ENABLE_PN401_TQ_PREFILL_CONTINUATION_GUARD` | [#46461](https://github.com/vllm-project/vllm/pull/46461) | TurboQuant prefill continuation guard — gate the flash_attn fast path against... |
+| **PN521** | `community` | `experimental` | · | `GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY` | — | TurboQuant raw-bf16-tail spec-verify — fix INT4 non-pow2-GQA (Qwen3.6-27B Aut... |
 | **G4_19** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19_GEMMA4_TURBOQUANT_KV` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | Genesis G4-TurboQuant KV cache for Gemma 4 (3/4-bit VQ, unlocks 256K context ... |
 | **G4_19B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_19B_GEMMA4_TQ_KV_SPEC` | [#38171](https://github.com/vllm-project/vllm/issues/38171) | G4-TurboQuant KV spec integration with vLLM v1 _check_enough_kv_cache_memory |
 | **G4_19C** | `community` | `retired` | · | `GENESIS_ENABLE_G4_19C_ATTN_WRAP` | — | Round-trip K/V through G4-TurboQuant inside Gemma4Attention.forward |
@@ -173,8 +174,9 @@ Total entries: **321**
 | **PN118_V2_MD5_TURBOQUANT_ATTN** | `community` | `experimental` | · | `GENESIS_ENABLE_PN118_V2_MD5_TURBOQUANT_ATTN` | [#42551](https://github.com/vllm-project/vllm/pull/42551) | PN118 v2 — md5+full-file PoC (PN119 reference pattern, turboquant_attn.py scope) |
 | **PN118_V2_MD5_WORKSPACE** | `community` | `experimental` | · | `GENESIS_ENABLE_PN118_V2_MD5_WORKSPACE` | [#42551](https://github.com/vllm-project/vllm/pull/42551) | PN118 v2 — md5+full-file PoC (PN119 reference pattern, workspace.py scope only) |
 | **PN26b** | `community` | `research` | · | `GENESIS_ENABLE_PN26_SPARSE_V` | [#41422](https://github.com/vllm-project/vllm/pull/41422) | Sparse-V tile-skip Genesis kernel (BLASST λ=a/L for SM86) |
+| **PN521_SPLIT_K** | `community` | `experimental` | · | `GENESIS_ENABLE_PN521_SPLIT_K` | — | PN521 split-K (Flash-Decoding) occupancy fix for the raw-tail verify — ~11x f... |
 
-### `compile_safety` (16)
+### `compile_safety` (17)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -194,6 +196,7 @@ Total entries: **321**
 | **PN358** | `community` | `experimental` | · | `GENESIS_ENABLE_PN358_FULL_CG_CONTEXT_REFRESH` | [#44868](https://github.com/vllm-project/vllm/pull/44868) | FULL cudagraph forward-context refresh, data_ptr-pruned (vendor of vllm#44868) |
 | **PN364** | `community` | `experimental` | · | `GENESIS_ENABLE_PN364_HYBRID_GDN_WARMUP` | [#43642](https://github.com/vllm-project/vllm/pull/43642) | Hybrid GDN/Mamba/MRoPE startup warmup (vendor of OPEN vllm#43642) |
 | **PN367** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN367` | [#44745](https://github.com/vllm-project/vllm/pull/44745) | CUDA graph memory estimate clamp (vendor of OPEN vllm#44745, ex-vllm#45076) |
+| **PN522** | `community` | `experimental` | · | `GENESIS_ENABLE_PN522_TQ_RAW_TAIL_WARMUP` | — | PN521 raw-tail kernel pre-capture warmup — remove the first-request JIT laten... |
 
 ### `detection` (3)
 
