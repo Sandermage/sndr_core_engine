@@ -62,7 +62,7 @@
   {
     "patch_id": "P61b",
     "family": "reasoning",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_P61B_STREAMING_OVERLAP",
@@ -86,7 +86,7 @@
   {
     "patch_id": "P64",
     "family": "tool_parsing",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING",
@@ -1046,9 +1046,9 @@
   {
     "patch_id": "PN394",
     "family": "tool_parsing",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
-    "default_on": true,
+    "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX",
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
@@ -1514,7 +1514,7 @@
   {
     "patch_id": "PN287",
     "family": "tool_parsing",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN287_QWEN3CODER_ARGS_OBSERVER",
