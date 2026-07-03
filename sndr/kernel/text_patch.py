@@ -287,7 +287,7 @@ class TextPatcher:
         )
         return content_bytes.decode("utf-8"), applied_names
 
-    def apply(self) -> tuple[TextPatchResult, Optional[TextPatchFailure]]:
+    def apply(self) -> tuple[TextPatchResult, TextPatchFailure | None]:
         """Execute the patch. Returns (result, failure_info_if_not_ok).
 
         NEVER raises — returns SKIPPED/FAILED on any issue.
@@ -474,6 +474,66 @@ class TextPatcher:
             "[%s] applied %d sub-patches: %s",
             self.patch_name, len(applied_patches), ", ".join(applied_patches),
         )
+        return TextPatchResult.APPLIED, None
+
+    def validate(self) -> tuple[TextPatchResult, TextPatchFailure | None]:
+        """Read-only dry-run: would this patch apply cleanly on the current
+        source? NEVER writes, NEVER rebinds — safe to call from any host.
+
+        Runs the same idempotency / upstream-drift / anchor checks as
+        ``apply()`` (Layers 1, 2, 3, 5) but stops before Layer 7 (write). It
+        exists so the dry-run apply path can report a result grounded in the
+        actual anchors instead of a bare "applied" that only proved the module
+        imported (the false-green the drift watcher was meant to catch, but
+        which the per-boot dry-run silently reproduced).
+
+        Contract (mirrors ``apply()`` minus the mutation):
+          APPLIED     → every required anchor matched; the patch WOULD apply
+                        (nothing written).
+          IDEMPOTENT  → the idempotency marker is already present.
+          SKIPPED     → target missing / unreadable, an upstream-merge marker
+                        is present, a required anchor drifted, or an anchor is
+                        ambiguous. ``failure.reason`` names which.
+
+        Layer 4 (writability) is intentionally NOT checked here: validate()
+        answers "do the anchors still line up", a pure content question that
+        must succeed even against a read-only pristine clone (CI drift gate).
+        Writability is a runtime concern that only ``apply()`` needs.
+        """
+        # Layer 1: file must exist and be readable.
+        if not os.path.isfile(self.target_file):
+            return TextPatchResult.SKIPPED, TextPatchFailure(
+                reason="target_file_missing",
+                detail=f"{self.target_file} not found",
+            )
+        try:
+            with open(self.target_file) as f:
+                content = f.read()
+        except (OSError, PermissionError) as e:
+            return TextPatchResult.SKIPPED, TextPatchFailure(
+                reason="read_error", detail=str(e),
+            )
+
+        # Layer 2: idempotency — already applied?
+        if self.marker in content:
+            return TextPatchResult.IDEMPOTENT, None
+
+        # Layer 3: upstream merged?
+        for m in self.upstream_drift_markers:
+            if m in content:
+                return TextPatchResult.SKIPPED, TextPatchFailure(
+                    reason="upstream_merged",
+                    detail=f"marker {m!r} present",
+                )
+
+        # Layer 5: anchor scan. `_apply_layer5_legacy` is pure — it computes
+        # the modified string in memory but writes nothing — so we reuse it as
+        # the ground-truth "would the anchors match" oracle. A list-first
+        # return means every required anchor matched (would apply); an enum
+        # first element is a real skip we surface verbatim.
+        layer5 = self._apply_layer5_legacy(content)
+        if isinstance(layer5[0], TextPatchResult):
+            return layer5  # type: ignore[return-value]
         return TextPatchResult.APPLIED, None
 
     def _apply_layer5_legacy(self, content: str):

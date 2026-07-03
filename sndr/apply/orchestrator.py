@@ -749,6 +749,81 @@ def _run_via_specs(stats: PatchStats) -> None:
     )
 
 
+def _dry_run_report(mod, display: str):
+    """Read-only dry-run classification for a patch module, or None.
+
+    Uses the dominant `_make_patcher() -> TextPatcher | None` convention (117
+    text-patch modules) to validate the patch's anchors against the live source
+    WITHOUT writing or rebinding, via `TextPatcher.validate()`. This is what
+    turns the spec-driven dry-run's bare "applied" into a result grounded in
+    the actual anchors — the same false-green class the upstream drift watcher
+    catches, previously reproduced silently by the per-boot dry-run.
+
+    Returns:
+      (status, reason)  — status ∈ {"applied","skipped","failed"}, grounded in
+                          the anchor validation.
+      None              — module has no usable `_make_patcher`, it yields no
+                          patcher (torch-less host: resolve_vllm_file → None),
+                          or it raises. The caller then keeps the honest
+                          "apply_module ready" fallback. Runtime-rebind patches
+                          (no text anchors) legitimately land here.
+
+    NEVER raises — any failure degrades to None (fall back), never breaks boot.
+    """
+    # Build the patcher via the `_make_patcher()` convention. Any absence /
+    # None / raise collapses to a single "no read-only validator" -> None so
+    # the caller keeps the honest fallback (kept as one guard to stay within
+    # the return-count budget and read as a single "can we validate?" gate).
+    make = getattr(mod, "_make_patcher", None)
+    patcher = None
+    if callable(make):
+        try:
+            patcher = make()
+        except Exception:
+            patcher = None
+    if patcher is None or not callable(getattr(patcher, "validate", None)):
+        return None
+    try:
+        from sndr.kernel.text_patch import TextPatchResult
+        result, failure = patcher.validate()
+    except Exception:
+        return None
+
+    if result == TextPatchResult.APPLIED:
+        n = len(getattr(patcher, "sub_patches", []) or [])
+        return "applied", (
+            f"dry-run: {n} anchor(s) validated against source — would apply"
+        )
+    if result == TextPatchResult.IDEMPOTENT:
+        return "applied", "dry-run: already applied (marker present)"
+    if result == TextPatchResult.SKIPPED:
+        reason = failure.reason if failure else "unknown_skip"
+        detail = failure.detail if failure and failure.detail else ""
+        msg = f"dry-run: would skip — {reason}"
+        if detail:
+            msg += f" ({detail})"
+        return "skipped", msg
+    # TextPatchResult.FAILED — validate() never emits this today, but map it
+    # rather than mislabel a failure as a clean dry-run.
+    reason = failure.reason if failure else "unknown"
+    return "failed", f"dry-run: {reason}"
+
+
+def _record_dry_run(mod, display: str, stats: PatchStats) -> str:
+    """Record a read-only dry-run result for a spec's apply_module and return
+    its status. Delegates the anchor validation to `_dry_run_report`; when the
+    module exposes no anchor validator (runtime rebind / torch-less host) it
+    falls back to the honest apply-module-ready line. Split out of
+    `_apply_spec_module` so that hot path keeps its original complexity.
+    """
+    status, reason = _dry_run_report(mod, display) or (
+        "applied", "dry-run: apply_module ready (no text-anchor validator)"
+    )
+    recorder = {"applied": _applied, "skipped": _skipped}.get(status, _failed)
+    stats.results.append(recorder(display, reason))
+    return status
+
+
 def _apply_spec_module(spec, stats: PatchStats) -> str:
     """Gate, import, and apply a single PatchSpec via its `apply_module`.
 
@@ -833,10 +908,10 @@ def _apply_spec_module(spec, stats: PatchStats) -> str:
         ))
         return "failed"
     if not _state._APPLY_MODE:
-        stats.results.append(_applied(
-            display, "dry-run: apply_module ready"
-        ))
-        return "applied"
+        # Dry-run: DON'T call mod.apply() — it would write files / execute
+        # runtime rebinds. Validate anchors read-only instead (see
+        # _record_dry_run / _dry_run_report).
+        return _record_dry_run(mod, display, stats)
     # v11.4.0 (Phase 6 P3.4 observability parity): wrap mod.apply() in
     # measure_patch_apply() context so PatchMetrics + observability spans
     # fire for the spec-driven path identically to the legacy
