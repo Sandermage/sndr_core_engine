@@ -3471,9 +3471,18 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # previous/rollback pin), where the bug is live.
         "applies_to": {"vllm_version_range": (">=0.23.0", "<0.23.1rc1.dev301")},
         "vllm_version_range": "<0.23.1rc1.dev301",
-        "superseded_by": "vllm#46047 (MERGED 2026-06-18, IN dev301 — qwen3 partial-param value group widened to (.*)$; anchor drifted on dev301 per the anchor-SOT regen). Applies through dev148; retired on dev301+.",
+        "superseded_by": "vllm#46047 (MERGED 2026-06-18, IN dev301 — qwen3 partial-param value group widened to (.*)$; anchor drifted on dev301 per the anchor-SOT regen). Applies through dev148; version-gated off on dev301+.",
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn394_qwen3_partial_param_lt_fix",
-        "lifecycle": "retired",
+        # NOT lifecycle=retired: this patch is the SOLE retired+default_on entry,
+        # which is a contradiction — a retired patch should not be default-on. It
+        # is really a VERSION-GATED live fix: the applies_to cap (<dev301) self-
+        # skips it on the current pin (dev714 carries #46047 natively), while
+        # default_on keeps it protecting the rollback window (dev148, where the
+        # truncation bug is live). Experimental + a version cap is the honest
+        # label for "active on rollback, inert on current", used by every other
+        # version-gated patch. Formally retire (lifecycle=retired, default_on=off)
+        # only once dev148 drops out of the ≤2-pin rollback set.
+        "lifecycle": "experimental",
         "implementation_status": "full",
     },
     "P89": {

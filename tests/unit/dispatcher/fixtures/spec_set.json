@@ -1046,7 +1046,7 @@
   {
     "patch_id": "PN394",
     "family": "tool_parsing",
-    "lifecycle": "retired",
+    "lifecycle": "experimental",
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX",
