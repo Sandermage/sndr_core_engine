@@ -50,7 +50,7 @@ class TestBuildPayload:
     def test_pyproject_loaded(self, sbom_module):
         p = sbom_module.build_payload()
         project = p["pyproject"].get("project", {})
-        # v12: project renamed sndr-platform -> sndr-platform.
+        # v12: project renamed vllm-sndr-core -> sndr-platform.
         assert project.get("name") == "sndr-platform"
         assert "version" in project
 
