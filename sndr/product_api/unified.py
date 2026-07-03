@@ -26,7 +26,8 @@ if TYPE_CHECKING:
 _SPA_MOUNT_NAME = "ui"  # the legacy factory's static-SPA catch-all (app.mount("/", ..., name="ui"))
 
 
-def create_app() -> FastAPI:
+def create_app(enable_apply: bool | None = None,
+               bind_host: str = "127.0.0.1") -> FastAPI:
     """Build the legacy Control Center app and mount the memory subsystem onto it.
 
     The legacy factory mounts the SPA catch-all at ``/`` LAST, and Starlette
@@ -34,11 +35,15 @@ def create_app() -> FastAPI:
     route added after it. We detach the SPA (absent without a built GUI), mount
     the memory + gateway API routes, then re-attach the SPA — so
     ``/api/v1/memory/*`` and ``/v1/*`` resolve before the static fallback.
+
+    ``enable_apply`` / ``bind_host`` are forwarded to the legacy factory so the
+    production launcher (run_server) can serve this superset with the same
+    apply-gating and CORS host it would have used for the bare legacy app.
     """
     from sndr.product_api.legacy.http_app import create_app as legacy_create_app
     from sndr.product_api.memory_wiring import mount_memory_routes
 
-    app = legacy_create_app()
+    app = legacy_create_app(enable_apply=enable_apply, bind_host=bind_host)
 
     routes = app.router.routes
     spa = None

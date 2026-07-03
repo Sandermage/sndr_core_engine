@@ -3835,8 +3835,16 @@ def run_server(
     port: int = 8765,
     log_level: str = "info",
     enable_apply: bool = False,
+    with_memory: bool = True,
 ) -> None:
-    """Run the GUI Product API server via uvicorn."""
+    """Run the GUI Product API server via uvicorn.
+
+    ``with_memory=True`` (default) serves the UNIFIED superset — legacy Control
+    Center + the persistent neural-graph memory routes — so the GUI's Memory tab
+    is not dead on the default launch. The memory backend degrades gracefully to
+    an in-memory store when Postgres is absent, so this adds no hard dependency.
+    Pass ``with_memory=False`` for the bare legacy app (memory tab will 404).
+    """
     try:
         import uvicorn
     except ImportError as exc:  # pragma: no cover - environment dependent
@@ -3846,8 +3854,12 @@ def run_server(
         ) from exc
     # enable_apply OR the env flag enables real execution; default stays OFF.
     apply_on = enable_apply or None
+    if with_memory:
+        from sndr.product_api.unified import create_app as _make_app
+    else:
+        _make_app = create_app
     uvicorn.run(
-        create_app(enable_apply=apply_on, bind_host=host), host=host, port=port, log_level=log_level
+        _make_app(enable_apply=apply_on, bind_host=host), host=host, port=port, log_level=log_level
     )
 
 

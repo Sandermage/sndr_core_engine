@@ -92,6 +92,26 @@ def test_unified_daemon_serves_every_gui_api_path():
         f"in the unified daemon (drift — add the route or fix the GUI):\n  " + "\n  ".join(missing))
 
 
+def test_production_launcher_serves_the_unified_superset():
+    """The contract above validates `unified`, so it is only meaningful if the
+    PRODUCTION launcher actually builds `unified`. `sndr gui-api`, `sndr up`, and
+    the systemd unit all call http_app.run_server — which must default to the
+    memory superset, or the Memory tab 404s on a stock deployment (the exact
+    'stale-tag hides what you run' gap this gate exists to catch, at the app-factory
+    level). Regression guard for the http_app-only launch."""
+    import inspect
+    from sndr.product_api.legacy.http_app import run_server
+    from sndr.product_api.unified import create_app as unified_create_app
+    assert inspect.signature(run_server).parameters["with_memory"].default is True, (
+        "run_server must default with_memory=True so the production launcher serves "
+        "the /api/v1/memory/* routes the GUI Memory tab calls")
+    # …and the unified factory it uses mounts the FULL memory routes, not just /fit.
+    routes = _api_routes(unified_create_app)
+    assert any(r.startswith("/api/v1/memory/") and not r.endswith("/fit") for r in routes), (
+        "unified daemon must mount the full /api/v1/memory/* graph/search/remember "
+        "routes — the GUI Memory tab is dead with only /memory/fit")
+
+
 def test_unified_daemon_keeps_the_spa_catch_all_last():
     """Mounting memory onto the composed app must not shadow the SPA, nor let the
     SPA "/" catch-all shadow the API routes — the SPA mount stays LAST."""
