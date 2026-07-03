@@ -1,9 +1,9 @@
 {
-  "total": 321,
-  "mapped": 305,
+  "total": 324,
+  "mapped": 306,
   "unmapped_count": 0,
   "unmapped": [],
-  "intentionally_unmapped_count": 16,
+  "intentionally_unmapped_count": 18,
   "intentionally_unmapped": [
     "G4_19C",
     "G4_70",
@@ -18,6 +18,8 @@
     "PN256",
     "PN261",
     "PN283",
+    "PN521",
+    "PN521_SPLIT_K",
     "PN60",
     "PN63",
     "PN64"

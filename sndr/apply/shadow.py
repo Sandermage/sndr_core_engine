@@ -325,6 +325,27 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # hook; applied at legacy boot via
                        # _run_spec_only_supplement. Runtime-inert on Qwen3.6
                        # (FlashInfer/FA2, head_dim=128).
+    # ── 2026-07-02 TurboQuant×MTP spec-verify collapse fix (PN521 family) ──
+    "PN521",           # TQ raw-bf16-tail MTP spec-verify routing GATE. Flag-only
+                       # ledger row by design (category a): no apply_module — the
+                       # env GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY is READ inside
+                       # p67b_spec_verify_routing.py's baked overlay (like G4_70 /
+                       # PN256 whose envs fire inside another patch's logic). Routes
+                       # the INT4 non-pow2-GQA 27B's K+1 verify chunk through the
+                       # raw bf16 tail instead of the 4-bit-V compressed cache,
+                       # closing the token-repetition collapse. Non-pow2-GQA gated,
+                       # bit-exact no-op on pow2-GQA (35B).
+    "PN521_SPLIT_K",   # Flash-Decoding split-K stage-1/stage-2 variant of the
+                       # PN521 raw-tail kernel. Flag-only ledger row (category a):
+                       # no apply_module — GENESIS_ENABLE_PN521_SPLIT_K is READ in
+                       # p67b_spec_verify_routing.py to select the split-K launcher.
+                       # Opt-in (default-OFF); recovers A5000 occupancy at B=1.
+    "PN522",           # Pre-capture warmup of the PN521 raw-tail kernel variant.
+                       # apply_module set (compile_safety.pn522_tq_raw_tail_kernel_
+                       # warmup) + own apply(), registry-driven canonical path with
+                       # no legacy @register_patch hook by design (category c, same
+                       # class as PN519). Wraps Worker.compile_or_warm_up_model;
+                       # non-pow2-GQA + PN521 gated, bit-exact no-op otherwise.
 })
 
 

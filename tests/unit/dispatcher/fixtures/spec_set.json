@@ -264,6 +264,42 @@
     "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p67b_spec_verify_routing"
   },
   {
+    "patch_id": "PN521",
+    "family": "attention.turboquant",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": false,
+    "apply_module": null
+  },
+  {
+    "patch_id": "PN522",
+    "family": "compile_safety",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN522_TQ_RAW_TAIL_WARMUP",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.compile_safety.pn522_tq_raw_tail_kernel_warmup"
+  },
+  {
+    "patch_id": "PN521_SPLIT_K",
+    "family": "attention.turboquant",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN521_SPLIT_K",
+    "has_upstream_pr": false,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": false,
+    "apply_module": null
+  },
+  {
     "patch_id": "PN398",
     "family": "spec_decode",
     "lifecycle": "experimental",

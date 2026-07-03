@@ -286,6 +286,12 @@ def test_spec_only_truly_orphan_baseline():
         # class as PN398/PN399/PN400/PN401/PN402. Composes with PN351 (same
         # files, disjoint anchors). Runtime-inert on Qwen3.6 (FlashInfer/FA2).
         "PN519",
+        # 2026-07-02 — PN522 (PN521 raw-tail kernel pre-capture warmup):
+        # apply_module + own apply() wrapping Worker.compile_or_warm_up_model,
+        # no legacy @register_patch hook — same spec-only-by-design class as
+        # PN518/PN519. PN521 + PN521_SPLIT_K are NOT here: they are marker_only
+        # flag rows with no apply_module (not orphans in this test's sense).
+        "PN522",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

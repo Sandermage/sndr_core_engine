@@ -259,6 +259,12 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # hook), same dispatcher overlay-loader class as the PN398/PN399/PN400
     # block above. Applied at legacy boot via _run_spec_only_supplement.
     "PN401", "PN402", "PN518", "PN519",
+    # 2026-07-02 TurboQuant×MTP collapse fix family: PN521 + PN521_SPLIT_K are
+    # marker_only flag rows (no apply_module; env read inside the P67b overlay,
+    # same class as G4_70/PN256), and PN522 is spec-driven with its own apply()
+    # (no apply_patch_* legacy hook, same class as PN518/PN519). All registered
+    # in apply/shadow.py KNOWN_SPEC_ONLY_PATCHES.
+    "PN521", "PN521_SPLIT_K", "PN522",
 })
 
 _KNOWN_APPLY_ONLY: frozenset[str] = frozenset({

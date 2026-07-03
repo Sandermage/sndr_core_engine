@@ -771,7 +771,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": ["P67", "P67b"],
         "lifecycle": "experimental",
-        "implementation_status": "full",
+        # marker_only: no apply_module — this row is the flag/marker; the full
+        # behaviour is baked into the P67b overlay that reads the env (same
+        # convention as G4_70 / PN256 / PN261). Fully functional, not a stub.
+        "implementation_status": "marker_only",
     },
     "PN522": {
         "title": (
@@ -853,7 +856,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         },
         "requires_patches": ["P67", "P67b"],
         "lifecycle": "experimental",
-        "implementation_status": "full",
+        # marker_only: no apply_module — flag/marker row; the split-K kernels are
+        # invoked from the P67b overlay that reads the env (same convention as
+        # PN521 / G4_70 / PN256). Fully functional, not a stub.
+        "implementation_status": "marker_only",
     },
     "PN398": {
         "title": "Async spec-decode accepted-counts race fix (vllm#45100 backport)",

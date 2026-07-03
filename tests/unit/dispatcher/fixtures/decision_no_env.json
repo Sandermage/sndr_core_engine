@@ -110,6 +110,21 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN521",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN522",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN522_TQ_RAW_TAIL_WARMUP=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
+    "patch_id": "PN521_SPLIT_K",
+    "applied": false,
+    "reason": "strict opt-in — set GENESIS_ENABLE_PN521_SPLIT_K=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
+  },
+  {
     "patch_id": "PN398",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN398_ASYNC_ACCEPTED_RACE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
