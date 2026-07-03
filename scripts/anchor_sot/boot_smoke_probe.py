@@ -76,8 +76,16 @@ def _toolcall(base_url: str, api_key: str, model: str, timeout: float) -> tuple[
         return False, f"NO tool_call (finish={c.get('finish_reason')}, content={(m.get('content') or '')[:60]!r})"
     fn = tc[0]["function"]
     leaked = bool((m.get("content") or "").strip())
-    ok = fn["name"] == "get_weather" and not leaked
-    return ok, f"tool={fn['name']} args={fn['arguments'][:60]} leak={leaked}"
+    # Validate the arguments the docstring promises: a streaming-parser
+    # regression can capture the name but drop/garble the JSON body, which the
+    # old name-only check passed. Require a parseable, non-empty city arg.
+    try:
+        args = json.loads(fn.get("arguments") or "")
+    except (ValueError, TypeError):
+        return False, f"tool_call arguments not valid JSON: {(fn.get('arguments') or '')[:60]!r}"
+    city = args.get("city") if isinstance(args, dict) else None
+    ok = fn["name"] == "get_weather" and isinstance(city, str) and bool(city.strip()) and not leaked
+    return ok, f"tool={fn['name']} city={city!r} leak={leaked}"
 
 
 def main(argv: list[str] | None = None) -> int:

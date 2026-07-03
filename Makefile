@@ -199,14 +199,14 @@ fleet-boot-smoke: ## Phase 4 (DYNAMIC): boot every fleet preset on a CANDIDATE p
 	@test -n "$${SSH_HOST}" -a -n "$${IMAGE}" -a -n "$${FLEET}" || { \
 		echo "Usage: make fleet-boot-smoke SSH_HOST=<user@host> IMAGE=<candidate-tag> \\"; \
 		echo "         FLEET='prod-qwen3.6-27b-tq-k8v4:qwen3.6-27b prod-gemma4-31b-tq-default:gemma-4-31b prod-gemma4-26b-multiconc:gemma-4-26b-a4b:notool prod-diffusiongemma-tp2:diffusiongemma' \\"; \
-		echo "         [REPO=/home/sander/gvp-mainsync] [RESTORE_CONTAINER=vllm-35b-dev672]"; \
+		echo "         [REPO=$$HOME/gvp-mainsync] [RESTORE_CONTAINER=vllm-35b-dev714]"; \
 		echo "  Stops the live engine, boots each preset on IMAGE, asserts apply failed=0 + smoke + tool-call, restores."; \
 		echo "  Non-zero exit = a model regressed at runtime → do NOT promote the pin. (The static gates can't see this.)"; \
 		exit 2; }
-	@echo "=== sync boot-smoke tooling to rig ($${REPO:-/home/sander/gvp-mainsync}) ==="
-	rsync -a scripts/anchor_sot "$${SSH_HOST}:$${REPO:-/home/sander/gvp-mainsync}/scripts/"
+	@echo "=== sync boot-smoke tooling to rig ($${REPO:-$$HOME/gvp-mainsync}) ==="
+	rsync -a scripts/anchor_sot "$${SSH_HOST}:$${REPO:-$$HOME/gvp-mainsync}/scripts/"
 	@echo "=== fleet boot-smoke on rig (live engine down for the window) ==="
-	ssh "$${SSH_HOST}" "IMAGE='$${IMAGE}' FLEET='$${FLEET}' REPO='$${REPO:-/home/sander/gvp-mainsync}' RESTORE_CONTAINER='$${RESTORE_CONTAINER:-vllm-35b-dev672}' bash $${REPO:-/home/sander/gvp-mainsync}/scripts/anchor_sot/fleet_boot_smoke.sh"
+	ssh "$${SSH_HOST}" "IMAGE='$${IMAGE}' FLEET='$${FLEET}' REPO='$${REPO:-$$HOME/gvp-mainsync}' RESTORE_CONTAINER='$${RESTORE_CONTAINER:-vllm-35b-dev714}' bash $${REPO:-$$HOME/gvp-mainsync}/scripts/anchor_sot/fleet_boot_smoke.sh"
 
 audit-pin: ## Phase 4: verify the committed per-pin manifest still matches a fresh rig regen (R2 drift gate; env: SSH_HOST [CONTAINER] [IMAGE])
 	@test -n "$${SSH_HOST}" || { \

@@ -112,13 +112,16 @@ def resolve_previous_pin_dir(new_pin_dir, pins_dir=PINS_DIR):
 
 def most_recent_pin_dir(pins_dir=PINS_DIR):
     """The committed pin dir with the highest (release, dev) — the 'new' pin when
-    none is given. Sorts release lexically then dev numerically."""
+    none is given. Sorts release NUMERICALLY (per component) then dev numerically:
+    a lexical release compare mis-ranks multi-digit components (e.g. '0.9.0' > '0.23.1'
+    because '9' > '2' at char 2), auto-selecting the wrong pin."""
     dirs = list_committed_pin_dirs(pins_dir)
     ranked = [(parse_pin(_pin_of(d)), d) for d in dirs]
     ranked = [(p, d) for p, d in ranked if p is not None]
     if not ranked:
         return None
-    ranked.sort(key=lambda x: (x[0][0], x[0][1]))
+    # parse_pin strips the rcN suffix, so rel is a pure numeric dotted string.
+    ranked.sort(key=lambda x: (tuple(int(n) for n in x[0][0].split(".")), x[0][1]))
     return ranked[-1][1]
 
 
