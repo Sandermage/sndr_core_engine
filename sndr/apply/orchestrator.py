@@ -938,7 +938,7 @@ def _apply_spec_module(spec, stats: PatchStats) -> str:
                 try:
                     _metric.status = status
                     _metric.reason = reason or ""
-                except Exception:
+                except Exception:  # noqa: S110 — best-effort metric field set
                     # Best-effort: older metric implementations may not
                     # expose these attributes.
                     pass

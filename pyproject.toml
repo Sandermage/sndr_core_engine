@@ -347,6 +347,20 @@ select = [
     "PT",     # pytest style
     "PIE",    # misc
     "PL",     # pylint subset
+    # ── Silent-swallow guard (2026-07-03) ───────────────────────────────────
+    # S110/S112 flag `try: … except …: pass` (and `: continue`) — a broad
+    # except whose body silently discards the error. The tree carries ~223 such
+    # sites in sndr/ (many deliberate "must never break boot" no-ops), so this
+    # is NOT a mass-fix mandate: like the rest of this config it rides the
+    # CHANGED-FILES ruff ratchet (.github/workflows/lint.yml), so only NEW /
+    # touched silent-swallows must be addressed. Fix them by logging the
+    # exception, narrowing the except, or — when the swallow is genuinely
+    # intentional — adding `# noqa: S110` with a one-line reason. This makes
+    # "I deliberately ignore this error" an explicit, reviewable decision
+    # instead of an invisible default. The backlog burns down as files are
+    # touched; tighten to a full-tree gate once it is cleared.
+    "S110",   # try-except-pass  (silent broad-except swallow)
+    "S112",   # try-except-continue (silent broad-except in a loop)
 ]
 ignore = [
     "E501",   # handled by formatter

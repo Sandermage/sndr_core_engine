@@ -354,8 +354,8 @@ class TextPatcher:
                     self.target_file, self.marker,
                     post_apply_content=content,
                 )
-            except Exception:
-                pass  # cache write must never fail apply()
+            except Exception:  # noqa: S110 — cache write must never break apply()
+                pass
             return TextPatchResult.IDEMPOTENT, None
 
         # Layer 3: upstream merged?
@@ -466,8 +466,8 @@ class TextPatcher:
             record_apply_result(
                 self.target_file, self.marker, post_apply_content=reread,
             )
-        except Exception:
-            pass  # cache write must never fail apply()
+        except Exception:  # noqa: S110 — cache write must never break apply()
+            pass
 
         self.applied_sub_patches = list(applied_patches)
         log.info(

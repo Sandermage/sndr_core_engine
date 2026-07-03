@@ -267,6 +267,14 @@ audit-public-paths: ## Etap 6.7: forbid private LAN IPs / home paths / usernames
 	fi
 	@echo "✓ public-paths gate: clean"
 
+audit-silent-except: ## Burndown visibility: count silent broad-except-then-pass (S110/S112) in sndr/ — NOT a gate (the changed-files ruff ratchet enforces new ones)
+	@echo "=== silent broad-except-then-pass (S110/S112) backlog in sndr/ ==="
+	@n=$$(ruff check sndr/ --select S110,S112 --output-format=concise 2>/dev/null | grep -cE ":[0-9]+:[0-9]+:" || true); \
+	echo "  $$n site(s) — each silently discards a broad exception."; \
+	echo "  Enforcement: the changed-files ruff ratchet (lint.yml) fails NEW ones;"; \
+	echo "  burn these down by logging / narrowing, or mark deliberate ones"; \
+	echo "  '# noqa: S110 — <reason>'. This target is visibility-only (never fails)."
+
 audit-docs-stale: ## Supplement §3: forbid stale tokens (wiring/, _genesis, retired CLI verbs) in active public docs
 	@$(PYTHON) scripts/docs_stale_scan.py
 
