@@ -556,13 +556,10 @@ gui-build: ## Build the web UI and bundle it into the package for the daemon to 
 gui-lint: ## Typecheck + lint the GUI (tsc strict + eslint with a11y enforced as errors)
 	cd gui/web && npx tsc -b && npx eslint .
 
-gui-build-carbon: ## Build the new Carbon Control Center and bundle it for the modular API server (:8800)
-	cd gui/web && npm ci --legacy-peer-deps && npm run build:carbon
-	rm -rf sndr/product_api/web_static_carbon
-	cp -R gui/web/dist sndr/product_api/web_static_carbon
-	mv sndr/product_api/web_static_carbon/index.carbon.html sndr/product_api/web_static_carbon/index.html
-	@echo "✓ Carbon GUI built and copied to sndr/product_api/web_static_carbon"
-	@echo "  Run: uvicorn sndr.product_api.server:create_app --factory --port 8800  → serves Carbon UI + Envelope API"
+# (removed 2026-07-03) `gui-build-carbon` referenced a `build:carbon` npm script
+# and an `index.carbon.html` that never existed — the target could not run. The
+# modular server (server.py) now falls back to the shipped legacy/web_static, so
+# it serves the same GUI without a separate Carbon build.
 
 # ─── Integration (gated on GENESIS_INTEGRATION_ENDPOINT) ─────────────
 #

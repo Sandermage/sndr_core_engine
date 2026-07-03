@@ -103,14 +103,13 @@ def create_app() -> FastAPI:
 
 
 def _mount_carbon_ui(app: FastAPI) -> None:
-    """Mount the built Carbon GUI as a static SPA, if a build is present.
+    """Mount a GUI SPA as static files, if one is present.
 
-    Resolution order: ``SNDR_GUI_STATIC_CARBON`` env → packaged
-    ``web_static_carbon`` beside this module. Requires an ``index.html``
-    (the build's ``index.carbon.html`` is renamed on bundling — see the
-    ``gui-build-carbon`` make target).
+    Resolution (see ``_resolve_carbon_static_dir``): env override → an optional
+    dedicated ``web_static_carbon`` build → the shipped ``legacy/web_static``.
+    The daemon stays API-only only if none of these exist.
 
-    The Carbon app uses a history-based router (BrowserRouter), so unknown
+    The SPA uses a history-based router (BrowserRouter), so unknown
     paths (client-routed deep links like ``/fleet``) fall back to
     ``index.html`` instead of 404-ing.
     """
@@ -161,12 +160,14 @@ def _mount_carbon_ui(app: FastAPI) -> None:
 
 
 def _resolve_carbon_static_dir():
-    """Locate the built Carbon GUI directory, or None if not present.
+    """Locate a built GUI directory to serve, or None if none is present.
 
     Resolution order: ``SNDR_GUI_STATIC_CARBON`` env → packaged
-    ``web_static_carbon`` beside this module. Requires an ``index.html``
-    (the build emits ``index.carbon.html``, renamed on bundling — see the
-    ``gui-build-carbon`` make target).
+    ``web_static_carbon`` (a dedicated Carbon build, if one is ever produced) →
+    the SHIPPED legacy ``legacy/web_static`` bundle. The last fallback means the
+    modular server serves the SAME GUI the legacy daemon does instead of nothing:
+    there is no separate ``build:carbon`` in package.json, so ``web_static_carbon``
+    is normally absent and the daemon would otherwise stay UI-less.
     """
     import os
     from pathlib import Path
@@ -177,6 +178,7 @@ def _resolve_carbon_static_dir():
         candidates.append(Path(env_dir))
     here = Path(__file__).resolve()
     candidates.append(here.parent / "web_static_carbon")
+    candidates.append(here.parent / "legacy" / "web_static")  # shipped GUI fallback
     for candidate in candidates:
         try:
             if (candidate / "index.html").is_file():
