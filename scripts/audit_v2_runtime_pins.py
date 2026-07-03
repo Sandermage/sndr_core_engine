@@ -113,18 +113,13 @@ ALLOWED_MODELDEF_PINS = frozenset({
     # tests/unit/dispatcher/test_pin_gate EXPECTED_PINS.
     "0.23.1rc1.dev101+g4c6266331",
     "0.23.1rc1.dev101+g4c626633159",
-    # ── Canonical PROD pin 0.23.1 dev148 (PROMOTED 2026-06-19) ───────────
-    # Image vllm/vllm-openai:nightly-b4c80ec0f (0.23.1rc1.dev148+gb4c80ec0f).
-    # Live rig pin: the 35B PROD runs it; all MTP K=5 + Gemma kv-auto work
-    # validated on it. 35B K=5 239.7 TPS / 27B K=5 127.4 TPS; PN394 (#46047)
-    # + PN399 (#46067) promoted to PROD, PN353A (vllm#44053) enabled in Qwen
-    # YAMLs. See guards.py KNOWN_GOOD + test_pin_gate EXPECTED_PINS. dev101
-    # retained as previous/rollback per CLAUDE.md ≤2-pin policy. The model
-    # ModelDefs LEAD the hardware image during this window — the hardware
-    # YAML image_digest bumps to the dev148 sha256 once it is captured;
-    # until then the two PROD ModelDefs carry a pin_hold waiver (see
-    # audit_v2_modeldef_vs_hardware_pin R-MD-HW-2).
-    "0.23.1rc1.dev148+gb4c80ec0f",
+    # ── dev148 DROPPED 2026-07-03 (pin policy ≤2 pins) — reconciled with
+    # guards.KNOWN_GOOD_VLLM_PINS, which dropped it 2026-06-25. It was the
+    # 2-back pin after dev301->dev424; with the live set now current=dev714 +
+    # rollback=dev672, dev148 is no older-than-rollback and no model YAML
+    # declares it, so it is removed from ALLOWED_MODELDEF_PINS too. Keeping it
+    # here while guards dropped it is exactly the cross-artifact drift
+    # audit_pin_consistency.py now gates (ALLOWED ⊆ KNOWN_GOOD).
     # ── Canonical PROD pin 0.23.1 dev301 (PROMOTED 2026-06-24) ───────────
     # Image vllm/vllm-openai:nightly-04c2a8dea (0.23.1rc1.dev301+g04c2a8dea).
     # Pin bump dev148 -> dev301. Smoke: 35B 208 TPS + 31B 94.7 TPS boot+chat+

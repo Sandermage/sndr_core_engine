@@ -77,6 +77,9 @@ audit-phase3: ## Phase 3 relocation invariants (R1/R2/R3/R4)
 audit-v2-runtime-pins: ## V2 runtime image + ModelDef pin harmonization (R-PIN-1..4)
 	$(PYTHON) scripts/audit_v2_runtime_pins.py
 
+audit-pin-consistency: ## Cross-artifact pin SSOT gate — current pin present in every allowlist + anchor dir + model YAMLs
+	$(PYTHON) scripts/audit_pin_consistency.py
+
 audit-v2-modeldef-vs-hardware-pin: ## V2 ModelDef ↔ hardware canonical-pin drift (R-MD-HW-1/2, waiver-aware via pin_hold)
 	$(PYTHON) scripts/audit_v2_modeldef_vs_hardware_pin.py
 
@@ -128,7 +131,7 @@ audit-english-only: ## English-only-in-code rule (CLAUDE.md) — ratchet-down ga
 audit-lifecycle-docstring-sync: ## Registry `lifecycle` vs docstring RETIRED/TOMBSTONED markers drift (catches PN108-class drift)
 	$(PYTHON) scripts/audit_lifecycle_docstring_sync.py --strict
 
-gates: test-pin-gate test-iron-rule test-family test-doc-sync test-gui-contract audit-i18n audit-phase3 audit-v2-runtime-pins audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only audit-override-policy-strict audit-lifecycle-docstring-sync ## Run all 21 CI gates fast-fail
+gates: test-pin-gate test-iron-rule test-family test-doc-sync test-gui-contract audit-i18n audit-phase3 audit-v2-runtime-pins audit-pin-consistency audit-v2-modeldef-vs-hardware-pin audit-ai-attribution audit-links audit-repo-garbage audit-generated-links audit-wheel-contents audit-external-findings audit-shim-window audit-yaml-status-enum audit-pn59-cliff2b audit-english-only audit-override-policy-strict audit-lifecycle-docstring-sync ## Run all 21 CI gates fast-fail
 
 # ─── Audits ────────────────────────────────────────────────────────────
 

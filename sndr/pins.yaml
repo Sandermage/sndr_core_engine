@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Single source of truth for the vLLM pins Genesis targets.
+#
+# Pin policy (operator, 2026-07-03): TWO rolling nightly pins — `current` +
+# `rollback` — plus ONE stable release pin. A bump edits `current` here (moving
+# the old `current` to `rollback`) and runs `make bump-pin NEW=<sha>`, which
+# propagates the string into every downstream artifact and regenerates the
+# anchor manifest.
+#
+# WHY a SSOT: the pin string used to be hand-copied into guards.KNOWN_GOOD,
+# audit_v2 ALLOWED_MODELDEF_PINS, test_pin_gate EXPECTED_PINS,
+# CANONICAL_PIN_SUBSTRING, ~11 model YAMLs and 3 hardware images. Forgetting one
+# gave a silent cross-artifact drift (dev672/dev714 were missing from allowlists
+# for a whole window). `scripts/audit_pin_consistency.py` (a `make gates` member)
+# now asserts the CURRENT pin below is present in every one of those downstream
+# lists, so a half-finished bump fails loudly instead of hiding.
+
+# The setuptools_scm version string vLLM reports for the deployed pin.
+current: "0.23.1rc1.dev714+g09663abde"
+# The retained previous pin (rollback bucket, per the <=2-live-pin policy).
+rollback: "0.23.1rc1.dev672+g93d8f834d"
+# The stable release pin (LTS bucket — the 3rd slot in the pin policy).
+stable_release: "v0.24.0"
+
+# Substring that uniquely identifies the current pin in version strings — used by
+# CANONICAL_PIN_SUBSTRING and the drift-watcher version gate.
+canonical_substring: "dev714"
+
+# Derived operational handles for the current pin.
+current_sha_short: "09663abde"                       # anchor dir = 0.23.1_<this>
+current_image: "vllm/vllm-openai:nightly-09663abde0f50944a8d5ea30120666024b503faa"
+current_container: "vllm-35b-dev714"                 # live restore/boot-smoke default
+current_anchor_dir: "0.23.1_09663abde"               # under sndr/engines/vllm/pins/

@@ -31,7 +31,9 @@ set -uo pipefail
 
 IMAGE="${IMAGE:?set IMAGE to the candidate vllm image tag}"
 REPO="${REPO:-$HOME/gvp-mainsync}"
-RESTORE_CONTAINER="${RESTORE_CONTAINER:-vllm-35b-dev714}"
+# Default the live container from the pin SSOT (sndr/pins.yaml) so it never goes
+# stale on a bump; fall back to the literal only if the loader is unavailable.
+RESTORE_CONTAINER="${RESTORE_CONTAINER:-$(cd "$REPO" 2>/dev/null && python3 -c 'from sndr import pins; print(pins.current_container())' 2>/dev/null || echo vllm-35b-dev714)}"
 PORT="${PORT:-8102}"
 API_KEY="${API_KEY:-genesis-local}"
 MODELS_HOST="${MODELS_HOST:-/nfs/genesis/models}"
