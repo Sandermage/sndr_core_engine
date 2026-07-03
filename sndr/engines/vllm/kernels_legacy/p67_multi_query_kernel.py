@@ -246,11 +246,14 @@ def _build_kernel_fused(tl, triton):
                     out_dtype=tl.float32,
                 )
             else:
-                # v7.62.21e (test): input_precision='tf32' single-pass. Differs
-                # from tf32x3 (3-pass emulation): single MMA tf32 → no
-                # inter-pass accumulator, different rounding pattern. Maybe
-                # close enough to upstream's IEEE for spec-decode acceptance.
-                # If quality breaks, fall back to element-wise tl.sum (B3).
+                # tf32 single-pass. NOTE (2026-07-03): the 27B tool-call XML mangle
+                # (`<function=NAME>` decoded as `<function>NAME>`) is NOT a QK
+                # precision problem — an A/B boot with input_precision='ieee'
+                # (software fp32, full 23-bit) produced the BYTE-IDENTICAL wrong
+                # output at temp=0, so the verify argmax is not the cause. It is a
+                # model↔parser format mismatch (see the tool-call RCA). tf32x3 also
+                # OOMs SMEM on D=256, so tf32 stays (fastest, and precision-neutral
+                # here). Do NOT re-try ieee/tf32x3 for the tool-call issue.
                 S = SCALE_LOG2E * tl.dot(
                     Q, K_tile,
                     out_dtype=tl.float32, input_precision='tf32',
@@ -605,7 +608,9 @@ def _build_kernel():
                         out_dtype=tl.float32,
                     )
                 else:
-                    # v7.62.21e: tf32 single-pass test (see fused-M comment).
+                    # tf32 single-pass (see fused-M comment). ieee A/B (2026-07-03)
+                    # showed the 27B tool-call mangle is NOT QK precision — identical
+                    # wrong output — so tf32 stays (tf32x3 OOMs SMEM on D=256).
                     S_t = SCALE_LOG2E_split * tl.dot(
                         Q_t, K_tile,
                         out_dtype=tl.float32, input_precision='tf32',
@@ -1055,6 +1060,8 @@ def _build_stage1_splitk_kernel():
                     S_t = SCALE_LOG2E_split * tl.dot(
                         Q_t.to(tl.float16), K_tile.to(tl.float16), out_dtype=tl.float32)
                 else:
+                    # tf32 single-pass (split-K committed QK). ieee A/B ruled out
+                    # precision for the 27B tool-call mangle (see fused-M comment).
                     S_t = SCALE_LOG2E_split * tl.dot(
                         Q_t, K_tile, out_dtype=tl.float32, input_precision='tf32')
                 # committed causal is always true (seq_offset<prior<=q_abs_pos_t);
