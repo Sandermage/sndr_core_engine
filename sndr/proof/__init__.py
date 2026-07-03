@@ -126,7 +126,7 @@ def _detect_vllm_pin() -> str:
 def _detect_genesis_pin() -> str:
     try:
         from importlib.metadata import version
-        return version("vllm-sndr-core")
+        return version("sndr-platform")
     except Exception:
         try:
             # Fallback to in-tree version.py if installed package not present.

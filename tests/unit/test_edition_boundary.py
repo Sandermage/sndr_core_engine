@@ -218,7 +218,7 @@ class TestEngineImplLocation:
     `vllm/sndr_engine/patches/<family>/<patch>.py` and a redirect
     stub at the corresponding `vllm/sndr_core/integrations/<family>/<patch>.py`.
 
-    This guarantees the Apache-licensed `vllm-sndr-core` wheel does NOT
+    This guarantees the Apache-licensed `sndr-platform` wheel does NOT
     contain engine IP — only thin redirect stubs that fail-fast
     without `vllm.sndr_engine` installed.
     """
@@ -385,7 +385,7 @@ class TestDispatcherLicenseGate:
 
 class TestWheelPackageSeparation:
     """`pyproject.toml` declares which packages ship in the
-    `vllm-sndr-core` wheel. Per F-010 the wheel must NOT contain
+    `sndr-platform` wheel. Per F-010 the wheel must NOT contain
     engine impl files — only thin redirects."""
 
     def test_pyproject_includes_sndr_core(self):

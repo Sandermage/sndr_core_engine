@@ -79,7 +79,7 @@ def _daemon_launch_context() -> tuple[str, Optional[str], bool, str]:
     has_sndr_here = (root / "sndr").is_dir()
     # `sndr` importable globally == its dist metadata exists (a real install),
     # as opposed to being importable only because cwd happens to be the repo.
-    importable_globally = _pkg_version("vllm-sndr-core") is not None
+    importable_globally = _pkg_version("sndr-platform") is not None
     console = shutil.which("sndr")
     if console:
         cmd = "sndr gui-api --enable-apply"

@@ -73,7 +73,7 @@ with upstream) required to qualify as engine-tier. See
 > exist), so this document intentionally names the import contract only
 > and leaves the wheel/path names to the engine release that introduces
 > them. The companion [`CORE_ENGINE_BOUNDARY.md`](CORE_ENGINE_BOUNDARY.md)
-> still uses the pre-v12 `vllm/sndr_core` / `vllm-sndr-core` names and is
+> still uses the pre-v12 `vllm/sndr_core` / `sndr-platform` names and is
 > tracked separately for the same rename.
 
 If and when the engine wheel ships, the following terms apply:

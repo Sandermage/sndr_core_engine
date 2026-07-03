@@ -104,7 +104,7 @@ except Exception:
     except Exception:
         try:
             from importlib.metadata import version as _ver
-            o["sndr"] = _ver("vllm-sndr-core")
+            o["sndr"] = _ver("sndr-platform")
         except Exception:
             o["sndr"] = None
 try:
@@ -176,7 +176,7 @@ def _require_fastapi():
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise RuntimeError(
             "SNDR GUI API requires FastAPI runtime dependencies. "
-            "Install with: pip install 'vllm-sndr-core[gui-api]' "
+            "Install with: pip install 'sndr-platform[gui-api]' "
             "or pip install fastapi 'uvicorn[standard]'."
         ) from exc
     return Body, FastAPI, Header, HTTPException, Query, CORSMiddleware
@@ -238,7 +238,7 @@ def terminal_gate(apply_on: bool, ssh_available: bool, host_ids: set[str], host_
     if not apply_on:
         return {"type": "error", "data": "Terminal disabled — start the daemon with SNDR_ENABLE_APPLY=1 to allow remote shell."}
     if not ssh_available:
-        return {"type": "error", "data": "paramiko not installed — pip install 'vllm-sndr-core[gui-remote]'"}
+        return {"type": "error", "data": "paramiko not installed — pip install 'sndr-platform[gui-remote]'"}
     if host_id not in host_ids:
         return {"type": "error", "data": f"unknown host: {host_id}"}
     return None
@@ -3842,7 +3842,7 @@ def run_server(
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise RuntimeError(
             "SNDR GUI API requires uvicorn. Install with: "
-            "pip install 'vllm-sndr-core[gui-api]' or pip install uvicorn."
+            "pip install 'sndr-platform[gui-api]' or pip install uvicorn."
         ) from exc
     # enable_apply OR the env flag enables real execution; default stays OFF.
     apply_on = enable_apply or None

@@ -36,7 +36,7 @@ React + TypeScript UI  ->  sndr gui-api (FastAPI daemon)  ->  Product API  ->  s
 The GUI daemon needs the optional `gui-api` extra (FastAPI + Uvicorn):
 
 ```bash
-pip install "vllm-sndr-core[gui-api]"
+pip install "sndr-platform[gui-api]"
 ```
 
 The web assets are built from `gui/web` with Node:

@@ -34,7 +34,7 @@ from typing import Any
 
 # P1-2 fix (audit 2026-05-08): schema lives INSIDE the package as
 # package data, not at repo root. This makes the validator work after
-# `pip install vllm-sndr-core` from any cwd, including environments
+# `pip install sndr-platform` from any cwd, including environments
 # where the source tree is not present.
 def _resolve_schema_path() -> Path:
     """Return the path to `patch_entry.schema.json`.

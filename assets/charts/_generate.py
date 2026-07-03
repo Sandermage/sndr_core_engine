@@ -753,7 +753,7 @@ def plot_architecture_v11():
     _box(2, 28, 56, 38, "#0d3a1f", "#3fb950",
          "vllm.sndr_core  (Apache 2.0 — public)",
          label_color="#56d364")
-    ax.text(30, 60, "pip install vllm-sndr-core",
+    ax.text(30, 60, "pip install sndr-platform",
             ha="center", color="#8b949e", fontsize=9, style="italic")
     bullets_core = [
         "• cli/  install · launch · doctor · verify",

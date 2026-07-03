@@ -998,7 +998,7 @@ def render_profile_launcher(
     inner_run = []
     inner_run.append('#!/bin/bash')
     inner_run.append('set -e')
-    inner_run.append('echo "=== Install vllm-sndr-core ==="')
+    inner_run.append('echo "=== Install sndr-platform ==="')
     inner_run.append('pip install -e ${GENESIS_REPO} --no-deps --quiet 2>&1 | tail -2')
     # R3 (2026-06-17): durable on-disk patch application. The
     # `vllm.general_plugins` entry-point auto-load alone is fragile under

@@ -4,7 +4,7 @@
 P0-6 fix (audit 2026-05-08): the root `pyproject.toml` previously
 declared `genesis_v7 = "genesis_v7:register"`, pointing at a
 standalone `genesis_v7` package that was NOT included in the core
-wheel. After `pip install vllm-sndr-core`, the entry point pointed
+wheel. After `pip install sndr-platform`, the entry point pointed
 at a nonexistent module and vllm would log a "plugin failed to load"
 warning.
 

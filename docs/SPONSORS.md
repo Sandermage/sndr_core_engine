@@ -99,7 +99,7 @@ See [`BENCHMARKS.md`](BENCHMARKS.md) for the run-and-share guide.
 
 ## Maintainer commitments
 
-- Everything in the community wheel (`vllm-sndr-core`) stays under
+- Everything in the community wheel (`sndr-platform`) stays under
   Apache-2.0, including bench results, methodology, and raw logs.
 - Every upstream author and contributor is credited in
   [`CREDITS.md`](CREDITS.md) and inside individual patch docstrings.

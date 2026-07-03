@@ -12,7 +12,7 @@ written contract those gates check against.
 
 > **v12 naming note.** In the v12 sndr-platform refactor the open
 > overlay package was renamed `vllm/sndr_core/` → top-level `sndr/`,
-> and the wheel/project was renamed `vllm-sndr-core` → `sndr-platform`.
+> and the wheel/project was renamed `sndr-platform` → `sndr-platform`.
 > The community zone below is therefore the **current** `sndr/` package.
 > The commercial engine zone still uses the import name
 > `vllm.sndr_engine` — that namespace is reserved and is consumed

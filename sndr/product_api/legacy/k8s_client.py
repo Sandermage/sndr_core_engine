@@ -36,7 +36,7 @@ def availability() -> dict[str, Any]:
     """Why k8s mode is or isn't usable, without touching the network."""
     if _kubernetes() is None:
         return {"available": False,
-                "error": "the 'kubernetes' Python client is not installed — pip install 'vllm-sndr-core[k8s]'"}
+                "error": "the 'kubernetes' Python client is not installed — pip install 'sndr-platform[k8s]'"}
     cfg = _kubeconfig_path()
     in_cluster = os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/token")
     if not cfg and not in_cluster:

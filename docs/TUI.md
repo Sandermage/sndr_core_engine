@@ -16,7 +16,7 @@ is the no-browser, SSH-friendly equivalent.
 > exits cleanly — never a traceback:
 >
 > ```bash
-> pip install 'vllm-sndr-core[tui]'
+> pip install 'sndr-platform[tui]'
 > ```
 
 ## What you see

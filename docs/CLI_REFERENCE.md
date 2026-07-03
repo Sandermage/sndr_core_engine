@@ -1,7 +1,7 @@
 # `sndr` CLI Reference
 
 Complete command + parameter reference for the `sndr` CLI exposed by
-`vllm-sndr-core`. Every subcommand is grouped by operator workflow:
+`sndr-platform`. Every subcommand is grouped by operator workflow:
 install, run, inspect, configure, report.
 
 > **Source of truth**: `sndr --help` and the
@@ -284,7 +284,7 @@ sndr tui --lean                           # beginner layout (hide operator panes
 sndr tui --fake-gpus 'RTX A5000:24564:8.6'  # plan against a card you don't have
 ```
 
-Needs the optional `tui` extra (`pip install 'vllm-sndr-core[tui]'`); without it,
+Needs the optional `tui` extra (`pip install 'sndr-platform[tui]'`); without it,
 a one-line install hint + clean exit, never a traceback. Full guide:
 [`TUI.md`](TUI.md). It owns no logic — a view-and-control over the same seams the
 CLI uses.

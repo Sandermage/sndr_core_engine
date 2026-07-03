@@ -795,7 +795,7 @@ def _render_bare_metal(cfg, *, mode: str = "wheel") -> str:
         "# workaround OR minimal-deps environments. Operator must have a",
         "# working venv with vllm pip-installed at the matching pin.",
         f"#   mode={mode}: " + {
-            "wheel": "production — assumes vllm-sndr-core wheel installed; no editable install",
+            "wheel": "production — assumes sndr-platform wheel installed; no editable install",
             "dev": "dev — editable install of plugin source, errors visible",
             "dev_legacy": "DEPRECATED legacy — silent `|| true` on plugin install",
         }[mode],
@@ -815,11 +815,11 @@ def _render_bare_metal(cfg, *, mode: str = "wheel") -> str:
     ]
     if mode == "wheel":
         lines.extend([
-            "# Wheel mode (production): verify vllm-sndr-core importable WITHOUT",
+            "# Wheel mode (production): verify sndr-platform importable WITHOUT",
             "# attempting any editable install. Fail-fast posture.",
             "python3 -c 'import sndr' || {",
             "  echo \"ERROR: sndr not importable in this venv.\" >&2",
-            "  echo \"Install the wheel:  pip install vllm-sndr-core\" >&2",
+            "  echo \"Install the wheel:  pip install sndr-platform\" >&2",
             "  exit 1",
             "}",
             "",
@@ -1476,7 +1476,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Bare-metal launch script mode (only consulted when "
             "--runtime bare_metal). 'wheel' (default, production) verifies "
-            "vllm-sndr-core wheel is installed and fails fast otherwise; no "
+            "sndr-platform wheel is installed and fails fast otherwise; no "
             "editable install. 'dev' editable-installs the plugin source — "
             "errors visible. 'dev_legacy' restores the silent `|| true` "
             "behaviour — DEPRECATED, kept for backward compat. "

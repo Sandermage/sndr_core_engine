@@ -182,7 +182,7 @@ def discover_api_key(target: dict[str, Any], *, containers: tuple[str, ...] = ()
     result: dict[str, Any] = {"available": True, "found": False, "key": None, "source": None, "error": None}
     if _load_paramiko() is None:
         result["available"] = False
-        result["error"] = "paramiko not installed — pip install 'vllm-sndr-core[gui-remote]'"
+        result["error"] = "paramiko not installed — pip install 'sndr-platform[gui-remote]'"
         return result
     if not _safe_host(str(target.get("host", ""))):
         result["error"] = "invalid host"
@@ -281,7 +281,7 @@ def discover_host(target: dict[str, Any], *, timeout: float = 12.0) -> dict[str,
     result: dict[str, Any] = {"available": True, "docker": False, "engines": [], "gpus": [], "error": None}
     if _load_paramiko() is None:
         result["available"] = False
-        result["error"] = "paramiko not installed — pip install 'vllm-sndr-core[gui-remote]'"
+        result["error"] = "paramiko not installed — pip install 'sndr-platform[gui-remote]'"
         return result
     if not _safe_host(str(target.get("host", ""))):
         result["error"] = "invalid host"
@@ -527,7 +527,7 @@ except Exception:
     o["vllm"] = None
 try:
     from importlib.metadata import version
-    o["sndr"] = version("vllm-sndr-core")
+    o["sndr"] = version("sndr-platform")
 except Exception:
     try:
         import sndr as s
@@ -726,7 +726,7 @@ def check_connectivity(target: dict[str, Any], *, timeout: float = 8.0) -> dict[
     paramiko = _load_paramiko()
     if paramiko is None:
         result["available"] = False
-        result["error"] = "paramiko not installed — pip install 'vllm-sndr-core[gui-remote]'"
+        result["error"] = "paramiko not installed — pip install 'sndr-platform[gui-remote]'"
         return result
 
     host = _safe_host(str(target.get("host", "")))

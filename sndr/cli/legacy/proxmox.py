@@ -233,7 +233,7 @@ def run_render(args: argparse.Namespace) -> int:
         elif p.runtime == "venv":
             print("# Inside the LXC: bootstrap venv + install sndr:")
             print(f"pct exec {vmid} -- bash -c 'apt update && apt install -y python3.12 python3.12-venv git'")
-            print(f"pct exec {vmid} -- bash -c 'python3.12 -m venv /opt/sndr-venv && /opt/sndr-venv/bin/pip install vllm-sndr-core'")
+            print(f"pct exec {vmid} -- bash -c 'python3.12 -m venv /opt/sndr-venv && /opt/sndr-venv/bin/pip install sndr-platform'")
 
     elif p.mode == "vm":
         vmid = p.container_id_or_vmid or 100
@@ -253,7 +253,7 @@ def run_render(args: argparse.Namespace) -> int:
         print("# Just install python venv + sndr directly on the host:")
         print("apt install -y python3.12 python3.12-venv")
         print("python3.12 -m venv /opt/sndr-venv")
-        print("/opt/sndr-venv/bin/pip install vllm-sndr-core")
+        print("/opt/sndr-venv/bin/pip install sndr-platform")
         print(f"# Then: sndr launch {cfg.key}")
     # `else` removed — every mode reaching this point is in
     # _VALID_RENDER_MODES (guarded above). Adding a new mode means

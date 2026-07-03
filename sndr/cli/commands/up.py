@@ -195,7 +195,7 @@ class UpCommand:
             handle = _start_daemon(_DEFAULT_GUI_HOST, gui_port)
         except _DaemonStartError as exc:
             em.err(f"could not start the GUI daemon: {exc}")
-            em.hint("install the web extra:  pip install 'vllm-sndr-core[gui-api]'")
+            em.hint("install the web extra:  pip install 'sndr-platform[gui-api]'")
             return 3
         ready = _wait_daemon_ready(_DEFAULT_GUI_HOST, gui_port, timeout=_DAEMON_READY_TIMEOUT_S)
         if not ready:

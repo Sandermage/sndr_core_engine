@@ -54,7 +54,7 @@ class TuiCommand:
             import textual  # noqa: F401
         except ImportError:
             em.err("the terminal cockpit needs the 'tui' extra (textual is not installed)")
-            em.hint("install it:  pip install 'vllm-sndr-core[tui]'")
+            em.hint("install it:  pip install 'sndr-platform[tui]'")
             em.hint("or use the guided menu instead:  sndr")
             return 1
 

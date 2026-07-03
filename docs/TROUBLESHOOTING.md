@@ -595,7 +595,7 @@ rig without a GPU.
 P0-1 fix).
 
 ```bash
-pip install vllm-sndr-core pyyaml pytest cryptography
+pip install sndr-platform pyyaml pytest cryptography
 
 sndr --help
 sndr launch --dry-run prod-qwen3.6-35b-balanced

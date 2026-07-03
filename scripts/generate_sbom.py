@@ -225,7 +225,7 @@ def emit_cyclonedx(payload: dict[str, Any], out_path: Path) -> None:
     """CycloneDX 1.5 JSON (industry standard)."""
     pj = payload["pyproject"]
     project = pj.get("project", {})
-    name = project.get("name", "vllm-sndr-core")
+    name = project.get("name", "sndr-platform")
     version = project.get("version", "0.0.0")
     components: list[dict[str, Any]] = []
 
@@ -287,7 +287,7 @@ def emit_spdx(payload: dict[str, Any], out_path: Path) -> None:
     """SPDX 2.3 JSON."""
     pj = payload["pyproject"]
     project = pj.get("project", {})
-    name = project.get("name", "vllm-sndr-core")
+    name = project.get("name", "sndr-platform")
     version = project.get("version", "0.0.0")
 
     packages: list[dict[str, Any]] = [

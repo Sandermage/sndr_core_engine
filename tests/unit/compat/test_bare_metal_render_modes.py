@@ -87,7 +87,7 @@ class TestWheelMode:
         out = _render_bare_metal(cfg, mode="wheel")
         # Hard-fail path must be present
         assert "exit 1" in out
-        assert "pip install vllm-sndr-core" in out, (
+        assert "pip install sndr-platform" in out, (
             "error message must point operator at fix"
         )
 

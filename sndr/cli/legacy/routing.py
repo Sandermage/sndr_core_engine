@@ -433,7 +433,7 @@ def compute_routing_table(
     if now is None:
         now = _dt.datetime.now(_dt.timezone.utc)
     if version_string is None:
-        version_string = "vllm-sndr-core/genesis"
+        version_string = "sndr-platform/genesis"
 
     presets = _discover_presets()
     rules = _build_routing_rules(presets)
