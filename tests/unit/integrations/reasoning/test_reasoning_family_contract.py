@@ -181,12 +181,34 @@ class TestReasoningFamilyRegistry:
                 f.stem for rd in retired_dirs if rd.exists()
                 for f in rd.glob("*.py") if f.name != "__init__.py"
             }
+        # Soft-retired-but-retained-in-place patches: marked lifecycle="retired"
+        # because upstream vllm#45413 (Streaming Parser Engine refactor, merged
+        # in the current pin) DELETED their qwen3 parser target files, making
+        # them inert strands on the current pin. Their module files
+        # INTENTIONALLY stay in the family dir rather than being archived to
+        # _retired/ — they remain deep-wired (legacy dispatch hooks, bundles,
+        # __init__) so they can still apply if the server is rolled back to a
+        # pre-#45413 pin. The contract for these is inverted: the file must
+        # stay in the family dir and must NOT be physically archived.
+        _RETIRED_IN_PLACE = {"P61b"}
         for module_path, patch_id in REASONING_PATCHES:
             file_stem = module_path.rsplit(".", 1)[-1]
             meta = PATCH_REGISTRY.get(patch_id, {})
             if meta.get("lifecycle") == "retired":
                 if not meta.get("apply_module"):
                     continue
+                if patch_id in _RETIRED_IN_PLACE:
+                    assert file_stem in files, (
+                        f"{patch_id}: soft-retired-but-retained must keep "
+                        f"{file_stem}.py in {reasoning_dir} (retained for "
+                        f"rollback to pre-#45413 pins; deep-wired, not archived)"
+                    )
+                    assert file_stem not in retired_files, (
+                        f"{patch_id}: retained-in-place must NOT also be "
+                        f"physically archived in {retired_dirs}"
+                    )
+                    continue
+                # Genuinely-orphaned retired file: must be archived.
                 assert file_stem in retired_files, (
                     f"{patch_id}: retired but {file_stem}.py not in {retired_dirs}"
                 )

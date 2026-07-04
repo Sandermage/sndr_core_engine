@@ -265,6 +265,10 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # (no apply_patch_* legacy hook, same class as PN518/PN519). All registered
     # in apply/shadow.py KNOWN_SPEC_ONLY_PATCHES.
     "PN521", "PN521_SPLIT_K", "PN522",
+    # 2026-07-04 PN520 (revert vllm#47058 GDN loader regression): apply_module
+    # points at the module's own apply() class-rebind; no apply_patch_* legacy
+    # hook, same spec-driven class as PN518/PN519/PN522.
+    "PN520",
 })
 
 _KNOWN_APPLY_ONLY: frozenset[str] = frozenset({

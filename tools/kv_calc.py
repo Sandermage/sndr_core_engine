@@ -10,9 +10,9 @@ answers the canonical question: **"will this model fit on my GPU?"**.
 ## Usage
 
   # By registered preset key (fastest):
-  python3 tools/kv_calc.py --preset a5000-2x-35b-prod
-  python3 tools/kv_calc.py --preset a5000-2x-35b-prod --gpu-vram 24
-  # NOTE: V1 alias `a5000-2x-35b-prod` is Phase-9-frozen; V2 successor
+  python3 tools/kv_calc.py --preset prod-qwen3.6-35b-balanced
+  python3 tools/kv_calc.py --preset prod-qwen3.6-35b-balanced --gpu-vram 24
+  # NOTE: the V1 alias was retired (Phase 10 sunset); V2 successor
   # is `prod-qwen3.6-35b-balanced` (passable to --preset transparently
   # via load_alias resolution).
 
@@ -21,7 +21,7 @@ answers the canonical question: **"will this model fit on my GPU?"**.
       --ctx 131072 --kv-dtype fp8_e5m2 --tp 1 --gpu-vram 24
 
   # JSON for scripting:
-  python3 tools/kv_calc.py --preset a5000-2x-35b-prod --json
+  python3 tools/kv_calc.py --preset prod-qwen3.6-35b-balanced --json
 
 ## Verdict semantics
 
@@ -123,7 +123,7 @@ def _build_parser() -> argparse.ArgumentParser:
     src = p.add_mutually_exclusive_group(required=True)
     src.add_argument(
         "--preset", default=None,
-        help="Registered model_config key (e.g. 'a5000-2x-35b-prod').",
+        help="Registered model_config key (e.g. 'prod-qwen3.6-35b-balanced').",
     )
     src.add_argument(
         "--model", default=None,

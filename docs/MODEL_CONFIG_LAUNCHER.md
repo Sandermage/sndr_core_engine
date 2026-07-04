@@ -1,22 +1,27 @@
 # Genesis Universal Launcher + ModelConfig — Reference
 
-Single entry point for ALL configs. Replaces the old `scripts/launch/start_*.sh` + `bare_metal_*.sh` duplicates. Each model + hardware + tuning combo lives in one YAML file.
+Single entry point for ALL configs. Replaces the old `scripts/launch/start_*.sh` + `bare_metal_*.sh` duplicates. The **current format is V2 composition**: each launchable *preset* references a model + hardware + profile YAML triplet. The V1 monolithic one-file-per-combo format was **retired 2026-06-01 (Phase 10)** — its sections below are kept as labeled history.
 
 ---
 
-## TL;DR
+## TL;DR (current V2 surface)
 
 ```bash
-sndr model-config list                         # browse
-sndr model-config validate <key>               # schema + audit (offline)
-sndr launch <key> --preflight-only             # env check (mounts/GPU/pin)
-sndr launch <key> --dry-run                    # render bash, don't exec
-sndr launch <key>                              # boot
-sndr model-config diagnose <key>               # check running container
-sndr model-config verify <key>                 # bench vs reference (CI gate)
+sndr preset list                                    # browse launchable presets
+sndr preset explain prod-qwen3.6-35b-balanced       # card + composed runtime + fit + measured bench
+sndr launch prod-qwen3.6-35b-balanced --dry-run     # render bash, don't exec
+sndr launch prod-qwen3.6-35b-balanced --preflight-only  # env check (mounts/GPU/pin)
+sndr launch prod-qwen3.6-35b-balanced               # boot
+sndr config explain prod-qwen3.6-35b-balanced       # plain-English preset walkthrough
+sndr config diff <key-a> <key-b>                    # field-by-field preset diff
 ```
 
 Where `sndr` = `python3 -m sndr.cli`.
+
+> The legacy `sndr model-config {list,validate,verify,diagnose,…}` bridge
+> resolves only V1 monolithic keys — with V1 retired it currently returns
+> an empty set (verified 2026-07-04). Use the `sndr preset` / `sndr config`
+> / `sndr launch <preset>` surface above.
 
 ---
 
@@ -24,9 +29,9 @@ Where `sndr` = `python3 -m sndr.cli`.
 
 | Tier | Path | Who edits |
 |---|---|---|
-| `user` | `~/.genesis/model_configs/*.yaml` (or `$GENESIS_MODEL_CONFIG_DIR`) | personal — your rig |
+| `user` | `~/.sndr/model_configs/*.yaml` (legacy alias: `~/.genesis/`; or `$GENESIS_MODEL_CONFIG_DIR`) | personal — your rig |
 | `community` | `sndr/model_configs/community/*.yaml` | PR'd, reviewed |
-| `builtin` | `sndr/model_configs/builtin/*.yaml` | Sander/maintainer |
+| `builtin` | `sndr/model_configs/builtin/{model,hardware,profile,presets}/*.yaml` | Sander/maintainer |
 
 Filename SHOULD match the YAML `key`. Registry indexes by `cfg.key`, so technically they can diverge — but `git grep` will hate you.
 
@@ -36,33 +41,54 @@ Filename SHOULD match the YAML `key`. Registry indexes by `cfg.key`, so technica
 
 Schema enforces kebab-case: `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`.
 
-Builtin convention (recommended for all tiers):
-```
-<hardware>-<n_gpus>x-<model>-<flavor>
-```
+**V2 preset convention (current)**: `<audience>-<model-family>-<flavor>`,
+e.g. `prod-qwen3.6-35b-balanced`, `prod-qwen3.6-27b-tq-k8v4`,
+`qa-qwen3.6-27b-tested`, `llamacpp-qwen3.6-27b-q4km-1x`. Browse with
+`sndr preset list`.
 
-| Example | Hardware | GPUs | Model | Flavor |
-|---|---|---|---|---|
-| `a5000-2x-35b-prod` | a5000 | 2x | 35b | prod |
-| ~~`a5000-2x-27b-int4-tested`~~ → V2 `qa-qwen3.6-27b-tested` | a5000 | 2x | 27b-int4 | balanced (V1 retired 2026-06-01) |
-| ~~`a5000-1x-27b-int4-tested`~~ → V2 `qa-qwen3.6-27b-tq-1x` | a5000 | 1x | 27b-int4 | balanced (V1 retired 2026-06-01) |
-| ~~`a5000-2x-27b-int4-long-ctx`~~ → V2 `long-ctx-qwen3.6-27b` | a5000 | 2x | 27b-int4 | long-ctx (V1 retired 2026-06-01) |
+**V1 convention (HISTORICAL — retired 2026-06-01, Phase 10)** was
+`<hardware>-<n_gpus>x-<model>-<flavor>`. Migration table for the retired
+keys:
 
-Why: `model-config list` sorts alphabetically — same hardware groups, then model size, then flavor. Easy skim.
+| Retired V1 key | Current pointer |
+|---|---|
+| ~~`a5000-2x-35b-prod`~~ | V2 `prod-qwen3.6-35b-balanced` |
+| ~~`a5000-2x-27b-int4-tested`~~ | V2 `qa-qwen3.6-27b-tested` |
+| ~~`a5000-1x-27b-int4-tested`~~ | V2 `qa-qwen3.6-27b-tq-1x` |
+| ~~`a5000-2x-27b-int4-long-ctx`~~ | V2 `prod-qwen3.6-27b-tq-k8v4` (the interim `long-ctx-qwen3.6-27b` preset was itself archived) |
 
 ---
 
-## YAML anatomy (what each section captures)
+## YAML anatomy — V2 composition + field reference
+
+**V2 (current)**: a launchable preset composes three YAMLs. Canonical
+example `prod-qwen3.6-35b-balanced`
+(`sndr/model_configs/builtin/presets/prod-qwen3.6-35b-balanced.yaml`):
+
+```text
+model    = model/qwen3.6-35b-a3b-fp8.yaml                  # checkpoint, KV format, spec method, genesis_env patches
+hardware = hardware/a5000-2x-24gbvram-16cpu-128gbram.yaml  # rig: GPUs, VRAM, docker image + mounts
+profile  = profile/qwen3.6-35b-balanced.yaml               # tuning deltas (max_num_seqs, env overrides)
+```
+
+Inspect the composition with `sndr preset explain prod-qwen3.6-35b-balanced`
+or `sndr config explain prod-qwen3.6-35b-balanced`.
+
+The annotated example below keeps the V1 monolithic *shape* (retired
+2026-06-01) because the **field semantics are identical** — in V2 the same
+fields are simply split across the three files (vllm-serve flags,
+`spec_decode` and `genesis_env` in the model YAML; `docker:`/mounts in
+hardware; deltas in profile). Values updated to the current stack:
 
 ```yaml
-key: a5000-2x-35b-prod              # kebab-case, unique across all tiers
+key: example-my-rig                 # kebab-case, unique across all tiers
 title: 2× RTX A5000 — 35B-A3B FP8 PROD
 description: One sentence. Maybe two.
 schema_version: 1                    # bump on breaking changes
 maintainer: sandermage
 last_validated: '2026-05-05'
 genesis_pin: 991dc1a                 # short SHA of patcher commit
-vllm_pin_required: 0.20.2rc1.dev9+g01d4d1ad3   # KNOWN_GOOD_VLLM_PINS gate
+vllm_pin_required: 0.23.1rc1.dev748+g2dfaae752   # KNOWN_GOOD_VLLM_PINS gate (current pin — SSOT: sndr/pins.yaml)
 lifecycle: stable                    # stable | experimental | deprecated | tested | community-test | community-dev | community-prod
 # (community-* states require community_submitted: true and use the
 #  promote workflow — see "Community config flow" section below)
@@ -79,7 +105,7 @@ model_path: /models/...
 served_model_name: qwen3.6-35b-a3b
 quantization: null                   # FP8 native = null; gptq/awq/auto_round otherwise
 kv_cache_dtype: turboquant_k8v4      # fp8_e5m2 | turboquant_k8v4 | auto
-max_model_len: 320000
+max_model_len: 280000                # PROD 35B serves 280K on 2x A5000
 gpu_memory_utilization: 0.90
 max_num_seqs: 2
 max_num_batched_tokens: 4096
@@ -91,12 +117,12 @@ disable_log_stats: true              # true (default) = --disable-log-stats; set
 language_model_only: true
 trust_remote_code: true
 enable_auto_tool_choice: true
-tool_call_parser: qwen3_coder
+tool_call_parser: qwen3_xml          # PROD switched from qwen3_coder 2026-06-14
 reasoning_parser: qwen3
 
 spec_decode:
   method: mtp                        # mtp | ngram | eagle
-  num_speculative_tokens: 3
+  num_speculative_tokens: 5          # PROD: K=5 on 35B (re-tuned 2026-06-19); K=4 on 27B TQ
 
 # Genesis patcher env (P*, PN*, GENESIS_*)
 genesis_env:
@@ -131,7 +157,10 @@ docker:
   extra_run_flags:
     - --security-opt label=disable
 
-# Frozen reference from a real bench (validate gate uses this)
+# Frozen reference from a real bench (validate gate uses this).
+# The block below is a HISTORICAL example frozen at its 2026-05-05 bench
+# (pin of that date) — R-014 requires reference_metrics.vllm_pin to equal
+# vllm_pin_required, so re-bench when you bump the pin.
 reference_metrics:
   measured_at: '2026-05-05T18:35:00Z'
   bench_method: bench_35b.sh × 5 sections
@@ -157,7 +186,7 @@ verified_on:
   - 'sandermage/2xA5000-A2: 192.6 TPS, 9/10 tool, 991dc1a, 2026-05-05'
 
 notes:
-  - 'ℹ Pin gate enforces vllm 0.20.2rc1.dev9+g01d4d1ad3'
+  - 'ℹ Pin gate enforces vllm_pin_required (current: 0.23.1rc1.dev748+g2dfaae752)'
   - '⚠ Do NOT enable --enable-prefix-caching with TQ k8v4 + spec_decode'
 ```
 
@@ -168,14 +197,14 @@ notes:
 | Layer | Command | What it catches | When to run |
 |---|---|---|---|
 | 1 schema | `validate` | required fields, type/format | CI, pre-commit |
-| 2 audit_rules | `validate` (16 rules) | missing critical patches, typos in env names, pin drift, lifecycle gaps | CI, pre-commit |
+| 2 audit_rules | `validate` (19 rules) | missing critical patches, typos in env names, pin drift, lifecycle gaps | CI, pre-commit |
 | 3 preflight | `preflight` | mounts exist, container free, GPU visible, VRAM sufficient, git pin matches | pre-launch |
 | 4 diagnose | `diagnose` | container up, env exported, boot summary parsed, /v1/models responsive | post-launch |
 | 5 verify | `verify` | bench TPS/tool/CV/VRAM vs reference (CI gate) | post-bench |
 
 ---
 
-## 16 audit rules (offline, fast)
+## 19 audit rules (offline, fast — R-001 through R-019, `sndr/model_configs/audit_rules.py`)
 
 | ID | What it checks | Severity if violated |
 |---|---|---|
@@ -195,10 +224,17 @@ notes:
 | R-014 | `reference_metrics.vllm_pin == vllm_pin_required` | error |
 | R-015 | `lifecycle: stable` requires `reference_metrics` | error |
 | R-016 | `lifecycle: stable` should pin `genesis_pin` | warn |
+| R-017 | `cudagraph_mode` divergence from `FULL_AND_PIECEWISE` (the bench-validated Genesis default) | warn |
+| R-018 | Hybrid-mamba REQUEST_CONSTANT state capacity — high `max_num_seqs` × per-request mamba state (replicated across all TP ranks) can OOM at boot | warn |
+| R-019 | Unresolved `${var}` in `docker.mounts` vs `host.yaml` `paths:` (see the symbolic-mounts section below) | error |
 
 ---
 
-## CLI subcommands (under `sndr model-config <subcommand>`)
+## CLI subcommands (under `sndr model-config <subcommand>` — 14, matches `sndr model-config --help`)
+
+> Reminder: these resolve V1 monolithic keys only (retired Phase 10) — for
+> the current preset surface use `sndr preset` / `sndr config` / `sndr
+> launch <preset>`.
 
 | Subcommand | What it does |
 |---|---|
@@ -206,13 +242,15 @@ notes:
 | `show <key>` | Print full YAML |
 | `where <key>` | Print tier + filesystem path |
 | `render <key>` | Emit equivalent bash launch script (no exec) |
-| `validate <key>` | Schema check + 16 audit rules (offline-fast) |
+| `audit <key>` | Run the 19 audit_rules (cross-patch checks) standalone |
+| `validate <key>` | Schema check + 19 audit rules (offline-fast) |
 | `preflight <key>` | Pre-launch env check (mounts/container/GPU/VRAM/git pin) |
 | `launch <key>` | Boot (auto-runs preflight first) |
 | `diagnose <key>` | Runtime check on running container |
 | `verify <key>` | Run bench, diff vs reference_metrics, exit 1 on tolerance breach |
-| `new <key> --template <existing>` | Clone existing config to user dir, clear `reference_metrics` |
+| `new <key> --template <existing>` | Clone existing config to user dir, clear `reference_metrics` (also `--from-running <container>`) |
 | `save <key>` | Persist edits |
+| `promote <key> --to <tier>` | Promote community config along community-test → -dev → -prod (see flow below) |
 | `bench-and-update <key>` | Bench, then write fresh `reference_metrics` back into YAML |
 
 ---
@@ -222,7 +260,8 @@ notes:
 Genesis configs can declare which container runtimes they're known to work
 on. Operator picks one at launch time via `--runtime` flag. Symbolic mounts
 (`${var}`) make configs portable across rigs by resolving paths via
-`~/.genesis/host.yaml` (auto-detected at install).
+`~/.sndr/host.yaml` (auto-detected at install; `~/.genesis/` is a legacy
+alias).
 
 ### `deploy:` block
 
@@ -232,7 +271,7 @@ Add to any config to declare runtime compatibility:
 deploy:
   docker: true        # tested & shipped (default for all builtin configs)
   podman: true        # opt-in: docker-compatible with --device nvidia.com/gpu=all
-  kubernetes: false   # opt-in: shipped via `sndr service install --runtime kubernetes` (Deployment + Service + ConfigMap manifest under ~/.sndr/k8s/; audit C3 closure 2026-05-16). Default false so operators opt in explicitly.
+  kubernetes: false   # opt-in: SHIPPED via `sndr service install --runtime kubernetes` (Deployment + Service + ConfigMap manifest under ~/.sndr/k8s/; audit C3 closure 2026-05-16) and `sndr k8s render <preset>`. Default false so operators opt in explicitly.
   lxc_proxmox: false  # opt-in: NOT YET implemented; Proxmox kernel 6.17.x
                       # has known asyncio footgun → use bare_metal instead
                       # (see noonghunna club-3090 CONTAINER_RUNTIMES.md)
@@ -255,7 +294,7 @@ docker:
     - ${plugin_src}:/plugin:ro
 ```
 
-Resolved at render time via `~/.genesis/host.yaml`. Each user has different
+Resolved at render time via `~/.sndr/host.yaml`. Each user has different
 filesystem — symbolic mounts mean configs travel between rigs unchanged.
 
 **Backward compat:** absolute paths pass through unchanged. Builtin
@@ -278,8 +317,11 @@ paths:
 
 Re-run detection: `FORCE_REDETECT=1 install.sh` or manually:
 ```bash
-python3 -c "from vllm.sndr_core.model_configs.host import detect_and_save; detect_and_save()"
+python3 -c "from sndr.model_configs.host import detect_and_save; detect_and_save()"
 ```
+
+(The old `vllm.sndr_core.model_configs.host` import path no longer resolves
+after the `sndr/` rename — verified 2026-07-04.)
 
 ### CLI usage
 
@@ -293,7 +335,7 @@ sndr model-config render <key> --runtime bare_metal
 # Podman (rootless / RHEL family)
 sndr model-config render <key> --runtime podman
 
-# Kubernetes (NOT YET — placeholder error until template implemented)
+# Kubernetes (shipped 2026-05-16; also: sndr k8s render <preset>)
 sndr model-config render <key> --runtime kubernetes
 ```
 
@@ -307,7 +349,7 @@ config BEFORE booting (which would fail with cryptic mount errors):
 $ sndr model-config validate community-rig-3090-qwen3.6
 ERROR (R-019): symbolic mounts reference ['unknwn_dir'] but host.yaml only
 defines ['models_dir', 'hf_cache', 'triton_cache', 'compile_cache',
-'sndr_src', 'plugin_src']. Add these vars to ~/.genesis/host.yaml
+'sndr_src', 'plugin_src']. Add these vars to ~/.sndr/host.yaml
 `paths:` section.
 ```
 
@@ -327,11 +369,12 @@ through compose path. See [noonghunna CONTAINER_RUNTIMES.md](https://github.com/
 for podman-specific gotchas.
 
 #### Kubernetes (microk8s / k3s / k8s)
-Currently **placeholder** — render emits informative error directing
-operator to manual translation. Path forward (per noonghunna disc#48 from
-@apnar): translate compose `command:` → pod spec `args:`, mount via
-PersistentVolume, GPU via NVIDIA k8s device plugin, Genesis patch mounts
-via ConfigMap or initContainer.
+**Shipped 2026-05-16** (audit C3 closure): `sndr service install
+--runtime kubernetes` emits Deployment + Service + ConfigMap manifests
+under `~/.sndr/k8s/`, and `sndr k8s render <preset>` renders the manifest
+for a V2 preset key (verified 2026-07-04). GPU via the NVIDIA k8s device
+plugin; Genesis patch mounts via ConfigMap/initContainer per the original
+design (noonghunna disc#48, @apnar).
 
 #### Proxmox LXC
 **Known footgun:** Docker image vllm/vllm-openai:nightly + Proxmox VE
@@ -352,9 +395,12 @@ pip-installed at the matching pin. Genesis patches loaded via PYTHONPATH
 ### Add your own config (clone an existing one)
 
 ```bash
-sndr model-config new my-rig --template a5000-2x-35b-prod
-# edits go to ~/.genesis/model_configs/my-rig.yaml
-$EDITOR ~/.genesis/model_configs/my-rig.yaml
+# Current V2 path: scaffold from the detected host
+sndr config new my-rig --from-detect
+# Legacy V1 path (needs an existing V1 key — retired; kept for history):
+#   sndr model-config new my-rig --template <existing-key>
+# edits go to ~/.sndr/model_configs/my-rig.yaml
+$EDITOR ~/.sndr/model_configs/my-rig.yaml
 sndr model-config validate my-rig          # catch typos before boot
 sndr model-config preflight my-rig         # catch mount/GPU issues before boot
 sndr launch my-rig                    # boot
@@ -485,56 +531,53 @@ New world: 1 YAML per (model, hardware, tuning). 1 launcher. 5 layers of validat
 
 ---
 
-## File map
+## File map (matches disk, 2026-07-04)
 
 ```
 sndr/model_configs/
 ├── __init__.py                 # exports ModelConfig + sub-components
-├── schema.py                   # dataclasses + validation (V1 monolithic + V2 layered)
-├── registry.py                 # 3-tier loader (user > community > builtin)
+├── schema.py / schema_v2.py    # dataclasses + validation (V1 legacy / V2 layered)
+├── registry.py                 # legacy 3-tier loader (user > community > builtin)
+├── registry_v2.py              # V2 loader — list_presets() / triplet composition
+├── compose.py                  # model + hardware + profile composition
+├── preset_schema.py            # preset card schema (drives `sndr preset`)
 ├── audit_rules.py              # 19 rules (R-001 through R-019)
-├── preflight.py                # pre-launch env checks
+├── preflight.py / preflight_fit.py  # pre-launch env checks + fit projection
 ├── diagnose.py                 # runtime checks
 ├── verify.py                   # bench-vs-reference gate
-└── builtin/
-    # V1 monolithic — one YAML per (model, hardware, tuning) combo:
-    ├── a5000-2x-35b-prod.yaml
-    # a5000-2x-27b-int4-tested.yaml retired 2026-06-01
-    # — use V2 preset `qa-qwen3.6-27b-tested` instead
-    # a5000-2x-27b-int4-long-ctx.yaml retired 2026-06-01
-    # — use V2 preset `long-ctx-qwen3.6-27b` (sizing-identical 280K ctx)
-    ├── a5000-2x-27b-int4-tq-k8v4.yaml
-    # a5000-2x-27b-int4-tq-k8v4-dflash.yaml retired 2026-06-01
-    # — use V2 preset `experimental-qwen3.6-27b-tq-dflash-ab` instead
-    # a5000-2x-27b-dflash-true.yaml retired 2026-06-01
-    # — use V2 preset `prod-qwen3.6-27b-dflash` (transparent — byte-identical config)
-    # a5000-2x-35b-fp8-dflash.yaml retired 2026-06-01
-    # — use V2 preset `prod-qwen3.6-35b-dflash` instead
-    # a5000-1x-tier-aware-pn95.yaml retired 2026-06-01
-    # — use PN95 tier_config `sndr/cache/pn95/tier_configs/
-    #   a5000-1x-pn95-long-ctx.yaml` instead
-    # a5000-2x-tier-aware-EXAMPLE.yaml retired 2026-06-01
-    # — use PN95 tier_config `sndr/cache/pn95/tier_configs/
-    #   a5000-2x-tier-aware.yaml` instead
-    # single-3090-dense-cpu-offload-EXAMPLE.yaml retired 2026-06-01
-    # — use V2 preset `example-3090-dense-cpu-offload` instead
-    # single-3090-hybrid-gdn-tier-aware-EXAMPLE.yaml retired 2026-06-01
-    # — use V2 preset `example-3090-tier-aware` instead
-    # V2 layered — split into model/hardware/profile + composed presets:
+├── host.py                     # host.yaml detection (detect_and_save)
+├── kv_projector.py             # byte-level KV fit projection (sndr kv-calc)
+└── builtin/                    # V2 layered ONLY — no V1 monolith YAMLs remain on disk
     ├── model/      # <id>.yaml  — checkpoint, KV format, spec method, patches
     ├── hardware/   # <id>.yaml  — rig (GPU, VRAM, CPU, RAM, mounts)
     ├── profile/    # <id>.yaml  — env/runtime tuning deltas
     └── presets/    # <alias>.yaml — composes model + hardware + profile
-
-sndr/compat/
-└── model_config_cli.py         # 14-subcommand CLI (sndr model-config <cmd>)
-
-scripts/
-└── launch.sh                   # universal launcher (thin wrapper over CLI)
+        └── _archive/  # archived presets (dflash family, gemma K-variants, long-ctx-27b, …) — do not route users here
 ```
 
-V1 and V2 coexist in the registry — `sndr model-config list` walks both
-layouts; V2 presets are resolved by composing their three references.
-New configs SHOULD use V2 (smaller diffs, sharper audit). V1 monoliths
-are kept for rigs that haven't been migrated yet — they pass the same
-audit gate as V2.
+Retired V1 monolith → current pointer (all retired 2026-06-01, Phase 10):
+
+- `a5000-2x-35b-prod` → V2 preset `prod-qwen3.6-35b-balanced`
+- `a5000-2x-27b-int4-tq-k8v4` → V2 preset `prod-qwen3.6-27b-tq-k8v4`
+- `a5000-2x-27b-int4-tested` → V2 preset `qa-qwen3.6-27b-tested`
+- `a5000-2x-27b-int4-long-ctx` → V2 preset `prod-qwen3.6-27b-tq-k8v4`
+  (the interim `long-ctx-qwen3.6-27b` pointer was itself archived)
+- `a5000-2x-27b-int4-tq-k8v4-dflash` / `a5000-2x-27b-dflash-true` /
+  `a5000-2x-35b-fp8-dflash` → the DFlash presets (and the
+  `experimental-qwen3.6-27b-tq-dflash-ab` A/B preset) are archived in
+  `presets/_archive/` pending re-validation — see
+  [`SPEC_DECODE_GUIDE.md`](SPEC_DECODE_GUIDE.md)
+- `a5000-1x-tier-aware-pn95` → PN95 tier_config
+  `sndr/cache/pn95/tier_configs/a5000-1x-pn95-long-ctx.yaml`
+- `a5000-2x-tier-aware-EXAMPLE` → PN95 tier_config
+  `sndr/cache/pn95/tier_configs/a5000-2x-tier-aware.yaml`
+- `single-3090-dense-cpu-offload-EXAMPLE` → V2 preset
+  `example-3090-dense-cpu-offload`
+- `single-3090-hybrid-gdn-tier-aware-EXAMPLE` → V2 preset
+  `example-3090-tier-aware`
+
+**V1 is fully retired** (Phase 10 sunset, 2026-06-01): the registry no
+longer loads monolithic YAMLs, and the doc/preset gate
+(`tests/unit/test_doc_preset_keys.py`) forbids V1 keys on the operator
+surface. All configs are V2 triplets composed by `registry_v2`; browse
+with `sndr preset list`, launch with `sndr launch <preset>`.

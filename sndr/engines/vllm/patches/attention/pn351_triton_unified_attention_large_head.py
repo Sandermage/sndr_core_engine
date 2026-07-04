@@ -32,7 +32,10 @@ on Gemma 4 31B FP8 prefill on our PROD.
      to launch (verified by author).
 
   2. ``unified_attention`` (caller): add two kwargs on the kernel
-     ``triton_unified_attention[...](...)`` launch::
+     ``triton_unified_attention[...](...)`` launch (multi-anchor,
+     FOUR launch-site shapes — Variant D added 2026-07-02 for pin
+     dev748 which inserted an ``MM_PREFIX_CLAMP_SW`` kwarg into the
+     call site)::
 
          num_warps=8 if head_size >= 512 else 4,
          num_stages=2 if head_size >= 512 else 3,
@@ -337,7 +340,45 @@ PN351_LAUNCH_POST45151_NEW = (
     "    )\n"
 )
 
-# The names of the three mutually-exclusive launch variants. apply()
+# Variant D — pin 0.23.1rc1.dev748+g2dfaae752 (re-anchored 2026-07-02). Upstream
+# added a NEW kwarg ``MM_PREFIX_CLAMP_SW=mm_prefix_clamp_sliding_window,`` between
+# ``USE_TD_QO`` and the existing ``**launch_kwargs,`` splat (multimodal prefix
+# sliding-window clamp — unrelated to #45151; the #45151 7-kwarg fused-quant block
+# is NOT present on dev748, verified: ``USE_FP8_GROUP`` count 0). This shifts the
+# launch tail to a 4th shape that Variants A/B/C do not match. We re-anchor on the
+# stable USE_TD_QO prefix + the MM_PREFIX_CLAMP_SW line + ``**launch_kwargs,`` and
+# append our warps/stages kwargs AFTER MM_PREFIX_CLAMP_SW but BEFORE the splat so
+# main's (empty-on-our-path) launch_kwargs still applies last — same coexistence
+# invariant as B/C.
+PN351_LAUNCH_MMPREFIX_OLD = (
+    "        CHUNK_SIZE=chunk_size,\n"
+    "        USE_TD=use_td,\n"
+    "        USE_TD_QO=use_td_qo,\n"
+    "        MM_PREFIX_CLAMP_SW=mm_prefix_clamp_sliding_window,\n"
+    "        **launch_kwargs,\n"
+    "    )\n"
+)
+PN351_LAUNCH_MMPREFIX_NEW = (
+    "        CHUNK_SIZE=chunk_size,\n"
+    "        USE_TD=use_td,\n"
+    "        USE_TD_QO=use_td_qo,\n"
+    "        MM_PREFIX_CLAMP_SW=mm_prefix_clamp_sliding_window,\n"
+    "        # [Genesis PN351 vendor of vllm#43257] head_dim >= 512 hits a\n"
+    "        # register cliff under default 4w/3s. 8 warps spreads the\n"
+    "        # accumulator across more warps; 2-stage pipeline is shallower\n"
+    "        # but uses less shmem (offsetting the larger 64-tile). Gemma 4\n"
+    "        # 31B + 26B-A4B global heads benefit; Qwen3.6 head_dim=128\n"
+    "        # bypasses entirely. (dev748 anchor variant: upstream inserted\n"
+    "        # MM_PREFIX_CLAMP_SW between USE_TD_QO and **launch_kwargs; our\n"
+    "        # warps/stages slot AFTER it and BEFORE the splat so all coexist.)\n"
+    "        num_warps=8 if head_size >= 512 else 4,\n"
+    "        num_stages=2 if head_size >= 512 else 3,\n"
+    "        **launch_kwargs,\n"
+    "    )\n"
+)
+
+
+# The names of the four mutually-exclusive launch variants. apply()
 # requires that AT LEAST ONE of these fired (a tile-only apply is
 # incoherent — the tile sub sets the 64-tile, the launch sub sets the
 # 8w/2s config; either alone is a functional no-op regression).
@@ -345,6 +386,7 @@ _LAUNCH_VARIANT_NAMES = (
     "pn351_kernel_launch_warps_stages",
     "pn351_kernel_launch_warps_stages_main",
     "pn351_kernel_launch_warps_stages_post45151",
+    "pn351_kernel_launch_warps_stages_mmprefix",
 )
 
 
@@ -397,6 +439,13 @@ def _build_patcher(target_file: str) -> TextPatcher:
                 name="pn351_kernel_launch_warps_stages_post45151",
                 anchor=PN351_LAUNCH_POST45151_OLD,
                 replacement=PN351_LAUNCH_POST45151_NEW,
+                required=False,
+            ),
+            # Variant D — pin dev748 (MM_PREFIX_CLAMP_SW kwarg + launch_kwargs).
+            TextPatch(
+                name="pn351_kernel_launch_warps_stages_mmprefix",
+                anchor=PN351_LAUNCH_MMPREFIX_OLD,
+                replacement=PN351_LAUNCH_MMPREFIX_NEW,
                 required=False,
             ),
         ],
@@ -461,7 +510,9 @@ def apply() -> tuple[str, str]:
         )
 
     variant = next(iter(launch_applied))
-    if variant.endswith("post45151"):
+    if variant.endswith("mmprefix"):
+        variant_note = "dev748 MM_PREFIX_CLAMP_SW anchor variant"
+    elif variant.endswith("post45151"):
         variant_note = "post-#45151 anchor variant"
     elif variant.endswith("_main"):
         variant_note = "upstream-main anchor variant"

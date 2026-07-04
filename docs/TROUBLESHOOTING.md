@@ -8,7 +8,7 @@ what do I do". It consolidates:
   from working well to silently working badly.
 - **OOM recipes** — single-card 24 GB long-context hardening,
   multi-turn soak survival.
-- **Operational cookbook** — 10 named symptom→cause→workaround→fix
+- **Operational cookbook** — 11 named symptom→cause→workaround→fix
   scenarios from community feedback (noonghunna/club-3090) and our own
   operational history.
 - **Rollback playbook** — named R-XYZ procedures with revert + smoke
@@ -26,9 +26,13 @@ Cliffs that aren't documented hurt every operator after you.
 | Garbage tokens / tool-call cascade (27B + TQ) | [Cliff 3](#cliff-3-turboquant--spec-verify-k1--full-cudagraph), [Cliff 4](#cliff-4-non-power-of-2-gqa--p67) |
 | TPS dropped after vLLM pin bump | [Cliff 8](#cliff-8-anchor-drift-on-vllm-pin-bumps) |
 | Prefix-cache + MTP crash | [Recipe 6](#6-turboquant--spec-decode--prefix-caching-crash) |
+| 27B thinking mode never finishes (loops in `<think>`) | [Recipe 11](#11-27b-thinking-mode-loops-indefinitely-chat-workload) |
 | Driver / CUDA / NCCL mismatch | `sndr doctor`, then [`INSTALL.md`](INSTALL.md) |
 | V2 alias resolution broken | [R-001](#r-001--v2-alias-resolution-broken) |
 | `sndr memory explain` mis-predicts | [R-004](#r-004--sndr-memory-explain-mis-predicting-oom) |
+| `sndr up` fails / Control Center unreachable | `sndr doctor` first; the GUI daemon serves on `:8765` — see [`GUI.md`](GUI.md) |
+| Port 8765 already in use | a stale daemon holds it — `sndr down`, then `sndr up` (or free the port and retry); see [`GUI.md`](GUI.md) |
+| `sndr run` / `sndr down` misbehaving | `sndr doctor --full`, then the verb reference in [`CLI_REFERENCE.md`](CLI_REFERENCE.md) |
 | Want to roll back the whole release | [Rollback playbook](#rollback-playbook) |
 
 ## Named cliffs
@@ -87,6 +91,15 @@ headroom at 64K, more at longer contexts.
 
 **Refs.** `integrations/attention/gdn/p103_fla_cliff2_chunked.py`. See
 also P60 / P60b for related GDN spec-decode corruption fixes.
+
+**Related (2026-07, dev714/dev748 era).** **PN520**
+(`GENESIS_ENABLE_PN520_QWEN3_5_LOAD_WEIGHTS`) restores the imperative
+Qwen3.5/3.6 GDN weight loader (revert of vllm#47058) — reach for it if
+GDN weights mis-load after a dev714-era bump. Battle-validated
+2026-07-04 on dev748: 96 `in_proj_ba` shards routed, the INT4-27B
+coherent-boot-garbage-output degeneration cured (fleet sweep,
+[`BENCHMARKS.md`](BENCHMARKS.md)). It does not change the fwd_h OOM
+guidance above.
 
 ### Cliff 2b: GDN multi-turn soak OOM (continuous 5×5 ramp)
 
@@ -446,8 +459,9 @@ different scratch size; for GPTQ INT4 models peak is often
 ```bash
 # Pin to a known-good digest:
 docker pull vllm/vllm-openai:nightly@sha256:<KNOWN_GOOD_DIGEST>
-# Or fall back to the current Genesis pin (v12.0.0 current registry,
-# canonical: 0.21.1rc0+g626fa9bba5):
+# Or fall back to the current Genesis pin — read `current` /
+# `current_image` from sndr/pins.yaml (the pin SSOT; as of 2026-07-04:
+# 0.23.1rc1.dev748+g2dfaae752):
 docker pull vllm/vllm-openai:nightly
 ```
 
@@ -525,8 +539,10 @@ accept multi-token causing a shape mismatch with cached state.
 `vllm serve --no-enable-prefix-caching ...`.
 
 **Prevention.** Don't combine `--enable-prefix-caching` with MTP on
-hybrid GDN models. Builtin `a5000-2x-27b-*` configs deliberately
-omit prefix caching for this reason.
+hybrid GDN models. The V1-era builtin 27B configs deliberately omitted
+prefix caching for this reason, and the current V2 27B presets
+(`prod-qwen3.6-27b-tq-*`) keep the same choice — chunked prefill
+(`enable_chunked_prefill: true`) without prefix caching.
 
 ### 7. Cliff 2 / 2× 3080 — TurboQuant fails before 60–90K
 
@@ -561,8 +577,10 @@ assumptions about the spec-decode batch shape. If `spec_token_count`
 changes between batches, the captured graph can read stale slots.
 
 **Workaround.** Enable P65 (TurboQuant spec-decode CG downgrade):
-`GENESIS_ENABLE_P65=1` — drops CG capture to PIECEWISE for TQ + spec
-batches.
+`GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE=1` — drops CG capture
+to PIECEWISE for TQ + spec batches. (The short form
+`GENESIS_ENABLE_P65=1` is silently ignored — flags must match the full
+registry name.)
 
 **Prevention.** Don't bump TQ patches on a working PROD without an
 A/B. Run `tools/check_upstream_drift.py` before any pin update.
@@ -606,6 +624,38 @@ python3 -m sndr.apply.shadow --strict
 
 GPU-dependent tests skip automatically
 (`@pytest.mark.requires_torch`).
+
+### 11. 27B thinking mode loops indefinitely (chat workload)
+
+**Symptom.** Qwen3.6-27B INT4 with thinking mode enabled loops in its
+`<think>` block on chat prompts — reasoning never terminates, no final
+answer (or the request runs to the token cap). Observed on the dev748
+fleet sweep (2026-07-04); reproduces across pins.
+
+**Root.** Pre-existing **model trait** of the 27B INT4 checkpoint's
+thinking mode (club-3090 #226 class) — NOT a Genesis patch or pin
+regression. Boot, patch apply and non-thinking generation are all
+clean.
+
+**Workaround.** Disable thinking per request via
+`chat_template_kwargs`:
+
+```json
+{"chat_template_kwargs": {"enable_thinking": false}}
+```
+
+→ clean answers. The tool-agent workload is unaffected either way,
+because `tool_choice` is forced on tool-bearing requests
+(`GENESIS_P68_FORCE_ON_ALL_TOOLS=1` in the PROD launcher).
+
+**Fix (future).** A PN16-class streaming thinking-budget cap (see the
+PN16_V6 truncator lineage in [`PATCHES.md`](PATCHES.md)) is the
+candidate enforcement layer if a server-side cap is ever needed;
+until then the `enable_thinking: false` workaround is the supported
+path.
+
+**Reference.** club-3090 #226; fleet-sweep footnote in
+[`BENCHMARKS.md`](BENCHMARKS.md).
 
 ## Rollback playbook
 
@@ -665,9 +715,10 @@ sndr launch a5000-2x-35b-prod --preflight-only
 
 ### R-002 — Community SDK rejecting a known-good patch
 
-**Trigger.** `sndr patches validate plugins/community/PN<n>` fails on
-a patch that previously validated cleanly. Common after the shared
-validator is tightened.
+**Trigger.** `sndr patches doctor --strict` flags a patch that
+previously validated cleanly (inspect it with `sndr patches explain
+PN<n>`; the old `sndr patches validate` verb no longer exists). Common
+after the shared validator is tightened.
 
 **Revert.**
 
@@ -742,7 +793,7 @@ cat > evidence/patch_proof/_waivers/PN<n>.yaml <<EOF
 patch_id: PN<n>
 owner: sandermage
 reason: "anchor drift across vllm 0.20.2 → 0.21.0; re-anchor pending"
-expiry: '2026-06-01'
+expiry: '<YYYY-MM-DD>'   # set a real near-term date (~+30 days); expired waivers fail the gate
 risk: low
 rollback: "revert SHA <X>; patch already default_off in profile Y"
 EOF
@@ -780,9 +831,12 @@ ssh server 'cd /path/to/... && git stash pop && git add -A && git commit -m "...
 ### R-007 — V1 preset stops working post-Phase-9 freeze
 
 **Trigger.** Operator runs `sndr launch a5000-2x-35b-prod` (V1 key)
-post-Phase-9 and gets `DeprecationWarning` followed by failure. The
-Phase-9 freeze added the warning + a no-new-V1 CI gate but does NOT
-remove the V1 loader; if V1 is gone, revert the freeze SHA.
+and gets `config not found`. Phase 9 froze V1 (DeprecationWarning +
+no-new-V1 CI gate); Phase 10 (`607385f1`, 2026-06-01) then deleted the
+shipped V1 YAMLs, so a bare V1 key no longer resolves at all. The
+supported answer is the V2 successor (`prod-qwen3.6-35b-balanced`);
+for an emergency V1 bisect see "Restoring a V1 baseline from history"
+below.
 
 **Revert.** `git revert --no-edit <SHA_OF_PHASE_9_FREEZE>`.
 
@@ -866,8 +920,8 @@ launcher is the source of truth.
 
 ### Bug Class 12 — strict-opt-in policy
 
-**Policy**: per Sander directive 2026-05-17
-(`sndr/dispatcher/decision.py:355-386`), `default_on=True`
+**Policy**: per Sander directive 2026-05-17 (the strict-opt-in rule in
+`should_apply`, `sndr/dispatcher/decision.py`), `default_on=True`
 in the registry does NOT auto-apply the patch. Every patch — including
 those marked `default_on=True` — requires its `GENESIS_ENABLE_*` env
 var explicitly set in the launcher script. Escape hatch:
@@ -882,9 +936,9 @@ docker inspect <container> --format '{{.Config.Env}}' | grep GENESIS_ENABLE_<pat
 ```
 
 **Fix when caught**: append `-e GENESIS_ENABLE_<patch>=1` to the
-launcher's `docker run` block. There are ~52 patches with
-`default_on=True` in the registry — each requires explicit
-enablement.
+launcher's `docker run` block. There are 56 patches with
+`default_on=True` in the registry (verified 2026-07-04 against
+`PATCH_REGISTRY`) — each requires explicit enablement.
 
 ### Bug Class 13 — model-quality intrinsic limits
 
@@ -936,20 +990,23 @@ the result be labeled Class 13 in the operator runbook.
 2026-05-31): use a higher-precision model variant, or accept the
 intrinsic rate and report it explicitly in operator docs.
 
-### Pin policy (2026-05-30 unification)
+### Pin policy (SSOT: `sndr/pins.yaml`)
 
-The canonical PROD pin is `vllm/vllm-openai:nightly` (currently
-resolves to commit `626fa9bb` per the K.1.R.R promotion 2026-05-30).
-The previous canonical pin is `vllm/vllm-openai:nightly-previous`
-(currently `bf610c2f5` = dev371). All other intermediate nightly tags
-should be cleaned via `docker rmi` periodically (operator hygiene).
+The pin single source of truth is **`sndr/pins.yaml`**: `current`
+(`0.23.1rc1.dev748+g2dfaae752` as of 2026-07-04), `rollback`
+(`0.23.1rc1.dev714+g09663abde`), and the `stable_release` slot
+(`v0.24.0`). `vllm/vllm-openai:nightly` is re-tagged to the current pin
+at each promotion; the explicit-hash tag in `current_image` is the
+unambiguous reference for launchers. All other intermediate nightly
+tags should be cleaned via `docker rmi` periodically (operator hygiene
+— the server holds at most current + rollback).
 
-The 4 PROD models target the same `:nightly` tag in their launchers
-to maintain pin uniformity. Exception: `gemma4-31B` may be temporarily
-pinned to `:nightly-previous` if a 626fa9bb regression is observed
-(analog to A11 guardrail for 27B's `-8.66%` TPS regression on the new
-pin). Such pin pinning MUST be documented in the launcher header
-comment.
+PROD models target the same current pin in their launchers to maintain
+pin uniformity; a model may be temporarily held on the rollback pin if
+a regression is observed on the new pin, and such pinning MUST be
+documented in the launcher header comment. The full bump/promotion
+procedure — including `make bump-pin` and `make audit-pin-consistency`
+— lives in [`PIN_BUMP_PLAYBOOK.md`](PIN_BUMP_PLAYBOOK.md).
 
 ### Bug Class 14 — Genesis P38 TQ workspace OOM on first complex request
 
@@ -1402,7 +1459,7 @@ suite cleanly with no overlap and no gap.
 
 1. Render + start the chat-k3 upstream on a sibling port:
    ```bash
-   sndr launch prod-gemma4-31b-tq-mtp-chat-k3 --port 8113
+   sndr launch prod-gemma4-31b-kvauto-chat --port 8113
    ```
 
 2. Keep the structured-k4 upstream running on its current port:
@@ -1477,8 +1534,14 @@ the operator decides):
 
 ### Bench expectations per model (PROD reference)
 
-These are the canonical bench targets every PROD container should
-hit on the unified `:nightly` pin. Bench command:
+**SSOT for current numbers: [`BENCHMARKS.md`](BENCHMARKS.md).** The
+current 35B headline (promotion gate, pin dev748, 2026-07-04, MTP
+K=5): **wall_TPS 242.55 (CV 6.9%), decode TPOT 3.9 ms, TTFT 84.5 ms,
+tool-calls 7/7** — +3.5% vs the same-day dev714 canonical run (234.2,
+TPOT 4.04 ms, 8/8). The table below is the older per-model target set
+from the K=3-era unified-`:nightly` window (2026-05/06) — kept for the
+27B/Gemma rows, whose fresh dev748 data is the mini-bench fleet-sweep
+table in `BENCHMARKS.md`, not a full canonical suite. Bench command:
 
 ```bash
 python3 tools/genesis_bench_suite.py --quick --ctx 8k \
@@ -1490,7 +1553,9 @@ python3 tools/genesis_bench_suite.py --quick --ctx 8k \
 | Model | wall_TPS | TPOT ms | TTFT ms | CV % | Tool-call (positive) |
 |---|---:|---:|---:|---:|:---:|
 | 27B Lorbus INT4 TQ | 116-125 | 8-9 | 110-120 | 3-10 | **7/7** ✓ |
-| 35B A3B FP8 | 210 | 4.4 | 117 | 5-7 | **7/7** ✓ |
+| 35B A3B (K=5, dev748 — current) | 242.55 | 3.9 | 84.5 | 6.9 | **7/7** ✓ |
+| 35B A3B (K=5, dev714 — same-day rollback reference) | 234.2 | 4.04 | 88.5 | ~8 | **8/8** ✓ |
+| 35B A3B FP8 (K=3 era — historical) | 210 | 4.4 | 117 | 5-7 | **7/7** ✓ |
 | gemma4-26B-A4B MoE | 114 | 6.0 | 71 | 22-30 | **7/7** ✓ |
 | gemma4-31B Dense TQ MTP-K4 | 28-39 | 6-9 | 70-170 | 10-30 | **35/35** ✓ (G4_T1 v2 + Connection: close + gpu-mem-util 0.80; both streaming + non-streaming, 7 cases × 5 runs) |
 

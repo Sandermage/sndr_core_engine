@@ -1,8 +1,8 @@
 # `sndr` CLI Reference
 
 Complete command + parameter reference for the `sndr` CLI exposed by
-`sndr-platform`. Every subcommand is grouped by operator workflow:
-install, run, inspect, configure, report.
+`sndr-platform` (v12). Every subcommand is grouped by operator
+workflow: run, fit, inspect, configure, bench, report.
 
 > **Source of truth**: `sndr --help` and the
 > per-subcommand `--help` always reflect the installed surface. This
@@ -17,61 +17,51 @@ reference follows from §1 below.
 ```bash
 # Install + first boot
 curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/install.sh | bash
+sndr run                                        # resolve → pull → launch → wait → chat (top-fit preset)
+sndr up                                         # whole stack: engine + Control Center GUI on :8765
 sndr tui                                        # interactive cockpit — serve/stop/chat from one screen
-sndr launch prod-qwen3.6-35b-balanced                            # V2 alias; V1 keys also accepted
-sndr launch prod-qwen3.6-35b-balanced --dry-run                  # render only, no exec
-sndr launch prod-qwen3.6-35b-balanced --preflight-only           # gate; never exec vLLM
+sndr launch prod-qwen3.6-35b-balanced           # launch a named preset
+sndr launch prod-qwen3.6-35b-balanced --dry-run # render only, no exec
+
+# Will it fit?
+sndr kv-calc prod-qwen3.6-35b-balanced          # per-card VRAM/KV projection (PASS/TIGHT/FAIL)
+sndr kv-calc --fit-all                          # whole catalog vs 24/48/80 GB cards
+sndr preflight prod-qwen3.6-35b-balanced        # hardware envelope gate
 
 # Health + smoke
 sndr doctor                                     # full system diagnostic
 sndr doctor --json                              # machine-readable
-sndr doctor-system                              # extended host probe
-sndr verify --quick                             # 10-prompt smoke (~60 s)
-sndr self-test                                  # structural sanity (no GPU needed)
-sndr verify prod-qwen3.6-35b-balanced                            # bench vs reference_metrics
+sndr verify --quick                             # ~3 s static checks, no GPU/model needed
+sndr verify --full                              # all static + boot checks
+sndr model-config verify prod-qwen3.6-35b-balanced   # bench vs reference_metrics
 
 # Browse + diff presets
-sndr config list                                # V1 + V2 inventory
-sndr config show prod-qwen3.6-35b-balanced
+sndr preset list                                # V2 preset catalog with cards
+sndr preset explain prod-qwen3.6-35b-balanced   # card + composed runtime + fit
+sndr config list                                # config inventory
 sndr config diff prod-qwen3.6-35b-balanced prod-qwen3.6-35b-multiconc
 sndr config explain prod-qwen3.6-35b-balanced
-sndr profile show qwen3.6-35b-balanced                  # V2 profile patches_delta
 
 # Patches
 sndr patches list --default-on                  # opt-out catalogue
 sndr patches plan --preset prod-qwen3.6-35b-balanced             # dispatcher simulation
-sndr patches plan --preset prod-qwen3.6-35b-balanced --policy compat --explain
 sndr patches explain PN67
 sndr patches doctor                             # registry validator
-sndr patches release-check --mode require-static
 
-# Capture a running container into a YAML
-sndr model-config new my-rig --from-running vllm-test-container
-
-# Service lifecycle (docker_compose / systemd / podman_quadlet / k8s / proxmox)
-sndr service install prod-qwen3.6-35b-balanced
-sndr service start prod-qwen3.6-35b-balanced
-sndr service status prod-qwen3.6-35b-balanced
-sndr service logs prod-qwen3.6-35b-balanced --lines 200
-sndr service stop prod-qwen3.6-35b-balanced
-sndr service uninstall prod-qwen3.6-35b-balanced
-
-# Memory + caveats
-sndr memory --preset prod-qwen3.6-35b-balanced                   # VRAM waterfall
-sndr memory --live                              # query running container
-sndr caveats list
+# Bench
+sndr bench --mode quick                         # smoke bench against a running engine
+sndr bench --mode full --ctx-scale 1K,4K,8K,16K,32K   # + context-scaling section
 
 # Reporting
-sndr report bundle --preset prod-qwen3.6-35b-balanced            # tarball for issues
-sndr report cudagraph-coverage                  # hit-rate snapshot
+sndr report bundle                              # tarball for issues
 
-# Uninstall
+# Shut down + uninstall
+sndr down                                       # stop engine + GUI daemon
 bash ~/.sndr/install.sh --uninstall
 ```
 
 For env-var knobs see [`CONFIGURATION.md`](CONFIGURATION.md); for the
-`--from-running` captor + lxc_proxmox renderer see
-[`QUICKSTART.md`](QUICKSTART.md).
+GUI Control Center see [`GUI.md`](GUI.md).
 
 ## Conventions
 
@@ -80,194 +70,98 @@ For env-var knobs see [`CONFIGURATION.md`](CONFIGURATION.md); for the
 | **stable** | Production-ready, semver-protected. |
 | **beta** | Functional, no breaking changes expected, but the JSON schema may grow fields. |
 | **experimental** | Surface may change; useful for advanced operators. |
-| **deferred** | Declared but not implemented yet; commands return a clean error. |
+| **legacy** | Retired from the `sndr` top level; reachable via `python3 -m sndr.cli.legacy` (see the Legacy appendix). |
 
-`<preset>` is a **V2 alias**, e.g. `prod-qwen3.6-35b-balanced`,
-`prod-qwen3.6-27b-tq-k8v4`, `long-ctx-qwen3.6-27b` (under
-`builtin/presets/`). The V1 monolithic preset tier (flat
-`builtin/<key>.yaml`) was fully retired 2026-06-01 (Phase 10 sunset);
-the V1+V2 resolver still accepts a V1 key as an opaque arg for
-back-compat dispatch (`_resolve_preset_v1_or_v2`) but every shipped
-V1 file is gone — operators get a clean "preset not found" error.
+`<preset>` is a **V2 preset key**, e.g. `prod-qwen3.6-35b-balanced` or
+`prod-qwen3.6-27b-tq-k8v4` (under `builtin/presets/`). The V1
+monolithic preset tier (flat `builtin/<key>.yaml`) was fully retired
+2026-06-01 (Phase 10 sunset); operators using a V1 key get a clean
+"preset not found" error.
 
-The resolver feeds `sndr launch`, `sndr compose`,
-`sndr patches plan`, `sndr memory`, `sndr model-config diagnose`.
+### CLI ergonomics (v12)
 
----
-
-## 1. Install + first run
-
-### `sndr install` — **stable**
-
-Bootstrap a fresh machine end-to-end: preflight, hardware detect,
-workload picker, vLLM pin allowlist, repo clone/update, plugin
-install, host paths, launch script generation, smoke test.
-
-```bash
-sndr install                              # Interactive wizard
-sndr install --config prod-qwen3.6-35b-balanced --yes      # Non-interactive, pick preset upfront
-sndr install --config prod-qwen3.6-35b-balanced --prepare  # Plan only; write nothing
-sndr install --config prod-qwen3.6-35b-balanced --print-script   # Emit launch script + exit
-```
-
-Key flags:
-
-| Flag | Default | Purpose |
-|---|---|---|
-| `--config <preset>` | (interactive) | Skip the workload picker; use this preset directly. |
-| `--yes`, `-y` | off | Non-interactive; fail rather than prompt. |
-| `--prepare` | off | Render artifacts but skip the live launch step. |
-| `--print-script` | off | Emit the launch script to stdout and exit. |
-| `--update` | off | Pull new commits / refresh plugin install. |
-| `--target-pin <vllm>` | (allowlist default) | Pin vLLM nightly; verified against `KNOWN_GOOD_VLLM_PINS`. |
-
-### `sndr launch` — **stable**
-
-Render `cfg.to_launch_script()` + apply patches + exec the resulting
-shell script under your shell (or container runtime).
-
-```bash
-sndr launch                                       # Interactive preset pick
-sndr launch prod-qwen3.6-35b-balanced                              # Live launch
-sndr launch prod-qwen3.6-35b-balanced --dry-run                    # Render + diagnose only
-sndr launch prod-qwen3.6-35b-balanced --preflight-only             # Preflight gate; no exec
-sndr launch prod-qwen3.6-35b-balanced --pull                       # `docker pull` before launch
-sndr launch prod-qwen3.6-35b-balanced --check-deps                 # Validate deps before exec
-sndr launch prod-qwen3.6-35b-balanced --policy minimal             # Filter env through patch_plan
-sndr launch prod-qwen3.6-35b-balanced --policy safe --dry-run      # Preview filtered script
-```
-
-Key flags:
-
-| Flag | Default | Purpose |
-|---|---|---|
-| `config_key` (positional) | (interactive) | Preset key or V2 alias. |
-| `--dry-run` | off | Render the launch script to stdout; do not exec. |
-| `--port <int>` | preset value | Override the preset's HTTP port. |
-| `--skip-apply` | off | Bypass dispatcher apply phase (use only when patches are pre-applied). |
-| `--non-interactive`, `-y` | off | No prompts; requires explicit `config_key`. |
-| `--strict-image {on,off,auto}` | `auto` | Refuse launch when local image digest mismatches `docker.image_digest`. `auto` enforces only when the preset declares a digest. |
-| `--preflight-only` | off | Run preflight gates and exit; never exec vLLM. |
-| `--pull` | off | `docker pull` the preset's image before exec. |
-| `--check-deps` | off | Run `sndr deps inspect` against the preset; abort on missing dep. |
-| `--policy {compat,safe,minimal}` | unset | Filter `cfg.genesis_env` through the `patch_plan` resolver. See [PATCHES.md § patch-plan policy](PATCHES.md). |
-
-Pre-launch warnings surface for enabled patches with
-`implementation_status` in `{partial, placeholder, marker_only}` so
-operators don't run "advertised" features that have no real
-implementation.
+- **Bare `sndr`** on a terminal drops into the interactive
+  rig→preset→fit **launch wizard**. Non-interactive callers (pipes,
+  CI) get `--help` instead — the wizard never fires without a TTY.
+- **Dotted verbs + spaced aliases**: `sndr engines.list` and
+  `sndr engines list` are the same command; `sndr pins.list` ==
+  `sndr pins list`; `sndr model pull` == `sndr pull`.
+- **Bare-group defaults**: `sndr engines` → `engines.list`,
+  `sndr pins` → `pins.list`, `sndr mem` → `mem.stats`.
+- **Global `--output {json,yaml,text}`** selects the output format for
+  commands that support structured output (default: `text`).
 
 ---
 
-## 2. Inspect
+## 1. Run the stack
 
-### `sndr doctor` — **stable**
+### `sndr run` — **stable**
 
-Single-command "is my Genesis healthy" check. Calls patches doctor,
-schema validator, apply.shadow, and host preflights in series.
-
-```bash
-sndr doctor                            # human report
-sndr doctor --json                     # machine-readable
-```
-
-### `sndr doctor-system` — **stable**
-
-Extended host/runtime diagnostic. Probes nvidia-smi, Docker, host
-config, plugin install, etc. Useful as the first stop when something
-breaks on a fresh box.
+One command from zero to chat: resolve the top-fit preset for the
+detected rig → pull weights → launch → wait for readiness → open an
+interactive chat REPL.
 
 ```bash
-sndr doctor-system
-sndr doctor-system --json
+sndr run                                        # top-fit preset for this rig
+sndr run prod-qwen3.6-35b-balanced              # explicit preset
+sndr run --dry-run                              # resolve + report the plan only
+sndr run --no-input                             # headless: print chat pointer, no REPL
 ```
 
-### `sndr verify` — **stable**
+| Flag | Default | Purpose |
+|---|---|---|
+| `preset` (positional) | top-fit | Preset to run. Omit to auto-pick the top-ranked fitting preset. |
+| `--port <int>` | preset value | Override the preset's port (engine + readiness probe). |
+| `--dry-run` | off | Resolve + report the plan without launching, waiting or chatting. |
+| `--no-input` | off | Headless: auto-pick the top fit; print the chat pointer instead of a REPL. |
+| `--timeout <sec>` | 300 | Seconds to wait for engine readiness. |
+| `--rig <hardware-id>` | live rig | Resolve the top fit against a builtin hardware def (offline). |
+| `--fake-gpus <spec>` | live rig | Resolve against a synthetic rig `'name:vram_mib:cc;...'` (offline). |
 
-Bench-vs-reference verification (CI gate). Runs the preset for a
-short bench, compares against `reference_metrics`, exits non-zero on
-out-of-tolerance.
+### `sndr up` / `sndr down` — **stable**
+
+Bring up (or stop) the whole stack: engine **plus** the product-API /
+GUI daemon (Control Center) on port **8765**.
 
 ```bash
-sndr verify prod-qwen3.6-35b-balanced                  # default tolerance bands
-sndr verify prod-qwen3.6-35b-balanced --json
-sndr verify prod-qwen3.6-35b-balanced --strict         # tighter tolerance, fail-fast
+sndr up                                         # engine + GUI daemon → prints URL
+sndr up prod-qwen3.6-35b-balanced --gui-port 9000
+sndr up --no-engine                             # GUI daemon only (engine already runs)
+sndr down                                       # stop engine container + GUI daemon
+sndr down --dry-run                             # report what would be stopped
 ```
 
-### `sndr memory` — **stable**
+`sndr up` flags: everything `sndr run` accepts, plus
+`--gui-port <port>` (default 8765) and `--no-engine`.
+`sndr down` accepts `preset` (default: the same top-fit resolution as
+`sndr up`), `--gui-port`, `--dry-run`, `--rig`, `--fake-gpus`.
 
-VRAM budget estimator + live memory diagnostics.
+### `sndr open` — **stable**
+
+Open the local product-API + GUI in your browser.
 
 ```bash
-sndr memory                                # plan estimator for active preset
-sndr memory --preset prod-qwen3.6-35b-balanced              # explicit preset
-sndr memory --live                         # query running container
-sndr memory --json
+sndr open                                       # http://127.0.0.1:8765
+sndr open --gui-port 9000
 ```
 
-### `sndr caveats` — **stable**
+### `sndr chat` — **stable**
 
-Runtime caveats registry — known host-condition issues that affect
-specific patches or presets.
+Thin OpenAI-compatible REPL against an already-running engine.
 
 ```bash
-sndr caveats list
-sndr caveats inspect <preset>
+sndr chat                                       # default port 8000
+sndr chat prod-qwen3.6-35b-balanced             # use the preset's port
+sndr chat --port 8102 --host 127.0.0.1
 ```
 
-### `sndr self-test` — **stable**
+### `sndr health` — **stable**
 
-Structural sanity check after a fresh `git pull` or vLLM pin bump.
-Answers the question "is Genesis itself working on this box?" —
-different from `doctor` ("is my SYSTEM healthy?"). A `doctor` failure
-can be hardware / config; a `self-test` failure is a Genesis bug or a
-botched install.
+Show sndr-platform version and basic health info.
 
 ```bash
-sndr self-test                                          # human, all checks
-sndr self-test --quiet                                  # only fail/warn/skip rows
-sndr self-test --json                                   # machine-readable
+sndr health
 ```
-
-**Eight checks**, run in order, all run regardless of failures
-(self-test never crashes — it surfaces every problem in one pass):
-
-| # | Check | What it verifies |
-| --- | --- | --- |
-| 1 | version constant | `sndr.version.__version__` is a non-empty string. |
-| 2 | compat imports | All `sndr.compat.*` modules import cleanly. |
-| 3 | integrations imports | All `sndr/engines/vllm/patches/**/*.py` modules import; SKIP if `vllm` not installed. |
-| 4 | schema validator | `PATCH_REGISTRY` validates against `schemas/patch_entry.schema.json`. |
-| 5 | lifecycle audit | Every entry has a known lifecycle state. |
-| 6 | categories build | Categories index builds without errors and every patch is placed in at least one category. |
-| 7 | predicates evaluator | Every `applies_to` clause can be evaluated against an empty environment without raising. |
-| 8 | schema file | `schemas/patch_entry.schema.json` is parseable; SKIP in slim deployments where the source tree is not mounted. |
-
-**Exit codes:** `0` = all `fail`-class checks passed; `1` = at least
-one `fail`. `warn` and `skip` do not change the exit code.
-
-**Status symbols:** ✓ `pass`, ✗ `fail`, ⚠ `warn`, • `skip`.
-
-**Slim deployments.** If only the `sndr/` package is mounted
-(no source tree), the schema file check returns `skip` rather than
-`fail`. Point at an external source tree via env var:
-
-```bash
-GENESIS_REPO_ROOT=/path/to/genesis-vllm-patches sndr self-test
-```
-
-**Adding a new check.** Self-test lives in
-`sndr/compat/self_test.py`. Add a function
-`_check_<name>() -> tuple[str, str]` returning
-`(status, message)`, append to the `_CHECKS` list, and add a unit
-test pinning the new check name. Contract: a check must never raise.
-
-Companion utilities:
-
-- `sndr patches lifecycle-audit` — lifecycle states only,
-  machine-readable for CI.
-- `sndr patches validate-schema` — schema validation only,
-  exit 1 on violation.
 
 ### `sndr tui` — **stable**
 
@@ -281,6 +175,7 @@ and stop confirm first.
 ```bash
 sndr tui                                  # detected rig
 sndr tui --lean                           # beginner layout (hide operator panes)
+sndr tui --rig a5000-2x-24gbvram-16cpu-128gbram   # plan against a builtin rig (offline)
 sndr tui --fake-gpus 'RTX A5000:24564:8.6'  # plan against a card you don't have
 ```
 
@@ -291,7 +186,270 @@ CLI uses.
 
 ---
 
-## 3. Patches
+## 2. Launch + fit
+
+### `sndr launch` — **stable**
+
+Launch a preset: interactive rig→preset→fit wizard, or by name.
+Renders the launch script, applies patches, and execs it.
+
+```bash
+sndr launch                                       # interactive wizard (rig → fitting presets → pick)
+sndr launch prod-qwen3.6-35b-balanced             # live launch by name
+sndr launch prod-qwen3.6-35b-balanced --dry-run   # render the launch script, no exec
+sndr launch --no-input                            # wizard, auto-pick top-ranked fit (CI)
+sndr launch --rig=single-3090-24gbvram            # wizard against a builtin rig (offline)
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `preset` (positional) | (wizard) | Preset key to launch. Omit on a TTY to open the interactive wizard. |
+| `--port <int>` | preset value | Override the preset's port. |
+| `--dry-run` | off | Flag path: render the launch script. Wizard: print the resolved `sndr launch <preset>` command. |
+| `--no-input` | off | Wizard without prompts: auto-pick the top-ranked fitting preset. Useful for CI / non-TTY drivers. |
+| `--all` | off | Wizard: list non-fitting presets too (default: fitting only). |
+| `--rig <hardware-id>` | live rig | Wizard: project against a builtin hardware definition (offline, no nvidia-smi). |
+| `--fake-gpus <spec>` | live rig | Wizard: project against a synthetic rig, e.g. `'RTX 3090:24576:8.6'`. Offline. |
+
+For preflight gating use the dedicated `sndr preflight <preset>`; for
+policy-filtered env and compose rendering see the legacy
+`compose` / `--policy` surfaces in the Legacy appendix.
+
+### `sndr kv-calc` (alias: `sndr fit`) — **stable**
+
+Project a preset's per-card VRAM/KV bytes against a rig — "will it
+OOM?" — with a **PASS / TIGHT / FAIL** verdict. Fully offline with
+`--rig` / `--card` / `--fake-gpus`.
+
+```bash
+sndr kv-calc prod-qwen3.6-35b-balanced            # against the live rig
+sndr kv-calc prod-qwen3.6-35b-balanced --card 24  # quick ad-hoc 24 GiB card
+sndr kv-calc --fit-all                            # whole catalog vs 24/48/80 GB
+sndr kv-calc --fit-all --cards 24,48              # custom card set
+sndr kv-calc prod-qwen3.6-27b-tq-k8v4 --solve-max-ctx   # largest ctx that still fits
+sndr kv-calc prod-qwen3.6-35b-balanced --kv-breakdown   # per-component byte breakdown
+sndr fit prod-qwen3.6-35b-balanced                # same command, shorter name
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `preset` (positional) | — | Preset to project. Omit with `--fit-all` to project the whole catalog. |
+| `--fit-all` | off | Project EVERY builtin preset against each card into one fit table. |
+| `--cards GB[,GB...]` | `24,48,80` | Per-card VRAM sizes for `--fit-all`. |
+| `--rig <hardware-id>` | live rig | Builtin hardware definition (offline). |
+| `--card <vram-gb>` | — | Quick ad-hoc rig; overrides `--rig` / live probe. |
+| `--fake-gpus <spec>` | — | Synthetic rig `'name:vram_mib:cc;...'` (offline). |
+| `--ctx N` | preset's `max_model_len` | Context override (e.g. `131072` or `128k`). |
+| `--max-num-seqs N` | preset value | Concurrency override. |
+| `--kv-format FMT` | preset value | KV format override (`turboquant_k8v4`, `fp8_e5m2`, `bf16`, ...). |
+| `--solve-max-ctx` | off | Report the largest max_ctx that still PASS/TIGHT-fits, then exit. |
+| `--kv-breakdown` | off | Full per-component byte breakdown (default: summary). |
+
+### `sndr preflight` — **stable**
+
+Project a preset's hardware envelope against a rig — "can it run?".
+
+```bash
+sndr preflight prod-qwen3.6-35b-balanced
+sndr preflight prod-qwen3.6-35b-balanced --rig single-3090-24gbvram
+sndr preflight prod-qwen3.6-27b-tq-k8v4 --fake-gpus 'RTX 3090:24576:8.6'
+```
+
+### `sndr tune` — **stable**
+
+GPU power/clock tuning from a preset's Y8 `gpu_tuning` block. Default
+is dry-run; pass `--yes` to actually run `nvidia-smi`.
+
+```bash
+sndr tune plan prod-qwen3.6-35b-balanced          # print planned nvidia-smi commands
+sndr tune apply prod-qwen3.6-35b-balanced --yes   # apply Y8 gpu_tuning settings
+sndr tune revert                                  # best-effort restore to defaults
+sndr tune report prod-qwen3.6-35b-balanced        # current state vs Y8 declared
+sndr tune sweep prod-qwen3.6-35b-balanced --bench-cmd '...'   # power-limit sweep
+```
+
+---
+
+## 3. Models
+
+### `sndr pull` — **stable**
+
+Download a Genesis-supported model from HuggingFace + generate a
+launch script tailored to the chosen workload.
+
+```bash
+sndr pull qwen3.6-35b-a3b-fp8
+sndr pull qwen3.6-27b-int4 --models-dir /models --workload long_ctx_tool_call
+sndr pull qwen3.6-27b-int4 --dry-run              # pre-flight + plan + fit verdict only
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `model_key` (positional) | — | Model key from `sndr list-models` (optional when `--config` used). |
+| `--models-dir <dir>` | `SNDR_MODELS_DIR` / `GENESIS_MODELS_DIR` / HF cache | Where to put weights. |
+| `--workload <w>` | — | `long_ctx_tool_call` / `interactive` / `throughput`. |
+| `--tp <int>` | auto | Tensor-parallel size override. |
+| `--launch-out <dir>` | — | Directory for the generated launch script. |
+| `--no-launch` | off | Skip launch-script generation (just download). |
+| `--dry-run` | off | Print pre-flight + plan + fit verdict; do not download. |
+| `--card <vram-gb>` / `--fake-gpus <spec>` | live rig | Offline fit projection. |
+| `--revision <rev>` / `--hf-id-override <id>` / `--config <key>` | — | Advanced source selection. |
+
+### `sndr list-models` — **stable**
+
+Browse the curated model registry.
+
+```bash
+sndr list-models
+sndr list-models --status PROD
+sndr list-models --json
+```
+
+`--status` filters by `PROD` / `SUPPORTED` / `EXPERIMENTAL` / `PLANNED`.
+
+---
+
+## 4. Presets + configs
+
+### `sndr preset list` — **stable**
+
+List V2 presets with their `PresetCard` metadata. Operator-product
+surface — distinct from `sndr config list` (config-key inventory).
+See [`PRESETS.md`](PRESETS.md) for the card schema and when to use
+which command.
+
+```bash
+sndr preset list                                       # all presets, table view
+sndr preset list --json                                # machine-readable
+sndr preset list --status production_candidate          # filter by card.status
+sndr preset list --family qwen3_6_35b                  # filter by card.routing_family
+sndr preset list --workload free_chat                  # workload_allow intersection
+sndr preset list --hardware a5000-2x-24gbvram-16cpu-128gbram
+sndr preset list --mode throughput                     # filter by card.mode
+```
+
+Unannotated presets (no `card:` block in YAML) are shown but tagged
+`(unannotated)`. They are skipped by `sndr preset recommend`.
+
+### `sndr preset show <preset_id>` — **stable**
+
+Card-formatted view of one preset: identity, workload contract,
+operating envelope, evidence, tradeoffs, "do not use". For raw YAML
+dump use `sndr config explain <preset_id>`.
+
+```bash
+sndr preset show prod-qwen3.6-35b-balanced
+sndr preset show prod-qwen3.6-35b-balanced --json
+sndr preset show prod-qwen3.6-35b-balanced --field card.evidence_refs.0.path
+```
+
+`--field <dot.path>` walks nested attributes / list indices / dict
+keys (e.g. `card.evidence_refs.0.path`, `card.concurrency.canonical`).
+Errors include the failed segment for self-correction.
+
+### `sndr preset explain <preset_id>` — **stable**
+
+Operator walkthrough: card narrative + composed runtime dry-run +
+projected fit + measured bench + single-row diff vs
+`card.fallback_preset`. Used to validate that the preset's YAML
+triplet actually composes to the runtime claimed in the card.
+
+```bash
+sndr preset explain prod-qwen3.6-35b-balanced
+sndr preset explain prod-gemma4-26b-multiconc --json
+```
+
+The "Composed runtime (dry-run)" section reports `composed_key`,
+`kv_cache_dtype`, `max_model_len`, `max_num_seqs`,
+`gpu_memory_utilization`, `spec_decode_method`, `spec_decode_K`, and
+`enabled_patches_count` — the field-set most operators care about.
+
+### `sndr preset recommend` — **stable**
+
+Inverse lookup: operator declares a workload (with optional hardware
+and concurrency constraints), CLI ranks matching presets. Ranking order:
+
+1. `card.status` priority (production > production_candidate > internal_validated > others)
+2. `card.default_for_family` (true sorts before false)
+3. `card.primary_metric.value` descending
+4. preset id ascending (deterministic tie-break)
+
+```bash
+sndr preset recommend --workload free_chat \
+                      --hardware a5000-2x-24gbvram-16cpu-128gbram \
+                      --concurrency 8
+sndr preset recommend --workload structured_json.short --top 3
+sndr preset recommend --workload custom:my-task --json
+```
+
+Workload values are from a frozen taxonomy: `free_chat`,
+`structured_json.short`, `structured_json.long`, `tool_call.short`,
+`tool_call.long`, `summarization`, `code_gen`, `long_context_qa`.
+Custom workloads are accepted via the `custom:<slug>` escape (slug
+matches `[a-z0-9._-]+`).
+
+Safety rule: a preset is **excluded** from results when the queried
+workload is in its `card.workload_deny`, even if `workload_allow` is
+broad or empty.
+
+### `sndr config` — **stable**
+
+Native config inspection + scaffold generator. Subcommands:
+`diff` / `explain` / `new` / `checksum` / `list`. (There is no
+`config show` — use `sndr config explain` or
+`sndr model-config show`.)
+
+```bash
+sndr config list                                # config inventory (alias of model-config list)
+sndr config diff prod-qwen3.6-35b-balanced prod-qwen3.6-35b-multiconc   # field-by-field
+sndr config explain prod-qwen3.6-35b-balanced   # plain-English preset walkthrough
+sndr config checksum prod-qwen3.6-35b-balanced  # deterministic SHA256 of the preset YAML
+sndr config new my-rig --from-detect            # detect host + scaffold a starter YAML
+sndr config new my-rig --from-template prod-qwen3.6-35b-balanced
+```
+
+`sndr config new` writes to the user model-config dir (default
+`~/.sndr/model_configs/<key>.yaml`); `--from-detect` probes the host
+(deps.inspect_host) and auto-fills the hardware + system_env sections;
+`--out <path>` and `--force` control the destination.
+
+### `sndr model-config` — **stable**
+
+Vetted model launch configurations. Fourteen subcommands:
+
+| Subcommand | Purpose |
+|---|---|
+| `list` | Enumerate all configs. |
+| `show <key>` | Print full YAML. |
+| `render <key>` | Emit launch script. `--runtime {docker,podman,kubernetes,lxc_proxmox,bare_metal}`, `--mode {wheel,dev,dev_legacy}`, `--force`. |
+| `save <key>` | Write launch script to file. |
+| `audit <key>` | Run audit_rules (cross-patch checks). |
+| `validate <key>` | Schema + audit (recommended pre-launch). |
+| `preflight <key>` | Pre-launch environment checks. |
+| `diagnose <key>` | Runtime diagnose — query a running container. |
+| `verify <key>` | Bench vs `reference_metrics` (CI gate). |
+| `where <key>` | Show source tier. |
+| `new <key>` | Create a user config. |
+| `promote <key>` | Promote a community config along `community-test → -dev → -prod`. |
+| `launch <key>` | Execute the rendered script. |
+| `bench-and-update <key>` | Bench + write metrics back into YAML. |
+
+```bash
+sndr model-config show prod-qwen3.6-35b-balanced
+sndr model-config render prod-qwen3.6-35b-balanced --runtime kubernetes
+sndr model-config validate prod-qwen3.6-35b-balanced
+sndr model-config verify prod-qwen3.6-35b-balanced      # bench vs reference_metrics
+sndr model-config promote my-preset --to community-dev --rig-tag rtx-a5000 --handle you
+```
+
+`promote` flags: `--to {community-dev,community-prod}` (required),
+`--rig-tag <tag>`, `--handle <github-handle>`, `--force`. Schema gates
+(cross-rig validation, reference_metrics, cooling-off window) enforce
+safe progression.
+
+---
+
+## 5. Patches
 
 ### `sndr patches list` — **stable**
 
@@ -346,7 +504,7 @@ Flags:
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `--preset <key>` | (required) | V1 key or V2 alias. |
+| `--preset <key>` | (required) | V2 preset key. |
 | `--json` | off | Machine-readable output. |
 | `--profile {any,production}` | `any` | `production` blocks the plan when any included patch has `implementation_status ∈ {partial, placeholder}` or `lifecycle ∈ {research, retired}`. |
 | `--policy {compat,safe,minimal}` | unset | Add resolver view to output. |
@@ -356,9 +514,20 @@ When `--policy` is **not** passed, the legacy simulator output still
 runs, **and** the resolver runs silently for warnings only (advisory
 section surfaces `conflicts_with` + `candidate_when` mismatches).
 
+### `sndr patches pn95-status` — **stable**
+
+Live PN95 (tier-aware KV cache) runtime stats: ticks, pressure checks,
+demote count, prefix store size — and a self-diagnosis of common gaps
+(multiproc TM gap, no eligible attention layers, etc.).
+
+```bash
+sndr patches pn95-status
+```
+
 ### `sndr patches prove` — **stable**
 
-Run static proof checks over every registry entry.
+Run static proof checks over every registry entry (+ proof-artefact
+writer).
 
 ```bash
 sndr patches prove --all
@@ -368,7 +537,7 @@ sndr patches prove --filter PN95
 
 ### `sndr patches release-check` — **stable**
 
-Gate the registry against a release policy.
+Decide release-readiness from proof artefacts.
 
 ```bash
 sndr patches release-check                              # default (report mode)
@@ -414,379 +583,139 @@ sndr patches bundles list
 sndr patches bundles explain long-context-stack
 ```
 
-### `sndr patches pn95` — **stable**
+---
 
-Tier-aware KV cache (PN95) inspect/dump/disk-tier-show subcommand
-tree.
+## 6. Engines + pins
+
+### `sndr engines.list` / `sndr engines.info` — **stable**
+
+Multi-engine registry: vLLM is the primary engine; llama.cpp and
+sglang are registered engine backends.
 
 ```bash
-sndr patches pn95 status
-sndr patches pn95 dump --json
-sndr patches pn95 disk-tier-show
+sndr engines.list                               # NAME / STATUS / VERSION / PIN table
+sndr engines list                               # spaced alias, same command
+sndr engines                                    # bare group → engines.list
+sndr engines.info vllm                          # detailed info about one engine
+```
+
+### `sndr pins.list` — **stable**
+
+List pins available for an engine. The current/rollback/stable pins
+live in `sndr/pins.yaml` (SSOT).
+
+```bash
+sndr pins.list                                  # default engine: vllm
+sndr pins.list --engine vllm
+sndr pins                                       # bare group → pins.list
+```
+
+### Pin bump propagation — `scripts/bump_pin.py` — **stable** (maintainer surface)
+
+Not a `sndr` verb — the repo-side script behind `make bump-pin` that
+propagates a new pin from `sndr/pins.yaml` into every downstream
+artifact (see [`PIN_BUMP_PLAYBOOK.md`](PIN_BUMP_PLAYBOOK.md) §7).
+
+```bash
+make bump-pin NEW=0.23.1rc1.devNNN+g<sha>       # add DRY=1 for a dry run
+python3 scripts/bump_pin.py 0.23.1rc1.devNNN+g<sha> \
+    --sha-full <40-hex upstream sha>            # equivalent direct call
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--dry-run` | off | Report the propagation without writing. |
+| `--sha-full <40-hex>` | unset | Update `current_sha_full` in `sndr/pins.yaml`. Added 2026-07-04 (dev748 promotion): the full SHA cannot be derived from the version string's short hash, so omitting the flag leaves `current_sha_full` stale — the script prints a loud WARN. Source it from the image label `org.opencontainers.image.revision`. |
+
+---
+
+## 7. Memory daemon (`mem.*`)
+
+Persistent memory (graph + vector) served by the running product-API
+daemon (`sndr up`, port 8765). All four verbs share `--url` (else
+`$SNDR_MEMORY_URL` / `$SNDR_GUI_URL`, default `http://127.0.0.1:8765`),
+`--owner` (else `$SNDR_MEMORY_OWNER`, default 1) and `--token` (else
+`$GENESIS_MEMORY_API_KEY`, sent as Bearer).
+
+```bash
+sndr mem.remember "the 27B rig uses TP=2"       # store a memory
+sndr mem.recall "27B rig"                       # graph expand + reinforce
+sndr mem.search "TP settings"                   # vector/hybrid search, no side effects
+sndr mem.stats                                  # node/edge counts for this owner
+sndr mem                                        # bare group → mem.stats
 ```
 
 ---
 
-## 4. Compose / launch surfaces
+## 8. Bench
 
-### `sndr compose render <preset>` — **stable**
+### `sndr bench` — **stable**
 
-Render preset → `docker-compose.yml` for stdin or file.
-
-```bash
-sndr compose render prod-qwen3.6-35b-balanced                       # legacy unfiltered
-sndr compose render prod-qwen3.6-35b-balanced -o /etc/sndr/compose.yml
-sndr compose render prod-qwen3.6-35b-balanced --policy compat
-sndr compose render prod-qwen3.6-35b-balanced --policy safe
-sndr compose render prod-qwen3.6-35b-balanced --policy minimal
-```
-
-The rendered header carries a "Patch policy:" block with included /
-excluded / passthrough counts plus `regenerate:` and `inspect:`
-commands so anyone reading the file weeks later sees provenance.
-
-### `sndr compose up <preset>` — **stable**
-
-`docker compose up -d` against the preset's compose file (renders
-inline if needed).
+Genesis benchmark suite — measures tool-call quality, decode TPOT,
+wall TPS, TTFT, stability, and context window against a running
+engine.
 
 ```bash
-sndr compose up prod-qwen3.6-35b-balanced
-sndr compose up prod-qwen3.6-35b-balanced --detach
+sndr bench --mode quick                         # smoke
+sndr bench --mode standard --port 8102
+sndr bench --mode full --out bench.json --md bench.md
+sndr bench --compare A.json B.json --compare-out delta.json
+sndr bench --ablate-against baseline.json --ablate-tag pn521-off
+sndr bench --mode full --ctx-scale 1K,4K,8K,16K,32K   # context-scaling section
 ```
 
-### `sndr compose down <preset>` — **stable**
-
-`docker compose down`.
-
-```bash
-sndr compose down prod-qwen3.6-35b-balanced
-```
-
-### `sndr compose logs <preset>` — **stable**
-
-```bash
-sndr compose logs prod-qwen3.6-35b-balanced
-sndr compose logs prod-qwen3.6-35b-balanced -n 500 --follow
-```
-
-### `sndr compose plan-diff <preset>` — **stable**
-
-A/B between two policies. Read-only — no YAML rendered.
-
-```bash
-sndr compose plan-diff prod-qwen3.6-35b-balanced --from compat --to minimal
-sndr compose plan-diff prod-qwen3.6-35b-balanced --from compat --to safe --json
-```
-
-Surfaces:
-
-- `newly_excluded` — toggles that move from included to excluded.
-- `newly_included` — opposite direction (rare).
-- `unchanged_included`, `unchanged_excluded` — set membership stable.
-- `passthrough_diff` — almost always empty; passthrough is policy-independent.
-
-### `sndr quadlet <preset>` — **beta**
-
-Render systemd/podman quadlet unit for the preset.
-
-```bash
-sndr quadlet render prod-qwen3.6-35b-balanced
-```
-
-### `sndr k8s render <preset>` — **beta**
-
-Render Kubernetes manifests for the preset.
-
-```bash
-sndr k8s render prod-qwen3.6-35b-balanced
-```
+| Flag | Default | Purpose |
+|---|---|---|
+| `--host` / `--port` / `--scheme {http,https}` / `--api-key` | localhost | Target endpoint (https for RunPod / TLS-fronted). |
+| `--model <name>` | auto-detect | Override model name (default: from `/v1/models`). |
+| `--mode {quick,standard,full}` (or `--quick`) | — | Suite depth. |
+| `--runs N` | by mode | Bench iterations per prompt. |
+| `--prompts {short,standard,long,structured,code}` | — | Prompt set. |
+| `--max-tokens N` | — | Generation cap. |
+| `--ctx {1K..256K,all}` | — | Max context size to probe. |
+| `--stress N` | by mode | Stability stress iterations. |
+| `--ttft-turns N` / `--ctx-timeout N` | — | TTFT multi-turn count / ctx probe timeout. |
+| `--out PATH` / `--md PATH` / `--name NAME` | derived | Output JSON / Markdown / arm name. |
+| `--skip-toolcall` / `--skip-stress` / `--skip-ctx-probe` / `--skip-multi-turn` / `--skip-ctx-scaling` | off | Skip individual suite sections. |
+| `--ctx-scale LIST` | suite default | Context-scaling ladder, e.g. `1K,4K,8K,16K,32K` — measures decode TPS at each prompt size and issues a LINEAR_OK / cliff verdict. |
+| `--ctx-scale-gen-tokens N` | suite default | Tokens generated per ctx-scaling step. |
+| `--ctx-scale-step-drop X` / `--ctx-scale-endpoint-floor X` | suite default | Cliff-detection thresholds (max per-step drop / min endpoint ratio). |
+| `--accept-rate-floor RATE` | — | Fail the MTP acceptance-rate gate below RATE. |
+| `--probe-output-length` | off | Extra output-length probe. |
+| `--compare A.json B.json` (+ `--compare-out`) | — | Delta two prior runs. |
+| `--ablate-against BASELINE.json` (+ `--ablate-tag`) | — | A/B a run against a baseline. |
+| `--quiet` / `--verbose` | off | Output verbosity. |
 
 ---
 
-## 5. Service lifecycle
+## 9. Diagnostics + reporting
 
-### `sndr service` — **beta**
+### `sndr doctor` — **stable**
 
-Service lifecycle manager across backends (systemd / docker_compose /
-podman_quadlet / bare_metal). Reads `ServiceConfig` from the preset.
-
-```bash
-sndr service install <preset>           # backend-specific provisioning
-sndr service start <preset>             # backend-specific start
-sndr service stop <preset>              # backend-specific stop
-sndr service status <preset>            # backend-specific status
-sndr service logs <preset>              # backend-specific logs
-sndr service uninstall <preset>         # cleanup
-```
-
-Backend behaviour:
-
-| Backend | install | start | stop | status | logs |
-|---|---|---|---|---|---|
-| `systemd` | render unit + enable | systemctl start | systemctl stop | systemctl status | journalctl |
-| `docker_compose` | render `~/.sndr/compose/<key>.yml` | `docker compose -f … up -d` (falls back to `docker start <container>`) | `docker compose down` (falls back to `docker stop`) | `docker ps --filter` | `docker logs` |
-| `podman_quadlet` | (points operator at `sndr quadlet`) | systemctl start | systemctl stop | systemctl status | journalctl |
-| `kubernetes` | (delegates to `sndr k8s render`) | not yet wired | not yet wired | not yet wired | not yet wired |
-| `bare_metal` | informational | run `sndr launch` directly | n/a | n/a | n/a |
-
----
-
-## 6. Proxmox
-
-### `sndr proxmox` — **beta**
-
-Render Proxmox provisioning commands. Modes: `lxc`, `vm`, `host`.
+Single-command "is my Genesis healthy" check — hardware + software +
+model + patches + validator + lifecycle.
 
 ```bash
-sndr proxmox doctor <preset>
-sndr proxmox render <preset>            # operator-readable command script
-sndr proxmox apply <preset>             # (deferred)
-sndr proxmox status <preset>
+sndr doctor                            # human report
+sndr doctor --json                     # machine-readable
+sndr doctor --quiet                    # only critical issues
+sndr doctor --full                     # +6 extended sections: wsl, image, mounts, license, engine, remote
+sndr doctor --container vllm-35b      # inspect a container's image digest
+sndr doctor --remote user@host        # remote capability probe
+sndr doctor --redact                   # mask IPs / hostnames / tokens
 ```
 
-Unknown modes produce a fail-fast error (`exit 2`) instead of warning
-and proceeding.
+### `sndr verify` — **stable**
 
----
-
-## 7. Model config
-
-### `sndr model-config show <key>` — **stable**
-
-Print one resolved `ModelConfig` (V1).
+Post-install smoke test. **Not** a bench — for bench-vs-reference use
+`sndr model-config verify <preset>`.
 
 ```bash
-sndr model-config show a5000-2x-35b-prod
-sndr model-config show a5000-2x-35b-prod --json
+sndr verify --quick                    # fast static checks, no GPU/model (default, ~3 sec)
+sndr verify --boot                     # quick + apply_all dry-run + chunk.py hook check
+sndr verify --full                     # all static + boot checks; live-boot probes reported as SKIP with run-it-yourself guidance
+sndr verify --json
 ```
-
-### `sndr model-config list` — **stable**
-
-List V1 preset keys + brief metadata.
-
-```bash
-sndr model-config list
-sndr model-config list --json
-```
-
-### `sndr model-config explain <key>` — **stable**
-
-Human-readable explanation of a preset's env, mounts, runtime
-command, validation status.
-
-```bash
-sndr model-config explain prod-qwen3.6-35b-balanced
-```
-
-### `sndr model-config new <key>` — **stable**
-
-Create a user preset from a template.
-
-```bash
-sndr model-config new my-preset --template a5000-2x-35b-prod
-sndr model-config new my-preset --template prod-qwen3.6-35b-balanced --force
-```
-
-### `sndr model-config promote <key>` — **stable**
-
-Promote a community config through the `community-test → -dev → -prod`
-ladder. Schema gates enforce cross-rig validation + reference_metrics.
-
-```bash
-sndr model-config promote my-preset --tier community-dev
-sndr model-config promote my-preset --tier community-prod
-```
-
-### `sndr model-config audit <key>` — **stable**
-
-Static audit (audit_rules) against one preset.
-
-```bash
-sndr model-config audit prod-qwen3.6-35b-balanced
-```
-
-### `sndr model-config preflight <key>` — **stable**
-
-Host preflight (mounts, GPU, container name) without running vLLM.
-
-```bash
-sndr model-config preflight prod-qwen3.6-35b-balanced
-```
-
-### `sndr model-config diagnose <key>` — **stable**
-
-Runtime diagnose against a **running** container.
-
-```bash
-sndr model-config diagnose prod-qwen3.6-35b-balanced
-sndr model-config diagnose prod-qwen3.6-35b-balanced --port 8002
-sndr model-config diagnose prod-qwen3.6-35b-balanced --policy minimal
-```
-
-`--policy` lets diagnose compare against the policy-filtered env
-rather than `cfg.genesis_env` raw. Use when you launched with the
-same `--policy`, otherwise diagnose flags policy-excluded toggles as
-missing.
-
-### `sndr model-config verify <key>` — **stable**
-
-Bench vs reference_metrics (same as top-level `sndr verify`).
-
-```bash
-sndr model-config verify prod-qwen3.6-35b-balanced
-```
-
-### `sndr model-config diff <a> <b>` — **stable**
-
-Diff two presets' merged env + sizing + mounts.
-
-```bash
-sndr model-config diff prod-qwen3.6-35b-balanced prod-qwen3.6-35b-multiconc
-```
-
----
-
-## 8. V2 model registry + preset catalog
-
-### `sndr model list-v2` — **stable**
-
-List V2 ModelDef registry entries.
-
-```bash
-sndr model list-v2
-sndr model list-v2 --json
-```
-
-### `sndr model pull <key>` / `sndr model list` — **stable**
-
-Model download + registry inventory (HuggingFace + local).
-
-```bash
-sndr model pull <id>
-sndr model list
-```
-
-### `sndr hardware list` — **stable**
-
-List V2 HardwareDef entries.
-
-```bash
-sndr hardware list
-```
-
-### `sndr profile list` — **stable**
-
-List V2 ProfileDef entries.
-
-```bash
-sndr profile list
-sndr profile list --model qwen3.6-35b-a3b-fp8
-```
-
-### `sndr profile show <id>` — **stable**
-
-Show one profile's `patches_delta` + sizing override + attribution.
-
-```bash
-sndr profile show qwen3.6-35b-balanced
-```
-
-### `sndr profile diff <a> <b>` — **stable**
-
-Diff two profiles.
-
-```bash
-sndr profile diff qwen3.6-35b-balanced qwen3.6-35b-multiconc
-```
-
-### `sndr preset list` — **stable**
-
-List V2 presets with their `PresetCard` metadata. Operator-product
-surface — distinct from `sndr config list` (V1 + V2 inventory of
-config keys) and `sndr profile list` (patches delta layer). See
-[`PRESETS.md`](PRESETS.md) for the card schema and when to use which
-command.
-
-```bash
-sndr preset list                                       # all presets, table view
-sndr preset list --json                                # machine-readable
-sndr preset list --status production_candidate          # filter by card.status
-sndr preset list --family qwen3_6_35b_a3b_fp8          # filter by card.routing_family
-sndr preset list --workload free_chat                  # workload_allow intersection
-sndr preset list --hardware a5000-2x-24gbvram-16cpu-128gbram
-sndr preset list --mode throughput                     # filter by card.mode
-```
-
-Unannotated presets (no `card:` block in YAML) are shown but tagged
-`(unannotated)`. They are skipped by `sndr preset recommend`.
-
-### `sndr preset show <preset_id>` — **stable**
-
-Card-formatted view of one preset: identity, workload contract,
-operating envelope, evidence, tradeoffs, "do not use". For raw YAML
-dump use `sndr config explain <preset_id>`.
-
-```bash
-sndr preset show prod-qwen3.6-35b-balanced
-sndr preset show prod-qwen3.6-35b-balanced --json
-sndr preset show prod-qwen3.6-35b-balanced --field card.evidence_refs.0.path
-```
-
-`--field <dot.path>` walks nested attributes / list indices / dict
-keys (e.g. `card.evidence_refs.0.path`, `card.concurrency.canonical`).
-Errors include the failed segment for self-correction.
-
-### `sndr preset explain <preset_id>` — **stable**
-
-Operator walkthrough: card narrative + composed runtime dry-run +
-single-row diff vs `card.fallback_preset`. Used to validate that the
-preset's YAML triplet actually composes to the runtime claimed in the
-card.
-
-```bash
-sndr preset explain prod-qwen3.6-35b-balanced
-sndr preset explain prod-gemma4-26b-multiconc --json
-```
-
-The "Composed runtime (dry-run)" section reports `composed_key`,
-`kv_cache_dtype`, `max_model_len`, `max_num_seqs`,
-`gpu_memory_utilization`, `spec_decode_method`, `spec_decode_K`, and
-`enabled_patches_count` — the field-set most operators care about.
-
-### `sndr preset recommend` — **stable**
-
-Inverse lookup: operator declares a workload (with optional hardware
-and concurrency constraints), CLI ranks matching presets. Ranking order:
-
-1. `card.status` priority (production > production_candidate > internal_validated > others)
-2. `card.default_for_family` (true sorts before false)
-3. `card.primary_metric.value` descending
-4. preset id ascending (deterministic tie-break)
-
-```bash
-sndr preset recommend --workload free_chat \
-                      --hardware a5000-2x-24gbvram-16cpu-128gbram \
-                      --concurrency 8
-sndr preset recommend --workload structured_json.short --top 3
-sndr preset recommend --workload custom:my-task --json
-```
-
-Workload values are from a frozen taxonomy: `free_chat`,
-`structured_json.short`, `structured_json.long`, `tool_call.short`,
-`tool_call.long`, `summarization`, `code_gen`, `long_context_qa`.
-Custom workloads are accepted via the `custom:<slug>` escape (slug
-matches `[a-z0-9._-]+`).
-
-Safety rule: a preset is **excluded** from results when the queried
-workload is in its `card.workload_deny`, even if `workload_allow` is
-broad or empty. Concrete example — `--workload free_chat --concurrency 8`
-will not return `prod-gemma4-26b-mtp-k4` (K=4 structured) because
-its `workload_deny` lists `free_chat`.
-
----
-
-## 9. Reporting
 
 ### `sndr report bundle` — **stable**
 
@@ -828,193 +757,33 @@ Requires `GENESIS_CUDAGRAPH_DISPATCH_TRACE=1` at boot.
 
 ---
 
-## 10. Dependencies + upstream tracking
+## Legacy appendix — `python3 -m sndr.cli.legacy`
 
-### `sndr deps inspect <preset>` — **stable**
-
-Host dependency inventory + per-preset plan.
-
-```bash
-sndr deps inspect prod-qwen3.6-35b-balanced
-sndr deps inspect prod-qwen3.6-35b-balanced --json
-```
-
-### `sndr upstream list` / `sndr upstream check` — **stable**
-
-vLLM pin allowlist + per-preset upstream policy.
+The pre-v12 verb set was retired from the `sndr` top level but remains
+reachable through the legacy entrypoint for back-compat:
 
 ```bash
-sndr upstream list
-sndr upstream check prod-qwen3.6-35b-balanced
+python3 -m sndr.cli.legacy <verb> [args...]
 ```
 
----
+Retired verbs (all **legacy** badge; no new features land here):
 
-## 11. Community SDK
-
-### `sndr community list` — **stable**
-
-List community-submitted patches and their lifecycle stage.
-
-```bash
-sndr community list
-sndr community list --json
-```
-
-### `sndr community validate <path>` — **stable**
-
-Validate a community patch manifest.
-
-```bash
-sndr community validate ./plugins/foo/PN999/
-```
-
-### `sndr community new-patch <id>` — **stable**
-
-Scaffold a new community patch.
-
-```bash
-sndr community new-patch PN999 --author you --description "..."
-```
-
----
-
-## 12. Native preset config (UNIFIED_CONFIG C8)
-
-### `sndr config` — **stable**
-
-Native preset browser; alternative to `sndr model-config`.
-
-```bash
-sndr config list
-sndr config show prod-qwen3.6-35b-balanced
-sndr config diff prod-qwen3.6-35b-balanced prod-qwen3.6-35b-multiconc
-sndr config explain prod-qwen3.6-35b-balanced
-```
-
-`sndr config` is the V1 + V2 preset inventory surface — distinct from
-`sndr config-catalog` (§13), which is the **derived catalog** view of
-the same V2 corpus with row-level redaction and a fixed-DSL query
-language.
-
----
-
-## 13. Derived config catalog (CONFIG-UX.5)
-
-### `sndr config-catalog` — **stable**
-
-Read-only API over the V2 model-config corpus + registry. The catalog
-is a **derived view**, not a new source of truth: every row is rebuilt
-on demand from `model_configs/builtin/*.yaml` and
-`dispatcher/registry.py`. **No catalog JSON is committed to git.**
-Operators regenerate locally; CI verifies determinism and redaction.
-
-Five row types — `preset`, `profile`, `model`, `hardware`, `baseline` —
-each with its own schema (see
-[`sndr/model_configs/catalog_schema.py`](../sndr/model_configs/catalog_schema.py)).
-
-**Redaction.** Maintainer-private tree paths and `visibility: private`
-evidence refs are stripped at output time on every leaf (`--redact-private`
-is the default). The same generator drives both the public catalog and
-any maintainer-private debug view — redaction is the only difference.
-
-#### `sndr config-catalog build` — **stable**
-
-Rebuild the catalog and emit JSON.
-
-```bash
-sndr config-catalog build --stdout                # print to stdout
-sndr config-catalog build --out catalog.json      # write to a path
-sndr config-catalog build --check                 # verify deterministic
-                                                   # regeneration (CI mode)
-```
-
-`--check` exits non-zero if a second build produces different bytes.
-
-#### `sndr config-catalog verify` — **stable**
-
-Thin wrapper over
-[`scripts/audit_generated_config_catalog.py`](../scripts/audit_generated_config_catalog.py).
-Verifies the derived catalog regenerates deterministically AND that no
-private paths leak.
-
-```bash
-sndr config-catalog verify --strict --json
-```
-
-Default mode is informational (warnings exit 0); `--strict` exits 1 on
-any finding.
-
-#### `sndr config-catalog show <row_id>` — **stable**
-
-Print a single row from the derived catalog. Collision-aware row IDs:
-when the same `id` exists across row types (e.g. a preset and a
-profile both named `prod-qwen3.6-35b-balanced`), use the prefixed form:
-
-```bash
-sndr config-catalog show preset/prod-qwen3.6-35b-balanced
-sndr config-catalog show prod-qwen3.6-35b-balanced               # bare form OK if unambiguous
-sndr config-catalog show profile/qwen3.6-35b-dflash --section override_policy
-```
-
-`--section <SECTION>` narrows the output to a top-level catalog field.
-
-#### `sndr config-catalog query` — **stable**
-
-Filter the derived catalog. **AND-only, five fixed flags**, no
-expressions / joins / sort / JSONPath.
-
-```bash
-# All profiles with override_class = bench
-sndr config-catalog query --row-type profile \
-                          --field override_class --equals bench
-
-# Substring match
-sndr config-catalog query --row-type preset \
-                          --field card.status --contains production
-
-# Time-window filter (only `--field override_expires_at`)
-sndr config-catalog query --row-type profile \
-                          --field override_expires_at \
-                          --expires-before 2026-09-01
-```
-
-Flags:
-
-| Flag | Meaning |
+| Legacy verb | Replacement on the v12 surface |
 |---|---|
-| `--row-type {preset,profile,model,hardware,baseline,any}` | Restrict by row type. `any` includes all five. |
-| `--field FIELD` | Top-level row field (`override_class`, `card.status`, etc.). Unknown fields error out with the available-fields list. |
-| `--equals VALUE` | Exact match (mutually exclusive with `--contains` / `--expires-before`). |
-| `--contains VALUE` | Substring match. |
-| `--expires-before YYYY-MM-DD` | Only valid on date fields. Invalid date format exits 2. |
-| `--json` | Machine-readable output (default is human-formatted). |
-
-#### `sndr config-catalog` — `--from` and `--strict-fresh`
-
-`build` / `verify` / `show` / `query` accept `--from PATH` to read from
-a previously-emitted catalog JSON file instead of regenerating:
-
-```bash
-sndr config-catalog show prod-qwen3.6-35b-balanced --from /tmp/catalog.json --strict-fresh
-```
-
-With `--strict-fresh`, the CLI compares the file's mtime against the
-source YAMLs and **exits non-zero on staleness** — it does NOT silently
-regenerate. This is the gating behaviour for CI / release pipelines
-that pin a specific catalog snapshot.
-
-#### Umbrella alias
-
-```bash
-make config-catalog        # → sndr config-catalog build
-```
-
-For the deterministic regeneration + redaction audit gate:
-
-```bash
-make audit-generated-config-catalog
-```
+| `install` | `install.sh` one-liner (see [INSTALL.md](INSTALL.md)). |
+| `doctor-system` | `sndr doctor --full`. |
+| `memory` | `sndr kv-calc` (plan projection) + product-API memory views. |
+| `caveats` | `sndr patches explain <id>` carries caveat info. |
+| `self-test` | `sndr verify --quick/--boot`. |
+| `compose render/up/down/logs/plan-diff` | `sndr model-config render --runtime docker` + `docker compose`. |
+| `quadlet`, `k8s render` | `sndr model-config render --runtime podman/kubernetes`. |
+| `service install/start/stop/status/logs/uninstall` | `sndr up` / `sndr down` or your init system. |
+| `proxmox doctor/render/status` | `sndr model-config render --runtime lxc_proxmox`. |
+| `hardware list`, `profile list/show/diff` | `sndr preset list/show/explain`, `sndr list-models`. (`model list-v2` is currently broken on the legacy path — use the Python Discovery API in [MODELS.md](MODELS.md).) |
+| `deps inspect` | `sndr doctor --full`. |
+| `upstream list/check` | `sndr pins.list` + `sndr patches diff-upstream`. |
+| `community list/validate/new-patch` | unchanged under legacy (community SDK). |
+| `config-catalog build/verify/show/query` | unchanged under legacy (derived catalog + `make config-catalog`). |
 
 ---
 
@@ -1031,13 +800,16 @@ make audit-generated-config-catalog
 
 | Variable | Purpose |
 |---|---|
-| `GENESIS_DISABLE_<NAME>=1` | Force-disable a patch even when its env_flag is enabled. |
-| `SNDR_DISABLE_<NAME>=1` | Same as above; either prefix works. |
+| `SNDR_ENABLE_<FULL_NAME>=1` / `GENESIS_ENABLE_<FULL_NAME>=1` | Enable an opt-in patch. `<FULL_NAME>` must be the full registry name (e.g. `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL`); short forms are silently ignored. |
+| `SNDR_DISABLE_<FULL_NAME>=1` / `GENESIS_DISABLE_<FULL_NAME>=1` | Force-disable a patch even when its env_flag is enabled. DISABLE wins over ENABLE. |
+| `SNDR_DISABLE_BOOT_PATCHES=1` | Skip the whole boot-time apply phase (meta flag). |
+| `SNDR_FORCE_REAPPLY=1` / `SNDR_NO_PATCH_CACHE=1` / `SNDR_NO_VERIFY=1` / `SNDR_TIER_OVERRIDE=<tier>` | Apply-behavior meta flags — see [CONFIGURATION.md](CONFIGURATION.md). |
 | `VLLM_USE_FLASHINFER_SAMPLER=1` | Routes top-k/top-p through FlashInfer; PN132 then becomes a no-op fallback guard. |
 | `VLLM_LOGGING_LEVEL=WARNING` | Cuts uvicorn access-log noise; recommended for prod. |
 
-For Genesis-specific env keys see `docs/CONFIGURATION.md` and the
-inline comments inside each model YAML.
+For the full env-knob reference (patch flags + runtime tunables) see
+[`CONFIGURATION.md`](CONFIGURATION.md) and the inline comments inside
+each model YAML.
 
 ---
 
@@ -1047,4 +819,5 @@ inline comments inside each model YAML.
 - [CONFIGURATION.md](CONFIGURATION.md) — runtime env knobs + preset selection
 - [PATCHES.md](PATCHES.md) — patch taxonomy + lifecycle
 - [INSTALL.md](INSTALL.md) — first-time install walkthrough
+- [GUI.md](GUI.md) — Control Center (product-API daemon on :8765)
 - [BENCHMARKS.md § methodology](BENCHMARKS.md) — bench methodology + reproduction

@@ -8,7 +8,7 @@
 #
 # All config knowledge lives in vllm/_genesis/model_configs/{builtin,
 # community,user}/<key>.yaml. To add your own:
-#   genesis model-config new my-key --template a5000-2x-35b-prod
+#   genesis model-config new my-key --template prod-qwen3.6-35b-balanced
 #   <edit ~/.genesis/model_configs/my-key.yaml>
 #   ./scripts/launch.sh my-key
 #

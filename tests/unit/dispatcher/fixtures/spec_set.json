@@ -264,6 +264,18 @@
     "apply_module": "sndr.engines.vllm.patches.attention.turboquant.p67b_spec_verify_routing"
   },
   {
+    "patch_id": "PN520",
+    "family": "model_compat.qwen3_5",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN520_QWEN3_5_LOAD_WEIGHTS",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "counter_regression",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.model_compat.qwen3_5.pn520_qwen3_5_gdn_load_weights_47058_revert"
+  },
+  {
     "patch_id": "PN521",
     "family": "attention.turboquant",
     "lifecycle": "experimental",

@@ -260,7 +260,10 @@ is the verdict** — the failure lives in the rare tokens the mean washes out.
   pre-sample logits) at each position and write one JSON-lines row per position
   to each file. The capture contract is documented in full in the module
   docstring. **No measured KL numbers are claimed in this repo until that capture
-  runs on the rig.**
+  runs on the rig.** Tracking: this rig follow-up is the open item referenced
+  from [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)'s TQ k8v4 caveat note; it is
+  still open as of 2026-07-04. When the capture lands, commit the tail report
+  under `evidence/` labeled with the pin it ran on and update both docs.
 
 ## Running it
 
@@ -269,6 +272,15 @@ support `--help` and `--dry-run`. `--dry-run` exercises the full harness wiring 
 ladder construction, payload generation, and verdict logic with cliff/patch
 attribution — **without sending a single request**, so the gate is verifiable on
 a laptop. A full live run needs the GPU rig.
+
+> **Run provenance (2026-07-04):** no live `verify_stress` / `soak_continuous`
+> result artifact is committed under `evidence/` yet — the wiring is proven by
+> the unit suite and `--dry-run`, and PROD validation on `dev714` (then
+> current, now the rollback pin; current: `dev748`) has so far come from
+> the canonical bench + tool-call suite (see
+> [`BENCHMARKS.md`](BENCHMARKS.md)). When you run this gate live, drop the
+> output JSON under `evidence/` labeled with the pin and date so the gate's
+> claims are anchored the same way the bench numbers are.
 
 ```bash
 # Boundary / stress gate against a running config:
@@ -286,7 +298,16 @@ scripts/soak_continuous.sh --dry-run        # plan + wiring check, no requests
 Useful environment overrides are documented in each script's `--help`
 (`SKIP_LONGCTX`, `CEILING_FRACTION`, `CEILING_STEP_TOKENS`, `VRAM_MARGIN_MB`,
 `SOAK_MAX_GROWTH_MIB`, `ATTR_PATCH`, `ATTR_TP`, …). The defaults target
-Qwen3.6-27B on a single 3090; override for other VRAM classes.
+Qwen3.6-27B on a single 3090; override for other VRAM classes. On the 2× A5000
+PROD reference rig the equivalent invocation is:
+
+```bash
+PRESET=prod-qwen3.6-35b-balanced URL=http://localhost:8102 \
+  MODEL=qwen3.6-35b-a3b scripts/verify_stress.sh
+```
+
+(`8102` is the reference rig's 35B engine port; a local `sndr launch` serves
+on `8000` by default.)
 
 ## Files
 

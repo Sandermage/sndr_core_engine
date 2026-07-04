@@ -9,11 +9,11 @@ convenience flag for Suffix Decoding (P75).
 
 | Workload class | Recommended method | Why |
 |---|---|---|
-| Free-chat single-user, short prompts | **MTP K=3** (current default) | Highest TPS on our 35B FP8 / 27B INT4 stack — empirically validated 200+ TPS on 35B-multiconc |
+| Free-chat single-user, short prompts | **MTP K=5** on 35B / **K=4** on 27B TQ (current PROD defaults) | Highest TPS on our 35B FP8 / 27B INT4 stack — 35B K=5 re-tune (2026-06-19): 239.7 TPS / TPOT 3.94 ms vs K=3 207.1 / 4.46 = +15.8% TPS |
 | Tool-call agentic (repetitive context) | **Suffix Decoding** (P75) | +40-60% over strict-ngram; suffix tree handles arbitrary-length repeats |
-| Mixed structured + free-chat | **MTP K=3** with K_001 OFF | K_001 NOT_SIGNIFICANT across 3 bench cycles; default K=3 is the empirical optimum |
-| Long-context (>32K) | **Suffix Decoding** (P75) or MTP K=2 | Suffix tree's per-prompt locality beats fixed-K speculation; MTP K=2 trades fewer draft tokens for longer-context stability |
-| Multi-conc throughput (8+ concurrent) | **MTP K=3** | Multi-conc TTFT regression hits suffix harder than MTP |
+| Mixed structured + free-chat | **MTP** at the preset default K with K_001 OFF | K_001 NOT_SIGNIFICANT across 3 bench cycles; the per-preset re-tuned K is the empirical optimum |
+| Long-context (>32K) | **Suffix Decoding** (P75) or MTP with reduced K | Suffix tree's per-prompt locality beats fixed-K speculation; a lower K trades fewer draft tokens for longer-context stability |
+| Multi-conc throughput (8+ concurrent) | **MTP** | Multi-conc TTFT regression hits suffix harder than MTP (multi-conc aggregates last measured at K=3, 2026-05-23) |
 
 ## Method 1: MTP (Multi-Token Prediction)
 
@@ -22,14 +22,32 @@ MTP heads (trained at fine-tune time) to draft K tokens per step. vLLM's
 `DraftModelProposer` orchestrates the draft generation + verification.
 
 **Configuration**: enabled by default in all `prod-qwen3.6-*` presets via
-`spec_decode: { method: mtp, num_speculative_tokens: 3 }` in the profile
-YAML. The K value (`num_speculative_tokens`) is the launcher cap; the
+`spec_decode: { method: mtp, num_speculative_tokens: <K> }` in the model
+YAML. Current PROD K values:
+
+- **35B FP8: K=5** (re-tuned 2026-06-19 — 239.7 TPS / TPOT 3.94 ms vs
+  K=3 207.1 / 4.46 = +15.8% TPS; K was under-tuned at 3).
+- **27B INT4 TQ-k8v4: K=4** (2026-07-03 coherence K-sweep on dev714:
+  K=5 over-proposed bad structural tokens → unparseable tool-calls;
+  K=4 is the max coherent K at ~0 speed cost. MTP on this INT4 TQ path
+  additionally requires `GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY=1` —
+  without it TQ×MTP collapses into token repetition).
+- **Gemma-4: K=3** (31B kvauto-chat profile) / **K=4** (26B multiconc
+  profile) via the separate MTP drafter — see the Gemma-4 note below.
+
+The K value (`num_speculative_tokens`) is the launcher cap; the
 actual K per step can be adjusted via K_001 (see below — but empirically
 NOT useful on our workloads).
 
 **Pros**:
 
-- Trained at fine-tune — high acceptance rate (0.78-0.80 on qwen3.6-35b)
+- Trained at fine-tune — high acceptance rate. Per-K on qwen3.6-35b:
+  0.78-0.80 at K=3 (historical, dev148 era); 0.653 window accept-rate at
+  K=5 on the current dev748 pin (promotion gate 2026-07-04; 0.660 on the
+  same-day dev714 canonical bench; floor 0.55 — a lower per-window rate
+  at higher K still nets +15.8% TPS vs K=3). The 35B **FP8** checkpoint
+  measures higher: 0.728 at K=5 (canonical `sndr launch` path, dev748
+  fleet sweep 2026-07-04)
 - No external dependency
 - Composes with TurboQuant + Genesis spec-decode patches (P62, P67, etc.)
 
@@ -43,13 +61,38 @@ NOT useful on our workloads).
 
 **Operator notes**:
 
-- `GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT=1` is recommended; it switches
-  the acceptance rule from argmax to `min(1, target_p / draft_p)` which
-  tightens the math (closer to true speculative sampling). Already enabled
-  in `prod-qwen3.6-35b-multiconc`.
-- K=3 is the empirical optimum across both 27B-multiconc and 35B-multiconc
-  on the current pin (`0.21.1rc1.dev354+g626fa9bba`). Don't change without
-  re-benching.
+- `GENESIS_ENABLE_PN90_PROBABILISTIC_DRAFT` is **DISABLED in PROD (keep
+  `0`)**. The old "+2.8% accept" measurement was on pre-#40269 pins; on
+  dev371+ probabilistic draft is a measured regressor (−5.9% TPS, −10%
+  accept — see the ROLLBACK note in
+  `sndr/model_configs/builtin/model/qwen3.6-35b-a3b-fp8.yaml`). PROD runs
+  greedy draft; re-activation also unmasks a latent P71⊥PN390 NameError.
+- Current empirical optima (don't change without re-benching): **K=5** on
+  the 35B (re-tuned 2026-06-19), **K=4** on the 27B TQ-k8v4 (max coherent
+  K for tool-calls, 2026-07-03 sweep). Current pin:
+  `0.23.1rc1.dev748+g2dfaae752` — always check `sndr/pins.yaml` for the
+  live value.
+- **Verify acceptance after any change** via the engine `/metrics`
+  endpoint — the spec-decode counters
+  (`vllm:spec_decode_num_accepted_tokens_total` vs
+  `vllm:spec_decode_num_draft_tokens_total`) should give a ratio at or
+  above the 0.55 floor; the canonical suite reports the same figure as
+  the MTP window accept-rate (0.653 on dev748, 2026-07-04; same-day
+  dev714 reference 0.660).
+
+### Gemma-4 MTP (separate drafter)
+
+The Gemma-4 presets (`prod-gemma4-26b-*`, `prod-gemma4-31b-*`) use MTP via
+a **separate drafter**, not model-native heads like Qwen3.6. Current
+profile K values: **K=3** (`gemma4-31b-kvauto-chat`), **K=4**
+(`gemma4-26b-multiconc`). A code-workload variant exists as a model YAML
+(`gemma-4-31b-it-awq-mtp-n8-code`, `num_speculative_tokens: 8` — +9% code
+TPS vs n=4, −3% narrative, per club-3090 A/B). Fresh dev748 point: the
+31B kvauto-chat profile (K=3, +PN351 re-anchored on head_dim=512)
+measured **accept-rate 0.933** in the 2026-07-04 fleet sweep (~87 t/s,
+TPOT 11.51 ms — mini-bench; see the fleet-sweep table in
+`BENCHMARKS.md`). The older Gemma tables there remain historical,
+labeled with their pin/date.
 
 ## Method 2: Suffix Decoding (P75 → vllm#25784)
 
@@ -144,6 +187,24 @@ re-benching against your specific workload AND verifying p < 0.05.
 
 Evidence: [evidence/bench/v11.2.0_k001_validation/](../evidence/bench/v11.2.0_k001_validation/)
 
+## Method 5 (archived): DFlash draft-model decoding — **pending re-validation**
+
+DFlash uses a small external draft model (z-lab reference) instead of MTP
+heads or a suffix tree. Genesis shipped four DFlash presets; **all four
+were archived** to `sndr/model_configs/builtin/presets/_archive/`
+(`prod-qwen3.6-27b-dflash`, `prod-qwen3.6-27b-dflash-multiconc`,
+`prod-qwen3.6-35b-dflash`, `prod-qwen3.6-35b-dflash-multiconc`), plus the
+`experimental-qwen3.6-27b-tq-dflash-ab` A/B preset. Do **not** route new
+deployments to them.
+
+- Their bench rows remain in [`BENCHMARKS.md`](BENCHMARKS.md) as
+  historical tables labeled with their pin/date.
+- The model YAMLs (`qwen3.6-27b-dflash`, `qwen3.6-35b-a3b-fp8-dflash`)
+  still exist with the z-lab reference N values (N=5 / N=3).
+- Status: archived pending re-validation on the current pin lineage —
+  restoring one means moving the preset YAML back out of `_archive/` and
+  running the full canonical bench + tool-call gate before any PROD use.
+
 ## How to switch between methods
 
 ### Switching MTP → Suffix Decoding
@@ -158,6 +219,18 @@ Evidence: [evidence/bench/v11.2.0_k001_validation/](../evidence/bench/v11.2.0_k0
    `tools/genesis_bench_suite.py --quick` for short prompts +
    `tools/bench_multiturn_tps.py --turns 12 --sessions 2` for the
    agentic shape).
+5. **Verify acceptance via `/metrics`** before trusting the switch:
+
+   ```bash
+   curl -s http://localhost:8102/metrics | grep spec_decode_num
+   # expect both counters advancing; accepted/draft ratio >= 0.55
+   # (MTP baseline on dev748: 0.653 window accept-rate, 2026-07-04;
+   #  same-day dev714 reference: 0.660)
+   ```
+
+6. **Revert**: remove the `GENESIS_ENABLE_P75_SUFFIX_DECODING` env line,
+   relaunch the preset, and confirm `/metrics` shows the MTP accept-rate
+   back at its baseline.
 
 ### Switching MTP → NGRAM (rare)
 
@@ -167,6 +240,10 @@ Evidence: [evidence/bench/v11.2.0_k001_validation/](../evidence/bench/v11.2.0_k0
 3. Enable Genesis NGRAM stack: `GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM=1`,
    `GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K=1`,
    `GENESIS_ENABLE_PN72_FREQUENCY_NGRAM_DRAFTER=1`.
+4. **Verify + revert**: same `/metrics` check as above (ngram acceptance
+   will be materially lower than MTP on free-chat — that is expected).
+   To revert, restore the original `spec_decode` block, drop the three
+   env flags, re-render, and relaunch.
 
 ## Bench reference (where to look)
 
@@ -181,11 +258,12 @@ Evidence: [evidence/bench/v11.2.0_k001_validation/](../evidence/bench/v11.2.0_k0
 
 ## Future work
 
-- **EAGLE-3 fusion** — vLLM-side infra ready since 2026-02
-  (PRs #35029, #35040, Qwen3 PR #43132 active). Blocked on **Qwen3.6
-  EAGLE-3 drafter checkpoint** (does not exist publicly yet). Genesis
-  G4_71/G4_75 drafter-routing patches already prepare the model-side
-  hook. Tracked in master plan Phase 7.
+- **EAGLE-3 fusion** — status as assessed 2026-02 (re-verify upstream
+  before acting): vLLM-side infra ready (PRs #35029, #35040, Qwen3 PR
+  #43132 active at the time). Blocked on **Qwen3.6 EAGLE-3 drafter
+  checkpoint** (did not exist publicly). Genesis G4_71/G4_75
+  drafter-routing patches already prepare the model-side hook. Tracked
+  in master plan Phase 7.
 - **Mamba-3** — research-track. No vLLM serving support; would need a
   trained Qwen-3.x-Mamba3 hybrid model first. Reference code exists at
   state-spaces/mamba + fla-org/flash-linear-attention.

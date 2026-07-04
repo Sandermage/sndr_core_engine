@@ -131,6 +131,25 @@ TUNABLE_KNOBS: dict[str, TunableKnob] = {
         owner_patch="P68",
         doc="P68/P69 long-context tool reminder + auto-force-tool knobs.",
     ),
+    "GENESIS_P68_FORCE_ON_ALL_TOOLS": TunableKnob(
+        name="GENESIS_P68_FORCE_ON_ALL_TOOLS", kind="scalar", type="bool",
+        default="0",
+        owner_patch="P68",
+        doc="Bypass the P68 length threshold: force tool_choice=auto->required "
+            "on EVERY tool request, not just long-context ones. Required on "
+            "the INT4 27B (validated 2026-07-03): tool_choice=auto builds no "
+            "grammar, so the model emits invalid tool-call structure; "
+            "'required' builds the schema and xgrammar constrains a valid "
+            "call. Read by middleware/long_ctx_tool_adherence.py.",
+    ),
+    "GENESIS_P68_FORCE": TunableKnob(
+        name="GENESIS_P68_FORCE", kind="scalar", type="bool",
+        default="0",
+        owner_patch="P68",
+        doc="Per-request escape hatch: force the P68 rewrite for the next "
+            "matching request regardless of context length. Read by "
+            "middleware/long_ctx_tool_adherence.py.",
+    ),
     "GENESIS_FLA_GUARD_": TunableKnob(
         name="GENESIS_FLA_GUARD_", kind="family", type="string",
         doc="FLA TP overflow preflight knobs (orchestrator gate).",

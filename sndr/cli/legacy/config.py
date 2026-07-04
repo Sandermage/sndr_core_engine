@@ -61,7 +61,7 @@ def add_argparser(subparsers: Any) -> None:
 
     p_explain = sub.add_parser("explain",
                                  help="Plain-English walkthrough of a preset.")
-    p_explain.add_argument("config_key", help="preset key (e.g. a5000-2x-35b-prod)")
+    p_explain.add_argument("config_key", help="preset key (e.g. prod-qwen3.6-35b-balanced)")
     p_explain.add_argument("--json", action="store_true",
                             help="Emit JSON instead of prose.")
     p_explain.set_defaults(func=run_explain)

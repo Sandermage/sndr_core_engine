@@ -59,9 +59,28 @@ Full-precision weights (16 bits each) rarely fit on a consumer card.
 (4-bit integer, e.g. AutoRound or AWQ) — trading a little quality for a large
 VRAM saving. The **KV cache** (the running memory of the current conversation)
 can be quantized too; this project's **TurboQuant k8v4** does exactly that,
-which is how it reaches **256K** context on 24 GB cards. Quant names are
+which is how it serves **280K** context on 24 GB cards (above the model's
+published 256K limit). Quant names are
 decoded in [`GLOSSARY.md`](GLOSSARY.md); the per-model quant choices live in
 [`MODELS.md`](MODELS.md).
+
+## What is tool-calling, and why quantization breaks it
+
+**Tool-calling** (also "function calling") is how a model does more than chat:
+instead of answering in prose, it emits a structured request — "call
+`get_weather` with `city=Odessa`" — that your application executes, feeding the
+result back. Every agent framework, coding assistant, and automation pipeline
+is built on it. For it to work, the model must produce **exactly** the expected
+format: valid JSON or XML, correct argument names, no stray text.
+
+That exactness is what quantization endangers. Squeezing weights to fewer bits
+nudges the model's output distribution — usually harmless in prose, but a
+single malformed bracket in a tool call breaks the parse and the whole agent
+step fails silently. This is why "tool calls break the moment you quantize" is
+such a common complaint with local models. SNDR Core treats tool-call
+correctness as a gate: every production configuration must pass a tool-call
+suite (currently 8/8 scenarios, including streaming and multi-tool calls)
+before it ships, using vLLM's native `qwen3_xml` streaming parser.
 
 ## How SNDR Core fits
 
@@ -82,6 +101,7 @@ in the project [`README`](../README.md).
 
 - Ready to run it? → [`GETTING_STARTED.md`](GETTING_STARTED.md) →
   [`QUICKSTART.md`](QUICKSTART.md)
+- Common questions answered → [`FAQ.md`](FAQ.md)
 - Self-host vs cloud? → [`COMPARISONS.md`](COMPARISONS.md)
 - Which model on which card? → [`MODELS.md`](MODELS.md) +
   [`HARDWARE.md`](HARDWARE.md)

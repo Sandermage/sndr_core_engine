@@ -18,22 +18,61 @@ If your card is not listed and your workload is unusual, run `python3 -m sndr.co
 
 Most Genesis kernels gate on `compute_capability >= (8, 6)`. The dispatcher will print `[SKIP — pre-Ampere]` and fall back to upstream paths if you boot on Turing or earlier.
 
+**Driver requirement:** NVIDIA driver **≥ 580.126.09 is REQUIRED** on the current CUDA 13 stack — the 570 series causes a ~3× slowdown (see [`CONFIGURATION.md`](CONFIGURATION.md) header).
+
+## Will it fit? — builtin HardwareDefs + offline projection
+
+Genesis ships three builtin hardware definitions
+(`sndr/model_configs/builtin/hardware/`):
+`a5000-2x-24gbvram-16cpu-128gbram` (the reference rig),
+`a5000-1x-24gbvram-16cpu-128gbram`, and `single-3090-24gbvram`.
+Instead of doing VRAM math by hand, project any preset against a rig —
+live or synthetic, no GPU required:
+
+```bash
+sndr kv-calc prod-qwen3.6-35b-balanced                    # live rig → PASS/TIGHT/FAIL
+sndr kv-calc prod-qwen3.6-27b-tq-k8v4 --rig single-3090-24gbvram   # builtin rig, offline
+sndr kv-calc prod-qwen3.6-27b-tq-k8v4 --card 24           # quick ad-hoc 24 GiB card
+sndr kv-calc prod-qwen3.6-27b-tq-k8v4 --fake-gpus 'RTX 3090:24576:8.6'
+sndr kv-calc --fit-all --cards 24,48,80                   # whole catalog fit table
+sndr kv-calc prod-qwen3.6-27b-tq-k8v4 --solve-max-ctx     # largest ctx that still fits
+sndr preflight prod-qwen3.6-35b-balanced                  # full hardware-envelope gate
+```
+
+`kv-calc` (alias `fit`) reports a per-card VRAM/KV byte projection
+with a **PASS / TIGHT / FAIL** verdict; `--kv-breakdown` shows the
+per-component bytes. `sndr preflight` runs the same envelope check the
+launch wizard uses.
+
+## GPU power/clock tuning — `sndr tune`
+
+Presets can carry a Y8 `gpu_tuning` block (power limit, clocks).
+`sndr tune` applies it via `nvidia-smi` — dry-run by default:
+
+```bash
+sndr tune plan prod-qwen3.6-35b-balanced      # print planned nvidia-smi commands
+sndr tune apply prod-qwen3.6-35b-balanced --yes
+sndr tune report prod-qwen3.6-35b-balanced    # live nvidia-smi state vs Y8 declared
+sndr tune revert                              # best-effort restore to defaults
+sndr tune sweep prod-qwen3.6-35b-balanced --bench-cmd '...'   # power-limit sweep
+```
+
 ## Single-GPU vs Multi-GPU
 
 Genesis is validated in two reference shapes:
 
 | Config | TP | Min VRAM/card | Use case |
 |---|---|---|---|
-| Single 24 GiB card | TP=1 | 24 GiB | Qwen3.6-27B-int4 short-to-mid context (≤32K), no DFlash |
-| Dual 24 GiB cards | TP=2 | 24 GiB ×2 | Qwen3.6-27B-int4 long context (up to 320K validated), or Qwen3.6-35B-A3B-FP8 |
-| Single 48 GiB+ card | TP=1 | 48 GiB+ | Either model, full context, with DFlash draft |
+| Single 24 GiB card | TP=1 | 24 GiB | Qwen3.6-27B-int4 with TQ k8v4 up to 78K context (preset `qa-qwen3.6-27b-tq-1x`; see [`SINGLE_CARD.md`](SINGLE_CARD.md)) |
+| Dual 24 GiB cards | TP=2 | 24 GiB ×2 | Qwen3.6-27B-int4 long context, or Qwen3.6-35B-A3B — both served at 280K in PROD |
+| Single 48 GiB+ card | TP=1 | 48 GiB+ | Either model, full context |
 | Dual 48 GiB+ cards | TP=2 | 48 GiB+ ×2 | Production workloads with high concurrency |
 
 ### When you need TP=2
 
-- **Qwen3.6-35B-A3B-FP8 — always** on 24 GiB cards. The model alone is ~33 GiB FP8; KV cache and activations don't fit on one 24 GiB GPU.
-- **Qwen3.6-27B-int4 with long context (>32K) — yes** on 24 GiB cards. Single-card 27B works for short prompts but the KV cache eats VRAM fast.
-- **DFlash draft model** adds ~2-3 GiB per GPU, which can push 24 GiB cards over the edge at TP=1.
+- **Qwen3.6-35B-A3B — always** on 24 GiB cards. The model alone is ~33 GiB FP8; KV cache and activations don't fit on one 24 GiB GPU.
+- **Qwen3.6-27B-int4 with long context (>78K) — yes** on 24 GiB cards. Single-card 27B serves 78K with TQ k8v4; beyond that the KV cache eats VRAM fast.
+- **Spec-decode draft VRAM**: the MTP draft layer costs ~1 GiB/rank on FP8 (PN8 online-quant saves it back). A separate DFlash drafter adds ~2-3 GiB per GPU — note the DFlash presets are currently **archived** pending re-validation on the 0.23.x pins.
 
 ## VRAM Budget by Model
 
@@ -44,10 +83,10 @@ Headline numbers measured at idle plus a small representative request.
 | TP | Context | Per-GPU VRAM | Notes |
 |---|---|---|---|
 | 1 | 16K | ~16 GiB | Comfortable on a single 24 GiB card |
-| 1 | 32K | ~22 GiB | Tight on 24 GiB; disable prefix-caching |
+| 1 | 78K | ~22 GiB | Single-card TQ k8v4 cap (preset `qa-qwen3.6-27b-tq-1x`) |
 | 2 | 32K | ~12 GiB each | Plenty of headroom |
-| 2 | 256K | ~22 GiB each | Validated on `v791b` config |
-| 2 | 320K | ~23 GiB each | Validated on `v759`, currently in PROD |
+| 2 | 256K | ~22 GiB each | Validated (2026-05 ladder, TP=2) |
+| 2 | 280K | ~23 GiB each | **Current PROD serving cap** — 320K validated historically, trimmed to 280K 2026-05-15 to restore cudagraph-capture headroom |
 
 This is a hybrid (GDN + softmax) model. Prefix-caching has been observed to crash with MTP `accept>1`. Recommended: leave prefix-caching disabled.
 
@@ -58,17 +97,23 @@ This is a hybrid (GDN + softmax) model. Prefix-caching has been observed to cras
 | 1 | n/a | DOES NOT FIT | Need ≥48 GiB to run at TP=1 |
 | 2 | 32K | ~17 GiB each | Comfortable |
 | 2 | 96K | ~21 GiB each | Tight on 24 GiB |
-| 2 | 128K | ~23 GiB each | Validated, with TQ k8v4 KV |
+| 2 | 280K | ~23 GiB each | **Current PROD serving cap** with TQ k8v4 KV (`prod-qwen3.6-35b-balanced`, `--max-model-len 280000`) |
 
 MoE memory dominates over KV cache. Adding TurboQuant `k8v4` saves 5-10% per-token KV but does not help model weights.
 
-### DFlash draft adder
+### Spec-decode draft adder
 
-Adds approximately +2-3 GiB per GPU. Subtract from the headroom in the tables above when planning context length.
+MTP (the PROD method) reuses the target model's MTP layer — the cost
+is ~1 GiB/rank on FP8 draft, reclaimed by PN8 online-quant. A separate
+DFlash drafter adds approximately +2-3 GiB per GPU — subtract from the
+headroom in the tables above when planning context length. (The four
+DFlash presets are archived as of v12 pending re-validation.)
 
 ## Maximum Context Window vs VRAM
 
-Rough formula for budgeting context length:
+Prefer the tooling: `sndr kv-calc <preset> --solve-max-ctx` computes
+the largest context that still PASS/TIGHT-fits (offline, exact
+per-component byte model). The rough hand formula, for intuition:
 
 ```
 free_kv_GiB ≈ (per_GPU_VRAM × gpu_memory_utilization) - model_weights_per_GPU - activation_overhead
@@ -81,10 +126,11 @@ For Qwen3.6-27B-int4 with TQ k8v4 on 2× A5000:
 - gpu_memory_utilization 0.85 → 20.4 GiB
 - free for KV ≈ 10 GiB/GPU = 20 GiB total
 - TQ k8v4 KV ≈ 0.06 KiB/token/layer
-- ≈ 320K tokens — matches v759 PROD validation
+- ≈ 320K tokens raw budget — PROD serves 280K (the delta is
+  deliberately reserved for cudagraph-capture headroom, 2026-05-15 trim)
 
 Practical rules:
-- 24 GiB cards: assume max 320K context for 27B-int4 with TQ k8v4, 128K for 35B-A3B-FP8
+- 24 GiB cards: assume max 280K served context with TQ k8v4 (both 27B-int4 and 35B-A3B at TP=2)
 - 48 GiB cards: comfortable to 1M context for 27B (untested in Genesis)
 - 96 GiB cards: not VRAM-bound for any current Qwen3.6 size
 

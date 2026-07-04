@@ -82,6 +82,7 @@ python3 -m sndr.cli gui-api [--host H] [--port P] [--log-level L] [--enable-appl
 | `SNDR_HOME` | `~/.sndr` | Operator-local state: host profiles, settings, reports, **auth store** (`$SNDR_HOME/auth`). Mount as a volume in a container. |
 | `SNDR_GUI_STATIC` | packaged `web_static` → repo `gui/web/dist` | Override the directory of built UI assets the daemon serves. |
 | `SNDR_ENABLE_APPLY` | `0` | Enable real execution of mutating actions (same as `--enable-apply`). |
+| `SNDR_ENABLE_EXEC` | `0` | Allow in-container **Exec** (arbitrary command execution via the Containers detail page). Off by default; stricter than apply-mode and gated separately. |
 | `SNDR_GUI_TOKEN` | _(unset)_ | Legacy shared bearer token. When set, `/api/v1/*` requires it (still works alongside user auth). |
 | `SNDR_AUTH` | `auto` | User authentication: `on` / `off` / `auto` (auto = on when non-loopback, accounts exist, or a token is set). |
 | `SNDR_ADMIN_PASSWORD` | _(generated once)_ | Initial admin password on first bootstrap; otherwise auto-generated and printed once to the log. |
@@ -173,9 +174,10 @@ setup, the PAM-in-container caveat and the endpoint list:
 | Chat | Multi-turn **streaming** chat with any running vLLM model — model/host picker, sampling, system prompt + **prompt library**, **reasoning/thinking** trace, and live **web search** + **project-RAG** grounding with cited sources (see [Chat & Ops Copilot](#chat--ops-copilot)) |
 | Copilot | Read-only **tool-calling** assistant over the Product API + market/news tools — answers from real catalog/doctor/preset/patch/capacity data and proposes changes you review & apply |
 | Clients | **Live engine status**, **Playground (streaming or one-shot prompt)**, OpenAI-compatible endpoints, copy-paste clients, auth |
+| Alerts | Live GPU / disk / host alert feed (active + recently cleared), threshold configuration and a test-fire button (`/api/v1/alerts`, `/alerts/config`, `/alerts/test`) |
 | Reports | Generate redacted snapshot bundles into `$SNDR_HOME/reports/` |
 | Operations | Run sndr_core's canonical maintenance / audit / proof workflows as live-monitored jobs — the CLI surface, integrated |
-| Advanced | Appearance, API/schema explorer, admin matrix, **account & security (password + 2FA)**, **user management (admin)**, feature contracts, config draft, CLI mirror, audit log, updates |
+| Advanced | Appearance, API/schema explorer, admin matrix, **account & security (password + 2FA)**, **personal API tokens** (mint/revoke Bearer tokens for programmatic/CI access — `/api/v1/auth/tokens`; requires auth enabled), **user management (admin)**, feature contracts, config draft, CLI mirror, audit log, updates |
 
 ## Chat & Ops Copilot
 
@@ -191,7 +193,8 @@ model:
   (which spend tokens in `reasoning_content` before the visible answer).
 - **Recommended sampling.** When the running model is matched to the catalog,
   the sampling section shows the model's **validated defaults** (e.g. Qwen 3.6 →
-  `temperature 0.6 · top_p 0.95 · top_k 20`, cross-referenced against the
+  `temperature 0.6 · top_p 0.95 · top_k 20`, per the model YAML's
+  `override_generation_config` as of 2026-07, cross-referenced against the
   community club-3090 recipes) with a one-click **Apply** — so you get the right
   settings for the model instead of the generic 0.7.
 - **Thinking mode** (`enable_thinking`). Reasoning models (Qwen3, …) emit a
@@ -371,8 +374,8 @@ Config files and where they are written:
 
 | Path | What |
 | --- | --- |
-| `$SNDR_HOME` (default `~/.sndr`) | `auth/` (accounts/2FA/session), `state/` (host profiles, GUI settings, container update prefs), `reports/` |
-| `sndr/model_configs/builtin/{models,hardware,profile,presets}/*.yaml` | V2 catalog (model, hardware/rig, profile, preset definitions) |
+| `$SNDR_HOME` (default `~/.sndr`) | `auth/` (accounts/2FA/session, personal API tokens), `gui/` (host profiles `hosts.json`, prompt library, baselines, alert config, secrets), `state/` (jobs/events, container update prefs), `reports/` |
+| `sndr/model_configs/builtin/{model,hardware,profile,presets}/*.yaml` | V2 catalog (model, hardware/rig, profile, preset definitions) |
 | `…/hardware/<rig>.yaml` → `sizing.disable_log_stats` | Engine stat-logger toggle. `false` exposes live vLLM metrics to the Inference panel; also settable as a profile `sizing_override`. After changing it, re-render + restart the engine |
 | host `start_*.sh` (generated) | Engine launch scripts produced by `sndr profile render-launchers <profile>` |
 | `/etc/rancher/k3s/k3s.yaml` or `~/.kube/config` | kubeconfig the daemon reads for Kubernetes / KubeVirt / Virtualization |

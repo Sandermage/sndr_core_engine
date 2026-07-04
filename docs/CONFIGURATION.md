@@ -4,54 +4,57 @@ Central reference for every environment variable that Genesis patches read.
 Default behaviour is "off" / "safe" for opt-in patches; on-by-default
 patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
-> **Current PROD baseline (v12.0.0 current registry; pin bumped 2026-05-15):**
+> **Current PROD baseline (v12.0.0; pin bumped 2026-07-04, doc updated 2026-07-04):**
 >
-> - Genesis v12.0.0 — registry has **324 entries**: 262 full-implementation,
->   25 experimental, 22 marker_only, 7 partial, 6 retired, 2 placeholder.
->   Wave 10 additions: PN125-PN130 warmup-orchestrator family, PN132
->   (top-k/top-p contiguous), PN133, PN204 v2 (GDN dual-stream consolidated),
->   PN298/PN299 FLA arch-aware NUM_WARPS prune. Updated 2026-06-10 — counts
->   auto-derived from ``PATCH_REGISTRY``.
-> - vLLM `0.23.1rc1.dev424+g3f5a1e173` (current pin, bumped
->   …→dev148→dev301→dev424; `dev301` = `0.23.1rc1.dev301+g04c2a8dea` retained
->   as previous / rollback pin per the ≤2-pin policy, `dev148` dropped;
->   canonical bench numbers below measured on the validated dev148 baseline —
->   the dev148 MTP K=5 re-tune shows 35B sustained ~239.7 TPS single-stream at
->   max_num_seqs=2 and ~689 aggregate at conc=8 — both within CV of, or above,
->   the baseline; decode carried forward across the dev301 and dev424 bumps)
+> - Genesis v12.0.0 — registry has **325 entries**: 263 full-implementation,
+>   25 experimental, 22 marker_only, 7 partial, 6 retired, 2 placeholder
+>   (56 default-on). Counts auto-derived from ``PATCH_REGISTRY``.
+> - vLLM pins (SSOT: [`sndr/pins.yaml`](../sndr/pins.yaml)) — **three-pin
+>   policy**: two rolling nightly pins (**current** + **rollback**) plus one
+>   **stable release** pin. A bump edits `current` in `pins.yaml` and runs
+>   `make bump-pin`, which propagates the string into every downstream
+>   artifact (`make audit-pin-consistency` gates the sync).
+>   - current: `0.23.1rc1.dev748+g2dfaae752` (promoted 2026-07-04)
+>   - rollback: `0.23.1rc1.dev714+g09663abde`
+>   - stable: `v0.24.0`
 > - PyTorch 2.11.0+cu130, Triton 3.6.0, CUDA 13.0.2
 > - **NVIDIA driver ≥ 580.126.09 REQUIRED** (570 → 3× slowdown)
 > - 2× RTX A5000 24 GiB (Ampere SM 8.6), TP=2
 >
-> **27B PROD**: Qwen3.6-27B-int4-AutoRound (Lorbus, hybrid GDN+Mamba) +
-> TurboQuant k8v4 + MTP K=5 + P67 multi-query kernel + P82=1+thr=0.1.
-> MTP K=3→K=5 re-tune (2026-06-19, dev148): single-stream **127.4 TPS /
-> TPOT 7.54 ms** (+8.2 % vs K=3 117.7). Earlier canonical bench
-> `genesis_bench_suite.py --quick --ctx 8k` (K=3):
-> **wall_TPS 132.28 / decode_TPOT 7.31 ms / TTFT 100.9 ms / tool 8/8**.
-> `--max-model-len 131072` + `--max-num-batched-tokens 8192` (Wave 8 bump
-> from 4096 per scheduler warning).
+> **35B PROD**: Qwen3.6-35B-A3B (AWQ checkpoint on the live rig; the
+> FP8-native model preset exists separately) + TurboQuant k8v4 +
+> MTP K=5 + P67 multi-query kernel. Canonical suite on dev748
+> (2026-07-04, n=25): **wall_TPS 242.55 (CV 6.9 %) / decode_TPOT 3.9 ms /
+> TTFT 84.5 ms / tool-calls 7/7 PASS / MTP window accept-rate 0.653
+> (floor 0.55)** — +3.5 % vs the same-day dev714 run (234.2). Context
+> scaling 1K→32K is linear (LINEAR_OK, endpoint ratio 0.84, no cliff).
+> `--max-model-len 280000` (280K served; 2026-05-15 trim from 320K),
+> tool parser `qwen3_xml`, port 8102. The K=3→K=5 re-tune
+> (2026-06-19, dev148): 239.7 TPS / TPOT 3.94 ms, +15.8 % vs K=3 207.
 >
-> **35B PROD**: Qwen3.6-35B-A3B-FP8 (cyankiwi) + TurboQuant k8v4 +
-> MTP K=5 + P67 multi-query (NUM_KV_SPLITS=48). MTP K=3→K=5 re-tune
-> (2026-06-19, dev148): single-stream **239.7 TPS / TPOT 3.94 ms**
-> (+15.8 % vs K=3 207). Earlier Sprint 1 canonical (K=3):
-> **wall_TPS 241.35 / decode_TPOT 3.85 ms / tool 7/7** (2026-05-09).
-> `--max-model-len 320000`.
+> **27B PROD**: Qwen3.6-27B-int4-AutoRound (Lorbus, hybrid GDN+Mamba) +
+> TurboQuant k8v4 + MTP **K=4** (K=5→4 coherence re-tune 2026-07-03 on
+> dev714 — K=5 produced unparseable tool-calls with PN521 ON; K=4 is the
+> max coherent K at ~0 speed cost) + P67 multi-query kernel +
+> P82=1+thr=0.1. Historical: K=5 single-stream 127.4 TPS / TPOT 7.54 ms
+> (2026-06-19, dev148); K=3 canonical `--quick --ctx 8k` wall_TPS
+> 132.28 / decode_TPOT 7.31 ms / TTFT 100.9 ms / tool 8/8 (dev148).
+> `--max-num-batched-tokens 8192` (Wave 8 bump from 4096 per scheduler
+> warning).
 >
 > **P67 safety gate** (v7.56): auto-disabled when no spec-decode in config.
 >
-> Previous v7.59 baseline (2026-04-28): vLLM dev212+g8cd174fa3 era —
-> superseded by dev93 pin 2026-05-07. Bench 244→200 t/s on 35B.
-> See `docs/reference/V759_320K_CONTEXT_EXPANSION_20260427.md` for v759
-> vs v748 CV analysis. See `CHANGELOG.md` for v8.0.0→v11.0.0 evolution.
+> See `CHANGELOG.md` for the v8.0.0→v12.0.0 evolution; historical
+> per-pin bench rows live in [`BENCHMARKS.md`](BENCHMARKS.md).
 
 ---
 
 ## Table of contents
 
-- [Production launch defaults (`scripts/launch/start_mtp.sh`)](#production-launch-defaults)
+- [Production launch defaults (V2 presets)](#production-launch-defaults)
 - [Patch enable / disable flags](#patch-enable--disable-flags)
+- [Meta apply-behavior flags](#meta-apply-behavior-flags)
+- [Runtime tunables (`runtime_tunables.py`)](#runtime-tunables)
 - [Buffer-mode toggles (memory pool architecture)](#buffer-mode-toggles)
 - [P67 multi-query kernel tuning](#p67-multi-query-kernel-tuning)
 - [Operator tooling (compat layer)](#operator-tooling-compat-layer)
@@ -63,27 +66,43 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
 ## Production launch defaults
 
-The `scripts/launch/start_mtp.sh` script ships with a tested-on-prod set of
-env vars. Each is described below. Override by exporting before invoking
-the script, or edit the script directly for permanent changes.
+The launch defaults are declared in the **V2 YAML triplet** (model +
+hardware + profile) that composes each preset — the legacy
+`scripts/launch/start_*.sh` scripts were retired 2026-06-01 (Phase 10).
+The values below are what `prod-qwen3.6-35b-balanced` composes to on
+the 2×A5000 rig; inspect any preset's composed runtime with
+`sndr preset explain <preset>` and render its launch script with
+`sndr launch <preset> --dry-run`.
 
-| Concern | Default | Override env |
+| Concern | Composed default | Where it is declared |
 |---|---|---|
-| GPU memory utilization | `0.90` | edit script `--gpu-memory-utilization` |
-| Max context length | `262144` (256K) | edit script `--max-model-len` |
-| Spec-decode method | `mtp` (K=5 on Qwen 35B/27B; Gemma drafter stays K=3) | edit script `--speculative-config` |
-| KV-cache dtype | `turboquant_k8v4` | edit script `--kv-cache-dtype` |
-| TP size | `2` | edit script `--tensor-parallel-size` |
-| Max num seqs | `2` | edit script `--max-num-seqs` |
-| Max batched tokens | `8192` | edit script `--max-num-batched-tokens` |
+| GPU memory utilization | `0.90` | hardware YAML (profile may override) |
+| Max context length | `280000` (280K, above the model's published 256K via `VLLM_ALLOW_LONG_MAX_MODEL_LEN=1`) | hardware YAML `a5000-2x-*` (2026-05-15 trim from 320K) |
+| Spec-decode method | `mtp` (K=5 on 35B, K=4 on 27B; Gemma drafter K=3) | model YAML `spec_decode.num_speculative_tokens` |
+| KV-cache dtype | `turboquant_k8v4` | model YAML `kv_cache_dtype` |
+| TP size | `2` | hardware YAML |
+| Max num seqs | `1` (balanced) / `8` (multiconc) | profile YAML |
+| Max batched tokens | `8192` | model YAML |
 
 ---
 
 ## Patch enable / disable flags
 
 All Genesis patches are opt-in via `SNDR_ENABLE_<patch_id>=1`.
-Production `start_mtp.sh` enables the validated set; opt-in patches stay off
-unless explicitly engaged.
+The production model YAMLs enable the validated set via their
+`genesis_env` blocks; opt-in patches stay off unless explicitly
+engaged.
+
+> **Scope note.** The tables below cover the cross-cutting operator
+> knobs and the historical P37–PN19 families. Per-patch flags for the
+> later waves (PN2x–PN5xx, the `G4_*` Gemma-4 family, `BUNDLE_*`
+> umbrella flags) are **deliberately not duplicated here** — the
+> generated reference is [`PATCHES_AUTO.md`](PATCHES_AUTO.md) and the
+> live source is `sndr patches list` / `sndr patches explain <id>`.
+> Flag names must be the FULL registry name (e.g.
+> `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL`, never
+> `GENESIS_ENABLE_P67`) — short forms are silently ignored, and
+> `env.py` boot-audit warns on unknown names.
 
 ### Env-flag prefix: `SNDR_ENABLE_` (canonical) and `GENESIS_ENABLE_` (alias)
 
@@ -105,7 +124,16 @@ opt-out and `*_LEGACY_<patch_id>` legacy-toggle prefixes. The flag-name tables
 below are written with the historical `GENESIS_ENABLE_*` form because that is
 what shipped start-scripts use; swap the prefix to `SNDR_ENABLE_` freely.
 
-### On in production `start_mtp.sh`
+### On in production (35B/27B model YAML `genesis_env`)
+
+The authoritative on-in-PROD list is the `genesis_env` block of each
+model YAML (`sndr/model_configs/builtin/model/qwen3.6-35b-a3b-fp8.yaml`
+and `...27b-int4-autoround-tq-k8v4.yaml`) — the 35B block currently
+sets ~84 flags. Highlights beyond the historical table below: PN17
+(FA2 LSE clamp), PN399 (TQ decode-scratch IMA guard) and PN401 (TQ
+prefill continuation guard) are ON; PN90 (probabilistic draft) is
+explicitly OFF (regresses -5.9 % TPS / -10 % accept on dev371+ — see
+the YAML comment). The representative subset:
 
 | Env var | Patch | What it does |
 |---|---|---|
@@ -165,7 +193,7 @@ what shipped start-scripts use; swap the prefix to `SNDR_ENABLE_` freely.
 | `GENESIS_ENABLE_P102` | P102 | Spec-meta sanity check (live in `spec_meta.py`) |
 | `GENESIS_ENABLE_P103` | P103 | FLA Cliff 2 chunked fwd_h+fwd_o orchestrator. Tunable: `GENESIS_FLA_FWD_H_MAX_T` (default 16384, rounded to FLA_CHUNK_SIZE multiple) |
 | `GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT` | PN8 | MTP draft online-quant propagation (~1 GiB VRAM savings per GPU) |
-| `GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN_BACKEND` | PN9 | Independent drafter attention backend (vllm#39930). Tunable: `GENESIS_PN9_DRAFTER_BACKEND` |
+| `GENESIS_ENABLE_PN9_INDEPENDENT_DRAFTER_ATTN` | PN9 | Independent drafter attention backend (vllm#39930). Tunable: `GENESIS_PN9_DRAFTER_BACKEND` |
 | `GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS` | PN11 | GDN a/b contiguity in fix_query_key_value_ordering (vllm#41142 — already in our pin) |
 | `GENESIS_ENABLE_PN12_FFN_INTERMEDIATE_POOL` | PN12 | FFN intermediate scratch pool — Cliff 1 fix on TQ3 path |
 | `GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY` | PN13 | CUDAGraphWrapper gc.collect/empty_cache lambda arity (vllm#41235 backport, JartX) |
@@ -186,17 +214,71 @@ what shipped start-scripts use; swap the prefix to `SNDR_ENABLE_` freely.
 
 ---
 
+## Meta apply-behavior flags
+
+These control the dispatcher / apply pipeline itself, not individual
+patches (`env.py` `is_meta_flag()`). All accept both the `SNDR_` and
+`GENESIS_` prefix (`SNDR_` wins when both are set).
+
+| Env var | Default | What it does |
+|---|---|---|
+| `SNDR_DISABLE_BOOT_PATCHES=1` | off | Skip `apply_all` at boot entirely — stock vLLM behavior. |
+| `SNDR_NO_PATCH_CACHE=1` | off | Disable the file-cache fast path; re-read every patch source. |
+| `SNDR_FORCE_REAPPLY=1` | off | Bypass marker idempotency; re-apply even when markers say applied. |
+| `SNDR_NO_VERIFY=1` | off | Skip post-apply verification. |
+| `SNDR_TIER_OVERRIDE=<tier>` | off | Force community-only mode. |
+| `SNDR_TELEMETRY=1` | off | Opt-in telemetry (see also the operator-tooling telemetry gates below). |
+| `SNDR_APPLY_VIA_SPECS=1` | off | Route boot apply through the spec-driven loop instead of the legacy per-patch loop. Patches without a spec are statically checked so they cannot be silently dropped. |
+| `BUNDLE_<name>=1` | off | Stage-7 umbrella flags — atomically apply a bundle of 2+ related patches via `MultiFilePatchTransaction` (browse with `sndr patches bundles list`). |
+
+---
+
+## Runtime tunables
+
+`sndr/runtime_tunables.py` registers the **19-entry `TUNABLE_KNOBS`**
+table — runtime knobs (scalars and `_`-suffixed families) that tune
+patch behavior without enabling/disabling patches. Generated summary
+(name / kind / default / effect):
+
+| Knob | Kind | Default | Effect |
+|---|---|---|---|
+| `GENESIS_OBSERVABILITY` | bool | `0` | Wave 7 per-patch timing instrumentation: record `elapsed_ms` + `rss_delta_kb` per patch at boot. |
+| `GENESIS_PROFILE_RUN_CAP_M` | int | `4096` | `profile_run` M cap (P72) — unblocks `--max-num-batched-tokens > 4096` on MoE configs. |
+| `GENESIS_PROFILE_RUN_CAP` | int | — | Back-compat alias for the above (v7.x start scripts). |
+| `GENESIS_TQ_MAX_MODEL_LEN` | int | `320000` | TurboQuant max-model-len cap; informs preallocation budget. Keep in sync with `--max-model-len` (PROD sets it per model YAML). |
+| `GENESIS_PREALLOC_TOKEN_BUDGET` | int | — | Token-budget hint for the preallocator (TQ workspace + GDN buffer-pool warmup sizing). |
+| `GENESIS_BUFFER_MODE` | enum | `auto` | Global buffer-acquisition mode: `auto` (patches decide) / `persistent` (force pool reuse) / `fresh` (disable pools; debug). |
+| `GENESIS_FLA_FWD_H_MAX_T` | int | — | FLA forward-h max tokens-per-shard cap (FLA TP overflow preflight). |
+| `GENESIS_P82_THRESHOLD_*` | family (float) | — | P82 SGLang `threshold_single` knobs (float in [0,1]). |
+| `GENESIS_P67_*` | family | — | P67 TQ multi-query kernel knobs (`NUM_KV_SPLITS`, `USE_UPSTREAM`, `USE_SPARSE_V`). |
+| `VLLM_TQ_DECODE_*` | family (int) | — | P18b TQ decode-kernel tile knobs (`NUM_WARPS`, `NUM_STAGES`). |
+| `GENESIS_P68_P69_*` | family | — | P68/P69 long-context tool reminder + auto-force-tool knobs. |
+| `GENESIS_P68_FORCE_ON_ALL_TOOLS` | bool | `0` | Bypass the P68 length threshold: force `tool_choice=auto→required` on EVERY tool request, not just long-context ones. **Required on the INT4 27B** (validated 2026-07-03): `tool_choice=auto` builds no grammar and the model emits invalid tool-call structure; `required` builds the schema and xgrammar constrains a valid call. |
+| `GENESIS_P68_FORCE` | bool | `0` | Per-request escape hatch: force the P68 rewrite for the next matching request regardless of context length. |
+| `GENESIS_FLA_GUARD_*` | family | — | FLA TP overflow preflight knobs (orchestrator gate). |
+| `GENESIS_PN16_*` | family | — | PN16 lazy-reasoner V5/V7/V8 knobs (`TOOL_THINK_BUDGET`, `CLASSIFIER_MAX_TOKENS`, `MAX_THINKING_TOKENS`, `THRESHOLD_CHARS`, `V1_LEGACY`). |
+| `GENESIS_PN59_*` | family | — | PN59 streaming-GDN orchestrator knobs. |
+| `GENESIS_PN65_*` | family | — | PN65 v3 access-log knobs (`LOG_HEALTH`, `QUIET_PATHS`, `KEEP_UVICORN_ACCESS`). |
+| `GENESIS_PN72_*` | family | — | PN72 frequency-ngram drafter knobs (`MIN_OBSERVATIONS`, `FREQUENCY_WINDOW`). |
+| `GENESIS_PN95_*` | family | — | PN95 Path C tier-aware cache knobs (`CONFIG_KEY`, `TICK_EVERY`, `DEMOTE_FREE_MIB_THRESHOLD`, `PROMOTE_*`, ...). |
+
+---
+
 ## Buffer-mode toggles
 
 Memory pool architecture — added v7.48 to control whether prealloc patches use shared singleton pool or legacy per-layer attached attributes.
 
 | Env var | Default | Values | What it does |
 |---|---|---|---|
-| `GENESIS_BUFFER_MODE` | `shared` | `shared` / `per_layer` | Global mode for all prealloc patches |
-| `GENESIS_BUFFER_MODE_<PID>` | (inherits global) | `shared` / `per_layer` | Per-patch override (e.g. `GENESIS_BUFFER_MODE_P38=per_layer`) |
+| `GENESIS_BUFFER_MODE` | `auto` | `auto` / `persistent` / `fresh` (+ legacy `shared` / `per_layer`) | Global mode for all prealloc patches |
+| `GENESIS_BUFFER_MODE_<PID>` | (inherits global) | same values | Per-patch override (e.g. `GENESIS_BUFFER_MODE_P38=fresh`) |
 
-`shared` = singleton pool via `GenesisPreallocBuffer` (memory-efficient, all 36 attention layers share one buffer).
-`per_layer` = legacy attached-attribute path (rollback safety; recommended only if shared regresses on a specific model).
+`auto` (current default per `TUNABLE_KNOBS`) = patches decide;
+`persistent` forces pool reuse via `GenesisPreallocBuffer`
+(memory-efficient, all 36 attention layers share one buffer);
+`fresh` disables pools (debug / rollback safety — use if the shared
+pool regresses on a specific model). The v7.48-era `shared` /
+`per_layer` value names map to `persistent` / `fresh`.
 
 ---
 
@@ -288,13 +370,13 @@ response, with TTL and weighted hit-rate metrics.
 
 ## Known config interactions (operator gotchas)
 
-### `--enable-prefix-caching` + TurboQuant + MTP (K=5 on Qwen) long-context
+### `--enable-prefix-caching` + TurboQuant + MTP (K=5 on 35B / K=4 on 27B) long-context
 
 If your config has all of:
 
 - `--enable-prefix-caching` set
 - `--kv-cache-dtype turboquant_*` (k8v4, 3bit_nc, etc.)
-- `--speculative-config '{"method": "ngram"}'` (any K) or `mtp` (Qwen K=5)
+- `--speculative-config '{"method": "ngram"}'` (any K) or `mtp` (Qwen K=5/K=4)
 - `--max-model-len ≥ 128K`
 
 then on hybrid GDN models (Qwen3.5/3.6 27B/35B) the combination has
@@ -390,12 +472,12 @@ and how they behave.
 
 ## Diagnostic / observability
 
-| Env var | Default | What it does |
-|---|---|---|
 <!-- GENESIS_DEBUG_INVARIANTS removed 2026-04-30 production audit: never read in source. -->
 
+| Env var | Default | What it does |
+|---|---|---|
 | `VLLM_LOGGING_LEVEL` | `WARNING` (prod) | Set `INFO` to see Genesis dispatcher matrix per boot |
-| `GENESIS_TQ_MAX_MODEL_LEN` | `262144` | Max model length for TQ prealloc sizing |
+| `GENESIS_TQ_MAX_MODEL_LEN` | `320000` | Max model length for TQ prealloc sizing (registry default; PROD model YAMLs pin it to their served context) |
 | `GENESIS_PREALLOC_TOKEN_BUDGET` | `4096` | Token budget for prefill output prealloc (P26) |
 | `GENESIS_PROFILE_RUN_CAP_M` | `4096` | M cap for profile_run (P72) — unblocks `--max-num-batched-tokens > 4096` |
 | `GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS` | `8000` | Char threshold for long-context tool-call hooks (P68/P69) |
@@ -404,7 +486,7 @@ and how they behave.
 
 ## PyTorch / CUDA / Triton standard env (recommended values)
 
-These are not Genesis env vars — they're vLLM / PyTorch / NCCL / Triton settings that interact with our patches in known ways. Production `start_mtp.sh` ships with the tested values.
+These are not Genesis env vars — they're vLLM / PyTorch / NCCL / Triton settings that interact with our patches in known ways. The production hardware YAML (`a5000-2x-*` `system_env` block) ships with the tested values.
 
 | Env var | Recommended | Why |
 |---|---|---|
@@ -454,7 +536,7 @@ override_policy:
 | Class | Meaning |
 |---|---|
 | `production` | Both bench evidence AND per-preset `config` block cross-validation exist; promotion-ready. |
-| `bench` | Bench evidence exists; per-preset `config` cross-validation deferred. **All 14 prod-\* presets sit here today** (DEBT.1 / 2A / 2B / 2C closure). |
+| `bench` | Bench evidence exists; per-preset `config` cross-validation deferred. **The prod-\* presets (9 active today) sit here** (DEBT.1 / 2A / 2B / 2C closure). |
 | `qa` | Lives in the QA harness; not for end-user production. |
 | `tier-aware` | Allowed to exceed `hardware.max_model_len_default` because PN95 tier-aware page demotion makes the override viable. Requires explicit `allowed_to_exceed_hardware_default: true` operator acknowledgement (Path A). |
 
@@ -468,7 +550,7 @@ promotes the class. Use the catalog query to surface expiring
 overrides:
 
 ```bash
-sndr config-catalog query --row-type profile \
+python3 -m sndr.cli.legacy config-catalog query --row-type profile \
                           --field override_expires_at \
                           --expires-before 2026-09-01
 ```
@@ -551,17 +633,16 @@ INFO/WARN output. It does NOT suppress:
 | `SNDR_V1_ROLLOUT_STAGE=0` | Revert to Stage 0 INFO-only during a transition window |
 | `GENESIS_DISABLE_V1_DEPRECATION_WARNING=1` | Silence V1-migration WARNs (does NOT suppress Class-4 or tombstone) |
 
-For full revert paths, use git tags:
+For a full vLLM-pin rollback, use the retained rollback pin from
+[`sndr/pins.yaml`](../sndr/pins.yaml) (currently
+`0.23.1rc1.dev714+g09663abde`): re-point the container at the
+rollback pin's explicit-hash image tag, or run the reverse bump —
 
 ```bash
-git checkout v7.52-stable-2026-04-27   # current production
-git checkout v7.51-stable-2026-04-27   # pre-fused-experiment
-git checkout v7.50-stable-2026-04-27   # pre-Step-D
+sndr pins.list                          # current / rollback / staging pins on this host
+make bump-pin NEW=<rollback-sha>        # propagates pins.yaml into every downstream artifact
+make audit-pin-consistency              # cross-artifact sync gate
 ```
 
-Or use the server-side backup:
-
-```bash
-ls ${HOME}/genesis-backups/
-# v7.50-stable-20260427_0202/ contains RESTORE.md with step-by-step
-```
+See [`PIN_BUMP_PLAYBOOK.md`](PIN_BUMP_PLAYBOOK.md) for the full
+promotion / rollback flow.

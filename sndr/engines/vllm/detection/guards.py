@@ -701,6 +701,25 @@ KNOWN_GOOD_VLLM_PINS: tuple[str, ...] = (
     #   previous/rollback; dev424 (nightly-3f5a1e173) dropped per <=2-pin policy.
     "0.23.1rc1.dev714+g09663abde",                       # setuptools_scm-derived
     "nightly-09663abde0f50944a8d5ea30120666024b503faa",  # docker tag form (full SHA)
+    # ── PROD pin PROMOTION dev748 2026-07-04 ──────────────────────────
+    # Image: vllm/vllm-openai:nightly-2dfaae752
+    # (0.23.1rc1.dev748+g2dfaae752, +34 commits over dev714). PROMOTED
+    # 2026-07-04: operator-authorized bump dev714 -> dev748, live 35B window on
+    # the mac-canonical tree (e81a7998). Boot apply applied=87 / skipped=166 /
+    # failed=0 (identical profile to dev714). Pre-bump anchor preflight: 27/34
+    # anchors intact on the 10 changed files; the 2 drifted patches (P100
+    # 6 anchors, PN351 launch variant) re-anchored dual-variant spanning BOTH
+    # pins (600797ec) — strand-gate 0 unexcused on dev748.
+    # Canonical genesis_bench_suite.py --quick (5x5x1024, temp 0.7):
+    #   35B-A3B AWQ TQ k8v4 + MTP K=5: 242.55 wall_TPS (CV 6.9%) vs dev714
+    #   234.16 same-day reference (+3.5%, NO regression); decode_TPOT 3.9 ms;
+    #   TTFT 84.5 ms; tool-call 7/7 (qwen3_xml, no XML->content leak); MTP
+    #   accept 0.653 (floor 0.55 PASS); ctx-scaling 1K..32K LINEAR_OK
+    #   (endpoint ratio 0.84, no cliff). dev714 (nightly-09663abde) retained
+    #   as previous/rollback; dev672 (nightly-93d8f834) dropped per <=2-pin
+    #   policy.
+    "0.23.1rc1.dev748+g2dfaae752",                       # setuptools_scm-derived
+    "nightly-2dfaae752b4db0d43cfc0715c780e33be030d0f1",  # docker tag form (full SHA)
 )
 
 

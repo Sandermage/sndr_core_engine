@@ -186,9 +186,9 @@ else
 fi
 
 _section "5. Genesis model configs (Status: enum dump)"
-BUILTIN_DIR="$REPO_ROOT/vllm/sndr_core/model_configs/builtin/model"
+BUILTIN_DIR="$REPO_ROOT/sndr/model_configs/builtin/model"
 if [[ -d "$BUILTIN_DIR" ]]; then
-    echo "Per-YAML status from \`vllm/sndr_core/model_configs/builtin/model/\`:"
+    echo "Per-YAML status from \`sndr/model_configs/builtin/model/\`:"
     echo ''
     echo '| YAML | Status | Last validated | Pin required |'
     echo '|---|---|---|---|'
@@ -234,7 +234,7 @@ fi
 
 if [[ "$WANT_BENCH" -eq 1 ]]; then
     _section "7. Bench summary (genesis_bench_suite --quick)"
-    BENCH_TOOL="$REPO_ROOT/vllm/sndr_core/tools/genesis_bench_suite.py"
+    BENCH_TOOL="$REPO_ROOT/tools/genesis_bench_suite.py"
     if [[ -f "$BENCH_TOOL" ]]; then
         echo '```'
         timeout 600 python3 "$BENCH_TOOL" --quick 2>&1 | tail -40 | _redact

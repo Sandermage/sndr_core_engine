@@ -35,12 +35,12 @@ the relevant section underneath.
 credit to [@<author>](<hf-link>); <quant/drafter> by [@<author2>](<link>).
 
 **Headline:** <the single most interesting result — e.g. "Qwen3.6-35B-A3B
-sustains 239.7 tok/s single-stream on 2× A5000, +53% over stock vLLM.">
+sustains 242.55 tok/s single-stream on 2× A5000 (pin dev748, 2026-07-04).">
 
 ### Results — <rig>, <engine + version>, <pin>
 | Model | Quant / KV | Spec-decode | Decode TPS | Tool-call | Ctx | VRAM |
 |---|---|---|--:|:--:|--:|--:|
-| <model> | <FP8 · TQ k8v4> | <MTP K=5> | <239.7> | <7/7> | <256K> | <GB> |
+| <model> | <AWQ · TQ k8v4> | <MTP K=5> | <242.55> | <7/7> | <280K> | <GB> |
 
 <one-line read of the result — within CV? lossless spec-decode? new ceiling?>
 
@@ -52,6 +52,7 @@ curl -sSL https://raw.githubusercontent.com/Sandermage/sndr_core_engine/main/ins
 sndr run <preset>                 # → chat;   sndr up <preset> for the GUI
 \`\`\`
 Serves an OpenAI-compatible API on http://127.0.0.1:8000/v1 (model: <name>).
+\`sndr up\` also opens the Control Center GUI at http://127.0.0.1:8765.
 
 **Credits:** upstream [vLLM](https://github.com/vllm-project/vllm) ·
 model [@<author>](<link>) · quant/drafter [@<author2>](<link>).
@@ -67,7 +68,7 @@ Same facts, three shapes. Lead with the measured numbers; never overclaim.
 
 ### r/LocalLLaMA (the primary venue)
 
-- **Title:** concrete and number-led — e.g. *"Qwen3.6-35B-A3B at 239.7 tok/s on
+- **Title:** concrete and number-led — e.g. *"Qwen3.6-35B-A3B at 242 tok/s on
   2× A5000 (consumer Ampere) — runtime vLLM patch overlay, Apache-2.0"*.
 - **Body:** the full skeleton above. Lead with the results table; this audience
   reads numbers first. Be explicit about the rig and that it's reproducible.

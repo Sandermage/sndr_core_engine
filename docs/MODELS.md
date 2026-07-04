@@ -8,6 +8,62 @@ your own**, and **how the V2 layered config system works underneath**.
 > config inventory, [`PATCHES.md`](PATCHES.md) for what each P*/PN*
 > does.
 
+## Builtin ModelDef inventory (12 entries)
+
+One row per ModelDef under `sndr/model_configs/builtin/model/`
+(generated from the YAMLs, 2026-07-04). Presets compose these with a
+HardwareDef + ProfileDef — see [`PRESETS.md`](PRESETS.md) for the
+preset-side view.
+
+| ModelDef id | Checkpoint | Quant | KV dtype | Spec method / K | Tool parser | Engine |
+| --- | --- | --- | --- | --- | --- | --- |
+| `qwen3.6-35b-a3b-fp8` | `Qwen3.6-35B-A3B-FP8` | FP8 native | `turboquant_k8v4` | mtp / 5 | `qwen3_xml` | vllm |
+| `qwen3.6-35b-a3b-fp8-dflash` | `Qwen3.6-35B-A3B-FP8` | FP8 native | — | dflash / 3 | `qwen3_xml` | vllm (presets archived) |
+| `qwen3.6-27b-int4-autoround-tq-k8v4` | `Qwen3.6-27B-int4-AutoRound` | AutoRound INT4 | `turboquant_k8v4` | mtp / 4 | `qwen3_xml` | vllm |
+| `qwen3.6-27b-int4-autoround-fp8kv` | `Qwen3.6-27B-int4-AutoRound` | AutoRound INT4 | `fp8_e5m2` | mtp / 3 | `qwen3_xml` | vllm |
+| `qwen3.6-27b-dflash` | `Qwen3.6-27B-int4-AutoRound` | AutoRound INT4 | — | dflash / 5 | `qwen3_xml` | vllm (presets archived) |
+| `qwen3.6-27b-gguf-q4km-mtp` | `Qwen3.6-27B-Q4_K_M.gguf` | GGUF Q4_K_M | `q4_0` | mtp / 2 | (engine template) | **llama.cpp** |
+| `qwen3.6-7b-dense` | `Qwen3.6-7B-Instruct` | none (BF16) | `fp8_e5m2` | — | `qwen3_xml` | vllm |
+| `gemma-4-26b-a4b-it-awq` | `gemma-4-26B-A4B-it-AWQ-4bit` | AWQ INT4 | `auto` | — | `gemma4` | vllm |
+| `gemma-4-26b-a4b-it-awq-experimental` | `gemma-4-26B-A4B-it-AWQ-4bit` | AWQ INT4 | `auto` | — | `gemma4` | vllm |
+| `gemma-4-31b-it-awq` | `gemma-4-31B-it-AWQ-4bit` | AWQ INT4 | `auto` | — | `gemma4` | vllm |
+| `gemma-4-31b-it-awq-mtp-n8-code` | `gemma-4-31B-it-AWQ-4bit` | AWQ INT4 | `auto` | mtp / 8 | `gemma4` | vllm |
+| `diffusiongemma-26b-a4b-fp8` | `diffusiongemma-26B-A4B-it-FP8-dynamic` | FP8 dynamic | `auto` | — (block diffusion) | `gemma4` | vllm |
+
+### Fleet-validated status (pin `dev748`, 2026-07-04)
+
+Every launchable lane was boot-swept on the promoted pin
+`0.23.1rc1.dev748+g2dfaae752` (2× RTX A5000, TP=2; `failed=0` patch
+applies across the entire fleet — full table with boot times and apply
+counts in [`BENCHMARKS.md` § Fleet sweep](BENCHMARKS.md)):
+
+- `qwen3.6-35b-a3b-fp8` — validated 2026-07-04 on dev748: 231.2 t/s
+  decode (TPOT 4.10 ms), tool-call PASS, accept 0.728 (canonical
+  `sndr launch` path). The live AWQ PROD launcher on the same pin ran
+  the full canonical suite: 242.5 t/s, tool-calls 7/7.
+- `qwen3.6-27b-int4-autoround-tq-k8v4` — validated 2026-07-04 on
+  dev748: ~130 t/s (TPOT 7.68 ms), tool-call PASS; PN520 loader fix
+  battle-validated (96 `in_proj_ba` shards routed, INT4 degeneration
+  cured). Thinking-mode loop is a pre-existing model trait — see the
+  workaround in [`FAQ.md`](FAQ.md).
+- `qwen3.6-27b-int4-autoround-fp8kv` — validated 2026-07-04 on dev748:
+  ~108 t/s (TPOT 9.22 ms); tool-call not exercised in this sweep; P100
+  FlashInfer FULL-CG spec-decode runtime-validated (coherent
+  generation, 0 errors).
+- `gemma-4-26b-a4b-it-awq` — validated 2026-07-04 on dev748: ~140 t/s
+  (TPOT 7.12 ms), tool-call PASS.
+- `gemma-4-31b-it-awq` — validated 2026-07-04 on dev748 (kvauto-chat
+  lane, PN351 re-anchor on head_dim=512): ~87 t/s (TPOT 11.51 ms),
+  tool-call PASS, accept 0.933.
+- `diffusiongemma-26b-a4b-fp8` — validated 2026-07-04 on dev748: boots
+  and responds coherently; AR decode metrics not applicable
+  (block-diffusion lane).
+- `qwen3.6-35b-a3b-fp8-dflash`, `qwen3.6-27b-dflash` — not swept:
+  presets archived pending DFlash re-validation on the 0.23.x pins.
+- `qwen3.6-7b-dense` — not swept: weights not present on the rig.
+- `qwen3.6-27b-gguf-q4km-mtp` — not swept: llama.cpp engine lane,
+  outside the vLLM pin sweep.
+
 ## Default model: `Qwen/Qwen3.6-35B-A3B-FP8`
 
 **HuggingFace**: <https://huggingface.co/Qwen/Qwen3.6-35B-A3B-FP8>
@@ -22,9 +78,18 @@ your own**, and **how the V2 layered config system works underneath**.
 | Q/KV heads | 16 / 2 (GQA 8:1) |
 | Experts | 256, top-8, shared expert |
 | MTP layer | 1 (`mtp_num_hidden_layers: 1`) |
-| Native context | 262 144 (256K) |
+| Native context | 262 144 (256K); PROD serves **280K** (`VLLM_ALLOW_LONG_MAX_MODEL_LEN=1` via the a5000-2x hardware trim, 2026-05-15) |
+| Served model name | `qwen3.6-35b-a3b` |
+| Tool-call parser | `qwen3_xml` (switched from `qwen3_coder` 2026-06-14 — streaming-robust, no XML leak) |
+| Spec-decode | MTP **K=5** (re-tuned 2026-06-19: 239.7 TPS / TPOT 3.94 ms, +15.8 % vs K=3) |
 | Disk size | ~36 GB FP8 |
 | License | Apache-2.0 |
+
+> The live PROD rig currently serves the **AWQ checkpoint** of this
+> model (`/models/Qwen3.6-35B-A3B-AWQ`); the FP8-native ModelDef above
+> is the shipped preset default. Fresh canonical bench on the AWQ PROD
+> stack (pin dev748, 2026-07-04): wall_TPS 242.55 / TPOT 3.9 ms /
+> TTFT 84.5 ms / tool-calls 7/7.
 
 ### Why this specific model
 
@@ -39,20 +104,23 @@ your own**, and **how the V2 layered config system works underneath**.
 2. **Active-parameter throughput on Ampere.** A3B = 3 B active per
    forward pass on top of a 35 B sparse backbone. On 2× A5000 (no FP8
    native compute, Marlin weight-only path), this yields ~57 tok/s
-   baseline and ~216 tok/s sustained with the Genesis MTP stack on
-   Wave 10. A dense 35B model would saturate the PCIe Gen4 bus and
-   run 3–4× slower. A3B is the highest-throughput configuration the
-   SM 8.6 generation can sustain at this parameter count.
-3. **Genesis patch lock-in (324 entries in `PATCH_REGISTRY`).** ~52
+   baseline and ~242 tok/s sustained with the Genesis MTP K=5 stack
+   (dev748 canonical bench 2026-07-04: 242.55 wall_TPS, CV 6.9 %). A
+   dense 35B model would saturate the PCIe Gen4 bus and run 3–4×
+   slower. A3B is the highest-throughput configuration the SM 8.6
+   generation can sustain at this parameter count.
+3. **Genesis patch lock-in (325 entries in `PATCH_REGISTRY`).** 56
    default-on entries are production-eligible. ~30 fire on 35B PROD
    in steady state; the rest are conditional on workload / hardware /
    spec method. Switching architecture (Gemma 4, DeepSeek V4, GLM 5)
    would require a new patch port (~2–3 weeks per family).
-4. **Long-context budget (262 144 tokens verified).** Our agentic
-   workloads routinely exceed 100 K tokens. Qwen3.6-35B-A3B's native
-   256K window has been end-to-end verified at 252K under load (96%
-   of cap). The closest sub-50 GB alternatives (Gemma 4 26B A4B at
-   128K, Qwen3.6 dense at 32K) fall short.
+4. **Long-context budget (280K served).** Our agentic workloads
+   routinely exceed 100 K tokens. Qwen3.6-35B-A3B's native 256K
+   window is served at 280K in PROD (2026-05-15 trim from 320K), with
+   context-scaling verified linear through 32K prompts on the
+   canonical suite (LINEAR_OK on dev748, 2026-07-04). The closest sub-50 GB
+   alternatives (Gemma 4 26B A4B at 128K, Qwen3.6 dense at 32K) fall
+   short.
 5. **Tool-calling fidelity.** Qwen3 series has best-in-open-weight
    Hermes-style XML tool-call templates and a chat template that
    survives ngram speculative decoding when paired with Genesis's
@@ -79,7 +147,9 @@ your own**, and **how the V2 layered config system works underneath**.
 | Speed estimate | ~50–65 tok/s decode (vs ~216 sustained for A3B Wave 10) |
 | Patch compat | All non-MoE patches apply (MoE-only patches in `family=moe` auto-skip via dispatcher) |
 
-**Compose template:** `compose/docker-compose.qwen3-5-dense.yml`.
+**Compose template:** none shipped for the dense variant (the shipped
+compose files under `compose/` cover the 27B-TQ and 35B PROD presets;
+render your own with `sndr model-config render <key> --runtime docker`).
 **Recommendation:** validated for single-3090 setups (noonghunna).
 Not recommended as primary because dense 27B is 2–2.5× slower than
 the A3B baseline.
@@ -90,12 +160,14 @@ the A3B baseline.
 | --- | --- |
 | Architecture | `qwen3_5` dense, AutoRound INT4 |
 | VRAM @ INT4 + TQ k8v4 KV | ~14 GB weights + KV that fits on 24 GB |
-| Native context | 256K (320K validated experimentally) |
-| Genesis presets | `a5000-2x-27b-int4-tq-k8v4`, `qa-qwen3.6-27b-tq-1x` (V2; V1 alias `a5000-1x-27b-int4-tested` retired 2026-06-01), `long-ctx-qwen3.6-27b` |
+| Native context | 256K (280K is the current a5000-2x serving cap) |
+| Genesis presets | `prod-qwen3.6-27b-tq-k8v4` (2× A5000), `qa-qwen3.6-27b-tq-1x` (single-card 78K), `llamacpp-qwen3.6-27b-q4km-1x` (GGUF / llama.cpp lane) |
 
 This is the default 27B preset for any 24 GB rig, single or dual GPU.
 Tool-call clean rate consistently 8/8 on Wave 10 (132.93 TPS sustained
-on 2× A5000).
+on 2× A5000, dev148-era K=3 canonical). MTP runs **K=4** since the
+2026-07-03 coherence re-tune (K=5 produced unparseable tool-calls on
+the INT4 checkpoint; requires `GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY=1`).
 
 ### `google/gemma-4-26B-A4B-it`
 
@@ -108,9 +180,11 @@ on 2× A5000).
 | Context | 128K (vs our 262K) |
 | Hybrid attention | NO — different MoE design from `qwen3_5_moe` |
 
-**Compose template:** `compose/docker-compose.gemma4-26b-moe.yml`
-(experimental). Needs new patches for Gemma 4-specific MoE layout —
-most Genesis patches skip via dispatcher.
+**Launch path:** presets `prod-gemma4-26b-default` /
+`prod-gemma4-26b-multiconc` (no shipped compose template — render via
+`sndr model-config render <key> --runtime docker`). The G4_* patch
+family covers the Gemma 4 MoE layout; non-Gemma patches skip via
+dispatcher.
 
 ### `cyankiwi/gemma-4-31B-it-AWQ-4bit`
 
@@ -125,13 +199,15 @@ most Genesis patches skip via dispatcher.
 
 The 31B dense Gemma runs in two KV configurations that trade throughput
 against context on the same 2× A5000 rig (single-stream; numbers measured
-on the validated dev148 baseline and carried forward across the dev301 and
-dev424 bumps — current pin is `0.23.1rc1.dev424+g3f5a1e173`):
+on the validated dev148 baseline and carried forward — current pin is
+`0.23.1rc1.dev748+g2dfaae752` per `sndr/pins.yaml`; the kvauto-chat
+lane was fleet-swept on dev748, 2026-07-04: ~87 t/s decode, tool-call
+PASS, accept 0.933 with PN351 re-anchored):
 
 | Profile | KV plan | Context | Decode TPS | Tool-call | Best for |
 | --- | --- | ---: | ---: | :---: | --- |
 | `gemma4-31b-kvauto-chat` | kv-auto — uniform fp16 KV, no TurboQuant | 32K | **~70.1** | 7/7 | interactive chat / tool-use (preset `prod-gemma4-31b-kvauto-chat`) |
-| `gemma4-31b-tq-mtp-chat-k3` | TurboQuant `turboquant_4bit_nc` | 64K | ~41.4 | 6/7 | long-document context (preset `prod-gemma4-31b-tq-mtp-chat-k3`) |
+| TQ lane | TurboQuant `turboquant_4bit_nc` | 64K | ~41.4 | 6/7 | long-document context (active preset: `prod-gemma4-31b-tq-default`; the K=3 chat sibling `prod-gemma4-31b-tq-mtp-chat-k3` is archived) |
 
 kv-auto is +69.6 % TPS AND better tool-call quality; the only cost is
 context (64K → 32K, because uniform fp16 KV is ~4× the turboquant_4bit_nc
@@ -202,7 +278,7 @@ output (Entrypoint + Cmd + Env + Mounts) and reverse-engineers a
 
 ```bash
 sndr model-config list
-sndr model-config new my-rig --template qa-qwen3.6-27b-tq-1x  # V1 alias `a5000-1x-27b-int4-tested` retired 2026-06-01
+sndr model-config new my-rig --template qa-qwen3.6-27b-tq-1x
 $EDITOR ~/.sndr/configs/my-rig.yaml
 ```
 
@@ -373,30 +449,41 @@ hardware: a5000-2x-24gbvram-16cpu-128gbram
 profile: my-experimental-wave10
 ```
 
-Verify with `sndr launch my-rig --preflight-only` and
-`make audit-configs`.
+Verify with `sndr preflight my-rig` and `make audit-configs`.
 
 ### Discovery CLI
 
+The primary v12 surface:
+
 ```bash
-sndr model list-v2          # every ModelDef (canonical patches summary)
-sndr model show <model-id>  # capabilities + canonical patches dump
-sndr hardware list          # every rig (n_gpus, vram, cuda cap, runtime)
-sndr hardware show <hw-id>  # sizing defaults + runtime block + system_env
-sndr profile list           # every profile (delta counts, sizing-override flag)
-sndr profile show <id>      # delta + sizing override + promotion contract
-sndr profile diff <id1> <id2>
+sndr preset list             # every preset with card metadata
+sndr preset show <id>        # one preset's card in full
+sndr preset explain <id>     # composed runtime + fit + fallback diff
+sndr list-models             # curated model registry (PROD/SUPPORTED/...)
+sndr config list             # config-key inventory
+```
+
+The per-layer browse verbs (`hardware list/show` /
+`profile list/show/diff`) were retired from the `sndr` top level in
+v12; they remain reachable via the legacy entrypoint (verified
+2026-07-04; note `model list-v2` on the legacy path currently crashes
+with an ImportError — use the Python Discovery API below instead):
+
+```bash
+python3 -m sndr.cli.legacy hardware list
+python3 -m sndr.cli.legacy profile list
+python3 -m sndr.cli.legacy profile show <id>
 ```
 
 ### V1 ↔ V2 bridge
 
-V2 is additive: the V1 launcher path still works for legacy preset
-keys (`a5000-2x-35b-prod`, `a5000-2x-27b-int4-tq-k8v4`, ...). V2
-aliases (`prod-qwen3.6-35b-balanced`, `prod-qwen3.6-27b-tq-k8v4`, ...) resolve through
-`registry_v2` and produce the same V1 `ModelConfig` shape that the
-existing emitters already consume. A byte-identical regression test
-covers each preset. V1 deprecation lands in Phase 9; V2 layered
-files remain the long-term source of truth.
+The V1 monolithic preset tier was **fully retired 2026-06-01 (Phase 10
+sunset)** — every shipped V1 file is gone and V1 keys return a clean
+"preset not found" error. V2 preset keys (`prod-qwen3.6-35b-balanced`,
+`prod-qwen3.6-27b-tq-k8v4`, ...) resolve through `registry_v2` and
+produce the same `ModelConfig` shape that the existing emitters
+consume; a byte-identical regression test covered each preset through
+the migration. V2 layered files are the long-term source of truth.
 
 ## Contributing a community config
 
@@ -509,7 +596,7 @@ catalogue + named rollback procedures.
 ## Discovery API (Python)
 
 ```python
-from vllm.sndr_core.model_configs.registry_v2 import (
+from sndr.model_configs.registry_v2 import (
     load_alias,            # alias → V1 ModelConfig
     load_model,            # ModelDef by id
     load_hardware,         # HardwareDef by id
@@ -519,22 +606,18 @@ from vllm.sndr_core.model_configs.registry_v2 import (
     list_profiles,         # all profile ids (optional parent_model filter)
     compose_by_ids,        # (model_id, hw_id, profile_id, runtime?) → ModelConfig
 )
-from vllm.sndr_core.model_configs.runtime_container import (
+from sndr.model_configs.runtime_container import (
     build_runtime_container_spec,  # ModelConfig → canonical IR
 )
 ```
 
 ## Looking ahead
 
-When Genesis gets NVIDIA Blackwell (RTX 6000 Pro 96 GB planned):
-
-- DeepSeek V4 Flash AWQ-INT4 (~80 GB) becomes feasible.
-- Qwen3-Next-80B-FP8 fits in a single-card setup.
-- NVFP4 quants unlock larger models at the same VRAM budget.
-- Genesis patch port for `deepseek_v4` arch becomes worthwhile.
-
-Until then — Qwen3.6-35B-A3B-FP8 + Genesis patches is the empirical
-best for 2× A5000-class hardware.
+(Apr-2026 outlook; unchanged as of 2026-07.) If/when Genesis gets
+NVIDIA Blackwell-class hardware, NVFP4 quants and the 80 GB-scale
+models (Qwen3-Next-80B, DeepSeek V4 Flash AWQ) become feasible. Until
+then — Qwen3.6-35B-A3B + Genesis patches is the empirical best for
+2× A5000-class hardware.
 
 ## Reference
 

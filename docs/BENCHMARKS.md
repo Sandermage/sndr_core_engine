@@ -8,29 +8,135 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 
 > **Current canonical stack (v12.0.0 current registry)**
 >
-> - Genesis `v12.0.0` — 324 PATCH_REGISTRY entries
->   (174 full + 17 marker-only + 4 retired + 7 partial + 2 placeholder).
-> - vLLM **current pin** `0.23.1rc1.dev714+g09663abde`
->   (`dev672` = `0.23.1rc1.dev672+g93d8f834d` = previous / rollback pin per the
->   ≤2-pin policy; `dev424` dropped). The canonical bench numbers below are the
->   **validated dev148 baseline** — decode was carried forward across every
->   subsequent bump (anchor regen + smoke confirmed at each; no decode
->   regression). They are re-benched on a pin bump only when a perf-relevant
->   change is suspected.
+> - Genesis `v12.0.0` — 325 PATCH_REGISTRY entries; by lifecycle:
+>   235 experimental, 41 retired, 28 legacy, 14 stable, 4 coordinator,
+>   3 research (regenerated 2026-07-04 from `sndr.dispatcher.PATCH_REGISTRY`).
+> - vLLM **current pin** `0.23.1rc1.dev748+g2dfaae752`
+>   (`dev714` = `0.23.1rc1.dev714+g09663abde` = previous / rollback pin per the
+>   ≤2-pin policy; `dev672` dropped; stable slot `v0.24.0`; SSOT:
+>   `sndr/pins.yaml`; promoted 2026-07-04). The headline numbers below are
+>   the **2026-07-04 dev748 promotion gate**; the same-day dev714 canonical
+>   run and older tables are kept as labeled per-pin history for regression
+>   detection.
 > - Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6),
 >   driver 580.142, CUDA 13.0.2.
 > - Spec-decode: MTP K=5 on Qwen 35B; **K=4 on the 27B** (the max coherent K
 >   for its INT4 tool-calls — set 2026-07-03; the dev148 rows below are the
 >   historical K=5 record). Gemma drafter stays K=3 (optimal for its separate
->   drafter). Probabilistic draft rejection, vllm#40269.
+>   drafter). Greedy draft (PN90 probabilistic draft disabled — measured
+>   regressor on dev371+).
 > - Attention: TurboQuant k8v4 KV cache + FlashAttention 2, TP=2.
 
-## Latest PROD numbers (v12.0.0 current registry; single-stream re-benched 2026-06-19 on dev148, K=5)
+## Fleet sweep — every launchable model on pin dev748 (2026-07-04 window)
 
-The single-stream rows are the MTP K=3→K=5 re-tune (warm sweep, pin
+Full-fleet validation during the dev748 promotion window: each model
+booted sequentially on the promoted pin (2× RTX A5000, TP=2), smoke-
+tested (chat + tool-call) and mini-benched (`--quick --runs 2`,
+decode-only). `failed=0` patch applies across the entire fleet.
+
+| Model (preset / launcher) | Boot | Apply | Chat | Tool-call | decode_TPOT | Note |
+| --- | ---: | ---: | :-: | :-: | ---: | --- |
+| Qwen3.6-35B-A3B AWQ (PROD launcher) | 330 s | 87/0 | ✓ | 7/7 | **3.90 ms** (242.5 t/s) | promotion gate, full canonical suite |
+| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | 270 s | 86/0 | ✓ | ✓ | 4.10 ms (231.2 t/s) | canonical `sndr launch` path; accept 0.728 |
+| Qwen3.6-27B INT4 TQ k8v4 (+PN520) | 370 s | 84/0 | ✓¹ | ✓ | 7.68 ms (~130 t/s) | PN520 loader fix battle-validated: 96 `in_proj_ba` shards routed, degeneration gone |
+| Qwen3.6-27B INT4 fp8kv (+P100) | 320 s | 85/0 | ✓ | — | 9.22 ms (~108 t/s) | P100 FlashInfer spec-decode runtime-validated (coherent gen, 0 errors) |
+| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | 170 s | 56/0 | ✓ | ✓ | 7.12 ms (~140 t/s) | |
+| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | 230 s | 61/0 | ✓ | ✓ | 11.51 ms (~87 t/s) | PN351 dev748 re-anchor applied on head_dim=512; accept 0.933 |
+| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | 140 s | 39/0 | ✓² | n/a | n/a² | diffusion lane — AR decode metrics not applicable |
+
+¹ 27B thinking mode loops (known club-3090 #226 model trait, pre-existing);
+chat validated with `enable_thinking:false`, tool-agent workload unaffected.
+² Diffusion lane responds (`finish=stop`); the AR-oriented TPOT metric is
+meaningless for block-parallel diffusion generation.
+
+Not swept: the two DFlash lanes (presets archived to
+`presets/_archive/` pending re-validation — restore to reproduce),
+`qwen3.6-7b-dense` (weights not present on the rig),
+`qwen3.6-27b-gguf-q4km-mtp` (llama.cpp engine lane).
+
+## Headline — dev748 promotion gate (2026-07-04, pin dev748, current)
+
+Canonical suite (`tools/genesis_bench_suite.py`) against the live PROD
+stack during the dev714 → dev748 promotion window: Qwen3.6-35B-A3B
+(**AWQ checkpoint** — the live launcher serves
+`/models/Qwen3.6-35B-A3B-AWQ`; the FP8 model preset exists separately),
+TP=2 on 2× RTX A5000 24 GB, TurboQuant k8v4 KV cache, MTP K=5, tool
+parser `qwen3_xml`, `--max-model-len 280000`.
+
+| Metric | Value | Note |
+| --- | ---: | --- |
+| wall_TPS | **242.55** | CV 6.9%, n=25 — **+3.5%** vs same-day dev714 (234.16) |
+| decode_TPOT | **3.9 ms** | |
+| TTFT | **84.5 ms** | |
+| Tool-calls | **7/7 PASS** | promotion-gate fixture, `qwen3_xml` |
+| MTP window accept-rate | **0.653** | floor 0.55, K=5 |
+| Ctx-scaling 1K → 32K | **LINEAR_OK** | endpoint ratio 0.84, no cliff (suite section `[5d/8]`) |
+
+Boot on the promoted pin: `applied=87 / failed=0` — identical apply
+profile to dev714.
+
+### Same-day dev714 reference — canonical run (2026-07-04, now rollback pin)
+
+The full canonical run taken the same day on dev714 (kept as the
+labeled apples-to-apples reference for the +3.5% delta above):
+
+| Metric | Value | Note |
+| --- | ---: | --- |
+| wall_TPS | **234.2** | CV 0.084, n=25 |
+| decode_TPOT | **4.04 ms** | |
+| TTFT | **88.5 ms** | cold turn ~958 ms, warm ~200 ms — prefix cache |
+| Tool-calls | **8/8 PASS** | thinking + non-thinking, multi-tool, error-recovery, denial |
+| MTP window accept-rate | **0.660** | floor 0.55, K=5 |
+
+### Per-pin carry-forward (single-stream wall_TPS, 35B, K=5)
+
+Each pin bump is validated with a single-stream window bench recorded in
+the model YAML promotion note; all deltas are within CV (no regression):
+
+| Pin | wall_TPS | Source / date |
+| --- | ---: | --- |
+| dev424 | 244.35 | promotion window bench, 2026-06-25 |
+| dev672 | 240.55 | promotion window bench (CV 6.0%), 2026-07-01 |
+| dev714 | 236.5 | promotion window bench (CV 6.3%), 2026-07-02 |
+| dev714 | 234.2 | canonical suite, 2026-07-04 (same-day reference above) |
+| dev748 | **242.55** | **promotion window bench (CV 6.9%), 2026-07-04 (headline above)** |
+
+### Agentic multi-turn (2026-07-04, dev714)
+
+12-turn tool-chain growing the prompt to 39K tokens:
+**12/12 turns successful, 0 silent-empty responses**, decode p50
+**168 TPS**, TTFT p50 **1.92 s** (long-prefix prefill dominates TTFT at
+this depth; decode stays flat).
+
+### Context scaling (new `[5d/8]` suite section, added 2026-07-04)
+
+Decode TPS at fixed generation length as prompt context grows
+(suite flags: `--ctx-scale`, `--ctx-scale-gen-tokens`,
+`--skip-ctx-scaling`). Per-point ladder from the same-day dev714
+canonical run:
+
+| Prompt ctx | 1K | 4K | 8K | 16K | 32K |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| decode TPS | 227 | 238 | 250 | 243 | 212 |
+
+Verdict: **LINEAR_OK** — endpoint ratio 0.93 (32K vs 1K, dev714), no
+cliff through 32K. The dev748 promotion gate ran the same ladder:
+**LINEAR_OK**, endpoint ratio 0.84 (2026-07-04).
+
+## PROD numbers — dev148 K=5 re-tune snapshot (historical; single-stream re-benched 2026-06-19 on dev148)
+
+For the current headline see the 2026-07-04 dev748 promotion gate above. The
+single-stream rows here are the MTP K=3→K=5 re-tune (warm sweep, pin
 `0.23.1rc1.dev148+gb4c80ec0f`): 35B +15.8 % vs K=3 (207→239.7), 27B +8.2 %
 vs K=3 (117.7→127.4). The multi-conc rows are NOT re-benched at K=5 — they
-remain the 2026-05-23 K=3 aggregate measurements.
+remain the 2026-05-23 K=3 aggregate measurements and are **flagged for a
+K=5 multi-conc re-bench**; until that lands, treat the multi-conc
+aggregates as the K=3 historical record.
+
+**Canonical multi-conc aggregate: 672.27 TPS** (35B, conc=8, K=3,
+2026-05-23 — the row below). Other aggregate figures floating around
+(~675 quoted in the reproduction recipe, and per-run variants in
+promotion notes) are run-variants of this same measurement — cite 672.27.
 
 | Model | wall_TPS | decode_TPOT | CV% | Tool-call | Method |
 | --- | ---: | ---: | ---: | :---: | --- |
@@ -71,9 +177,13 @@ no longer crashing on import: each failed `@register_patch` hook
 added ~30–50 ms boot overhead and one log/exception event that
 introduced jitter on the worker decode path.
 
-## What is currently on for `prod-qwen3.6-35b-balanced`
+## Boot summary for `prod-qwen3.6-35b-balanced` (dev148 snapshot)
 
-Per Genesis structured boot summary printed once at boot end:
+Historical dev148 example of the Genesis structured boot summary printed
+once at boot end. On the current dev748 pin the live boot reports
+**applied=87 / skipped=166 / failed=0** (2026-07-04 promotion window —
+an apply profile identical to dev714's 2026-07-02 boot) — the family
+breakdown below is the dev148 shape:
 
 ```text
 ══════════════════════════════════════════════════════════════════════
@@ -83,7 +193,7 @@ Genesis vLLM Patcher — boot summary
   vLLM:     0.23.1rc1.dev148+gb4c80ec0f
   GPU:      2× NVIDIA RTX A5000 (sm_86)
 ──────────────────────────────────────────────────────────────────────
-  Patches:  324 total → ~80 APPLY | ~148 SKIP
+  Patches:  325 total → ~80 APPLY | ~148 SKIP
   By family (APPLY only):
     • attention.gdn          ~5
     • attention.turboquant   ~12 (incl. PN116/118/119)
@@ -117,7 +227,7 @@ long-context probe (skippable).
 ```bash
 # 1. Install + boot
 sndr install                # or `bash install.sh --workload tool_agent -y`
-sndr launch a5000-2x-35b-prod    # V1 key, or use V2 alias `prod-qwen3.6-35b-balanced`
+sndr launch prod-qwen3.6-35b-balanced    # canonical V2 preset (V1 keys retired in Phase 10)
 
 # 2. Wait for the structured boot summary in docker logs
 
@@ -127,13 +237,20 @@ python3 tools/genesis_bench_suite.py \
     --model qwen3.6-35b-a3b \
     --out ~/.sndr/bench-results/35b_wave10.json
 
-# 4. Verify against the preset's reference_metrics
-sndr model-config verify prod-qwen3.6-35b-balanced
+# 4. Compare against the preset's measured reference
+sndr preset explain prod-qwen3.6-35b-balanced
 ```
+
+> Note: `sndr model-config verify <key>` (bench vs `reference_metrics`)
+> currently resolves only legacy model-config keys, which were retired
+> with V1 — it does not accept V2 preset keys (verified 2026-07-04).
+> Use `sndr preset explain <key>` to see the preset's measured bench
+> reference and compare your JSON against it.
 
 Multi-conc runs flip `max_num_seqs=8` and use the
 `prod-qwen3.6-35b-multiconc` V2 alias (qwen3.6-35b-multiconc.yaml profile);
-expect aggregate TPS ~675 at the cost of higher TTFT.
+expect the canonical aggregate 672.27 TPS (K=3, 2026-05-23) at the cost
+of higher TTFT.
 
 ## Historical reference
 
@@ -141,7 +258,7 @@ Older points are kept for regression-detection. Wave 8 (dev93)
 numbers remained the operator-facing baseline until Wave 10 confirmed
 the small uplift above; Wave 7 / v7.72 (dev9) is pre-v11-rename and
 is not directly comparable because the patch registry was much
-smaller (134 entries vs 324 today).
+smaller (134 entries vs 325 today).
 
 ### Wave 7 / v7.72 dev9 snapshot (2026-05-05, pre-v11 rename)
 
@@ -281,6 +398,9 @@ python3 tools/genesis_bench_suite.py --runs 50 --prompts short --max-tokens 256
 | `--quiet` | suppress per-trial stdout | off |
 | `--compare A.json B.json` | post-hoc Welch's t-test (no server needed) | — |
 | `--compare-out` | where to write comparison JSON | stdout |
+| `--ctx-scale` | context-scaling stage (`[5d/8]`): decode TPS at growing prompt ctx (1K→32K) | see `--help` |
+| `--ctx-scale-gen-tokens` | generation length used by the ctx-scaling stage | see `--help` |
+| `--skip-ctx-scaling` | skip the ctx-scaling stage | off |
 
 ## Run scenarios — five common environments
 
@@ -314,7 +434,7 @@ The supported reference path. All Genesis PROD runs use this image.
 ```bash
 git clone https://github.com/Sandermage/sndr_core_engine.git
 cd sndr_core_engine
-docker pull vllm/vllm-openai:nightly             # current Genesis pin (0.23.1rc1.dev148+gb4c80ec0f)
+docker pull vllm/vllm-openai:nightly             # current Genesis pin (0.23.1rc1.dev748+g2dfaae752; explicit-hash tag: nightly-2dfaae752 — see sndr/pins.yaml)
 
 sndr launch prod-qwen3.6-35b-balanced                            # docker emission
 docker logs -f vllm-server                      # wait for startup
@@ -586,12 +706,16 @@ The four PROD-ready configs launched through the unified CLI:
 | --- | --- |
 | 35B-A3B-FP8 PROD (TQ k8v4 + MTP K=5, latency) | `sndr launch prod-qwen3.6-35b-balanced` |
 | 35B-A3B-FP8 multi-conc (TQ k8v4 + max_num_seqs=8) | `sndr launch prod-qwen3.6-35b-multiconc` |
-| 35B-A3B-FP8 + DFlash N=3 (latency) | `sndr launch prod-qwen3.6-35b-dflash` |
-| 35B-A3B-FP8 + DFlash N=3 (multi-conc) | `sndr launch prod-qwen3.6-35b-dflash-multiconc` |
+| 35B-A3B-FP8 + DFlash N=3 (latency) | `prod-qwen3.6-35b-dflash` — archived preset¹ |
+| 35B-A3B-FP8 + DFlash N=3 (multi-conc) | `prod-qwen3.6-35b-dflash-multiconc` — archived preset¹ |
 | 27B-INT4-AutoRound + TQ k8v4 (latency) | `sndr launch prod-qwen3.6-27b-tq-k8v4` |
 | 27B-INT4-AutoRound + TQ k8v4 (multi-conc) | `sndr launch prod-qwen3.6-27b-tq-multiconc` |
-| 27B-INT4-AutoRound + DFlash N=5 (latency) | `sndr launch prod-qwen3.6-27b-dflash` |
-| 27B-INT4-AutoRound + DFlash N=5 (multi-conc) | `sndr launch prod-qwen3.6-27b-dflash-multiconc` |
+| 27B-INT4-AutoRound + DFlash N=5 (latency) | `prod-qwen3.6-27b-dflash` — archived preset¹ |
+| 27B-INT4-AutoRound + DFlash N=5 (multi-conc) | `prod-qwen3.6-27b-dflash-multiconc` — archived preset¹ |
+
+¹ The DFlash preset cards were archived to
+`sndr/model_configs/builtin/presets/_archive/` pending re-validation;
+restore from there to reproduce the DFlash rows.
 
 V2 presets resolve to a (model, hardware, profile) triplet under
 `sndr/model_configs/builtin/`. The legacy per-config

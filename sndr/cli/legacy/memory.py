@@ -107,7 +107,8 @@ def _resolve_preset_v1_or_v2(key: str):
     from sndr.model_configs.registry import get as get_config
     from sndr.model_configs.schema import SchemaError
 
-    # V1 lookup first (existing path; keeps `sndr memory explain a5000-2x-35b-prod` working).
+    # V1 lookup first (legacy branch; the V1 registry is empty post-Phase-10 —
+    # V2 aliases like `prod-qwen3.6-35b-balanced` resolve via the fallback below).
     try:
         cfg = get_config(key)
         if cfg is not None:

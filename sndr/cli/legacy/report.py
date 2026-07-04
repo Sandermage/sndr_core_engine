@@ -428,7 +428,7 @@ def add_argparser(subparsers: Any) -> None:
     )
     bundle.add_argument(
         "--preset", type=str, default=None,
-        help="Optional preset key to render via launch --dry-run (e.g. a5000-2x-35b-prod).",
+        help="Optional preset key to render via launch --dry-run (e.g. prod-qwen3.6-35b-balanced).",
     )
     bundle.add_argument(
         "--container", type=str, default=None,

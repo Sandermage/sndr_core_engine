@@ -12,7 +12,10 @@ never ship publicly.
 | --- | --- |
 | **Brand-new** — orient, then clone to first token | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
 | New to local AI itself (hardware / engines / quants, plain English) | [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) |
-| Weigh self-host vs a cloud API (cost crossover) | [`COMPARISONS.md`](COMPARISONS.md) |
+| Weigh self-host vs a cloud API, or vs other local engines | [`COMPARISONS.md`](COMPARISONS.md) |
+| Quick answers to common questions | [`FAQ.md`](FAQ.md) |
+| Drive it from the browser (Control Center, `sndr up`) | [`GUI.md`](GUI.md) |
+| Drive it from the terminal cockpit (`sndr tui`) | [`TUI.md`](TUI.md) |
 | Single-page operator manual covering all four layers (installer / launcher / configs / patches) | [`USAGE.md`](USAGE.md) |
 | Install Genesis end-to-end | [`INSTALL.md`](INSTALL.md) → [`QUICKSTART.md`](QUICKSTART.md) |
 | Get running in 5 minutes + Day 1 acceptance | [`QUICKSTART.md`](QUICKSTART.md) |
@@ -23,20 +26,31 @@ never ship publicly.
 | Add a model recipe or contribute a community config | [`MODELS.md`](MODELS.md) |
 | Write a new patch or community plugin | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Diagnose an OOM, cliff, or boot failure | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) |
-| Roll a broken release back | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) |
+| Roll a broken pin back / bump the vLLM pin | [`PIN_BUMP_PLAYBOOK.md`](PIN_BUMP_PLAYBOOK.md) |
 | See current bench numbers + reproduce them | [`BENCHMARKS.md`](BENCHMARKS.md) |
 | Browse the patch catalogue + compatibility matrix | [`PATCHES.md`](PATCHES.md) |
 | Read the technical design appendices (PN95, GDN, ...) | [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) |
 
-## File catalogue (30 markdown files)
+## File catalogue (41 markdown files)
 
 ### Onboarding & concepts
 
 | Doc | Purpose |
 | --- | --- |
 | [`GETTING_STARTED.md`](GETTING_STARTED.md) | Two-minute orientation for newcomers — who it's for, what you get, the one install line, and where to go next. |
-| [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) | Plain-English explainer of local AI — GPU/VRAM, inference engine, model size & MoE, quantization — and how SNDR Core fits. |
-| [`COMPARISONS.md`](COMPARISONS.md) | Honest self-host-vs-cloud trade and the cost-crossover shape. |
+| [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) | Plain-English explainer of local AI — GPU/VRAM, inference engine, model size & MoE, quantization, tool-calling — and how SNDR Core fits. |
+| [`COMPARISONS.md`](COMPARISONS.md) | Honest self-host-vs-cloud trade (cost-crossover shape) + SNDR Core vs other local engines. |
+| [`FAQ.md`](FAQ.md) | Common operator questions (registry size, default-on subset, LoRA, streaming, `--from-running`, k8s/proxmox lifecycle). |
+
+### Product surface (GUI / TUI / API / MCP)
+
+| Doc | Purpose |
+| --- | --- |
+| [`GUI.md`](GUI.md) | The browser Control Center (`sndr up` → `http://127.0.0.1:8765`): screens, env vars, container/engine management, chat + Ops Copilot. |
+| [`GUI_SECURITY.md`](GUI_SECURITY.md) | GUI daemon security model: bind/auth/2FA/OAuth, dangerous-actions matrix, endpoint list, hardening. |
+| [`TUI.md`](TUI.md) | The terminal cockpit (`sndr tui`) — panes, keys, beginner mode, offline rig planning. |
+| [`PRODUCT_API.md`](PRODUCT_API.md) | The typed read-only Product API behind CLI/GUI/SDK + the `:8765` HTTP daemon route map. |
+| [`MCP.md`](MCP.md) | The MCP server (stdio JSON-RPC) exposing the Ops Copilot tool catalog to Claude Desktop / Cursor / IDE agents. |
 
 ### Installation & quickstart
 
@@ -61,8 +75,12 @@ never ship publicly.
 | [`MODELS.md`](MODELS.md) | Tested models (Qwen3.6 lineup) + tested alternatives + adding your own model + the V2 layered config system + community config submission pipeline. |
 | [`CONFIGS.md`](CONFIGS.md) | Narrative "I want to add a model" recipe. |
 | [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md) | Auto-generated full config inventory (regenerated from `model_configs/builtin/*.yaml`). |
+| [`PRESETS.md`](PRESETS.md) | Preset catalog operator guide — `sndr preset list / show / explain / recommend`. |
 | [`HARDWARE.md`](HARDWARE.md) | Tested GPU envelope (A5000, 3090, 4090, 5090, H100, ...) + cross-rig validators. |
-| [`SINGLE_CARD.md`](SINGLE_CARD.md) | Single-card (3090/4090) operator guide — honest cliff story, `sndr preflight`, and the cliff-immune escape hatches (llama.cpp MTP, ik_llama two-stage) for consumer GPUs. Credits club-3090. |
+| [`SINGLE_CARD.md`](SINGLE_CARD.md) | Single-card (3090/4090) operator guide — honest cliff story, `sndr preflight` / `sndr kv-calc`, and the cliff-immune escape hatches (llama.cpp MTP, ik_llama two-stage) for consumer GPUs. Credits club-3090. |
+| [`KV_PROJECTOR.md`](KV_PROJECTOR.md) | `sndr kv-calc` / `sndr fit` byte-level VRAM + KV fit math, calibration anchors, `--fit-all`. |
+| [`SPEC_DECODE_GUIDE.md`](SPEC_DECODE_GUIDE.md) | Speculative decoding operator guide — which method (MTP / suffix / draft) and when. |
+| [`ROUTING.md`](ROUTING.md) | Workload-gate routing table contract for aggregators/proxies/gateways. |
 
 ### Patches + dispatcher
 
@@ -71,6 +89,7 @@ never ship publicly.
 | [`PATCHES.md`](PATCHES.md) | Curated narrative reference + compatibility matrix per patch per model + patch_plan resolver (`--policy compat \| safe \| minimal`). |
 | [`PATCHES_AUTO.md`](PATCHES_AUTO.md) | Auto-generated full patch table from `dispatcher/registry.py`. |
 | [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) | Technical design appendices: PN95 tier-aware KV cache · GDN kernel fusion roadmap · Qwen3 reasoning/content streaming contract · `Genesis → sndr_core` v11 rename. |
+| [`PR45413_QWEN3_PARSER_DEEPDIFF_PREP.md`](PR45413_QWEN3_PARSER_DEEPDIFF_PREP.md) | Prep/tracking checklist for vLLM #45413 (declarative Qwen3 tool-call parser) vs P64/P61c/PN56 — execute on the pin bump that carries it. |
 | [`RELEASE_POLICY.md`](RELEASE_POLICY.md) | Which patch-proof mode gates a public release (`require-static` today + two stricter ratchets). |
 
 ### Pin management
@@ -86,8 +105,8 @@ never ship publicly.
 | Doc | Purpose |
 | --- | --- |
 | [`BENCHMARKS.md`](BENCHMARKS.md) | Canonical PROD numbers (v12.0.0 current registry) + methodology + 5 scenarios + bench command reference + result-sharing rules + interpretation of every metric. |
+| [`QUALITY_GATE.md`](QUALITY_GATE.md) | The boundary/stress + soak quality gate (`verify_stress`, `soak_continuous`) and the KL-tail probe. |
 | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | Quick triage → named cliffs (1–8) → OOM recipes → operational cookbook (10 named scenarios) → rollback playbook (R-001…R-008). |
-| [`FAQ.md`](FAQ.md) | Common operator questions (registry size, default-on subset, LoRA, streaming, `--from-running`, k8s/proxmox lifecycle). |
 
 ### Contributing + glossary
 
@@ -97,10 +116,12 @@ never ship publicly.
 | [`GLOSSARY.md`](GLOSSARY.md) | Term definitions — TQ, MTP, GDN, FA2, A3B, Marlin, ... |
 | [`ANNOUNCEMENT_TEMPLATE.md`](ANNOUNCEMENT_TEMPLATE.md) | Reusable skeleton for a "we shipped X" post + r/LocalLLaMA / Show HN / X variants. |
 
-### Credits
+### Policies & credits
 
 | Doc | Purpose |
 | --- | --- |
+| [`CORE_ENGINE_BOUNDARY.md`](CORE_ENGINE_BOUNDARY.md) | The three-zone namespace policy (core / engine / private) the source tree ships under. |
+| [`LICENSE_POLICY.md`](LICENSE_POLICY.md) | How source files and built artefacts relate to the Apache-2.0 license and the signed license gate. |
 | [`CREDITS.md`](CREDITS.md) | Per-patch attribution + upstream-PR linkage. |
 | [`SPONSORS.md`](SPONSORS.md) | Hardware + compute sponsors. |
 
@@ -109,6 +130,12 @@ never ship publicly.
 | Folder | What's inside |
 | --- | --- |
 | [`img/`](img/) | Diagrams referenced from the narrative docs (DFlash vs MTP, patch impact, per-config perf). |
+| [`assets/`](assets/) | Screenshots and other embedded assets (`assets/screenshots/`). |
+| [`guides/`](guides/) | Focused guides: [`PIN_UPGRADE.md`](guides/PIN_UPGRADE.md) (pin-policy summary), [`COMMERCIAL_TIER.md`](guides/COMMERCIAL_TIER.md). |
+| [`memory/`](memory/) | The persistent-memory engine manual ([`memory/MANUAL.md`](memory/MANUAL.md)). |
+| [`design/`](design/) | Design documents (memory engine, neural-graph mode, persistent-memory architecture). |
+| [`changelog/`](changelog/) | Per-release narrative changelogs (e.g. [`v12.0.0`](changelog/v12.0.0.md)). |
+| [`_adr/`](_adr/) | Architecture decision records (multi-engine refactor, maturity remediation verdicts). |
 
 The previous `reference/`, `security/`, `upstream/`, and
 `upstream_refs/` subdirectories were retired in the 2026-05-16
@@ -168,7 +195,7 @@ consolidation pass, sibling topics were merged into single
 operator-facing references so the surface matches industry-standard
 docs/ layouts (vllm-project/vllm, sgl-project/sglang,
 huggingface/transformers all keep ≤ 15 narrative .md files in
-their main docs tree). The current 26 files map to the previous
+their main docs tree). The consolidated files map to the previous
 38 as follows:
 
 - `QUICKSTART.md` ← `QUICKSTART.md` (rewritten) + `DAY_1_CHECKLIST.md`.

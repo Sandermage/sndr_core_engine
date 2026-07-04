@@ -916,7 +916,7 @@ def add_argparser(subparsers: Any) -> None:
         ),
     )
     p_plan.add_argument("--preset", required=True,
-                        help="model_config key (e.g. a5000-2x-35b-prod).")
+                        help="model_config key (e.g. prod-qwen3.6-35b-balanced).")
     p_plan.add_argument("--json", action="store_true")
     p_plan.add_argument(
         "--profile",

@@ -1,10 +1,22 @@
 # Workload-Gate Routing Table
 
-`sndr routing-table` emits a JSON contract that external callers
-(aggregators, proxies, gateways) consume to dispatch incoming
+The routing-table emitter produces a JSON contract that external
+callers (aggregators, proxies, gateways) consume to dispatch incoming
 requests to the correct vllm preset based on **workload class**,
 **expected output length**, **concurrency mode**, and **model
 family**.
+
+**Invocation:** `routing-table` is **not** a top-level `sndr` verb in
+v12 — the canonical invocation is:
+
+```bash
+python3 -m sndr.cli routing-table --json
+```
+
+(`--validate`, `--out FILE` and `--vllm-pin` are the other flags.)
+The aggregator flow in one line: **fetch the table → first matching
+rule wins → restart-only refresh** (no hot reload). For the
+per-question interactive equivalent, use `sndr preset recommend`.
 
 Schema: [`sndr/cli/legacy/routing_schema.json`](../sndr/cli/legacy/routing_schema.json) (v1).
 
@@ -85,20 +97,40 @@ contract change is ever needed.
 | `fallback` | What to do when no rule matches: use `default_for_family`. When the model family is unknown: skip K=4 overrides, use V1 lookup. **K=1 is the default everywhere.** |
 | `coverage_gaps[]` | Known untested cells (e.g. 31B multi-conc structured). Consumers should surface these to operators rather than silently routing to fallback. |
 
-## Current rules (as of 2026-05-23)
+## Current rules (regenerated from the live emitter, 2026-07-04)
+
+The live table carries **one measured rule** — the 2026-06 canonical
+preset reorg archived the two K=4 single-stream presets the older
+rules routed to, and those cells moved to `coverage_gaps`:
 
 ```
 gemma4_moe_26b_a4b:
-  multi_conc + (structured_json | tool_call) + short  → prod-gemma4-26b-multiconc   (B4 evidence)
-  single_stream + (structured_json | tool_call) + short → prod-gemma4-26b-mtp-k4    (B2 evidence)
-  default                                              → prod-gemma4-26b-default   (K=1)
+  multi_conc + (structured_json | tool_call) + short  → prod-gemma4-26b-multiconc   (B4 evidence, measured)
+  default                                              → prod-gemma4-26b-default    (K=1)
 
 gemma4_dense_31b:
-  single_stream + (structured_json | tool_call)       → prod-gemma4-31b-tq-mtp-structured-k4   (B1.2 evidence + β'-A artifact)
-  default                                              → prod-gemma4-31b-tq-default   (K=1)
+  default                                              → prod-gemma4-31b-tq-default (K=1)
 ```
 
-Everything else is **K=1**, by policy.
+`coverage_gaps[]` records the two archived cells explicitly
+(single-stream structured on 26B → was `prod-gemma4-26b-mtp-k4`;
+single-stream structured on 31B → was
+`prod-gemma4-31b-tq-mtp-structured-k4`) with a `next_phase` note:
+recreate or re-bench before a measured rule returns.
+
+**Qwen routing is intentionally single-preset.** The rules table is
+per-request K-routing between K=1 and K>1 *siblings of the same
+family* — a pattern only the Gemma families currently have measured
+evidence for. The Qwen 35B/27B PROD presets run MTP K=5 / K=4
+*inside* one preset each, so there is no K-sibling to route between;
+an aggregator serving Qwen simply forwards to the deployed preset
+(the "model's natural preset" fallback). The K=1 policy language
+refers to the routing-table default, not to the Qwen engines'
+internal spec-decode.
+
+Everything without a matching rule falls back to
+`default_for_family` — **effective K=1 by policy** at the routing
+layer.
 
 ## Operator recipe — verify before deploy
 

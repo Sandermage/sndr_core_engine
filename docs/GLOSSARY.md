@@ -36,7 +36,7 @@ Activation-aware Weight Quantization. Like GPTQ but explicitly scales weights ba
 Intel's quantization-aware rounding scheme producing 4-bit weights with group-size 128 (typically). Genesis-validated checkpoint is `Lorbus/Qwen3.6-27B-int4-AutoRound`. Routes through Marlin or AllSpark kernels depending on `group_size`.
 
 ### TurboQuant (k8v4, 4bit_nc, 3bit_nc)
-KV-cache compression scheme upstream as `--kv-cache-dtype turboquant_*`. `k8v4` keeps keys in 8-bit and values in 4-bit (Genesis default — best quality/throughput trade). `4bit_nc` is symmetric 4-bit, `3bit_nc` is 3-bit (high accuracy loss on Qwen). Trades 5-15% throughput for 2-4× more concurrent KV slots.
+KV-cache compression scheme upstream as `--kv-cache-dtype turboquant_*`. `k8v4` keeps keys in 8-bit and values in 4-bit — the **PROD default on both the 27B and 35B presets** (best quality/throughput trade; see [`KV_PROJECTOR.md`](KV_PROJECTOR.md) for the projector design). `4bit_nc` is symmetric 4-bit, `3bit_nc` is 3-bit (high accuracy loss on Qwen). Trades 5-15% throughput for 2-4× more concurrent KV slots.
 
 ## Speculative Decoding
 
@@ -47,10 +47,10 @@ A technique where a small/fast draft proposes K tokens and the large target mode
 The draft is the small proposer (e.g. an MTP head, an n-gram lookup, or a small transformer). The target is the production model that verifies. Acceptance rate is the fraction of draft tokens that survive verification.
 
 ### Acceptance Rate
-Fraction of speculative tokens accepted by the target model. Higher is better. Heavily workload-dependent: code completion gets 70-90%, free-form prose gets 30-50%. Genesis reports per-position acceptance for tuning `prompt_lookup_min`.
+Fraction of speculative tokens accepted by the target model. Higher is better. Heavily workload-dependent: code completion gets 70-90%, free-form prose gets 30-50%. Genesis reports per-position acceptance for tuning `prompt_lookup_min`; the bench suite gates on a window accept-rate floor (0.55 on 35B PROD; dev714 measured 0.660). P82 (SGLang per-token acceptance OR-clause) and PN369 tune acceptance behavior — see [`PATCHES.md`](PATCHES.md).
 
 ### MTP (Multi-Token Prediction)
-A small "head" module trained jointly with the target that predicts the next K tokens directly. Qwen3.6 ships with built-in MTP. Best for chat/prose workloads.
+A small "head" module trained jointly with the target that predicts the next K tokens directly. Qwen3.6 ships with built-in MTP. Best for chat/prose workloads. K is the `num_speculative_tokens` knob in `speculative_config`; Genesis PROD runs **K=5 on the 35B** (re-tuned 2026-06-19) and **K=4 on the 27B INT4** (coherence re-tune 2026-07-03).
 
 ### Eagle3
 Tree-based speculative-decoding scheme using a tiny draft transformer plus a verification tree. Higher acceptance than MTP at higher cost. Genesis tracks Eagle3 but does not yet ship it as default.
@@ -59,7 +59,7 @@ Tree-based speculative-decoding scheme using a tiny draft transformer plus a ver
 Zero-cost draft method that searches the prompt for matching n-grams and reuses them as speculative tokens. Excellent for code (high lexical repetition), poor for prose. Tunable via `prompt_lookup_min/max`.
 
 ### DFlash
-Draft model designed for code-heavy workloads. Larger and smarter than MTP, weaker than Eagle3. HuggingFace-gated download.
+Draft model designed for code-heavy workloads. Larger and smarter than MTP, weaker than Eagle3. HuggingFace-gated download. The four DFlash presets are **archived** as of v12 (pending re-validation on the 0.23.x pins) — the term still appears in benches and patch names.
 
 ## Attention Variants
 
@@ -70,7 +70,7 @@ Vanilla attention. Each query head has its own dedicated key and value head. Hig
 All query heads share a single key and value head. Lowest memory, lowest quality. Rare in modern models.
 
 ### GQA (Grouped Query Attention)
-Compromise: query heads are split into G groups, each group shares one K/V head. Qwen3.6-27B uses `GQA=24/4=6` (24 query heads, 4 KV heads, group size 6). Genesis P67 fast-path requires power-of-two group size — non-pow-2 GQA falls through to upstream until v7.63.x generalization landed.
+Compromise: query heads are split into G groups, each group shares one K/V head. Qwen3.6-27B uses `GQA=24/4=6` (24 query heads, 4 KV heads, group size 6). Genesis P67's original fast-path required power-of-two group size (later generalized); PN521 (TQ raw-tail spec-verify) now covers the non-pow-2 GQA K+1 verify path on the 27B — it is required for coherent MTP on that model.
 
 ### GDN (Gated DeltaNet)
 Linear-attention variant from the FLA (Flash Linear Attention) family used in hybrid Qwen3.6 models. Replaces some softmax-attention layers with a recurrent gated state. Cheap memory, different numerics.
@@ -104,6 +104,32 @@ Splits the model layer-wise across N GPUs. Lower bandwidth need than TP, higher 
 ### Expert Parallel (EP)
 For MoE models, splits the experts across GPUs. Genesis tested EP on 35B-A3B and found it hurt our single-user workload — kept off.
 
+## Platform (v12) Terms
+
+### Preset / PresetCard
+A **preset** is the operator-facing entrypoint: a 3-pointer YAML naming a ModelDef + HardwareDef + ProfileDef, plus an optional **PresetCard** (`card:` block) describing what it's for — workload allow/deny, K policy, evidence, fallback, do-not-use. Cards drive `sndr preset list/show/explain/recommend`. See [`PRESETS.md`](PRESETS.md).
+
+### ModelDef / HardwareDef / ProfileDef
+The V2 layered config triplet. **ModelDef** owns model identity + capabilities (checkpoint, quant, `kv_cache_dtype`, spec-decode, parsers); **HardwareDef** owns the rig (GPU count, VRAM, image, mounts, system env, sizing defaults); **ProfileDef** owns operator tuning (patches delta + sizing override). The composer merges them into one runtime config. See [`MODELS.md`](MODELS.md).
+
+### patches_delta
+The ProfileDef block that adjusts the model's canonical patch set: `enable` (add), `disable` (remove), `override` (change a value), applied in that order.
+
+### Pin (current / rollback / stable_release)
+A vLLM build Genesis is validated against, identified by its setuptools_scm version string (e.g. `0.23.1rc1.dev714+g09663abde`). `sndr/pins.yaml` is the SSOT and holds three slots: **current** (what PROD runs), **rollback** (the retained previous nightly), and **stable_release** (the LTS release pin, currently `v0.24.0`). Browse with `sndr pins.list`; bump with `make bump-pin`.
+
+### PASS / TIGHT / FAIL
+The fit verdicts from `sndr kv-calc` / `sndr preflight`: the preset's projected per-card VRAM fits with headroom (PASS), barely fits (TIGHT), or does not fit (FAIL).
+
+### Product API / GUI daemon
+The local web daemon started by `sndr up` (default port **8765**): a REST API (`/api/v1/*`) plus the browser Control Center GUI. Auth-gated. `sndr open` opens it; `sndr down` stops it. See [`GUI.md`](GUI.md) and [`PRODUCT_API.md`](PRODUCT_API.md).
+
+### TUI cockpit
+The interactive terminal dashboard (`sndr tui`): live engine stats, fit-ranked preset catalog, serve/stop/chat/doctor from one keyboard-driven screen. See [`TUI.md`](TUI.md).
+
+### Engine
+The inference backend a preset targets. Genesis is multi-engine: **vllm** (primary), **llama.cpp** (the `llamacpp-qwen3.6-27b-q4km-1x` GGUF lane), and **sglang** (registered). Browse with `sndr engines.list`.
+
 ## Genesis-Specific
 
 ### Patch
@@ -119,7 +145,7 @@ When upstream vLLM changes the code surrounding an anchor, the patch can fail to
 A logical patch implemented as several smaller atomic edits (e.g. P64 has sub-patches A through F). Useful when a single bug touches multiple files.
 
 ### Dispatcher
-The boot-time loader (`sndr/dispatcher/` package + `sndr/apply/orchestrator.py` boot loop) that consults the `PATCH_REGISTRY`, evaluates env flags, runs `applies_to` and `conflicts_with` checks, and prints `[APPLY] / [SKIP] / [REC] / [OFF]` for every patch.
+The boot-time loader (`sndr/dispatcher/` package + `sndr/apply/orchestrator.py` boot loop) that consults the `PATCH_REGISTRY`, evaluates env flags, runs `applies_to` and `conflicts_with` checks, and prints an `APPLY` / `SKIP` decision per patch plus a boot summary line (`total= applied= skipped= failed=`).
 
 ### applies_to filter
 Per-patch metadata declaring which vLLM commit range, model family, GPU SM, or KV-cache dtype the patch supports. Skipped automatically when the boot environment does not match.

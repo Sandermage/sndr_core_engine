@@ -9,7 +9,7 @@ This file is a thin shim that invokes the new modular `apply_all` so old
 compose files / launch scripts that mount this path keep working with a
 deprecation warning. New deployments should call the module directly:
 
-    python3 -m vllm._genesis.patches.apply_all
+    python3 -m sndr.apply
 
 Why we keep this shim
 ---------------------
@@ -37,34 +37,32 @@ import warnings
 
 
 def main() -> int:
-    """Run the Genesis patch suite (v11+ entrypoint via sndr_core)."""
+    """Run the Genesis patch suite (v12+ entrypoint via the sndr package)."""
     warnings.warn(
-        "patch_genesis_unified.py is deprecated since Genesis v7.14 and "
-        "the underlying _genesis package was migrated to vllm.sndr_core in "
-        "v11. Update your launch invocation to: "
-        "python3 -m vllm.sndr_core.apply",
+        "patch_genesis_unified.py is deprecated since Genesis v7.14; the "
+        "overlay package now ships as the top-level `sndr` package (v12). "
+        "Update your launch invocation to: python3 -m sndr.apply",
         DeprecationWarning,
         stacklevel=2,
     )
     try:
-        from vllm.sndr_core.apply import apply_all as _modular_main
+        from sndr.apply import main as _modular_main
     except ImportError as e:
         print(
-            "ERROR: cannot import vllm.sndr_core.apply — Genesis sndr_core "
+            "ERROR: cannot import sndr.apply — the sndr overlay package "
             "was not found in this vLLM install.\n"
             f"Reason: {e}\n\n"
             "Migration:\n"
-            "  - Mount sndr_core into vLLM's site-packages:\n"
-            "      -v <repo>/vllm/sndr_core:/usr/local/lib/python3.12/dist-packages/vllm/sndr_core:ro\n"
+            "  - Mount the sndr package into the container's site-packages:\n"
+            "      -v <repo>/sndr:/usr/local/lib/python3.12/dist-packages/sndr:ro\n"
             "  - Then call:\n"
-            "      python3 -m vllm.sndr_core.apply",
+            "      python3 -m sndr.apply",
             file=sys.stderr,
         )
         return 1
 
-    # apply_all returns the patch dispatch matrix list; keep shell exit 0.
-    _modular_main()
-    return 0
+    rc = _modular_main()
+    return int(rc or 0)
 
 
 if __name__ == "__main__":

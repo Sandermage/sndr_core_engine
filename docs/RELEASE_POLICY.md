@@ -38,7 +38,7 @@ runs under `evidence/patch_proof/`.
 Why this is the gate: every patch the registry advertises must at least
 *resolve* before release; bench data quality varies per patch and is
 hardware-bound, so making it mandatory would block every release until
-operators re-bench all 324 entries on their rig. See
+operators re-bench all 325 entries on their rig. See
 `audit_release_check_baseline-optional` rationale in the Makefile for
 the historical decision.
 
@@ -56,7 +56,7 @@ comparison (`bench_with_baseline`). This is the strictest mode and
 takes the longest to satisfy because every patch needs a reference
 bench run.
 
-Currently 0/324 entries carry `bench_with_baseline`. Operators who
+Currently 0/325 entries carry `bench_with_baseline`. Operators who
 want to adopt this gate should:
 
 1. Promote the **default-on patches in production presets** first
@@ -119,7 +119,7 @@ target date for re-enabling the strict gate.
 ## Operator runbook — promoting the production subset to `bench_with_baseline`
 
 This section is the step-by-step recipe for going from the public
-release gate (`require-static`, 324/305 covered out-of-the-box) to
+release gate (`require-static`, 325/305 covered out-of-the-box) to
 the hardened ratchet (`require-bench` or `require-baseline`) on the
 practical subset that actually ships in production presets.
 
@@ -235,26 +235,34 @@ python3 scripts/attach_bench_proof.py \
     --include-default-on
 ```
 
-After cycling all 8 prod presets, `proof-status` should report
-~122/230 (~53%) in `bench_with_baseline` — the by-design ceiling
-for the current registry (subset of patches enabled by any
-`prod-*` preset). The remaining ~106 stay `static_only` by design —
-they are experimental opt-in patches that no production preset
-enables.
+After cycling the prod presets, `proof-status` reports the
+by-design ceiling for the registry (the subset of patches enabled by
+any `prod-*` preset); the rest stay `static_only` by design — they
+are experimental opt-in patches that no production preset enables.
+The dated 2026-05-22 snapshot projected ~122/230 (~53%); the live
+registry is now 325 entries with 9 `prod-*` presets — re-derive the
+current ceiling from a fresh `proof-status` run rather than these
+snapshot numbers.
 
 Note on denominators in this section: **109** = production-subset
 (line 137 — patches eligible for bench gates), **169** = eligible
 count at the 2026-05-16 R-01 audit snapshot (CHANGELOG entry below),
 **226** = total registry count at the 2026-05-22 attachment-state
-snapshot (line 148), **230** = current registry count. Historical
-snapshot numbers (109/169/226) are dated and preserved; only the
-forward projection above tracks the live registry total.
+snapshot (line 148), **230** = registry count at the 2026-05-2x
+projection snapshot above. All snapshot numbers (109/169/226/230)
+are dated and preserved; the live registry total is **325**
+(2026-07-04) — verify with
+`python3 -c "from sndr.dispatcher import PATCH_REGISTRY; print(len(PATCH_REGISTRY))"`.
 
-### Per-preset coverage cheatsheet
+### Per-preset coverage cheatsheet (2026-05-22 snapshot)
 
-The list below shows which patches each preset uniquely contributes
-(not already covered by the prod-qwen3.6-27b-dflash-multiconc bench). A
-single bench run per preset closes its row.
+Dated snapshot: the list below shows which patches each preset uniquely
+contributed at the 2026-05-22 audit (baseline: the then-live
+prod-qwen3.6-27b-dflash-multiconc bench). The four DFlash presets named
+below have since been ARCHIVED to
+`sndr/model_configs/builtin/presets/_archive/` — restore from there to
+reproduce those rows. The live preset set is 15 (9 `prod-*`); a single
+bench run per preset closes its row.
 
 | Preset | New patches it covers | Model |
 | --- | --- | --- |
