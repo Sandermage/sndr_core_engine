@@ -8,8 +8,11 @@ uniformly without per-handler boilerplate.
 """
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI
-from starlette.testclient import TestClient
+import pytest
+
+pytest.importorskip("fastapi")
+from fastapi import Depends, FastAPI  # noqa: E402
+from starlette.testclient import TestClient  # noqa: E402
 
 from sndr.memory.embedder import HashEmbedder
 from sndr.memory.engine import MemoryEngine
