@@ -64,7 +64,7 @@ def _sub_line(text: str, key: str, value: str) -> str:
         text, count=1, flags=re.M)
 
 
-def bump(new: str, dry: bool) -> int:
+def bump(new: str, dry: bool, sha_full: str | None = None) -> int:
     info = _parse(new)
     pins_yaml = REPO / "sndr/pins.yaml"
     from sndr import pins as _pins  # current SSOT before edit
@@ -82,6 +82,16 @@ def bump(new: str, dry: bool) -> int:
     y = _sub_line(y, "current_image", info["image"])
     y = _sub_line(y, "current_container", info["container"])
     y = _sub_line(y, "current_anchor_dir", info["anchor_dir"])
+    # current_sha_full cannot be derived from the version string's short
+    # g-hash (dev748 promotion 2026-07-04: the previous pin's full sha was
+    # silently left in place). The operator passes the 40-char sha via
+    # --sha-full (from the image label org.opencontainers.image.revision).
+    if sha_full:
+        y = _sub_line(y, "current_sha_full", sha_full)
+    else:
+        print("  WARN: --sha-full not given — current_sha_full NOT updated; "
+              "fetch it via: docker inspect <image> --format "
+              "'{{index .Config.Labels \"org.opencontainers.image.revision\"}}'")
 
     # 2. CANONICAL_PIN_SUBSTRING
     av2_path = REPO / "scripts/audit_v2_runtime_pins.py"
@@ -141,9 +151,21 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("new_pin", help="new pin string, e.g. 0.23.1rc1.dev777+gabcdef012")
     ap.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
+    ap.add_argument("--sha-full", default=None,
+                    help="full 40-hex vLLM commit sha of the new pin "
+                         "(updates current_sha_full; from the image label "
+                         "org.opencontainers.image.revision)")
     args = ap.parse_args(argv)
+    if args.sha_full is not None:
+        import re as _re
+        if not _re.fullmatch(r"[0-9a-f]{40}", args.sha_full):
+            ap.error(f"--sha-full must be a 40-char lowercase hex sha, got {args.sha_full!r}")
+        short = args.new_pin.rsplit("+g", 1)[-1]
+        if not args.sha_full.startswith(short):
+            ap.error(f"--sha-full {args.sha_full[:12]}... does not start with "
+                     f"the pin's short hash {short!r}")
     sys.path.insert(0, str(REPO))
-    return bump(args.new_pin, args.dry_run)
+    return bump(args.new_pin, args.dry_run, sha_full=args.sha_full)
 
 
 if __name__ == "__main__":
