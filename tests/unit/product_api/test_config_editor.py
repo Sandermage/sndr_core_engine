@@ -51,13 +51,14 @@ def test_get_v2_layer_returns_full_model_definition():
     definition = layer["definition"]
     assert definition["model_path"]
     assert definition["capabilities"]["attention_arch"]
-    assert isinstance(definition["patches"], dict) and definition["patches"]
+    assert isinstance(definition["patches"], dict)
+    assert definition["patches"]
     assert definition["requires"]["min_gpu_count"] >= 1
     assert layer["source"].endswith("qwen3.6-35b-a3b-fp8.yaml")
 
 
 def test_get_v2_layer_unknown_kind_raises():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="widget|kind"):
         get_v2_layer("widget", "whatever")
 
 
@@ -257,7 +258,7 @@ def test_get_v2_layer_rejects_unsafe_id():
     _check_id) so a crafted id can't reach path-building / traverse the catalog
     dir or leak the resolved filesystem path in the error."""
     for bad in ("../../../../etc/passwd", "bad/id", "UPPER", "a b"):
-        with pytest.raises(Exception) as ei:
+        with pytest.raises(Exception, match=r"(?i)must be|lowercase|required") as ei:  # noqa: PT011 — exception TYPE varies by traversal guard layer; the contract is the message
             get_v2_layer("model", bad)
         msg = str(ei.value).lower()
         assert "must be" in msg or "lowercase" in msg or "required" in msg, (
