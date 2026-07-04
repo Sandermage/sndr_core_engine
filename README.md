@@ -78,7 +78,7 @@ at the Control Center (`http://127.0.0.1:8765`). Prefer the terminal?
 `sndr run` does the same and drops you straight into a chat prompt. New here?
 Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
 
-<!-- hero screenshot: docs/assets/screenshots/control-center.png (pending capture) -->
+![SNDR Control Center — system map with 325-patch registry, 15 presets, 12 models and live launch-readiness gates](docs/assets/screenshots/control-center.png)
 
 ## Who is this for
 
