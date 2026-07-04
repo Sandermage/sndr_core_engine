@@ -4,8 +4,11 @@
 
 # SNDR Core Engine
 
-> **Genesis vLLM Patches** — runtime patch-overlay for vLLM on consumer NVIDIA
-> Ampere / Ada / Blackwell.
+> **Genesis vLLM Patches** — runtime vLLM patches that run a frontier-class
+> **35B** model on **consumer NVIDIA GPUs with 24 GB** (RTX 3090 / 4090 /
+> 5090, RTX A5000 / A6000): ~1.5× faster inference, **quantized tool calling**
+> that works, **MTP speculative decoding**, and a **280K-token context** —
+> no fork, no rebuild.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Tests](https://github.com/Sandermage/sndr_core_engine/actions/workflows/test.yml/badge.svg)](https://github.com/Sandermage/sndr_core_engine/actions/workflows/test.yml)
@@ -23,15 +26,30 @@
      memory · pgvector · rag · knowledge-graph · openai-api · llm-proxy ·
      obsidian · ampere · ada · blackwell -->
 
+**Contents:**
+[Get running](#get-running--two-commands) ·
+[Who is this for](#who-is-this-for) ·
+[Why SNDR Core](#why-sndr-core--what-you-get) ·
+[How it compares](#how-it-compares) ·
+[What it is](#what-it-is) ·
+[How it works](#how-it-works) ·
+[The platform end-to-end](#what-the-platform-does-end-to-end) ·
+[Headline numbers](#headline-numbers-v1200-current-registry) ·
+[Fleet validation](#validated-across-the-fleet--7-models-one-pin-dev748-2026-07-04) ·
+[Persistent memory](#persistent-memory--neural-graph-new-in-v12) ·
+[Pick your path](#pick-your-path) ·
+[Install & run](#install--run) ·
+[FAQ](#faq) ·
+[Documentation map](#documentation-map) ·
+[Repository structure](#repository-structure) ·
+[Contributing](#contributing)
+
 **Turn a consumer NVIDIA card into a production local-AI server.** SNDR Core
 transforms the open-source [vLLM](https://github.com/vllm-project/vllm) engine
-*in memory at boot* — no fork, no rebuild — so a frontier-class **35B** model runs
-**~1.5× faster than stock vLLM**, with a **280K-token served context** (above
-the model's published 256K limit), **MTP K=5** speculative decoding, and
-tool-calling that actually works (native `qwen3_xml` streaming parser), on
+*in memory at boot* — no fork, no rebuild — so a frontier-class **35B** model
+runs **~1.5× faster than stock vLLM** with a **280K-token served context**, on
 hardware you can actually buy (A5000, RTX 4090 / 5090, A6000 — and yes, the
-3090). One paste installs it; a real **GUI Control Center** drives it — no
-`docker` flags to memorize.
+3090). One paste installs it; a real **GUI Control Center** drives it.
 
 **Two products, one engine:** ⚙️ the runtime **vLLM patch-overlay** (faster
 inference) **+** 🧠 a **persistent neural-graph memory** that makes every model —
@@ -61,6 +79,22 @@ at the Control Center (`http://127.0.0.1:8765`). Prefer the terminal?
 Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
 
 <!-- hero screenshot: docs/assets/screenshots/control-center.png (pending capture) -->
+
+## Who is this for
+
+- **Homelab operators** — you own (or can buy) a 24 GB-class NVIDIA card and
+  want frontier-class local inference without datacenter hardware. Start:
+  [`docs/SINGLE_CARD.md`](docs/SINGLE_CARD.md).
+- **On-prem / privacy deployments** — data can't leave the building.
+  Self-hosted, Apache-2.0, every applied patch logged; nothing phones home.
+- **Agent builders** — you need an OpenAI-compatible endpoint with tool
+  calling that survives quantization, long agentic tool-chains, and a
+  persistent memory gateway. Start: [`docs/MCP.md`](docs/MCP.md) +
+  [`docs/memory/MANUAL.md`](docs/memory/MANUAL.md).
+- **Researchers / performance engineers** — a 325-entry patch registry with
+  per-patch evidence, a bench suite with CV methodology, and reproducible
+  numbers. Start: [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) +
+  [`docs/PATCHES.md`](docs/PATCHES.md).
 
 ---
 
@@ -322,7 +356,7 @@ Marlin N=352 thread-tile crash, then the `probs @ embed_weight` `[131072,2816]` 
 shape mismatch; the coherent generation confirms the soft-embed all-gather yields correct
 TP=2 output).
 
-## 🧠 Persistent Memory — neural-graph (new in v12)
+## Persistent memory — neural-graph (new in v12)
 
 A brain-like **persistent memory** that makes every model — the internal vLLM
 engines **and** external models behind your proxy — smarter over time. Knowledge
@@ -400,13 +434,78 @@ Five-minute walk-through + Day-1 acceptance: [`docs/QUICKSTART.md`](docs/QUICKST
 A different vLLM pin, workload, or non-interactive flag set:
 [`docs/INSTALL.md`](docs/INSTALL.md).
 
+## FAQ
+
+The questions people actually search for. Longer answers (and ~25 more
+questions) live in [`docs/FAQ.md`](docs/FAQ.md).
+
+**Can I run a 35B-class model on 24 GB of VRAM?**
+On a *single* 24 GB card the validated recipe is the 27B INT4 preset
+(`qa-qwen3.6-27b-tq-1x`, 78K context); the 35B MoE needs 2× 24 GB at TP=2,
+where the PROD stack decodes at **242.5 t/s** (pin dev748, 2026-07-04).
+`sndr preflight` and `sndr kv-calc` tell you what fits *before* you download
+weights. → [`docs/SINGLE_CARD.md`](docs/SINGLE_CARD.md) ·
+[`docs/HARDWARE.md`](docs/HARDWARE.md)
+
+**Why do tool calls break on quantized models?**
+Quantization amplifies upstream parser fragility — `<think>` tags, multi-tool
+prompts, and streaming chunk splits produce malformed calls on stock configs.
+Genesis ships a dedicated tool-call patch family (P59 / P61 / P62 / P64 /
+P68 / P69) around the native `qwen3_xml` streaming parser: **7/7 PASS** on the
+dev748 promotion gate and **8/8** on the extended battery (dev714, both
+2026-07-04). → [`docs/FAQ.md`](docs/FAQ.md) ·
+[`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
+
+**How much faster is speculative decoding?**
+The MTP K=3→K=5 re-tune alone lifted 35B single-stream decode **+15.8 %**
+(207 → 239.7 t/s, pin dev148, 2026-06-19); the full recommended patch set is
+**≈1.5× stock vLLM** on the same commit (+53 % on 35B, +46 % on 27B; dev148,
+2026-06-19). Current canonical figure: **242.5 wall TPS** (dev748,
+2026-07-04). → [`docs/SPEC_DECODE_GUIDE.md`](docs/SPEC_DECODE_GUIDE.md) ·
+[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)
+
+**Is this a fork of vLLM?**
+No. It runs against an *unmodified* pinned vLLM wheel and applies patches in
+memory at boot; toggle Genesis on/off with env flags on the same binary. Each
+patch declares an `applies_to` version range and retires automatically when
+upstream merges the underlying fix. → [`docs/FAQ.md`](docs/FAQ.md)
+
+**How does 280K context fit on 24 GB cards?**
+TurboQuant `k8v4` KV-cache quantization (8-bit keys, 4-bit values) frees
+2–4× more concurrent KV slots, which is what lets the PROD preset serve
+`max_model_len: 280000` — above the model's published 256K limit — with
+**linear decode scaling through 32K** (LINEAR_OK, dev748, 2026-07-04).
+`sndr kv-calc` projects the exact KV bytes for your card. →
+[`docs/KV_PROJECTOR.md`](docs/KV_PROJECTOR.md) ·
+[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)
+
+**Can I run it without Docker?**
+Yes — it is a regular Python package that patches a vLLM installed in the same
+environment; `sndr model-config render <key> --runtime bare_metal` emits a
+venv launch script. Kubernetes and Proxmox lifecycles are wired via
+`python3 -m sndr.cli.legacy service install <key>`. →
+[`docs/FAQ.md`](docs/FAQ.md)
+
+**Is it free?**
+Everything in this repo — `sndr/**`, tests, docs, bench data — is
+**Apache 2.0**. The license gate in the tree guards a commercial overlay that
+is absent from the public tree; it does not restrict the community tier. →
+[`docs/LICENSE_POLICY.md`](docs/LICENSE_POLICY.md)
+
 ## Documentation map
 
 | If you want to... | Read |
 | --- | --- |
+| Two-minute orientation — who it's for, what you get, first token | [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) |
+| Learn local-AI basics first (GPUs, engines, MoE, quants — plain English) | [`docs/LOCAL_AI_PRIMER.md`](docs/LOCAL_AI_PRIMER.md) |
+| Weigh self-host vs cloud APIs (the cost-crossover trade) | [`docs/COMPARISONS.md`](docs/COMPARISONS.md) |
+| Understand how the platform fits together (registry → byte edit, pins, configs) | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | One-page operator manual (installer → launcher → configs → patches) | [`docs/USAGE.md`](docs/USAGE.md) |
 | 🧠 Persistent memory — full reference (API, gateway, embedders, Obsidian, deploy) | [`docs/memory/MANUAL.md`](docs/memory/MANUAL.md) |
 | Install + first boot | [`docs/INSTALL.md`](docs/INSTALL.md) → [`docs/QUICKSTART.md`](docs/QUICKSTART.md) |
+| Set up / fix `~/.sndr/host.yaml` (paths + mounts) | [`docs/HOST_SETUP.md`](docs/HOST_SETUP.md) |
+| Add your own model end-to-end (weights → YAML → bench) | [`docs/ADDING_MODELS.md`](docs/ADDING_MODELS.md) |
+| Operate it day-2 (health checks, swaps, rollbacks, hygiene) | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) |
 | Browse `sndr` commands | [`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md) |
 | Drive the GUI Control Center | [`docs/GUI.md`](docs/GUI.md) |
 | Stay in the terminal (TUI) | [`docs/TUI.md`](docs/TUI.md) |

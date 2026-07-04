@@ -61,10 +61,12 @@ nav:
       - Get started (2-min orientation): GETTING_STARTED.md
       - Quickstart (clone to chat): QUICKSTART.md
       - Install: INSTALL.md
+      - Host setup (host.yaml): HOST_SETUP.md
       - Local AI primer: LOCAL_AI_PRIMER.md
       - Self-host vs cloud: COMPARISONS.md
   - Models & hardware:
       - Models: MODELS.md
+      - Adding your own model: ADDING_MODELS.md
       - Hardware: HARDWARE.md
       - Single card: SINGLE_CARD.md
       - Presets: PRESETS.md
@@ -75,12 +77,14 @@ nav:
       - Speculative decoding: SPEC_DECODE_GUIDE.md
   - Operations:
       - Operator manual: USAGE.md
+      - Day-2 runbook: OPERATIONS.md
       - CLI reference: CLI_REFERENCE.md
       - Terminal cockpit (TUI): TUI.md
       - Configuration: CONFIGURATION.md
       - Benchmarks: BENCHMARKS.md
       - Troubleshooting: TROUBLESHOOTING.md
   - Internals:
+      - Architecture: ARCHITECTURE.md
       - Product API: PRODUCT_API.md
       - GUI (Control Center): GUI.md
       - MCP server: MCP.md
