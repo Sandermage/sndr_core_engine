@@ -11,6 +11,7 @@ never ship publicly.
 | If you want to... | Read |
 | --- | --- |
 | **Brand-new** — orient, then clone to first token | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
+| Understand how the whole platform is put together (structure + data flows) | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | New to local AI itself (hardware / engines / quants, plain English) | [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) |
 | Weigh self-host vs a cloud API, or vs other local engines | [`COMPARISONS.md`](COMPARISONS.md) |
 | Quick answers to common questions | [`FAQ.md`](FAQ.md) |
@@ -19,6 +20,9 @@ never ship publicly.
 | Single-page operator manual covering all four layers (installer / launcher / configs / patches) | [`USAGE.md`](USAGE.md) |
 | Install Genesis end-to-end | [`INSTALL.md`](INSTALL.md) → [`QUICKSTART.md`](QUICKSTART.md) |
 | Get running in 5 minutes + Day 1 acceptance | [`QUICKSTART.md`](QUICKSTART.md) |
+| Set up / fix `~/.sndr/host.yaml` (paths + mounts) | [`HOST_SETUP.md`](HOST_SETUP.md) |
+| Add your own model end-to-end (weights → YAML → bench) | [`ADDING_MODELS.md`](ADDING_MODELS.md) |
+| Run it day-2 (health checks, swaps, rollbacks, hygiene) | [`OPERATIONS.md`](OPERATIONS.md) |
 | Browse all `sndr` commands | [`CLI_REFERENCE.md`](CLI_REFERENCE.md) |
 | Pick a model + hardware combo | [`MODELS.md`](MODELS.md) + [`HARDWARE.md`](HARDWARE.md) |
 | Run on a single 3090 / 4090 (consumer GPU) | [`SINGLE_CARD.md`](SINGLE_CARD.md) |
@@ -31,13 +35,14 @@ never ship publicly.
 | Browse the patch catalogue + compatibility matrix | [`PATCHES.md`](PATCHES.md) |
 | Read the technical design appendices (PN95, GDN, ...) | [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) |
 
-## File catalogue (41 markdown files)
+## File catalogue (45 markdown files)
 
 ### Onboarding & concepts
 
 | Doc | Purpose |
 | --- | --- |
 | [`GETTING_STARTED.md`](GETTING_STARTED.md) | Two-minute orientation for newcomers — who it's for, what you get, the one install line, and where to go next. |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Structural map of the codebase — three product surfaces over one core, repo tree walk, patch lifecycle data-flow, pin lifecycle, V2 config compose, bench/quality machinery, product-API seam. |
 | [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) | Plain-English explainer of local AI — GPU/VRAM, inference engine, model size & MoE, quantization, tool-calling — and how SNDR Core fits. |
 | [`COMPARISONS.md`](COMPARISONS.md) | Honest self-host-vs-cloud trade (cost-crossover shape) + SNDR Core vs other local engines. |
 | [`FAQ.md`](FAQ.md) | Common operator questions (registry size, default-on subset, LoRA, streaming, `--from-running`, k8s/proxmox lifecycle). |
@@ -59,6 +64,8 @@ never ship publicly.
 | [`USAGE.md`](USAGE.md) | Single-page operator manual that threads through all four layers (installer → launcher → configs → patches) plus the production-readiness bench-proof workflow. |
 | [`INSTALL.md`](INSTALL.md) | Full installer walkthrough — `install.sh` flags, preflight checks, troubleshooting. |
 | [`QUICKSTART.md`](QUICKSTART.md) | 5-minute setup path plus the 6-step Day-1 acceptance walkthrough. |
+| [`HOST_SETUP.md`](HOST_SETUP.md) | The `~/.sndr/host.yaml` manual — every `paths:` key + env overrides, `sndr host` verbs, symbolic-mount verification, and the stale-`plugin_src` failure class (2026-07-04 incident). |
+| [`OPERATIONS.md`](OPERATIONS.md) | Day-2 operations runbook — daily health checks, model swapping on shared GPUs, benching cadence, rollback recipes, log triage, GUI daemon lifecycle, disk hygiene. |
 
 ### Command + configuration reference
 
@@ -73,6 +80,7 @@ never ship publicly.
 | Doc | Purpose |
 | --- | --- |
 | [`MODELS.md`](MODELS.md) | Tested models (Qwen3.6 lineup) + tested alternatives + adding your own model + the V2 layered config system + community config submission pipeline. |
+| [`ADDING_MODELS.md`](ADDING_MODELS.md) | Add-your-own-model end-to-end manual — weights layout, model YAML schema fields, 3-layer composition, `--dry-run` render check, pin gate, bench-driven enablement, validation checklist. |
 | [`CONFIGS.md`](CONFIGS.md) | Narrative "I want to add a model" recipe. |
 | [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md) | Auto-generated full config inventory (regenerated from `model_configs/builtin/*.yaml`). |
 | [`PRESETS.md`](PRESETS.md) | Preset catalog operator guide — `sndr preset list / show / explain / recommend`. |

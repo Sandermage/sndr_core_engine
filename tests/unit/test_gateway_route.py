@@ -11,8 +11,11 @@ forward -> capture logic is exercised through the route.
 """
 from __future__ import annotations
 
-from fastapi import FastAPI
-from starlette.testclient import TestClient
+import pytest
+
+pytest.importorskip("fastapi")
+from fastapi import FastAPI  # noqa: E402
+from starlette.testclient import TestClient  # noqa: E402
 
 from sndr.memory.embedder import HashEmbedder
 from sndr.memory.engine import MemoryEngine
@@ -124,10 +127,11 @@ def test_gateway_propagates_4xx_upstream_status(monkeypatch):
     import httpx
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from sndr.product_api.routes.gateway import router
+
+    from sndr.memory.embedder import HashEmbedder
     from sndr.memory.engine import MemoryEngine
     from sndr.memory.inmemory import InMemoryStore
-    from sndr.memory.embedder import HashEmbedder
+    from sndr.product_api.routes.gateway import router
 
     async def forward(body):
         req = httpx.Request("POST", "http://up/v1/chat/completions")

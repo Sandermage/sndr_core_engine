@@ -13,7 +13,9 @@ Contract: with auth enabled, ``/v1/*`` requires credentials exactly like
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
+
+pytest.importorskip("fastapi")
+from fastapi.testclient import TestClient  # noqa: E402
 
 
 def _unified_client(tmp_path, monkeypatch, *, auth: bool) -> TestClient:

@@ -12,8 +12,10 @@ Routes (LightRAG-shaped, owner-scoped):
 from __future__ import annotations
 
 import pytest
-from fastapi import FastAPI
-from starlette.testclient import TestClient
+
+pytest.importorskip("fastapi")
+from fastapi import FastAPI  # noqa: E402
+from starlette.testclient import TestClient  # noqa: E402
 
 from sndr.memory.embedder import HashEmbedder
 from sndr.memory.engine import MemoryEngine

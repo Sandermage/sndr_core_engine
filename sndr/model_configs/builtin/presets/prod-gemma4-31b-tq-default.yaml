@@ -84,7 +84,7 @@ card:
     tensor_parallel: 2                             # TP=2 across both A5000s
     requires_min_gpu_count: 2                      # 31B dense AWQ long-ctx KV needs both cards
     requires_min_cuda_capability: [8, 6]           # Ampere SM 8.6
-    engine_pin: 0.23.1rc1.dev714+g09663abde        # validated vLLM build
+    engine_pin: 0.23.1rc1.dev748+g2dfaae752        # validated vLLM build
   routing_family: gemma4_dense_31b_tq
   default_for_family: true
   primary_metric:

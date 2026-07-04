@@ -311,9 +311,12 @@ paths:
   hf_cache: /home/user/.cache/huggingface
   triton_cache: /var/cache/triton      # auto-created if missing
   compile_cache: /var/cache/vllm-compile
-  sndr_src: /opt/sndr_core_engine/vllm/sndr_core
-  plugin_src: /opt/sndr_core_engine/tools/genesis_vllm_plugin
+  sndr_src: /opt/genesis-vllm-patches/sndr    # the v12 sndr/ PACKAGE dir (pre-v12 vllm/sndr_core path retired)
+  plugin_src: /opt/genesis-vllm-patches       # the repo ROOT (root pyproject.toml) — NOT tools/genesis_vllm_plugin
 ```
+
+Full key-by-key semantics, env overrides, and failure modes:
+[`HOST_SETUP.md`](HOST_SETUP.md).
 
 Re-run detection: `FORCE_REDETECT=1 install.sh` or manually:
 ```bash
