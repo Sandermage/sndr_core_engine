@@ -31,5 +31,12 @@ canonical_substring: "dev748"
 current_sha_short: "2dfaae752"                       # anchor dir = 0.23.1_<this>
 current_sha_full: "2dfaae752b4db0d43cfc0715c780e33be030d0f1"  # for git fetch@sha (CI drift)
 current_image: "vllm/vllm-openai:nightly-2dfaae752"
+# Rig RepoDigest of the current image — the HIGHEST-precedence image reference
+# (effective_image_ref = image_digest or image, digest wins at render). Captured
+# via: docker inspect <image> --format '{{json .RepoDigests}}'. The 2026-07-04
+# audit found all 3 hardware YAMLs carrying the ROLLBACK pin's digest while
+# image: said dev748 — every strict render booted the wrong engine. This handle
+# + the audit_pin_consistency digest invariant close that hole.
+current_image_digest: "vllm/vllm-openai@sha256:6a93ae4316826f3dd8a92bee5442cbed50184a9cbd688d310f9e56ecad1eabeb"
 current_container: "vllm-35b-dev748"                 # live restore/boot-smoke default
 current_anchor_dir: "0.23.1_2dfaae752"               # under sndr/engines/vllm/pins/

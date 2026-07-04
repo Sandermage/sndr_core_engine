@@ -68,6 +68,16 @@ def current_image() -> str | None:
     return _load().get("current_image")
 
 
+def current_image_digest() -> str:
+    """Rig RepoDigest of the current image (repo@sha256:<64-hex>).
+
+    The digest is the HIGHEST-precedence image reference at render time
+    (effective_image_ref = image_digest or image) — a stale digest silently
+    boots the rollback pin even when the image tag is current (2026-07-04
+    audit CRIT). Captured on bump via docker inspect RepoDigests."""
+    return _load().get("current_image_digest", "")
+
+
 def current_container() -> str | None:
     """Default live container name for restore/boot-smoke (pin-coupled)."""
     return _load().get("current_container")
@@ -85,6 +95,7 @@ def live_pins() -> list[str]:
 
 __all__ = [
     "current", "rollback", "stable_release", "canonical_substring",
-    "current_sha_short", "current_image", "current_container",
+    "current_sha_short", "current_sha_full", "current_image",
+    "current_image_digest", "current_container",
     "current_anchor_dir", "live_pins",
 ]
