@@ -92,7 +92,10 @@ def test_collect_v2_config_catalog_returns_all_layers():
     assert model.source.endswith("qwen3.6-35b-a3b-fp8.yaml")
     # Widened projection: the required pin + spec-decode method/drafter must reach
     # the catalog (so config views show pin alignment without the v2Layer call).
-    assert model.fields["vllm_pin_required"] == "0.23.1rc1.dev714+g09663abde"
+    # Drift-proof: assert against the live SSOT instead of a hardcoded pin
+    # (this line went red on every pin bump — dev714->dev748 caught it 2026-07-04).
+    from sndr import pins as _pins
+    assert model.fields["vllm_pin_required"] == _pins.current()
     assert model.fields["spec_decode_method"] == "mtp"
     assert "spec_decode_drafter" in model.fields
     assert "reference_metrics_ref" in model.fields
