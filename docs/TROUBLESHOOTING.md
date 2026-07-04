@@ -8,7 +8,7 @@ what do I do". It consolidates:
   from working well to silently working badly.
 - **OOM recipes** — single-card 24 GB long-context hardening,
   multi-turn soak survival.
-- **Operational cookbook** — 10 named symptom→cause→workaround→fix
+- **Operational cookbook** — 11 named symptom→cause→workaround→fix
   scenarios from community feedback (noonghunna/club-3090) and our own
   operational history.
 - **Rollback playbook** — named R-XYZ procedures with revert + smoke
@@ -26,6 +26,7 @@ Cliffs that aren't documented hurt every operator after you.
 | Garbage tokens / tool-call cascade (27B + TQ) | [Cliff 3](#cliff-3-turboquant--spec-verify-k1--full-cudagraph), [Cliff 4](#cliff-4-non-power-of-2-gqa--p67) |
 | TPS dropped after vLLM pin bump | [Cliff 8](#cliff-8-anchor-drift-on-vllm-pin-bumps) |
 | Prefix-cache + MTP crash | [Recipe 6](#6-turboquant--spec-decode--prefix-caching-crash) |
+| 27B thinking mode never finishes (loops in `<think>`) | [Recipe 11](#11-27b-thinking-mode-loops-indefinitely-chat-workload) |
 | Driver / CUDA / NCCL mismatch | `sndr doctor`, then [`INSTALL.md`](INSTALL.md) |
 | V2 alias resolution broken | [R-001](#r-001--v2-alias-resolution-broken) |
 | `sndr memory explain` mis-predicts | [R-004](#r-004--sndr-memory-explain-mis-predicting-oom) |
@@ -91,11 +92,14 @@ headroom at 64K, more at longer contexts.
 **Refs.** `integrations/attention/gdn/p103_fla_cliff2_chunked.py`. See
 also P60 / P60b for related GDN spec-decode corruption fixes.
 
-**Related (2026-07, dev714 era).** **PN520**
+**Related (2026-07, dev714/dev748 era).** **PN520**
 (`GENESIS_ENABLE_PN520_QWEN3_5_LOAD_WEIGHTS`) restores the imperative
 Qwen3.5/3.6 GDN weight loader (revert of vllm#47058) — reach for it if
-GDN weights mis-load after a dev714-era bump. It does not change the
-fwd_h OOM guidance above.
+GDN weights mis-load after a dev714-era bump. Battle-validated
+2026-07-04 on dev748: 96 `in_proj_ba` shards routed, the INT4-27B
+coherent-boot-garbage-output degeneration cured (fleet sweep,
+[`BENCHMARKS.md`](BENCHMARKS.md)). It does not change the fwd_h OOM
+guidance above.
 
 ### Cliff 2b: GDN multi-turn soak OOM (continuous 5×5 ramp)
 
@@ -457,7 +461,7 @@ different scratch size; for GPTQ INT4 models peak is often
 docker pull vllm/vllm-openai:nightly@sha256:<KNOWN_GOOD_DIGEST>
 # Or fall back to the current Genesis pin — read `current` /
 # `current_image` from sndr/pins.yaml (the pin SSOT; as of 2026-07-04:
-# 0.23.1rc1.dev714+g09663abde):
+# 0.23.1rc1.dev748+g2dfaae752):
 docker pull vllm/vllm-openai:nightly
 ```
 
@@ -620,6 +624,38 @@ python3 -m sndr.apply.shadow --strict
 
 GPU-dependent tests skip automatically
 (`@pytest.mark.requires_torch`).
+
+### 11. 27B thinking mode loops indefinitely (chat workload)
+
+**Symptom.** Qwen3.6-27B INT4 with thinking mode enabled loops in its
+`<think>` block on chat prompts — reasoning never terminates, no final
+answer (or the request runs to the token cap). Observed on the dev748
+fleet sweep (2026-07-04); reproduces across pins.
+
+**Root.** Pre-existing **model trait** of the 27B INT4 checkpoint's
+thinking mode (club-3090 #226 class) — NOT a Genesis patch or pin
+regression. Boot, patch apply and non-thinking generation are all
+clean.
+
+**Workaround.** Disable thinking per request via
+`chat_template_kwargs`:
+
+```json
+{"chat_template_kwargs": {"enable_thinking": false}}
+```
+
+→ clean answers. The tool-agent workload is unaffected either way,
+because `tool_choice` is forced on tool-bearing requests
+(`GENESIS_P68_FORCE_ON_ALL_TOOLS=1` in the PROD launcher).
+
+**Fix (future).** A PN16-class streaming thinking-budget cap (see the
+PN16_V6 truncator lineage in [`PATCHES.md`](PATCHES.md)) is the
+candidate enforcement layer if a server-side cap is ever needed;
+until then the `enable_thinking: false` workaround is the supported
+path.
+
+**Reference.** club-3090 #226; fleet-sweep footnote in
+[`BENCHMARKS.md`](BENCHMARKS.md).
 
 ## Rollback playbook
 
@@ -957,8 +993,8 @@ intrinsic rate and report it explicitly in operator docs.
 ### Pin policy (SSOT: `sndr/pins.yaml`)
 
 The pin single source of truth is **`sndr/pins.yaml`**: `current`
-(`0.23.1rc1.dev714+g09663abde` as of 2026-07-04), `rollback`
-(`0.23.1rc1.dev672+g93d8f834d`), and the `stable_release` slot
+(`0.23.1rc1.dev748+g2dfaae752` as of 2026-07-04), `rollback`
+(`0.23.1rc1.dev714+g09663abde`), and the `stable_release` slot
 (`v0.24.0`). `vllm/vllm-openai:nightly` is re-tagged to the current pin
 at each promotion; the explicit-hash tag in `current_image` is the
 unambiguous reference for launchers. All other intermediate nightly
@@ -1499,11 +1535,13 @@ the operator decides):
 ### Bench expectations per model (PROD reference)
 
 **SSOT for current numbers: [`BENCHMARKS.md`](BENCHMARKS.md).** The
-current 35B headline (canonical suite, pin dev714, 2026-07-04, MTP
-K=5): **wall_TPS 234.2 (CV 8.4%), decode TPOT 4.04 ms, TTFT 88.5 ms,
-tool-calls 8/8**. The table below is the older per-model target set
+current 35B headline (promotion gate, pin dev748, 2026-07-04, MTP
+K=5): **wall_TPS 242.55 (CV 6.9%), decode TPOT 3.9 ms, TTFT 84.5 ms,
+tool-calls 7/7** — +3.5% vs the same-day dev714 canonical run (234.2,
+TPOT 4.04 ms, 8/8). The table below is the older per-model target set
 from the K=3-era unified-`:nightly` window (2026-05/06) — kept for the
-27B/Gemma rows, which have no fresh dev714 bench yet. Bench command:
+27B/Gemma rows, whose fresh dev748 data is the mini-bench fleet-sweep
+table in `BENCHMARKS.md`, not a full canonical suite. Bench command:
 
 ```bash
 python3 tools/genesis_bench_suite.py --quick --ctx 8k \
@@ -1515,7 +1553,8 @@ python3 tools/genesis_bench_suite.py --quick --ctx 8k \
 | Model | wall_TPS | TPOT ms | TTFT ms | CV % | Tool-call (positive) |
 |---|---:|---:|---:|---:|:---:|
 | 27B Lorbus INT4 TQ | 116-125 | 8-9 | 110-120 | 3-10 | **7/7** ✓ |
-| 35B A3B (K=5, dev714 — current) | 234.2 | 4.04 | 88.5 | ~8 | **8/8** ✓ |
+| 35B A3B (K=5, dev748 — current) | 242.55 | 3.9 | 84.5 | 6.9 | **7/7** ✓ |
+| 35B A3B (K=5, dev714 — same-day rollback reference) | 234.2 | 4.04 | 88.5 | ~8 | **8/8** ✓ |
 | 35B A3B FP8 (K=3 era — historical) | 210 | 4.4 | 117 | 5-7 | **7/7** ✓ |
 | gemma4-26B-A4B MoE | 114 | 6.0 | 71 | 22-30 | **7/7** ✓ |
 | gemma4-31B Dense TQ MTP-K4 | 28-39 | 6-9 | 70-170 | 10-30 | **35/35** ✓ (G4_T1 v2 + Connection: close + gpu-mem-util 0.80; both streaming + non-streaming, 7 cases × 5 runs) |

@@ -11,13 +11,13 @@ companion to [`PIN_BUMP_PLAYBOOK.md`](PIN_BUMP_PLAYBOOK.md) (the canonical
 end-to-end bump procedure) — read the playbook for the full bump flow; read
 this for the anchor-SOT regen + drift-gate mechanics.
 
-> Current pin: `0.23.1rc1.dev714+g09663abde` (`dev672` =
-> `0.23.1rc1.dev672+g93d8f834d` = rollback; stable slot: `v0.24.0`).
+> Current pin: `0.23.1rc1.dev748+g2dfaae752` (`dev714` =
+> `0.23.1rc1.dev714+g09663abde` = rollback; stable slot: `v0.24.0`).
 > The single source of truth for these strings is
 > [`sndr/pins.yaml`](../sndr/pins.yaml) — verify there before trusting any
 > doc. The dev301 → dev424 bump (2026-06-25) was the first to dogfood this
 > tooling end-to-end; every bump since (dev672 2026-07-01, dev714
-> 2026-07-02) has run the same path.
+> 2026-07-02, dev748 2026-07-04) has run the same path.
 
 ---
 
@@ -37,12 +37,13 @@ sndr/engines/vllm/pins/<version>_<short-sha>/
 └── drift.rej.json    # the reject/triage report for that pin
 ```
 
-Current on-disk pins (7 dirs; roles per `sndr/pins.yaml`):
+Current on-disk pins (8 dirs; roles per `sndr/pins.yaml`):
 
 | Dir | Pin | Role |
 | --- | --- | --- |
-| `0.23.1_09663abde` | `0.23.1rc1.dev714+g09663abde` | **current** |
-| `0.23.1_93d8f834d` | `0.23.1rc1.dev672+g93d8f834d` | **previous / rollback** |
+| `0.23.1_2dfaae752` | `0.23.1rc1.dev748+g2dfaae752` | **current** |
+| `0.23.1_09663abde` | `0.23.1rc1.dev714+g09663abde` | **previous / rollback** |
+| `0.23.1_93d8f834d` | `0.23.1rc1.dev672+g93d8f834d` | dropped (kept for diff history) |
 | `0.23.1_3f5a1e173` | `0.23.1rc1.dev424+g3f5a1e173` | dropped (kept for diff history) |
 | `0.23.1_04c2a8dea` | `0.23.1rc1.dev301+g04c2a8dea` | dropped (kept for diff history) |
 | `0.23.1_b4c80ec0f` | `0.23.1rc1.dev148+gb4c80ec0f` | dropped (kept for diff history) |
@@ -179,7 +180,7 @@ Anchors tab) and via `sndr/engines/vllm/retire_impact.py`.
 
 ---
 
-## 5. Worked example — the dev424 SOT (historical) + the current dev714 SOT
+## 5. Worked example — the dev424 SOT (historical) + the dev714 / dev748 SOTs
 
 **Historical worked example (dev424 bump, 2026-06-25).**
 `make summarize-rej PIN=0.23.1_3f5a1e173` reported (`drift.rej.json`):
@@ -197,13 +198,38 @@ intentional retirement, and `bump-preflight OLD=…04c2a8dea NEW=…3f5a1e173`
 exited clean, the dev424 pin was promoted with decode carried forward from
 the validated dev148 baseline (no regression).
 
-**Current pin (dev714) SOT for reference** — the committed
+**Rollback pin (dev714) SOT for reference** — the committed
 `sndr/engines/vllm/pins/0.23.1_09663abde/drift.rej.json` carries:
 `coverage` 209 discovered / 141 ok / 68 rejected; `counts` `ok 141`,
 `anchor_drift 7`, `optional_absent 13`, `retired 34`, `upstream_merged 1`,
 `version_gated 13`; 7 `genuine_anchor_drift` entries (all resolved before
 the 2026-07-02 promotion) and 17 `dependency_breakage.edges`. Diff your own
 `make summarize-rej PIN=0.23.1_09663abde` output against these numbers.
+
+**Current pin (dev748) SOT** — rebuilt 2026-07-04 during the dev714 →
+dev748 promotion (live container + bare image via `rebuild_pin.sh`).
+The committed `sndr/engines/vllm/pins/0.23.1_2dfaae752/anchors.json`
+manifest covers **48 files**; `drift.rej.json` carries: `coverage` 216
+discovered / 141 ok / 75 rejected; `counts` `ok 141`, `anchor_drift 7`,
+`optional_absent 20`, `retired 34` (as expected), `upstream_merged 1`,
+`version_gated 13`; and 20 `dependency_breakage.edges` — the one HIGH
+edge (PN353A → PN399) is mitigated by PN399's native-form fallback
+anchor. The only 2 genuinely drifted patches in the window (P100 ×6
+anchors, PN351 launch variant) were re-anchored dual-variant before
+promotion. Diff your own `make summarize-rej PIN=0.23.1_2dfaae752`
+output against these numbers.
+
+Two operational pitfalls hit during this rebuild — budget for both:
+
+- **Root-owned `__pycache__` residue.** Container-side imports leave
+  root-owned `__pycache__/` dirs in the synced tree (including at the
+  repo root), which then break the unprivileged regen/rsync-back.
+  Clean them (or exclude them) before re-running the rebuild.
+- **`REPO` must be container-visible.** The rebuild scripts run
+  against the rig-side main-sync tree (`$HOME/gvp-mainsync` by
+  default) because the container mounts it — pointing `REPO` at a
+  path the container cannot see makes the in-container discovery pass
+  fail. Override `REPO=` only with another mounted path.
 
 ---
 

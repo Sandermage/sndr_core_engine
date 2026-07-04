@@ -7,7 +7,7 @@ you into a chat prompt.
 
 > Stack as of 2026-07-04:
 > Genesis `v12.0.0` (325 PATCH_REGISTRY entries) ·
-> vLLM `0.23.1rc1.dev714+g09663abde` (rollback `0.23.1rc1.dev672+g93d8f834d`,
+> vLLM `0.23.1rc1.dev748+g2dfaae752` (rollback `0.23.1rc1.dev714+g09663abde`,
 > stable track `v0.24.0` — single source of truth: `sndr/pins.yaml`) ·
 > Reference rig: 2× RTX A5000 24 GB · driver ≥ 580.126 · CUDA 13.
 
@@ -101,7 +101,7 @@ Pick by hardware shape:
 
 | Hardware | Preset | Notes |
 | --- | --- | --- |
-| 2× RTX A5000 24 GB | `prod-qwen3.6-35b-balanced` | Flagship — Qwen3.6-35B-A3B (MoE), ~234 TPS single-stream (MTP K=5; measured 2026-07-04 on pin `dev714`, AWQ checkpoint). |
+| 2× RTX A5000 24 GB | `prod-qwen3.6-35b-balanced` | Flagship — Qwen3.6-35B-A3B (MoE), ~242 TPS single-stream (MTP K=5; measured 2026-07-04 on pin `dev748`, AWQ checkpoint). |
 | 2× RTX A5000 multi-conc | `prod-qwen3.6-35b-multiconc` | `max_num_seqs=8`, aggregate ~672 TPS (K=3 multi-conc measurement, 2026-05-23 — see [`BENCHMARKS.md`](BENCHMARKS.md)). |
 | 2× 24 GB (3090 / 4090 / A5000) | `prod-qwen3.6-27b-tq-k8v4` | Lorbus 27B int4 + TurboQuant k8v4 (long context). |
 | 1× RTX A5000 / 3090 | `qa-qwen3.6-27b-tq-1x` | TP=1, 78K context. |

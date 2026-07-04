@@ -275,8 +275,9 @@ a laptop. A full live run needs the GPU rig.
 
 > **Run provenance (2026-07-04):** no live `verify_stress` / `soak_continuous`
 > result artifact is committed under `evidence/` yet — the wiring is proven by
-> the unit suite and `--dry-run`, and PROD validation on the current pin
-> (`dev714`) has so far come from the canonical bench + tool-call suite (see
+> the unit suite and `--dry-run`, and PROD validation on `dev714` (then
+> current, now the rollback pin; current: `dev748`) has so far come from
+> the canonical bench + tool-call suite (see
 > [`BENCHMARKS.md`](BENCHMARKS.md)). When you run this gate live, drop the
 > output JSON under `evidence/` labeled with the pin and date so the gate's
 > claims are anchored the same way the bench numbers are.

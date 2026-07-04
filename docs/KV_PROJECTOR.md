@@ -14,7 +14,7 @@ OWN**, derived from OUR measured reality on 2× RTX A5000 24 GB, vLLM pin
 
 > **Provenance note (2026-07):** `dev424` is the pin the calibration was
 > *captured* on, not a sign this doc is stale. The anchor is carried forward
-> unchanged onto the current pin (`0.23.1rc1.dev714+g09663abde`, see
+> unchanged onto the current pin (`0.23.1rc1.dev748+g2dfaae752`, see
 > `sndr/pins.yaml`); the anchor unit test
 > (`tests/unit/model_configs/test_kv_projector.py`) keeps the projection
 > pinned to the captured telemetry within 10 %. If a future pin changes

@@ -113,7 +113,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 | Hardware | Validation status | Notes |
 |---|---|---|
-| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.0.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.23.1rc1.dev714+g09663abde`) | Default config targets this |
+| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.0.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.23.1rc1.dev748+g2dfaae752`) | Default config targets this |
 | 1× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-27b-single-3090) | Same SM 8.6 family |
 | 2× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-dual-3090) | TP=2 PCIe Gen4 (no NVLink) |
 
@@ -263,8 +263,8 @@ Expected log progression:
 
 ```bash
 docker logs vllm-genesis 2>&1 | grep "Genesis Dispatcher"
-# Expect: applied=87 / skipped=166 / failed=0 on the current pin (dev714 boot
-# evidence, 2026-07-02). SKIP is normal — opt-in patches not enabled for this
+# Expect: applied=87 / skipped=166 / failed=0 on the current pin (dev748 boot
+# evidence, 2026-07-04). SKIP is normal — opt-in patches not enabled for this
 # preset, or platform/model mismatch. Only failed>0 is a problem.
 ```
 
@@ -282,8 +282,8 @@ curl -s http://localhost:8000/v1/completions \
   }'
 ```
 
-Expect ~234 tok/s single-stream on the 35B PROD stack (MTP K=5; measured
-2026-07-04 on pin `dev714`, AWQ checkpoint — see
+Expect ~242 tok/s single-stream on the 35B PROD stack (MTP K=5; measured
+2026-07-04 on pin `dev748`, AWQ checkpoint — see
 [`BENCHMARKS.md`](BENCHMARKS.md)).
 
 ---
@@ -338,19 +338,19 @@ pip install --upgrade pip wheel setuptools
 ### 2. Install vLLM nightly
 
 Genesis is pinned to a specific vLLM nightly. The single source of truth is
-[`sndr/pins.yaml`](../sndr/pins.yaml) — currently `0.23.1rc1.dev714+g09663abde`
-(current), `0.23.1rc1.dev672+g93d8f834d` (retained previous / rollback), plus a
+[`sndr/pins.yaml`](../sndr/pins.yaml) — currently `0.23.1rc1.dev748+g2dfaae752`
+(current), `0.23.1rc1.dev714+g09663abde` (retained previous / rollback), plus a
 `stable_release` slot (`v0.24.0`) for operators who prefer tagged releases.
 
 ```bash
 # Option A — install from a specific nightly wheel (recommended if you can match)
-pip install --pre vllm==0.23.1rc1.dev714+g09663abde \
+pip install --pre vllm==0.23.1rc1.dev748+g2dfaae752 \
   --extra-index-url https://wheels.vllm.ai/nightly
 
 # Option B — install from source at a specific commit
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
-git checkout 09663abde  # match the SHA from sndr/pins.yaml (dev714)
+git checkout 2dfaae752  # match the SHA from sndr/pins.yaml (dev748)
 pip install -e . --no-build-isolation
 cd ..
 
@@ -371,7 +371,7 @@ print(f'cuda available: {torch.cuda.is_available()}')
 print(f'cuda devices: {torch.cuda.device_count()}')
 "
 # Expect:
-# vllm 0.23.1rc1.dev714+g09663abde
+# vllm 0.23.1rc1.dev748+g2dfaae752
 # torch 2.11.0+cu130 cuda=13.0
 # triton 3.6.0
 # cuda available: True
@@ -752,8 +752,8 @@ command:
      ..."
 ```
 
-Expected: ~234 tok/s single-stream mean (MTP K=5; measured 2026-07-04 on
-pin `dev714`, AWQ checkpoint).
+Expected: ~242 tok/s single-stream mean (MTP K=5; measured 2026-07-04 on
+pin `dev748`, AWQ checkpoint).
 
 ### Scenario 2: Tool-call / agentic-heavy workload
 

@@ -610,6 +610,23 @@ sndr pins.list --engine vllm
 sndr pins                                       # bare group → pins.list
 ```
 
+### Pin bump propagation — `scripts/bump_pin.py` — **stable** (maintainer surface)
+
+Not a `sndr` verb — the repo-side script behind `make bump-pin` that
+propagates a new pin from `sndr/pins.yaml` into every downstream
+artifact (see [`PIN_BUMP_PLAYBOOK.md`](PIN_BUMP_PLAYBOOK.md) §7).
+
+```bash
+make bump-pin NEW=0.23.1rc1.devNNN+g<sha>       # add DRY=1 for a dry run
+python3 scripts/bump_pin.py 0.23.1rc1.devNNN+g<sha> \
+    --sha-full <40-hex upstream sha>            # equivalent direct call
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--dry-run` | off | Report the propagation without writing. |
+| `--sha-full <40-hex>` | unset | Update `current_sha_full` in `sndr/pins.yaml`. Added 2026-07-04 (dev748 promotion): the full SHA cannot be derived from the version string's short hash, so omitting the flag leaves `current_sha_full` stale — the script prints a loud WARN. Source it from the image label `org.opencontainers.image.revision`. |
+
 ---
 
 ## 7. Memory daemon (`mem.*`)

@@ -88,7 +88,7 @@ schema_version: 1                    # bump on breaking changes
 maintainer: sandermage
 last_validated: '2026-05-05'
 genesis_pin: 991dc1a                 # short SHA of patcher commit
-vllm_pin_required: 0.23.1rc1.dev714+g09663abde   # KNOWN_GOOD_VLLM_PINS gate (current pin — SSOT: sndr/pins.yaml)
+vllm_pin_required: 0.23.1rc1.dev748+g2dfaae752   # KNOWN_GOOD_VLLM_PINS gate (current pin — SSOT: sndr/pins.yaml)
 lifecycle: stable                    # stable | experimental | deprecated | tested | community-test | community-dev | community-prod
 # (community-* states require community_submitted: true and use the
 #  promote workflow — see "Community config flow" section below)
@@ -186,7 +186,7 @@ verified_on:
   - 'sandermage/2xA5000-A2: 192.6 TPS, 9/10 tool, 991dc1a, 2026-05-05'
 
 notes:
-  - 'ℹ Pin gate enforces vllm_pin_required (current: 0.23.1rc1.dev714+g09663abde)'
+  - 'ℹ Pin gate enforces vllm_pin_required (current: 0.23.1rc1.dev748+g2dfaae752)'
   - '⚠ Do NOT enable --enable-prefix-caching with TQ k8v4 + spec_decode'
 ```
 

@@ -42,9 +42,12 @@ NOT useful on our workloads).
 **Pros**:
 
 - Trained at fine-tune — high acceptance rate. Per-K on qwen3.6-35b:
-  0.78-0.80 at K=3 (historical, dev148 era); 0.660 window accept-rate at
-  K=5 on the current dev714 pin (canonical bench 2026-07-04; floor 0.55 —
-  a lower per-window rate at higher K still nets +15.8% TPS vs K=3)
+  0.78-0.80 at K=3 (historical, dev148 era); 0.653 window accept-rate at
+  K=5 on the current dev748 pin (promotion gate 2026-07-04; 0.660 on the
+  same-day dev714 canonical bench; floor 0.55 — a lower per-window rate
+  at higher K still nets +15.8% TPS vs K=3). The 35B **FP8** checkpoint
+  measures higher: 0.728 at K=5 (canonical `sndr launch` path, dev748
+  fleet sweep 2026-07-04)
 - No external dependency
 - Composes with TurboQuant + Genesis spec-decode patches (P62, P67, etc.)
 
@@ -67,14 +70,15 @@ NOT useful on our workloads).
 - Current empirical optima (don't change without re-benching): **K=5** on
   the 35B (re-tuned 2026-06-19), **K=4** on the 27B TQ-k8v4 (max coherent
   K for tool-calls, 2026-07-03 sweep). Current pin:
-  `0.23.1rc1.dev714+g09663abde` — always check `sndr/pins.yaml` for the
+  `0.23.1rc1.dev748+g2dfaae752` — always check `sndr/pins.yaml` for the
   live value.
 - **Verify acceptance after any change** via the engine `/metrics`
   endpoint — the spec-decode counters
   (`vllm:spec_decode_num_accepted_tokens_total` vs
   `vllm:spec_decode_num_draft_tokens_total`) should give a ratio at or
   above the 0.55 floor; the canonical suite reports the same figure as
-  the MTP window accept-rate (0.660 on dev714, 2026-07-04).
+  the MTP window accept-rate (0.653 on dev748, 2026-07-04; same-day
+  dev714 reference 0.660).
 
 ### Gemma-4 MTP (separate drafter)
 
@@ -83,9 +87,12 @@ a **separate drafter**, not model-native heads like Qwen3.6. Current
 profile K values: **K=3** (`gemma4-31b-kvauto-chat`), **K=4**
 (`gemma4-26b-multiconc`). A code-workload variant exists as a model YAML
 (`gemma-4-31b-it-awq-mtp-n8-code`, `num_speculative_tokens: 8` — +9% code
-TPS vs n=4, −3% narrative, per club-3090 A/B). Note the Gemma numbers in
-`BENCHMARKS.md` are historical tables labeled with their pin/date — no
-fresh Gemma bench on dev714 yet.
+TPS vs n=4, −3% narrative, per club-3090 A/B). Fresh dev748 point: the
+31B kvauto-chat profile (K=3, +PN351 re-anchored on head_dim=512)
+measured **accept-rate 0.933** in the 2026-07-04 fleet sweep (~87 t/s,
+TPOT 11.51 ms — mini-bench; see the fleet-sweep table in
+`BENCHMARKS.md`). The older Gemma tables there remain historical,
+labeled with their pin/date.
 
 ## Method 2: Suffix Decoding (P75 → vllm#25784)
 
@@ -217,7 +224,8 @@ deployments to them.
    ```bash
    curl -s http://localhost:8102/metrics | grep spec_decode_num
    # expect both counters advancing; accepted/draft ratio >= 0.55
-   # (MTP baseline on dev714: 0.660 window accept-rate, 2026-07-04)
+   # (MTP baseline on dev748: 0.653 window accept-rate, 2026-07-04;
+   #  same-day dev714 reference: 0.660)
    ```
 
 6. **Revert**: remove the `GENESIS_ENABLE_P75_SUFFIX_DECODING` env line,

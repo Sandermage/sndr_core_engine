@@ -30,6 +30,40 @@ preset-side view.
 | `gemma-4-31b-it-awq-mtp-n8-code` | `gemma-4-31B-it-AWQ-4bit` | AWQ INT4 | `auto` | mtp / 8 | `gemma4` | vllm |
 | `diffusiongemma-26b-a4b-fp8` | `diffusiongemma-26B-A4B-it-FP8-dynamic` | FP8 dynamic | `auto` | — (block diffusion) | `gemma4` | vllm |
 
+### Fleet-validated status (pin `dev748`, 2026-07-04)
+
+Every launchable lane was boot-swept on the promoted pin
+`0.23.1rc1.dev748+g2dfaae752` (2× RTX A5000, TP=2; `failed=0` patch
+applies across the entire fleet — full table with boot times and apply
+counts in [`BENCHMARKS.md` § Fleet sweep](BENCHMARKS.md)):
+
+- `qwen3.6-35b-a3b-fp8` — validated 2026-07-04 on dev748: 231.2 t/s
+  decode (TPOT 4.10 ms), tool-call PASS, accept 0.728 (canonical
+  `sndr launch` path). The live AWQ PROD launcher on the same pin ran
+  the full canonical suite: 242.5 t/s, tool-calls 7/7.
+- `qwen3.6-27b-int4-autoround-tq-k8v4` — validated 2026-07-04 on
+  dev748: ~130 t/s (TPOT 7.68 ms), tool-call PASS; PN520 loader fix
+  battle-validated (96 `in_proj_ba` shards routed, INT4 degeneration
+  cured). Thinking-mode loop is a pre-existing model trait — see the
+  workaround in [`FAQ.md`](FAQ.md).
+- `qwen3.6-27b-int4-autoround-fp8kv` — validated 2026-07-04 on dev748:
+  ~108 t/s (TPOT 9.22 ms); tool-call not exercised in this sweep; P100
+  FlashInfer FULL-CG spec-decode runtime-validated (coherent
+  generation, 0 errors).
+- `gemma-4-26b-a4b-it-awq` — validated 2026-07-04 on dev748: ~140 t/s
+  (TPOT 7.12 ms), tool-call PASS.
+- `gemma-4-31b-it-awq` — validated 2026-07-04 on dev748 (kvauto-chat
+  lane, PN351 re-anchor on head_dim=512): ~87 t/s (TPOT 11.51 ms),
+  tool-call PASS, accept 0.933.
+- `diffusiongemma-26b-a4b-fp8` — validated 2026-07-04 on dev748: boots
+  and responds coherently; AR decode metrics not applicable
+  (block-diffusion lane).
+- `qwen3.6-35b-a3b-fp8-dflash`, `qwen3.6-27b-dflash` — not swept:
+  presets archived pending DFlash re-validation on the 0.23.x pins.
+- `qwen3.6-7b-dense` — not swept: weights not present on the rig.
+- `qwen3.6-27b-gguf-q4km-mtp` — not swept: llama.cpp engine lane,
+  outside the vLLM pin sweep.
+
 ## Default model: `Qwen/Qwen3.6-35B-A3B-FP8`
 
 **HuggingFace**: <https://huggingface.co/Qwen/Qwen3.6-35B-A3B-FP8>
@@ -54,8 +88,8 @@ preset-side view.
 > The live PROD rig currently serves the **AWQ checkpoint** of this
 > model (`/models/Qwen3.6-35B-A3B-AWQ`); the FP8-native ModelDef above
 > is the shipped preset default. Fresh canonical bench on the AWQ PROD
-> stack (pin dev714, 2026-07-04): wall_TPS 234.2 / TPOT 4.04 ms /
-> TTFT 88.5 ms / tool-calls 8/8.
+> stack (pin dev748, 2026-07-04): wall_TPS 242.55 / TPOT 3.9 ms /
+> TTFT 84.5 ms / tool-calls 7/7.
 
 ### Why this specific model
 
@@ -70,8 +104,8 @@ preset-side view.
 2. **Active-parameter throughput on Ampere.** A3B = 3 B active per
    forward pass on top of a 35 B sparse backbone. On 2× A5000 (no FP8
    native compute, Marlin weight-only path), this yields ~57 tok/s
-   baseline and ~234 tok/s sustained with the Genesis MTP K=5 stack
-   (dev714 canonical bench 2026-07-04: 234.2 wall_TPS, CV 0.084). A
+   baseline and ~242 tok/s sustained with the Genesis MTP K=5 stack
+   (dev748 canonical bench 2026-07-04: 242.55 wall_TPS, CV 6.9 %). A
    dense 35B model would saturate the PCIe Gen4 bus and run 3–4×
    slower. A3B is the highest-throughput configuration the SM 8.6
    generation can sustain at this parameter count.
@@ -84,7 +118,7 @@ preset-side view.
    routinely exceed 100 K tokens. Qwen3.6-35B-A3B's native 256K
    window is served at 280K in PROD (2026-05-15 trim from 320K), with
    context-scaling verified linear through 32K prompts on the
-   canonical suite (LINEAR_OK, 2026-07-04). The closest sub-50 GB
+   canonical suite (LINEAR_OK on dev748, 2026-07-04). The closest sub-50 GB
    alternatives (Gemma 4 26B A4B at 128K, Qwen3.6 dense at 32K) fall
    short.
 5. **Tool-calling fidelity.** Qwen3 series has best-in-open-weight
@@ -166,7 +200,9 @@ dispatcher.
 The 31B dense Gemma runs in two KV configurations that trade throughput
 against context on the same 2× A5000 rig (single-stream; numbers measured
 on the validated dev148 baseline and carried forward — current pin is
-`0.23.1rc1.dev714+g09663abde` per `sndr/pins.yaml`):
+`0.23.1rc1.dev748+g2dfaae752` per `sndr/pins.yaml`; the kvauto-chat
+lane was fleet-swept on dev748, 2026-07-04: ~87 t/s decode, tool-call
+PASS, accept 0.933 with PN351 re-anchored):
 
 | Profile | KV plan | Context | Decode TPS | Tool-call | Best for |
 | --- | --- | ---: | ---: | :---: | --- |

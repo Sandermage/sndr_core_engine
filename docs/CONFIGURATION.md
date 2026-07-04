@@ -4,7 +4,7 @@ Central reference for every environment variable that Genesis patches read.
 Default behaviour is "off" / "safe" for opt-in patches; on-by-default
 patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
-> **Current PROD baseline (v12.0.0; pin bumped 2026-07-02, doc updated 2026-07-04):**
+> **Current PROD baseline (v12.0.0; pin bumped 2026-07-04, doc updated 2026-07-04):**
 >
 > - Genesis v12.0.0 — registry has **325 entries**: 263 full-implementation,
 >   25 experimental, 22 marker_only, 7 partial, 6 retired, 2 placeholder
@@ -14,8 +14,8 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 >   **stable release** pin. A bump edits `current` in `pins.yaml` and runs
 >   `make bump-pin`, which propagates the string into every downstream
 >   artifact (`make audit-pin-consistency` gates the sync).
->   - current: `0.23.1rc1.dev714+g09663abde` (promoted 2026-07-02)
->   - rollback: `0.23.1rc1.dev672+g93d8f834d`
+>   - current: `0.23.1rc1.dev748+g2dfaae752` (promoted 2026-07-04)
+>   - rollback: `0.23.1rc1.dev714+g09663abde`
 >   - stable: `v0.24.0`
 > - PyTorch 2.11.0+cu130, Triton 3.6.0, CUDA 13.0.2
 > - **NVIDIA driver ≥ 580.126.09 REQUIRED** (570 → 3× slowdown)
@@ -23,11 +23,11 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 >
 > **35B PROD**: Qwen3.6-35B-A3B (AWQ checkpoint on the live rig; the
 > FP8-native model preset exists separately) + TurboQuant k8v4 +
-> MTP K=5 + P67 multi-query kernel. Canonical suite on dev714
-> (2026-07-04, n=25): **wall_TPS 234.2 (CV 0.084) / decode_TPOT 4.04 ms /
-> TTFT 88.5 ms (cold ~958 ms, warm ~200 ms — prefix cache) / tool-calls
-> 8/8 PASS / MTP window accept-rate 0.660 (floor 0.55)**. Context
-> scaling 1K→32K is linear (LINEAR_OK, endpoint ratio 0.93, no cliff).
+> MTP K=5 + P67 multi-query kernel. Canonical suite on dev748
+> (2026-07-04, n=25): **wall_TPS 242.55 (CV 6.9 %) / decode_TPOT 3.9 ms /
+> TTFT 84.5 ms / tool-calls 7/7 PASS / MTP window accept-rate 0.653
+> (floor 0.55)** — +3.5 % vs the same-day dev714 run (234.2). Context
+> scaling 1K→32K is linear (LINEAR_OK, endpoint ratio 0.84, no cliff).
 > `--max-model-len 280000` (280K served; 2026-05-15 trim from 320K),
 > tool parser `qwen3_xml`, port 8102. The K=3→K=5 re-tune
 > (2026-06-19, dev148): 239.7 TPS / TPOT 3.94 ms, +15.8 % vs K=3 207.
@@ -635,7 +635,7 @@ INFO/WARN output. It does NOT suppress:
 
 For a full vLLM-pin rollback, use the retained rollback pin from
 [`sndr/pins.yaml`](../sndr/pins.yaml) (currently
-`0.23.1rc1.dev672+g93d8f834d`): re-point the container at the
+`0.23.1rc1.dev714+g09663abde`): re-point the container at the
 rollback pin's explicit-hash image tag, or run the reverse bump —
 
 ```bash

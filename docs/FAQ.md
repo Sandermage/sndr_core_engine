@@ -25,8 +25,8 @@ variables.
 
 ### Q: Which vLLM pin does Genesis target today?
 
-`0.23.1rc1.dev714+g09663abde` (current pin, v12.0.0, bumped 2026-07-02;
-`dev672` = `0.23.1rc1.dev672+g93d8f834d` is the retained previous /
+`0.23.1rc1.dev748+g2dfaae752` (current pin, v12.0.0, promoted 2026-07-04;
+`dev714` = `0.23.1rc1.dev714+g09663abde` is the retained previous /
 rollback pin). The pin policy is **two rolling nightly pins (current +
 rollback) plus one stable release pin** (`v0.24.0`); the single source of
 truth is `sndr/pins.yaml`. Each patch declares an `applies_to` range, so newer
@@ -112,6 +112,25 @@ P62 / P64 / P68 / P69 patch family fixes upstream regressions in
 Qwen3 tool-call generation, especially around `<think>` tags,
 multi-tool prompts, and streaming. Enable them together via the
 `tool_call_safe` recipe in [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
+
+### Q: The 27B answers normally but sometimes loops forever in thinking mode — is that a Genesis bug?
+
+No. Endless `<think>` loops on the INT4 27B are a pre-existing trait of
+the model's thinking mode (the same model-class behaviour tracked as
+club-3090 #226), re-confirmed during the dev748 fleet sweep
+(2026-07-04) — not a patch regression. Workaround: disable thinking
+per request via the chat template kwargs:
+
+```json
+{"chat_template_kwargs": {"enable_thinking": false}}
+```
+
+With thinking off the model answers cleanly. Tool-agent workloads are
+unaffected either way: the 27B PROD preset sets
+`GENESIS_P68_FORCE_ON_ALL_TOOLS=1` (see
+[`CONFIGURATION.md`](CONFIGURATION.md)), which forces
+`tool_choice=required` so generation is grammar-constrained to a valid
+tool call.
 
 ### Q: How do I download the DFlash draft model?
 
@@ -219,7 +238,7 @@ set: roughly **≈1.5× single-stream TPS** versus the same vLLM commit
 with no patches — measured +53% on 35B and +46% on 27B (`dev148`,
 2026-06-19) — plus tool-call reliability improvements that don't
 show up in TPS numbers. The latest canonical single-stream figure is
-**234.2 wall TPS** on the 35B PROD stack (pin `dev714`, 2026-07-04).
+**242.5 wall TPS** on the 35B PROD stack (pin `dev748`, 2026-07-04).
 Your numbers will differ by GPU and workload — always benchmark. The
 current canonical numbers are in [`BENCHMARKS.md`](BENCHMARKS.md).
 
@@ -250,7 +269,7 @@ resolve model mounts.
 ### Q: What is the stable pin vs the nightly pin?
 
 Genesis tracks vLLM with **two rolling nightly pins** (current
-`0.23.1rc1.dev714+g09663abde` + rollback `0.23.1rc1.dev672+g93d8f834d`)
+`0.23.1rc1.dev748+g2dfaae752` + rollback `0.23.1rc1.dev714+g09663abde`)
 plus **one stable release pin** (`v0.24.0`). The nightly current pin
 is what the PROD presets are validated against; the stable pin is the
 conservative LTS slot for operators who prefer tagged releases over

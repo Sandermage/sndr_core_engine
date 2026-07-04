@@ -370,7 +370,7 @@ risk, biggest win/effort ratio).
 
 **Status as of 2026-07-04.** The gate expired without Phase 1 being
 implemented. The pin has since moved well past the v0.22.x
-re-evaluation trigger (current: `0.23.1rc1.dev714+g09663abde`, see
+re-evaluation trigger (current: `0.23.1rc1.dev748+g2dfaae752`, see
 `sndr/pins.yaml`), and the registry still carries only PN50 (GDN
 projection fusion, SGLang#21019 backport — opt-in, OFF by default)
 as a fused piece; no Genesis full-prefill fusion patch has shipped.

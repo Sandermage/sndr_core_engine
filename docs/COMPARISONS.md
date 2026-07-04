@@ -41,9 +41,9 @@ placeholders — substitute current figures:**
   (hardware depreciation + power). Pick your own `C`.
 - **Cloud:** a comparable hosted model at **$P per million output tokens**.
   Pick your own `P`.
-- **Your throughput on the rig:** SNDR Core sustains **~234 tok/s**
-  single-stream for Qwen3.6-35B (pin `dev714`, measured 2026-07-04; 239.7 on
-  the dev148 K=5 re-tune sweep) and **~672 tok/s** aggregate at 8-way
+- **Your throughput on the rig:** SNDR Core sustains **~242 tok/s**
+  single-stream for Qwen3.6-35B (pin `dev748`, measured 2026-07-04; 234.2 on
+  the same-day `dev714` canonical run) and **~672 tok/s** aggregate at 8-way
   concurrency (K=3 multi-conc bench, 2026-05-23) — see
   [`BENCHMARKS.md`](BENCHMARKS.md).
 
@@ -77,9 +77,9 @@ row on your own hardware.
 
 | Dimension | SNDR Core (vLLM + Genesis patches) | Stock vLLM | Ollama | llama.cpp | TGI |
 | --- | --- | --- | --- | --- | --- |
-| Decode TPS, Qwen3.6-35B-A3B on 2× RTX A5000 | **234.2 tok/s** single-stream (pin `dev714`, 2026-07-04, n=25, CV 8.4 %); **~672 tok/s** aggregate @ 8-way (2026-05-23) | ~157 tok/s (our own baseline sweep, dev148 era) | not measured by us | not measured by us (preset shipped — measure yours) | not measured by us |
+| Decode TPS, Qwen3.6-35B-A3B on 2× RTX A5000 | **242.55 tok/s** single-stream (pin `dev748`, 2026-07-04, n=25, CV 6.9 %; same-day `dev714` reference 234.2); **~672 tok/s** aggregate @ 8-way (2026-05-23) | ~157 tok/s (our own baseline sweep, dev148 era) | not measured by us | not measured by us (preset shipped — measure yours) | not measured by us |
 | Max served context on 24 GB-class cards | **280K** (TurboQuant k8v4 KV cache, 2× A5000) | limited by FP16/FP8 KV cache growth on 24 GB | model/backend dependent | GGUF KV quant available, model dependent | model dependent |
-| Tool-call reliability | **8/8** canonical suite (streaming `qwen3_xml` parser; dev714, 2026-07-04) | parser available; untuned on these quantized checkpoints | not measured by us | not measured by us | not measured by us |
+| Tool-call reliability | **7/7** promotion gate (streaming `qwen3_xml` parser; dev748, 2026-07-04) + **8/8** canonical suite (same-day dev714) | parser available; untuned on these quantized checkpoints | not measured by us | not measured by us | not measured by us |
 | OpenAI-compatible API | yes (unchanged vLLM server) | yes | yes (compat endpoint) | yes (`llama-server`) | partial (Messages API) |
 | MoE + speculative decoding + KV-cache quant, together, tuned for 24 GB | shipped default (MTP K=5 + TurboQuant k8v4) | components exist; not tuned as a bundle for consumer cards | limited | draft-model spec decode exists; combination is DIY | spec decode support varies |
 

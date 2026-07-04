@@ -12,8 +12,8 @@ the per-topic deep-dives.
 
 > Stack as of 2026-07-04:
 > Genesis `v12.0.0` (325 PATCH_REGISTRY entries) ·
-> vLLM `0.23.1rc1.dev714+g09663abde` (previous / rollback: `dev672` =
-> `0.23.1rc1.dev672+g93d8f834d`; stable track: `v0.24.0` — SSOT:
+> vLLM `0.23.1rc1.dev748+g2dfaae752` (previous / rollback: `dev714` =
+> `0.23.1rc1.dev714+g09663abde`; stable track: `v0.24.0` — SSOT:
 > `sndr/pins.yaml`) · Reference rig: 2× RTX A5000 24 GB ·
 > driver ≥ 580.126 · CUDA 13.
 

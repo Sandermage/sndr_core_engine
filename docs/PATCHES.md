@@ -82,7 +82,10 @@ to community and ships in `sndr/engines/vllm/patches/<family>/` under Apache 2.0
 
 - **PN520** (experimental, `GENESIS_ENABLE_PN520_QWEN3_5_LOAD_WEIGHTS`) —
   restore the imperative Qwen3.5/3.6 GDN weight loader (revert of
-  vllm#47058).
+  vllm#47058). Battle-validated 2026-07-04 on dev748: 96 `in_proj_ba`
+  shards routed through the restored loader; the INT4-27B degeneration
+  (coherent boot, garbage output) is CURED — see the fleet-sweep table
+  in [`BENCHMARKS.md`](BENCHMARKS.md).
 - **PN521** (experimental, `GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY`) —
   TurboQuant raw-bf16-tail spec-verify: fixes the INT4 non-pow2-GQA
   (Qwen3.6-27B AutoRound) TQ k8v4 × MTP token-repetition collapse.
@@ -118,6 +121,13 @@ to community and ships in `sndr/engines/vllm/patches/<family>/` under Apache 2.0
 - **PN392** (retired, dev491-era) — qwen3_coder streaming tool-call
   within-call coalescing regression fix; **PN394** (retired — merged as
   vllm#46047) — qwen3 partial-param `<` truncation fix.
+- **PN351** (experimental, `GENESIS_ENABLE_PN351`, vllm#43257) —
+  Triton unified_attention head_dim≥512 tune (pre-existing patch,
+  listed here for its July re-anchor). Its launch-variant anchor was
+  re-derived dual-variant during the dev714→dev748 preflight and the
+  dev748 variant battle-validated 2026-07-04 on the head_dim=512
+  Gemma4-31B kvauto-chat lane (fleet sweep: accept-rate 0.933 at K=3,
+  ~87 t/s — see [`BENCHMARKS.md`](BENCHMARKS.md)).
 
 ### Recent additions (v11.0 sprint — historical, 2026-05)
 
@@ -182,11 +192,11 @@ to community and ships in `sndr/engines/vllm/patches/<family>/` under Apache 2.0
 ### Native upstream features (no Genesis backport needed)
 
 The following capabilities are native to the current pin
-(`0.23.1rc1.dev714+g09663abde` — SSOT: `sndr/pins.yaml`) and require no
+(`0.23.1rc1.dev748+g2dfaae752` — SSOT: `sndr/pins.yaml`) and require no
 Genesis patch — Genesis would only add a stub. Documented here so users
 know where to enable them. NOTE: the per-feature caveats in this section
 were last re-verified 2026-06-11 against the dev259-era pin — re-verify a
-specific flag path against dev714 before relying on it.
+specific flag path against dev748 before relying on it.
 
 - **CPU KV cache offloading** (vllm#37160 lineage, merged upstream) —
   canonical knob in the current pin is `--kv-offloading-size <GiB>`
@@ -260,7 +270,7 @@ specific flag path against dev714 before relying on it.
 
 ```bash
 # Enable an opt-in patch (`:nightly` = the current pin; the explicit-hash
-# tag vllm/vllm-openai:nightly-09663abde0f50944a8d5ea30120666024b503faa
+# tag vllm/vllm-openai:nightly-2dfaae752
 # is the unambiguous reference — see sndr/pins.yaml current_image):
 docker run -e GENESIS_ENABLE_P82=1 -e GENESIS_P82_THRESHOLD_SINGLE=0.3 ... vllm/vllm-openai:nightly
 
@@ -425,13 +435,13 @@ longer exists).
 | **PN72** | Frequency-based ngram draft post-filter (llama.cpp `draft_min_sample_size`-style; rejects spurious 2-token-suffix matches) | opt-in | `GENESIS_ENABLE_PN72_FREQUENCY_NGRAM_DRAFTER` | — | Genesis-original 2026-05-06 (composes with P70; tunables `GENESIS_PN72_MIN_OBSERVATIONS=4`, `GENESIS_PN72_FREQUENCY_WINDOW=1024`) |
 | **PN77** | FP8 lm_head compression (BF16→FP8 e4m3 + per-channel scale; ~606 MiB/rank on 27B Qwen3.6, ~243 MiB/rank on 35B). Phase E.5 redesign: subclass `Genesis_FP8_LMHead_EmbeddingMethod` swap via single text-patch on `process_weights_after_loading` walker; uses `replace_parameter` (preserves `weight_loader`); hardware-tier dispatch — **Marlin** on Ampere, **`torch._scaled_mm`** on Ada/Hopper/Blackwell, cast-back fallback otherwise. | opt-in | `GENESIS_ENABLE_PN77_FP8_LM_HEAD` | — | Genesis-original 2026-05-07 (Phase E.5 architectural redesign after E.2-3 weight_loader-orphan blocker; cosine_sim ≥0.999 quality gate validated; auto-retire on vllm#41000 lm_head_quantized merge) |
 | **PN78** | [DEPRECATED 2026-05-07] post-warmup empty_cache wrap — upstream `gpu_model_runner.py:6213/6244` already calls it; PN78 would be redundant 3rd call. Also monkey-patch wouldn't reach spawn'd workers. Retained for documentation only. | deprecated | `GENESIS_ENABLE_PN78_POST_WARMUP_CACHE_RELEASE` (ignored) | — | Genesis-original 2026-05-07 (deprecated same day after source-code investigation) |
-| **PN80** | [ADDED 2026-05-07] LoRA tensorizer device kwarg (vllm#41845 backport). Single-line fix: passes `device=device` to TensorDeserializer in lora/lora_model.py. Without it, deserializer first goes to host RAM then transfers to GPU, causing OOM on memory-constrained rigs. With kwarg, streams directly to GPU. Genesis 35B/27B PROD does not use LoRA — patch ready for community deployments. Default OFF. Upstream merged in vllm#41845 (2026-05-07); native since the 2026-05 pin `0.21.1rc0+g626fa9bba5` (and every pin after, incl. current dev714) — Genesis backport retained for operators on older nightlies. | experimental | `GENESIS_ENABLE_PN80_LORA_TENSORIZER_DEVICE` | [#41845](https://github.com/vllm-project/vllm/pull/41845) | Backport of Or Ozeri @ IBM (vllm#41845, MERGED 2026-05-07) |
+| **PN80** | [ADDED 2026-05-07] LoRA tensorizer device kwarg (vllm#41845 backport). Single-line fix: passes `device=device` to TensorDeserializer in lora/lora_model.py. Without it, deserializer first goes to host RAM then transfers to GPU, causing OOM on memory-constrained rigs. With kwarg, streams directly to GPU. Genesis 35B/27B PROD does not use LoRA — patch ready for community deployments. Default OFF. Upstream merged in vllm#41845 (2026-05-07); native since the 2026-05 pin `0.21.1rc0+g626fa9bba5` (and every pin after, incl. current dev748) — Genesis backport retained for operators on older nightlies. | experimental | `GENESIS_ENABLE_PN80_LORA_TENSORIZER_DEVICE` | [#41845](https://github.com/vllm-project/vllm/pull/41845) | Backport of Or Ozeri @ IBM (vllm#41845, MERGED 2026-05-07) |
 | **PN79** | [FULL IMPL 2026-05-07 + LIVE A/B VALIDATED] In-place SSM state for GDN chunk prefill (vllm#41824 backport). Eliminates per-decode-step gather/scatter copies of `initial_state`/`final_state` by passing `ssm_state_indices` directly to Triton kernel. Author claims 4.5–36 GiB cumulative fp32 traffic eliminated per multi-turn session. ORTHOGONAL TO PN59 (which fixes prefill peak; empirical 2026-05-06 — PN59 streaming path almost never fires under chunked-prefill, so PN79 is the actual decode-side win). 17 anchors atomic across 3 files via MultiFilePatchTransaction (Sub-1 chunk.py: 7, Sub-2 chunk_delta_h.py: 7, Sub-3 gdn_linear_attn.py: 3). 27B Lorbus INT4+TQ k8v4 A/B 2026-05-07: TPS 105.3 (PN79=1) vs 104.2 (baseline) — within noise; VRAM identical; tool 10/10 match. Single-shot win unproven, multi-turn evidence pending (Cliff 2 reproducer + memory traffic profiler on roadmap). 58 PN79 tests + 2260 full Genesis suite pass. conflicts_with [PN59, PN54]. Default OFF. | experimental | `GENESIS_ENABLE_PN79_INPLACE_SSM_STATE` | [#41824](https://github.com/vllm-project/vllm/pull/41824) | Backport of Kermit-C (vllm#41824, OPEN) |
 | **P59** | Qwen3 reasoning embedded tool_call recovery | opt-in | `GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY` | [#39055](https://github.com/vllm-project/vllm/pull/39055) | ZenoAFfectionate (vllm#39055) |
 | **P40** | TurboQuant GQA-grouped decode stage1 (opt-in) | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P24** | fused_moe num_warps/num_stages overlay | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P18b** | TurboQuant decode stage1 tune | opt-in | — | — | Genesis (see source / CHANGELOG) |
-| **PN394** | Qwen3 partial-param value `<` truncation fix | retired | `GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX` | [#46047](https://github.com/vllm-project/vllm/pull/46047) | Backport of vllm#46047 (MERGED 2026-06-18; IN the deployed pin since dev301, so present in dev714). Fixed the qwen3 tool-call parser truncating a partial parameter value at a literal `<`. Ran ON at dev148 where the merge was absent; retired 2026-07-02 — the upstream fix ships in the engine and the patch self-skips. |
+| **PN394** | Qwen3 partial-param value `<` truncation fix | retired | `GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX` | [#46047](https://github.com/vllm-project/vllm/pull/46047) | Backport of vllm#46047 (MERGED 2026-06-18; IN the deployed pin since dev301, so present in current dev748). Fixed the qwen3 tool-call parser truncating a partial parameter value at a literal `<`. Ran ON at dev148 where the merge was absent; retired 2026-07-02 — the upstream fix ships in the engine and the patch self-skips. |
 
 ### Hybrid / GDN / Mamba
 
@@ -449,7 +459,7 @@ longer exists).
 | **P78** | TurboQuant .tolist() capture-guard (adapted from noongh | opt-in | `GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD` | — | Adapted from noonghunna's patch_tolist_cudagraph.py (Apache-2.0, github.com/noonghunna/qwen36-27b-single-3090). Surgical |
 | **P67b** | TurboQuant spec-verify forward() routing (FULL CG enabl | opt-in | — | — | Genesis (see source / CHANGELOG) |
 | **P95** | Marlin TP cudagraph cap on Ampere (vllm#40385) | opt-in | `GENESIS_ENABLE_P95` | [#40385](https://github.com/vllm-project/vllm/pull/40385) | Backport of vllm#40385 (OPEN as of 2026-04-28). Defensive cap of `max_cudagraph_capture_sizes` to avoid OOM on TP>=2 with Marlin kernels |
-| **P100** | FlashInfer FULL CUDA graph for spec-decode (vllm#41127) | opt-in | `GENESIS_ENABLE_P100` | [#41127](https://github.com/vllm-project/vllm/pull/41127) | Backport of vllm#41127 (open 2026-04-28) — enables FlashInfer FULL cudagraph mode for spec-decode |
+| **P100** | FlashInfer FULL CUDA graph for spec-decode (vllm#41127) | opt-in | `GENESIS_ENABLE_P100` | [#41127](https://github.com/vllm-project/vllm/pull/41127) | Backport of vllm#41127 (open 2026-04-28) — enables FlashInfer FULL cudagraph mode for spec-decode. Battle-validated 2026-07-04 on dev748: its 6 anchors were re-anchored dual-variant during the dev714→dev748 preflight, then runtime-validated on the 27B fp8kv lane (FlashInfer FULL-CG spec-decode: coherent generation, 0 errors — fleet sweep, `BENCHMARKS.md`) |
 | **PN13** | CUDAGraphWrapper gc.collect/empty_cache lambda arity (vllm#41235) | opt-in | `GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY` | [#41235](https://github.com/vllm-project/vllm/pull/41235) | roikoren755 (vllm#41235, OPEN). Fixes worker-death TypeError in CUDAGraphWrapper |
 
 ### Scheduler / chunked-prefill
@@ -725,7 +735,7 @@ are typically **additive**.
 | **PN13** CUDAGraphWrapper lambda-arity fix (vllm#41235) | 🟡 OPT-IN-ONLY | Blackwell GB200 nightly | tested 35B PROD: +0.7% (noise) on Ampere |
 | **PN17** FA2 softmax_lse runtime clamp | 🟡 OPT-IN-ONLY | FA2 + spec-decode | recent; not yet PROD-tested |
 
-### Empirical compatibility (HISTORICAL — 2× RTX A5000, 2026-04-30 baseline; PROD has since moved to MTP K=5 on 35B / K=4 on 27B and pin dev714 — treat rows as the last full matrix sweep, not current state)
+### Empirical compatibility (HISTORICAL — 2× RTX A5000, 2026-04-30 baseline; PROD has since moved to MTP K=5 on 35B / K=4 on 27B and pin dev748 — treat rows as the last full matrix sweep, not current state)
 
 | Patch | 35B-A3B-FP8 | 27B-Lorbus + fp8_e5m2 | 27B-Lorbus + TQ k8v4 | Notes |
 | --- | --- | --- | --- | --- |

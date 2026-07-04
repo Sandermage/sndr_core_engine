@@ -35,12 +35,12 @@ the relevant section underneath.
 credit to [@<author>](<hf-link>); <quant/drafter> by [@<author2>](<link>).
 
 **Headline:** <the single most interesting result — e.g. "Qwen3.6-35B-A3B
-sustains 234.2 tok/s single-stream on 2× A5000 (pin dev714, 2026-07-04).">
+sustains 242.55 tok/s single-stream on 2× A5000 (pin dev748, 2026-07-04).">
 
 ### Results — <rig>, <engine + version>, <pin>
 | Model | Quant / KV | Spec-decode | Decode TPS | Tool-call | Ctx | VRAM |
 |---|---|---|--:|:--:|--:|--:|
-| <model> | <AWQ · TQ k8v4> | <MTP K=5> | <234.2> | <8/8> | <280K> | <GB> |
+| <model> | <AWQ · TQ k8v4> | <MTP K=5> | <242.55> | <7/7> | <280K> | <GB> |
 
 <one-line read of the result — within CV? lossless spec-decode? new ceiling?>
 
@@ -68,7 +68,7 @@ Same facts, three shapes. Lead with the measured numbers; never overclaim.
 
 ### r/LocalLLaMA (the primary venue)
 
-- **Title:** concrete and number-led — e.g. *"Qwen3.6-35B-A3B at 234 tok/s on
+- **Title:** concrete and number-led — e.g. *"Qwen3.6-35B-A3B at 242 tok/s on
   2× A5000 (consumer Ampere) — runtime vLLM patch overlay, Apache-2.0"*.
 - **Body:** the full skeleton above. Lead with the results table; this audience
   reads numbers first. Be explicit about the rig and that it's reproducible.

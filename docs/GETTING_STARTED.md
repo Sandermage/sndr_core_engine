@@ -29,10 +29,10 @@ Qwen3.6 / Gemma4 inference server. On the reference 2× RTX A5000 rig:
 
 | What | Number |
 | --- | --- |
-| Qwen3.6-35B-A3B (MoE), single-stream decode | **~234 tok/s** (pin `dev714`, 2026-07-04, AWQ checkpoint; ≈1.5× stock vLLM — +53 % measured against a stock baseline on `dev148`, 2026-06-19) |
+| Qwen3.6-35B-A3B (MoE), single-stream decode | **~242 tok/s** (pin `dev748`, 2026-07-04, AWQ checkpoint; ≈1.5× stock vLLM — +53 % measured against a stock baseline on `dev148`, 2026-06-19) |
 | Qwen3.6-27B-int4, single-stream decode | **~127.4 tok/s** (+46 %; pin `dev148`, 2026-06-19) |
 | Context, served in production (35B) | **280K** |
-| Tool-call clean rate | **8/8** (35B, 2026-07-04) · **7/7** (27B, `dev148`) |
+| Tool-call clean rate | **7/7** (35B, pin `dev748`, 2026-07-04) · **7/7** (27B, `dev148`) |
 
 Full methodology and per-rig reproduction: [`BENCHMARKS.md`](BENCHMARKS.md).
 What it is and how the overlay works: the project [`README`](../README.md).

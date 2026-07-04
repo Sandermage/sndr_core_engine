@@ -11,12 +11,13 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 > - Genesis `v12.0.0` — 325 PATCH_REGISTRY entries; by lifecycle:
 >   235 experimental, 41 retired, 28 legacy, 14 stable, 4 coordinator,
 >   3 research (regenerated 2026-07-04 from `sndr.dispatcher.PATCH_REGISTRY`).
-> - vLLM **current pin** `0.23.1rc1.dev714+g09663abde`
->   (`dev672` = `0.23.1rc1.dev672+g93d8f834d` = previous / rollback pin per the
->   ≤2-pin policy; `dev424` dropped; stable slot `v0.24.0`; SSOT:
->   `sndr/pins.yaml`). The headline numbers below are the **fresh 2026-07-04
->   canonical run on dev714**; older tables are kept as labeled per-pin
->   history for regression detection.
+> - vLLM **current pin** `0.23.1rc1.dev748+g2dfaae752`
+>   (`dev714` = `0.23.1rc1.dev714+g09663abde` = previous / rollback pin per the
+>   ≤2-pin policy; `dev672` dropped; stable slot `v0.24.0`; SSOT:
+>   `sndr/pins.yaml`; promoted 2026-07-04). The headline numbers below are
+>   the **2026-07-04 dev748 promotion gate**; the same-day dev714 canonical
+>   run and older tables are kept as labeled per-pin history for regression
+>   detection.
 > - Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6),
 >   driver 580.142, CUDA 13.0.2.
 > - Spec-decode: MTP K=5 on Qwen 35B; **K=4 on the 27B** (the max coherent K
@@ -53,13 +54,31 @@ Not swept: the two DFlash lanes (presets archived to
 `qwen3.6-7b-dense` (weights not present on the rig),
 `qwen3.6-27b-gguf-q4km-mtp` (llama.cpp engine lane).
 
-## Headline — fresh canonical run (2026-07-04, pin dev714)
+## Headline — dev748 promotion gate (2026-07-04, pin dev748, current)
 
 Canonical suite (`tools/genesis_bench_suite.py`) against the live PROD
-stack: Qwen3.6-35B-A3B (**AWQ checkpoint** — the live launcher serves
+stack during the dev714 → dev748 promotion window: Qwen3.6-35B-A3B
+(**AWQ checkpoint** — the live launcher serves
 `/models/Qwen3.6-35B-A3B-AWQ`; the FP8 model preset exists separately),
 TP=2 on 2× RTX A5000 24 GB, TurboQuant k8v4 KV cache, MTP K=5, tool
-parser `qwen3_xml`, `--max-model-len 280000`, port 8102.
+parser `qwen3_xml`, `--max-model-len 280000`.
+
+| Metric | Value | Note |
+| --- | ---: | --- |
+| wall_TPS | **242.55** | CV 6.9%, n=25 — **+3.5%** vs same-day dev714 (234.16) |
+| decode_TPOT | **3.9 ms** | |
+| TTFT | **84.5 ms** | |
+| Tool-calls | **7/7 PASS** | promotion-gate fixture, `qwen3_xml` |
+| MTP window accept-rate | **0.653** | floor 0.55, K=5 |
+| Ctx-scaling 1K → 32K | **LINEAR_OK** | endpoint ratio 0.84, no cliff (suite section `[5d/8]`) |
+
+Boot on the promoted pin: `applied=87 / failed=0` — identical apply
+profile to dev714.
+
+### Same-day dev714 reference — canonical run (2026-07-04, now rollback pin)
+
+The full canonical run taken the same day on dev714 (kept as the
+labeled apples-to-apples reference for the +3.5% delta above):
 
 | Metric | Value | Note |
 | --- | ---: | --- |
@@ -79,7 +98,8 @@ the model YAML promotion note; all deltas are within CV (no regression):
 | dev424 | 244.35 | promotion window bench, 2026-06-25 |
 | dev672 | 240.55 | promotion window bench (CV 6.0%), 2026-07-01 |
 | dev714 | 236.5 | promotion window bench (CV 6.3%), 2026-07-02 |
-| dev714 | **234.2** | **canonical suite, 2026-07-04 (headline above)** |
+| dev714 | 234.2 | canonical suite, 2026-07-04 (same-day reference above) |
+| dev748 | **242.55** | **promotion window bench (CV 6.9%), 2026-07-04 (headline above)** |
 
 ### Agentic multi-turn (2026-07-04, dev714)
 
@@ -92,18 +112,20 @@ this depth; decode stays flat).
 
 Decode TPS at fixed generation length as prompt context grows
 (suite flags: `--ctx-scale`, `--ctx-scale-gen-tokens`,
-`--skip-ctx-scaling`):
+`--skip-ctx-scaling`). Per-point ladder from the same-day dev714
+canonical run:
 
 | Prompt ctx | 1K | 4K | 8K | 16K | 32K |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | decode TPS | 227 | 238 | 250 | 243 | 212 |
 
-Verdict: **LINEAR_OK** — endpoint ratio 0.93 (32K vs 1K), no cliff
-through 32K.
+Verdict: **LINEAR_OK** — endpoint ratio 0.93 (32K vs 1K, dev714), no
+cliff through 32K. The dev748 promotion gate ran the same ladder:
+**LINEAR_OK**, endpoint ratio 0.84 (2026-07-04).
 
 ## PROD numbers — dev148 K=5 re-tune snapshot (historical; single-stream re-benched 2026-06-19 on dev148)
 
-For the current headline see the fresh 2026-07-04 dev714 run above. The
+For the current headline see the 2026-07-04 dev748 promotion gate above. The
 single-stream rows here are the MTP K=3→K=5 re-tune (warm sweep, pin
 `0.23.1rc1.dev148+gb4c80ec0f`): 35B +15.8 % vs K=3 (207→239.7), 27B +8.2 %
 vs K=3 (117.7→127.4). The multi-conc rows are NOT re-benched at K=5 — they
@@ -158,10 +180,10 @@ introduced jitter on the worker decode path.
 ## Boot summary for `prod-qwen3.6-35b-balanced` (dev148 snapshot)
 
 Historical dev148 example of the Genesis structured boot summary printed
-once at boot end. On the current dev714 pin the live boot reports
-**applied=87 / skipped=166 / failed=0** (recorded in the model YAML
-promotion note, 2026-07-02) — the family breakdown below is the dev148
-shape:
+once at boot end. On the current dev748 pin the live boot reports
+**applied=87 / skipped=166 / failed=0** (2026-07-04 promotion window —
+an apply profile identical to dev714's 2026-07-02 boot) — the family
+breakdown below is the dev148 shape:
 
 ```text
 ══════════════════════════════════════════════════════════════════════
@@ -412,7 +434,7 @@ The supported reference path. All Genesis PROD runs use this image.
 ```bash
 git clone https://github.com/Sandermage/sndr_core_engine.git
 cd sndr_core_engine
-docker pull vllm/vllm-openai:nightly             # current Genesis pin (0.23.1rc1.dev714+g09663abde; explicit-hash tag: nightly-09663abde0f50944a8d5ea30120666024b503faa — see sndr/pins.yaml)
+docker pull vllm/vllm-openai:nightly             # current Genesis pin (0.23.1rc1.dev748+g2dfaae752; explicit-hash tag: nightly-2dfaae752 — see sndr/pins.yaml)
 
 sndr launch prod-qwen3.6-35b-balanced                            # docker emission
 docker logs -f vllm-server                      # wait for startup

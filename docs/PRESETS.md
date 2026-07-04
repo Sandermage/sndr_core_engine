@@ -187,7 +187,7 @@ cell with `sndr preset explain <id>`.
 
 | Preset | K | Concurrency | Mode | Best for |
 |---|---:|---:|---|---|
-| `prod-qwen3.6-35b-balanced` ★default | 5 | 1..2 | throughput | Balanced single-stream; 280K context. K=3→5 re-tune 2026-06-19 (+15.8 % TPS). Canonical suite on dev714 (2026-07-04): wall_TPS 234.2 / TPOT 4.04 ms / tool 8/8. |
+| `prod-qwen3.6-35b-balanced` ★default | 5 | 1..2 | throughput | Balanced single-stream; 280K context. K=3→5 re-tune 2026-06-19 (+15.8 % TPS). Fleet-swept on dev748 (2026-07-04): 231.2 t/s via the canonical `sndr launch` path (accept 0.728); the same-pin AWQ PROD launcher's canonical suite: wall_TPS 242.5 / TPOT 3.9 ms / tool 7/7. |
 | `prod-qwen3.6-35b-multiconc` | 5 | 1..8 | throughput | **Reference free-chat multi-conc** — 689 TPS @ conc=8 (dev148-era measurement). |
 
 ### Gemma 4 26B-A4B MoE family — `gemma4_moe_26b_a4b`
