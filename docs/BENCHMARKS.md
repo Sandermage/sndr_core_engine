@@ -26,6 +26,33 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 >   regressor on dev371+).
 > - Attention: TurboQuant k8v4 KV cache + FlashAttention 2, TP=2.
 
+## Fleet sweep — every launchable model on pin dev748 (2026-07-04 window)
+
+Full-fleet validation during the dev748 promotion window: each model
+booted sequentially on the promoted pin (2× RTX A5000, TP=2), smoke-
+tested (chat + tool-call) and mini-benched (`--quick --runs 2`,
+decode-only). `failed=0` patch applies across the entire fleet.
+
+| Model (preset / launcher) | Boot | Apply | Chat | Tool-call | decode_TPOT | Note |
+| --- | ---: | ---: | :-: | :-: | ---: | --- |
+| Qwen3.6-35B-A3B AWQ (PROD launcher) | 330 s | 87/0 | ✓ | 7/7 | **3.90 ms** (242.5 t/s) | promotion gate, full canonical suite |
+| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | 270 s | 86/0 | ✓ | ✓ | 4.10 ms (231.2 t/s) | canonical `sndr launch` path; accept 0.728 |
+| Qwen3.6-27B INT4 TQ k8v4 (+PN520) | 370 s | 84/0 | ✓¹ | ✓ | 7.68 ms (~130 t/s) | PN520 loader fix battle-validated: 96 `in_proj_ba` shards routed, degeneration gone |
+| Qwen3.6-27B INT4 fp8kv (+P100) | 320 s | 85/0 | ✓ | — | 9.22 ms (~108 t/s) | P100 FlashInfer spec-decode runtime-validated (coherent gen, 0 errors) |
+| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | 170 s | 56/0 | ✓ | ✓ | 7.12 ms (~140 t/s) | |
+| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | 230 s | 61/0 | ✓ | ✓ | 11.51 ms (~87 t/s) | PN351 dev748 re-anchor applied on head_dim=512; accept 0.933 |
+| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | 140 s | 39/0 | ✓² | n/a | n/a² | diffusion lane — AR decode metrics not applicable |
+
+¹ 27B thinking mode loops (known club-3090 #226 model trait, pre-existing);
+chat validated with `enable_thinking:false`, tool-agent workload unaffected.
+² Diffusion lane responds (`finish=stop`); the AR-oriented TPOT metric is
+meaningless for block-parallel diffusion generation.
+
+Not swept: the two DFlash lanes (presets archived to
+`presets/_archive/` pending re-validation — restore to reproduce),
+`qwen3.6-7b-dense` (weights not present on the rig),
+`qwen3.6-27b-gguf-q4km-mtp` (llama.cpp engine lane).
+
 ## Headline — fresh canonical run (2026-07-04, pin dev714)
 
 Canonical suite (`tools/genesis_bench_suite.py`) against the live PROD
