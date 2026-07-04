@@ -45,7 +45,13 @@ Release-type tags in the title give the shape of the release at a glance:
 
 ## Version index (newest first)
 
-### [Unreleased] — dev301 → dev424 integration program: pin bump + PN401/PN402/PN518/PN519/PN346B-ext + upstream-watch + dev148 retire + docs/launch overhaul (current tip)
+### v12.1.0 series — dev748 pin, 7-model fleet sweep, ctx-scaling bench stage, operator manuals
+
+| Tag | Date | Type | Summary |
+|---|---|---|---|
+| `v12.1.0` | 2026-07-04 | release | Two pin promotions in one window: `dev672 → dev714` (2026-07-02) and `dev714 → dev748` (2026-07-04, `0.23.1rc1.dev748+g2dfaae752`). 7-model fleet sweep, all lanes `failed=0` (post-release audit caveat: 4/7 lanes booted the dev714 rollback engine via a stale hardware `image_digest` — see the release section's audit notes). dev748 gate 242.55 wall_TPS vs same-day dev714 234.16 — **parity within CV (no regression)**; the raw +3.5% delta is NOT significant under the project's own CV/significance rules. **PN520** (GDN imperative-loader revert of vllm#47058 — cures INT4-27B degeneration), **PN521 + PN521_SPLIT_K** (TQ k8v4 × MTP raw-bf16-tail spec-verify + ~11x split-K verify kernel), **PN522** added; P61b/P64/PN287 retired (#45413-superseded), PN394 retire resolved. 27B MTP K=5→4. New ctx-scaling bench stage (`--ctx-scale*`, CLIFF/DEGRADED/FLAT_OK/LINEAR_OK). Operator manuals wave (ARCHITECTURE, HOST_SETUP, ADDING_MODELS, OPERATIONS) + SEO README + Control-Center hero. Registry **321 → 325**; CI legs restored |
+
+### [Unreleased] — dev301 → dev424 integration program: pin bump + PN401/PN402/PN518/PN519/PN346B-ext + upstream-watch + dev148 retire + docs/launch overhaul (absorbed into v12.1.0)
 
 | Tag | Date | Type | Summary |
 |---|---|---|---|
@@ -104,17 +110,121 @@ Release-type tags in the title give the shape of the release at a glance:
 | `v7.65 → v7.72` | 2026-04 – 2026-05 | series | 7.72 series: PN59 streaming-GDN, Cliff 2b breakthrough, Blackwell consumer support, structured boot summary |
 | `v7.63.x` | 2026-04 | series | TurboQuant k8v4 + MTP K=3 stabilization |
 
-The current canonical baseline is the `[Unreleased]` line below on vLLM
-nightly pin `0.23.1rc1.dev424+g3f5a1e173` (image
-`vllm/vllm-openai:nightly-3f5a1e1733200760169ff31ebe60a271072b199e`); the
-last cut tag is `v12.0.0`. **321** patches in `PATCH_REGISTRY`, 261 full-impl,
-~23 families, full `pytest tests/` suite **12942 / 0** + all gating audits rc0.
-(All four fleet models — 35B FP8, 27B INT4, Gemma-4 26B/31B — run the dev424
-pin; `0.23.1rc1.dev301+g04c2a8dea` (`nightly-04c2a8dea`) is retained as the
-previous / rollback pin per the CLAUDE.md ≤2-pin policy; dev148 was dropped
-from the allowlist when dev424 was validated. `sndr/version.py` carries the
-`.dev0` suffix in-tree; release tooling strips it on publish — pyproject.toml
-holds the release version.)
+The current canonical baseline is the `[v12.1.0]` release below on vLLM
+nightly pin `0.23.1rc1.dev748+g2dfaae752` (image
+`vllm/vllm-openai:nightly-2dfaae752b4db0d43cfc0715c780e33be030d0f1`, rig
+RepoDigest `sha256:6a93ae43…`); the last cut tag is `v12.1.0` (2026-07-04).
+**325** patches in `PATCH_REGISTRY`, 263 full-impl, ~23 families; full
+`pytest tests/` suite: 15512 collected (2026-07-05 local run — see the
+v12.1.0 Verified section for the pass/skip split) + all gating audits rc0.
+(The fleet — 35B AWQ/FP8, 27B INT4 TQ/fp8kv, Gemma-4 26B/31B AWQ,
+DiffusionGemma 26B FP8 — targets the dev748 pin;
+`0.23.1rc1.dev714+g09663abde` (`nightly-09663abde`) is retained as the
+previous / rollback pin per the CLAUDE.md ≤2-pin policy; dev672 was dropped
+when dev748 was validated. `sndr/version.py` carries the `.dev0` suffix
+in-tree; release tooling strips it on publish — pyproject.toml holds the
+release version.)
+
+---
+
+## [v12.1.0] — dev748 pin · 7-model fleet sweep · ctx-scaling bench stage · operator manuals (2026-07-04)
+
+> Release tag cut 2026-07-04 (`602ad9bc`, version 12.0.0 → 12.1.0). This entry
+> was written 2026-07-05 as part of the post-release audit remediation — the
+> release originally shipped WITHOUT a CHANGELOG entry (audit CRIT #3). Numbers
+> below carry (pin, date) labels and the audit corrections; where the original
+> release claims did not survive verification, the corrected claim is stated
+> and the original is noted.
+
+### Highlights
+
+- **Two pin promotions in one window**: `dev672 → dev714`
+  (`0.23.1rc1.dev714+g09663abde`, 2026-07-02) and `dev714 → dev748`
+  (`0.23.1rc1.dev748+g2dfaae752`, image `nightly-2dfaae752…`, RepoDigest
+  `sha256:6a93ae43…`, 2026-07-04). dev714 retained as rollback; dev672 dropped
+  per the ≤2-pin policy.
+- **PN520 — Qwen3.5/3.6 GDN imperative weight-loader revert** (intentional
+  inverse of vllm#47058): cures the INT4-27B boots-clean-but-degenerate class;
+  battle-validated on the fleet sweep (96 `in_proj_ba` shards routed on both
+  TP workers).
+- **PN521 + PN521_SPLIT_K + PN522** — TurboQuant k8v4 × MTP raw-bf16-tail
+  spec-verify fix (cures the 27B TQ×MTP repetition collapse) + ~11x
+  split-K (Flash-Decoding) verify kernel. 27B MTP **K=5 → K=4**.
+- **7-model fleet sweep** on the promoted pin — every launchable lane booted
+  with Genesis apply `failed=0`, chat + tool-call smoke, mini-bench. **Audit
+  correction (2026-07-05)**: 4 of 7 lanes (35B FP8, Gemma4 26B/31B AWQ,
+  DiffusionGemma 26B FP8) actually booted the dev714 ROLLBACK engine — the
+  hardware YAML `image_digest` still pointed at dev714 and the digest wins at
+  render (evidence: per-lane bench JSON `system_fingerprint`, archived at
+  `evidence-2026-07-04/`). Their rows are therefore **(dev714, 2026-07-04)**
+  numbers; only 35B AWQ (promotion gate) and 27B fp8kv verifiably ran dev748.
+- **Ctx-scaling bench stage** — `genesis_bench_suite.py --ctx-scale*` +
+  `analyze_ctx_scaling` (CLIFF / DEGRADED / FLAT_OK / LINEAR_OK), 13 TDD tests.
+- **Operator manuals wave** — ARCHITECTURE.md (mermaid), HOST_SETUP.md,
+  ADDING_MODELS.md, OPERATIONS.md + SEO-shaped README + Control-Center hero
+  screenshot; CI legs restored.
+- **Registry 321 → 325**; retired in-window: P61b, P64, PN287
+  (#45413-superseded), PN394 lifecycle drift resolved.
+
+### Bench / measurements (labels corrected 2026-07-05 per the project's own CV rules)
+
+- **35B AWQ canonical gate (dev748, 2026-07-04, 03:38–04:19Z)**: 242.55
+  wall_TPS (CV 6.9%, n=25), decode_TPOT 3.9 ms, TTFT 84.5 ms, tool 7/7, MTP
+  window accept 0.653 (floor 0.55 PASS), ctx-scaling 1K→32K LINEAR_OK.
+- **Same-day dev714 reference (2026-07-04)**: 234.16 wall_TPS (CV 8.4%, n=25),
+  decode_TPOT 4.04 ms (CV 0.1225), tool 8/8, window accept 0.660.
+- **Verdict: parity within CV — no regression.** The originally-published
+  "+3.5%" gain does NOT meet the project's significance methodology (baseline
+  decode_TPOT CV 0.1225 > the 0.12 "A/B unreliable" bar; delta < the ≥5% rule;
+  Welch t-test not significant: wall_TPS p≈0.11, decode_TPOT p≈0.26). The
+  supported claim is parity/no-regression, not a gain.
+- Fleet mini-bench rows (decode_TPOT): 35B FP8 4.10 ms / 231.2 t/s, window
+  accept **0.627** (dev714, 2026-07-04); G4-26B 7.12 ms (dev714); G4-31B
+  11.51 ms, window accept **0.728** (dev714); DiffusionGemma boots, AR metrics
+  n/a (dev714); 27B TQ 7.68 ms (~130 t/s; pin unverifiable — fingerprint probe
+  timeout); 27B fp8kv 9.22 ms (dev748). Accept rates are bench-WINDOW rates
+  (the floor logic's own definition) — the originally-published 0.933 (31B) and
+  0.728 (35B FP8) were pre-run scrape snapshots, corrected here.
+
+### Migration notes
+
+- `:nightly` re-tagged to dev748 (`nightly-2dfaae752…`); dev714 kept as
+  rollback (`nightly-09663abde…`); dev672 image dropped.
+- `vllm_pin_required` → dev748 across ModelDefs, hardware `image:` tags,
+  preset `engine_pin` fields. **Hardware `image_digest` was MISSED by the
+  promotion** (fixed 2026-07-05 on the audit-remediation branch, together with
+  a new `audit_pin_consistency` digest invariant + `pins.yaml
+  current_image_digest`).
+- Anchor manifest `pins/0.23.1_2dfaae752/` rebuilt (48 files).
+- dev748 image archived: 8.2 GB OCI tar (compressed from 27.7 GB — expected),
+  sha256 `a52eb6aa…`, kept in the rig release archive + an off-rig copy.
+
+### Audit findings (post-release audit 2026-07-04, remediation 2026-07-05)
+
+- CRIT: stale hardware `image_digest` booted the rollback engine on 4/7 fleet
+  lanes (fixed + gated; see Migration notes).
+- CRIT: this CHANGELOG entry was missing; header was 3 pin-epochs stale (fixed).
+- HIGH: "+3.5%" headline failed the project's own significance rules
+  (rephrased to parity-within-CV across all docs).
+- HIGH: fleet accept rates quoted pre-run snapshots instead of bench-window
+  rates (corrected: 31B 0.728, 35B FP8 0.627).
+- HIGH: PN8 and PN387 merged/absorbed upstream but never retired (retired on
+  the remediation branch).
+- HIGH: product-API HTTP/auth tests never ran in CI (fastapi missing from the
+  test-job deps — CI matrix fixed on the remediation branch).
+- Bench evidence archived from volatile /tmp to the rig release archive
+  (`evidence-2026-07-04/`).
+
+### Verified
+
+- dev748 promotion gate: boot applied=87/skipped=166/failed=0, health 200,
+  canonical suite n=25, tool 7/7 (evidence `bench_dev748_promo.json`,
+  fingerprint `vllm-0.23.1rc1.dev748+g2dfaae752-tp2-bd14c8e9`).
+- Fleet sweep: 7 lanes booted `failed=0` with per-lane apply profiles
+  87/86/84/85/56/61/39 (pin attribution per lane as corrected above).
+- Full `pytest tests/` suite: 15512 collected — 14804 passed / 706 skipped /
+  1 xfailed (2026-07-05, local with fastapi installed; the pre-remediation CI
+  legs ran fewer — see the CI matrix fix).
 
 ---
 
