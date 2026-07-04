@@ -109,9 +109,21 @@ not allow arbitrary cross-origin access.
 | --- | --- |
 | Default bind | `127.0.0.1:8765` |
 | Auth | optional bearer token via `SNDR_GUI_TOKEN` |
-| Mutations | dry-run only; real execution gated and not enabled here |
+| Mutations | dry-run by default; each real-execution capability sits behind its own gate — see the matrix below |
 | External writes | none (operator-local `$SNDR_HOME` only) |
 | Recommended remote mode | SSH tunnel to loopback |
+
+### Dangerous-actions matrix
+
+Not every mutating surface is dry-run. The gates, from weakest to strongest:
+
+| Action | Gate | Notes |
+| --- | --- | --- |
+| Config/preset writes | always allowed, operator-local | atomic + backup + lock, under `$SNDR_HOME` only |
+| Service/launch apply, node install, model download | `--enable-apply` / `SNDR_ENABLE_APPLY=1` | without it these produce dry-run jobs |
+| Container **start/stop/restart** | authenticated session only | **exception**: hits docker/SSH directly — not a dry-run, not behind apply-mode |
+| Container **recreate**, node-setup | apply-mode **and** an explicit confirm | double-gated |
+| In-container **exec** | `SNDR_ENABLE_EXEC=1` | off by default; separate from and stricter than apply-mode |
 
 ## User authentication (accounts, 2FA, OAuth)
 
@@ -207,6 +219,10 @@ POST /api/v1/auth/users              (admin) {username,password,role}
 DELETE /api/v1/auth/users/{username} (admin)
 POST /api/v1/auth/2fa/enroll | activate {code} | disable
 GET  /api/v1/auth/oauth/{provider}/login | callback
+POST /api/v1/auth/sessions/revoke        "sign out everywhere" (bump session epoch)
+GET  /api/v1/auth/tokens                 list personal API tokens
+POST /api/v1/auth/tokens                 {label} -> plaintext token (returned once)
+DELETE /api/v1/auth/tokens/{token_id}    revoke a token
 ```
 
 The legacy `SNDR_GUI_TOKEN` bearer continues to authorize API/service clients

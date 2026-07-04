@@ -11,9 +11,13 @@ companion to [`PIN_BUMP_PLAYBOOK.md`](PIN_BUMP_PLAYBOOK.md) (the canonical
 end-to-end bump procedure) — read the playbook for the full bump flow; read
 this for the anchor-SOT regen + drift-gate mechanics.
 
-> Current pin: `0.23.1rc1.dev424+g3f5a1e173` (`dev301` =
-> `0.23.1rc1.dev301+g04c2a8dea` = rollback). The dev301 → dev424 bump
-> (2026-06-25) was the first to dogfood this tooling end-to-end.
+> Current pin: `0.23.1rc1.dev714+g09663abde` (`dev672` =
+> `0.23.1rc1.dev672+g93d8f834d` = rollback; stable slot: `v0.24.0`).
+> The single source of truth for these strings is
+> [`sndr/pins.yaml`](../sndr/pins.yaml) — verify there before trusting any
+> doc. The dev301 → dev424 bump (2026-06-25) was the first to dogfood this
+> tooling end-to-end; every bump since (dev672 2026-07-01, dev714
+> 2026-07-02) has run the same path.
 
 ---
 
@@ -33,12 +37,14 @@ sndr/engines/vllm/pins/<version>_<short-sha>/
 └── drift.rej.json    # the reject/triage report for that pin
 ```
 
-Current on-disk pins:
+Current on-disk pins (7 dirs; roles per `sndr/pins.yaml`):
 
 | Dir | Pin | Role |
 | --- | --- | --- |
-| `0.23.1_3f5a1e173` | `0.23.1rc1.dev424+g3f5a1e173` | **current** |
-| `0.23.1_04c2a8dea` | `0.23.1rc1.dev301+g04c2a8dea` | **previous / rollback** |
+| `0.23.1_09663abde` | `0.23.1rc1.dev714+g09663abde` | **current** |
+| `0.23.1_93d8f834d` | `0.23.1rc1.dev672+g93d8f834d` | **previous / rollback** |
+| `0.23.1_3f5a1e173` | `0.23.1rc1.dev424+g3f5a1e173` | dropped (kept for diff history) |
+| `0.23.1_04c2a8dea` | `0.23.1rc1.dev301+g04c2a8dea` | dropped (kept for diff history) |
 | `0.23.1_b4c80ec0f` | `0.23.1rc1.dev148+gb4c80ec0f` | dropped (kept for diff history) |
 | `0.22.1_da1daf40b` | `0.22.1…` | older |
 | `0.21.1_626fa9bba` | `0.21.1…` | older |
@@ -84,9 +90,16 @@ The triage report for the pin. Top-level fields:
 override them to target a different container or candidate image. The
 regen never touches PROD beyond a read-only discovery pass.
 
-The underlying scripts live in `scripts/anchor_sot/`
-(`rebuild_pin.sh`, `audit_pin.sh`, `build_manifest.py`, `compare_manifest.py`,
-`bump_preflight.py`, `summarize_rej.py`, `discover.py`, `pristine_dump.py`).
+The underlying scripts live in `scripts/anchor_sot/` (12 entries):
+`rebuild_pin.sh`, `audit_pin.sh`, `build_manifest.py`, `compare_manifest.py`,
+`bump_preflight.py`, `summarize_rej.py`, `discover.py`, `pristine_dump.py`,
+`new_pin_check.py` (one-command bump-readiness orchestrator — resolves the
+previous pin deterministically, then runs coverage sanity, `summarize_rej`,
+and `bump_preflight` OLD→NEW), `fleet_boot_smoke.sh` (the `make
+fleet-boot-smoke` dynamic gate — boots every fleet preset on the candidate
+image), `boot_smoke_probe.py` (per-model health + generation + streaming
+tool-call probe used by the fleet gate), and `_extract_launch_payload.py`
+(launch-payload helper for the fleet gate).
 
 ---
 
@@ -115,12 +128,19 @@ into it as follows:
    dependent with a canonical A/B — see §4).
 6. **Boot smoke on a throwaway container** + tokenizer-fingerprint gate +
    canonical bench (playbook §5/§5b/§6). Never on PROD.
-7. **Promote** (playbook §7): add the pin to `KNOWN_GOOD_VLLM_PINS`
-   (`sndr/engines/vllm/detection/guards.py`), pair-update `EXPECTED_PINS`
-   in `tests/unit/dispatcher/test_pin_gate.py` (`make test-pin-gate`), bump
-   `vllm_pin_required` in the model YAMLs + README badge + CHANGELOG, and
-   bump the validated patches' `applies_to` upper bounds (with boot-log
-   proof — no blanket bumps).
+7. **Promote** (playbook §7): run `make bump-pin NEW=<pin>`
+   (`scripts/bump_pin.py`) — it propagates the new pin across
+   `sndr/pins.yaml` (current → rollback rotation), the audit-v2
+   `CANONICAL_PIN_SUBSTRING`, every vLLM model YAML's
+   `vllm_pin_required`, `KNOWN_GOOD_VLLM_PINS`
+   (`sndr/engines/vllm/detection/guards.py`), `ALLOWED_MODELDEF_PINS`,
+   and `EXPECTED_PINS` in `tests/unit/dispatcher/test_pin_gate.py` from
+   one command. Then run `make audit-pin-consistency`
+   (`scripts/audit_pin_consistency.py`) — the cross-artifact sync gate
+   that asserts the SSOT pin is present in every downstream list. Manual
+   remainder: README badge + CHANGELOG, and bumping the validated
+   patches' `applies_to` upper bounds (with boot-log proof — no blanket
+   bumps).
 8. **Tag rotation** (playbook §8): re-tag `:nightly` to the new pin, keep
    the previous pin's hash tag for rollback during the validation window,
    then delete the oldest so the server holds **at most current +
@@ -159,10 +179,10 @@ Anchors tab) and via `sndr/engines/vllm/retire_impact.py`.
 
 ---
 
-## 5. Worked example — the dev424 SOT
+## 5. Worked example — the dev424 SOT (historical) + the current dev714 SOT
 
-`make summarize-rej PIN=0.23.1_3f5a1e173` on the current pin reports
-(`drift.rej.json`):
+**Historical worked example (dev424 bump, 2026-06-25).**
+`make summarize-rej PIN=0.23.1_3f5a1e173` reported (`drift.rej.json`):
 
 - `coverage`: 204 discovered, 144 ok, 60 rejected.
 - `counts`: `ok 144`, `anchor_drift 4`, `optional_absent 12`,
@@ -176,6 +196,14 @@ Because every `anchor_drift` row was either re-anchored or confirmed as an
 intentional retirement, and `bump-preflight OLD=…04c2a8dea NEW=…3f5a1e173`
 exited clean, the dev424 pin was promoted with decode carried forward from
 the validated dev148 baseline (no regression).
+
+**Current pin (dev714) SOT for reference** — the committed
+`sndr/engines/vllm/pins/0.23.1_09663abde/drift.rej.json` carries:
+`coverage` 209 discovered / 141 ok / 68 rejected; `counts` `ok 141`,
+`anchor_drift 7`, `optional_absent 13`, `retired 34`, `upstream_merged 1`,
+`version_gated 13`; 7 `genuine_anchor_drift` entries (all resolved before
+the 2026-07-02 promotion) and 17 `dependency_breakage.edges`. Diff your own
+`make summarize-rej PIN=0.23.1_09663abde` output against these numbers.
 
 ---
 

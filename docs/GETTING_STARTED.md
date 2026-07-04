@@ -29,10 +29,10 @@ Qwen3.6 / Gemma4 inference server. On the reference 2× RTX A5000 rig:
 
 | What | Number |
 | --- | --- |
-| Qwen3.6-35B-A3B-FP8, single-stream decode | **~239.7 tok/s** (+53 % vs stock vLLM) |
-| Qwen3.6-27B-int4, single-stream decode | **~127.4 tok/s** (+46 %) |
-| Context, hardware-verified | **256K** |
-| Tool-call clean rate (35B / 27B) | **7/7 · 8/8** |
+| Qwen3.6-35B-A3B (MoE), single-stream decode | **~234 tok/s** (pin `dev714`, 2026-07-04, AWQ checkpoint; ≈1.5× stock vLLM — +53 % measured against a stock baseline on `dev148`, 2026-06-19) |
+| Qwen3.6-27B-int4, single-stream decode | **~127.4 tok/s** (+46 %; pin `dev148`, 2026-06-19) |
+| Context, served in production (35B) | **280K** |
+| Tool-call clean rate | **8/8** (35B, 2026-07-04) · **7/7** (27B, `dev148`) |
 
 Full methodology and per-rig reproduction: [`BENCHMARKS.md`](BENCHMARKS.md).
 What it is and how the overlay works: the project [`README`](../README.md).
@@ -54,6 +54,7 @@ clone instead of the installer? That path is in [`INSTALL.md`](INSTALL.md).
 | If you want to... | Read |
 | --- | --- |
 | Clone → first token, with the actual commands | [`QUICKSTART.md`](QUICKSTART.md) |
+| Use the browser GUI (`sndr up` / `sndr open`, port 8765) | [`GUI.md`](GUI.md) |
 | Drive everything from one keyboard screen (no commands to memorise) | [`TUI.md`](TUI.md) |
 | Understand local AI from scratch (hardware / engines / quants) | [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) |
 | Decode a term — TPS, KV, MTP, TurboQuant, GDN | [`GLOSSARY.md`](GLOSSARY.md) |
@@ -61,6 +62,7 @@ clone instead of the installer? That path is in [`INSTALL.md`](INSTALL.md).
 | Run on a single 3090 / 4090 | [`SINGLE_CARD.md`](SINGLE_CARD.md) |
 | Weigh self-host vs a cloud API | [`COMPARISONS.md`](COMPARISONS.md) |
 | Diagnose an out-of-memory, cliff, or boot failure | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) |
+| Quick answers — pins, patches, hardware, licensing | [`FAQ.md`](FAQ.md) |
 | See every `sndr` command | [`CLI_REFERENCE.md`](CLI_REFERENCE.md) |
 
 Stuck or have numbers from your own rig to share? Open a

@@ -1,17 +1,48 @@
 # Pin-Bump Playbook — candidate readiness without touching PROD
 
-Last updated: 2026-06-26 (pipeline v1 + Phase-4 anchor-SOT). **This is the
-canonical pin-bump doc.** Two companions: [`ANCHOR_SOT.md`](ANCHOR_SOT.md)
+Last updated: 2026-07-04 (pipeline v1 + Phase-4 anchor-SOT + `make
+bump-pin` one-command promotion). **This is the canonical pin-bump doc.** Two companions: [`ANCHOR_SOT.md`](ANCHOR_SOT.md)
 documents the per-pin anchor source-of-truth + `rebuild-pin` /
 `bump-preflight` tooling (the Phase-4 regen + bump-gate that runs alongside
 the §2 preflight and feeds the §7 promotion);
 [`guides/PIN_UPGRADE.md`](guides/PIN_UPGRADE.md) is the short policy +
 launcher-template summary that points here.
 
-> Current pin: `0.23.1rc1.dev424+g3f5a1e173` (`dev301` =
-> `0.23.1rc1.dev301+g04c2a8dea` = rollback; `dev148` dropped). The dev301 →
-> dev424 bump (2026-06-25) was the first to run the full Phase-4 anchor-SOT
-> path (`make rebuild-pin` → `make bump-preflight`) on top of this preflight.
+> Current pin: `0.23.1rc1.dev714+g09663abde` (`dev672` =
+> `0.23.1rc1.dev672+g93d8f834d` = rollback; stable slot: `v0.24.0`). The
+> single source of truth is [`sndr/pins.yaml`](../sndr/pins.yaml) — see §-1
+> below. The dev301 → dev424 bump (2026-06-25) was the first to run the
+> full Phase-4 anchor-SOT path (`make rebuild-pin` → `make bump-preflight`)
+> on top of this preflight; dev672 (2026-07-01) and dev714 (2026-07-02)
+> followed the same path.
+
+## -1. `sndr/pins.yaml` — the pin single source of truth
+
+Every pin string in this repo derives from **`sndr/pins.yaml`**. Fields:
+
+- `current` — the deployed nightly pin (`0.23.1rc1.dev714+g09663abde`).
+- `rollback` — the retained previous pin (`0.23.1rc1.dev672+g93d8f834d`),
+  per the ≤2-live-nightly-pin policy.
+- `stable_release` — the LTS bucket, the third slot in the pin policy
+  (`v0.24.0`).
+- `canonical_substring` — the `devNNN` token the drift-watcher version
+  gate greps for.
+- Derived handles for the current pin: `current_sha_short` /
+  `current_sha_full`, `current_image` (the explicit-hash
+  `vllm/vllm-openai:nightly-<full-sha>` tag), `current_container`, and
+  `current_anchor_dir` (under `sndr/engines/vllm/pins/`).
+
+The pin string used to be hand-copied into `guards.KNOWN_GOOD_VLLM_PINS`,
+audit-v2 `ALLOWED_MODELDEF_PINS`, `test_pin_gate.EXPECTED_PINS`,
+`CANONICAL_PIN_SUBSTRING`, ~11 model YAMLs and 3 hardware images —
+forgetting one gave a silent cross-artifact drift. Two commands close that
+class:
+
+- `make bump-pin NEW=<pin>` (`scripts/bump_pin.py`) — propagates a new pin
+  from the one string into every downstream artifact (§7).
+- `make audit-pin-consistency` (`scripts/audit_pin_consistency.py`, a
+  `make gates` member) — asserts the SSOT current pin is present in every
+  downstream list, so a half-finished bump fails loudly.
 
 End-to-end procedure for bumping the vLLM pin. The centerpiece is the
 **pin-bump preflight pipeline**: given a CANDIDATE image already present
@@ -27,6 +58,11 @@ Tools:
 | Read-only verdict engine | `tools/pin_preflight.py` (or `make preflight`) |
 | Upstream merge-state triage | `scripts/audit_upstream_status.py` |
 | Anchor drift vs upstream clone | `tools/check_upstream_drift.py` (daily CI) |
+| Anchor-SOT regen + bump gate | `make rebuild-pin` / `make bump-preflight` (`scripts/anchor_sot/`, see [`ANCHOR_SOT.md`](ANCHOR_SOT.md)) |
+| One-command bump readiness | `scripts/anchor_sot/new_pin_check.py` (coverage sanity + `summarize_rej` + `bump_preflight` vs the auto-resolved previous pin) |
+| Fleet dynamic boot gate (§5a) | `scripts/anchor_sot/fleet_boot_smoke.sh` (`make fleet-boot-smoke`) |
+| Promotion propagation (§7) | `scripts/bump_pin.py` (`make bump-pin NEW=<pin>`) |
+| Cross-artifact sync gate (§7) | `scripts/audit_pin_consistency.py` (`make audit-pin-consistency`) |
 | Gate tests | `tests/unit/dispatcher/test_pin_gate.py` |
 
 ---
@@ -260,18 +296,48 @@ same prompt set.
 against the YAML `reference_metrics` (canonical methodology ONLY —
 custom scripts carry a 5-25% systematic offset). One config at a time.
 
-## 7. Promotion
+## 7. Promotion — `make bump-pin` is the canonical step
 
-Only after steps 2-6 are clean:
+Only after steps 2-6 are clean. The propagation that used to be five
+hand-edits is now **one command** (idempotent — safe to re-run):
 
-1. Add the pin to `KNOWN_GOOD_VLLM_PINS` in
-   `sndr/engines/vllm/detection/guards.py` (full version string +
-   comment naming the bench config + date).
-2. **Paired update**: `EXPECTED_PINS` in
-   `tests/unit/dispatcher/test_pin_gate.py` — the drift trap fails CI
-   otherwise. Run `make test-pin-gate`.
-3. Bump `vllm_pin_required` in the model YAMLs, README badge, CHANGELOG.
-4. **Bump the `applies_to.vllm_version_range` upper bounds** for
+```bash
+make bump-pin NEW=0.23.1rc1.devNNN+g<sha>    # add DRY=1 for a dry run
+# equivalent: python3 scripts/bump_pin.py 0.23.1rc1.devNNN+g<sha>
+```
+
+What it propagates from the one pin string:
+
+1. `sndr/pins.yaml`: `current` → NEW, previous current → `rollback`, and
+   refreshes `canonical_substring` / `current_sha_short` /
+   `current_anchor_dir` / `current_image` / `current_container`.
+2. `scripts/audit_v2_runtime_pins.py`: `CANONICAL_PIN_SUBSTRING` → the new
+   `devNNN`.
+3. Every vLLM model YAML: `vllm_pin_required` → NEW (llama.cpp null lanes
+   skipped).
+4. Appends NEW to `guards.KNOWN_GOOD_VLLM_PINS`
+   (`sndr/engines/vllm/detection/guards.py`), `ALLOWED_MODELDEF_PINS`, and
+   `test_pin_gate.EXPECTED_PINS` if absent (with a dated "validate me"
+   comment). Run `make test-pin-gate` to confirm the paired update.
+
+Then the two steps its docstring keeps deliberately manual:
+
+1. `make rebuild-pin SSH_HOST=… [CONTAINER=…] [IMAGE=…]` — regenerate the
+   per-pin anchor manifest on the rig (the manifest's `pins.vllm` must
+   equal the new pin; see [`ANCHOR_SOT.md`](ANCHOR_SOT.md)).
+2. `make audit-pin-consistency` — the cross-artifact sync gate
+   (`scripts/audit_pin_consistency.py`): asserts the SSOT current pin is
+   present in `KNOWN_GOOD_VLLM_PINS` / `ALLOWED_MODELDEF_PINS` /
+   `EXPECTED_PINS` / `CANONICAL_PIN_SUBSTRING` / every builtin model YAML,
+   and that the anchor dir exists and the rollback pin stays known-good.
+   Exit 1 lists the exact fix. It is a `make gates` member, so CI catches
+   a half-finished bump too.
+
+Remaining manual editorial steps (not covered by `bump_pin.py`):
+
+1. README badge + CHANGELOG entry.
+2. Hardware `image_digest` (content-addressed — capture separately).
+3. **Bump the `applies_to.vllm_version_range` upper bounds** for
    patches validated on the new pin. Evidence bar (iron rule #11 —
    no blanket bumps): a patch earns a bump only with boot-log proof
    of `applied` (or `already applied (marker present)`) on the new
@@ -281,7 +347,6 @@ Only after steps 2-6 are clean:
    `<0.23.0`) / 7 disabled-by-env (caps kept — they honestly record
    the last validated window) / 1 upstream-merged PN90 (cap kept —
    intentional retirement gate, double-defended by its drift marker).
-5. Regenerate the anchor manifest (pins.vllm must equal the new pin).
 
 ## 8. Tag rotation (pin policy)
 

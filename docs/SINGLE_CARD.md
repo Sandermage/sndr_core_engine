@@ -29,6 +29,18 @@ sndr preflight prod-qwen3.6-35b-balanced
 sndr preflight prod-qwen3.6-35b-balanced --fake-gpus "RTX 3090:24576:8.6"
 ```
 
+`sndr preflight` answers the *envelope* question (enough GPUs / VRAM floor /
+SM?). For the byte-level question — "at THIS context and concurrency, how many
+GB per card, and what's the largest context that still fits my single card?" —
+use the projector:
+
+```bash
+sndr kv-calc <preset> --fake-gpus "RTX 3090:24576:8.6"   # per-card GB + PASS/TIGHT/FAIL
+sndr kv-calc --fit-all --fake-gpus "RTX 3090:24576:8.6"  # whole catalog + MAX-CTX-FIT per preset
+```
+
+See [`KV_PROJECTOR.md`](KV_PROJECTOR.md) for the math and its calibration.
+
 On a single 24 GB card the 2× prod presets answer plainly:
 
 ```
@@ -71,15 +83,20 @@ vLLM session degrades to 0 throughput / 500s after a handful of turns —
 regardless of which single-card vLLM config you pick. Mem-util tuning, MTP-off,
 and `max-num-batched-tokens` adjustments **do not close it** (all tested).
 
-> ⚠️ **PN59 does not close Cliff 2b on consumer Ampere (yet).** Genesis ships
-> `GENESIS_ENABLE_PN59_STREAMING_GDN` (streaming-GDN window-iterative driver) and
-> it survives continuous soak on the **2× A5000** rig, but on single-card 24 GB
-> its eligibility gate rejects the `chunk_indices`/`chunk_offsets`-populated path
-> that vLLM's mandatory `--max-num-batched-tokens` always sets — so it falls back
-> to the vanilla path and OOMs at the same site. Tracked with a reproducer and
-> fix proposals in [genesis #22](https://github.com/Sandermage/sndr_core_engine/issues/22)
-> (cross-rig finding originally surfaced by club-3090). Until that lands, the
-> escape hatches below are the recommendation, not a single-card vLLM tweak.
+> ⚠️ **PN59 does not close Cliff 2b on consumer Ampere (yet — status re-checked
+> 2026-07-04, pin `dev714`; [genesis #22](https://github.com/Sandermage/sndr_core_engine/issues/22)
+> is still OPEN).** Genesis ships `GENESIS_ENABLE_PN59_STREAMING_GDN`
+> (streaming-GDN window-iterative driver) and it survives continuous soak on the
+> **2× A5000** rig. On single-card 24 GB the original failure was the
+> eligibility gate rejecting the `chunk_indices`/`chunk_offsets`-populated path
+> that vLLM's mandatory chunked prefill always sets — silently falling back to
+> the vanilla path and OOMing at the same site. The driver has since grown a
+> three-mode gate (`GENESIS_PN59_STRICT_NO_METADATA` = `auto` VRAM-aware
+> default / `1` strict-reject / `0` always-engage) and WARN-level bypass
+> logging, but the issue remains open: Cliff 2b still fires on a 1× RTX 3090.
+> Tracked with a reproducer and fix proposals in genesis #22 (cross-rig finding
+> originally surfaced by club-3090). Until it closes, the escape hatches below
+> are the recommendation, not a single-card vLLM tweak.
 
 ### Why TP=2 escapes it (and why you can't fake it on one card)
 
@@ -105,6 +122,16 @@ order-of-magnitude, not a Genesis-attested bench.
 | **llama.cpp + MTP** ⭐ | llama.cpp mainline (MTP merged [ggml-org/llama.cpp#22673](https://github.com/ggml-org/llama.cpp/pull/22673)) | ~200K (`-ub 512`) | ~51 / ~60 | hand-written CUDA DeltaNet + ggml flat allocator (no caching-allocator fragmentation) | bulletproof default, IDE agents, long multi-turn |
 | **llama.cpp + MTP + vision** | llama.cpp + mmproj | ~49K (mmproj eats headroom) | ~57 / ~66 | same; drop `-ub 1024 → 512` to trade ~10% TPS for ~4× ctx | screenshot-debugging / vision review |
 | **ik_llama + IQ4_KS + two-stage** ⭐ | ik_llama.cpp (advanced-quant fork) | ~200K | ~59 / ~98 (code +35% vs MTP-only) | two-stage **ngram + MTP `n_max=4`**: ngram drafts the repetitive code structure, MTP drafts the rest; leanest VRAM | code-heavy single-card, max speed |
+
+> **In-repo path:** the llama.cpp + MTP hatch ships as a builtin preset —
+> `llamacpp-qwen3.6-27b-q4km-1x` (Qwen 3.6 27B Q4_K_M GGUF, 131K ctx @
+> `-ub 1024`, MTP n=2, single 24 GB card). `sndr launch
+> llamacpp-qwen3.6-27b-q4km-1x --dry-run` renders the `llama-server` docker
+> command; `sndr kv-calc` projects its fit like any vLLM preset. Status
+> **experimental**: the lane is wired end-to-end (render + preflight + GUI),
+> but a live boot needs the MTP-enabled GGUF downloaded on your rig, and
+> `llama-server` has no first-class tool-call extraction (the preset denies
+> tool-call workloads).
 
 **The two knobs that matter on these paths** (surfaced in club-3090's testing):
 

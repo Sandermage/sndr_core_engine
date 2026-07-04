@@ -10,10 +10,11 @@ the end of every section). This page is the connective tissue: enough
 to get unstuck without context-switching, but not a replacement for
 the per-topic deep-dives.
 
-> Stack as of 2026-06-25:
+> Stack as of 2026-07-04:
 > Genesis `v12.0.0` (325 PATCH_REGISTRY entries) ·
-> vLLM `0.23.1rc1.dev424+g3f5a1e173` (previous / rollback: `dev301` =
-> `0.23.1rc1.dev301+g04c2a8dea`) · Reference rig: 2× RTX A5000 24 GB ·
+> vLLM `0.23.1rc1.dev714+g09663abde` (previous / rollback: `dev672` =
+> `0.23.1rc1.dev672+g93d8f834d`; stable track: `v0.24.0` — SSOT:
+> `sndr/pins.yaml`) · Reference rig: 2× RTX A5000 24 GB ·
 > driver ≥ 580.126 · CUDA 13.
 
 ## 1. What you are running
@@ -28,19 +29,28 @@ hardware. Patches retire automatically when upstream merges the
 underlying fix; the dispatcher keeps a registry, a per-pin
 applicability window, and an audit trail.
 
-Four practical entry points exist:
+Five practical entry points exist:
 
 | Layer | Command | When to use |
 | --- | --- | --- |
+| **Product / beginner** | `sndr run`, `sndr up` / `open` / `down`, `sndr chat`, `sndr tui`, bare `sndr` (wizard) | Zero-config path: auto-pick a model, chat, or drive the browser GUI / TUI cockpit. |
 | **Installer** | `install.sh` | First setup on a fresh host. |
-| **Launcher** | `sndr launch <preset>` | Boot any preset (V1 monolithic or V2 alias). |
+| **Launcher** | `sndr launch <preset>` | Boot a specific V2 preset by name (or via the interactive fit-ranked wizard). |
 | **Configs** | `sndr model-config` + `sndr config` | Inspect, edit, scaffold, validate presets. |
 | **Patches** | `sndr patches`, `sndr/engines/vllm/patches/` | Browse the catalogue, author new ones. |
 
-Everything else (`sndr doctor`, `sndr verify`, `sndr memory`,
-`sndr deps`, `sndr upstream`, …) is operator instrumentation around
-these four. The full subcommand list is `sndr --help`; per-subcommand
-detail is [`CLI_REFERENCE.md`](CLI_REFERENCE.md).
+The v12 beginner verb map, in the order you are likely to need it:
+`sndr run` (resolve → pull → launch → chat), `sndr up` / `sndr open` /
+`sndr down` (engine + GUI on port 8765), `sndr chat` (REPL against a
+running engine), `sndr tui` (terminal cockpit), `sndr preset
+list/explain/recommend` (discovery), `sndr pull` / `sndr list-models`
+(weights), `sndr fit` / `sndr kv-calc` / `sndr preflight` (will it fit?),
+`sndr bench`, `sndr health`, `sndr pins list`.
+
+Everything else (`sndr doctor`, `sndr verify`, plus the legacy surface
+`python3 -m sndr.cli.legacy {memory,deps,upstream,…}`) is operator
+instrumentation around these. The full subcommand list is `sndr --help`;
+per-subcommand detail is [`CLI_REFERENCE.md`](CLI_REFERENCE.md).
 
 ---
 
@@ -72,7 +82,10 @@ working Genesis install in **3-5 minutes**.
    tip), or any `--pin <commit/tag>`.
 7. **Clone** — into `$SNDR_HOME` (default `~/.sndr`; legacy
    `$GENESIS_HOME` honoured). Idempotent: re-running pulls + resets.
-8. **Plugin install** — `pip install -e tools/genesis_vllm_plugin`.
+8. **Plugin install** — `pip install --no-deps -e .` of the **repo
+   root** (`install.sh` does exactly this; installing only the legacy
+   `tools/genesis_vllm_plugin` subdir is broken — see the warning in
+   [`INSTALL.md` § step 4](INSTALL.md)).
    Registers `vllm.general_plugins.genesis_v7` so vLLM auto-loads
    Genesis in main process + engine + every worker rank. Installs the
    `sndr` and `genesis` console scripts (the latter is the legacy
@@ -82,9 +95,10 @@ working Genesis install in **3-5 minutes**.
 10. **Launch script generation** — picks a preset for your detected
     `(GPU × workload)` combo and writes a runnable launch script
     under `$SNDR_HOME/launch/`.
-11. **Smoke verify** — runs `sndr verify --quick`, which loads a tiny
-    model and fires 10 inferences. Non-fatal: failure prints a
-    diagnostic hint, install still completes.
+11. **Smoke verify** — runs `sndr verify --quick`: fast static checks,
+    no GPU or model required (~3 seconds). Deeper checks are
+    `--boot` / `--full`. Non-fatal: failure prints a diagnostic hint,
+    install still completes.
 
 ### Invocation forms
 
@@ -98,7 +112,7 @@ curl -sSL .../install.sh | bash -s -- --pin dev --workload tool_agent -y
 # Manual clone path (no installer)
 git clone https://github.com/Sandermage/sndr_core_engine.git
 cd sndr_core_engine
-pip install -e tools/genesis_vllm_plugin
+pip install --no-deps -e .    # repo ROOT — not tools/genesis_vllm_plugin
 ```
 
 ### Flags
@@ -107,6 +121,7 @@ pip install -e tools/genesis_vllm_plugin
 | --- | --- |
 | `--pin <ref>` | `stable` / `dev` / any commit / tag / branch (default: stable). |
 | `--workload <name>` | `balanced` / `long_context` / `high_throughput` / `tool_agent`. |
+| `--models-dir <path>` | Host directory holding model weights / HF cache; exported as `GENESIS_MODELS_DIR` so the launcher can bind-mount it. |
 | `--home <path>` | Override `$SNDR_HOME`. |
 | `--python <bin>` | Override `python3`. |
 | `--no-verify` | Skip post-install smoke test. |
@@ -117,8 +132,8 @@ pip install -e tools/genesis_vllm_plugin
 | `-y` | Non-interactive (use defaults). |
 
 Env-var equivalents: `GENESIS_REPO`, `GENESIS_HOME`, `GENESIS_PIN`,
-`GENESIS_WORKLOAD`, `GENESIS_NON_INTERACTIVE`, `GENESIS_NO_VERIFY`,
-`GENESIS_NO_PLUGIN_INSTALL`, `PYTHON_BIN`.
+`GENESIS_WORKLOAD`, `GENESIS_MODELS_DIR`, `GENESIS_NON_INTERACTIVE`,
+`GENESIS_NO_VERIFY`, `GENESIS_NO_PLUGIN_INSTALL`, `PYTHON_BIN`.
 
 ### Recovery
 
@@ -145,32 +160,34 @@ boot summary.
 ### Day-to-day commands
 
 ```bash
-# Boot a preset
-sndr launch prod-qwen3.6-35b-balanced                  # V2 alias (3-pointer model+hw+profile)
-sndr launch prod-qwen3.6-35b-balanced   # canonical V2 preset (V1 keys retired in Phase 10)
+# Boot a preset (canonical V2 alias — 3-pointer model+hw+profile; V1 keys retired in Phase 10)
+sndr launch prod-qwen3.6-35b-balanced
+
+# No preset named + a TTY → interactive fit-ranked wizard
+sndr launch
 
 # Inspect the rendered command without booting
 sndr launch prod-qwen3.6-35b-balanced --dry-run
 
-# Preflight only — env, mounts, GPU, quant args coherent — no boot
-sndr launch prod-qwen3.6-35b-balanced --preflight-only
+# Preflight only — hardware envelope vs your rig — no boot
+sndr preflight prod-qwen3.6-35b-balanced
 
 # Override config port
 sndr launch prod-qwen3.6-35b-balanced --port 8101
-
-# Strict image digest mode — refuse to boot if local image ≠ preset's
-sndr launch prod-qwen3.6-35b-balanced --strict-image on
 ```
+
+The full launch flag set is `--port`, `--dry-run`, `--no-input`,
+`--all`, `--rig <hardware-id>`, `--fake-gpus <spec>` — see
+[`CLI_REFERENCE.md` → `sndr launch`](CLI_REFERENCE.md).
 
 ### What happens on boot
 
 1. **Resolve** the alias / key. V2 aliases resolve to a composed
    `ModelConfig` via `model + hardware + profile + runtime`
-   pointers. V1 keys are loaded directly from
-   `sndr/model_configs/builtin/*.yaml`.
+   pointers. (V1 monolithic keys were retired in Phase 10 and no
+   longer resolve.)
 2. **Preflight** — mount paths exist, GPU count matches preset,
-   declared vLLM pin matches `$VLLM_BUILD_COMMIT` (or the
-   `--strict-image` setting governs the response), quantization
+   declared vLLM pin matches `$VLLM_BUILD_COMMIT`, quantization
    args don't conflict, VRAM budget fits.
 3. **Render** — emit a `docker run …` (or `podman` / `bare_metal` /
    `kubernetes` / `lxc_proxmox`) command with every env var, mount,
@@ -414,7 +431,7 @@ To promote a preset's patches from `static_only` → `bench_with_baseline`:
 sndr patches prove --all
 
 # 2. Bench the live endpoint
-python3 sndr/extras/tools/genesis_bench_suite.py \
+python3 tools/genesis_bench_suite.py \
     --host localhost --port 8000 --api-key genesis-local \
     --model qwen3.6-27b --quick \
     --out tools/bench_results/<preset>_<date>.json
@@ -422,8 +439,8 @@ python3 sndr/extras/tools/genesis_bench_suite.py \
 # 3. Attach the bench measurements to every patch the preset enables
 python3 scripts/attach_bench_proof.py \
     --bench tools/bench_results/<preset>_<date>.json \
-    --preset prod-qwen3.6-27b-dflash-multiconc \
-    --baseline tests/integration/baselines/27b_dflash_multiconc.json
+    --preset prod-qwen3.6-27b-tq-k8v4 \
+    --baseline tests/integration/baselines/prod-27b-tq_gbf610c2f5_2026-05-23.json
 
 # 4. Gate the release on the subset
 sndr patches release-check \
@@ -433,7 +450,9 @@ sndr patches release-check \
 
 Tools involved:
 
-- `tools/genesis_bench_suite.py` — the canonical bench harness.
+- `tools/genesis_bench_suite.py` — the canonical bench harness (a
+  copy also ships under `sndr/extras/tools/`; the `tools/` path is
+  canonical).
 - `scripts/attach_bench_proof.py` — writes bench measurements into
   the proof JSON; with `--baseline` promotes the bucket from
   `bench_attached` → `bench_with_baseline`.
@@ -463,7 +482,7 @@ sndr model-config verify <preset>          # bench vs reference_metrics
 ```
 
 Detailed pass/fail diagnostics for each step:
-[`QUICKSTART.md` § 5](QUICKSTART.md).
+[`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 
 ---
 

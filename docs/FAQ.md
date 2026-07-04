@@ -25,9 +25,11 @@ variables.
 
 ### Q: Which vLLM pin does Genesis target today?
 
-`0.23.1rc1.dev424+g3f5a1e173` (current pin, v12.0.0, bumped 2026-06-25;
-`dev301` = `0.23.1rc1.dev301+g04c2a8dea` is the retained previous /
-rollback pin per the ≤2-pin policy). Each patch declares an `applies_to` range, so newer
+`0.23.1rc1.dev714+g09663abde` (current pin, v12.0.0, bumped 2026-07-02;
+`dev672` = `0.23.1rc1.dev672+g93d8f834d` is the retained previous /
+rollback pin). The pin policy is **two rolling nightly pins (current +
+rollback) plus one stable release pin** (`v0.24.0`); the single source of
+truth is `sndr/pins.yaml`. Each patch declares an `applies_to` range, so newer
 vLLM commits cause patches to print `[SKIP — applies_to mismatch]`
 rather than crashing. Bumping the pin is a deliberate release event
 documented in [`RELEASE_POLICY.md`](RELEASE_POLICY.md).
@@ -50,17 +52,23 @@ patches drifted before you boot.
 
 ### Q: How do I enable or disable an individual patch?
 
-Each patch is gated by a single environment variable:
-`GENESIS_ENABLE_P67=1` turns it on, unset or `=0` turns it off.
-The boot log prints every patch and its decision. There is no
-global "enable all" switch — by design.
+Each patch is gated by a single environment variable — the **full**
+registry name, e.g. `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1` turns
+P67 on, unset or `=0` turns it off. The suffix must match the registry
+`env_flag` exactly: short forms like `GENESIS_ENABLE_P67=1` are
+**silently ignored** (`sndr/env.py` has typo-detection that warns about
+near-miss names). The boot log prints every patch and its decision.
+There is no global "enable all" switch — by design.
 
 ### Q: Which patches are ON by default?
 
-About 53 of 325 entries are marked `default_on=True` in the
+56 of 325 entries are marked `default_on=True` in the
 registry — production-eligible Wave 10 backports + legacy
 pre-dispatcher overlays that have been validated against the
-v11 baselines. The full list is in [`PATCHES_AUTO.md`](PATCHES_AUTO.md);
+v11 baselines. Note that `default_on` is informational: the launcher
+still has to set the patch's env flag for it to fire (strict opt-in —
+see TROUBLESHOOTING.md Bug Class 12). The full list is in
+[`PATCHES_AUTO.md`](PATCHES_AUTO.md);
 the policy that decides which subset is allowed in production
 presets is in [PATCHES.md § patch-plan policy](PATCHES.md).
 
@@ -70,18 +78,19 @@ per-patch `default_on` flag; production launch scripts under
 
 ### Q: I have one RTX 3090 — what should I run?
 
-`Qwen3.6-27B-int4-AutoRound` from Lorbus, TP=1, context up to 32K,
-no prefix-caching, no DFlash. Run `sndr model-config list` to find
-a 1×24GB preset; the V2 alias `qa-qwen3.6-27b-tq-1x` is the
-closest validated starting point (V1 alias `a5000-1x-27b-int4-tested`
-retired 2026-06-01).
+`Qwen3.6-27B-int4-AutoRound` from Lorbus, TP=1. The validated
+single-card preset is `qa-qwen3.6-27b-tq-1x` (78K context with
+TurboQuant k8v4 KV cache). Run `sndr preset list` or
+`sndr preset explain qa-qwen3.6-27b-tq-1x` to see the full card;
+[`SINGLE_CARD.md`](SINGLE_CARD.md) has the deep-dive.
 
 ### Q: I have 2× 24 GiB cards — should I run 27B or 35B?
 
-Depends on workload. 35B-A3B-FP8 (MoE) wins on prose quality and
-broad-knowledge tasks; 27B-int4 wins on tool-call reliability, long
-context (320K validated), and raw TPS. If you primarily run
-agentic / tool-calling pipelines, start with 27B.
+Depends on workload. 35B-A3B (MoE) wins on prose quality and
+broad-knowledge tasks; 27B-int4 wins on tool-call reliability and
+long context (280K envelope since the 2026-05-15 trim; 320K was
+validated historically). If you primarily run agentic /
+tool-calling pipelines, start with 27B.
 
 ### Q: Is LoRA supported?
 
@@ -93,8 +102,8 @@ validated LoRA recipe exists. Try it and report results.
 
 Yes. Patch P61b adds a streaming overlap guard that fixes a slice
 bug in upstream Qwen3 streaming output. Enable
-`GENESIS_ENABLE_P61B=1` together with the rest of the tool-call
-family if you stream tool calls.
+`GENESIS_ENABLE_P61B_STREAMING_OVERLAP=1` together with the rest of
+the tool-call family if you stream tool calls.
 
 ### Q: Does tool-call work reliably?
 
@@ -105,6 +114,10 @@ multi-tool prompts, and streaming. Enable them together via the
 `tool_call_safe` recipe in [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
 
 ### Q: How do I download the DFlash draft model?
+
+> **Historical** — all 4 DFlash presets are archived as of v12
+> (pending re-validation); MTP K=5 is the shipped default. The
+> download info below applies only if you re-enable DFlash yourself.
 
 It's a gated HuggingFace repo (`z-lab/Qwen3.6-27B-DFlash`,
 `z-lab/Qwen3.6-35B-A3B-DFlash`). Accept the license on the model
@@ -132,7 +145,9 @@ image digest, and the symbolic-mount references before launching.
 
 ### Q: How do I add my own model to Genesis?
 
-See [`CONFIGS.md`](CONFIGS.md) for the full guide. Short version:
+The canonical guide is [`MODELS.md` § "Adding a model"](MODELS.md)
+(V2 layered schema); [`CONFIGS.md`](CONFIGS.md) covers the
+per-flag launch details. Short version:
 copy a base config via `sndr model-config new <key> --template
 <existing-key>`, update model path + env vars, test boot + tool-call
 sanity, submit PR with bench numbers.
@@ -146,12 +161,17 @@ vLLM #41306). On 2× A5000, Triton wins.
 
 ### Q: Why DFlash instead of MTP?
 
+> **Historical** — the DFlash presets are archived as of v12; the
+> shipped default is MTP with K=5 (`num_speculative_tokens: 5`,
+> re-tuned 2026-06-19). The comparison below reflects the pre-archive
+> measurements.
+
 DFlash is trained for code-heavy workloads and produces longer
 accepted runs on programming tasks. MTP is built into Qwen3.6
 itself and works better for chat/prose. Run both, measure
 acceptance rate on your real traffic, pick the winner. Genesis
-empirical numbers: MTP K=3 wins prose by ~30%, DFlash N=5 wins
-code by ~50%.
+empirical numbers (measured pre-archive): MTP K=3 won prose by ~30%,
+DFlash N=5 won code by ~50%.
 
 ### Q: Where do I see which patches were applied at boot?
 
@@ -183,8 +203,9 @@ emits a venv launch script.
 
 ### Q: How do I run Genesis on Kubernetes or Proxmox?
 
-`sndr service install <key>` now wires both backends end-to-end
-(audit C3 closure 2026-05-16). For k8s it renders a
+`python3 -m sndr.cli.legacy service install <key>` wires both
+backends end-to-end (audit C3 closure 2026-05-16; the `service`
+verb lives on the legacy CLI surface in v12). For k8s it renders a
 Deployment+Service+ConfigMap manifest under `~/.sndr/k8s/` and
 applies it with `kubectl apply` when invoked with `--yes`. For
 Proxmox it emits a runnable LXC bootstrap script under
@@ -193,9 +214,66 @@ passthrough + venv bootstrap + launch.sh in one pass.
 
 ### Q: How much performance should I expect over stock vLLM?
 
-On the Genesis reference rig (2× A5000, Qwen3.6-27B-int4) with the
-recommended patch set: roughly 25-40% TPS uplift versus the same
-vLLM commit with no patches, plus tool-call reliability
-improvements that don't show up in TPS numbers. Your numbers will
-differ by GPU and workload — always benchmark. The current
-canonical numbers are in [`BENCHMARKS.md`](BENCHMARKS.md).
+On the Genesis reference rig (2× A5000) with the recommended patch
+set: roughly **≈1.5× single-stream TPS** versus the same vLLM commit
+with no patches — measured +53% on 35B and +46% on 27B (`dev148`,
+2026-06-19) — plus tool-call reliability improvements that don't
+show up in TPS numbers. The latest canonical single-stream figure is
+**234.2 wall TPS** on the 35B PROD stack (pin `dev714`, 2026-07-04).
+Your numbers will differ by GPU and workload — always benchmark. The
+current canonical numbers are in [`BENCHMARKS.md`](BENCHMARKS.md).
+
+### Q: How do I use the GUI?
+
+```bash
+sndr up      # start the engine + the GUI daemon (port 8765)
+sndr open    # open http://127.0.0.1:8765 in your browser
+```
+
+The GUI (Control Center) has a first-run Setup wizard, a launch
+panel, a live patch summary, and a bench panel. It is auth-gated by
+default. Full manual: [`GUI.md`](GUI.md); security model:
+[`GUI_SECURITY.md`](GUI_SECURITY.md). Stop everything with
+`sndr down`.
+
+### Q: Where do model weights go, and how do I download them?
+
+`sndr pull <model>` downloads a curated model from HuggingFace and
+writes a launch script tailored to your rig (`sndr list-models`
+shows the catalogue; `sndr pull --models-dir <path>` overrides the
+target directory). At install time, `install.sh --models-dir <path>`
+(or the `GENESIS_MODELS_DIR` env var) records where your weights
+live; the launcher also reads `~/.sndr/host.yaml` (manage it with
+`python3 -m sndr.cli.legacy host init` / `... host doctor`) to
+resolve model mounts.
+
+### Q: What is the stable pin vs the nightly pin?
+
+Genesis tracks vLLM with **two rolling nightly pins** (current
+`0.23.1rc1.dev714+g09663abde` + rollback `0.23.1rc1.dev672+g93d8f834d`)
+plus **one stable release pin** (`v0.24.0`). The nightly current pin
+is what the PROD presets are validated against; the stable pin is the
+conservative LTS slot for operators who prefer tagged releases over
+nightlies. `sndr/pins.yaml` is the single source of truth, and
+`sndr pins list` shows what your install targets.
+
+### Q: Does it run on a single card, or without an NVIDIA GPU?
+
+Single card: yes — `qa-qwen3.6-27b-tq-1x` is the validated 1× 24 GB
+preset (78K context); see [`SINGLE_CARD.md`](SINGLE_CARD.md).
+Without an NVIDIA GPU: not today. Patches graceful-skip on AMD ROCm
+and Intel XPU rather than crash, but nothing is validated there, and
+the performance work (Triton kernels, TurboQuant, CUDA graphs)
+targets NVIDIA Ampere and newer. You can still install on a
+GPU-less host for offline preset browsing and `--fake-gpus`
+projections.
+
+### Q: Is Genesis free? What does the license gate do?
+
+Everything in this repo — `sndr/**`, tests, docs, bench data — is
+**Apache 2.0**. The Ed25519 license gate in `sndr/license.py` exists
+for a commercial engine overlay that is currently absent from the
+public tree; it does not restrict the community tier. Details:
+[`LICENSE_POLICY.md`](LICENSE_POLICY.md) and
+[`CORE_ENGINE_BOUNDARY.md`](CORE_ENGINE_BOUNDARY.md). Check your
+install's status with `python3 -m sndr.cli.legacy license status`.

@@ -11,12 +11,20 @@ over it — it adds no business logic.
   client parses human CLI stdout to infer state.
 - **Import-safe.** The package imports without FastAPI, torch, or vLLM at module
   top; heavy dependencies are imported lazily inside functions.
-- **Read-only.** No endpoint writes V2 YAML, the patch registry, or runtime
-  artifacts, and none runs a subprocess against a host. Apply endpoints produce
-  dry-run jobs. The only writes are operator-local (`$SNDR_HOME`): host
-  profiles, GUI settings, report bundles, the **auth store** under `$SNDR_HOME/auth`, and the **job/event
-  store** under `$SNDR_HOME/state`. The `/api/v1/auth/*` routes are the one
+- **Read-only by default, with explicitly gated exceptions.** No endpoint
+  writes V2 YAML, the patch registry, or runtime artifacts. Apply endpoints
+  produce dry-run jobs unless apply-mode is enabled. The only unconditional
+  writes are operator-local (`$SNDR_HOME`): host profiles, GUI settings, report
+  bundles, the **auth store** under `$SNDR_HOME/auth`, and the **job/event
+  store** under `$SNDR_HOME/state`. The `/api/v1/auth/*` routes are an
   intentional, isolated mutating surface (login, account + 2FA management).
+  Beyond that, three capabilities go past dry-run — each behind its own gate
+  (see [`docs/GUI_SECURITY.md`](GUI_SECURITY.md) for the full matrix):
+  - **Container lifecycle** (`/api/v1/containers/*` start/stop/restart) hits
+    docker/SSH directly — not a dry-run.
+  - **In-container exec** is disabled unless `SNDR_ENABLE_EXEC=1`.
+  - **Node install and model download** run real background jobs only under
+    apply-mode (`--enable-apply` / `SNDR_ENABLE_APPLY=1`); otherwise dry-run.
 - **JSON-safe.** Responses are frozen dataclasses serialized with
   `dataclasses.asdict`; the daemon coerces them to JSON.
 
@@ -31,6 +39,18 @@ generated from it (`gui/web` → `npm run gen:api`), and a contract guard
 (`npm run check:api` + a compile-time route assertion) catches drift.
 
 ## Route map
+
+> **Partial map — `/openapi.json` is canonical.** The daemon registers ~185
+> distinct `/api/v1/*` paths (v12.0.0, counted 2026-07); this section documents
+> the most-used groups only. Whole groups are intentionally left to the OpenAPI
+> document: alerts, baselines, `bench/run`, `calc/*` (the KV-projector API),
+> caveats, chat-RAG, config-keys, container lifecycle (local + per-host),
+> copilot, deploy, evidence, external, flags, fleet, host hardware, extended
+> host operations (discover/probe/ssh-check/terminal/…), install, k8s, license,
+> operations, extra patches routes, preflight, prompts, proxmox, routing,
+> system, tools, traces, and update. Build clients from the generated types
+> (`gui/web` → `npm run gen:api`), not from this page — the contract guard
+> (`npm run check:api`) is the drift-proof source.
 
 ### Status & platform
 

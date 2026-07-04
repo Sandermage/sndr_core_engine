@@ -12,6 +12,15 @@ whole-catalog projection mode). The per-family **calibration coefficients are OU
 OWN**, derived from OUR measured reality on 2× RTX A5000 24 GB, vLLM pin
 `0.23.1rc1.dev424+g3f5a1e173` — not copied from club-3090.
 
+> **Provenance note (2026-07):** `dev424` is the pin the calibration was
+> *captured* on, not a sign this doc is stale. The anchor is carried forward
+> unchanged onto the current pin (`0.23.1rc1.dev714+g09663abde`, see
+> `sndr/pins.yaml`); the anchor unit test
+> (`tests/unit/model_configs/test_kv_projector.py`) keeps the projection
+> pinned to the captured telemetry within 10 %. If a future pin changes
+> vLLM's KV block allocation, re-capture the live `num_gpu_blocks` anchor per
+> the promote instructions in the 27B section below.
+
 ## Paper anchors (provenance for the byte-level model)
 
 The byte-level model is paper-anchored, not curve-fit folklore:
@@ -233,6 +242,12 @@ kv-calc --fit-all  (which of my models fit which card / ctx?)
   * = calibration PROVISIONAL (no live engine anchor) — ±1.5 GiB.
   MAX-CTX-FIT = largest ctx that still PASS/TIGHT-fits that card at the preset's concurrency.
 ```
+
+The Gemma-4 rows show `? SKIP (no shape)` because their model YAMLs declare no
+`shape:` block yet — the projector refuses to guess rather than print an
+uncalibrated number. Declaring a Gemma-4 shape (and, ideally, a live anchor)
+follows the same promote path as the 27B section above; until someone does,
+`sndr preflight` remains the only fit signal for those presets.
 
 The `--fit-all` math is **reused, not duplicated**: every cell's verdict comes
 from the same `project_from_shape` / `project_llamacpp_from_shape` the

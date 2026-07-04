@@ -114,10 +114,10 @@ lower than GPU-only baseline; that's the expected trade.
 #### 4. Verify
 
 ```bash
-sndr verify <your-config-key>          # compare to reference_metrics
-sndr memory --live                     # live tier breakdown
-sndr patches pn95 status               # PN95 internal state
-sndr patches pn95 dump --json          # full dump for triage
+sndr model-config verify <your-config-key>       # bench vs reference_metrics
+python3 -m sndr.cli.legacy memory report --live  # live VRAM vs estimate
+sndr patches pn95-status                         # PN95 runtime stats + self-diagnosis
+sndr patches pn95-status --json                  # machine-readable dump for triage
 ```
 
 ### Configuration reference
@@ -158,9 +158,10 @@ sndr patches pn95 dump --json          # full dump for triage
   `host_ram_gib < 1.5 * tiers_cpu_capacity_gib`. Set
   `ulimit -l unlimited` or run inside Proxmox LXC with
   `memlock=unlimited`.
-- **MTP K=3 spec-decode.** The manager keeps the last
+- **MTP spec-decode (any K).** The manager keeps the last
   `2 × (num_spec + 1)` admit-order pages in a "hot ring" that refuses
-  demotion. This avoids the PCIe round-trip on the verify path.
+  demotion — e.g. 12 pages at the PROD K=5, 10 at K=4. This avoids
+  the PCIe round-trip on the verify path.
 - **Cudagraph capture.** Demote runs on a separate CUDA stream from
   cudagraph capture. `FULL_AND_PIECEWISE` mode is supported.
 
@@ -199,8 +200,10 @@ Research note. The Wave 10 bench on dev371 showed that **GDN
 prefill** structurally caps TTFT on conc=8 at ~237 ms (operator
 target 100–120 ms) and prevents per-token prefill cost from
 dropping below ~163 µs/tok on 35B-A3B-FP8. This appendix records
-the proposed fusion path; status is "monitor upstream, implement
-Phase 1 if upstream hasn't merged equivalent by 2026-06-01".
+the proposed fusion path. The original gate was "monitor upstream,
+implement Phase 1 if upstream hasn't merged equivalent by
+2026-06-01"; see the Decision section below for the 2026-07 status
+(gate expired, Phase 1 not implemented, re-evaluation pending).
 
 ### Problem — 6 sequential Triton kernels × 30 GDN layers
 
@@ -350,10 +353,10 @@ log for "Inductor cache miss" frequency, then measure TTFT/TPS.
    design be ported (without Hopper-specific instructions) to
    Ampere?
 
-### Decision: do-not-implement until pin ≥ v0.22.x
+### Decision: do-not-implement until pin ≥ v0.22.x (gate expired — see status)
 
-The current vLLM pin (`0.21.1rc0+g626fa9bba5`) is in active development;
-upstream may land equivalent fusion in the next few months.
+At the time of writing, the vLLM pin (`0.21.1rc0+g626fa9bba5`) was in
+active development; upstream might have landed equivalent fusion.
 Trade-off:
 
 - **Implement now**: 3–4 weeks of work, risk that upstream merges an
@@ -361,9 +364,21 @@ Trade-off:
 - **Wait for v0.22**: possible upstream fusion. Pin bump in v0.22.x
   = re-evaluation.
 
-**Decision.** Monitor upstream `vllm-project/vllm` GDN PRs until
-2026-06-01. If nothing has merged, implement Phase 1 (lowest risk,
-biggest win/effort ratio).
+**Original decision.** Monitor upstream `vllm-project/vllm` GDN PRs
+until 2026-06-01. If nothing has merged, implement Phase 1 (lowest
+risk, biggest win/effort ratio).
+
+**Status as of 2026-07-04.** The gate expired without Phase 1 being
+implemented. The pin has since moved well past the v0.22.x
+re-evaluation trigger (current: `0.23.1rc1.dev714+g09663abde`, see
+`sndr/pins.yaml`), and the registry still carries only PN50 (GDN
+projection fusion, SGLang#21019 backport — opt-in, OFF by default)
+as a fused piece; no Genesis full-prefill fusion patch has shipped.
+This appendix therefore stands as a research note pending an
+explicit re-evaluation against the current pin. Note: PN520
+(restore the imperative Qwen3.5/3.6 GDN weight loader — revert of
+vllm#47058, opt-in) is a **loader-compat** patch, unrelated to this
+prefill-fusion roadmap.
 
 ### Research sources
 
@@ -436,7 +451,9 @@ resp = openai.chat.completions.create(
 print(resp.choices[0].message.content)  # → "OK"
 ```
 
-`curl` equivalent:
+`curl` equivalent (port `8101` is the reference rig's 27B engine
+port — a local `sndr launch` serves on `8000` by default; adjust the
+host accordingly):
 
 ```bash
 curl -fsS -X POST http://localhost:8101/v1/chat/completions \
@@ -485,8 +502,8 @@ SDKs).**
 `tools/openai_smoke.py` enforces the content-not-null contract:
 
 ```bash
-make smoke-content                              # default: 127.0.0.1:8101
-HOST=http://your-host:8101 make smoke-content
+make smoke-content                              # default: 127.0.0.1:8101 (rig 27B engine port)
+HOST=http://127.0.0.1:8000 make smoke-content   # local sndr launch default port
 ENABLE_THINKING=false make smoke-content        # confirms V3 path
 ```
 
@@ -578,9 +595,6 @@ problems forced a hard rename in v11.0.0:
 
 - The name "Genesis" in documentation, banner, and wave numbers — it
   is the project's brand. Only the Python package was renamed.
-- **V1 monolithic model configs** (`a5000-2x-35b-prod.yaml`, ...) —
-  they still load and pass the same audit gate as V2. New configs
-  SHOULD use V2, but V1 is not forced to migrate.
 - **`~/.genesis/` legacy alias** for the config dir — existing
   operators don't have to move state.
 

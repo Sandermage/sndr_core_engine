@@ -40,6 +40,7 @@ Four panes on one screen:
 | `d` | **Doctor** — full system diagnostic (drops to the terminal, returns to the cockpit on exit) |
 | `c` | **Chat** with the running engine (drops to the terminal, returns on exit) |
 | `s` | **Settings** — set your model directory + Hugging Face token (applied now and remembered for next time) |
+| `/` | **Filter** the catalog — type to narrow by preset id (case-insensitive substring), `Esc` to clear |
 | `r` | Refresh the engine + catalog |
 | `?` | Help overlay |
 | `q` | Quit |
@@ -63,6 +64,13 @@ would fit:
 
 ```bash
 sndr tui --fake-gpus 'RTX A5000:24564:8.6'
+```
+
+Or plan against a named builtin rig definition instead of the detected
+hardware (offline — e.g. for a demo on a GPU-less box):
+
+```bash
+sndr tui --rig a5000-2x-24gbvram-16cpu-128gbram
 ```
 
 ## Next

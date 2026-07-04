@@ -26,10 +26,47 @@ curl -sSL .../install.sh | bash -s -- --bare-metal
 After bootstrap:
 
 ```bash
-sndr launch prod-qwen3.6-35b-balanced --dry-run    # render + preview
+sndr run                                   # simplest: auto-pick a model → pull → launch → chat
+sndr launch prod-qwen3.6-35b-balanced --dry-run    # preset-explicit path: render + preview
 sndr launch prod-qwen3.6-35b-balanced              # apply patches + exec vllm
 sndr doctor                                # full system diagnostic
 sndr verify                                # post-apply smoke
+```
+
+`sndr run` (or `sndr up` for the browser GUI on port 8765) is the
+recommended first command — it matches [`QUICKSTART.md`](QUICKSTART.md).
+`sndr launch <preset>` is the preset-explicit path.
+
+### Installer flags
+
+| Flag | Effect |
+| --- | --- |
+| `--pin <ref>` | `stable` / `dev` / any commit / tag / branch (default: stable). |
+| `--workload <name>` | `balanced` / `long_context` / `high_throughput` / `tool_agent`. |
+| `--models-dir <path>` | Host directory holding model weights / HF cache; exported as `GENESIS_MODELS_DIR` so the launcher can bind-mount it. |
+| `--home <path>` | Override `$SNDR_HOME` (default `~/.sndr`). |
+| `--python <bin>` | Override `python3`. |
+| `--no-verify` | Skip post-install smoke test. |
+| `--no-plugin` | Skip the editable `pip install --no-deps -e <repo>` (PYTHONPATH-only mode). |
+| `--bare-metal` | Skip docker hints; print bare-metal `vllm serve` recipe. Auto-enabled on Proxmox VE 8.x. |
+| `--system` | Use system pip (default: `--user`). |
+| `--uninstall` | Remove Genesis + plugin entry point. |
+| `-y`, `--yes` | Non-interactive (use defaults). |
+
+The same table with env-var equivalents lives in
+[`USAGE.md` § Installer](USAGE.md).
+
+### host.yaml — telling the launcher where things live
+
+The launcher resolves model mounts through an optional host profile at
+`~/.sndr/host.yaml` (GPUs, model paths, runtimes). Manage it with the
+legacy CLI surface:
+
+```bash
+python3 -m sndr.cli.legacy host detect   # probe host, write nothing
+python3 -m sndr.cli.legacy host init     # write a starter host.yaml from detection
+python3 -m sndr.cli.legacy host doctor   # validate the current host.yaml
+python3 -m sndr.cli.legacy host show     # print it
 ```
 
 Behind the scenes the wizard runs 11 steps — see
@@ -51,8 +88,9 @@ cd sndr_core_engine
 docker pull vllm/vllm-openai:nightly
 
 # 3. Download Qwen3.6-35B-A3B-FP8 weights to a host path of your choice.
-#    Set MODELS_DIR in your host.yaml (or via $SNDR_HOME/host.yaml) so the
-#    model_config docker.mounts variable resolves correctly.
+#    Set MODELS_DIR in ~/.sndr/host.yaml so the model_config docker.mounts
+#    variable resolves correctly — see "host.yaml" in the quick start above
+#    (python3 -m sndr.cli.legacy host init).
 huggingface-cli download Qwen/Qwen3.6-35B-A3B-FP8 \
     --local-dir "$MODELS_DIR/Qwen3.6-35B-A3B-FP8"
 
@@ -75,7 +113,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 | Hardware | Validation status | Notes |
 |---|---|---|
-| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.0.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.23.1rc1.dev424+g3f5a1e173`) | Default config targets this |
+| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.0.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.23.1rc1.dev714+g09663abde`) | Default config targets this |
 | 1× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-27b-single-3090) | Same SM 8.6 family |
 | 2× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-dual-3090) | TP=2 PCIe Gen4 (no NVLink) |
 
@@ -84,7 +122,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 - **GPU**: NVIDIA Ampere SM 8.0+ (A100, A5000, A6000, RTX 3090/3090Ti, A40)
 - **VRAM**: 24GB per GPU minimum (48GB total for default Qwen3.6-35B-A3B-FP8)
 - **CUDA**: **13.0** (current vLLM nightly ships with PyTorch 2.11+cu130)
-- **Driver**: **NVIDIA ≥ 580.126.09 REQUIRED** as of v7.48 (2026-04-27). Driver 570 still loads but PyTorch falls into compat mode → ~3× slower decode. Install via `apt install nvidia-driver-580-server` on Ubuntu 24.04, then reboot. See [`scripts/launch/README.md`](../scripts/launch/README.md) for the full version matrix.
+- **Driver**: **NVIDIA ≥ 580.126.09 REQUIRED** (v12.0.0; requirement in force since 2026-04-27). Driver 570 still loads but PyTorch falls into compat mode → ~3× slower decode. Install via `apt install nvidia-driver-580-server` on Ubuntu 24.04, then reboot. See [`scripts/launch/README.md`](../scripts/launch/README.md) for the full version matrix.
 - **System RAM**: 64GB+ (model weights need to be paged in)
 - **Disk**: ~40GB for FP8 model weights, +10GB for vLLM compile cache
 
@@ -197,8 +235,8 @@ This means:
 nvidia-smi
 # Look for: Driver Version >= 580.126.09 (REQUIRED), CUDA Version: 13.0, all GPUs visible, ECC OK
 
-# Verify NCCL (for TP>1)
-docker run --rm --gpus all nvidia/cuda:12.0-base nvidia-smi -L
+# Verify NCCL (for TP>1) — reuse the vLLM image you already pull, no extra tag needed
+docker run --rm --gpus all vllm/vllm-openai:nightly nvidia-smi -L
 
 # Verify model weights
 ls -lh ~/models/Qwen3.6-35B-A3B-FP8
@@ -225,10 +263,9 @@ Expected log progression:
 
 ```bash
 docker logs vllm-genesis 2>&1 | grep "Genesis Dispatcher"
-# Expect: 30+ APPLY lines, ~10 SKIP lines (opt-in patches not enabled, or platform mismatch)
-
-docker logs vllm-genesis 2>&1 | grep "applied" | wc -l
-# Expect: 35-37 active patches
+# Expect: applied=87 / skipped=166 / failed=0 on the current pin (dev714 boot
+# evidence, 2026-07-02). SKIP is normal — opt-in patches not enabled for this
+# preset, or platform/model mismatch. Only failed>0 is a problem.
 ```
 
 ### 6. Smoke test
@@ -245,7 +282,9 @@ curl -s http://localhost:8000/v1/completions \
   }'
 ```
 
-Expect ~127 tok/s (MTP default).
+Expect ~234 tok/s single-stream on the 35B PROD stack (MTP K=5; measured
+2026-07-04 on pin `dev714`, AWQ checkpoint — see
+[`BENCHMARKS.md`](BENCHMARKS.md)).
 
 ---
 
@@ -298,17 +337,20 @@ pip install --upgrade pip wheel setuptools
 
 ### 2. Install vLLM nightly
 
-Genesis is pinned to a specific vLLM nightly. Find the SHA / version that matches our [`Production baseline`](#quick-start-canonical-v1200) — currently `0.23.1rc1.dev424+g3f5a1e173` (`dev301` = `0.23.1rc1.dev301+g04c2a8dea` is the retained previous / rollback pin per the ≤2-pin policy).
+Genesis is pinned to a specific vLLM nightly. The single source of truth is
+[`sndr/pins.yaml`](../sndr/pins.yaml) — currently `0.23.1rc1.dev714+g09663abde`
+(current), `0.23.1rc1.dev672+g93d8f834d` (retained previous / rollback), plus a
+`stable_release` slot (`v0.24.0`) for operators who prefer tagged releases.
 
 ```bash
 # Option A — install from a specific nightly wheel (recommended if you can match)
-pip install --pre vllm==0.23.1rc1.dev424+g3f5a1e173 \
+pip install --pre vllm==0.23.1rc1.dev714+g09663abde \
   --extra-index-url https://wheels.vllm.ai/nightly
 
 # Option B — install from source at a specific commit
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
-git checkout 3f5a1e173  # match the SHA from Production baseline (dev424)
+git checkout 09663abde  # match the SHA from sndr/pins.yaml (dev714)
 pip install -e . --no-build-isolation
 cd ..
 
@@ -329,7 +371,7 @@ print(f'cuda available: {torch.cuda.is_available()}')
 print(f'cuda devices: {torch.cuda.device_count()}')
 "
 # Expect:
-# vllm 0.23.1rc1.dev424+g3f5a1e173
+# vllm 0.23.1rc1.dev714+g09663abde
 # torch 2.11.0+cu130 cuda=13.0
 # triton 3.6.0
 # cuda available: True
@@ -422,17 +464,18 @@ want to confirm `sndr.plugin:register` is on the entry-point list.
 > that subdir would leave `python3 -m sndr.apply` (step 6) unable to
 > import `sndr`. Install the repo root (step 3), not the subdir.
 
-### 5. Apply external probes (recommended)
+### 5. External probes (legacy — skip on v12 / current pin)
 
-Genesis depends on two startup probes that text-patch upstream vLLM:
-
-```bash
-# These run once per Python process startup; they are idempotent
-python3 tools/external_probe/patch_tolist_cudagraph.py
-python3 tools/external_probe/patch_40074_iooo.py
-```
-
-These can also be run once after install — they modify files in `$VLLM_DIR` directly.
+Older launch scripts ran two standalone probes
+(`tools/external_probe/patch_tolist_cudagraph.py`,
+`tools/external_probe/patch_40074_iooo.py`) before Genesis apply. Both are
+**redundant** on v12: they have proper registry equivalents (P78
+`GENESIS_ENABLE_P78_TOLIST_CAPTURE_GUARD` and PN14
+`GENESIS_ENABLE_PN14_TQ_DECODE_OOB_CLAMP`) that `sndr.apply` handles, with
+drift markers that self-skip if a probe already ran. Only
+`patch_pr40798_backport.py` is still probe-only — see
+[`tools/external_probe/README.md`](../tools/external_probe/README.md) for the
+per-file migration status before wiring any of them into a launch script.
 
 ### 6. Run `sndr.apply` (text-patches vLLM source)
 
@@ -494,7 +537,7 @@ pip install --force-reinstall --no-deps vllm
 vllm serve --model /path/to/Qwen3.6-35B-A3B-FP8 \
   --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.91 \
-  --max-model-len 262144 \
+  --max-model-len 280000 \
   --kv-cache-dtype turboquant_k8v4 \
   --max-num-seqs 2 \
   --max-num-batched-tokens 8192 \
@@ -505,7 +548,7 @@ vllm serve --model /path/to/Qwen3.6-35B-A3B-FP8 \
   --language-model-only \
   --trust-remote-code \
   --enable-auto-tool-choice \
-  --tool-call-parser qwen3_coder \
+  --tool-call-parser qwen3_xml \
   --reasoning-parser qwen3 \
   --api-key genesis-local \
   --served-model-name qwen3.6-35b-a3b \
@@ -540,7 +583,7 @@ python3 -m sndr.apply
 exec vllm serve --model "${MODEL_PATH:-/path/to/Qwen3.6-35B-A3B-FP8}" \
   --tensor-parallel-size 2 \
   --gpu-memory-utilization 0.91 \
-  --max-model-len 262144 \
+  --max-model-len 280000 \
   --kv-cache-dtype turboquant_k8v4 \
   --speculative-config '{"method":"mtp","num_speculative_tokens":5}' \
   --async-scheduling --performance-mode interactivity \
@@ -653,57 +696,25 @@ For more troubleshooting see the [`Troubleshooting`](#troubleshooting) section b
 
 ---
 
-## Environment variables — full reference
+## Environment variables — quick-start subset
 
-### Genesis enable/disable flags (opt-in patches)
-
-All Genesis patches are opt-in by default. Set the matching env var to `1` to enable.
+Genesis patches are strictly opt-in: each is gated by its **full** registry
+env flag (short forms are silently ignored — `sndr/env.py` warns on
+near-miss names). The six flags most quick-start setups touch:
 
 | Env var | Patch | What it does |
 |---|---|---|
-| `GENESIS_ENABLE_P58_ASYNC_PLACEHOLDER_FIX` | P58 | Async-scheduler `[-1]` placeholder fix (root cause for #40831) |
-| `GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY` | P59 | Backport of vllm#39055 (qwen3 reasoning embedded tool_call). **Currently superseded by upstream PR #35687 in our pin — keep disabled** |
-| `GENESIS_ENABLE_P60_GDN_NGRAM_FIX` | P60 | GDN+ngram SSM state recovery (Phase 1) |
-| `GENESIS_ENABLE_P60B_TRITON_KERNEL` | P60b | GDN+ngram conv state Triton kernel offset (Phase 2) |
+| `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL` | P67/P67b | TurboQuant multi-query kernel for spec-decode K+1 verify (proper fix for #40880) |
+| `GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM` | P70 | Auto-bump ngram `prompt_lookup_min ≥ 8` |
 | `GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL` | P61 | Qwen3 multi-tool first-occurrence (vs LAST in upstream) |
 | `GENESIS_ENABLE_P61B_STREAMING_OVERLAP` | P61b | Streaming partial-tag overlap guard |
-| `GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING` | P62 | Reasoning-aware grammar acceptance + spec-token validation |
-| `GENESIS_ENABLE_P63_MTP_GDN_STATE_RECOVERY` | P63 | **DEPRECATED** — kept only for archival diagnostics |
-| `GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING` | P64 | qwen3coder streaming early-return fix (vllm#39598 backport) |
-| `GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE` | P65 | Cudagraph downgrade for spec-decode (workaround; replaced by P67/P67b) |
-| `GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER` | P66 | Filter cudagraph_capture_sizes by spec-decode divisibility |
-| `GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL` | P67/P67b | TurboQuant multi-query kernel for spec-decode K+1 verify (proper fix for #40880, replaces P65) |
 | `GENESIS_ENABLE_P68_AUTO_FORCE_TOOL` | P68 | Auto-upgrade `tool_choice=auto → required` for long-ctx tool calls |
-| `GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER` | P69 | Append format reminder to last user msg on long-ctx |
-| `GENESIS_ENABLE_P70_AUTO_STRICT_NGRAM` | P70 | Auto-bump ngram `prompt_lookup_min ≥ 8` |
-| `GENESIS_ENABLE_P71_BLOCK_VERIFY` | P71 | Block-verify rejection sampler (Sun 2024) — opt-in experimental |
 | `GENESIS_ENABLE_P72_PROFILE_RUN_CAP` | P72 | Cap profile_run M to unblock `--max-num-batched-tokens > 4096` |
-| `GENESIS_ENABLE_P74_CHUNK_CLAMP` | P74 | Auto chunk-clamp via `long_prefill_token_threshold` (P72 companion) |
-| `GENESIS_ENABLE_P75_SUFFIX_DECODING` | P75 | Auto-swap `method=ngram → method=suffix` (Arctic Inference) |
-| `GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K` | P77 | Adaptive ngram K controller (EMA + hysteresis + auto-disable) |
 
-### Genesis tunable parameters
-
-| Env var | Default | Description |
-|---|---|---|
-| `GENESIS_TQ_MAX_MODEL_LEN` | (auto-detect) | TurboQuant max sequence length for buffer sizing. Set to `262144` for full 256K context. |
-| `GENESIS_PROFILE_RUN_CAP_M` | `4096` | P72: cap M passed to `_dummy_run` during profile_run |
-| `GENESIS_PREALLOC_TOKEN_BUDGET` | (uses scheduler config) | P73 central budget for all prealloc patches. Set to `4096` to keep prefill chunks safe with batched=8192 |
-| `GENESIS_GDN_MAX_BATCHED_TOKENS` | `4096` | P28: GDN core_attn_out prealloc size (back-compat — superseded by P73) |
-| `GENESIS_MOE_MAX_BATCHED_TOKENS` | `4096` | P37: MoE intermediate cache size (back-compat) |
-| `GENESIS_TQ_MAX_BATCHED_TOKENS` | `4096` | P26/P44: TurboQuant prealloc fallback (back-compat) |
-| `GENESIS_P67_USE_UPSTREAM` | `1` | P67: use upstream `triton_turboquant_decode` instead of our v7.22 kernel (drift-free) |
-| `GENESIS_P67_NUM_KV_SPLITS` | `32` | P67: multi-CTA parallelism for upstream path |
-| `GENESIS_P67_MAX_PRIOR_LEN` | `4096` | P67: threshold above which fall through to upstream (drift safety) |
-| `GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS` | `8000` | P68/P69: trigger threshold for long-ctx tool adherence patches |
-| `GENESIS_P77_STEPS` | `0,1,3,5` | P77: discrete K choices for adaptive controller (0 = disable spec) |
-| `GENESIS_P77_EMA_ALPHA` | `0.2` | P77: EMA smoothing factor |
-| `GENESIS_P77_DISABLE_THRESHOLD` | `0.30` | P77: accept rate below → drop to K=0 (no-spec) |
-| `GENESIS_P77_PROBE_INTERVAL` | `100` | P77: every N batches, force K>0 to retest acceptance |
-| `GENESIS_P75_TREE_DEPTH` | `24` | P75: suffix tree max depth |
-| `GENESIS_P75_SPEC_FACTOR` | `2.0` | P75: max draft length factor |
-| `GENESIS_P75_MIN_PROB` | `0.10` | P75: branch probability threshold for emission |
-| `GENESIS_P75_CACHE_REQS` | `10000` | P75: cross-request suffix-tree cache size |
+The full per-patch flag catalogue (all 325 registry entries) and every
+tunable parameter live in [`CONFIGURATION.md`](../docs/CONFIGURATION.md)
+and the auto-generated [`PATCHES_AUTO.md`](../docs/PATCHES_AUTO.md) —
+this file deliberately does not duplicate them.
 
 ### Standard vLLM env (for reference)
 
@@ -719,7 +730,7 @@ All Genesis patches are opt-in by default. Set the matching env var to `1` to en
 | `VLLM_MARLIN_USE_ATOMIC_ADD` | `1` | ~2% gain on Ampere Marlin reductions |
 | `VLLM_MOE_USE_DEEP_GEMM` / `VLLM_USE_DEEP_GEMM` | `0` | Hopper-only kernel path; force off on Ampere |
 | `VLLM_USE_FLASHINFER_MOE_FP8` | `0` | Not stable with TurboQuant; leave off |
-| `VLLM_ALLOW_LONG_MAX_MODEL_LEN` | `1` | Allow `--max-model-len 262144` |
+| `VLLM_ALLOW_LONG_MAX_MODEL_LEN` | `1` | Allow `--max-model-len 280000` |
 | `PYTORCH_CUDA_ALLOC_CONF` | `expandable_segments:True,max_split_size_mb:512` | Better fragmentation behavior under long-context dynamic shapes |
 | `NCCL_P2P_DISABLE` | `1` | A5000 doesn't have NVLink → P2P over PCIe is unreliable, use staged copy instead |
 | `OMP_NUM_THREADS` | `1` | Tight OMP usage; numba/Triton handles their own threading |
@@ -737,11 +748,12 @@ Use MTP. No env tweaks needed.
 # compose/prod-35b.yml (snippet — rendered by `sndr compose render`)
 command:
   - "exec vllm serve --model /models/Qwen3.6-35B-A3B-FP8
-     --speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":3}'
+     --speculative-config '{\"method\":\"mtp\",\"num_speculative_tokens\":5}'
      ..."
 ```
 
-Expected: 127 tok/s mean.
+Expected: ~234 tok/s single-stream mean (MTP K=5; measured 2026-07-04 on
+pin `dev714`, AWQ checkpoint).
 
 ### Scenario 2: Tool-call / agentic-heavy workload
 
@@ -824,7 +836,7 @@ Enable `GENESIS_ENABLE_P61_QWEN3_MULTI_TOOL=1` (FIRST occurrence vs upstream LAS
 
 ### Container stops cleanly responding mid-generation
 
-Check `docker logs --tail 200` for the actual exception. Common cause: model arch mismatch — confirm `--model` path points to a Qwen3.5 MoE variant. For dense Qwen3.6-27B use `compose/docker-compose.qwen3-5-dense.yml`.
+Check `docker logs --tail 200` for the actual exception. Common cause: model arch mismatch — confirm `--model` path points to a Qwen3.6 MoE variant. For the 27B (non-MoE hybrid) use `compose/prod-27b-tq.yml`.
 
 ---
 

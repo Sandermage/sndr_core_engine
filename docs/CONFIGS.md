@@ -8,11 +8,18 @@ If you're new to Genesis, read [../docs/QUICKSTART.md](../docs/QUICKSTART.md) fi
 > tier was fully retired 2026-06-01 (Phase 10 sunset, commit `607385f1`).
 > All operator-facing presets now live under the V2 layered triplet
 > in [`sndr/model_configs/builtin/`](../sndr/model_configs/builtin/):
-> **11 model defs · 3 hardware envelopes · 26 profiles · 24 presets**
-> (17 `prod-*` + 7 non-prod, all carded). Discover via
+> **12 model defs · 3 hardware envelopes · 15 profiles · 15 presets**
+> (9 `prod-*` + 6 non-prod, all carded; 11 more presets sit in
+> `_archive/`). Discover via
 > `sndr preset list` / `sndr preset recommend`; per-preset narrative
 > tables in [`PRESETS.md`](PRESETS.md). [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md)
 > remains as a placeholder stub pending a V2 inventory generator.
+>
+> **Scope split vs [`MODELS.md`](MODELS.md):** MODELS.md is the
+> model-side catalog (what ships, per-ModelDef facts); this guide is
+> the end-to-end recipe walkthrough (add a NEW model). Steps 1-5 here
+> intentionally overlap MODELS.md §"Adding a new model" — follow one
+> or the other, not both.
 
 ---
 
@@ -63,38 +70,38 @@ Write these five things down. The rest of this guide refers back to them.
 
 ## Step 2: Pick a V2 preset
 
-Genesis ships 24 V2 presets — 17 production-facing (`prod-*`) and 7 non-production (qa / example / experimental / bench_pending). All accessed via `sndr launch <preset-alias>`. The pre-V11 launch shell scripts (`start_*.sh`, `bare_metal_*.sh`) were retired during Phase 10 V1 sunset 2026-06-01 (commit `607385f1`); every shipped V1 monolithic YAML was deleted at the same time.
+Genesis ships 15 active V2 presets — 9 production-facing (`prod-*`) and 6 non-production (qa / example / experimental). All accessed via `sndr launch <preset-alias>`. The pre-V11 launch shell scripts (`start_*.sh`, `bare_metal_*.sh`) were retired during Phase 10 V1 sunset 2026-06-01 (commit `607385f1`); every shipped V1 monolithic YAML was deleted at the same time. Eleven older presets (the DFlash four, five Gemma K-variants, `long-ctx-qwen3.6-27b`, `experimental-qwen3.6-27b-tq-dflash-ab`) are archived under `builtin/presets/_archive/` — see [`PRESETS.md`](PRESETS.md) §Archived presets.
 
 Browse the catalog:
 
 ```bash
-sndr preset list                           # all presets
-sndr preset list --family qwen3.6          # filter by model family
-sndr preset list --workload free_chat      # filter by workload class
-sndr preset recommend --workload tool_call # ranked by workload fit
+sndr preset list                                 # all presets
+sndr preset list --family qwen3_6_27b_int4_tq    # filter by routing family
+sndr preset list --workload free_chat            # filter by workload class
+sndr preset recommend --workload tool_call.short # ranked by workload fit
 ```
 
 Pick the closest match to your hardware + workload:
 
 | Your situation | Preset |
 |---|---|
-| 2× 24 GB GPU, Qwen3.6-35B-A3B-FP8, single-stream | `prod-qwen3.6-35b-balanced` |
-| 2× 24 GB GPU, Qwen3.6-35B-A3B-FP8, multi-conc throughput | `prod-qwen3.6-35b-multiconc` |
+| 2× 24 GB GPU, Qwen3.6-35B-A3B, single-stream | `prod-qwen3.6-35b-balanced` |
+| 2× 24 GB GPU, Qwen3.6-35B-A3B, multi-conc throughput | `prod-qwen3.6-35b-multiconc` |
 | 2× 24 GB GPU, Qwen3.6-27B int4 TurboQuant k8v4 (long context) | `prod-qwen3.6-27b-tq-k8v4` |
 | 2× 24 GB GPU, Qwen3.6-27B int4 TurboQuant multi-conc | `prod-qwen3.6-27b-tq-multiconc` |
-| 2× 24 GB GPU, Qwen3.6-27B DFlash (coding agent) | `prod-qwen3.6-27b-dflash` or `prod-qwen3.6-27b-dflash-multiconc` |
-| 2× 24 GB GPU, Gemma 4 26B-A4B AWQ | `prod-gemma4-26b-default` (K=1) or `prod-gemma4-26b-mtp-k4` (K=4 structured) |
-| 2× 24 GB GPU, Gemma 4 31B TQ + MTP K=4 structured | `prod-gemma4-31b-tq-mtp-structured-k4` |
+| 2× 24 GB GPU, Gemma 4 26B-A4B AWQ | `prod-gemma4-26b-default` (K=1) or `prod-gemma4-26b-multiconc` (K=4 structured) |
+| 2× 24 GB GPU, Gemma 4 31B dense | `prod-gemma4-31b-tq-default` (K=1) or `prod-gemma4-31b-kvauto-chat` (K=3 chat, 32K) |
 | 1× 24 GB GPU, qa / smoke | `qa-qwen3.6-27b-tq-1x` |
+| 1× 24 GB card, max context on llama.cpp | `llamacpp-qwen3.6-27b-q4km-1x` |
 | Single 3090 community demo | `example-3090-dense-cpu-offload` |
-| Long-context probe (280K+, bench-pending) | `long-ctx-qwen3.6-27b` |
 
 Inspect a preset before launching:
 
 ```bash
 sndr preset show prod-qwen3.6-35b-balanced       # card + composed config
 sndr preset explain prod-qwen3.6-35b-balanced    # composed runtime + fallback
-sndr launch prod-qwen3.6-35b-balanced --preflight-only  # dry-run launch plan
+sndr preflight prod-qwen3.6-35b-balanced         # hardware-envelope gate (no exec)
+sndr launch prod-qwen3.6-35b-balanced --dry-run  # render the launch script only
 ```
 
 Launch:
@@ -103,21 +110,30 @@ Launch:
 sndr launch prod-qwen3.6-35b-balanced
 ```
 
-### Step 2b: Docker compose mirror (if you don't use the bash scripts directly)
+### Step 2b: Docker compose mirror (if you don't launch via `sndr` directly)
 
-If you deploy via Docker compose (rather than `bash scripts/...`), the
-bare-metal scripts won't run as-is inside the container — they expect
-`pip install`-writable layers. Mirror the env vars + flags into your
-compose's `environment:` and `command:` blocks. Reference: each
-`start_*.sh` script lists the full env-var set baked for that config —
-copy the `-e GENESIS_ENABLE_*` blocks into compose `environment:` and
-the `vllm serve` flags into `command:`.
+If you deploy via Docker compose, render the preset's authoritative
+launch artifacts instead of hand-copying env blocks:
 
-Worked compose snippet (27B + TQ k8v4 PROD, mirrors `scripts/start_27b_int4_TQ_k8v4.sh`):
+```bash
+sndr model-config render prod-qwen3.6-27b-tq-k8v4 --runtime docker   # rendered docker launch
+sndr launch prod-qwen3.6-27b-tq-k8v4 --dry-run                       # rendered launch script
+```
+
+The rendered output carries the full `GENESIS_ENABLE_*` env-var set +
+`vllm serve` flags composed from the V2 YAML triplet — mirror those
+into your compose's `environment:` and `command:` blocks. (The old
+`start_*.sh` scripts this section used to reference were retired
+2026-06-01.)
+
+Worked compose snippet (27B + TQ k8v4 PROD, abbreviated — regenerate
+the full env set with the render commands above):
 
 ```yaml
 services:
   vllm-27b:
+    # pin policy: prefer the explicit-hash tag from sndr/pins.yaml `current_image`
+    # (vllm/vllm-openai:nightly-09663abde...) over the mutable :nightly tag
     image: vllm/vllm-openai:nightly
     environment:
       GENESIS_ENABLE_P4: "1"
@@ -148,7 +164,8 @@ services:
       GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY: "1"
       GENESIS_ENABLE_PN17_FA2_LSE_CLAMP: "1"
       GENESIS_PREALLOC_TOKEN_BUDGET: "4096"
-      GENESIS_BUFFER_MODE: "shared"
+      GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY: "1"   # REQUIRED for MTP on INT4 TQ 27B
+      GENESIS_ENABLE_PN522_TQ_RAW_TAIL_WARMUP: "1"
     command:
       - --model
       - /models/Qwen3.6-27B-int4-AutoRound
@@ -157,11 +174,13 @@ services:
       - --tensor-parallel-size
       - "2"
       - --speculative-config
-      - '{"method":"mtp","num_speculative_tokens":3}'
-      # ... copy remaining flags from scripts/start_27b_int4_TQ_k8v4.sh
+      - '{"method":"mtp","num_speculative_tokens":4}'
+      # ... copy remaining flags from `sndr launch prod-qwen3.6-27b-tq-k8v4 --dry-run`
 ```
 
-The full source of truth for env vars is the `start_*.sh` script header — keep your compose in sync when Genesis updates the env-var set.
+The full source of truth for env vars is the composed V2 preset
+(`sndr launch <preset> --dry-run` / `sndr model-config render`) — keep
+your compose in sync when Genesis updates the env-var set.
 
 ---
 
@@ -183,8 +202,10 @@ Open the script and change these:
 
 # Spec-decode (pick one — see Step 1 for which methods YOUR model supports)
 --speculative-config '{"method": "ngram", "num_speculative_tokens": 5, "prompt_lookup_min": 2, "prompt_lookup_max": 5}'
-# or for MTP (REQUIRES the HF repo to carry mtp_* weight prefix — see Step 1 §4):
---speculative-config '{"method": "mtp", "num_speculative_tokens": 3}'
+# or for MTP (REQUIRES the HF repo to carry mtp_* weight prefix — see Step 1 §4).
+# PROD re-tunes: 35B runs K=5 (2026-06-19), 27B INT4 runs K=4 (2026-07-03 coherence sweep);
+# start at 3-4 and sweep for YOUR model:
+--speculative-config '{"method": "mtp", "num_speculative_tokens": 4}'
 # or for DFlash (REQUIRES separate z-lab drafter checkpoint download — see Step 1 §4):
 --speculative-config '{"method": "dflash", "model": "/path/to/dflash-draft", "num_speculative_tokens": 4}'
 # Note for DFlash on hybrid GDN models (Qwen3.6 family): vllm PR #40898 (DFlash SWA support)
@@ -277,9 +298,18 @@ export GENESIS_ENABLE_P67_TQ_MULTI_QUERY_KERNEL=1       # Genesis multi-query ke
 export GENESIS_ENABLE_P98=1                             # WorkspaceManager revert (vllm#40941 fix)
 export GENESIS_ENABLE_P101=1                            # TQ packed-slot layout
 export GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT=1      # ~600 MiB VRAM savings on draft
+
+# Required for TQ long-context correctness on the current pins (per the 27B/35B PROD YAMLs):
+export GENESIS_ENABLE_PN399_TQ_DECODE_SCRATCH_IMA=1     # TQ decode-scratch fixed buffer (IMA-safe FULL cudagraph)
+export GENESIS_ENABLE_PN401_TQ_PREFILL_CONTINUATION_GUARD=1  # TQ prefill continuation guard
+
+# Required for MTP × TQ on INT4 checkpoints (27B): without PN521, TQ×MTP
+# collapses into token repetition (4-bit-V spec-verify read-back, RCA 2026-07-02)
+export GENESIS_ENABLE_PN521_TQ_RAW_TAIL_VERIFY=1
+export GENESIS_ENABLE_PN522_TQ_RAW_TAIL_WARMUP=1
 ```
 
-**Recommended additional patches for TQ k8v4 PROD (per `start_27b_int4_TQ_k8v4.sh`):**
+**Recommended additional patches for TQ k8v4 PROD (per the `prod-qwen3.6-27b-tq-k8v4` model YAML `genesis_env`):**
 
 ```bash
 # Performance (composes with TQ k8v4)
@@ -308,10 +338,9 @@ export GENESIS_ENABLE_PN11_GDN_AB_CONTIGUOUS=1
 export GENESIS_ENABLE_PN13_CUDA_GRAPH_LAMBDA_ARITY=1
 export GENESIS_ENABLE_PN17_FA2_LSE_CLAMP=1
 export GENESIS_PREALLOC_TOKEN_BUDGET=4096
-export GENESIS_BUFFER_MODE=shared
 ```
 
-> **Note**: P82 (SGLang acceptance threshold OR-clause) is **OFF by default** on the 27B PROD launch — historical bench data showed it's biased on small batch single-stream Lorbus INT4 + MTP K=3. Enable via `GENESIS_P82_THRESHOLD_SINGLE=0.3 GENESIS_ENABLE_P82=1` only after A/B on your specific workload.
+> **Note**: P82 (SGLang acceptance threshold OR-clause) is **OFF by default** on the 27B PROD launch — historical bench data showed it's biased on small batch single-stream Lorbus INT4 + MTP (measured at the K=3 era). Enable via `GENESIS_P82_THRESHOLD_SINGLE=0.3 GENESIS_ENABLE_P82=1` only after A/B on your specific workload.
 
 ### Compile / cudagraph safety
 
@@ -327,7 +356,7 @@ See [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md) for the cliffs these patches a
 ## Step 5: First boot
 
 ```bash
-bash scripts/start_<your>.sh > boot.log 2>&1 &
+sndr launch <your-preset> > boot.log 2>&1 &
 tail -f boot.log
 ```
 
@@ -361,10 +390,8 @@ You should see a `tool_calls` field with `name: "get_time"` and `arguments: {"ci
 5. **Bench:**
 
 ```bash
-python tools/genesis_bench_suite.py \
-    --base-url http://localhost:8000/v1 \
-    --model my-model \
-    --runs 5
+sndr bench --port 8000 --model my-model --mode standard --runs 5
+# (the promoted surface; the underlying suite is tools/genesis_bench_suite.py)
 ```
 
 > **Bench input format:** the script ships with default `NARR_PROMPTS` (narrative / 600-char) and `CODE_PROMPTS` (code / ~80-char) lists targeting the Qwen3-Coder chat template. If your model has a different template (e.g. Llama-3 ChatML, Mistral instruct), edit the prompt lists in `tools/genesis_bench_suite.py` to match the format your tokenizer expects — wrong template causes the bench to look slow because every reply gets a "I cannot help with that" stop after a few tokens.
@@ -379,8 +406,8 @@ Common things to tweak after first boot:
 
 ### Slow
 
-- **Spec-decode acceptance low?** Try a different `num_speculative_tokens` (3 is a good default; 5 helps repetitive workloads, 2 helps prose).
-- **CPU dispatch overhead?** Set `VLLM_MOE_BACKEND=triton` for MoE models on v0.20+ (see Cliff 6 in [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md)).
+- **Spec-decode acceptance low?** Sweep `num_speculative_tokens` (3-4 is a good starting default; Genesis PROD re-tuned to K=5 on 35B and K=4 on 27B — but always verify OUTPUT COHERENCE at each K, not just token speed: the 27B K-sweep showed K=5 clocking fast degenerate output).
+- **CPU dispatch overhead?** Set `VLLM_MOE_BACKEND=triton` for MoE models (v0.20-era advice — re-verify on the current 0.23.x/0.24 pins before relying on it; see Cliff 6 in [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md)).
 - **Kernel sweep.** P67 BLOCK_KV / num_warps overrides via env: `GENESIS_P67_BLOCK_KV=64`, `GENESIS_P67_NUM_WARPS=4`. Sweep with `tools/genesis_bench_suite.py`.
 
 ### OOM
@@ -400,7 +427,7 @@ Common things to tweak after first boot:
 
 ### Quality regression
 
-- A/B with `GENESIS_DISABLE_ALL=1` to confirm the regression is patch-related.
+- A/B with `SNDR_DISABLE_BOOT_PATCHES=1` (skips the whole boot-time apply phase — stock vLLM) to confirm the regression is patch-related.
 - Bisect by disabling patch buckets one at a time.
 - Open an issue with the bisect result and a reproducer.
 
@@ -410,9 +437,9 @@ Common things to tweak after first boot:
 
 Once your recipe boots cleanly, passes a tool-call sanity check, and you have `n=5` bench numbers:
 
-1. **Add the launch script.** `scripts/start_<MODEL>_<KV>_<MODE>.sh`. Make sure it's executable and self-contained (no `source ../private_env.sh` referencing files outside the repo).
-2. **Update [../docs/MODELS.md](../docs/MODELS.md).** Add a row to the table with model name, GPU, KV dtype, expected TPS, and link to your script.
-3. **Open a PR.** Follow the [contributing guide](../docs/CONTRIBUTING.md) — include `tested-on` info and the bench output.
+1. **Add the V2 YAML triplet.** Contribute your ModelDef (and, if new, profile/preset YAMLs) under `sndr/model_configs/builtin/` — launch shell scripts are no longer accepted (retired 2026-06-01). `sndr model-config validate <key>` must pass.
+2. **Update [../docs/MODELS.md](../docs/MODELS.md).** Add a row to the table with model name, GPU, KV dtype, expected TPS, and your preset key.
+3. **Open a PR.** Follow the [contributing guide](../docs/CONTRIBUTING.md) — include `tested-on` info and the bench output. Community configs enter the `community-test → community-dev → community-prod` promotion ladder (`sndr model-config promote`).
 
 The maintainer reviews everything personally. Turnaround is usually 24-48 hours.
 
@@ -437,17 +464,17 @@ To show that generic patches work outside Qwen3-family, here's a minimal walkthr
 ### Build your own preset via the V2 layered triplet
 
 ```bash
-# 1. Add your model definition
-sndr config new model my-llama3-70b --based-on qwen3.6-35b-a3b-fp8
-sndr config edit model my-llama3-70b   # edit the generated YAML
+# 1. Scaffold a starter config (host-detect autofills the hardware section;
+#    --from-template copies a builtin as the starting point)
+sndr config new my-llama3-70b-prod --from-template prod-qwen3.6-35b-balanced
+# writes ~/.sndr/model_configs/my-llama3-70b-prod.yaml — edit it with any editor
+# (there is no `sndr config edit`; the file is plain YAML)
 
-# 2. Compose hardware × profile × model into a preset
-sndr config new preset my-llama3-70b-prod \
-  --model my-llama3-70b \
-  --hardware a5000-2x-24gbvram-16cpu-128gbram \
-  --profile qwen3.6-35b-balanced
+# alternative: probe this host and autofill hardware + system_env
+sndr config new my-llama3-70b-prod --from-detect
 
-# 3. Launch
+# 2. Validate, then launch
+sndr model-config validate my-llama3-70b-prod
 sndr launch my-llama3-70b-prod
 ```
 
