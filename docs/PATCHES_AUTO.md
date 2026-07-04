@@ -4,7 +4,7 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-07-03T22:08:44Z
+Generated: 2026-07-04T22:46:13Z
 Total entries: **325**
 
 ## Statistics
@@ -14,10 +14,10 @@ Total entries: **325**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **235**
+- `lifecycle=experimental`: **233**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
-- `lifecycle=retired`: **41**
+- `lifecycle=retired`: **43**
 - `lifecycle=stable`: **14**
 
 ### Default-on at boot: **56** / 325
@@ -271,7 +271,7 @@ Total entries: **325**
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
-| **PN8** | `community` | `experimental` | · | `GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT` | [#40849](https://github.com/vllm-project/vllm/pull/40849) | MTP/draft online-quant propagation (vllm#40849) |
+| **PN8** | `community` | `retired` | · | `GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT` | [#40849](https://github.com/vllm-project/vllm/pull/40849) | MTP/draft online-quant propagation (vllm#40849) |
 | **PN61** | `community` | `experimental` | · | `GENESIS_ENABLE_PN61` | — | qwen3_vl loader KeyError → text-only auto-fallback (vllm-loader guard) |
 | **PN379** | `community` | `experimental` | · | `GENESIS_ENABLE_PN379_LOAD_CONFIG_FAIL_FAST` | [#45196](https://github.com/vllm-project/vllm/pull/45196) | LoadConfig / DefaultModelLoader fail-fast validation (vendor of vllm#45196) |
 
@@ -417,7 +417,7 @@ Total entries: **325**
 | **PN127** | `community` | `experimental` | · | `GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE` | — | Qwen 3.5/3.6 enhanced chat-template auto-install (closes club-3090#53/#72) |
 | **PN288** | `community` | `experimental` | · | `GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE` | — | qwen3_coder tool_call finish_reason override — Phase B+C with length-band saf... |
 | **PN373** | `community` | `experimental` | · | `GENESIS_ENABLE_PN373_PARALLEL_TOOLCALLS_NULL` | [#44955](https://github.com/vllm-project/vllm/pull/44955) | parallel_tool_calls explicit null != false (vendor of OPEN vllm#44955) |
-| **PN387** | `community` | `experimental` | · | `GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS` | [#45346](https://github.com/vllm-project/vllm/pull/45346) | Reject degenerate structured_outputs (DoS guard, vendor of vllm#45346) |
+| **PN387** | `community` | `retired` | · | `GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS` | [#45346](https://github.com/vllm-project/vllm/pull/45346) | Reject degenerate structured_outputs (DoS guard, vendor of vllm#45346) |
 | **PN389** | `community` | `experimental` | · | `GENESIS_ENABLE_PN389_GRAMMAR_TIMEOUTS` | [#45390](https://github.com/vllm-project/vllm/pull/45390) | XGrammar input-validation + grammar-compilation timeouts (vendor of vllm#45390) |
 
 ### `spec_decode` (48)

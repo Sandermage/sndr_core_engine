@@ -37,9 +37,9 @@ added as a registry patch.
 | Tier=community (Apache 2.0, sndr) | **324** (all entries) |
 | Tier=engine (commercial, sndr_engine) | **0** (PN72 reclassified to community 2026-05-08; sndr_engine namespace reserved but empty) |
 | Default-on at boot | 56 |
-| Lifecycle=experimental | 235 |
+| Lifecycle=experimental | 233 |
 | Lifecycle=legacy (pre-dispatcher) | 28 |
-| Lifecycle=retired | 41 |
+| Lifecycle=retired | 43 |
 | Lifecycle=research | 3 |
 | Lifecycle=stable | 14 (G4_01, G4_02, G4_03, G4_04, G4_05 [retired], G4_09, G4_11, G4_12, G4_13, G4_14, G4_16, G4_23, G4_25, PN33, PN35 — ratchet active with `stable_kind` declared; see [CONTRIBUTING.md § Promoting a patch to lifecycle=stable](CONTRIBUTING.md#promoting-a-patch-to-lifecyclestable)) |
 | Lifecycle=coordinator | 4 (env-flag-only, no real binding) |
@@ -673,7 +673,7 @@ are typically **additive**.
 | **P75** Auto-enable Suffix Decoding | Arctic Inference workloads | Different acceptance heuristic. |
 | **P77** Adaptive ngram K controller | ngram only | We're on MTP. |
 | **P83 + P85** MTP keep-last-cached-block + hybrid fine-shadow prefix cache | If `--enable-prefix-caching` ON | PROD doesn't use prefix-caching (P83+P84+P85 stack regressed −29% in our 4-arm A/B). |
-| **PN8** MTP/draft online-quant propagation | FP8 + MTP only | No-op on offline-quant INT4 (Lorbus). −1066 MiB VRAM on 35B FP8. |
+| **PN8** MTP/draft online-quant propagation | RETIRED 2026-07-05 — do not enable | Anchor gone since dev672 (benign-skips); vllm#40849 still OPEN, feature NOT native. The historical "−1066 MiB on 35B FP8" applied on ≤dev424-era pins only. |
 
 ### spec_decode — deprecated
 
@@ -749,7 +749,7 @@ are typically **additive**.
 | P98 | 🟡 +1% noise | not yet tested | required for boot on hybrid+TQ | |
 | P99 + P101 | 🟢 PROD | 🟡 OFF | n/a | already optimised in baseline |
 | P83 + P84 + P85 | n/a | n/a | n/a | −29% regression with prefix-cache ON |
-| PN8 | 🟢 PROD (−1066 MiB) | 🟡 no-op (offline INT4) | 🟡 no-op (offline INT4) | online-quant only |
+| PN8 | 🔴 RETIRED 2026-07-05 (anchor gone ≥dev672; was −1066 MiB on ≤dev424 pins) | 🟡 no-op (offline INT4) | 🟡 no-op (offline INT4) | online-quant only; flags removed from composes/YAMLs |
 | PN11 | 🟢 PROD | 🟡 OFF | 🟡 OFF | hybrid defensive |
 | PN12 | 🟡 +0.16% noise | not yet tested | not yet tested | Cliff 1 fix |
 | PN13 | 🟡 +0.7% noise | not yet tested | not yet tested | Blackwell-targeted |

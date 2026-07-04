@@ -1356,9 +1356,26 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # Predicate enforced naturally by the patched function — when
             # spec-decode is off OR target is not online-quantized, the new
             # branch falls through identical to vanilla. No model gating.
+            # RETIRED cap (2026-07-05): imports anchor gone since dev672 —
+            # the patch cannot apply on >=dev672 (see lifecycle note below).
+            "vllm_version_range": "<0.23.1rc1.dev672",
         },
         "apply_module": "sndr.engines.vllm.patches.loader.pn8_mtp_draft_online_quant_propagation",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (post-release-audit remediation). NOT absorbed:
+        # vllm#40849 is still OPEN (gh pr view 2026-07-05, mergedAt null) and
+        # pristine dev748 get_draft_quant_config() is the vanilla
+        # non-inheriting form (no OnlineQuantizationConfig import in
+        # utils.py) — the dev672 CHANGELOG "native now" adjudication was a
+        # title-match-class error; only the IMPORTS anchor drifted (the
+        # QuantizationConfig import moved), so PN8 benign-skips since dev672.
+        # Retired as an unmaintained no-op stop-gap (no current lane runs
+        # online-quant + external draft); the enabled-'1' compose/YAML flags
+        # were VRAM-budgeting landmines ("saves ~1 GiB/rank" on a no-op).
+        # No supersession -> _RETIRED_NO_SUPERSEDE_WAIVER (meta-test).
+        # Re-vendor if #40849 merges or an FP8-target + external-draft
+        # stack lands (re-derive the imports anchor from the live pin).
+        "vllm_version_range": "<0.23.1rc1.dev672",  # anchor gone since dev672 (last applied dev424 era)
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "PN9": {
@@ -3118,7 +3135,13 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "serving",
         "env_flag": "GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS",
         "default_on": False,
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (post-release-audit remediation): vllm#45346
+        # MERGED 2026-06-30; the two guards are byte-identical NATIVE in
+        # pristine dev714 + dev748 (deep-diff outcome (a)). PN387 sat as an
+        # unexplained genuine_anchor_drift row for 3 pin manifests because
+        # its drift markers are patcher-level (classifier gap, audit #6).
+        # Provenance in superseded_by + the <dev714 range cap below.
+        "lifecycle": "retired",
         "category": "stability",
         "implementation_status": "full",
         "source": "vllm_pr_backport",
@@ -3152,8 +3175,9 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["P68", "P69", "PN16", "P109"],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
-        "vllm_version_range": (">=0.22.0", "<0.24.0"),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.1rc1.dev714")},
+        "vllm_version_range": (">=0.22.0", "<0.23.1rc1.dev714"),
+        "superseded_by": "vllm#45346 MERGED 2026-06-30 (merge commit ac521f62) — both guards byte-identical NATIVE in pristine dev714 AND dev748 sampling_params.py (docker-run greps on the rig images, 2026-07-05). Cap at <dev714 = earliest pin verified native (dev672 likely contains it too — merged before the dev672 pull — but its image is deleted, unverifiable). The Genesis Layer-2 edge guard was defence-in-depth over the same reject; the native validation-time fix already returns the 400.",
     },
     "PN388": {
         "title": "Mamba-block-aligned intermediate prefill split (vendor of vllm#45477)",

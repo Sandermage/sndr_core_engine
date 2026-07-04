@@ -1,6 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN387 — reject degenerate ``structured_outputs`` (vendor of vllm#45346).
 
+RETIRED 2026-07-05 (lifecycle: retired, capped <0.23.1rc1.dev714): vllm#45346
+MERGED 2026-06-30 (merge commit ac521f62) and both guards are byte-identical
+NATIVE in the pristine dev714 AND dev748 images (verified via docker-run greps
+on the rig, 2026-07-05 — deep-diff outcome (a)). The Layer-2 gateway-edge
+guard was defence-in-depth over the same reject; the native validation-time
+fix already returns the 400 at the frontend. Kept for reference / pins that
+predate the merge.
+
 LAYER 1 of 2 — the SOURCE OVERLAY (verbatim backport of PR #45346).
 The companion Layer 2 is the Genesis gateway-edge guard wired in
 ``sndr/engines/vllm/patches/middleware/edge_guard_reject_degenerate_structured_outputs.py``
