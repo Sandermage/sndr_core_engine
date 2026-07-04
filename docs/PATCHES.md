@@ -124,10 +124,12 @@ to community and ships in `sndr/engines/vllm/patches/<family>/` under Apache 2.0
 - **PN351** (experimental, `GENESIS_ENABLE_PN351`, vllm#43257) —
   Triton unified_attention head_dim≥512 tune (pre-existing patch,
   listed here for its July re-anchor). Its launch-variant anchor was
-  re-derived dual-variant during the dev714→dev748 preflight and the
-  dev748 variant battle-validated 2026-07-04 on the head_dim=512
-  Gemma4-31B kvauto-chat lane (fleet sweep: accept-rate 0.933 at K=3,
-  ~87 t/s — see [`BENCHMARKS.md`](BENCHMARKS.md)).
+  re-derived dual-variant during the dev714→dev748 preflight; the
+  2026-07-04 fleet-sweep exercise of the lane ran on **dev714** (stale
+  image_digest, post-release audit) — so the dual-variant anchor is
+  battle-validated on dev714 and preflight-verified on dev748
+  (fleet sweep, head_dim=512 Gemma4-31B kvauto-chat: window accept
+  0.728 at K=3, ~87 t/s — see [`BENCHMARKS.md`](BENCHMARKS.md)).
 
 ### Recent additions (v11.0 sprint — historical, 2026-05)
 

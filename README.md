@@ -35,7 +35,7 @@
 [How it works](#how-it-works) ·
 [The platform end-to-end](#what-the-platform-does-end-to-end) ·
 [Headline numbers](#headline-numbers-v1200-current-registry) ·
-[Fleet validation](#validated-across-the-fleet--7-models-one-pin-dev748-2026-07-04) ·
+[Fleet validation](#validated-across-the-fleet--7-models-2026-07-04-window-per-row-pins) ·
 [Persistent memory](#persistent-memory--neural-graph-new-in-v12) ·
 [Pick your path](#pick-your-path) ·
 [Install & run](#install--run) ·
@@ -223,7 +223,7 @@ CI gates:
 | **Pin lifecycle** | Three tracked slots — **current** / **rollback** / **stable** — with [`sndr/pins.yaml`](sndr/pins.yaml) as the single source of truth. `make bump-pin NEW=<pin>` (now with a `--sha-full` flag for the full commit SHA) propagates the string into every downstream artifact, and `audit_pin_consistency` fails loudly on a half-finished bump. Worked example — the dev714 → dev748 promotion (2026-07-04): preflight re-anchor → boot gate (fleet-wide apply `failed=0`) → bench gate (242.5 t/s, +3.5 % vs same-day dev714) → receipts → tag rotation. |
 | **Bench suite** | `tools/genesis_bench_suite.py` — the tool-call battery (thinking + non-thinking, multi-tool, error-recovery, denial), single-stream decode with CV methodology (n=25, CV reported with every number), an MTP accept-rate floor check (0.55), the **new ctx-scaling linearity stage** (`[5d/8]`, flags `--ctx-scale*`) that catches long-context decode cliffs, and an agentic multi-turn depth bench (12-turn tool-chains to 39K prompt tokens). |
 | **Interfaces** | GUI **Control Center** ([`docs/GUI.md`](docs/GUI.md)) · terminal **TUI** ([`docs/TUI.md`](docs/TUI.md)) · `sndr` **CLI** ([`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md)) — all driving the same product API: launch presets, live patch summary, benches, remote hosts, memory graph. |
-| **Model fleet** | Qwen3.6 **27B** (INT4 hybrid GDN+Mamba) and **35B** (AWQ / FP8 MoE), Gemma 4 **26B** and **31B**, and **DiffusionGemma 26B** (block-diffusion MoE) — all seven launchable lanes validated `failed=0` on the current pin (fleet table below). |
+| **Model fleet** | Qwen3.6 **27B** (INT4 hybrid GDN+Mamba) and **35B** (AWQ / FP8 MoE), Gemma 4 **26B** and **31B**, and **DiffusionGemma 26B** (block-diffusion MoE) — all seven launchable lanes validated `failed=0` in the 2026-07-04 sweep (per-lane pin labels in the fleet table below). |
 | **Memory** | The persistent neural-graph memory subsystem — one CPU container that gives any OpenAI-compatible model recall + decay/reinforcement (own section below; full manual in [`docs/memory/MANUAL.md`](docs/memory/MANUAL.md)). |
 
 ## Headline numbers (v12.0.0 current registry)
@@ -288,24 +288,27 @@ historical comparisons, and per-rig reproduction recipes:
 > context and labeled with its pin; the fresh dev748 headline above
 > supersedes it for the 35B PROD stack.
 
-### Validated across the fleet — 7 models, one pin (dev748, 2026-07-04)
+### Validated across the fleet — 7 models (2026-07-04 window; per-row pins)
 
-The strongest works-everywhere proof the project has: during the dev748
+The works-everywhere proof the project leans on: during the dev748
 promotion window **every launchable model in the catalog** was booted
-sequentially on the promoted pin (2× RTX A5000, TP=2), smoke-tested and
-mini-benched — and **all seven applied their patch sets with `failed=0`**.
-Condensed from the full sweep table in
-[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md):
+sequentially (2× RTX A5000, TP=2), smoke-tested and mini-benched — and
+**all seven applied their patch sets with `failed=0`**. Post-release
+audit correction (2026-07-05): rows marked * booted the **dev714
+rollback engine** (a stale hardware `image_digest` beat the dev748 tag
+at render; digest + gate since fixed), so their numbers are dev714
+numbers. Accept rates are bench-window rates. Condensed from the full
+sweep table in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md):
 
 | Model | Decode | Tool-call | Note |
 | --- | ---: | :-: | --- |
-| Qwen3.6-35B-A3B AWQ (PROD) | **242.5 t/s** | 7/7 | promotion gate, full canonical suite |
-| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | 231.2 t/s | ✓ | canonical `sndr launch` path; accept 0.728 |
-| Qwen3.6-27B INT4 TQ k8v4 (+PN520) | ~130 t/s | ✓ | PN520 loader fix — INT4 degeneration cured |
-| Qwen3.6-27B INT4 fp8kv (+P100) | ~108 t/s | — | P100 FlashInfer spec-decode runtime-validated |
-| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | ~140 t/s | ✓ | TPOT 7.12 ms |
-| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | ~87 t/s | ✓ | dev748 re-anchor on head_dim=512; accept 0.933 |
-| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | n/a | n/a | diffusion lane boots + responds; AR decode metrics not applicable |
+| Qwen3.6-35B-A3B AWQ (PROD) | **242.5 t/s** | 7/7 | promotion gate on dev748, full canonical suite |
+| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | 231.2 t/s | ✓ | canonical `sndr launch` path; window accept 0.627 * |
+| Qwen3.6-27B INT4 TQ k8v4 (+PN520) | ~130 t/s | ✓ | PN520 loader fix — INT4 degeneration cured (pin unattributed: fingerprint probe timed out) |
+| Qwen3.6-27B INT4 fp8kv (+P100) | ~108 t/s | — | P100 FlashInfer spec-decode runtime-validated on dev748 |
+| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | ~140 t/s | ✓ | TPOT 7.12 ms * |
+| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | ~87 t/s | ✓ | PN351 re-anchor on head_dim=512; window accept 0.728 * |
+| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | n/a | n/a | diffusion lane boots + responds; AR decode metrics not applicable * |
 
 (27B thinking mode loops — a known pre-existing model trait; chat is
 validated with `enable_thinking:false` and the tool-agent workload is

@@ -27,27 +27,40 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 >   regressor on dev371+).
 > - Attention: TurboQuant k8v4 KV cache + FlashAttention 2, TP=2.
 
-## Fleet sweep — every launchable model on pin dev748 (2026-07-04 window)
+## Fleet sweep — 2026-07-04 promotion window (per-row pin labels)
 
 Full-fleet validation during the dev748 promotion window: each model
-booted sequentially on the promoted pin (2× RTX A5000, TP=2), smoke-
-tested (chat + tool-call) and mini-benched (`--quick --runs 2`,
-decode-only). `failed=0` patch applies across the entire fleet.
+booted sequentially (2× RTX A5000, TP=2), smoke-tested (chat +
+tool-call) and mini-benched (`--quick --runs 2`, decode-only).
+`failed=0` patch applies across the entire fleet.
 
-| Model (preset / launcher) | Boot | Apply | Chat | Tool-call | decode_TPOT | Note |
-| --- | ---: | ---: | :-: | :-: | ---: | --- |
-| Qwen3.6-35B-A3B AWQ (PROD launcher) | 330 s | 87/0 | ✓ | 7/7 | **3.90 ms** (242.5 t/s) | promotion gate, full canonical suite |
-| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | 270 s | 86/0 | ✓ | ✓ | 4.10 ms (231.2 t/s) | canonical `sndr launch` path; accept 0.728 |
-| Qwen3.6-27B INT4 TQ k8v4 (+PN520) | 370 s | 84/0 | ✓¹ | ✓ | 7.68 ms (~130 t/s) | PN520 loader fix battle-validated: 96 `in_proj_ba` shards routed, degeneration gone |
-| Qwen3.6-27B INT4 fp8kv (+P100) | 320 s | 85/0 | ✓ | — | 9.22 ms (~108 t/s) | P100 FlashInfer spec-decode runtime-validated (coherent gen, 0 errors) |
-| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | 170 s | 56/0 | ✓ | ✓ | 7.12 ms (~140 t/s) | |
-| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | 230 s | 61/0 | ✓ | ✓ | 11.51 ms (~87 t/s) | PN351 dev748 re-anchor applied on head_dim=512; accept 0.933 |
-| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | 140 s | 39/0 | ✓² | n/a | n/a² | diffusion lane — AR decode metrics not applicable |
+> **Post-release audit corrections (2026-07-05).** (1) Four lanes
+> (35B FP8, Gemma4 26B/31B, DiffusionGemma) actually booted the **dev714
+> rollback engine**: a stale hardware `image_digest` won over the dev748
+> image tag at render (evidence: per-lane bench-JSON `system_fingerprint`;
+> the digest and its gate are fixed on the remediation branch). Those rows
+> carry a per-row **Pin** label instead of the original blanket "on dev748"
+> claim. (2) Accept rates are bench-WINDOW rates (`accept_rate_window` —
+> the definition the suite's floor check uses); the previously published
+> 0.933 (31B) and 0.728 (35B FP8) were pre-run scrape snapshots.
+
+| Model (preset / launcher) | Pin | Boot | Apply | Chat | Tool-call | decode_TPOT | Note |
+| --- | :-: | ---: | ---: | :-: | :-: | ---: | --- |
+| Qwen3.6-35B-A3B AWQ (PROD launcher) | dev748 | 330 s | 87/0 | ✓ | 7/7 | **3.90 ms** (242.5 t/s) | promotion gate, full canonical suite |
+| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | dev714 | 270 s | 86/0 | ✓ | ✓ | 4.10 ms (231.2 t/s) | canonical `sndr launch` path; window accept 0.627 (floor 0.55 PASS) |
+| Qwen3.6-27B INT4 TQ k8v4 (+PN520) | n/v³ | 370 s | 84/0 | ✓¹ | ✓ | 7.68 ms (~130 t/s) | PN520 loader fix battle-validated: 96 `in_proj_ba` shards routed, degeneration gone |
+| Qwen3.6-27B INT4 fp8kv (+P100) | dev748 | 320 s | 85/0 | ✓ | — | 9.22 ms (~108 t/s) | P100 FlashInfer spec-decode runtime-validated (coherent gen, 0 errors) |
+| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | dev714 | 170 s | 56/0 | ✓ | ✓ | 7.12 ms (~140 t/s) | |
+| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | dev714 | 230 s | 61/0 | ✓ | ✓ | 11.51 ms (~87 t/s) | PN351 re-anchor applied on head_dim=512; window accept 0.728 (floor 0.55 PASS) |
+| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | dev714 | 140 s | 39/0 | ✓² | n/a | n/a² | diffusion lane — AR decode metrics not applicable |
 
 ¹ 27B thinking mode loops (known club-3090 #226 model trait, pre-existing);
 chat validated with `enable_thinking:false`, tool-agent workload unaffected.
 ² Diffusion lane responds (`finish=stop`); the AR-oriented TPOT metric is
 meaningless for block-parallel diffusion generation.
+³ Pin not verifiable for the 27B TQ row: the bench JSON's fingerprint probe
+timed out and the run predates the dev748 gate window — treated as
+unattributed rather than claimed.
 
 Not swept: the two DFlash lanes (presets archived to
 `presets/_archive/` pending re-validation — restore to reproduce),
