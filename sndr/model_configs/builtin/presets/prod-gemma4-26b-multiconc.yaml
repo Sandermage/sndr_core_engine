@@ -101,7 +101,7 @@ card:
     tensor_parallel: 2                             # TP=2 across both A5000s
     requires_min_gpu_count: 2                      # AWQ MoE multi-conc KV pool needs both cards
     requires_min_cuda_capability: [8, 6]           # Ampere SM 8.6
-    engine_pin: 0.23.1rc1.dev714+g09663abde        # validated vLLM build
+    engine_pin: 0.23.1rc1.dev748+g2dfaae752        # validated vLLM build
   routing_family: gemma4_moe_26b_a4b
   default_for_family: false
   # Repointed in the 2026-06 canonical reorg: the previous K=1 multi-conc

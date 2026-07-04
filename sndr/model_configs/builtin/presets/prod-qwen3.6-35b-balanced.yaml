@@ -68,7 +68,7 @@ card:
     tensor_parallel: 2                             # TP=2 across both A5000s
     requires_min_gpu_count: 2                      # MoE FP8 weights + TQ KV pool need both cards
     requires_min_cuda_capability: [8, 6]           # Ampere SM 8.6 (A5000 / 3090 / 4090 class)
-    engine_pin: 0.23.1rc1.dev714+g09663abde        # validated vLLM build (matches model vllm_pin_required)
+    engine_pin: 0.23.1rc1.dev748+g2dfaae752        # validated vLLM build (matches model vllm_pin_required)
   routing_family: qwen3_6_35b_a3b_fp8
   default_for_family: true
   fallback_preset: prod-qwen3.6-35b-balanced

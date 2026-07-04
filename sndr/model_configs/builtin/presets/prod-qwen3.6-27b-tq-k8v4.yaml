@@ -55,7 +55,7 @@ card:
     tensor_parallel: 2                             # TP=2 across both A5000s — also escapes single-card Cliff 2b (docs/SINGLE_CARD.md)
     requires_min_gpu_count: 2                      # INT4 weights + TQ k8v4 KV pool at 262K need both cards
     requires_min_cuda_capability: [8, 6]           # Ampere SM 8.6 (PN26b sparse-V kernel is SM86-tuned)
-    engine_pin: 0.23.1rc1.dev714+g09663abde        # validated vLLM build
+    engine_pin: 0.23.1rc1.dev748+g2dfaae752        # validated vLLM build
   routing_family: qwen3_6_27b_int4_tq
   default_for_family: true
   # Single-card escape hatch (multi-engine Phase 1, 2026-06-27): a 1×24GB
