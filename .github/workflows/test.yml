@@ -65,12 +65,33 @@ jobs:
         #     fails fast with a traceback instead of letting the ~40-min
         #     suite drift into the GitHub job timeout. No legitimate test
         #     approaches the ceiling (slowest subprocess tests are <60s).
+        #   - fastapi + httpx + uvicorn — the product-API / GUI backend
+        #     HTTP+auth surface (tests/unit/product_api/**, ~150 tests in
+        #     ~30 modules incl. test_http_security / test_auth_http /
+        #     test_unified_gateway_auth / test_gui_contract) is guarded by
+        #     module-level `pytest.importorskip("fastapi")`. Post-release
+        #     audit 2026-07-04 finding #13: without these deps the whole
+        #     surface SILENTLY skipped in every CI leg since the
+        #     "FastAPI-optional CI" decision (91be9297, then 4 modules) —
+        #     "CI green" asserted nothing about the deployed GUI backend
+        #     or its auth. pydantic rides in as a fastapi dependency.
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-cov pytest-timeout packaging numpy PyYAML \
-              requests cryptography build tomli
+              requests cryptography build tomli \
+              "fastapi>=0.110" httpx "uvicorn[standard]>=0.27"
           pip install --index-url https://download.pytorch.org/whl/cpu \
               "torch>=2.0,<3.0"
+
+      - name: Guard — product-API / GUI test surface must be RUNNABLE
+        # Recurrence gate for audit finding #13: if a future dep cleanup
+        # drops fastapi/httpx/uvicorn from the install above, the
+        # product_api tests would go back to green-by-skip without anyone
+        # noticing (importorskip converts a missing dep into a silent
+        # skip). Failing THIS step turns that silent hole back into a red
+        # CI leg.
+        run: |
+          python -c "import fastapi, httpx, uvicorn, pydantic; print('product-API test deps present:', fastapi.__version__)"
 
       - name: Run tracked tests (compat + dispatcher + PN-family + scripts)
         run: |
