@@ -125,6 +125,15 @@ EXPECTED_PINS = (
     # previous/rollback; dev424 dropped per CLAUDE.md ≤2-pin policy.
     "0.23.1rc1.dev714+g09663abde",                       # setuptools_scm-derived
     "nightly-09663abde0f50944a8d5ea30120666024b503faa",  # docker tag form (full SHA)
+    # PROD pin PROMOTED 2026-07-04 — image nightly-2dfaae752 (0.23.1rc1.dev748
+    # +g2dfaae752, +34 commits over dev714). Operator-authorized bump, live 35B
+    # window: boot applied=87/skipped=166/failed=0 (identical to dev714), 242.55
+    # wall_TPS (+3.5% vs same-day dev714 234.16), 7/7 tool-call, MTP accept
+    # 0.653, ctx-scaling LINEAR_OK. The 2 anchor-drifted patches (P100/PN351)
+    # were re-anchored dual-variant pre-bump. dev714 retained as previous/
+    # rollback; dev672 dropped per CLAUDE.md ≤2-pin policy.
+    "0.23.1rc1.dev748+g2dfaae752",                       # setuptools_scm-derived
+    "nightly-2dfaae752b4db0d43cfc0715c780e33be030d0f1",  # docker tag form (full SHA)
 )
 
 

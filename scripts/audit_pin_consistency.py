@@ -34,10 +34,15 @@ def _expected_pins() -> set[str]:
     Grab a generous window after the marker and collect pin-like strings (those
     that start ``0.<digit>``) — robust to the tuple's closing paren indentation."""
     txt = (REPO / "tests/unit/dispatcher/test_pin_gate.py").read_text(encoding="utf-8")
-    i = txt.find("EXPECTED_PINS")
+    i = txt.find("EXPECTED_PINS = (")
     if i < 0:
         return set()
-    block = txt[i: i + 8000]
+    # Scan to the tuple's real closing paren (first column-0 ')') — the
+    # previous fixed 8000-char window silently truncated the tuple once its
+    # per-pin receipt comments outgrew it (caught on the dev748 promotion
+    # 2026-07-04: the freshly-added pin was reported missing while present).
+    end = txt.find("\n)", i)
+    block = txt[i: end if end > 0 else len(txt)]
     return set(re.findall(r'"(0\.\d[\w.+]*)"', block))
 
 

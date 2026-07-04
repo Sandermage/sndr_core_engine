@@ -164,6 +164,18 @@ ALLOWED_MODELDEF_PINS = frozenset({
     # Allowlist sync completed here 2026-07-02 (guards.py + test_pin_gate led;
     # this file + CANONICAL_PIN_SUBSTRING were the lagging artifacts).
     "0.23.1rc1.dev714+g09663abde",
+    # ── Canonical PROD pin 0.23.1 dev748 (PROMOTED 2026-07-04) — CURRENT ──
+    # Image vllm/vllm-openai:nightly-2dfaae752 (0.23.1rc1.dev748+g2dfaae752,
+    # +34 commits over dev714; the only 2 anchor-drifted patches P100/PN351
+    # re-anchored dual-variant pre-bump, strand-gate 0 unexcused). Operator-
+    # authorized bump dev714 -> dev748, live 35B window 2026-07-04: boot apply
+    # applied=87/skipped=166/failed=0 (identical to dev714), 7/7 tool-call
+    # (qwen3_xml, no leak), 242.55 wall_TPS (CV 6.9%) vs same-day dev714
+    # reference 234.16 (+3.5%, no regression), MTP K=5 accept 0.653, ctx-
+    # scaling 1K..32K LINEAR_OK. All 11 ModelDef vllm_pin_required values
+    # carry it; live 35B PROD runs it. dev714 (nightly-09663abde) retained as
+    # previous/rollback per ≤2-pin policy; dev672 dropped.
+    "0.23.1rc1.dev748+g2dfaae752",
 })
 
 # Gemma family ModelDefs are expected to be on dev371 (validated path).
@@ -198,7 +210,7 @@ QWEN_PREFIX = "qwen"
 # validated (35B +4.08% / 27B net-neutral / Gemma 26B+31B smoke PASS). All
 # 11 ModelDef vllm_pin_required values move to 0.23.1rc1.dev424+g3f5a1e173.
 # dev301 stays in ALLOWED_MODELDEF_PINS as the rollback bucket.
-CANONICAL_PIN_SUBSTRING = "dev714"
+CANONICAL_PIN_SUBSTRING = "dev748"
 
 # ─── DFlash dev371 hold (P2.DFlash 2026-05-21) ─────────────────────────
 #

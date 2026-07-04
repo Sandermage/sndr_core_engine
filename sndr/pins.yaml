@@ -17,19 +17,19 @@
 # lists, so a half-finished bump fails loudly instead of hiding.
 
 # The setuptools_scm version string vLLM reports for the deployed pin.
-current: "0.23.1rc1.dev714+g09663abde"
+current: "0.23.1rc1.dev748+g2dfaae752"
 # The retained previous pin (rollback bucket, per the <=2-live-pin policy).
-rollback: "0.23.1rc1.dev672+g93d8f834d"
+rollback: "0.23.1rc1.dev714+g09663abde"
 # The stable release pin (LTS bucket — the 3rd slot in the pin policy).
 stable_release: "v0.24.0"
 
 # Substring that uniquely identifies the current pin in version strings — used by
 # CANONICAL_PIN_SUBSTRING and the drift-watcher version gate.
-canonical_substring: "dev714"
+canonical_substring: "dev748"
 
 # Derived operational handles for the current pin.
-current_sha_short: "09663abde"                       # anchor dir = 0.23.1_<this>
-current_sha_full: "09663abde0f50944a8d5ea30120666024b503faa"  # for git fetch@sha (CI drift)
-current_image: "vllm/vllm-openai:nightly-09663abde0f50944a8d5ea30120666024b503faa"
-current_container: "vllm-35b-dev714"                 # live restore/boot-smoke default
-current_anchor_dir: "0.23.1_09663abde"               # under sndr/engines/vllm/pins/
+current_sha_short: "2dfaae752"                       # anchor dir = 0.23.1_<this>
+current_sha_full: "2dfaae752b4db0d43cfc0715c780e33be030d0f1"  # for git fetch@sha (CI drift)
+current_image: "vllm/vllm-openai:nightly-2dfaae752"
+current_container: "vllm-35b-dev748"                 # live restore/boot-smoke default
+current_anchor_dir: "0.23.1_2dfaae752"               # under sndr/engines/vllm/pins/
