@@ -78,7 +78,7 @@ parser `qwen3_xml`, `--max-model-len 280000`.
 
 | Metric | Value | Note |
 | --- | ---: | --- |
-| wall_TPS | **242.55** | CV 6.9%, n=25 — **+3.5%** vs same-day dev714 (234.16) |
+| wall_TPS | **242.55** | CV 6.9%, n=25 — **parity within CV (no regression)** vs same-day dev714 (234.16)¹ |
 | decode_TPOT | **3.9 ms** | |
 | TTFT | **84.5 ms** | |
 | Tool-calls | **7/7 PASS** | promotion-gate fixture, `qwen3_xml` |
@@ -88,10 +88,18 @@ parser `qwen3_xml`, `--max-model-len 280000`.
 Boot on the promoted pin: `applied=87 / failed=0` — identical apply
 profile to dev714.
 
+¹ **Why "parity", not the originally-published "+3.5%" (audit correction
+2026-07-05):** the raw delta (242.55 vs 234.16) fails this document's own
+significance rules — the dev714 baseline's decode_TPOT CV was 0.1225
+(above the >0.12 "noisy, A/B unreliable" bar), the delta is below the
+"≥5% at healthy CV" threshold, and a Welch t-test over the per-run
+samples is not significant (wall_TPS p≈0.11, decode_TPOT p≈0.26). The
+evidence supports "no regression"; it does not support a gain claim.
+
 ### Same-day dev714 reference — canonical run (2026-07-04, now rollback pin)
 
 The full canonical run taken the same day on dev714 (kept as the
-labeled apples-to-apples reference for the +3.5% delta above):
+labeled apples-to-apples reference for the parity verdict above):
 
 | Metric | Value | Note |
 | --- | ---: | --- |

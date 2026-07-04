@@ -202,8 +202,8 @@ The moving parts of a bump (full procedure:
 34-rev bump found 27/34 anchors intact; the 2 genuinely drifted patches
 (P100, PN351) were re-anchored dual-variant so one tree applies on both
 pins. Boot: health 200 in 330 s, applied=87/failed=0. Bench vs the
-same-day dev714 reference: wall_TPS 242.55 vs 234.16 (**+3.5%**,
-CV 6.9%), decode_TPOT 3.90 ms, tool-call 7/7, MTP K=5 accept 0.653,
+same-day dev714 reference: wall_TPS 242.55 vs 234.16 (**parity within
+CV — no regression**; CV 6.9%), decode_TPOT 3.90 ms, tool-call 7/7, MTP K=5 accept 0.653,
 ctx-scaling 1K→32K LINEAR_OK. Then: receipts ×3, anchor-manifest
 rebuild from the live container + bare image, `:nightly` re-tag, dev672
 dropped. Full narrative: [`PIN_BUMP_PLAYBOOK.md` §9](PIN_BUMP_PLAYBOOK.md).

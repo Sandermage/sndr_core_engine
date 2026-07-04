@@ -220,7 +220,7 @@ CI gates:
 | --- | --- |
 | **Patch engine** | The 325-entry `PATCH_REGISTRY` with per-entry lifecycle (experimental / stable / legacy / retired / coordinator / research) walked by the dispatcher at boot. Every patch is opt-in behind a `GENESIS_ENABLE_*` env flag; a curated set (56 of 325 entries) is marked `default_on` and drives the shipped presets. Structured apply summary (`applied=N skipped=M failed=0`) + audit trail on every boot. |
 | **Anchor SOT + drift defense** | Each pin gets a generated per-pin anchor manifest (`make rebuild-pin` regenerates it from the live rig). A daily drift watcher diffs anchors against upstream; a strand gate (`scripts/audit_patch_targets_exist.py`) fails loudly when a patch's upstream target module vanishes on a new pin — 0 unexcused stranded modules on dev748. |
-| **Pin lifecycle** | Three tracked slots — **current** / **rollback** / **stable** — with [`sndr/pins.yaml`](sndr/pins.yaml) as the single source of truth. `make bump-pin NEW=<pin>` (now with a `--sha-full` flag for the full commit SHA) propagates the string into every downstream artifact, and `audit_pin_consistency` fails loudly on a half-finished bump. Worked example — the dev714 → dev748 promotion (2026-07-04): preflight re-anchor → boot gate (fleet-wide apply `failed=0`) → bench gate (242.5 t/s, +3.5 % vs same-day dev714) → receipts → tag rotation. |
+| **Pin lifecycle** | Three tracked slots — **current** / **rollback** / **stable** — with [`sndr/pins.yaml`](sndr/pins.yaml) as the single source of truth. `make bump-pin NEW=<pin>` (now with a `--sha-full` flag for the full commit SHA) propagates the string into every downstream artifact, and `audit_pin_consistency` fails loudly on a half-finished bump. Worked example — the dev714 → dev748 promotion (2026-07-04): preflight re-anchor → boot gate (fleet-wide apply `failed=0`) → bench gate (242.5 t/s — parity within CV vs same-day dev714, no regression) → receipts → tag rotation. |
 | **Bench suite** | `tools/genesis_bench_suite.py` — the tool-call battery (thinking + non-thinking, multi-tool, error-recovery, denial), single-stream decode with CV methodology (n=25, CV reported with every number), an MTP accept-rate floor check (0.55), the **new ctx-scaling linearity stage** (`[5d/8]`, flags `--ctx-scale*`) that catches long-context decode cliffs, and an agentic multi-turn depth bench (12-turn tool-chains to 39K prompt tokens). |
 | **Interfaces** | GUI **Control Center** ([`docs/GUI.md`](docs/GUI.md)) · terminal **TUI** ([`docs/TUI.md`](docs/TUI.md)) · `sndr` **CLI** ([`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md)) — all driving the same product API: launch presets, live patch summary, benches, remote hosts, memory graph. |
 | **Model fleet** | Qwen3.6 **27B** (INT4 hybrid GDN+Mamba) and **35B** (AWQ / FP8 MoE), Gemma 4 **26B** and **31B**, and **DiffusionGemma 26B** (block-diffusion MoE) — all seven launchable lanes validated `failed=0` in the 2026-07-04 sweep (per-lane pin labels in the fleet table below). |
@@ -236,7 +236,7 @@ checkpoint), MTP K=5, `qwen3_xml` tool parser, 280K served context.
 
 | Metric | Value |
 | --- | --- |
-| Single-stream wall TPS | **242.5 t/s** (CV 6.9 %, n=25) — +3.5 % vs the same-day dev714 run, ~1.5× the ~157 t/s stock-vLLM baseline on this rig |
+| Single-stream wall TPS | **242.5 t/s** (CV 6.9 %, n=25) — parity within CV vs the same-day dev714 run (no regression), ~1.5× the ~157 t/s stock-vLLM baseline on this rig |
 | Decode TPOT | **3.90 ms** |
 | TTFT | **84.5 ms** mean |
 | Tool calls | **7/7 PASS** (promotion-gate battery) |
@@ -244,7 +244,8 @@ checkpoint), MTP K=5, `qwen3_xml` tool parser, 280K served context.
 | Context scaling 1K → 32K | **LINEAR_OK** — no cliff (endpoint ratio 0.84) |
 
 Same-day reference — pin `dev714`, 2026-07-04, extended canonical suite
-(kept as the labeled comparison run the +3.5 % above is measured against):
+(kept as the labeled comparison run the parity verdict above is measured
+against):
 
 | Metric | Value |
 | --- | --- |
@@ -280,8 +281,9 @@ historical comparisons, and per-rig reproduction recipes:
 > operators who prefer release pins over nightlies. `sndr/pins.yaml` is the
 > single source of truth for all three. dev748 was promoted 2026-07-04
 > through the full playbook chain — preflight re-anchor → boot gate (apply
-> `failed=0` across the whole 7-model fleet) → bench gate (242.5 t/s wall,
-> +3.5 % vs the same-day dev714 run; tool-call 7/7) → receipts → tag
+> `failed=0` across the whole 7-model fleet, with the per-lane pin caveat
+> in the fleet table below) → bench gate (242.5 t/s wall — parity within
+> CV vs the same-day dev714 run, no regression; tool-call 7/7) → receipts → tag
 > rotation — see [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md)
 > (canonical) and [`docs/ANCHOR_SOT.md`](docs/ANCHOR_SOT.md). The per-model
 > table below is the historical dev148 K-tune cycle, kept for cross-model
