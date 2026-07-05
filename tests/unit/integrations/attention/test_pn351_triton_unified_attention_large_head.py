@@ -79,7 +79,7 @@ from tests.unit.anchor_sot._pin_manifest_assert import (  # noqa: E402
 
 # The real _get_tile_size head — parameter order and the
 # ``return 16 if element_size >= 2 else 32`` default copied byte-exact
-# from /private/tmp/candidate_pin_current/vllm (matches upstream main).
+# from the current pin's pristine source (matches upstream main).
 PIN_TILE_REGION = (
     "def _get_tile_size(\n"
     "    head_size: int,\n"
@@ -383,7 +383,7 @@ class TestDriftMarkerHygiene:
 
 # ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
 # Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
-# byte-checked the anchors against ``/private/tmp/candidate_pin_current``
+# byte-checked the anchors against a /tmp pristine tree
 # (a dev259 tree, absent on every CI host -> permanently green-by-skip). It
 # is MIGRATED here to read the COMMITTED per-pin anchor manifest so it RUNS
 # in CI, and STRENGTHENED: it ties the LIVE patcher anchor CONSTANTS to the

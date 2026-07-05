@@ -43,13 +43,23 @@ vLLM container (or any torch+vllm-capable host — CUDA NOT required):
   python3 -m pytest \
       tests/unit/integrations/attention/gdn/test_pn340_gdn_builder_buffer_stability_torch.py -v
 
-Requires the pristine pin tree at /private/tmp/candidate_pin_current
-(same contract as tools/pin_preflight.py) — skipped when absent.
+Container-gate: this file sources the pristine gdn_attn.py from the
+INSTALLED vllm tree via the project resolver
+(``resolve_vllm_file``) — the same call ``PN340.apply()`` makes — NOT a
+fixed /tmp pristine path that exists on no CI host. It is skipped (with a
+documented reason) only when torch/vllm are absent or the GDN backend file
+is not in the install. Every patch that targets gdn_attn.py is default-OFF
+(PN340/PN341/P60/P63/PN370/PN398 — verified against the dispatcher registry
+2026-07-06), so the installed backend is PN340-pristine on any torch+vllm
+host and the three sub-patches below apply cleanly.
 
-NOTE on scope: PN370's gdn sub-fix (``batch_size = m.num_reqs``) is a
-SEPARATE patch (default OFF) — these tests exercise the
-pristine-shaped sizing (``m.num_actual_tokens``) with PN340 applied,
-i.e. today's default-ON overlay state. Composition with PN370 is
+NOTE on scope: PN340 itself is default-OFF (experimental; env flag
+``GENESIS_ENABLE_PN340``) — it is NOT part of the default overlay, contrary
+to an earlier version of this note. This file is the regression shield for
+the experimental patch: it exercises PN340 applied to the pristine
+(PN340-absent) installed backend with the pristine-shaped sizing
+(``m.num_actual_tokens``). PN370's gdn sub-fix (``batch_size =
+m.num_reqs``) is a SEPARATE default-OFF patch; composition with PN370 is
 covered by test_pn370_async_accepted_counts_race.py.
 """
 from __future__ import annotations
@@ -67,12 +77,21 @@ pytest.importorskip(
     "vllm", reason="requires an installed vllm matching the candidate pin"
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-PIN_GDN = PIN_TREE / "v1" / "attention" / "backends" / "gdn_attn.py"
+# Resolve the GDN backend from the installed vllm tree (documented
+# container-gate, not a phantom /tmp pristine path). importorskip("vllm")
+# above guarantees vllm is importable before this resolver runs.
+from sndr.engines.vllm.detection.guards import resolve_vllm_file  # noqa: E402
+
+_gdn_src = resolve_vllm_file("v1/attention/backends/gdn_attn.py")
+PIN_GDN = Path(_gdn_src) if _gdn_src else None
 
 pytestmark = pytest.mark.skipif(
-    not PIN_GDN.is_file(),
-    reason="pristine pin tree not present on this machine",
+    PIN_GDN is None or not PIN_GDN.is_file(),
+    reason=(
+        "container-gate: v1/attention/backends/gdn_attn.py not resolvable in "
+        "the installed vllm tree (needs a torch+vllm host such as the vLLM "
+        "container or the rig)"
+    ),
 )
 
 DEVICE = torch.device("cpu")
@@ -124,11 +143,21 @@ def gdn_module(tmp_path_factory):
     """The pin's gdn_attn.py with PN340 applied (ALL three sub-patches
     must fire — a partial apply is exactly the half-vendored state the
     buffer assertions below would mis-certify), loaded standalone."""
+    from sndr.engines.vllm.patches.attention.gdn import (
+        pn340_mtp_decode_bubbles_gdn_attn as pn340,
+    )
     from sndr.kernel import TextPatchResult
 
     tmp_dir = tmp_path_factory.mktemp("pn340_gdn")
     target = tmp_dir / "gdn_attn.py"
-    target.write_text(PIN_GDN.read_text(encoding="utf-8"), encoding="utf-8")
+    src = PIN_GDN.read_text(encoding="utf-8")
+    if pn340.GENESIS_PN340_MARKER in src:
+        pytest.skip(
+            "container-gate: installed gdn_attn.py already carries the PN340 "
+            "marker (PN340 enabled on this host) — cannot exercise the "
+            "pristine-to-patched transition this fixture asserts"
+        )
+    target.write_text(src, encoding="utf-8")
 
     patcher = _pn340_patcher(target)
     result, failure = patcher.apply()
@@ -142,7 +171,8 @@ def gdn_module(tmp_path_factory):
     spec = importlib.util.spec_from_file_location(
         "genesis_pn340_patched_gdn_attn", str(target)
     )
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
