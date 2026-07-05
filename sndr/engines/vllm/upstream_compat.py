@@ -428,6 +428,68 @@ UPSTREAM_MARKERS: dict[str, dict[str, str]] = {
             "#47609 row) — retire the plan when this fires"
         ),
     },
+
+    # ── 2026-07-05 batch-triage 47382..47564 next-bump gates ──────────
+    "PR_47507_gemma4_ct_shard_aliases": {
+        "file": "model_executor/layers/quantization/compressed_tensors/utils.py",
+        "marker": "def extend_with_shard_aliases(",
+        "description": (
+            "Gemma4 k_eq_v x compressed-tensors shard-alias propagation "
+            "(should_ignore_layer rewrite + SupportsQuant "
+            "apply_checkpoint_shard_aliases MRO hook). When this fires on "
+            "a candidate pin: boot-verify all 3 G4 CT lanes (quant method "
+            "selection unchanged, apply failed=0) + preflight the gemma4 "
+            "family G4_04/G4_06/G4_07/G4_08 against the new SupportsQuant "
+            "MRO / configure_quant_config early-return. See "
+            "upstream_watchlist #47507 row (escalation clause for "
+            "partially-quantized G4 checkpoints)."
+        ),
+        "merged_date": "OPEN as of 2026-07-05",
+        "affects_patch": "G4_04 / G4_06 / G4_07 / G4_08 preflight gate",
+    },
+
+    "PR_47396_fp8_gdn_per_shard_scales": {
+        "file": "model_executor/layers/linear.py",
+        "marker": "per_shard = num_shards > 1 and loaded_weight.numel() == num_shards",
+        "description": (
+            "Per-shard per-tensor FP8 scales for fused GDN in_proj "
+            "(weight_loader_v2 tuple branch keeps upstream's "
+            "numel()==len(shard_id) probe). Fail-loud bug "
+            "(parameter.py:305 assert) proven NOT tripped by our "
+            "checkpoints (fleet rerun 2026-07-05 failed=0). When this "
+            "fires: re-verify the PN520 proof-of-life boot log "
+            "('[PN520] imperative load_weights ACTIVE' + shard routing "
+            "counts) — its stacked_params_mapping exercises the changed "
+            "branch; the fix is strictly beneficial to PN520, nothing of "
+            "ours to retire. See upstream_watchlist #47396 row "
+            "(escalation clause for fused-scale FP8 GDN checkpoints)."
+        ),
+        "merged_date": "OPEN as of 2026-07-05",
+        "affects_patch": "PN520 proof-of-life re-verify gate",
+    },
+
+    "PR_47391_padded_eagle_torch_ops": {
+        "file": "v1/spec_decode/llm_base_proposer.py",
+        "marker": "num_draft_tokens + 1 - valid_sampled_tokens_count",
+        "description": (
+            "Torch-ops rewrite of padded EAGLE input prep; DELETES "
+            "eagle_prepare_inputs_padded_kernel (our live MTP hot path). "
+            "When this fires: (1) retire PN128's kernel-2 warmup arm "
+            "(kernel gone; torch ops need no JIT warmup) and keep this "
+            "deletion self-documented in preflight; (2) re-verify "
+            "PN90/P108/PN357 anchors in llm_base_proposer + PN372 in "
+            "spec_decode/utils.py (regions byte-checked disjoint, expect "
+            "clean); (3) A/B decode_TPOT on 35B MTP K=5 per canonical "
+            "bench (per-step prep rewritten). Early vendoring LOW value "
+            "(PN128 already killed the JIT spike). See upstream_watchlist "
+            "#47391 row."
+        ),
+        "merged_date": "OPEN as of 2026-07-05",
+        "affects_patch": (
+            "PN128 kernel-2 warmup arm (retire on merge) + "
+            "PN90/P108/PN357/PN372 anchor preflight + 35B MTP A/B"
+        ),
+    },
 }
 
 

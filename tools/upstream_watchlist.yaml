@@ -1418,4 +1418,131 @@ sweep:
     (on Marlin lanes it is dormant by design, P24 docstring). Idea-family overlap with P81 (backport of
     OPEN vllm#40925 — same small-M-tile-for-decode reasoning but for the DENSE
     w8a8_triton_block_scaled_mm kernel, different file) = outcome (c) different problem, both keep.'
+# ── 2026-07-05 batch-triage 47382..47564 (34 PRs: 4 backport-now PN523-PN526,
+# 4 next-bump-gate, 4 anchor-collision, 22 irrelevant + 5 hygiene rows) ──
+- pr: 47507
+  genesis_patch: 'G4_04, G4_06, G4_07, G4_08'
+  trigger: review-on-merge
+  note: 'NEXT-BUMP GATE (deep-studied 2026-07-05; OPEN). Gemma4 k_eq_v x compressed-tensors shard-alias
+    propagation: should_ignore_layer rewrite + SupportsQuant apply_checkpoint_shard_aliases MRO hook +
+    extend_with_shard_aliases in compressed_tensors/utils.py. At the first pin containing it: boot-verify
+    all 3 G4 CT lanes (quant method selection unchanged, apply failed=0) + preflight the gemma4 family
+    G4_04/G4_06/G4_07/G4_08 against the new SupportsQuant MRO / configure_quant_config early-return.
+    ESCALATE to backport if a partially-quantized G4 checkpoint (per-shard ignore entries) is adopted
+    before merge — vendor keeping upstream model-agnostic get_checkpoint_shard_aliases shape, never
+    hardcode k_eq_v indices. Mechanical detection: UPSTREAM_MARKERS PR_47507_gemma4_ct_shard_aliases.'
+- pr: 47396
+  genesis_patch: PN520
+  trigger: review-on-merge
+  note: 'NEXT-BUMP GATE (deep-studied 2026-07-05; OPEN). Per-shard per-tensor FP8 scales for fused GDN
+    in_proj — linear.py weight_loader_v2 tuple branch (numel()==len(shard_id) probe). Fail-loud bug
+    (parameter.py:305 assert) proven NOT tripped by our checkpoints (fleet rerun 2026-07-05 failed=0).
+    At the merge pin: re-verify PN520 proof-of-life boot log ("[PN520] imperative load_weights ACTIVE" +
+    shard routing counts) since its stacked_params_mapping exercises the changed branch; fix strictly
+    beneficial to PN520, nothing of ours to retire. ESCALATE to backport-now ONLY if an FP8 GDN
+    checkpoint shipping fused [q,k,v] per-shard weight_scale vectors is onboarded on a pre-fix pin
+    (dual-variant TextPatch on the tuple branch, keep the upstream probe verbatim). Mechanical
+    detection: UPSTREAM_MARKERS PR_47396_fp8_gdn_per_shard_scales.'
+- pr: 47391
+  genesis_patch: 'PN128, PN90, P108, PN357, PN372'
+  trigger: review-on-merge
+  note: 'NEXT-BUMP GATE (deep-studied 2026-07-05; OPEN). DELETES eagle_prepare_inputs_padded_kernel and
+    rewrites padded EAGLE input prep as torch ops in llm_base_proposer.py — our live 35B MTP K=5 hot
+    path. At the merge pin: (1) retire PN128 kernel-2 warmup arm (kernel gone; torch ops need no JIT
+    warmup) with the deletion kept self-documented via UPSTREAM_MARKERS PR_47391_padded_eagle_torch_ops;
+    (2) re-verify PN90/P108/PN357 anchors in llm_base_proposer + PN372 in spec_decode/utils.py (regions
+    byte-checked disjoint, expect clean); (3) A/B decode_TPOT on 35B MTP K=5 per canonical bench since
+    per-step prep is rewritten. Early vendoring LOW value — PN128 already killed the JIT spike.'
+- pr: 47382
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'NEXT-BUMP semantics note (deep-studied 2026-07-05; OPEN). TPOT/ITL metrics mis-accounting under
+    MTP multi-token steps (stats.py:400 records one sample per step). NO Genesis consumer reads
+    vllm:inter_token_latency_seconds (bench discipline is client-side decode_TPOT; Prometheus scrape
+    reads only spec_decode accept counters) -> do NOT vendor (carrying-cost calculus, iron-rule-#10
+    exception). At the merge pin: ITL histogram semantics change — label any first server-ITL vs client
+    decode_TPOT comparison with (pin, date). DONE NOW (this commit): stale SLO row
+    "vllm:inter_token_latency_seconds < 10ms" in Genesis/docs/reports/GENESIS_LLM_DEPLOYMENT_REPORT.md
+    flagged as not meaningful under MTP until the fix lands; stale PN361 "draft_sample_method=
+    probabilistic" comment in the a5000-2x hardware YAML fixed (PROD draft is GREEDY — PN90
+    probabilistic is version-gated OFF, PN390 credit correction 2026-06-16).'
+- pr: 47556
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'HYGIENE (triaged 2026-07-05; OPEN; irrelevant verdict). Sliding-window prefix-cache miss-scan
+    optimization. Only Genesis exposure: the pr42637 STALE CORE SHADOW under
+    attention/turboquant/overlays/pr42637/ drifts further from upstream on merge — fatal ONLY if that
+    overlay is ever re-mounted. No live lane mounts it; no anchor overlap. Re-read on merge, no action.'
+- pr: 47459
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'HYGIENE (triaged 2026-07-05; OPEN; irrelevant verdict). Gemma4 audio crash with variable-length
+    batched inputs. No G4 lane has audio input enabled -> unreachable. BECOMES backport-now the day
+    audio input is enabled on any G4 lane on a pre-fix pin; re-check this row in that decision.'
+- pr: 47460
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'HYGIENE (triaged 2026-07-05; OPEN; irrelevant verdict). Initializes draft CUDA-graph keys for
+    the native draft_model proposer. We run MTP (no draft_model lane configured anywhere in the fleet).
+    2-line gate extension IF a draft_model lane is ever configured on a pre-fix pin.'
+- pr: 47386
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'HYGIENE (triaged 2026-07-05; OPEN; irrelevant verdict — probabilistic path OFF on our lanes).
+    Decouples draft Gumbel stream from acceptance/recovery noise on the V2 runner. RULE: any
+    probabilistic-draft re-evaluation on a V2 pin REQUIRES this fix (or its salt) first — otherwise the
+    correlated-noise bias contaminates the A/B. The stale PN361 "our PROD draft_sample_method=
+    probabilistic" comment in the a5000-2x hardware YAML is fixed in this commit (PROD draft is GREEDY;
+    PN90 probabilistic version-gated OFF).'
+- pr: 47445
+  genesis_patch: 'PN376, PN520'
+  trigger: review-on-merge
+  note: 'HYGIENE (triaged 2026-07-05; OPEN; irrelevant verdict — no ModelOpt checkpoints in the fleet).
+    ModelOpt quantization inference fix for fused siblings. On merge: re-run PN376 anchor preflight
+    (fp8 modules_to_not_convert substring region adjacency) and add a line to the PN520 upstream-state
+    block noting the fused-sibling loader semantics changed upstream.'
+- pr: 47491
+  genesis_patch: PN346B
+  trigger: reanchor-on-merge
+  note: 'ANCHOR COLLISION (deep-studied 2026-07-05; OPEN). Inserts 5 lines INSIDE the 4-line
+    PN346B_ANCHOR_OLD span in kv_cache_coordinator.find_longest_cache_hit (between
+    eagle_verified.clear() and the naked curr_hit_length assignment; byte_offset 28254 on dev748).
+    PRE-ARMED (batch-triage STEP 0b): the PR''s two inserted comment lines are now PN346B
+    upstream_drift_markers, so the merge classifies LOUDLY instead of as unexplained drift. ON MERGE —
+    SEMANTIC reconciliation, not a naive re-anchor: (1) PN346B''s min() clamp must sit AFTER upstream''s
+    new `continue`; (2) upstream''s attention-hit preservation SKIPS the hit_blocks_by_group update for
+    the missing Mamba group -> a resumed request would skip N tokens with NO Mamba state (the
+    boots-clean-but-garbage class) — suppress on our lanes; P85''s shadow fine-hash stays OUR mechanism
+    (iron-rule-10 outcome: different-broken-approach-same-goal, documented).'
+- pr: 47489
+  genesis_patch: P62
+  trigger: review-on-merge
+  note: 'ANCHOR COLLISION (deep-studied 2026-07-05; OPEN). Rewrites the grammar.accept_tokens block that
+    IS P62 sub-patch 2a''s SCHED_UPDATE_FROM_OUTPUT_OLD (byte-for-byte); PR context shows upstream main
+    already carries the post-dev748 #44297 advance_token_ids refactor in the same region. Bug itself
+    UNREACHABLE for us (zero min_tokens usage repo-wide) -> review-on-merge, not reanchor (P62''s
+    existing #44993 watch markers convert the mismatch to a clean upstream-drift SKIP meanwhile). ON the
+    bump past #44297/#44993/(47489 if merged): re-derive P62 sub-2a against the new block shape and FOLD
+    grammar.is_terminated() -> FINISHED_STOPPED early-stop INTO P62''s replacement text — a naive
+    re-anchor silently REVERTS the 47489 fix.'
+- pr: 47513
+  genesis_patch: 'P62, P70, PN275'
+  trigger: review-on-merge
+  note: 'ANCHOR COLLISION + STUDY ITEM (deep-studied 2026-07-05; OPEN). Touches scheduler.py
+    update_from_output (P62 2a / P58 / P79C / P79D / PN58 family), config/speculative.py
+    (p70_auto_strict_ngram, PN275) and the config/vllm.py dynamic-SD cudagraph override. At the first
+    pin containing it: run preflight + re-verify those anchors. STUDY (iron rule #10 — borrow design,
+    not code): its num_speculative_tokens_per_batch_size cost-table + bucket-constrained per-request
+    width allocation is direct prior art for g_dynamic_k_mtp_proposer.'
+- pr: 47462
+  genesis_patch: 'G4_26'
+  trigger: review-on-merge
+  note: 'COLLISION TERRITORY, G4_26 retired (deep-studied 2026-07-05; OPEN mega-PR, 4777-line diff — do
+    NOT vendor). DiffusionGemma custom_sampler call site + logits_processor + V2 runner rewrite with
+    VLLM_DIFFUSION_GEMMA_LOCAL_VOCAB_SAMPLER. STEP 0a already executed the iron-rule-11 audit this PR
+    surfaced (contradiction C1): pristine dev748/dev714/dev672 REPLACED G4_26''s anchor site with the
+    native #46177 local-shard soft-embed + all_reduce -> G4_26 retired (superseded_by #46177), flag
+    removed from the diffusiongemma ModelDef, profile verify-note fixed. ON 47462 MERGE: evaluate
+    VLLM_DIFFUSION_GEMMA_LOCAL_VOCAB_SAMPLER=1 behind the canonical bench gate ONLY after a
+    block-diffusion-aware harness exists; keep native csrc ops OFF (no SM86 exposure).'
 __sentinel__: complete
