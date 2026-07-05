@@ -353,6 +353,13 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # hook by design (category c, same class as PN519/PN522).
                        # Default-OFF; restores the imperative stacked_params_
                        # mapping that routes the BF16 in_proj_ba GDN shards.
+    # ── 2026-07-05 batch-triage 47382..47564 — four vendors of OPEN
+    # upstream PRs, spec-driven from inception (apply_module + own
+    # apply(), no legacy @register_patch hook; same class as PN383-PN392).
+    "PN523",           # reject empty structural_tag/regex structured outputs
+                       # (vendor of OPEN vllm#47450; serving text patch on
+                       # sampling_params.py, PN387/#45346 successor; default-ON
+                       # remote-DoS guard, PN252 precedent)
 })
 
 

@@ -298,6 +298,15 @@ def test_spec_only_truly_orphan_baseline():
         # PN518/PN519/PN522. Default-OFF, applied at legacy boot via
         # _run_spec_only_supplement.
         "PN520",
+        # 2026-07-05 — batch-triage 47382..47564 vendors (PN523 #47450
+        # empty structural_tag/regex reject; PN524 #47464 diffusion
+        # spec-padding skip; PN525 #47562 non-streaming truncated tool-call
+        # markup drop; PN526 #47509 thread-safe structured-output
+        # tokenizer): apply_module + own apply(), no legacy
+        # @register_patch hook — same spec-only-by-design class as
+        # PN518/PN519/PN520/PN522; applied at legacy boot via
+        # _run_spec_only_supplement.
+        "PN523",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

@@ -312,6 +312,18 @@
     "apply_module": null
   },
   {
+    "patch_id": "PN523",
+    "family": "serving",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": true,
+    "env_flag": "GENESIS_ENABLE_PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.serving.pn523_reject_empty_structural_tag_regex"
+  },
+  {
     "patch_id": "PN398",
     "family": "spec_decode",
     "lifecycle": "retired",

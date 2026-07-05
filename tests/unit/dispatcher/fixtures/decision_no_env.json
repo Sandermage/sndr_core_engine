@@ -130,6 +130,11 @@
     "reason": "strict opt-in — set GENESIS_ENABLE_PN521_SPLIT_K=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"
   },
   {
+    "patch_id": "PN523",
+    "applied": false,
+    "reason": "strict opt-in: patch has default_on=True (informational) but env_flag=GENESIS_ENABLE_PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX unset. Add GENESIS_ENABLE_PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX=1 to launch config to engage. Set GENESIS_LEGACY_DEFAULT_ON=1 to revert to pre-2026-05-17 auto-apply semantics."
+  },
+  {
     "patch_id": "PN398",
     "applied": false,
     "reason": "strict opt-in — set GENESIS_ENABLE_PN398_ASYNC_ACCEPTED_RACE=1 in config to engage (GENESIS_LEGACY_DEFAULT_ON=1 reverts to pre-2026-05-17 semantics)"

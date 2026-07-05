@@ -269,6 +269,13 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # points at the module's own apply() class-rebind; no apply_patch_* legacy
     # hook, same spec-driven class as PN518/PN519/PN522.
     "PN520",
+    # 2026-07-05 batch-triage 47382..47564: PN523 (empty structural_tag/regex
+    # reject, vllm#47450), PN524 (diffusion spec-padding skip, vllm#47464),
+    # PN525 (non-streaming truncated tool-call markup drop, vllm#47562),
+    # PN526 (thread-safe structured-output tokenizer, vllm#47509) — all
+    # spec-driven from inception (apply_module + own apply(), no
+    # apply_patch_* legacy hook, same class as PN518/PN519/PN520/PN522).
+    "PN523",
 })
 
 _KNOWN_APPLY_ONLY: frozenset[str] = frozenset({

@@ -914,6 +914,64 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # PN521 / G4_70 / PN256). Fully functional, not a stub.
         "implementation_status": "marker_only",
     },
+    # ── 2026-07-05 batch-triage 47382..47564 — four vendors of OPEN
+    # upstream PRs (PN523/PN524/PN525/PN526), spec-driven from inception
+    # (apply_module + own apply(), no legacy @register_patch hook; same
+    # class as PN383-PN392/PN518-PN520). Six-step artifacts in the branch
+    # commits; pre-fix states byte-verified in pristine dev748 (2dfaae752)
+    # via gh api at the pin commit.
+    "PN523": {
+        "title": "Reject empty structural_tag/regex structured outputs (DoS guard, vendor of vllm#47450)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX",
+        # default_on=True (PN252 security precedent): trivially triggerable
+        # remote single-request EngineDeadError DoS on the single-instance
+        # PROD engine; the flag is an operator OFF switch.
+        "default_on": True,
+        "lifecycle": "experimental",
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.serving.pn523_reject_empty_structural_tag_regex",
+        "credit": (
+            "Batch-triage 47382..47564 STEP 1 (2026-07-05). Vendor of OPEN "
+            "vllm#47450 — PN387/#45346 successor class. The merged #45346 "
+            "guards (native in our pin since dev714; why PN387 retired) cover "
+            "grammar/json/json_object but NOT structural_tag/regex: "
+            "structural_tag='' passes the frontend `is not None` exclusivity "
+            "check (request.py:96 class) and reaches json.loads('') in "
+            "backend_xgrammar.compile_grammar (line 97 class) -> JSONDecodeError "
+            "inside the per-request-isolation-free EngineCore step loop -> "
+            "EngineDeadError = remote single-request DoS of the single-instance "
+            "PROD engine; the xgrammar tool-call path is live on ALL lanes. "
+            "regex='' is the PR's consistency reject (xgrammar tolerates "
+            "compile_regex('') but an empty regex constrains nothing). PN523 "
+            "vendors BOTH guards into SamplingParams._validate_structured_"
+            "outputs with the upstream ValueError messages VERBATIM (client "
+            "behavior identical when #47450 merges) and Genesis-reworded "
+            "comments, anchored on the unique #45346 close block (json_object "
+            "raise closer + blank + backend_guidance import; count==1 "
+            "byte-verified in pristine dev748 2dfaae752 via gh api "
+            "2026-07-05). Drift markers = the PR's exact comment heads "
+            "(absent from our replacement -> SELF_COLLISION-safe, and absent "
+            "in pristine dev748, both count 0). Same-file hygiene verified: "
+            "P109 anchors (verify() _validate_logprobs cluster + _validate_"
+            "logits_processors) disjoint; PN389 edits other files; retired "
+            "PN387 leaves no residue (its guards ARE the native text now). "
+            "Layer-2 edge-guard re-arm deliberately deferred (optional "
+            "defence-in-depth; documented in-module). TDD: ported the "
+            "#47450 test_validation.py parametrized matrix (6 reject + 4 "
+            "pass cases) red-first."
+        ),
+        "upstream_pr": 47450,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P109", "PN389"],
+        "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
+        "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
+    },
     "PN398": {
         "title": "Async spec-decode accepted-counts race fix (vllm#45100 backport)",
         "tier": "community",
