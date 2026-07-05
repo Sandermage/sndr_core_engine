@@ -158,3 +158,32 @@ def test_resolve_current_pin_prefers_pins_yaml_ssot():
             sys.modules["vllm"] = saved
         else:
             sys.modules.pop("vllm", None)
+
+
+def test_resolve_pin_survives_sndr_package_import_failure():
+    """CI robustness: even when `from sndr import pins` and the guards module
+    fail to import (lean CI env, optional-dep ImportError), the resolver MUST
+    still return the pins.yaml SSOT via the direct file read — never the stale
+    static default. Regression 2026-07-05: DEFAULT_PIN=dev714 leaked through
+    on CI and mis-flagged forward-dated patches (PN523-526)."""
+    import importlib.util
+    import sys
+
+    import yaml
+    spec = importlib.util.spec_from_file_location("_stale_audit2", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    # Poison the package imports the resolver would otherwise use.
+    saved = {k: sys.modules.get(k) for k in ("sndr", "sndr.pins")}
+    sys.modules["sndr"] = None  # -> `from sndr import pins` raises
+    try:
+        # guards path also unusable now; only the direct pins.yaml read remains
+        resolved = mod._resolve_current_pin(None)
+    finally:
+        for k, v in saved.items():
+            if v is not None:
+                sys.modules[k] = v
+            else:
+                sys.modules.pop(k, None)
+    expected = yaml.safe_load((REPO_ROOT / "sndr" / "pins.yaml").read_text())["current"]
+    assert resolved == expected

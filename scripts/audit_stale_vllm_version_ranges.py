@@ -55,7 +55,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # canonical pin so torch-less audit runs (CI / collection envs) evaluate
 # ranges against the version actually deployed — the 0.21.1 default
 # false-flagged every correct `>=0.22.0` range as stale.
-DEFAULT_PIN = "0.23.1rc1.dev714+g09663abde"  # static fallback; _resolve_current_pin now derives from guards KNOWN_GOOD so this only bites if that import fails
+DEFAULT_PIN = "0.23.1rc1.dev748+g2dfaae752"  # static last-resort fallback; keep in sync with pins.yaml current on bump (bump_pin maintains it). Real resolution reads pins.yaml directly first.
 
 
 # v11.3.0 BUG #14 baseline allowlist — known patches with stale
@@ -203,6 +203,24 @@ def _canonical_pin_from_guards() -> str | None:
         return None
 
 
+def _pin_from_pins_yaml() -> str | None:
+    """Read the current pin straight from ``sndr/pins.yaml`` — the SSOT —
+    WITHOUT importing the ``sndr`` package. CI runs a lean env where
+    ``import sndr`` (and thus ``sndr.pins`` / the guards module) can fail on
+    an optional dependency, which silently dropped resolution to the stale
+    static default (dev714) and mis-flagged forward-dated patches. A bare
+    file read needs only PyYAML + the committed pins.yaml, both always
+    present, so the gate resolves identically on CI and locally."""
+    try:
+        import yaml
+        with (REPO_ROOT / "sndr" / "pins.yaml").open(encoding="utf-8") as fh:
+            data = yaml.safe_load(fh)
+        cur = (data or {}).get("current")
+        return str(cur) if cur else None
+    except Exception:  # noqa: BLE001,S110 — SSOT read is best-effort; degrade to package/guards
+        return None
+
+
 def _resolve_current_pin(override: str | None = None) -> str:
     if override:
         return override
@@ -212,19 +230,19 @@ def _resolve_current_pin(override: str | None = None) -> str:
     # patches (lower bound == current pin) falsely flag as stale on CI while
     # passing locally (regression 2026-07-05). Fall back to the installed
     # package, then guards, then the static default.
+    # SSOT-first, package-import-free: direct pins.yaml read, then the sndr
+    # package accessor, then guards KNOWN_GOOD, then the static default. The
+    # installed vllm package is deliberately NOT consulted — "the pin we
+    # target" is a repo fact, not whatever wheel is in the venv.
+    direct = _pin_from_pins_yaml()
+    if direct:
+        return direct
     try:
         from sndr import pins
         cur = pins.current()
         if cur:
             return cur
-    except Exception:  # noqa: BLE001,S110 — SSOT best-effort; degrade to package/guards
-        pass
-    try:
-        import vllm
-        ver = getattr(vllm, "__version__", None)
-        if ver:
-            return ver
-    except Exception:  # noqa: BLE001,S110 — installed-package fallback is best-effort
+    except Exception:  # noqa: BLE001,S110 — package accessor best-effort; degrade to guards
         pass
     return _canonical_pin_from_guards() or DEFAULT_PIN
 
