@@ -60,6 +60,24 @@ def _pn382():
     return M
 
 
+# ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
+# Audit finding #14: PN382's anchor uniqueness was byte-checked against
+# ``/tmp/dev301_pristine_tree`` (absent on every CI host -> green-by-skip).
+# MIGRATED here to read the COMMITTED per-pin manifest so it RUNS in CI,
+# tying each LIVE sub-patch's anchor to the recorded pristine bytes
+# (merge_status==not_merged == drift markers absent). The full-file
+# apply+compile and fixture-region checks below genuinely need the pristine
+# source and stay rig-only.
+def test_pn382_all_anchors_recorded_in_current_pin_manifest():
+    from tests.unit.anchor_sot._pin_manifest_assert import assert_anchor_recorded
+
+    M = _pn382()
+    subs = M.build_sub_patches()
+    assert subs, "PN382 built no sub-patches"
+    for sp in subs:
+        assert_anchor_recorded("PN382", sp.name, sp.anchor)
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Portable fixture — pristine-shaped regions (pin g04c2a8dea, #45080 merged)
 # ─────────────────────────────────────────────────────────────────────
@@ -682,15 +700,6 @@ class TestAgainstPristinePin:
             FILL_REGION,
         ):
             assert src.count(region) == 1
-
-    def test_anchors_unique_and_markers_absent(self):
-        M = _pn382()
-        src = PIN_CONNECTOR.read_text(encoding="utf-8")
-        for sp in M.build_sub_patches():
-            assert src.count(sp.anchor) == 1, sp.name
-            assert sp.replacement not in src, sp.name
-        for dm in M._DRIFT_MARKERS:
-            assert dm not in src
 
     def test_full_file_apply_and_compile(self, tmp_path, monkeypatch):
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
