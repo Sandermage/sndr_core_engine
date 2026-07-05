@@ -288,7 +288,7 @@ def _diffusion_gemma_arch_present() -> bool:
     if target is None:
         return False
     try:
-        with open(target, "r", encoding="utf-8", errors="ignore") as fh:
+        with open(target, encoding="utf-8", errors="ignore") as fh:
             return "class DiffusionGemmaForConditionalGeneration" in fh.read()
     except OSError:
         return False
@@ -296,7 +296,7 @@ def _diffusion_gemma_arch_present() -> bool:
 
 def apply() -> tuple[str, str]:
     """Install the TP>1 vocab-sharded soft-embed fix on diffusion_gemma.py."""
-    global _APPLIED
+    global _APPLIED  # noqa: PLW0603 — module-level idempotency latch, the standard Genesis patch apply/revert idiom
 
     if not _env_enabled():
         return "skipped", (
@@ -355,7 +355,7 @@ def revert() -> bool:
     is re-pinned on container rebuild, so a hard textual un-splice is not
     needed in production; this mirrors the contract the dispatcher expects.
     """
-    global _APPLIED
+    global _APPLIED  # noqa: PLW0603 — module-level idempotency latch, the standard Genesis patch apply/revert idiom
     if not is_applied():
         _APPLIED = False
         return False

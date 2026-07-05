@@ -37,7 +37,6 @@ import logging
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Optional
 
 log = logging.getLogger("genesis.apply.shadow")
 
@@ -480,7 +479,7 @@ _LEGACY_NAME_TO_PATCH_ID: dict[str, str] = {
 }
 
 
-def _patch_id_from_legacy_name(name: str) -> Optional[str]:
+def _patch_id_from_legacy_name(name: str) -> str | None:
     # First check explicit map (non-P/PN style names)
     if name in _LEGACY_NAME_TO_PATCH_ID:
         return _LEGACY_NAME_TO_PATCH_ID[name]
@@ -490,7 +489,7 @@ def _patch_id_from_legacy_name(name: str) -> Optional[str]:
         return None
     raw = m.group(1)
     # Normalize casing.
-    if raw.startswith("SNDR_") or raw.startswith("sndr_"):
+    if raw.startswith(("SNDR_", "sndr_")):
         # SNDR_-prefix ids are used verbatim in the spec registry (all-caps,
         # underscore-joined). No prefix/suffix casing transform — returning
         # the matched token as-is keeps it identical to the PatchSpec id.
@@ -501,7 +500,7 @@ def _patch_id_from_legacy_name(name: str) -> Optional[str]:
         # vs PN262B uppercase). Both forms are matched by the legacy
         # title's casing, so preserve.
         return "PN" + raw[2:]
-    if raw.startswith("G4_") or raw.startswith("g4_"):
+    if raw.startswith(("G4_", "g4_")):
         # G4-series: prefix uppercased + suffix letter uppercased to match
         # spec registry shape (G4_19B uppercase suffix — Phase 3A.1, 2026-05-22).
         head = "G4_" + raw[3:]
@@ -622,7 +621,7 @@ def compare_apply_orders() -> ApplyOrderDiff:
 # ─── Human-readable report ────────────────────────────────────────────────
 
 
-def format_diff(diff: ApplyOrderDiff) -> str:
+def format_diff(diff: ApplyOrderDiff) -> str:  # noqa: PLR0912 — linear diff-formatter; one branch per ApplyOrderDiff field, splitting hurts readability
     """Multi-line human-readable summary of an `ApplyOrderDiff`."""
     lines = [
         "═══════════════════════════════════════════════════════════════",
@@ -703,7 +702,7 @@ def format_diff(diff: ApplyOrderDiff) -> str:
 # ─── CLI ──────────────────────────────────────────────────────────────────
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """`python -m sndr.apply.shadow` entry point."""
     parser = argparse.ArgumentParser(
         description="Shadow comparison: PatchSpec apply order vs legacy"

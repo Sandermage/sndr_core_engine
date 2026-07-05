@@ -135,7 +135,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
 
 from sndr.engines.vllm.detection.guards import resolve_vllm_file
 from sndr.kernel import TextPatch, TextPatcher, TextPatchResult
@@ -290,7 +289,7 @@ def _env_disabled() -> bool:
     )
 
 
-def _make_patcher() -> Optional[TextPatcher]:
+def _make_patcher() -> TextPatcher | None:
     """Build the coordinator-clamp patcher, or None if target absent."""
     target = resolve_vllm_file("v1/core/kv_cache_coordinator.py")
     if target is None:
@@ -326,7 +325,7 @@ def _make_patcher() -> Optional[TextPatcher]:
     )
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 — guard-clause ladder (env/pristine/anchor/collision early-returns); each return is a distinct skip reason
     """Apply PN346B — coordinator-half curr_hit_length min() clamp."""
     if _env_disabled():
         return "skipped", "PN346B disabled via GENESIS_DISABLE_PN346B=1"
