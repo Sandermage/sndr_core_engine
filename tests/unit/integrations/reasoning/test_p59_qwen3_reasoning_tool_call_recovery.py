@@ -34,7 +34,6 @@ from pathlib import Path
 
 import pytest
 
-
 # Synthetic mirror of the PRISTINE current-pin parser. Every P59 anchor
 # site is quoted byte-exactly from the pristine tree (verified count==1
 # qwen3_reasoning_parser.py on 2026-06-11). Methods irrelevant to P59
@@ -139,7 +138,7 @@ def _make_p59_patcher(target_file: str, marker_suffix: str):
 def _apply_p27(target_file: str):
     """Apply P27's non-streaming sub-patches (real constants from the P27
     module) so the file mirrors the post-P27 boot state P59 chains on."""
-    from sndr.kernel.text_patch import TextPatcher, TextPatch, TextPatchResult
+    from sndr.kernel.text_patch import TextPatch, TextPatcher, TextPatchResult
     p27 = _p27_module()
     patcher = TextPatcher(
         patch_name="P27 test (chain provider)",
@@ -253,6 +252,7 @@ class TestP59ApplicationPristine:
 
     def test_modified_pristine_file_parses_as_python(self, pristine_parser_file):
         import ast
+
         from sndr.kernel.text_patch import TextPatchResult
         patcher = _make_p59_patcher(pristine_parser_file, "PARSE")
         result, _ = patcher.apply()
@@ -276,6 +276,7 @@ class TestP59ApplicationChainedOnP27:
 
     def test_modified_chained_file_parses_as_python(self, pristine_parser_file):
         import ast
+
         from sndr.kernel.text_patch import TextPatchResult
         _apply_p27(pristine_parser_file)
         patcher = _make_p59_patcher(pristine_parser_file, "CHAINPARSE")
