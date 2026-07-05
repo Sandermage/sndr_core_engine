@@ -40,8 +40,6 @@ exec-patched-text technique from the 2026-06-11 roadmap (Theme C).
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from sndr.engines.vllm.patches.moe import p24_moe_tune as p24
@@ -184,11 +182,6 @@ MERGED_HEURISTIC_SRC = PIN_HEURISTIC_SRC.replace(
     _DIVIS_COMMENT, UPSTREAM_44563_CLAMP + _DIVIS_COMMENT
 )
 
-PIN_FILE = Path(
-    "/private/tmp/candidate_pin_current/vllm/model_executor/layers/"
-    "fused_moe/fused_moe.py"
-)
-
 # PR #44563's CPU sweep dimensions (test_moe_wna16_block_config.py).
 GROUP_SIZES = (32, 64, 128)
 SIZE_KS = (512, 1024, 2048, 4096)
@@ -199,17 +192,17 @@ TOP_K = 8
 
 # Reporter decode shape from #36008 / the PR (gate_up gemm of a
 # group_size=32 GPTQ 4-bit MoE in single-token decode).
-REPORTER_SHAPE = dict(
-    config={},
-    use_moe_wna16_cuda=True,
-    num_valid_tokens=8,
-    size_k=2048,
-    size_n=1024,
-    num_experts=256,
-    group_size=32,
-    real_top_k=8,
-    block_size_m=1,
-)
+REPORTER_SHAPE = {
+    "config": {},
+    "use_moe_wna16_cuda": True,
+    "num_valid_tokens": 8,
+    "size_k": 2048,
+    "size_n": 1024,
+    "num_experts": 256,
+    "group_size": 32,
+    "real_top_k": 8,
+    "block_size_m": 1,
+}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -288,17 +281,16 @@ class TestPatcherShape:
 
 
 @pytest.fixture(scope="class")
-def patched_heuristic(request, tmp_path_factory):
+def patched_heuristic(tmp_path_factory):
     """Apply PN377 once to a pin-form fake, return the post-patch
     heuristic (exec-patched-text technique)."""
     tmp_path = tmp_path_factory.mktemp("pn377_sweep")
     fake = _write_fake(tmp_path, PIN_HEURISTIC_SRC)
-    mp = pytest.MonkeyPatch()
-    request.addfinalizer(mp.undo)
-    mp.setattr(m, "resolve_vllm_file", lambda rel: str(fake))
-    status, reason = m.apply()
-    assert status == "applied", reason
-    return m.load_block_config_heuristic(str(fake))
+    with pytest.MonkeyPatch().context() as mp:
+        mp.setattr(m, "resolve_vllm_file", lambda rel: str(fake))
+        status, reason = m.apply()
+        assert status == "applied", reason
+        yield m.load_block_config_heuristic(str(fake))
 
 
 class TestApply:
@@ -512,39 +504,64 @@ class TestDriftMarkerSelfCollision:
             )
 
 
-# ── 6. Pristine pin invariants (opportunistic) ───────────────────────
+# ── 6. Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ──
+# Audit finding #14: the previous ``TestAgainstPristinePin`` class byte-checked
+# the anchor against ``/private/tmp/candidate_pin_current`` (dev259 tree, absent
+# on every host -> permanently green-by-skip). It is MIGRATED here to read the
+# COMMITTED per-pin anchor manifest (sndr/engines/vllm/pins/<pin>/anchors.json),
+# so it RUNS in CI. The manifest is regenerated + round-trip-verified on every
+# `make rebuild-pin`, so the count==1 / replacement-absent invariants the old
+# byte-checks asserted are now re-derived at each pin bump; this test asserts
+# the derivation LANDED (PN377's anchor is recorded for the current pin) and
+# that PN377 shares fused_moe.py with P24 without a collision (both anchors
+# survived round-trip at regen — the positional non-collision proxy).
 
 
-@pytest.mark.skipif(
-    not PIN_FILE.is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAgainstPristinePin:
-    def test_embedded_fixture_matches_pin_segment(self):
-        src = PIN_FILE.read_text(encoding="utf-8")
-        assert PIN_HEURISTIC_SRC in src, (
-            "embedded fixture drifted from the pin segment — re-extract "
-            "lines 1079-1190 of fused_moe.py"
+def _current_pin_manifest():
+    from sndr import pins
+    from sndr.engines.vllm.wiring.anchor_manifest import (
+        load_manifest,
+        per_pin_manifest_path,
+    )
+
+    path = per_pin_manifest_path(pins.current())
+    assert path is not None, f"no manifest path for pin {pins.current()!r}"
+    assert path.is_file(), f"no committed anchors.json at {path}"
+    return load_manifest(path)
+
+
+_FUSED_MOE_REL = "model_executor/layers/fused_moe/fused_moe.py"
+
+
+class TestPn377InCurrentPinManifest:
+    def test_pn377_anchor_recorded_in_current_pin_manifest(self):
+        manifest = _current_pin_manifest()
+        patches = manifest["files"][_FUSED_MOE_REL]["patches"]
+        assert "PN377" in patches, (
+            "PN377 fell out of the current-pin manifest — anchor drifted or "
+            "the patch was dropped from discovery"
         )
+        anchors = patches["PN377"]["anchors"]
+        assert "pn377_bsk_clamp" in anchors
+        entry = anchors["pn377_bsk_clamp"]
+        # Pin the recorded anchor identity: a regen that changes it (re-anchor,
+        # drift, or accidental replacement swap) turns this green -> red.
+        assert entry["anchor_md5"] == "ba891292d34de946162ca4fea4c56b85"
+        assert entry["byte_length"] == 170
 
-    def test_anchor_unique_and_markers_absent(self):
-        src = PIN_FILE.read_text(encoding="utf-8")
-        assert src.count(m.PN377_CLAMP_OLD) == 1
-        assert m.PN377_CLAMP_NEW not in src
-        for dm in m._UPSTREAM_DRIFT_MARKERS:
-            assert dm not in src
-
-    def test_p24_anchors_survive_pn377_splice(self):
-        """Same-file non-collision: applying PN377's splice must leave
-        both P24 anchors intact (count==1), and applying both P24
-        splices must leave PN377's anchor intact."""
-        src = PIN_FILE.read_text(encoding="utf-8")
-        # PN377 first, then P24 anchors still match.
-        after_pn377 = src.replace(m.PN377_CLAMP_OLD, m.PN377_CLAMP_NEW)
-        assert after_pn377.count(p24._OLD_FP8_CFG) == 1
-        assert after_pn377.count(p24._OLD_GEN_CFG) == 1
-        # P24 first, then PN377's anchor still matches.
-        after_p24 = src.replace(p24._OLD_FP8_CFG, p24._NEW_FP8_CFG).replace(
-            p24._OLD_GEN_CFG, p24._NEW_GEN_CFG
+    def test_pn377_shares_fused_moe_with_p24_without_collision(self):
+        """Same-file non-collision proxy (positional): PN377 and P24 both
+        target fused_moe.py. Their coexistence in the manifest means each
+        anchor round-trip-verified at regen against the same pristine source
+        without colliding — the CI-runnable form of the old pristine
+        `p24_anchors_survive_pn377_splice` byte-check."""
+        manifest = _current_pin_manifest()
+        patches = manifest["files"][_FUSED_MOE_REL]["patches"]
+        assert {"PN377", "P24"} <= set(patches), (
+            f"expected both PN377 and P24 anchored in {_FUSED_MOE_REL}; "
+            f"got {sorted(patches)}"
         )
-        assert after_p24.count(m.PN377_CLAMP_OLD) == 1
+        # P24 anchors imported from its module are the live source of truth for
+        # the patch's own anchor set (guards the reference used above).
+        assert p24._OLD_FP8_CFG
+        assert p24._OLD_GEN_CFG

@@ -80,6 +80,9 @@ audit-v2-runtime-pins: ## V2 runtime image + ModelDef pin harmonization (R-PIN-1
 audit-pin-consistency: ## Cross-artifact pin SSOT gate — current pin present in every allowlist + anchor dir + model YAMLs
 	$(PYTHON) scripts/audit_pin_consistency.py
 
+audit-claim-provenance: ## Truth-claim provenance: release tag has a CHANGELOG heading (gating) + machine-readable bench evidence off /tmp (gating) + bench rows carry (pin,date) (informational)
+	@$(PYTHON) scripts/audit_claim_provenance.py --strict
+
 bump-pin: ## Propagate a pin bump across pins.yaml + CANONICAL + model YAMLs (NEW=<pin> [DRY=1]); then rebuild-pin + audit-pin-consistency
 	@test -n "$${NEW}" || { echo "Usage: make bump-pin NEW=0.23.1rc1.devNNN+g<sha> [DRY=1]"; exit 2; }
 	$(PYTHON) scripts/bump_pin.py "$${NEW}" $${DRY:+--dry-run}

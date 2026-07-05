@@ -6,13 +6,15 @@ vLLM is absent (local dev box) the discovery yields ~nothing and the test
 skips — the authoritative R1 proof runs on the rig / CI where dev148 vLLM is
 installed (see the §-server-test in the implementation plan).
 """
+import types
+
 import pytest
 
 from sndr.engines.vllm.anchor_discovery import (
     AnchorTarget,
+    _build_patcher_for_module,
     iter_anchor_targets,
     iter_specs_with_apply_module,
-    _build_patcher_for_module,
 )
 
 
@@ -40,7 +42,9 @@ def test_anchor_target_shape():
         pytest.skip("vLLM not installed — discovery empty")
     for t in targets[:30]:
         assert isinstance(t, AnchorTarget)
-        assert t.patch_id and t.target_rel and t.anchor
+        assert t.patch_id
+        assert t.target_rel
+        assert t.anchor
         assert isinstance(t.required, bool)
 
 
@@ -56,6 +60,43 @@ def test_anchor_target_carries_lifecycle_field():
     assert t.lifecycle is None  # default when a spec has no lifecycle
     t2 = AnchorTarget("P", "s", "f.py", "A", "R", True, lifecycle="retired")
     assert t2.lifecycle == "retired"
+
+
+def test_anchor_target_carries_patcher_drift_markers_field():
+    # FINDING #6 plumbing: AnchorTarget exposes a `patcher_drift_markers` field
+    # (defaults ()), carrying the PATCHER-level upstream_drift_markers so the
+    # manifest classifier can detect whole-patch upstream merges (Layer-3
+    # semantics) — not just the per-sub upstream_merged_markers.
+    # Host-runnable (no vLLM): asserts the dataclass shape directly.
+    import dataclasses
+
+    names = {f.name for f in dataclasses.fields(AnchorTarget)}
+    assert "patcher_drift_markers" in names
+    t = AnchorTarget("P", "s", "f.py", "A", "R", True)
+    assert t.patcher_drift_markers == ()  # default when a patcher has no markers
+    t2 = AnchorTarget("P", "s", "f.py", "A", "R", True,
+                      patcher_drift_markers=("def native_guard",))
+    assert t2.patcher_drift_markers == ("def native_guard",)
+
+
+def test_discovery_stamps_patcher_drift_markers():
+    # When vLLM is present, iter_anchor_targets must stamp each target's
+    # patcher_drift_markers from its patcher.upstream_drift_markers (the same
+    # value for every sub of a patcher, since it is patcher-level). Rig-gated.
+    targets = _discovered()
+    if not targets:
+        pytest.skip("vLLM not installed — discovery empty")
+    by_pid = {}
+    for t in targets:
+        by_pid.setdefault(t.patch_id, []).append(t)
+    # every target's patcher_drift_markers is a tuple
+    for t in targets[:50]:
+        assert isinstance(t.patcher_drift_markers, tuple)
+    # PN387 declares two patcher-level _DRIFT_MARKERS; if discovered on this pin
+    # they must be carried on its target(s).
+    if "PN387" in by_pid:
+        for t in by_pid["PN387"]:
+            assert len(t.patcher_drift_markers) >= 1, "PN387 markers not stamped"
 
 
 def test_discovery_populates_lifecycle_from_spec():
@@ -91,7 +132,7 @@ def test_R1_no_anchor_bearing_patch_dropped():
     for spec in iter_specs_with_apply_module():
         try:
             mod = importlib.import_module(spec.apply_module)
-        except Exception:
+        except Exception:  # noqa: S112 — un-importable module: skip, not an anchor
             continue
         patcher, _ = _build_patcher_for_module(mod)
         if patcher is None:
@@ -110,7 +151,6 @@ def test_R1_no_anchor_bearing_patch_dropped():
 # _make_patcher_for_drift, so multi-file patches (P58: _make_request_patcher +
 # _make_scheduler_patcher + _make_async_sched_patcher) fell to needs_fixture
 # despite having real anchors. discover_patchers must find ALL builders.
-import types
 
 
 def _fake_patcher(name):
@@ -160,8 +200,9 @@ def test_discover_patchers_skips_arg_requiring_helper_builders():
 
 def test_discover_patchers_drops_empty_target_patchers():
     # A builder that returns a patcher with no target_file must not enter aggregation.
-    from sndr.engines.vllm.anchor_discovery import discover_patchers
     import types as _t
+
+    from sndr.engines.vllm.anchor_discovery import discover_patchers
     mod = _t.ModuleType("fake_empty")
     mod._make_a_patcher = lambda: _t.SimpleNamespace(patch_name="empty", target_file="", marker="m", sub_patches=[])
     mod._make_b_patcher = lambda: _fake_patcher("good")

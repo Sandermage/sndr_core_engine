@@ -19,8 +19,8 @@ Implements Phase 2 of the per-pin anchor source-of-truth design.
 """
 from __future__ import annotations
 
+from collections.abc import Callable  # noqa: TC003 — used in runtime annotations
 from dataclasses import dataclass, field
-from typing import Callable, Optional
 
 from sndr.engines.vllm.anchor_discovery import AnchorTarget, iter_anchor_targets
 from sndr.engines.vllm.wiring.anchor_manifest import compute_anchor_meta
@@ -51,7 +51,7 @@ MERGE_PARTIALLY_MERGED = "partially_merged"  # SOME subs upstreamed
 MERGE_STATUSES = (MERGE_NOT_MERGED, MERGE_FULLY_MERGED, MERGE_PARTIALLY_MERGED)
 
 
-def version_excludes_pin(vrange, pin: Optional[str]) -> bool:
+def version_excludes_pin(vrange, pin: str | None) -> bool:
     """True iff the patch's vllm_version_range EXCLUDES ``pin`` — then an absent
     anchor is EXPECTED (the patch isn't for this pin), not genuine drift.
 
@@ -78,8 +78,8 @@ def version_excludes_pin(vrange, pin: Optional[str]) -> bool:
 def classify_anchor(
     pristine_src: str,
     anchor: str,
-    replacement: Optional[str] = None,
-) -> tuple[str, Optional[dict]]:
+    replacement: str | None = None,
+) -> tuple[str, dict | None]:
     """Classify one anchor against the pristine source (R2 — real text search).
 
     Returns ``(status, meta)``. ``meta`` is the compute_anchor_meta dict
@@ -158,8 +158,8 @@ def aggregate_merge_status(
 
 
 def to_engine_manifest(
-    res: "GenResult",
-    pristine: Callable[[str], Optional[str]],
+    res: GenResult,
+    pristine: Callable[[str], str | None],
     *,
     vllm_pin: str,
     genesis_pin: str,
@@ -230,11 +230,11 @@ def to_engine_manifest(
 
 
 def build_pin_manifest(
-    read_source: Callable[[str], Optional[str]],
-    targets: Optional[list[AnchorTarget]] = None,
+    read_source: Callable[[str], str | None],
+    targets: list[AnchorTarget] | None = None,
     *,
-    pin: Optional[str] = None,
-    is_upstream_merged: Optional[Callable[[AnchorTarget, str], bool]] = None,
+    pin: str | None = None,
+    is_upstream_merged: Callable[[AnchorTarget, str], bool] | None = None,
 ) -> GenResult:
     """Classify every anchor target against the pristine tree (R1 × R2).
 
@@ -242,6 +242,11 @@ def build_pin_manifest(
     "drift"): target_missing → retired (lifecycle=retired) → version_gated
     (range excludes ``pin``) → upstream_merged (a merge marker is present) →
     ok/anchor_drift/ambiguous.
+
+    upstream_merged fires on EITHER a PATCHER-level marker
+    (``patcher_drift_markers`` — whole-patch, so all subs merge together and the
+    patch aggregates to fully_merged) OR a per-SUB ``upstream_merged_markers`` /
+    the caller ``is_upstream_merged`` hook (finding #6).
 
     ``retired`` is checked BEFORE the anchor is even classified: a retired
     patch's anchor legitimately drifted (its code was superseded / absorbed
@@ -260,7 +265,7 @@ def build_pin_manifest(
     if targets is None:
         targets = list(iter_anchor_targets())
     result = GenResult()
-    _src_cache: dict[str, Optional[str]] = {}
+    _src_cache: dict[str, str | None] = {}
 
     # Per-PATCH merge aggregation (TASK 1). For each patch_id present+applicable
     # on this pin: which sub-patches we considered, and which had an upstream
@@ -305,9 +310,19 @@ def build_pin_manifest(
         _seen_subs.setdefault(t.patch_id, set()).add(t.sub)
         _merge_target_rel.setdefault(t.patch_id, t.target_rel)
 
-        merged = any(m in src for m in (t.upstream_merged_markers or ())) or (
+        # Upstream-merge detection (finding #6): fire on EITHER
+        #   - a PATCHER-level marker (t.patcher_drift_markers) — whole-patch,
+        #     Layer-3 semantics: present for every sub, so every sub routes to
+        #     STATUS_UPSTREAM_MERGED and aggregate_merge_status returns
+        #     FULLY_MERGED (never partial); OR
+        #   - a per-SUB marker (t.upstream_merged_markers) / the caller hook.
+        # Checked against the PRISTINE (never-patched) source, so Genesis
+        # self-banner markers are absent by construction and never false-fire.
+        patcher_merged = any(m in src for m in (t.patcher_drift_markers or ()))
+        sub_merged = any(m in src for m in (t.upstream_merged_markers or ())) or (
             is_upstream_merged is not None and is_upstream_merged(t, src)
         )
+        merged = patcher_merged or sub_merged
         if merged:
             _merged_subs.setdefault(t.patch_id, set()).add(t.sub)
             _rej(key, t, STATUS_UPSTREAM_MERGED)

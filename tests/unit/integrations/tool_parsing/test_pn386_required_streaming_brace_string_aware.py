@@ -124,8 +124,6 @@ MERGED_STREAMING = (
     .replace("(pin g303916e93 form)", "(post-vllm#45389 merged form)")
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/tool_parsers")
-
 ENV_FLAG = "GENESIS_ENABLE_PN386_REQUIRED_STREAMING_STRING_AWARE"
 
 
@@ -138,7 +136,7 @@ def _install_fake(tmp_path, monkeypatch, streaming_text):
     monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
     # apply() is dispatcher-gated (opt-in env flag, registry-driven);
     # force the gate open for unit tests of the patch mechanics.
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -273,7 +271,7 @@ class TestApply:
         target = tmp_path / "streaming.py"
         target.write_text(PIN_STREAMING, encoding="utf-8")
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
         )
@@ -284,7 +282,7 @@ class TestApply:
 
     def test_apply_skips_when_target_missing(self, monkeypatch):
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: None)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (True, "test override")
         )
@@ -321,44 +319,13 @@ class TestDriftMarkerSelfCollision:
         )
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
-
-
-@pytest.mark.skipif(
-    not (PIN_TREE / "streaming.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    # Anchor (old, new) pairs built straight from the module constants —
-    # independent of resolve_vllm_file (which would point at the locally
-    # installed vllm, not the pristine pin tree under test here).
-    ANCHOR_PAIRS = (
-        ("pn386_bracket_level_state", "PN386_BRACKET_OLD", "PN386_BRACKET_NEW"),
-        (
-            "pn386_filter_delta_string_aware",
-            "PN386_FILTER_OLD",
-            "PN386_FILTER_NEW",
-        ),
-        ("pn386_filter_delta_break_guard", "PN386_BREAK_OLD", "PN386_BREAK_NEW"),
-        ("pn386_param_extract_prefix", "PN386_PARAM_OLD", "PN386_PARAM_NEW"),
-    )
-
-    def test_anchors_unique_and_replacement_markers_absent(self):
-        src = (PIN_TREE / "streaming.py").read_text(encoding="utf-8")
-        for name, old_attr, new_attr in self.ANCHOR_PAIRS:
-            old = getattr(m, old_attr)
-            new = getattr(m, new_attr)
-            assert src.count(old) == 1, name
-            assert new not in src, name
-        for dm in m._DRIFT_MARKERS:
-            assert dm not in src
-
-    def test_fixture_anchor_regions_byte_match_pristine(self):
-        src = (PIN_TREE / "streaming.py").read_text(encoding="utf-8")
-        for _name, old_attr, _new_attr in self.ANCHOR_PAIRS:
-            old = getattr(m, old_attr)
-            assert old in src, old_attr
-            assert old in PIN_STREAMING, old_attr
+# ── Pristine pin invariants — RETIRED (audit finding #14) ────────────
+# PN386 is a RETIRED-lifecycle patch. Its former ``TestAnchorsAgainstPristinePin``
+# byte-checks were gated on the absent ``/private/tmp/candidate_pin_current``
+# dev259 tree (permanently green-by-skip), and a retired patch's anchor
+# legitimately no longer matches the live pristine source (the per-pin manifest
+# classifies it STATUS_RETIRED). The synthetic patcher/apply/drift tests above
+# (Group A) run in CI and remain the live contract.
 
 
 # ── Streaming reassembly helper (mirrors upstream test harness) ──────
@@ -393,4 +360,4 @@ def _collect_required_streaming(mod, output_json: str, delta_len: int) -> str:
             args = extracted
         previous_text = current_text
 
-    return '[{"name": "%s", "parameters": %s}]' % (name, args)
+    return f'[{{"name": "{name}", "parameters": {args}}}]'
