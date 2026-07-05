@@ -151,7 +151,7 @@ sndr_core_engine/
 │   ├── cli/                           # sndr launch / up / doctor / tui / chat / ...
 │   ├── dispatcher/                    # PATCH_REGISTRY · spec · decision · audit
 │   ├── apply/                         # orchestrator · shadow · per-patch dispatch
-│   ├── engines/vllm/patches/          # 325 community patches grouped by family
+│   ├── engines/vllm/patches/          # 329 community patches grouped by family
 │   │   ├── attention/{flash,turboquant}/  compile_safety/  kv_cache/
 │   │   ├── loader/  lora/  memory/  middleware/  model_compat/{gemma4,qwen3_5}/
 │   │   ├── moe/  multimodal/  observability/  quantization/  reasoning/

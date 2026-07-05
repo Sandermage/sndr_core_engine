@@ -1,6 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """G4_26 — backport the TP-correctness half of OPEN vllm PR #45774.
 
+RETIRED 2026-07-05 (lifecycle: retired, capped <0.23.1rc1.dev672):
+superseded by vllm#46177 (MERGED 2026-06-26, merge commit 701a23d99),
+which added native DiffusionGemma TP support via a DIFFERENT approach
+(local-shard soft-embed + torch.ops.vllm.all_reduce; sampler sc_vocab_
+start/end) — deep-diff outcome (c) supersession. Anchor byte-verified
+GONE in dev672/dev714/dev748. Do NOT re-vendor (the OPEN mega-PR
+#47462 rewrites this territory again — see upstream_watchlist).
+
 ================================================================
 PURPOSE
 ================================================================
@@ -280,7 +288,7 @@ def _diffusion_gemma_arch_present() -> bool:
     if target is None:
         return False
     try:
-        with open(target, "r", encoding="utf-8", errors="ignore") as fh:
+        with open(target, encoding="utf-8", errors="ignore") as fh:
             return "class DiffusionGemmaForConditionalGeneration" in fh.read()
     except OSError:
         return False
@@ -288,7 +296,7 @@ def _diffusion_gemma_arch_present() -> bool:
 
 def apply() -> tuple[str, str]:
     """Install the TP>1 vocab-sharded soft-embed fix on diffusion_gemma.py."""
-    global _APPLIED
+    global _APPLIED  # noqa: PLW0603 — module-level idempotency latch, the standard Genesis patch apply/revert idiom
 
     if not _env_enabled():
         return "skipped", (
@@ -347,7 +355,7 @@ def revert() -> bool:
     is re-pinned on container rebuild, so a hard textual un-splice is not
     needed in production; this mirrors the contract the dispatcher expects.
     """
-    global _APPLIED
+    global _APPLIED  # noqa: PLW0603 — module-level idempotency latch, the standard Genesis patch apply/revert idiom
     if not is_applied():
         _APPLIED = False
         return False

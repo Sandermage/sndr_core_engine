@@ -37,7 +37,6 @@ import logging
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Optional
 
 log = logging.getLogger("genesis.apply.shadow")
 
@@ -353,6 +352,25 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # hook by design (category c, same class as PN519/PN522).
                        # Default-OFF; restores the imperative stacked_params_
                        # mapping that routes the BF16 in_proj_ba GDN shards.
+    # ── 2026-07-05 batch-triage 47382..47564 — four vendors of OPEN
+    # upstream PRs, spec-driven from inception (apply_module + own
+    # apply(), no legacy @register_patch hook; same class as PN383-PN392).
+    "PN523",           # reject empty structural_tag/regex structured outputs
+                       # (vendor of OPEN vllm#47450; serving text patch on
+                       # sampling_params.py, PN387/#45346 successor; default-ON
+                       # remote-DoS guard, PN252 precedent)
+    "PN524",           # skip uniform spec-decode padding for diffusion lanes
+                       # (vendor of OPEN vllm#47464; scheduler one-guard text
+                       # patch — canvas-overflow engine death on 1-token
+                       # resume/prefix-hit; opt-in on the DiffusionGemma lane)
+    "PN525",           # drop incomplete tool-call markup in non-streaming
+                       # (vendor of OPEN vllm#47562, fixes #47137; parser/
+                       # abstract_parser.py text patch — stream/non-stream
+                       # parity on the shared tool-call path, default-ON)
+    "PN526",           # thread-safe StructuredOutputManager tokenizer
+                       # (vendor of OPEN vllm#47509; v1/structured_output
+                       # __init__ text patch — opt-in 'Already borrowed'
+                       # race guard, copy + deep-copied call pool)
 })
 
 
@@ -461,7 +479,7 @@ _LEGACY_NAME_TO_PATCH_ID: dict[str, str] = {
 }
 
 
-def _patch_id_from_legacy_name(name: str) -> Optional[str]:
+def _patch_id_from_legacy_name(name: str) -> str | None:
     # First check explicit map (non-P/PN style names)
     if name in _LEGACY_NAME_TO_PATCH_ID:
         return _LEGACY_NAME_TO_PATCH_ID[name]
@@ -471,7 +489,7 @@ def _patch_id_from_legacy_name(name: str) -> Optional[str]:
         return None
     raw = m.group(1)
     # Normalize casing.
-    if raw.startswith("SNDR_") or raw.startswith("sndr_"):
+    if raw.startswith(("SNDR_", "sndr_")):
         # SNDR_-prefix ids are used verbatim in the spec registry (all-caps,
         # underscore-joined). No prefix/suffix casing transform — returning
         # the matched token as-is keeps it identical to the PatchSpec id.
@@ -482,7 +500,7 @@ def _patch_id_from_legacy_name(name: str) -> Optional[str]:
         # vs PN262B uppercase). Both forms are matched by the legacy
         # title's casing, so preserve.
         return "PN" + raw[2:]
-    if raw.startswith("G4_") or raw.startswith("g4_"):
+    if raw.startswith(("G4_", "g4_")):
         # G4-series: prefix uppercased + suffix letter uppercased to match
         # spec registry shape (G4_19B uppercase suffix — Phase 3A.1, 2026-05-22).
         head = "G4_" + raw[3:]
@@ -603,7 +621,7 @@ def compare_apply_orders() -> ApplyOrderDiff:
 # ─── Human-readable report ────────────────────────────────────────────────
 
 
-def format_diff(diff: ApplyOrderDiff) -> str:
+def format_diff(diff: ApplyOrderDiff) -> str:  # noqa: PLR0912 — linear diff-formatter; one branch per ApplyOrderDiff field, splitting hurts readability
     """Multi-line human-readable summary of an `ApplyOrderDiff`."""
     lines = [
         "═══════════════════════════════════════════════════════════════",
@@ -684,7 +702,7 @@ def format_diff(diff: ApplyOrderDiff) -> str:
 # ─── CLI ──────────────────────────────────────────────────────────────────
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """`python -m sndr.apply.shadow` entry point."""
     parser = argparse.ArgumentParser(
         description="Shadow comparison: PatchSpec apply order vs legacy"

@@ -4,7 +4,7 @@
 > Source: `sndr/model_configs/builtin/*.yaml`
 > Companion to curated [CONFIGS.md](CONFIGS.md) (narrative).
 
-Generated: 2026-07-05T01:59:58Z
+Generated: 2026-07-05T12:16:54Z
 Total configs: **0**
 
 > ℹ **V1 monolithic preset tier fully retired 2026-06-01** (Phase 10 sunset cascade complete). All operator-facing presets now live under the V2 layered triplet:

@@ -312,6 +312,54 @@
     "apply_module": null
   },
   {
+    "patch_id": "PN523",
+    "family": "serving",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": true,
+    "env_flag": "GENESIS_ENABLE_PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.serving.pn523_reject_empty_structural_tag_regex"
+  },
+  {
+    "patch_id": "PN524",
+    "family": "scheduler",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN524_DIFFUSION_SPEC_PADDING_SKIP",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.scheduler.pn524_diffusion_spec_padding_skip"
+  },
+  {
+    "patch_id": "PN525",
+    "family": "tool_parsing",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": true,
+    "env_flag": "GENESIS_ENABLE_PN525_NONSTREAM_TOOLCALL_MARKUP_DROP",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn525_nonstream_truncated_toolcall_markup"
+  },
+  {
+    "patch_id": "PN526",
+    "family": "serving",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN526_THREADSAFE_SO_TOKENIZER",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.serving.pn526_threadsafe_so_tokenizer"
+  },
+  {
     "patch_id": "PN398",
     "family": "spec_decode",
     "lifecycle": "retired",
@@ -3890,7 +3938,7 @@
   {
     "patch_id": "G4_26",
     "family": "gemma4",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB",

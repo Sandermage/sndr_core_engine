@@ -4,23 +4,23 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-07-05T01:59:58Z
-Total entries: **325**
+Generated: 2026-07-05T12:16:54Z
+Total entries: **329**
 
 ## Statistics
 
 ### By tier
-- `tier=community`: **325**
+- `tier=community`: **329**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **225**
+- `lifecycle=experimental`: **228**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
-- `lifecycle=retired`: **51**
+- `lifecycle=retired`: **52**
 - `lifecycle=stable`: **14**
 
-### Default-on at boot: **56** / 325
+### Default-on at boot: **58** / 329
 
 ### By family
 - `attention`: 2
@@ -45,11 +45,11 @@ Total entries: **325**
 - `quantization`: 8
 - `quantization.marlin`: 2
 - `reasoning`: 7
-- `scheduler`: 9
-- `serving`: 14
+- `scheduler`: 10
+- `serving`: 16
 - `spec_decode`: 48
 - `streaming`: 4
-- `tool_parsing`: 12
+- `tool_parsing`: 13
 - `worker`: 15
 
 ## Patches by family
@@ -229,7 +229,7 @@ Total entries: **325**
 | **G4_23** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_23_GEMMA4_VISION_FP16_OVERFLOW` | [#40124](https://github.com/vllm-project/vllm/issues/40124) | Gemma 4 vision-tower FP16 overflow fix (closes vllm#40124) |
 | **G4_24** | `community` | `retired` | · | `GENESIS_ENABLE_G4_24_GEMMA4_FUSED_SOFTCAP` | — | Fused softcap Triton kernel route for Gemma 4 (FINAL logits only; G4_24b will... |
 | **G4_25** | `community` | `stable` | ✓ | `GENESIS_ENABLE_G4_25_GEMMA4_RoPE_DUAL_BASE_GUARD` | — | Gemma 4 dual-RoPE base-freq divergence guard (long-context quality) |
-| **G4_26** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB` | [#45774](https://github.com/vllm-project/vllm/pull/45774) | "Fix DiffusionGemma self-conditioning soft-embed for TP>1 (vocab-sharded embe... |
+| **G4_26** | `community` | `retired` | · | `GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB` | [#45774](https://github.com/vllm-project/vllm/pull/45774) | "Fix DiffusionGemma self-conditioning soft-embed for TP>1 (vocab-sharded embe... |
 | **G4_83** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_G4_83_GEMMA4_PER_LAYER_BACKEND` | [#38891](https://github.com/vllm-project/vllm/pull/38891) | Gemma 4 per-layer attention backend on Ampere (#38891 backport) |
 
 ### `kernels` (9)
@@ -387,7 +387,7 @@ Total entries: **325**
 | **PN71** | `community` | `experimental` | · | `GENESIS_ENABLE_PN71_THINKING_TAG_NORMALIZE` | — | PN71 — `</thinking>` hallucination runtime normalizer |
 | **P61b** | `community` | `retired` | · | `GENESIS_ENABLE_P61B_STREAMING_OVERLAP` | [#40783](https://github.com/vllm-project/vllm/pull/40783) | qwen3_reasoning_parser consolidated: streaming partial-tag overlap guard (vll... |
 
-### `scheduler` (9)
+### `scheduler` (10)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -398,10 +398,11 @@ Total entries: **325**
 | **P74** | `community` | `experimental` | · | `GENESIS_ENABLE_P74_CHUNK_CLAMP` | — | Auto chunk-clamp via long_prefill_token_threshold (P72 companion) |
 | **P84** | `community` | `retired` | · | `GENESIS_ENABLE_P84` | — | hash_block_size override (vllm#38182 actual root cause) — RETIRED 2026-06-11 |
 | **PN388** | `community` | `experimental` | · | `GENESIS_ENABLE_PN388_MAMBA_BLOCK_ALIGNED_SPLIT` | [#45477](https://github.com/vllm-project/vllm/pull/45477) | Mamba-block-aligned intermediate prefill split (vendor of vllm#45477) |
+| **PN524** | `community` | `experimental` | · | `GENESIS_ENABLE_PN524_DIFFUSION_SPEC_PADDING_SKIP` | [#47464](https://github.com/vllm-project/vllm/pull/47464) | Skip uniform spec-decode padding for diffusion models (vendor of vllm#47464) |
 | **P79c** | `community` | `experimental` | · | `GENESIS_ENABLE_P79C_STALE_SPEC_TOKEN_CLEANUP` | [#37629](https://github.com/vllm-project/vllm/pull/37629) | Stale spec_token_ids cleanup for unscheduled requests (vllm#37629) |
 | **P79d** | `community` | `experimental` | · | `GENESIS_ENABLE_P79D_PREEMPT_ASYNC_DISCARD` | [#38624](https://github.com/vllm-project/vllm/pull/38624) | Preempt async-discard credit grant (vllm#38624 v2 rewrite) |
 
-### `serving` (14)
+### `serving` (16)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -419,6 +420,8 @@ Total entries: **325**
 | **PN373** | `community` | `retired` | · | `GENESIS_ENABLE_PN373_PARALLEL_TOOLCALLS_NULL` | [#44955](https://github.com/vllm-project/vllm/pull/44955) | parallel_tool_calls explicit null != false (vendor of OPEN vllm#44955) |
 | **PN387** | `community` | `retired` | · | `GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS` | [#45346](https://github.com/vllm-project/vllm/pull/45346) | Reject degenerate structured_outputs (DoS guard, vendor of vllm#45346) |
 | **PN389** | `community` | `experimental` | · | `GENESIS_ENABLE_PN389_GRAMMAR_TIMEOUTS` | [#45390](https://github.com/vllm-project/vllm/pull/45390) | XGrammar input-validation + grammar-compilation timeouts (vendor of vllm#45390) |
+| **PN523** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX` | [#47450](https://github.com/vllm-project/vllm/pull/47450) | Reject empty structural_tag/regex structured outputs (DoS guard, vendor of vl... |
+| **PN526** | `community` | `experimental` | · | `GENESIS_ENABLE_PN526_THREADSAFE_SO_TOKENIZER` | [#47509](https://github.com/vllm-project/vllm/pull/47509) | Thread-safe StructuredOutputManager tokenizer — 'Already borrowed' race guard... |
 
 ### `spec_decode` (48)
 
@@ -482,7 +485,7 @@ Total entries: **325**
 | **PN202** | `community` | `experimental` | · | `GENESIS_ENABLE_PN202_PER_LAYER_KV_SPLIT` | — | PN202 — per-layer KV tensor split (Tier 2.A enabler) |
 | **PN203** | `community` | `experimental` | · | `GENESIS_ENABLE_PN203_COLD_PREFIX_OFFLOAD` | — | PN203 — cold-prefix CPU offload manager (Tier 3.A) |
 
-### `tool_parsing` (12)
+### `tool_parsing` (13)
 
 | ID | Tier | Lifecycle | Default | Env flag | Upstream PR | Title |
 |---|---|---|:---:|---|:---:|---|
@@ -496,6 +499,7 @@ Total entries: **325**
 | **PN386** | `community` | `retired` | · | `GENESIS_ENABLE_PN386_REQUIRED_STREAMING_STRING_AWARE` | — | Required-tool streaming brace JSON-string-awareness (vendor of vllm#45389) |
 | **PN392** | `community` | `retired` | · | `GENESIS_ENABLE_PN392_QWEN3CODER_STREAMING_COALESCE` | — | qwen3_coder streaming tool-call within-call coalescing (dev491 regression fix) |
 | **PN394** | `community` | `retired` | · | `GENESIS_ENABLE_PN394_QWEN3_PARTIAL_PARAM_LT_FIX` | [#46047](https://github.com/vllm-project/vllm/pull/46047) | qwen3 partial-param value `<` truncation fix (vllm#46047) |
+| **PN525** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN525_NONSTREAM_TOOLCALL_MARKUP_DROP` | [#47562](https://github.com/vllm-project/vllm/pull/47562) | Drop incomplete tool-call markup in non-streaming to match streaming (vendor ... |
 | **G4_T1** | `community` | `experimental` | · | `GENESIS_INFO_G4_T1_PR42006_OVERLAY_MOUNTED` | [#42006](https://github.com/vllm-project/vllm/pull/42006) | "Gemma4 tool-parser PR |
 | **P29_HEAL** | `community` | `experimental` | · | `GENESIS_ENABLE_P29_QWEN3CODER_INDEX_HEAL` | — | qwen3coder tool parser index heal (P29 companion, fix-wire 2026-06-04) |
 

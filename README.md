@@ -14,7 +14,7 @@
 [![Tests](https://github.com/Sandermage/sndr_core_engine/actions/workflows/test.yml/badge.svg)](https://github.com/Sandermage/sndr_core_engine/actions/workflows/test.yml)
 [![CodeQL](https://github.com/Sandermage/sndr_core_engine/actions/workflows/codeql.yml/badge.svg)](https://github.com/Sandermage/sndr_core_engine/actions/workflows/codeql.yml)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev748+g2dfaae752-orange.svg)](https://github.com/vllm-project/vllm)
-[![Patches](https://img.shields.io/badge/registry-325%20patches-green.svg)](docs/PATCHES.md)
+[![Patches](https://img.shields.io/badge/registry-329%20patches-green.svg)](docs/PATCHES.md)
 [![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
 [![Memory](https://img.shields.io/badge/memory-neural--graph-ff69b4.svg)](docs/memory/MANUAL.md)
 [![GPU](https://img.shields.io/badge/GPU-A5000%20%7C%20RTX%204090%20%7C%205090%20%7C%203090%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
@@ -54,7 +54,7 @@ hardware you can actually buy (A5000, RTX 4090 / 5090, A6000 — and yes, the
 **Two products, one engine:** ⚙️ the runtime **vLLM patch-overlay** (faster
 inference) **+** 🧠 a **persistent neural-graph memory** that makes every model —
 local *and* cloud — remember and get smarter over time. Apache-2.0, self-hosted,
-fully auditable. 325 patches across ~23 families.
+fully auditable. 329 patches across ~23 families.
 
 **Sound familiar?**
 
@@ -78,7 +78,7 @@ at the Control Center (`http://127.0.0.1:8765`). Prefer the terminal?
 `sndr run` does the same and drops you straight into a chat prompt. New here?
 Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
 
-![SNDR Control Center — system map with 325-patch registry, 15 presets, 12 models and live launch-readiness gates](docs/assets/screenshots/control-center.png)
+![SNDR Control Center — system map with 329-patch registry, 15 presets, 12 models and live launch-readiness gates](docs/assets/screenshots/control-center.png)
 
 ## Who is this for
 
@@ -91,7 +91,7 @@ Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
   calling that survives quantization, long agentic tool-chains, and a
   persistent memory gateway. Start: [`docs/MCP.md`](docs/MCP.md) +
   [`docs/memory/MANUAL.md`](docs/memory/MANUAL.md).
-- **Researchers / performance engineers** — a 325-entry patch registry with
+- **Researchers / performance engineers** — a 329-entry patch registry with
   per-patch evidence, a bench suite with CV methodology, and reproducible
   numbers. Start: [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) +
   [`docs/PATCHES.md`](docs/PATCHES.md).
@@ -139,7 +139,7 @@ The longer self-host vs cloud (and engine-alternative) discussion lives in
 ## What it is
 
 A **drop-in runtime patcher** for vLLM. It pins to a specific vLLM nightly
-commit and applies 325 small, surgical changes — text edits at known anchors,
+commit and applies 329 small, surgical changes — text edits at known anchors,
 class-rebind wrappers, and FastAPI middleware — that together turn an
 out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
 *consumer* NVIDIA hardware (A5000, RTX 4090 / 5090, A6000, 3090, …) where vLLM
@@ -163,7 +163,7 @@ overlay: the same wheel, transformed at boot, with a structured apply
 summary (`applied=N skipped=M failed=0`) and an audit trail. Nothing is
 written to the vLLM package tree.
 
-**Patch families.** The 325 entries group into ~23 canonical families. The
+**Patch families.** The 329 entries group into ~23 canonical families. The
 largest: `attention.turboquant` (k8v4 KV-cache quant), `spec_decode` (MTP /
 ngram speculative decoding), `attention.gdn` (hybrid Gated-DeltaNet linear
 attention), `gemma4` (Gemma-4 enablement), `kv_cache`, `compile_safety`,
@@ -218,7 +218,7 @@ CI gates:
 
 | Layer | What ships |
 | --- | --- |
-| **Patch engine** | The 325-entry `PATCH_REGISTRY` with per-entry lifecycle (experimental / stable / legacy / retired / coordinator / research) walked by the dispatcher at boot. Every patch is opt-in behind a `GENESIS_ENABLE_*` env flag; a curated set (56 of 325 entries) is marked `default_on` and drives the shipped presets. Structured apply summary (`applied=N skipped=M failed=0`) + audit trail on every boot. |
+| **Patch engine** | The 329-entry `PATCH_REGISTRY` with per-entry lifecycle (experimental / stable / legacy / retired / coordinator / research) walked by the dispatcher at boot. Every patch is opt-in behind a `GENESIS_ENABLE_*` env flag; a curated set (58 of 329 entries) is marked `default_on` and drives the shipped presets. Structured apply summary (`applied=N skipped=M failed=0`) + audit trail on every boot. |
 | **Anchor SOT + drift defense** | Each pin gets a generated per-pin anchor manifest (`make rebuild-pin` regenerates it from the live rig). A daily drift watcher diffs anchors against upstream; a strand gate (`scripts/audit_patch_targets_exist.py`) fails loudly when a patch's upstream target module vanishes on a new pin — 0 unexcused stranded modules on dev748. |
 | **Pin lifecycle** | Three tracked slots — **current** / **rollback** / **stable** — with [`sndr/pins.yaml`](sndr/pins.yaml) as the single source of truth. `make bump-pin NEW=<pin>` (now with a `--sha-full` flag for the full commit SHA) propagates the string into every downstream artifact, and `audit_pin_consistency` fails loudly on a half-finished bump. Worked example — the dev714 → dev748 promotion (2026-07-04): preflight re-anchor → boot gate (fleet-wide apply `failed=0`) → bench gate (242.5 t/s — parity within CV vs same-day dev714, no regression) → receipts → tag rotation. |
 | **Bench suite** | `tools/genesis_bench_suite.py` — the tool-call battery (thinking + non-thinking, multi-tool, error-recovery, denial), single-stream decode with CV methodology (n=25, CV reported with every number), an MTP accept-rate floor check (0.55), the **new ctx-scaling linearity stage** (`[5d/8]`, flags `--ctx-scale*`) that catches long-context decode cliffs, and an agentic multi-turn depth bench (12-turn tool-chains to 39K prompt tokens). |

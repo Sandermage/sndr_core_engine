@@ -636,10 +636,14 @@ class Flags:
     PN391_HEALTH_DECODE_WATCHDOG = "PN391_HEALTH_DECODE_WATCHDOG"  # PN391: /health/decode forward-progress watchdog
     PN383_OFFLOAD_MTP_EAGLE_GATE = "PN383_OFFLOAD_MTP_EAGLE_GATE"  # PN383: KV-offload + MTP segfault gate
     PN388_MAMBA_BLOCK_ALIGNED_SPLIT = "PN388_MAMBA_BLOCK_ALIGNED_SPLIT"  # PN388: mamba-block-aligned prefill split
+    PN524_DIFFUSION_SPEC_PADDING_SKIP = "PN524_DIFFUSION_SPEC_PADDING_SKIP"  # PN524: skip uniform spec-decode padding on diffusion lanes (vendor of vllm#47464; canvas-overflow engine-death guard, DiffusionGemma lane only)
     P89_REASONING_TOKENS_USAGE = "P89_REASONING_TOKENS_USAGE"  # P89: reasoning_tokens in chat usage
     PN373_PARALLEL_TOOLCALLS_NULL = "PN373_PARALLEL_TOOLCALLS_NULL"  # PN373: parallel_tool_calls explicit null != false
     PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS = "PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS"  # PN387: reject degenerate structured_outputs DoS
     PN389_GRAMMAR_TIMEOUTS = "PN389_GRAMMAR_TIMEOUTS"  # PN389: XGrammar grammar-compilation timeouts
+    PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX = "PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX"  # PN523: reject empty structural_tag/regex (vendor of vllm#47450, PN387 successor; default-ON DoS guard)
+    PN525_NONSTREAM_TOOLCALL_MARKUP_DROP = "PN525_NONSTREAM_TOOLCALL_MARKUP_DROP"  # PN525: drop incomplete tool-call markup in non-streaming (vendor of vllm#47562 / issue #47137; stream parity on the shared DelegatingParser path, default-ON)
+    PN526_THREADSAFE_SO_TOKENIZER = "PN526_THREADSAFE_SO_TOKENIZER"  # PN526: thread-safe StructuredOutputManager tokenizer (vendor of vllm#47509; opt-in 'Already borrowed' race guard — copy.copy + maybe_make_thread_pool(max_workers + 1))
     PN370_ASYNC_ACCEPT_RACE = "PN370_ASYNC_ACCEPT_RACE"  # PN370: async accept race
     PN398_ASYNC_ACCEPTED_RACE = "PN398_ASYNC_ACCEPTED_RACE"  # PN398: 0.23.x async spec-decode accepted-counts race (vllm#45100); pre-existing registry<->Flags gap closed 2026-06-19
     PN372_EAGLE_ZERO_SEQLEN_GUARD = "PN372_EAGLE_ZERO_SEQLEN_GUARD"  # PN372: Eagle zero-seqlen guard
@@ -774,7 +778,7 @@ def get_sndr_env(name: str, default: str | None = None,
                     "release.",
                     genesis_var, sndr_var,
                 )
-            except Exception:
+            except Exception:  # noqa: S110 — deprecation notice is best-effort; a logging failure must never break env resolution
                 pass
         return val
     return default

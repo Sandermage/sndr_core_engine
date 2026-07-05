@@ -914,6 +914,218 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # PN521 / G4_70 / PN256). Fully functional, not a stub.
         "implementation_status": "marker_only",
     },
+    # ── 2026-07-05 batch-triage 47382..47564 — four vendors of OPEN
+    # upstream PRs (PN523/PN524/PN525/PN526), spec-driven from inception
+    # (apply_module + own apply(), no legacy @register_patch hook; same
+    # class as PN383-PN392/PN518-PN520). Six-step artifacts in the branch
+    # commits; pre-fix states byte-verified in pristine dev748 (2dfaae752)
+    # via gh api at the pin commit.
+    "PN523": {
+        "title": "Reject empty structural_tag/regex structured outputs (DoS guard, vendor of vllm#47450)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX",
+        # default_on=True (PN252 security precedent): trivially triggerable
+        # remote single-request EngineDeadError DoS on the single-instance
+        # PROD engine; the flag is an operator OFF switch.
+        "default_on": True,
+        "lifecycle": "experimental",
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.serving.pn523_reject_empty_structural_tag_regex",
+        "credit": (
+            "Batch-triage 47382..47564 STEP 1 (2026-07-05). Vendor of OPEN "
+            "vllm#47450 — PN387/#45346 successor class. The merged #45346 "
+            "guards (native in our pin since dev714; why PN387 retired) cover "
+            "grammar/json/json_object but NOT structural_tag/regex: "
+            "structural_tag='' passes the frontend `is not None` exclusivity "
+            "check (request.py:96 class) and reaches json.loads('') in "
+            "backend_xgrammar.compile_grammar (line 97 class) -> JSONDecodeError "
+            "inside the per-request-isolation-free EngineCore step loop -> "
+            "EngineDeadError = remote single-request DoS of the single-instance "
+            "PROD engine; the xgrammar tool-call path is live on ALL lanes. "
+            "regex='' is the PR's consistency reject (xgrammar tolerates "
+            "compile_regex('') but an empty regex constrains nothing). PN523 "
+            "vendors BOTH guards into SamplingParams._validate_structured_"
+            "outputs with the upstream ValueError messages VERBATIM (client "
+            "behavior identical when #47450 merges) and Genesis-reworded "
+            "comments, anchored on the unique #45346 close block (json_object "
+            "raise closer + blank + backend_guidance import; count==1 "
+            "byte-verified in pristine dev748 2dfaae752 via gh api "
+            "2026-07-05). Drift markers = the PR's exact comment heads "
+            "(absent from our replacement -> SELF_COLLISION-safe, and absent "
+            "in pristine dev748, both count 0). Same-file hygiene verified: "
+            "P109 anchors (verify() _validate_logprobs cluster + _validate_"
+            "logits_processors) disjoint; PN389 edits other files; retired "
+            "PN387 leaves no residue (its guards ARE the native text now). "
+            "Layer-2 edge-guard re-arm deliberately deferred (optional "
+            "defence-in-depth; documented in-module). TDD: ported the "
+            "#47450 test_validation.py parametrized matrix (6 reject + 4 "
+            "pass cases) red-first."
+        ),
+        "upstream_pr": 47450,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P109", "PN389"],
+        "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
+        "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
+    },
+    "PN524": {
+        "title": "Skip uniform spec-decode padding for diffusion models (vendor of vllm#47464)",
+        "tier": "community",
+        "family": "scheduler",
+        "env_flag": "GENESIS_ENABLE_PN524_DIFFUSION_SPEC_PADDING_SKIP",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.scheduler.pn524_diffusion_spec_padding_skip",
+        "credit": (
+            "Batch-triage 47382..47564 STEP 2 (2026-07-05). Vendor of OPEN "
+            "vllm#47464. Diffusion schedulers init num_spec_tokens = "
+            "canvas_length with num_sampled_tokens_per_step = 0 (scheduler "
+            "__init__ L119-122 class, model_config.is_diffusion): diffusion "
+            "'spec tokens' are the fixed-size denoising canvas, not "
+            "rejectable drafts. The schedule() spec-decode padding block "
+            "(812-818 region; guard byte-verified ABSENT in pristine dev748 "
+            "2dfaae752 via gh api 2026-07-05) pads a 1-token resumed/"
+            "prefix-hit decode request to 1 + num_spec_tokens to preserve "
+            "full cudagraph -> on the DiffusionGemma lane that is 1 + "
+            "canvas_length -> canvas overflow RuntimeError -> engine death. "
+            "REACHABLE on prod-diffusiongemma-tp2: max_num_seqs=2, KV pool "
+            "capped 8192 blocks = 131072 tokens = max_model_len, prefix "
+            "caching default-on -> preemption/resume or full-prompt prefix "
+            "hit while a decode runs is organic under aggregator dual-stream "
+            "traffic (boots-clean is NOT proof of absence). Fix: upstream's "
+            "one-line guard VERBATIM ('and self.num_sampled_tokens_per_step "
+            "> 0') — arch/model-neutral, INERT for AR MTP lanes (>= 1), "
+            "preserves all upstream gates exactly. Drift marker = the PR's "
+            "comment line ('Not for diffusion where draft tokens can't be "
+            "padded.'), never emitted by us. Same-file hygiene grep-verified: "
+            "p58/p34/p74/p79c/pn388 anchors disjoint from the padding block "
+            "(p58's num_sampled_tokens_per_step regions are elsewhere). "
+            "Opt-in, enabled on the DiffusionGemma ModelDef only. TDD: "
+            "ported test_spec_decode_padding_skipped_for_diffusion semantics "
+            "as executable-condition tests red-first; full rig reproducer "
+            "(1-token prefix-hit resume during decode) is the on-rig gate."
+        ),
+        "upstream_pr": 47464,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P58", "P34", "P74", "P79c", "PN388"],
+        "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
+        "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
+    },
+    "PN525": {
+        "title": "Drop incomplete tool-call markup in non-streaming to match streaming (vendor of vllm#47562)",
+        "tier": "community",
+        "family": "tool_parsing",
+        "env_flag": "GENESIS_ENABLE_PN525_NONSTREAM_TOOLCALL_MARKUP_DROP",
+        # default_on=True (work-order verdict): stream/non-stream parity is
+        # a correctness property of the shared tool-call path every lane
+        # uses; the flag is an operator OFF switch.
+        "default_on": True,
+        "lifecycle": "experimental",
+        "category": "correctness",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn525_nonstream_truncated_toolcall_markup",
+        "credit": (
+            "Batch-triage 47382..47564 STEP 3 (2026-07-05). Vendor of OPEN "
+            "vllm#47562 (fixes issue #47137). The shared DelegatingParser."
+            "_extract_tool_calls non-streaming auto-tool-choice else-branch "
+            "('# No tool calls.' -> 'return None, content'; byte-verified "
+            "present count==1 in pristine dev748 2dfaae752 via gh api "
+            "2026-07-05) returns the RAW content instead of the engine tool "
+            "parser's cleaned tool_call_info.content. When generation "
+            "truncates inside a <tool_call> opener (max_tokens or stop "
+            "string) the client receives raw incomplete markup while the "
+            "streaming path correctly drops it — client-visible garbage + "
+            "stream/non-stream divergence on the path ALL our engine tool "
+            "parsers share (qwen3_xml on 35B/27B, gemma4 on the G4 lanes; "
+            "tool calls are a 7/7-gated first-class capability per lane). "
+            "Fix: guard tool_call_info is not None and return its cleaned "
+            "content ('' -> None), raw-content fallback preserved. Genesis "
+            "divergence (drift-marker safety): byte-divergent 'cleaned if "
+            "cleaned else None' shape + reworded comments, so the PR's exact "
+            "comment head AND its 'return None, tool_call_info.content or "
+            "None' line are the SELF_COLLISION-safe drift markers. Same-file "
+            "hygiene grep-verified: PN66 + PN392 anchor parse_delta "
+            "(disjoint function). TDD: ported the #47562 matrix red-first "
+            "(4 truncated-opener parity cases + content-before-opener "
+            "preservation + complete-call promotion + raw fallback). "
+            "Fleet-verify gate: rerun tool gates on all lanes (boot "
+            "applied+failed=0 first)."
+        ),
+        "upstream_pr": 47562,
+        "upstream_issue": 47137,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN66", "PN392"],
+        # Upper bound capped <0.24.0 pending the #47562 merge; drift
+        # markers self-skip earlier if it lands within the window.
+        "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
+        "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
+    },
+    "PN526": {
+        "title": "Thread-safe StructuredOutputManager tokenizer — 'Already borrowed' race guard (vendor of vllm#47509)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN526_THREADSAFE_SO_TOKENIZER",
+        # Opt-in (P3): the race is real but never observed in incident
+        # memory; flip on for structured-output soaks or on the first
+        # 'Already borrowed' log line.
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.serving.pn526_threadsafe_so_tokenizer",
+        "credit": (
+            "Batch-triage 47382..47564 STEP 4 (2026-07-05, lowest priority — "
+            "real but unobserved). Vendor of OPEN vllm#47509. "
+            "StructuredOutputManager.__init__ (pristine dev748 L79-81, "
+            "byte-verified via gh api at 2dfaae752) hands the process-global "
+            "cached_tokenizer_from_config instance to concurrent "
+            "self.executor threads (grammar compile) + the request-scoped "
+            "reasoner; HF fast tokenizers mutate shared Rust state inside "
+            "encode (set_truncation_and_padding) -> RuntimeError 'Already "
+            "borrowed' under concurrency. Reachable on 35B PROD: "
+            "reasoning_parser qwen3 + GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_"
+            "TIMING=1 + structured outputs live. Fix deps IN-pin "
+            "(vllm/tokenizers/hf.py ThreadSafeHFTokenizerMixin L19 + "
+            "maybe_make_thread_pool L25, re-exported by the package "
+            "__init__). Vendors the PR's __init__ hunk with upstream-"
+            "identical semantics (assert -> copy.copy -> maybe_make_thread_"
+            "pool(tokenizer, max_workers + 1); the copy is load-bearing — "
+            "the wrap swaps __class__ IN PLACE and must never mutate the "
+            "shared cache entry) as one function-local insertion with "
+            "ALIASED imports, so upstream's literal rewritten import line "
+            "('cached_tokenizer_from_config, maybe_make_thread_pool') is the "
+            "SELF_COLLISION-safe drift marker. VERDICT CORRECTION from the "
+            "triage cross-check: disjointness declared+test-pinned against "
+            "BOTH same-file patches — P62 (grammar_bitmask/update-from-"
+            "output regions) AND PN58 Sub-D (module-level logger anchor "
+            "before the class; MISSED in the first pass) — same-file "
+            "preflight must cover both. TDD: cache-isolation semantics "
+            "ported red-first (wraps a copy, pool = max_workers + 1); the "
+            "PR's transformers concurrency hammer (32 threads x 200 "
+            "truncation-toggling encodes) is the blue/green container gate. "
+            "Expected retire outcome (a) byte-similar when #47509 merges."
+        ),
+        "upstream_pr": 47509,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P62", "PN58"],
+        "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
+        "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
+    },
     "PN398": {
         "title": "Async spec-decode accepted-counts race fix (vllm#45100 backport)",
         "tier": "community",
@@ -11740,12 +11952,25 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_26_diffusiongemma_tp_vocab_soft_embed",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (batch-triage 47382..47564 STEP 0a, iron-rule-11
+        # audit of contradiction C1): vllm#46177 (fix for issue #45719) MERGED
+        # 2026-06-26 ships a DIFFERENT-approach native TP fix — the sampler now
+        # consumes the LOCAL vocab-shard slice (probs[..., sc_vocab_start:
+        # sc_vocab_end] @ embed_weight_shard) + all_reduce, instead of G4_26's
+        # full-weight all-gather. Deep-diff outcome (c) SUPERSESSION: nothing
+        # of ours to keep — G4_26's required sub-3 anchor is byte-ABSENT on
+        # every live pin, so the overlay could never apply again; the
+        # profile's "confirmed APPLIED at boot" gate was stale. Provenance in
+        # superseded_by + the <dev672 range cap below; flag removed from the
+        # diffusiongemma ModelDef (range caps do NOT stop opt-in patches).
+        "lifecycle": "retired",
         "credit": "Backports the TP-correctness half of open PR #45774: DiffusionGemmaForBlockDiffusion self-conditioning does probs@embed_weight over FULL vocab (262144); at TP=2 embed_tokens.weight is vocab-sharded to [131072,2816] -> RuntimeError reduction-dim mismatch. Adds get_tensor_model_parallel_world_size/tensor_model_parallel_all_gather import + _get_full_embed_weight helper + line-853 swap. SKIPs XPU/UVA hunks. Intrinsically TP-gated (helper returns .weight unchanged at TP=1). Self-skips once #45774 merges (upstream_drift_marker 'def _get_full_embed_weight').",
         "upstream_pr": "https://github.com/vllm-project/vllm/pull/45774",
+        "superseded_by": "vllm#46177 (fix for issue #45719) MERGED 2026-06-26, merge commit 701a23d99 — native DiffusionGemma TP support via local-shard soft-embed (probs local-vocab slice @ sharded embed weight + torch.ops.vllm.all_reduce; sampler gains sc_vocab_start/sc_vocab_end), a DIFFERENT approach than G4_26's full-weight all-gather (deep-diff outcome (c) supersession). Byte-verified via gh api at the pin commits 2026-07-05: G4_26's required sub-3 anchor 'embed_weight=self.model.model.embed_tokens.weight,' count 0 AND 'sc_vocab_start' count 10 in dev672 (93d8f834d), dev714 (09663abde) and dev748 (2dfaae752); 701a23d99 is an ancestor of all three (gh compare). Cap at <dev672 = earliest pin byte-verified native. NOTE: the OPEN mega-PR vllm#47462 rewrites this territory again (custom_sampler call site + logits_processor + V2 runner, VLLM_DIFFUSION_GEMMA_LOCAL_VOCAB_SAMPLER) — see the upstream_watchlist #47462 row; do NOT re-vendor.",
         "requires_patches": [],
         "conflicts_with": [],
-        "applies_to": {"model_arch": ["DiffusionGemmaForBlockDiffusion"], "vllm_version_range": (">=0.22.1rc1.dev491", "<1.0.0")},
+        "applies_to": {"model_arch": ["DiffusionGemmaForBlockDiffusion"], "vllm_version_range": (">=0.22.1rc1.dev491", "<0.23.1rc1.dev672")},
+        "vllm_version_range": (">=0.22.1rc1.dev491", "<0.23.1rc1.dev672"),
     },
 }
 

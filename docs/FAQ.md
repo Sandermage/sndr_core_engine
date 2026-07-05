@@ -36,7 +36,7 @@ documented in [`RELEASE_POLICY.md`](RELEASE_POLICY.md).
 
 ### Q: How big is the patch registry today?
 
-**325 entries**: 263 full-implementation, 25 experimental, 22 marker-only,
+**329 entries**: 267 full-implementation, 25 experimental, 22 marker-only,
 7 partial, 6 retired, 2 placeholder. The current state is always
 in [`PATCHES_AUTO.md`](PATCHES_AUTO.md) (auto-generated from
 `sndr/dispatcher/registry.py`) and the narrative
