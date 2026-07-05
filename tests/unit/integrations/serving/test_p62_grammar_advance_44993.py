@@ -26,8 +26,9 @@ suite ports upstream's 4 regression tests onto that surface — per the
 regression tests against P62").
 
 Test strategy (modeled on test_pn373_parallel_toolcalls_null.py):
-  1. Anchor byte-verification against the pristine candidate tree
-     (/private/tmp/candidate_pin_current) — count==1 for all 5 anchors.
+  1. Anchor byte-verification against a real pristine dump provided via
+     GENESIS_VLLM_PRISTINE_TREE (container-gated) — count==1 for all 5
+     anchors.
   2. Exec-technique: P62's replacements are applied to the pristine
      source text, the patched methods are ast-extracted and exec'd, and
      the 4 ported regression tests run against THAT text (not a
@@ -54,8 +55,32 @@ from types import SimpleNamespace
 
 import pytest
 
+# ── Documented container-gate (audit #14 full drain, 2026-07-06) ──────
+# The ported #44993 regression suite and the anchor byte-checks below extract
+# and EXECUTE P62's real spliced methods, so they genuinely need the un-patched
+# pristine vLLM source. They CANNOT migrate to the committed per-pin anchor
+# manifest: P62's builders are ``_make_struct_out_patcher`` /
+# ``_make_scheduler_patcher`` (no canonical ``_make_patcher``), and
+# ``iter_anchor_targets`` builds each module through the SINGULAR
+# ``_build_patcher_for_module`` (which recognizes only ``_make_patcher`` /
+# ``_make_patcher_for_drift``), so P62 yields zero anchor targets and is absent
+# from the manifest (90/329 gap, audit #6/#21; the plural ``discover_patchers``
+# that would find its builders is defined but unwired). The previous gate keyed
+# on macOS-only stale-pin dump paths (dev259 + dev491 candidate snapshots) —
+# empty on CI, absent on the Linux rig — so it executed on NO host (permanent
+# green-by-skip). It now resolves a REAL pristine dump from an env
+# var (the rig writes a current-pin dump under ``/tmp/pristine_<pin>``); no
+# phantom path, and where a dump is provided the suite actually RUNS.
 
-PRISTINE_ROOT = "/private/tmp/candidate_pin_current/vllm"
+
+def _pristine_root(env_var: str) -> str:
+    """Resolve a pristine vLLM source root (the dir that contains ``vllm/``)
+    from ``env_var``; return "" when unset so the gates below skip honestly."""
+    root = os.environ.get(env_var)
+    return os.path.join(root, "vllm") if root else ""
+
+
+PRISTINE_ROOT = _pristine_root("GENESIS_VLLM_PRISTINE_TREE")
 PRISTINE_STRUCT_OUT = os.path.join(
     PRISTINE_ROOT, "v1", "structured_output", "__init__.py"
 )
@@ -67,8 +92,9 @@ PRISTINE_SCHEDULER = os.path.join(
 # `p62_grammar_bitmask` anchor: dev491 inserted a diffusion-LLM `token_iter`
 # branch between `req_tokens = ...` and the bitmask loop. P62 now dual-anchors
 # the grammar_bitmask sub-patch (dev259 + dev491 variants, required-at-least-
-# one). These constants drive the dev491-anchor byte-verification.
-CANDIDATE_DEV491_ROOT = "/tmp/candidate_pin_new/vllm"
+# one). These constants drive the dev491-anchor byte-verification against a
+# dev491 pristine dump provided via GENESIS_VLLM_PRISTINE_DEV491_TREE.
+CANDIDATE_DEV491_ROOT = _pristine_root("GENESIS_VLLM_PRISTINE_DEV491_TREE")
 CANDIDATE_DEV491_STRUCT_OUT = os.path.join(
     CANDIDATE_DEV491_ROOT, "v1", "structured_output", "__init__.py"
 )
@@ -78,18 +104,27 @@ CANDIDATE_DEV491_SCHEDULER = os.path.join(
 
 requires_pristine = pytest.mark.skipif(
     not (
-        os.path.isfile(PRISTINE_STRUCT_OUT)
+        PRISTINE_ROOT
+        and os.path.isfile(PRISTINE_STRUCT_OUT)
         and os.path.isfile(PRISTINE_SCHEDULER)
     ),
-    reason="pristine candidate pin tree not extracted on this host",
+    reason=(
+        "container-gated: set GENESIS_VLLM_PRISTINE_TREE to a current-pin "
+        "pristine vLLM dump (P62 is absent from the anchor manifest, so this "
+        "byte-check cannot run off the committed SOT)"
+    ),
 )
 
 requires_dev491 = pytest.mark.skipif(
     not (
-        os.path.isfile(CANDIDATE_DEV491_STRUCT_OUT)
+        CANDIDATE_DEV491_ROOT
+        and os.path.isfile(CANDIDATE_DEV491_STRUCT_OUT)
         and os.path.isfile(CANDIDATE_DEV491_SCHEDULER)
     ),
-    reason="dev491 candidate pin tree not extracted on this host",
+    reason=(
+        "container-gated: set GENESIS_VLLM_PRISTINE_DEV491_TREE to a dev491 "
+        "pristine vLLM dump"
+    ),
 )
 
 
@@ -142,7 +177,7 @@ UPSTREAM_44297_STRUCT_OUT_IMAGE = (
 
 def _p62():
     from sndr.engines.vllm.patches.serving import (
-        p62_structured_output_spec_decode_timing as M,
+        p62_structured_output_spec_decode_timing as M,  # noqa: N812
     )
     return M
 
@@ -423,8 +458,9 @@ class TestDev491GrammarBitmaskAnchor:
         """End-to-end: apply() against a copy of the dev491 tree must report
         the dev491 diffusion-aware variant fired, and write valid Python."""
         import shutil
-        import sndr.engines.vllm.detection.guards as guards
-        import sndr.dispatcher as D
+
+        from sndr import dispatcher
+        from sndr.engines.vllm.detection import guards
 
         M = _p62()
         vllm_root = tmp_path / "vllm"
@@ -442,8 +478,10 @@ class TestDev491GrammarBitmaskAnchor:
         monkeypatch.setattr(guards, "vllm_install_root", lambda: str(vllm_root))
         monkeypatch.setattr(M, "vllm_install_root", lambda: str(vllm_root))
         monkeypatch.setattr(M, "resolve_vllm_file", _resolve)
-        monkeypatch.setattr(D, "should_apply", lambda pid: (True, "forced"))
-        monkeypatch.setattr(D, "log_decision", lambda *a, **k: None)
+        monkeypatch.setattr(
+            dispatcher, "should_apply", lambda pid: (True, "forced")
+        )
+        monkeypatch.setattr(dispatcher, "log_decision", lambda *a, **k: None)
 
         status, reason = M.apply()
         assert status == "applied", reason
@@ -613,12 +651,13 @@ class TestDriftMarkerWatchEntries:
         """Same guards.vllm_install_root redirection seam the lint and
         tools/pin_preflight.py use — builders resolve into the
         candidate tree."""
-        import sndr.engines.vllm.detection.guards as guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "vllm_install_root", lambda: PRISTINE_ROOT)
         M = _p62()
         struct_out = M._make_struct_out_patcher()
         sched = M._make_scheduler_patcher()
-        assert struct_out is not None and sched is not None
+        assert struct_out is not None
+        assert sched is not None
         assert list(struct_out.upstream_drift_markers) == list(
             M.P62_STRUCT_OUT_DRIFT_MARKERS
         )

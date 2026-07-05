@@ -78,8 +78,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
-
 # Unit tests patch fresh tmp files; the Layer-0 cache must never satisfy
 # apply() from a previous run's state.
 os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
@@ -196,50 +194,8 @@ MERGED_PROTOCOL = PIN_PROTOCOL.replace(
     "    completion_tokens_details: CompletionTokenUsageInfo | None = None\n",
 )
 
-# Live PROD pin is dev148 (0.23.1rc1.dev148+gb4c80ec0f), which carries the
-# #45171 / #45171-redesign serving form: the accumulator-decl comment is
-# deleted (dev491 accum-decl variant active) and the stream/full attach
-# sites use the ``_make_prompt_tokens_details(...)`` helper with the
-# parser-unification gate (dev101 attach variants active). The dev259 and
-# dev491-stream/full variants are RETAINED in the patch (required=False)
-# for the rollback window but are count==0 on dev148. The opportunistic
-# invariants below run against the real pristine dev148 tree when it is
-# present on this host (full dump preferred; the partial
-# candidate_pin_current snapshot lacks the entrypoints subtree, so it is
-# only a fallback that self-skips the file-gated classes).
-_PIN_TREE_CANDIDATES = (
-    Path("/private/tmp/vllm_pristine_b4c80ec0f/vllm"),
-    Path("/private/tmp/candidate_pin_current/vllm"),
-)
-PIN_TREE = next(
-    (
-        p
-        for p in _PIN_TREE_CANDIDATES
-        if (p / "entrypoints/openai/chat_completion/serving.py").is_file()
-    ),
-    _PIN_TREE_CANDIDATES[0],
-)
 PROTOCOL_REL = "entrypoints/openai/engine/protocol.py"
 SERVING_REL = "entrypoints/openai/chat_completion/serving.py"
-
-# Serving sub-patch names grouped by their state on the live dev148 tree.
-# ACTIVE: exactly these anchors resolve count==1 on dev148 (so the
-# TextPatcher applies them). INACTIVE: the retained dev259/dev491 attach
-# variants kept for the rollback window — count==0 on dev148 (soft-skip).
-_DEV148_ACTIVE_SERVING_NAMES = {
-    "p89_serving_import",
-    "p89_serving_accumulator_decl_dev491",
-    "p89_serving_accumulator_extend",
-    "p89_serving_stream_attach_dev101",
-    "p89_serving_full_attach_dev101",
-}
-_DEV148_INACTIVE_SERVING_NAMES = {
-    "p89_serving_accumulator_decl",  # dev259 variant (comment-bearing)
-    "p89_serving_stream_attach",  # dev259 inline-guard variant
-    "p89_serving_stream_attach_dev491",  # dev491 inline-guard variant
-    "p89_serving_full_attach",  # dev259 inline-guard variant
-    "p89_serving_full_attach_dev491",  # dev491 inline-guard variant
-}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -259,7 +215,7 @@ def _install_fakes(tmp_path, monkeypatch, protocol_text, serving_text):
         return None
 
     monkeypatch.setattr(m, "resolve_vllm_file", _resolve)
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -411,7 +367,7 @@ class TestApply:
             return None
 
         monkeypatch.setattr(m, "resolve_vllm_file", _resolve)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
         )
@@ -425,7 +381,7 @@ class TestApply:
 
     def test_apply_skips_when_target_missing(self, monkeypatch):
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: None)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (True, "test override")
         )
@@ -467,132 +423,25 @@ class TestDriftMarkerSelfCollision:
         )
 
 
-# ── Pristine dev148 pin invariants (opportunistic) ───────────────────
-# Live PROD pin is dev148 (0.23.1rc1.dev148+gb4c80ec0f). The #45171
-# parser-unification redesign moved the accumulator-decl + both attach
-# sites; on dev148 the ACTIVE serving anchors are import + accum-extend +
-# accum-decl-dev491 + stream-attach-dev101 + full-attach-dev101 (count==1
-# each), and the retained dev259/dev491-attach variants are count==0
-# (kept ``required=False`` for the rollback window so they soft-skip).
-# These invariants pin that exact dev148 anchor topology so a future
-# silent drift on the active pin is caught, NOT papered over.
-@pytest.mark.skipif(
-    not (PIN_TREE / SERVING_REL).is_file(),
-    reason="pristine dev148 pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristineDev148Pin:
-    def test_protocol_anchor_unique_and_markers_absent(self):
-        """#45171 left engine/protocol.py byte-stable — the single
-        protocol anchor resolves count==1 on dev148."""
-        src = (PIN_TREE / PROTOCOL_REL).read_text(encoding="utf-8")
-        for sp in m._protocol_sub_patches():
-            assert src.count(sp.anchor) == 1, sp.name
-            assert sp.replacement not in src
-        for dm in m._PROTOCOL_DRIFT_MARKERS:
-            assert dm not in src
-
-    def test_serving_active_anchors_unique_inactive_absent(self):
-        # dev148 tree: each ACTIVE serving anchor (import, accum-extend,
-        # accum-decl-dev491, stream-attach-dev101, full-attach-dev101)
-        # matches count==1; each retained INACTIVE variant (dev259
-        # accum-decl, dev259/dev491 stream + full attach) matches
-        # count==0. Exactly one variant fires per site on this pin.
-        src = (PIN_TREE / SERVING_REL).read_text(encoding="utf-8")
-        for sp in m._serving_sub_patches():
-            count = src.count(sp.anchor)
-            if sp.name in _DEV148_ACTIVE_SERVING_NAMES:
-                assert count == 1, f"{sp.name} should be active on dev148"
-            elif sp.name in _DEV148_INACTIVE_SERVING_NAMES:
-                assert count == 0, f"{sp.name} should be absent on dev148"
-            else:  # pragma: no cover - guards a stray sub-patch name
-                raise AssertionError(f"unclassified sub-patch {sp.name}")
-            assert sp.replacement not in src
-        for dm in m._SERVING_DRIFT_MARKERS:
-            assert dm not in src
-
-    def test_exactly_one_attach_variant_fires_per_site(self):
-        """On dev148 exactly the dev101 variant of each moved attach site
-        resolves (the retained dev259/dev491 variants soft-skip)."""
-        src = (PIN_TREE / SERVING_REL).read_text(encoding="utf-8")
-        for base in ("p89_serving_stream_attach", "p89_serving_full_attach"):
-            variants = {
-                sp.name: sp.anchor
-                for sp in m._serving_sub_patches()
-                if sp.name in (base, base + "_dev491", base + "_dev101")
-            }
-            assert src.count(variants[base]) == 0, base
-            assert src.count(variants[base + "_dev491"]) == 0, base + "_dev491"
-            assert src.count(variants[base + "_dev101"]) == 1, base + "_dev101"
-        # accumulator-decl: dev491 variant active, dev259 variant absent.
-        decl = {
-            sp.name: sp.anchor
-            for sp in m._serving_sub_patches()
-            if sp.name in (
-                "p89_serving_accumulator_decl",
-                "p89_serving_accumulator_decl_dev491",
-            )
-        }
-        assert src.count(decl["p89_serving_accumulator_decl"]) == 0
-        assert src.count(decl["p89_serving_accumulator_decl_dev491"]) == 1
-
-    def test_required_dev101_attach_anchors_present(self):
-        """The two ``required=True`` dev101 attach anchors must resolve
-        on the active pin — if either is count==0 the patch SKIPs and the
-        reasoning count is silently dropped (the drift this fixture
-        update guards against)."""
-        src = (PIN_TREE / SERVING_REL).read_text(encoding="utf-8")
-        for sp in m._serving_sub_patches():
-            if sp.name in (
-                "p89_serving_stream_attach_dev101",
-                "p89_serving_full_attach_dev101",
-            ):
-                assert sp.required is True, sp.name
-                assert src.count(sp.anchor) == 1, sp.name
-
-    def test_apply_on_real_dev148_tree_compiles(self, tmp_path, monkeypatch):
-        """Apply the serving + protocol patchers against COPIES of the
-        real dev148 pristine tree and assert the spliced result compiles
-        with exactly the dev101/dev491-active variant of each moved site
-        applied once."""
-        proto_src = (PIN_TREE / PROTOCOL_REL).read_text(encoding="utf-8")
-        serv_src = (PIN_TREE / SERVING_REL).read_text(encoding="utf-8")
-        proto, serv = _install_fakes(
-            tmp_path, monkeypatch, proto_src, serv_src
-        )
-        status, reason = m.apply()
-        assert status == "applied", reason
-
-        serv_out = serv.read_text(encoding="utf-8")
-        proto_out = proto.read_text(encoding="utf-8")
-        # Both spliced files still compile.
-        compile(serv_out, str(serv), "exec")
-        compile(proto_out, str(proto), "exec")
-        # The active variant of each moved site applied exactly once.
-        assert serv_out.count("per_choice_token_ids: list[list[int]]") == 1
-        assert "per_choice_token_ids[i].extend(output.token_ids)" in serv_out
-        assert serv_out.count(
-            "final_usage.completion_tokens_details = ("
-        ) == 1
-        assert serv_out.count(
-            "usage.completion_tokens_details = CompletionTokenUsageInfo("
-        ) == 1
-        # The dev101 redesign gate (parser.reasoning_parser) is emitted.
-        assert "if any(p89_reasoning_parsers)" in serv_out
-        assert "parser.reasoning_parser is not None" in serv_out
-        # protocol model + field wired exactly once.
-        assert proto_out.count("class CompletionTokenUsageInfo") == 1
-        assert (
-            "completion_tokens_details: CompletionTokenUsageInfo | None = None"
-            in proto_out
-        )
-
-    def test_count_reasoning_tokens_exists_in_pin(self):
-        """The zero-GPU reasoning-token walk P89 relies on already exists
-        on the abstract reasoning parser in the dev148 pin."""
-        abs_parser = (
-            PIN_TREE / "reasoning" / "abs_reasoning_parsers.py"
-        ).read_text(encoding="utf-8")
-        assert "def count_reasoning_tokens(" in abs_parser
+# ── Pristine dev148 pin invariants — RETIRED (audit #14 full drain, 2026-07-06) ──
+# ``TestAnchorsAgainstPristineDev148Pin`` (protocol/serving anchor uniqueness,
+# active-vs-inactive variant topology, exactly-one-attach-per-site,
+# required-dev101 presence, apply-on-real-tree-compiles, count_reasoning_tokens
+# presence) gated on macOS-only stale-pin dump paths (dev148 pristine +
+# candidate snapshot) — empty on CI, absent on the Linux rig (pristine at
+# ``/tmp/pristine_dev748_2dfaae752``), and pinned to dev148 (many pin
+# generations old) — so the class executed on NO host, a permanent
+# green-by-skip. It cannot be migrated onto the committed per-pin
+# anchor manifest: P89 is a multi-file bundle whose builders are
+# ``_make_protocol_patcher`` / ``_make_serving_patcher`` (no canonical
+# ``_make_patcher``), and ``iter_anchor_targets`` builds each module through the
+# SINGULAR ``_build_patcher_for_module`` (which recognizes only
+# ``_make_patcher``/``_make_patcher_for_drift``), so P89 yields zero anchor
+# targets and is absent from the manifest (90/329 gap, audit #6/#21; the plural
+# ``discover_patchers`` that would find its builders is defined but unwired).
+# Retired. Patcher shape (both files), the protocol model + field, the serving
+# count wiring, apply on the pin-shaped fakes, and drift-marker self-collision
+# stay covered in CI by TestPatcherShape / TestApply / TestDriftMarkerSelfCollision.
 
 
 # ── Dispatcher reachability contract ─────────────────────────────────
