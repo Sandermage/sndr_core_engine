@@ -29,16 +29,18 @@
 #      `vllm.general_plugins` entry-point reliably — entry-point ordering
 #      under the V2 runner means the Genesis register() can run AFTER the
 #      model executor has already imported diffusion_gemma.py, so the
-#      G4_26 / PN-FP8MOE-KPAD TextPatchers never patch the live module.
+#      PN-FP8MOE-KPAD TextPatcher never patches the live module. (G4_26
+#      was RETIRED 2026-07-05: native vllm#46177 local-shard soft-embed
+#      supersedes it on dev672+, so only PN-FP8MOE-KPAD remains
+#      load-bearing here.)
 #      The render path only does `pip install -e ${GENESIS_REPO} --no-deps`
 #      and trusts the entry-point. This model needs an EXPLICIT pre-serve
 #      apply step inside the container, BEFORE `exec vllm serve`:
 #          python3 -c "from sndr.plugin import register; register()" 2>&1 | tail -20
 #      (equivalently `python3 -m sndr.apply 2>&1 | tail -20`, the canonical
 #      apply entrypoint used by emitters/docker_cmd.py — same effect.)
-#      Without this step the TP=2 vocab-shard all-gather (G4_26) and the
-#      FP8 MoE N=352 tile-pad (PN-FP8MOE-KPAD) are never installed and the
-#      engine crashes at init (reduction-dim mismatch / Invalid thread
+#      Without this step the FP8 MoE N=352 tile-pad (PN-FP8MOE-KPAD) is
+#      never installed and the engine crashes at init (Invalid thread
 #      config MKN=[16384,352,2816]).
 #
 #   2. --enforce-eager. The render path NEVER emits --enforce-eager (it
@@ -103,7 +105,7 @@ capabilities:
 # ─── Hardware preconditions ────────────────────────────────────────────
 requires:
   min_total_vram_mib: 28000                                # 26B-A4B FP8 weights ~13 GB + KV at 4K ctx; needs 2× 24 GB at TP=2
-  min_gpu_count: 2                                         # validated config is TP=2 (vocab-shard all-gather + FP8 MoE on two cards)
+  min_gpu_count: 2                                         # validated config is TP=2 (native #46177 local-shard soft-embed + FP8 MoE on two cards)
   min_cuda_capability: [8, 6]                              # Ampere SM 8.6
   rig_arch_blocklist: []
 
@@ -119,18 +121,15 @@ versions:
   reference_metrics_ref: null  # no canonical baseline JSON yet — see reference_metrics block below (coherent-serve receipt only; speed pending).
 
 # ─── Canonical patches matrix ──────────────────────────────────────────
-# Only the two DiffusionGemma-load-bearing flags. Both are default_on=False
-# in the registry (experimental); enabling them here is intentional — the
-# model does not serve coherently at TP=2 without them.
+# Only the one remaining DiffusionGemma-load-bearing flag (default_on=False
+# in the registry; enabling it here is intentional — the model does not
+# serve at TP=2 without it).
+# G4_26 REMOVED 2026-07-05 (batch-triage STEP 0a): retired — vllm#46177
+# (fix for #45719, merged 2026-06-26) ships a native different-approach TP
+# fix (local vocab-shard slice + all_reduce) in dev672/dev714/dev748; the
+# G4_26 anchor site is byte-absent on every live pin, so the flag was an
+# enabled-flag-on-a-dead-patch landmine (opt-in flags outrank range caps).
 patches:
-  # G4_26 — backport of OPEN vllm PR #45774 (TP-correctness half only).
-  # DiffusionGemmaForBlockDiffusion self-conditioning computes
-  # probs @ embed_weight over the FULL vocab (262144). At TP=2 the
-  # VocabParallelEmbedding weight is vocab-sharded to [131072, 2816] →
-  # RuntimeError "a and b must have same reduction dim". G4_26 all-gathers
-  # the full embed weight before the matmul. Intrinsically TP-gated
-  # (no-op at TP=1). Self-skips once #45774 merges.
-  GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB: '1'
   # PN-FP8MOE-KPAD — FP8-core backport of OPEN vllm#45703. The fused
   # Marlin MoE kernel needs the intermediate dim % 64 == 0; DiffusionGemma's
   # N=352 (352 % 64 == 32) crashes with "Invalid thread config ...
@@ -157,13 +156,13 @@ patches:
 # break the registry cross-reference contract _check_patch_id exists to
 # enforce, and would not be a real attribution. The per-patch role +
 # evidence therefore live in the inline comments on the `patches:` block
-# above (both classify as load_bearing — the model does NOT boot/serve
-# coherently at TP=2 with either flag OFF; see reference_metrics + the
-# header RENDER-PATH GAPS block). Evidence basis, per patch:
-#   • G4_26          → registry category=correctness, family=gemma4,
-#                      backport of OPEN vllm PR #45774 (TP-vocab all-gather).
-#                      Gold-equivalent role: load_bearing (removal → engine
-#                      init crash "reduction dim mismatch" at TP=2).
+# above (load_bearing — the model does NOT boot/serve at TP=2 with the
+# flag OFF; see reference_metrics + the header RENDER-PATH GAPS block).
+# Evidence basis:
+#   • G4_26          → RETIRED 2026-07-05 (was: backport of vllm PR #45774
+#                      TP-vocab all-gather). Superseded by native vllm#46177
+#                      local-shard soft-embed (in dev672+); flag removed
+#                      from the patches block above.
 #   • PN-FP8MOE-KPAD → registry category=kernel, family=quantization.marlin,
 #                      backport of OPEN vllm#45703 (FP8 MoE tile pad).
 #                      Gold-equivalent role: load_bearing (removal → engine
@@ -237,11 +236,12 @@ notes:
     diffusion has no autoregressive per-token decode loop, so AR decode-TPOT
     is N/A; throughput must be measured per generated block by a
     block-diffusion-aware harness (not yet wired)."
-  - "Both Genesis flags below are default-OFF experimental in the registry
-    and are opted-in here ON PURPOSE: the model does NOT boot / serve
-    coherently at TP=2 without them. G4_26 = TP vocab-shard all-gather
-    (vllm#45774, correctness); PN-FP8MOE-KPAD = FP8 MoE N=352 tile-pad
-    (vllm#45703, kernel). Both classify load_bearing — see the patches block."
+  - "The remaining Genesis flag below is default-OFF experimental in the
+    registry and is opted-in here ON PURPOSE: the model does NOT boot at
+    TP=2 without it. PN-FP8MOE-KPAD = FP8 MoE N=352 tile-pad (vllm#45703,
+    kernel), load_bearing — see the patches block. G4_26 (TP vocab-shard
+    all-gather, vllm#45774) was RETIRED 2026-07-05: superseded by native
+    vllm#46177 local-shard soft-embed, present in dev672/dev714/dev748."
   - "Render path is `sndr profile render-launchers diffusiongemma-tp2`
     (profile diffusiongemma-tp2 → parent_model this ModelDef), NOT a
     `preset`/`model-config` config. Four operator hand-adds are still

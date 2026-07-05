@@ -11740,12 +11740,25 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_26_diffusiongemma_tp_vocab_soft_embed",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (batch-triage 47382..47564 STEP 0a, iron-rule-11
+        # audit of contradiction C1): vllm#46177 (fix for issue #45719) MERGED
+        # 2026-06-26 ships a DIFFERENT-approach native TP fix — the sampler now
+        # consumes the LOCAL vocab-shard slice (probs[..., sc_vocab_start:
+        # sc_vocab_end] @ embed_weight_shard) + all_reduce, instead of G4_26's
+        # full-weight all-gather. Deep-diff outcome (c) SUPERSESSION: nothing
+        # of ours to keep — G4_26's required sub-3 anchor is byte-ABSENT on
+        # every live pin, so the overlay could never apply again; the
+        # profile's "confirmed APPLIED at boot" gate was stale. Provenance in
+        # superseded_by + the <dev672 range cap below; flag removed from the
+        # diffusiongemma ModelDef (range caps do NOT stop opt-in patches).
+        "lifecycle": "retired",
         "credit": "Backports the TP-correctness half of open PR #45774: DiffusionGemmaForBlockDiffusion self-conditioning does probs@embed_weight over FULL vocab (262144); at TP=2 embed_tokens.weight is vocab-sharded to [131072,2816] -> RuntimeError reduction-dim mismatch. Adds get_tensor_model_parallel_world_size/tensor_model_parallel_all_gather import + _get_full_embed_weight helper + line-853 swap. SKIPs XPU/UVA hunks. Intrinsically TP-gated (helper returns .weight unchanged at TP=1). Self-skips once #45774 merges (upstream_drift_marker 'def _get_full_embed_weight').",
         "upstream_pr": "https://github.com/vllm-project/vllm/pull/45774",
+        "superseded_by": "vllm#46177 (fix for issue #45719) MERGED 2026-06-26, merge commit 701a23d99 — native DiffusionGemma TP support via local-shard soft-embed (probs local-vocab slice @ sharded embed weight + torch.ops.vllm.all_reduce; sampler gains sc_vocab_start/sc_vocab_end), a DIFFERENT approach than G4_26's full-weight all-gather (deep-diff outcome (c) supersession). Byte-verified via gh api at the pin commits 2026-07-05: G4_26's required sub-3 anchor 'embed_weight=self.model.model.embed_tokens.weight,' count 0 AND 'sc_vocab_start' count 10 in dev672 (93d8f834d), dev714 (09663abde) and dev748 (2dfaae752); 701a23d99 is an ancestor of all three (gh compare). Cap at <dev672 = earliest pin byte-verified native. NOTE: the OPEN mega-PR vllm#47462 rewrites this territory again (custom_sampler call site + logits_processor + V2 runner, VLLM_DIFFUSION_GEMMA_LOCAL_VOCAB_SAMPLER) — see the upstream_watchlist #47462 row; do NOT re-vendor.",
         "requires_patches": [],
         "conflicts_with": [],
-        "applies_to": {"model_arch": ["DiffusionGemmaForBlockDiffusion"], "vllm_version_range": (">=0.22.1rc1.dev491", "<1.0.0")},
+        "applies_to": {"model_arch": ["DiffusionGemmaForBlockDiffusion"], "vllm_version_range": (">=0.22.1rc1.dev491", "<0.23.1rc1.dev672")},
+        "vllm_version_range": (">=0.22.1rc1.dev491", "<0.23.1rc1.dev672"),
     },
 }
 

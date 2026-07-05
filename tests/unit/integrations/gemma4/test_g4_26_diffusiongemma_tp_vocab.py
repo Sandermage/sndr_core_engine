@@ -257,8 +257,11 @@ class TestG4_26Wiring:
             "g4_26_diffusiongemma_tp_vocab_soft_embed"
         )
         assert "DiffusionGemmaForBlockDiffusion" in meta["applies_to"]["model_arch"]
+        # Range capped at retirement (2026-07-05): native vllm#46177
+        # local-shard soft-embed supersedes G4_26 from dev672 on (see
+        # tests/unit/dispatcher/test_batch_triage_2026_07_05_step0.py).
         vr = meta["applies_to"]["vllm_version_range"]
-        assert vr == (">=0.22.1rc1.dev491", "<1.0.0")
+        assert vr == (">=0.22.1rc1.dev491", "<0.23.1rc1.dev672")
         # category must be in the audit's VALID_CATEGORIES.
         from sndr.dispatcher.spec import VALID_CATEGORIES
         assert meta["category"] in VALID_CATEGORIES

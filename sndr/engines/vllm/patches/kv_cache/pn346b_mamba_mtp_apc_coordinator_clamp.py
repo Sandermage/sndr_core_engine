@@ -250,6 +250,40 @@ PN346B_MAMBA_TRIM_REPLACE = (
 )
 
 
+# ── Upstream drift markers ────────────────────────────────────────────
+# [2026-07-05, batch-triage STEP 0b] OPEN vllm#47491 ("Preserve attention
+# cache hits when Mamba group misses", #45238) inserts 5 lines INSIDE the
+# 4-line PN346B_ANCHOR_OLD span (between `eagle_verified.clear()` and the
+# naked `curr_hit_length = _new_hit_length` — verified against `gh pr diff
+# 47491`, commit 05855b2b5). On merge the required anchor byte-splits; the
+# PR's exact inserted comment lines below pre-classify that event as a
+# LOUD upstream-merge in preflight instead of an unexplained anchor drift.
+# Both lines are absent from PN346B's own replacement text
+# (SELF_COLLISION-safe, PN369 contract; pinned by
+# tests/unit/dispatcher/test_batch_triage_2026_07_05_step0.py).
+# ON-MERGE SEMANTIC RECONCILIATION IS STILL MANDATORY (see the
+# upstream_watchlist #47491 row): PN346B's min() clamp must be re-derived
+# to sit AFTER upstream's `continue`, and upstream's attention-hit
+# preservation skips the hit_blocks_by_group update for the missing Mamba
+# group — a resumed request would skip N tokens with NO Mamba state (the
+# boots-clean-but-garbage class); P85's shadow fine-hash stays OUR
+# mechanism for that half (iron-rule-10 outcome: different-broken-
+# approach-same-goal).
+PN346B_UPSTREAM_DRIFT_MARKERS = (
+    # Genesis sentinel (our own idempotency banner; defended convention
+    # entry). The #45614-merge case is additionally handled by ANCHOR-
+    # ABSENCE: once #45614 lands, the naked `curr_hit_length =
+    # _new_hit_length` anchor is gone, so the patcher SKIPs cleanly. A bare
+    # `curr_hit_length = min(...)` marker would self-collide with this
+    # patch's own replacement (caught by tools/lint_drift_markers.py), so
+    # it is intentionally NOT used as a drift sentinel.
+    "[Genesis PN346B",
+    # vllm#47491's exact inserted comment lines (never emitted by us).
+    "# Mamba/linear-attention groups may miss when their single",
+    "# Don't let a Mamba miss zero out valid attention cache hits.",
+)
+
+
 def _env_disabled() -> bool:
     return os.environ.get("GENESIS_DISABLE_PN346B", "").strip().lower() in (
         "1", "true", "yes", "on",
@@ -288,16 +322,7 @@ def _make_patcher() -> Optional[TextPatcher]:
                 required=False,
             ),
         ],
-        upstream_drift_markers=[
-            # Genesis sentinel only (our own idempotency marker). The
-            # upstream-merge case is handled by ANCHOR-ABSENCE: once #45614
-            # lands, the naked `curr_hit_length = _new_hit_length` anchor
-            # (PN346B_ANCHOR_OLD) is gone, so the patcher SKIPs cleanly. A bare
-            # `curr_hit_length = min(...)` marker would self-collide with this
-            # patch's own replacement (caught by tools/lint_drift_markers.py),
-            # so it is intentionally NOT used as a drift sentinel.
-            "[Genesis PN346B",
-        ],
+        upstream_drift_markers=list(PN346B_UPSTREAM_DRIFT_MARKERS),
     )
 
 

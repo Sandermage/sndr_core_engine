@@ -30,10 +30,11 @@
 # `sndr launch prod-diffusiongemma-tp2` resolves to (model, hardware, profile).
 #
 # Binds the rig-validated TP=2 runtime (gmu0.90 + 131072 ctx + num-gpu-blocks-override 8192 ->
-# 94.3% real util, 1.4 GiB/card margin, coherent serve) on 2x A5000. Both load-bearing Genesis
-# flags (G4_26 TP-vocab all-gather vllm#45774; PN-FP8MOE-KPAD FP8-MoE N=352 tile-pad vllm#45703)
-# live in the parent ModelDef.patches because they are intrinsic to serving THIS checkpoint at TP=2
-# (the model does not boot / serve coherently without them). The profile adds no patches delta.
+# 94.3% real util, 1.4 GiB/card margin, coherent serve) on 2x A5000. The load-bearing Genesis
+# flag (PN-FP8MOE-KPAD FP8-MoE N=352 tile-pad vllm#45703) lives in the parent ModelDef.patches
+# because it is intrinsic to serving THIS checkpoint at TP=2 (the model does not boot without
+# it). G4_26 (TP-vocab all-gather vllm#45774) was RETIRED 2026-07-05: superseded by the native
+# vllm#46177 local-shard soft-embed present in dev672+. The profile adds no patches delta.
 
 model: diffusiongemma-26b-a4b-fp8                 # block-diffusion 128-expert MoE, A=4B active, compressed-tensors FP8-dynamic
 hardware: a5000-2x-24gbvram-16cpu-128gbram        # Sander 2x A5000 homelab (TP=2)

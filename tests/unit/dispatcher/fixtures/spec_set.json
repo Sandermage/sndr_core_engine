@@ -3890,7 +3890,7 @@
   {
     "patch_id": "G4_26",
     "family": "gemma4",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB",

@@ -30,8 +30,8 @@
 #   --served-model-name diffusiongemma
 #   --enable-auto-tool-choice --tool-call-parser gemma4
 #   --api-key genesis-local
-#   -e GENESIS_ENABLE_G4_26_DIFFUSIONGEMMA_TP_VOCAB=1
-#   -e GENESIS_ENABLE_PN_FP8MOE_KPAD=1
+#   -e GENESIS_ENABLE_PN_FP8MOE_KPAD=1   (G4_26 flag REMOVED 2026-07-05:
+#                                      retired, native vllm#46177 in dev672+)
 #   -e GENESIS_PROFILE_RUN_CAP_M=1024 (system_env; matches max_num_batched_tokens)
 #   mounts: /nfs/genesis/models:/models:ro
 #           ${GENESIS_REPO}/sndr:.../dist-packages/sndr:ro   (plugin path)
@@ -40,8 +40,9 @@
 # 2026-06-17-gemma-cascade-emitter-plan.md):
 #   1. EXPLICIT GENESIS APPLY STEP — NOW EMITTED (R3). render_profile_
 #      launcher inserts `python3 -m sndr.apply 2>&1 | tail -5` before
-#      `exec vllm serve`, so G4_26 + PN-FP8MOE-KPAD patch the live
-#      diffusion_gemma.py module on disk before serve. No hand-edit needed.
+#      `exec vllm serve`, so PN-FP8MOE-KPAD patches the live module on
+#      disk before serve (G4_26 retired 2026-07-05 — native vllm#46177).
+#      No hand-edit needed.
 #   2. --enforce-eager — NOW EMITTED (R7). The serve builder emits it when
 #      `enforce_eager: true` (set below). No hand-edit needed.
 #   4. model-specific system_env — NOW SUPPORTED (R2). Declare V2-runner /
@@ -162,12 +163,12 @@ sizing_override:
 # are intrinsic to serving block-diffusion DiffusionGemma at TP=2 on dev491:
 #   VLLM_USE_V2_MODEL_RUNNER  block-diffusion needs the V2 model runner;
 #                             the explicit `python3 -m sndr.apply` step (R3)
-#                             now applies G4_26 + PN-FP8MOE-KPAD on disk so
-#                             the V2-runner plugin-ordering gap no longer
-#                             leaves them unapplied.
+#                             now applies PN-FP8MOE-KPAD on disk so the
+#                             V2-runner plugin-ordering gap no longer
+#                             leaves it unapplied (G4_26 retired 2026-07-05).
 #   VLLM_ALLOW_LONG_MAX_MODEL_LEN  permits the declared max_model_len (131072).
-#   PYTORCH_CUDA_ALLOC_CONF   expandable segments for the FP8-MoE + vocab
-#                             all-gather working set at gpu_mem 0.90.
+#   PYTORCH_CUDA_ALLOC_CONF   expandable segments for the FP8-MoE +
+#                             soft-embed working set at gpu_mem 0.90.
 #   GENESIS_PROFILE_RUN_CAP_M  matches max_num_batched_tokens=1024 (lowered
 #                             from 4096 with the KV-pool cap). Per the P72
 #                             cap rule the profile_run M cap tracks
@@ -196,9 +197,10 @@ backend_plan:
   target_default: TRITON_ATTN
 
 # ─── Patches delta — none ──────────────────────────────────────────────
-# The two load-bearing flags (G4_26, PN-FP8MOE-KPAD) live in the parent
-# ModelDef.patches because they are inherent to serving THIS checkpoint at
-# TP=2, not workload-conditional. The profile adds nothing.
+# The load-bearing flag (PN-FP8MOE-KPAD) lives in the parent
+# ModelDef.patches because it is inherent to serving THIS checkpoint at
+# TP=2, not workload-conditional. The profile adds nothing. (G4_26 was
+# retired 2026-07-05 — superseded by native vllm#46177 in dev672+.)
 patches_delta:
   enable: {}
   disable: []
@@ -224,7 +226,7 @@ promotion:
   promote_to: null            # flags stay model-side; profile is the TP=2 runtime variant
   validation_required:
     - "TP=2 coherent serve PASS (smoke: model returns coherent text, no init crash)"
-    - "G4_26 + PN-FP8MOE-KPAD both confirmed APPLIED at boot (explicit register() apply step ran)"
+    - "PN-FP8MOE-KPAD confirmed APPLIED at boot (explicit register() apply step ran). G4_26 is NO LONGER expected at boot: retired 2026-07-05, superseded by the native vllm#46177 local-shard soft-embed present in dev672/dev714/dev748 (its anchor site is byte-absent, so an APPLIED gate could never pass again)"
     - "block-diffusion end-to-end throughput bench captured (per-block, not AR-TPOT)"
     - "tool-call smoke via native gemma4 parser"
   notes: |
