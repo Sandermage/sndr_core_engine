@@ -15,8 +15,14 @@ Contract under test (preflight residual triage action plan §1b):
     lines must be present in the target, else a loud skip with an
     explicit reason — never a partial A/C/D application on a pin that
     lacks native quant_config plumbing.
-  * A/C/D anchors are each unique (count == 1) against the pristine
-    pin tree when it is available on this machine.
+  * The surviving Site D anchor (``pN38_d_quant_fallback``) is recorded
+    byte-exactly for the current pin in the committed anchor manifest
+    (CI-runnable, replaces the old ``/private/tmp/candidate_pin_current``
+    green-by-skip byte-check).
+  * Site A/C anchor uniqueness against the live pristine source is a
+    documented container-gate (installed vllm); their drift on the
+    current pin is owned by the anchor-SOT drift.rej gate (see the module
+    note below), not re-asserted here.
 
 No torch / CUDA dependency required.
 """
@@ -25,10 +31,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-PRISTINE_QWEN3_DFLASH = Path(
-    "/private/tmp/candidate_pin_current/vllm/model_executor/models/qwen3_dflash.py"
-)
 
 
 def _import_patch():
@@ -61,8 +63,10 @@ class TestSiteBRetired:
         # P78 Site A convention: constants stay in the module as
         # commented history even though not registered in sub_patches.
         p = _import_patch()
-        assert isinstance(p.PN38_B_ANCHOR, str) and p.PN38_B_ANCHOR
-        assert isinstance(p.PN38_B_REPLACEMENT, str) and p.PN38_B_REPLACEMENT
+        assert isinstance(p.PN38_B_ANCHOR, str)
+        assert p.PN38_B_ANCHOR
+        assert isinstance(p.PN38_B_REPLACEMENT, str)
+        assert p.PN38_B_REPLACEMENT
 
     def test_native_guard_constants_exist(self):
         p = _import_patch()
@@ -105,7 +109,7 @@ class TestNativeSiteBStatus:
 
 
 def _force_enabled(monkeypatch, p, tmp_path, target):
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
 
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda patch_id: (True, "test-forced")
@@ -175,33 +179,67 @@ class TestApplyGuard:
         assert "already applied" in reason2
 
 
-# ─── Pristine-tree evidence (skips when pin tree absent) ────────────────
+# ─── Current-pin manifest evidence (CI-runnable) ────────────────────────
 
 
-@pytest.mark.skipif(
-    not PRISTINE_QWEN3_DFLASH.is_file(),
-    reason="pristine candidate pin tree not present on this machine",
-)
-class TestPristineAnchors:
-    def _src(self) -> str:
-        return PRISTINE_QWEN3_DFLASH.read_text(encoding="utf-8")
+def test_d_anchor_recorded_in_current_pin_manifest():
+    """MIGRATED from the ``/private/tmp/candidate_pin_current`` green-by-skip
+    byte-check (audit finding #14). The surviving Site D anchor is recorded
+    byte-exactly for the current pin; tying the LIVE patcher constant to the
+    manifest md5+length RUNS in CI. Presence of the entry is the CI-runnable
+    form of the old ``src.count(anchor) == 1`` uniqueness check.
 
-    def test_a_c_d_anchors_unique(self):
-        p = _import_patch()
-        src = self._src()
-        for name in ("PN38_A_ANCHOR", "PN38_C_ANCHOR", "PN38_D_ANCHOR"):
-            assert src.count(getattr(p, name)) == 1, name
+    NOTE (real drift finding, surfaced 2026-07-06): Sites A
+    (``pN38_a_qkv_proj_call``) and C (``pN38_c_conditional_fused_kv``) are
+    REQUIRED sub-patches whose anchors ``count == 0`` in the current pin
+    (dev748) pristine ``qwen3_dflash.py`` — verified on the rig pristine tree
+    and recorded as ``status: anchor_drift, required: true`` in the pin's
+    ``drift.rej.json``. PN38 therefore cannot cleanly apply on dev748 and
+    needs re-anchor or retirement. That drift is owned/surfaced by the
+    anchor-SOT drift gate, so it is NOT re-asserted here (asserting a
+    recorded-broken state as "expected" would be dishonest); only the
+    still-valid D anchor is pinned in CI.
+    """
+    from tests.unit.anchor_sot._pin_manifest_assert import assert_anchor_recorded
 
+    p = _import_patch()
+    assert_anchor_recorded("PN38", "pN38_d_quant_fallback", p.PN38_D_ANCHOR)
+
+
+# ─── Live pristine evidence (documented installed-vllm container-gate) ───
+
+
+def _pristine_dflash() -> Path:
+    """Pristine ``qwen3_dflash.py`` from the INSTALLED vllm (documented
+    container-gate — the retired-B and native-B whole-file checks need the
+    real source, which the md5-only manifest cannot reproduce). Runs wherever
+    a matching vllm is importable (rig/container); skips honestly when absent
+    — never on a phantom /tmp tree."""
+    pytest.importorskip(
+        "vllm", reason="container-gate needs a matching installed vllm"
+    )
+    from sndr.engines.vllm.detection.guards import resolve_vllm_file
+
+    resolved = resolve_vllm_file("model_executor/models/qwen3_dflash.py")
+    if resolved is None:
+        pytest.skip("installed vllm lacks model_executor/models/qwen3_dflash.py")
+    return Path(resolved)
+
+
+class TestPristineAgainstInstalledPin:
     def test_retired_b_anchor_is_dead(self):
         # Upstream reordered the decoder-layer kwargs and passes
         # quant_config natively — the old B anchor must not match.
         p = _import_patch()
-        assert self._src().count(p.PN38_B_ANCHOR) == 0
+        src = self._pristine_dflash().read_text(encoding="utf-8")
+        assert src.count(p.PN38_B_ANCHOR) == 0
 
     def test_native_site_b_lines_present_and_unique(self):
         p = _import_patch()
-        src = self._src()
+        src = self._pristine_dflash().read_text(encoding="utf-8")
         assert src.count(p.PN38_NATIVE_QUANT_INIT) == 1
         assert src.count(p.PN38_NATIVE_QUANT_KWARG) == 1
         ok, _ = p._native_site_b_status(src)
         assert ok is True
+
+    _pristine_dflash = staticmethod(_pristine_dflash)

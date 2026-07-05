@@ -115,9 +115,19 @@ def _install_fake(tmp_path, monkeypatch, sampler_text):
 
 @pytest.fixture
 def pin_src():
-    if not PIN_FILE.is_file():
-        pytest.skip("pristine pin tree not present on this machine")
-    return PIN_FILE.read_text(encoding="utf-8")
+    """Pristine ``rejection_sampler.py`` sourced from the INSTALLED vllm
+    (documented container-gate — the full-file TextPatcher apply needs the
+    real file, not the md5-only manifest). Runs wherever a matching vllm is
+    importable (rig/container); skips honestly when it is absent."""
+    pytest.importorskip(
+        "vllm", reason="container-gate needs a matching installed vllm"
+    )
+    from sndr.engines.vllm.detection.guards import resolve_vllm_file
+
+    resolved = resolve_vllm_file("v1/sample/rejection_sampler.py")
+    if resolved is None:
+        pytest.skip("installed vllm lacks v1/sample/rejection_sampler.py")
+    return Path(resolved).read_text(encoding="utf-8")
 
 
 # ── Patcher shape ────────────────────────────────────────────────────
@@ -271,16 +281,15 @@ class TestDriftMarkerSelfCollision:
     def test_markers_match_45369_merged_form(self, monkeypatch, pin_src):
         """Markers must actually fire on the real merged form."""
         merged = _build_merged_form(pin_src)
-        m._make_patcher() if PIN_FILE.is_file() else None
-        # _make_patcher needs a resolvable target; build directly off the
-        # pin file so the markers list is real.
+        # The drift-marker list is a module constant; assert it against the
+        # merged form built from the ``pin_src`` fixture (installed vllm).
         markers = list(m._DRIFT_MARKERS)
         assert any(dm in merged for dm in markers)
 
 
 # ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
 # Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
-# byte-checked all 13 anchors against ``/private/tmp/candidate_pin_current``
+# byte-checked all 13 anchors against a macOS-only pristine pin tree
 # (absent on every CI host -> permanently green-by-skip). MIGRATED here to
 # read the COMMITTED per-pin manifest so it RUNS in CI, tying every LIVE
 # patcher anchor CONSTANT to the recorded pristine bytes. Recording all 13

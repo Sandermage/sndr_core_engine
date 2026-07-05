@@ -397,8 +397,8 @@ class TestModuleApply:
 
 
 # ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
-# Audit finding #14: PN381's anchor uniqueness was byte-checked against
-# ``/private/tmp/candidate_pin_current`` (absent on every CI host ->
+# Audit finding #14: PN381's anchor uniqueness was byte-checked against a
+# macOS-only pristine pin tree (absent on every CI host ->
 # green-by-skip). MIGRATED here to read the COMMITTED per-pin manifest so it
 # RUNS in CI, tying the LIVE anchor + replacement CONSTANTS to the recorded
 # pristine bytes (merge not_merged == drift markers absent). The

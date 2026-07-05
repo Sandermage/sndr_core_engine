@@ -74,11 +74,13 @@ class _FakeSampler:
 def genesis_sampler_module(tmp_path_factory):
     """The pin's rejection_sampler.py with PN369 + P71 applied, loaded
     as a standalone module (exec-patched-text technique)."""
-    from sndr.engines.vllm.patches.spec_decode import p71_block_verify as P71
-    from sndr.engines.vllm.patches.spec_decode import (
+    from sndr.engines.vllm.detection.guards import resolve_vllm_file
+    from sndr.engines.vllm.patches.spec_decode import (  # noqa: N812
+        p71_block_verify as P71,
+    )
+    from sndr.engines.vllm.patches.spec_decode import (  # noqa: N812
         pn369_relaxed_acceptance as PN369,
     )
-    from sndr.engines.vllm.detection.guards import resolve_vllm_file
     from sndr.kernel import TextPatchResult
 
     pristine = resolve_vllm_file("v1/sample/rejection_sampler.py")
@@ -118,7 +120,8 @@ def genesis_sampler_module(tmp_path_factory):
     spec = importlib.util.spec_from_file_location(
         "genesis_pn381_patched_rejection_sampler", str(target)
     )
-    assert spec is not None and spec.loader is not None
+    assert spec is not None
+    assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
