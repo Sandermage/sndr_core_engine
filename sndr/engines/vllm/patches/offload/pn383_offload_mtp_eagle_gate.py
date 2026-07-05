@@ -11,6 +11,14 @@ source the pre-DMA bounds check defended against). The 0.22.x
 ``offloading_connector.py`` monolith these anchors target no longer exists
 (split into the ``offloading/`` package). Kept for reference.
 
+Precision note (retirement re-verified by code 2026-07-05): a file NAMED
+``offloading_connector.py`` still exists on dev748, but it is a ~215-line
+delegating shell importing from the ``offloading/`` package — the 0.22.x
+single-file implementation these anchors target is what is gone. Do not
+mistake the surviving filename for a wrong retirement: the native gating
+lives in ``offloading/scheduler.py`` (``is_eagle_group`` field :92, use
+:174/:215/:512; volatile-trailing-block exclusion :89-90, :490).
+
 Upstream #44784 (issue #44780): ``OffloadingConnectorScheduler`` schedules
 EAGLE/MTP draft-attention groups into the store/load paths. The draft
 group's trailing block is rewritten by the drafter every decode step (no

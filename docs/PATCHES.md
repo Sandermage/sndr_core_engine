@@ -229,15 +229,20 @@ specific flag path against dev748 before relying on it.
     `gpu_block_size % hash_block_size == 0`). Our 27B PROD profile
     runs prefix caching OFF — offload stays blocked there until that
     constraint is lifted or the profile changes.
-  - **MTP spec-decode + native offload is broken in this pin**: the
-    `OffloadingConnectorScheduler` wrongly includes EAGLE/MTP
+  - **MTP spec-decode + native offload was broken in 0.22.x-era pins**:
+    the `OffloadingConnectorScheduler` wrongly included EAGLE/MTP
     draft-attention groups in load/store scheduling → out-of-bounds
-    GPU block index → `cuMemcpyBatchAsync` segfault. Fix is OPEN
-    upstream (vllm#44784, `is_eagle_group` skip + pre-DMA bounds
-    check) and NOT in the pin; Wave-2 vendor planned (see
-    `docs/superpowers/journal/2026-06-11-pr-sweep-50-roadmap.md`,
-    Theme 5). Until then, KV offload remains a no-go on our MTP PROD
-    configs (K=5 on 35B / K=4 on 27B as of 2026-07).
+    GPU block index → `cuMemcpyBatchAsync` segfault. The upstream fix
+    vllm#44784 MERGED 2026-06-16 and is native (and evolved) in dev748:
+    `is_eagle_group` is a first-class `KVCacheGroup` field set by the
+    engine core (`v1/core/kv_cache_utils.py`) and consumed by
+    `kv_connector/v1/offloading/scheduler.py`, plus a scheduler-level
+    volatile-trailing-block exclusion that removes the OOB source at
+    its root. The Genesis vendor of the fix (PN383) is retired;
+    retirement re-verified by code on the pristine dev748 tree
+    2026-07-05. MTP + native offload has NOT yet been exercised on our
+    lanes — validate on a throwaway container before enabling it on
+    the MTP PROD configs (K=5 on 35B / K=4 on 27B as of 2026-07).
   - Frees GPU VRAM worth ~tens of K context at the cost of CPU↔GPU
     PCIe traffic on miss; payoff is prefix-reuse on agent loops
     (second-pass TTFT restore instead of full prefill).

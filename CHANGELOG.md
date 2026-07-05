@@ -45,6 +45,12 @@ Release-type tags in the title give the shape of the release at a glance:
 
 ## Version index (newest first)
 
+### [Unreleased] — post-v12.1.0 upstream watch: OPEN PRs 47609/47611/47593 triage + retirement code-audit
+
+| Tag | Date | Type | Summary |
+|---|---|---|---|
+| `[Unreleased]` | 2026-07-05 | dev | Six-step triage of three OPEN upstream PRs against dev748 (`0.23.1rc1.dev748+g2dfaae752`): **vllm#47609** (TurboQuant cache-dtype fix) = not needed on dev748 but wired as a **mechanical NEXT-bump gate** — its regression source vllm#42890 merged 2026-07-04 AFTER the dev748 cut, and any later pin **hard-fails boot on `--kv-cache-dtype turboquant_k8v4`** (both heavy lanes) unless #47609 is in; 2 new `UPSTREAM_MARKERS` (24 → 26) + 4 `tools/upstream_watchlist.yaml` rows incl. a ready-to-arm backport recipe and the bound G4_60E vendored-mirror re-study. **vllm#47611** (FlashInfer FP8 MoE signatures) = irrelevant — SM100-gated path, dormant on 2× A5000 SM86. **vllm#47593** (MoE M-tile heuristic) = irrelevant to stack — the fp8_w8a8 triton branch never executes on our Marlin/wna16 lanes; P24 anchor-collision audit recorded (anchor-1 already dead pre-existing, soft skip). Separately: operator-mandated **code re-verification of all 14 recent retirements** (pristine dev748 tree + dev714 image greps + fresh `gh pr view` batch) — **14/14 CORRECT, zero reinstatements**; PN383 filename-vs-monolith precision note added. Registry unchanged at **325**; no new patches, flags, or config changes |
+
 ### v12.1.0 series — dev748 pin, 7-model fleet sweep, ctx-scaling bench stage, operator manuals
 
 | Tag | Date | Type | Summary |
@@ -124,6 +130,100 @@ previous / rollback pin per the CLAUDE.md ≤2-pin policy; dev672 was dropped
 when dev748 was validated. `sndr/version.py` carries the `.dev0` suffix
 in-tree; release tooling strips it on publish — pyproject.toml holds the
 release version.)
+
+---
+
+## [Unreleased] — upstream 47609/47611/47593 triage + retirement code-audit (2026-07-05)
+
+Post-v12.1.0 upstream-watch work on the dev748 pin
+(`0.23.1rc1.dev748+g2dfaae752`, cut commit 2dfaae752 =
+2026-07-03T04:11:47Z). No new patches, no registry changes, no new env
+flags — the deliverables are mechanical next-bump gates, watchlist
+rows, and a code-proven retirement audit.
+
+### Highlights
+
+- **vllm#47609 wired as a mechanical NEXT-bump boot-blocker gate.**
+  Its regression source vllm#42890 merged 2026-07-04T02:29Z — AFTER
+  the dev748 cut — so dev748 itself is clean (verified on the pristine
+  rig tree: `v1/worker/gpu/attn_utils.py` has no `KVQuantMode.NONE`
+  conditional; `cache_dtype_str` passes through untouched). But ANY
+  candidate pin cut after 2026-07-04 makes the v1 reshape pass
+  `cache_dtype_str="auto"` for TurboQuant specs and **hard-fails boot
+  on `--kv-cache-dtype turboquant_k8v4`** — both heavy lanes (27B INT4
+  TQ k8v4 + PN520, and 35B where TQ k8v4 is a +11.3% TPS win) —
+  unless #47609 (maintainer fix, `ready`-labeled) is also in.
+  Wired, not memorized: 2 new `UPSTREAM_MARKERS` entries
+  (`PR_42890_kv_skip_layers_cache_dtype_auto` regression-arrival with
+  documented inverse semantics + `PR_47609_tq_cache_dtype_preserved`
+  fix-arrival; marker strings byte-exact from the PR diffs, both
+  verified ABSENT on pristine dev748 → no false `newly_merged` today)
+  and 4 sweep rows in `tools/upstream_watchlist.yaml`, including a
+  ready-to-arm backport recipe (two `layer_cache_dtype = (` anchor
+  sites, next-pin-only lower bound) armed only if #47609 is still
+  unmerged at bump time. The `pr: 42890` row also binds a re-study of
+  the vendored `_reshape_kv_cache` mirror in
+  `g4_60e_kv_cache_utils.py` (goes stale on the carrying pin).
+- **Retirement code-audit: 14/14 CORRECT, zero reinstatements.**
+  Operator-mandated re-verification BY CODE (not words) of every
+  patch retired 2026-07-03..05: PN394, P61b, P64, PN287, PN8, PN387,
+  PN398, PN370, PN383, PN252, PN362, PN373, PN379, G4_80. Evidence:
+  pristine dev748 tree line-reads (rig `/tmp/pristine_dev748_2dfaae752`),
+  `docker run --rm` greps on the dev714 image itself for the three
+  `<dev714` range caps, and a fresh `gh pr view` state batch (11 PRs:
+  #46047 MERGED, #40849 still OPEN → PN8's NOT-absorbed claim holds,
+  9 absorbed PRs MERGED). One nuance closed: a file NAMED
+  `offloading_connector.py` still exists on dev748 as a ~215-line
+  delegating shell — the 0.22.x monolith PN383's 12 anchors target is
+  what is gone; precision note added to the PN383 docstring so the
+  surviving filename is never misread as a wrong retirement.
+
+### Audit findings (per-PR verdicts)
+
+- **vllm#47609** (TurboQuant cache-dtype preserved in backend shape) —
+  `not-needed-on-dev748`; MANDATORY next-bump gate item (see
+  Highlights). Prefer the upstream merge over the Genesis backport per
+  iron rule #10 exception logic; re-check `gh pr view 47609` at bump
+  time.
+- **vllm#47611** (older FlashInfer FP8 MoE signatures) — IRRELEVANT.
+  Source #45723 IS in dev748 (unconditional `gemm1_alpha=` at
+  `trtllm_fp8_moe.py:234/405` verified) but the `TrtLlmFp8Experts`
+  dispatch is SM100/Blackwell-gated (`trtllm_fp8_moe.py:98-99`);
+  A5000 = SM86 never selects it; our FP8 lanes run Marlin MoE; no
+  Genesis patch touches the file. Watch-only row so future sweeps
+  skip the re-study.
+- **vllm#47593** (tokens-per-expert M-tile heuristic) — IRRELEVANT to
+  stack. The rewritten fp8_w8a8 `[128,128]` triton branch never
+  executes on our lanes (FP8 Marlin / AWQ Marlin / wna16; decode M
+  under the unchanged `M<=64` floor at `max_num_seqs=2`). NOT in
+  dev748. Anchor-collision audit: P24's anchor-1 targets the exact
+  rewritten line but is ALREADY dead on dev748 (pre-existing
+  #46642-era drift, `required=False` soft skip); anchor-2 untouched;
+  PN377 disjoint; P81 = outcome (c) different problem (dense
+  `w8a8_triton_block_scaled_mm`, different file) — both kept.
+  Housekeeping flag recorded: P24's fp8-branch overlay is a silent
+  no-op on dev748 (dormant by design on Marlin lanes).
+
+### Migration notes
+
+None. No env flags, YAML keys, or launch configs changed. The
+`docs/PIN_BUMP_PLAYBOOK.md` §4 note ("Armed gate for the NEXT bump")
+is the operator-visible artifact; stale `docs/PATCHES.md` #44784
+"OPEN upstream" note corrected to MERGED-native (PN383 retired).
+
+### Verified
+
+- TDD: `tests/unit/dispatcher/test_open_pr_triage_47609_47611_47593.py`
+  written first, seen red, now 7/7 green.
+- `make gates` exit 0; watchlist-check + `--check-registry` + legacy
+  watchlist audit clean; tools/compat/dispatcher suites 1234 passed;
+  docstring-sync gate green; 0 new ruff on touched files.
+- Retirement suites (`test_newly_merged_triage_2026_07_05.py`,
+  `test_retire_batch_2026_07_05.py`) 13/13 green.
+- Six-step evidence chain (gh pr view/diff for
+  47609/47611/47593/42890/45723/47431; pristine-tree greps; registry
+  cross-ref P24/P81/PN377/PN352B/G4_60E) carried in the commit
+  messages.
 
 ---
 

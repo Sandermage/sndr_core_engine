@@ -11,7 +11,6 @@ Author: Sandermage(Sander)-Barzov Aleksandr, Ukraine, Odessa
 """
 from __future__ import annotations
 
-
 # Upstream PR → marker string mapping.
 #
 # Each value is a marker string that, if present in the target file's
@@ -382,6 +381,52 @@ UPSTREAM_MARKERS: dict[str, dict[str, str]] = {
         "affects_patch": "P17/P18 Marlin bsm env override — watch for anchor break",
         "verified_in_main_2026_04_24": False,
         "action_when_merged": "update anchor paths in marlin_tuning wiring",
+    },
+
+    # INVERSE-SEMANTICS marker (regression ARRIVAL, not fix absorption):
+    # a newly_merged hit here means the candidate pin carries the #42890
+    # TQ boot-blocker, NOT that a Genesis patch can retire. Marker string
+    # is byte-exact from the #42890 diff (gh pr diff, 2026-07-05) and
+    # verified ABSENT in pristine dev748 attn_utils.py (no KVQuantMode
+    # reference in the file at all), so it cannot false-fire on the
+    # current pin.
+    "PR_42890_kv_skip_layers_cache_dtype_auto": {
+        "file": "v1/worker/gpu/attn_utils.py",
+        "marker": "if kv_cache_spec.kv_quant_mode == KVQuantMode.NONE",
+        "description": (
+            "BOOT-BLOCKER ARRIVAL: #42890 (kv_cache_dtype_skip_layers, "
+            "MERGED 2026-07-04 — after the dev748 cut) passes "
+            "cache_dtype_str='auto' for KVQuantMode.NONE; TurboQuant "
+            "dtypes map to NONE while TQFullAttentionSpec needs the real "
+            "'turboquant_k8v4' string -> startup ValueError on both TQ "
+            "k8v4 heavy lanes. When this fires on a candidate pin, "
+            "REQUIRE the #47609 fix marker to fire too (or backport it, "
+            "see the upstream_watchlist #47609 row) AND re-study the "
+            "G4_60E vendored _reshape_kv_cache mirror."
+        ),
+        "merged_date": "2026-07-04 (NOT in dev748, cut 2026-07-03)",
+        "affects_patch": (
+            "none to retire — gates the bump itself (TQ k8v4 boot) and "
+            "stales the G4_60E mirror"
+        ),
+    },
+
+    "PR_47609_tq_cache_dtype_preserved": {
+        "file": "v1/worker/gpu/attn_utils.py",
+        "marker": "and not isinstance(kv_cache_spec, TQFullAttentionSpec)",
+        "description": (
+            "Fix arrival for the #42890 TQ boot-blocker: TQFullAttention"
+            "Spec excluded from the KVQuantMode.NONE 'auto' rewrite in "
+            "_reshape_kv_cache + _update_hybrid_attention_layout. When "
+            "this fires alongside PR_42890_* the candidate boots TQ k8v4 "
+            "lanes; if #42890 fires WITHOUT this, the bump is blocked "
+            "until #47609 (or the planned Genesis backport) is in."
+        ),
+        "merged_date": "OPEN as of 2026-07-05 (maintainer PR, ready label)",
+        "affects_patch": (
+            "planned TQ cache-dtype backport (see upstream_watchlist "
+            "#47609 row) — retire the plan when this fires"
+        ),
     },
 }
 
