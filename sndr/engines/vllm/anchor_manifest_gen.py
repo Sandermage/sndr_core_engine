@@ -19,8 +19,8 @@ Implements Phase 2 of the per-pin anchor source-of-truth design.
 """
 from __future__ import annotations
 
+from collections.abc import Callable  # noqa: TC003 — used in runtime annotations
 from dataclasses import dataclass, field
-from typing import Callable, Optional
 
 from sndr.engines.vllm.anchor_discovery import AnchorTarget, iter_anchor_targets
 from sndr.engines.vllm.wiring.anchor_manifest import compute_anchor_meta
@@ -51,7 +51,7 @@ MERGE_PARTIALLY_MERGED = "partially_merged"  # SOME subs upstreamed
 MERGE_STATUSES = (MERGE_NOT_MERGED, MERGE_FULLY_MERGED, MERGE_PARTIALLY_MERGED)
 
 
-def version_excludes_pin(vrange, pin: Optional[str]) -> bool:
+def version_excludes_pin(vrange, pin: str | None) -> bool:
     """True iff the patch's vllm_version_range EXCLUDES ``pin`` — then an absent
     anchor is EXPECTED (the patch isn't for this pin), not genuine drift.
 
@@ -78,8 +78,8 @@ def version_excludes_pin(vrange, pin: Optional[str]) -> bool:
 def classify_anchor(
     pristine_src: str,
     anchor: str,
-    replacement: Optional[str] = None,
-) -> tuple[str, Optional[dict]]:
+    replacement: str | None = None,
+) -> tuple[str, dict | None]:
     """Classify one anchor against the pristine source (R2 — real text search).
 
     Returns ``(status, meta)``. ``meta`` is the compute_anchor_meta dict
@@ -158,8 +158,8 @@ def aggregate_merge_status(
 
 
 def to_engine_manifest(
-    res: "GenResult",
-    pristine: Callable[[str], Optional[str]],
+    res: GenResult,
+    pristine: Callable[[str], str | None],
     *,
     vllm_pin: str,
     genesis_pin: str,
@@ -230,11 +230,11 @@ def to_engine_manifest(
 
 
 def build_pin_manifest(
-    read_source: Callable[[str], Optional[str]],
-    targets: Optional[list[AnchorTarget]] = None,
+    read_source: Callable[[str], str | None],
+    targets: list[AnchorTarget] | None = None,
     *,
-    pin: Optional[str] = None,
-    is_upstream_merged: Optional[Callable[[AnchorTarget, str], bool]] = None,
+    pin: str | None = None,
+    is_upstream_merged: Callable[[AnchorTarget, str], bool] | None = None,
 ) -> GenResult:
     """Classify every anchor target against the pristine tree (R1 × R2).
 
@@ -265,7 +265,7 @@ def build_pin_manifest(
     if targets is None:
         targets = list(iter_anchor_targets())
     result = GenResult()
-    _src_cache: dict[str, Optional[str]] = {}
+    _src_cache: dict[str, str | None] = {}
 
     # Per-PATCH merge aggregation (TASK 1). For each patch_id present+applicable
     # on this pin: which sub-patches we considered, and which had an upstream

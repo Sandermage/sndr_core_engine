@@ -125,7 +125,7 @@ def _install_fake(tmp_path, monkeypatch, sched_text, env="1"):
     target.write_text(sched_text, encoding="utf-8")
     # PN133 imports resolve_vllm_file inside apply() — patch the guards
     # module attribute, not a module-level rebind.
-    import sndr.engines.vllm.detection.guards as guards
+    from sndr.engines.vllm.detection import guards
     monkeypatch.setattr(guards, "resolve_vllm_file", lambda rel: str(target))
     if env is None:
         monkeypatch.delenv(_ENV, raising=False)

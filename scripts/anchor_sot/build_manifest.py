@@ -62,31 +62,33 @@ def _dependency_breakage(rej):
     return detect_on_live_registry(gated_out=gated).to_dict()
 
 
-def main():
+def main():  # noqa: PLR0915 — linear script orchestrator (load → classify → write → report)
     targets_path, pristine_path, repo, pin = sys.argv[1:5]
     gpin = sys.argv[5] if len(sys.argv) > 5 else "genesis"
 
-    targets = [_mk(d) for d in json.load(open(targets_path))["targets"]]
-    pristine = json.load(open(pristine_path))["files"]
-    read = lambda rel: pristine.get(rel)
+    with open(targets_path) as f:
+        targets = [_mk(d) for d in json.load(f)["targets"]]
+    with open(pristine_path) as f:
+        pristine = json.load(f)["files"]
+    read = pristine.get
 
     res = build_pin_manifest(read, targets, pin=pin)
 
     rt_fail = []
     for t in targets:
-        key = "%s::%s" % (t.patch_id, t.sub)
+        key = f"{t.patch_id}::{t.sub}"
         if key in res.ok and t.replacement is not None:
             src = pristine.get(t.target_rel)
             if not (src and verify_roundtrip(src, t.anchor, t.replacement)):
                 rt_fail.append(key)
     if rt_fail:
-        print("FATAL: round-trip failed for %s" % rt_fail[:10], file=sys.stderr)
+        print(f"FATAL: round-trip failed for {rt_fail[:10]}", file=sys.stderr)
         sys.exit(2)
 
     manifest = to_engine_manifest(res, read, vllm_pin=pin, genesis_pin=gpin)
     errors = validate_manifest_schema(manifest)
     if errors:
-        print("FATAL: schema invalid: %s" % errors[:5], file=sys.stderr)
+        print(f"FATAL: schema invalid: {errors[:5]}", file=sys.stderr)
         sys.exit(3)
 
     # Coverage assertion (TASK 4): every discovered target must land EXACTLY
@@ -95,15 +97,16 @@ def main():
     discovered = len(targets)
     accounted = len(res.ok) + len(res.rej)
     if accounted != discovered:
-        print("FATAL: coverage mismatch — discovered=%d but ok=%d + rejected=%d = %d"
-              % (discovered, len(res.ok), len(res.rej), accounted), file=sys.stderr)
+        print(f"FATAL: coverage mismatch — discovered={discovered} but "
+              f"ok={len(res.ok)} + rejected={len(res.rej)} = {accounted}",
+              file=sys.stderr)
         sys.exit(4)
 
     norm = normalize_pin(pin) or pin.replace("+", "_")
     pindir = os.path.join(repo, "sndr/engines/vllm/pins", norm)
     os.makedirs(pindir, exist_ok=True)
-    json.dump(manifest, open(os.path.join(pindir, "anchors.json"), "w"),
-              indent=1, sort_keys=True)
+    with open(os.path.join(pindir, "anchors.json"), "w") as f:
+        json.dump(manifest, f, indent=1, sort_keys=True)
     # genuine_anchor_drift is the human re-anchor backlog. It is EXACTLY the
     # `anchor_drift` status — retired patches (status `retired`) are absent here
     # by construction: a retired patch's anchor legitimately drifted and must
@@ -118,26 +121,27 @@ def main():
     # its perf optimization no-op'd -> a real TPS regression no gate caught. A
     # perf-tier dependent that breaks is HIGH severity.
     breakage = _dependency_breakage(res.rej)
-    json.dump({
-        "pin": pin,
-        "genesis_pin": gpin,
-        "coverage": {"discovered": discovered, "ok": len(res.ok),
-                     "rejected": len(res.rej)},
-        "counts": dict(res.counts),
-        "merge_status": res.merge,
-        "rejected": res.rej,
-        "genuine_anchor_drift": genuine,
-        "dependency_breakage": breakage,
-    }, open(os.path.join(pindir, "drift.rej.json"), "w"), indent=1, sort_keys=True)
+    with open(os.path.join(pindir, "drift.rej.json"), "w") as f:
+        json.dump({
+            "pin": pin,
+            "genesis_pin": gpin,
+            "coverage": {"discovered": discovered, "ok": len(res.ok),
+                         "rejected": len(res.rej)},
+            "counts": dict(res.counts),
+            "merge_status": res.merge,
+            "rejected": res.rej,
+            "genuine_anchor_drift": genuine,
+            "dependency_breakage": breakage,
+        }, f, indent=1, sort_keys=True)
 
-    print("OK pin=%s -> %s/anchors.json (%d anchors, %d files)" % (
-        pin, pindir, len(res.ok), len(manifest["files"])))
-    print("coverage: discovered=%d == ok=%d + rejected=%d" % (
-        discovered, len(res.ok), len(res.rej)))
-    print("counts=%s  roundtrip_fail=0  genuine_drift=%d %s" % (
-        dict(res.counts), len(genuine), [e["key"] for e in genuine[:8]]))
-    print("retired=%d (anchors gone, as expected) %s" % (
-        len(retired), [e["key"] for e in retired[:8]]))
+    print(f"OK pin={pin} -> {pindir}/anchors.json "
+          f"({len(res.ok)} anchors, {len(manifest['files'])} files)")
+    print(f"coverage: discovered={discovered} == ok={len(res.ok)} + "
+          f"rejected={len(res.rej)}")
+    print(f"counts={dict(res.counts)}  roundtrip_fail=0  "
+          f"genuine_drift={len(genuine)} {[e['key'] for e in genuine[:8]]}")
+    print(f"retired={len(retired)} (anchors gone, as expected) "
+          f"{[e['key'] for e in retired[:8]]}")
     hi = breakage.get("high_count", 0)
     md = breakage.get("medium_count", 0)
     # APPLY-STATE-AWARE: a mitigated HIGH (dependent has a working fallback anchor
@@ -148,21 +152,21 @@ def main():
     mit = [e for e in breakage.get("edges", [])
            if e.get("severity") == "HIGH" and e.get("mitigated")]
     if hi or md:
-        print("dependency_breakage: HIGH=%d [mitigated=%d unmitigated=%d] "
-              "MEDIUM=%d %s" % (
-                  hi, len(mit), len(unmit), md,
-                  ["%s->%s" % (e["retired"], e["dependent"])
-                   for e in breakage["edges"][:8]]))
+        edges = [f"{e['retired']}->{e['dependent']}"
+                 for e in breakage["edges"][:8]]
+        print(f"dependency_breakage: HIGH={hi} "
+              f"[mitigated={len(mit)} unmitigated={len(unmit)}] "
+              f"MEDIUM={md} {edges}")
         if mit:
             print("  NOTE retire-broken PERF dependents already MITIGATED "
                   "(working fallback anchor; surfaced for visibility):")
             for e in mit:
-                print("    * %s" % e["detail"])
+                print(f"    * {e['detail']}")
         if unmit:
             print("  WARN UNMITIGATED retire-broken PERF dependents (run a "
                   "canonical A/B before promoting — iron-rule #9):")
             for e in unmit:
-                print("    * %s" % e["detail"])
+                print(f"    * {e['detail']}")
 
 
 if __name__ == "__main__":

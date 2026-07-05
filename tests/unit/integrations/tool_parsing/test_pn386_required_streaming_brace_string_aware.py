@@ -136,7 +136,7 @@ def _install_fake(tmp_path, monkeypatch, streaming_text):
     monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
     # apply() is dispatcher-gated (opt-in env flag, registry-driven);
     # force the gate open for unit tests of the patch mechanics.
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -271,7 +271,7 @@ class TestApply:
         target = tmp_path / "streaming.py"
         target.write_text(PIN_STREAMING, encoding="utf-8")
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
         )
@@ -282,7 +282,7 @@ class TestApply:
 
     def test_apply_skips_when_target_missing(self, monkeypatch):
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: None)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (True, "test override")
         )
@@ -360,4 +360,4 @@ def _collect_required_streaming(mod, output_json: str, delta_len: int) -> str:
             args = extracted
         previous_text = current_text
 
-    return '[{"name": "%s", "parameters": %s}]' % (name, args)
+    return f'[{{"name": "{name}", "parameters": {args}}}]'

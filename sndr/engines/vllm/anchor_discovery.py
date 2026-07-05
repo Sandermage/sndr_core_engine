@@ -225,7 +225,7 @@ def iter_anchor_targets() -> Iterator[AnchorTarget]:
     for spec in iter_specs_with_apply_module():
         try:
             mod = importlib.import_module(spec.apply_module)
-        except Exception:  # noqa: BLE001 — un-importable module: not an anchor
+        except Exception:  # noqa: BLE001, S112 — un-importable module: not an anchor
             continue
         patcher, _note = _build_patcher_for_module(mod)
         if patcher is None:

@@ -192,17 +192,17 @@ TOP_K = 8
 
 # Reporter decode shape from #36008 / the PR (gate_up gemm of a
 # group_size=32 GPTQ 4-bit MoE in single-token decode).
-REPORTER_SHAPE = dict(
-    config={},
-    use_moe_wna16_cuda=True,
-    num_valid_tokens=8,
-    size_k=2048,
-    size_n=1024,
-    num_experts=256,
-    group_size=32,
-    real_top_k=8,
-    block_size_m=1,
-)
+REPORTER_SHAPE = {
+    "config": {},
+    "use_moe_wna16_cuda": True,
+    "num_valid_tokens": 8,
+    "size_k": 2048,
+    "size_n": 1024,
+    "num_experts": 256,
+    "group_size": 32,
+    "real_top_k": 8,
+    "block_size_m": 1,
+}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -281,17 +281,16 @@ class TestPatcherShape:
 
 
 @pytest.fixture(scope="class")
-def patched_heuristic(request, tmp_path_factory):
+def patched_heuristic(tmp_path_factory):
     """Apply PN377 once to a pin-form fake, return the post-patch
     heuristic (exec-patched-text technique)."""
     tmp_path = tmp_path_factory.mktemp("pn377_sweep")
     fake = _write_fake(tmp_path, PIN_HEURISTIC_SRC)
-    mp = pytest.MonkeyPatch()
-    request.addfinalizer(mp.undo)
-    mp.setattr(m, "resolve_vllm_file", lambda rel: str(fake))
-    status, reason = m.apply()
-    assert status == "applied", reason
-    return m.load_block_config_heuristic(str(fake))
+    with pytest.MonkeyPatch().context() as mp:
+        mp.setattr(m, "resolve_vllm_file", lambda rel: str(fake))
+        status, reason = m.apply()
+        assert status == "applied", reason
+        yield m.load_block_config_heuristic(str(fake))
 
 
 class TestApply:
