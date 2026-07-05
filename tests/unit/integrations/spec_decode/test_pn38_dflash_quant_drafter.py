@@ -17,7 +17,7 @@ Contract under test (preflight residual triage action plan §1b):
     lacks native quant_config plumbing.
   * The surviving Site D anchor (``pN38_d_quant_fallback``) is recorded
     byte-exactly for the current pin in the committed anchor manifest
-    (CI-runnable, replaces the old ``/private/tmp/candidate_pin_current``
+    (CI-runnable, replaces the old macOS-only pristine-tree
     green-by-skip byte-check).
   * Site A/C anchor uniqueness against the live pristine source is a
     documented container-gate (installed vllm); their drift on the
@@ -183,7 +183,7 @@ class TestApplyGuard:
 
 
 def test_d_anchor_recorded_in_current_pin_manifest():
-    """MIGRATED from the ``/private/tmp/candidate_pin_current`` green-by-skip
+    """MIGRATED from the macOS-only pristine-tree green-by-skip
     byte-check (audit finding #14). The surviving Site D anchor is recorded
     byte-exactly for the current pin; tying the LIVE patcher constant to the
     manifest md5+length RUNS in CI. Presence of the entry is the CI-runnable
