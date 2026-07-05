@@ -16,6 +16,12 @@ Invariants asserted (all against the SSOT current pin):
   7. every builtin model YAML vllm_pin_required == current
   8. rollback ∈ guards.KNOWN_GOOD_VLLM_PINS  (rollback must stay known-good)
   9. ALLOWED_MODELDEF_PINS ⊆ KNOWN_GOOD_VLLM_PINS  (allowlist is a known-good subset)
+ 10. pins.yaml current_image_digest is a well-formed repo@sha256:<64-hex> reference
+ 11. every builtin hardware YAML image_digest == current_image_digest
+     (the digest WINS over the image tag at render — effective_image_ref =
+     image_digest or image; a stale digest silently boots the rollback pin.
+     2026-07-04 audit CRIT: 4/7 fleet lanes booted the rollback engine this
+     way while every string-level check stayed green)
 
 Exit 0 = consistent; exit 1 = drift (with the exact fix listed).
 """
@@ -46,6 +52,43 @@ def _expected_pins() -> set[str]:
     return set(re.findall(r'"(0\.\d[\w.+]*)"', block))
 
 
+_DIGEST_REF_RE = re.compile(r"^vllm/vllm-openai@sha256:[0-9a-f]{64}$")
+
+
+def _hardware_image_digests() -> list[tuple[str, str]]:
+    """(filename, image_digest) for every builtin hardware YAML declaring one."""
+    out: list[tuple[str, str]] = []
+    hdir = REPO / "sndr/model_configs/builtin/hardware"
+    for y in sorted(hdir.glob("*.yaml")):
+        m = re.search(r"image_digest:\s*([^\s#]+)", y.read_text(encoding="utf-8"))
+        if m:
+            out.append((y.name, m.group(1).strip().strip('"').strip("'")))
+    return out
+
+
+def _digest_errors(current_digest: str, hw_digests: list[tuple[str, str]]) -> list[str]:
+    """Invariants 10+11 as a pure function (testable without repo state).
+
+    The image_digest is the HIGHEST-precedence image reference at render time
+    (types/docker.py effective_image_ref: digest wins over the tag), so a
+    stale digest boots the WRONG engine while every pin string looks current."""
+    errs: list[str] = []
+    if not current_digest:
+        errs.append("pins.yaml has no current_image_digest — capture it via "
+                    "docker inspect <current_image> --format '{{json .RepoDigests}}'")
+        return errs
+    if not _DIGEST_REF_RE.match(current_digest):
+        errs.append(f"current_image_digest {current_digest!r} is not a full "
+                    "vllm/vllm-openai@sha256:<64-hex> reference")
+        return errs
+    for name, digest in hw_digests:
+        if digest != current_digest:
+            errs.append(f"hardware {name}: image_digest {digest!r} != current pin digest "
+                        f"{current_digest!r} — the digest WINS at render, so a strict "
+                        "render boots the WRONG engine; update it with the bump")
+    return errs
+
+
 # llama.cpp / gguf lanes run a different engine (no vLLM pin) and set
 # vllm_pin_required: null — exclude those from the "== current pin" check.
 _NON_VLLM_PIN = {"null", "none", "~", ""}
@@ -68,9 +111,10 @@ def _model_yaml_pins() -> list[tuple[str, str]]:
 
 def main() -> int:
     sys.path.insert(0, str(REPO))
+    import importlib.util
+
     from sndr import pins
     from sndr.engines.vllm.detection.guards import KNOWN_GOOD_VLLM_PINS
-    import importlib.util
     spec = importlib.util.spec_from_file_location(
         "audit_v2_runtime_pins", REPO / "scripts/audit_v2_runtime_pins.py")
     av2 = importlib.util.module_from_spec(spec)
@@ -93,7 +137,7 @@ def main() -> int:
         errs.append(f"current pin {cur!r} NOT in EXPECTED_PINS (test_pin_gate.py) — add it")
     if canon not in cur:
         errs.append(f"canonical_substring {canon!r} is not a substring of current pin {cur!r}")
-    if av2.CANONICAL_PIN_SUBSTRING != canon:
+    if canon != av2.CANONICAL_PIN_SUBSTRING:
         errs.append(f"audit_v2 CANONICAL_PIN_SUBSTRING={av2.CANONICAL_PIN_SUBSTRING!r} != pins.yaml {canon!r}")
 
     anchor = REPO / "sndr/engines/vllm/pins" / pins.current_anchor_dir() / "anchors.json"
@@ -109,6 +153,8 @@ def main() -> int:
     if roll not in kg:
         errs.append(f"rollback pin {roll!r} NOT in guards.KNOWN_GOOD_VLLM_PINS — a rollback target must stay known-good")
 
+    errs.extend(_digest_errors(pins.current_image_digest(), _hardware_image_digests()))
+
     stray = al - kg
     if stray:
         errs.append(f"ALLOWED_MODELDEF_PINS not a subset of KNOWN_GOOD: {sorted(stray)}")
@@ -116,7 +162,8 @@ def main() -> int:
     print("=== pin-consistency audit ===")
     print(f"  SSOT current : {cur}")
     print(f"  SSOT rollback: {roll}")
-    print(f"  KNOWN_GOOD={len(kg)}  ALLOWED_MODELDEF={len(al)}  EXPECTED={len(ep)}  model_yaml={len(_model_yaml_pins())}")
+    print(f"  KNOWN_GOOD={len(kg)}  ALLOWED_MODELDEF={len(al)}  EXPECTED={len(ep)}  "
+          f"model_yaml={len(_model_yaml_pins())}  hw_digest={len(_hardware_image_digests())}")
     if errs:
         print(f"\n✗ {len(errs)} cross-artifact inconsistency(ies):")
         for e in errs:

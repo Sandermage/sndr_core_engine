@@ -187,7 +187,7 @@ cell with `sndr preset explain <id>`.
 
 | Preset | K | Concurrency | Mode | Best for |
 |---|---:|---:|---|---|
-| `prod-qwen3.6-35b-balanced` ★default | 5 | 1..2 | throughput | Balanced single-stream; 280K context. K=3→5 re-tune 2026-06-19 (+15.8 % TPS). Fleet-swept on dev748 (2026-07-04): 231.2 t/s via the canonical `sndr launch` path (accept 0.728); the same-pin AWQ PROD launcher's canonical suite: wall_TPS 242.5 / TPOT 3.9 ms / tool 7/7. |
+| `prod-qwen3.6-35b-balanced` ★default | 5 | 1..2 | throughput | Balanced single-stream; 280K context. K=3→5 re-tune 2026-06-19 (+15.8 % TPS). Fleet-validated on dev748 (2026-07-05 re-run after the image_digest fix): 223.9 t/s wall / TPOT 4.25 ms / tool 7/7 / window accept 0.621 via the canonical `sndr launch` path — parity within CV vs the dev714 first pass (231.2 t/s, accept 0.627); the AWQ PROD launcher's canonical suite on dev748: wall_TPS 242.5 / TPOT 3.9 ms / tool 7/7. |
 | `prod-qwen3.6-35b-multiconc` | 5 | 1..8 | throughput | **Reference free-chat multi-conc** — 689 TPS @ conc=8 (dev148-era measurement). |
 
 ### Gemma 4 26B-A4B MoE family — `gemma4_moe_26b_a4b`
@@ -208,7 +208,7 @@ cell with `sndr preset explain <id>`.
 
 | Preset | K | Concurrency | Mode | Best for |
 |---|---:|---:|---|---|
-| `prod-diffusiongemma-tp2` | 1 | 1..2 | long_context | Block-diffusion text (no AR draft/verify loop), TP=2, 128K max safe context. Status `experimental` — coherent-serve PASS, speed bench pending. |
+| `prod-diffusiongemma-tp2` | 1 | 1..2 | long_context | Block-diffusion text (no AR draft/verify loop), TP=2, 128K max safe context. Status `experimental` — coherent-serve PASS; tool-calls confirmed working on dev748 (2026-07-05 re-run, 7/7); speed bench pending. |
 
 ### llama.cpp engine lane — `qwen3_6_27b_llamacpp_1x` (multi-engine)
 

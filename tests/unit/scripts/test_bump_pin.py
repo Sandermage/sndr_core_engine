@@ -66,6 +66,62 @@ def test_sha_full_arg_updates_pins_yaml_line():
     assert "# for git fetch@sha" in out
 
 
+def test_sub_engine_pin_replaces_vllm_pin_only():
+    """Preset engine_pin propagation (audit remediation 2026-07-05: the
+    dev748 bump left preset engine_pin to a hand-fix). Only vLLM-shaped
+    pins are rewritten — the llama.cpp lane's engine_pin (a llama.cpp
+    build tag) must pass through untouched."""
+    bp = _load()
+    vllm_line = "    engine_pin: 0.23.1rc1.dev714+g09663abde        # validated vLLM build\n"
+    out = bp._sub_engine_pin(vllm_line, "0.23.1rc1.dev777+gabcdef012")
+    assert "0.23.1rc1.dev777+gabcdef012" in out
+    assert "# validated vLLM build" in out
+    llama_line = "    engine_pin: server-cuda-b9246                 # llama.cpp image build\n"
+    assert bp._sub_engine_pin(llama_line, "0.23.1rc1.dev777+gabcdef012") == llama_line
+
+
+def test_sub_image_digest_replaces_value_keeps_comment():
+    """Hardware image_digest propagation (audit CRIT #1/#5: the digest is
+    the highest-precedence image ref and was NOT in bump_pin's rewrite
+    surface — every strict render booted the rollback engine)."""
+    bp = _load()
+    line = ("    image_digest: vllm/vllm-openai@sha256:" + "b" * 64 +
+            "  # pinned digest\n")
+    new = "vllm/vllm-openai@sha256:" + "a" * 64
+    out = bp._sub_image_digest(line, new)
+    assert new in out
+    assert "# pinned digest" in out
+    assert "b" * 64 not in out
+
+
+def test_main_accepts_image_digest_flag():
+    """CLI contract: --image-digest takes sha256:<64hex> or the full
+    repo@sha256 form; malformed values are rejected before any writes."""
+    bp = _load()
+    rc = bp.main(["0.23.1rc1.dev748+g2dfaae752", "--dry-run",
+                  "--image-digest",
+                  "sha256:" + "a" * 64])
+    assert rc == 0
+    rc = bp.main(["0.23.1rc1.dev748+g2dfaae752", "--dry-run",
+                  "--image-digest",
+                  "vllm/vllm-openai@sha256:" + "a" * 64])
+    assert rc == 0
+    with pytest.raises(SystemExit):
+        bp.main(["0.23.1rc1.dev748+g2dfaae752", "--dry-run",
+                 "--image-digest", "not-a-digest"])
+
+
+def test_dry_run_plan_covers_digest_and_presets(capsys):
+    """The bump plan must enumerate the new propagation surfaces so the
+    operator sees them in DRY mode: hardware digests + preset engine_pin."""
+    bp = _load()
+    bp.main(["0.23.1rc1.dev748+g2dfaae752", "--dry-run",
+             "--image-digest", "sha256:" + "a" * 64])
+    out = capsys.readouterr().out
+    assert "hardware" in out.lower()
+    assert "preset" in out.lower()
+
+
 def test_main_accepts_sha_full_flag():
     """CLI contract: bump_pin.py <pin> --sha-full <40-hex> parses; a
     malformed value is rejected before any file writes."""

@@ -1,6 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for Patch N8 — MTP / draft model online-quant propagation.
 
+RETIRED 2026-07-05 (lifecycle: retired, capped <0.23.1rc1.dev672): retired
+WITHOUT supersession — vllm#40849 is still OPEN (gh pr view 2026-07-05) and
+pristine dev748 ``get_draft_quant_config()`` is the vanilla non-inheriting
+form (no OnlineQuantizationConfig import in utils.py). The dev672 CHANGELOG
+"native now" adjudication was a title-match-class error: only the IMPORTS
+anchor drifted (the QuantizationConfig import moved), so the patch has
+benign-skipped since dev672. No current lane runs online-quant + external
+draft, so nothing is lost. Re-vendor (re-derive the imports anchor from the
+live pin) if #40849 merges or an FP8-target + external-draft stack lands.
+
 ================================================================
 Source PR
 ================================================================
@@ -209,7 +219,7 @@ def _make_patcher() -> TextPatcher | None:
     )
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply PN8 — MTP/draft online-quant propagation (text-patch)."""
     from sndr.dispatcher import log_decision, should_apply
 

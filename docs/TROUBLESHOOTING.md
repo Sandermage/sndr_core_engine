@@ -1537,7 +1537,7 @@ the operator decides):
 **SSOT for current numbers: [`BENCHMARKS.md`](BENCHMARKS.md).** The
 current 35B headline (promotion gate, pin dev748, 2026-07-04, MTP
 K=5): **wall_TPS 242.55 (CV 6.9%), decode TPOT 3.9 ms, TTFT 84.5 ms,
-tool-calls 7/7** — +3.5% vs the same-day dev714 canonical run (234.2,
+tool-calls 7/7** — parity within CV (no regression) vs the same-day dev714 canonical run (234.2,
 TPOT 4.04 ms, 8/8). The table below is the older per-model target set
 from the K=3-era unified-`:nightly` window (2026-05/06) — kept for the
 27B/Gemma rows, whose fresh dev748 data is the mini-bench fleet-sweep

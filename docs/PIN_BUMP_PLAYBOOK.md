@@ -379,7 +379,9 @@ operator-authorized maintenance window:
    330 s, boot apply **applied=87 / failed=0** — an apply profile
    identical to dev714's.
 3. **Bench (§6)** — canonical suite vs the same-day dev714 reference
-   (234.16): wall_TPS **242.55** (CV 6.9%) = **+3.5%**, decode_TPOT
+   (234.16): wall_TPS **242.55** (CV 6.9%) — **parity within CV, no
+   regression** (the raw +3.5% is not significant per the BENCHMARKS
+   CV rules), decode_TPOT
    3.9 ms, TTFT 84.5 ms, tool-call 7/7, MTP K=5 accept 0.653,
    ctx-scaling 1K→32K LINEAR_OK (endpoint 0.84).
 4. **Promotion receipts ×3 (§7)** — the new pin recorded in

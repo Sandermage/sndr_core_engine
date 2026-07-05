@@ -93,6 +93,14 @@ _RETIRED_NO_SUPERSEDE_WAIVER = {
     # GENESIS_ENABLE_G4_19C_ATTN_WRAP=0 on launcher. Detailed retired_
     # reason in registry credit.
     "G4_19C": "torch.compile FakeTensor bug 2026-05-29 (kernel not opaque-wrapped)",
+    # PN8 retired 2026-07-05 WITHOUT supersession: its upstream PR
+    # vllm#40849 is still OPEN (gh pr view 2026-07-05) and the feature is
+    # NOT native (pristine dev748 get_draft_quant_config is the vanilla
+    # non-inheriting form). Retired as an unmaintained no-op stop-gap —
+    # the imports anchor was deleted upstream >=dev672 so it benign-skips
+    # everywhere; claiming supersession would repeat the title-match error
+    # the dev672 CHANGELOG made ("native now"). Range-capped <dev672.
+    "PN8": "unmaintained no-op stop-gap for still-OPEN vllm#40849; anchor gone >=dev672; feature NOT native (deep-diff 2026-07-05)",
 }
 
 

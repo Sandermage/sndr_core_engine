@@ -87,12 +87,15 @@ a **separate drafter**, not model-native heads like Qwen3.6. Current
 profile K values: **K=3** (`gemma4-31b-kvauto-chat`), **K=4**
 (`gemma4-26b-multiconc`). A code-workload variant exists as a model YAML
 (`gemma-4-31b-it-awq-mtp-n8-code`, `num_speculative_tokens: 8` — +9% code
-TPS vs n=4, −3% narrative, per club-3090 A/B). Fresh dev748 point: the
-31B kvauto-chat profile (K=3, +PN351 re-anchored on head_dim=512)
-measured **accept-rate 0.933** in the 2026-07-04 fleet sweep (~87 t/s,
-TPOT 11.51 ms — mini-bench; see the fleet-sweep table in
-`BENCHMARKS.md`). The older Gemma tables there remain historical,
-labeled with their pin/date.
+TPS vs n=4, −3% narrative, per club-3090 A/B). Fresh points: the 31B
+kvauto-chat profile (K=3, +PN351 on head_dim=512) measured **window
+accept-rate 0.744** on verified dev748 (2026-07-05 re-run; TPOT 9.42 ms,
+noisy CV — within CV of dev714, no gain claim) and **0.728** on dev714
+(2026-07-04 first pass, TPOT 11.51 ms; per the post-release audit that
+lane had booted the dev714 rollback engine via a stale image digest, and
+the previously quoted 0.933 was a pre-run scrape snapshot — see the
+fleet-sweep table in `BENCHMARKS.md`). The older Gemma tables there
+remain historical, labeled with their pin/date.
 
 ## Method 2: Suffix Decoding (P75 → vllm#25784)
 

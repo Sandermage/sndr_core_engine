@@ -17,7 +17,7 @@
 #
 services:
   vllm-server:
-    image: vllm/vllm-openai@sha256:be4e4089ee4d355d5cb8466847e823926d8c145775e0e3672009a0d5c0d9c6c5
+    image: vllm/vllm-openai@sha256:6a93ae4316826f3dd8a92bee5442cbed50184a9cbd688d310f9e56ecad1eabeb
     container_name: vllm-qwen3.6-27b-int4-autoround-tq-k8v4
     restart: unless-stopped
     ports:
@@ -116,7 +116,6 @@ services:
       GENESIS_ENABLE_PN66: '1'
       GENESIS_ENABLE_PN67: '0'
       GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'
-      GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'
       GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE: '1'
       GENESIS_ENABLE_PN33_SPEC_DECODE_WARMUP_K: '1'
       GENESIS_ENABLE_PN35_INPUTS_EMBEDS_OPTIONAL: '1'

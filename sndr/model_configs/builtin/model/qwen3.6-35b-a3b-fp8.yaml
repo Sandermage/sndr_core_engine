@@ -184,7 +184,6 @@ patches:
   GENESIS_ENABLE_PN66: '1'                           # vllm#41696 backport — multiturn </think> leak fix in DelegatingParser (streaming reasoning purity)
   GENESIS_ENABLE_PN67: '0'                           # vllm#41674 merged at bf610c2f5… — the dev371 canonical baseline. Patch lifecycle=retired with vllm_version_range "<0.20.2rc1.dev371", so it auto-skips at runtime even when enabled. Explicit disable here keeps the active matrix free of retired patches (Phase 5.2.A 2026-05-22).
   GENESIS_ENABLE_PN77_FP8_LM_HEAD: '1'               # Phase E.6 Marlin tier — FP8 LM head; on 35B (vocab=248320, hidden=2048) ≈243 MiB/rank saving
-  GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT: '1'     # MTP draft model online quantization (saves ~1 GiB/rank on FP8 draft)
   GENESIS_ENABLE_PN348: '1'                          # vllm#44644 vendor — Qwen3.5/3.6 MTP backbone dedup (embed_tokens + lm_head shared with target). enable+measure 2026-06-11: ~1 GiB/rank peak VRAM + 1-3s boot expected; A/B at next restart
   # ── perf-opt Batch A (2026-06-14, dev491-perf-optimize workflow) ──
   GENESIS_ENABLE_PN368_MARLIN_MOE_ATOMIC_ADD: '1'    # opt-#10: wires the dense-path should_use_atomic_add_reduce heuristic into the w13 MoE up-projection GEMM (upstream approves it for this shape; Ampere hardcodes False). Reduction-order swap only, no precision change. +0..+1.5% steady-state TPS. conflicts_with P23_WIRE (neither else enabled). Disable via GENESIS_DISABLE_PN368_MARLIN_MOE_ATOMIC_ADD=1.

@@ -26,7 +26,7 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 > MTP K=5 + P67 multi-query kernel. Canonical suite on dev748
 > (2026-07-04, n=25): **wall_TPS 242.55 (CV 6.9 %) / decode_TPOT 3.9 ms /
 > TTFT 84.5 ms / tool-calls 7/7 PASS / MTP window accept-rate 0.653
-> (floor 0.55)** — +3.5 % vs the same-day dev714 run (234.2). Context
+> (floor 0.55)** — parity within CV (no regression) vs the same-day dev714 run (234.2). Context
 > scaling 1K→32K is linear (LINEAR_OK, endpoint ratio 0.84, no cliff).
 > `--max-model-len 280000` (280K served; 2026-05-15 trim from 320K),
 > tool parser `qwen3_xml`, port 8102. The K=3→K=5 re-tune

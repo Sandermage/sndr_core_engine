@@ -30,34 +30,44 @@ preset-side view.
 | `gemma-4-31b-it-awq-mtp-n8-code` | `gemma-4-31B-it-AWQ-4bit` | AWQ INT4 | `auto` | mtp / 8 | `gemma4` | vllm |
 | `diffusiongemma-26b-a4b-fp8` | `diffusiongemma-26B-A4B-it-FP8-dynamic` | FP8 dynamic | `auto` | — (block diffusion) | `gemma4` | vllm |
 
-### Fleet-validated status (pin `dev748`, 2026-07-04)
+### Fleet-validated status (dev748; 2026-07-04 window + 2026-07-05 re-run)
 
-Every launchable lane was boot-swept on the promoted pin
-`0.23.1rc1.dev748+g2dfaae752` (2× RTX A5000, TP=2; `failed=0` patch
-applies across the entire fleet — full table with boot times and apply
-counts in [`BENCHMARKS.md` § Fleet sweep](BENCHMARKS.md)):
+Every launchable lane was boot-swept in the 2026-07-04 promotion window
+(2× RTX A5000, TP=2; `failed=0` patch applies across the entire fleet —
+full table with boot times, apply counts and per-row pin labels in
+[`BENCHMARKS.md` § Fleet sweep](BENCHMARKS.md)). Post-release audit
+(2026-07-05): four lanes had booted the dev714 rollback engine (stale
+hardware `image_digest`, since fixed + gated) and were re-run on
+verified dev748 on 2026-07-05 — numbers below are the dev748 re-run
+values, with the dev714 first-pass values kept as labeled references;
+accept rates are bench-window rates:
 
-- `qwen3.6-35b-a3b-fp8` — validated 2026-07-04 on dev748: 231.2 t/s
-  decode (TPOT 4.10 ms), tool-call PASS, accept 0.728 (canonical
-  `sndr launch` path). The live AWQ PROD launcher on the same pin ran
-  the full canonical suite: 242.5 t/s, tool-calls 7/7.
-- `qwen3.6-27b-int4-autoround-tq-k8v4` — validated 2026-07-04 on
-  dev748: ~130 t/s (TPOT 7.68 ms), tool-call PASS; PN520 loader fix
-  battle-validated (96 `in_proj_ba` shards routed, INT4 degeneration
-  cured). Thinking-mode loop is a pre-existing model trait — see the
-  workaround in [`FAQ.md`](FAQ.md).
+- `qwen3.6-35b-a3b-fp8` — re-run 2026-07-05 on dev748: 223.9 t/s wall
+  (TPOT 4.25 ms), tool-calls 7/7, window accept 0.621, ctx 1K→32K
+  LINEAR_OK (canonical `sndr launch` path; parity within CV vs the
+  dev714 first pass: 231.2 t/s, accept 0.627). The live AWQ PROD
+  launcher ran the full canonical suite on dev748: 242.5 t/s,
+  tool-calls 7/7.
+- `qwen3.6-27b-int4-autoround-tq-k8v4` — swept 2026-07-04 (pin
+  unattributed: fingerprint probe timed out): ~130 t/s (TPOT 7.68 ms),
+  tool-call PASS; PN520 loader fix battle-validated (96 `in_proj_ba`
+  shards routed, INT4 degeneration cured). Thinking-mode loop is a
+  pre-existing model trait — see the workaround in [`FAQ.md`](FAQ.md).
 - `qwen3.6-27b-int4-autoround-fp8kv` — validated 2026-07-04 on dev748:
   ~108 t/s (TPOT 9.22 ms); tool-call not exercised in this sweep; P100
   FlashInfer FULL-CG spec-decode runtime-validated (coherent
   generation, 0 errors).
-- `gemma-4-26b-a4b-it-awq` — validated 2026-07-04 on dev748: ~140 t/s
-  (TPOT 7.12 ms), tool-call PASS.
-- `gemma-4-31b-it-awq` — validated 2026-07-04 on dev748 (kvauto-chat
-  lane, PN351 re-anchor on head_dim=512): ~87 t/s (TPOT 11.51 ms),
-  tool-call PASS, accept 0.933.
-- `diffusiongemma-26b-a4b-fp8` — validated 2026-07-04 on dev748: boots
-  and responds coherently; AR decode metrics not applicable
-  (block-diffusion lane).
+- `gemma-4-26b-a4b-it-awq` — re-run 2026-07-05 on dev748: ~141 t/s
+  (TPOT 7.09 ms), tool-calls 7/7, ctx FLAT_OK (parity vs the dev714
+  first pass: 7.12 ms).
+- `gemma-4-31b-it-awq` — re-run 2026-07-05 on dev748 (kvauto-chat lane;
+  PN351 dev748 launch variant verified in the live container): TPOT
+  9.42 ms (noisy CV — within CV of the dev714 first pass 11.51 ms, no
+  gain claim), tool-calls 7/7, window accept 0.744 (dev714 first pass:
+  0.728).
+- `diffusiongemma-26b-a4b-fp8` — re-run 2026-07-05 on dev748: boots
+  and responds coherently; tool-calls newly confirmed working (7/7);
+  AR decode metrics not applicable (block-diffusion lane).
 - `qwen3.6-35b-a3b-fp8-dflash`, `qwen3.6-27b-dflash` — not swept:
   presets archived pending DFlash re-validation on the 0.23.x pins.
 - `qwen3.6-7b-dense` — not swept: weights not present on the rig.
@@ -201,8 +211,10 @@ The 31B dense Gemma runs in two KV configurations that trade throughput
 against context on the same 2× A5000 rig (single-stream; numbers measured
 on the validated dev148 baseline and carried forward — current pin is
 `0.23.1rc1.dev748+g2dfaae752` per `sndr/pins.yaml`; the kvauto-chat
-lane was fleet-swept on dev748, 2026-07-04: ~87 t/s decode, tool-call
-PASS, accept 0.933 with PN351 re-anchored):
+lane was fleet-swept 2026-07-04 on dev714 — TPOT 11.51 ms, window accept
+0.728 — and re-run 2026-07-05 on verified dev748 with the PN351 launch
+variant confirmed in the live container: TPOT 9.42 ms (within CV, no
+gain claim), tool-calls 7/7, window accept 0.744):
 
 | Profile | KV plan | Context | Decode TPS | Tool-call | Best for |
 | --- | --- | ---: | ---: | :---: | --- |

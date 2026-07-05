@@ -518,7 +518,7 @@
   {
     "patch_id": "PN8",
     "family": "loader",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT",
@@ -986,7 +986,7 @@
   {
     "patch_id": "PN387",
     "family": "serving",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS",

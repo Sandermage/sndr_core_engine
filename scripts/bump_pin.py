@@ -15,14 +15,27 @@ Usage:
 
 What it does (idempotent — safe to re-run):
   1. sndr/pins.yaml: current -> NEW, previous current -> rollback, and refresh
-     canonical_substring / sha_short / anchor_dir / image / container.
+     canonical_substring / sha_short / anchor_dir / image / container
+     (+ current_sha_full via --sha-full, + current_image_digest via
+     --image-digest).
   2. audit_v2_runtime_pins.py: CANONICAL_PIN_SUBSTRING -> new devNNN.
   3. Every vLLM model YAML: vllm_pin_required -> NEW (skips llama.cpp null lanes).
   4. Append NEW to guards.KNOWN_GOOD_VLLM_PINS, ALLOWED_MODELDEF_PINS, and
      test_pin_gate.EXPECTED_PINS if absent (with a dated 'validate me' comment).
+  5. Hardware YAMLs: image_digest -> --image-digest value and image: ->
+     nightly-<--sha-full> (audit remediation 2026-07-05: the digest is the
+     HIGHEST-precedence image ref — effective_image_ref = image_digest or
+     image — and it was outside the rewrite surface, so the dev748 bump left
+     every strict render booting the dev714 rollback engine).
+  6. Preset YAMLs: vLLM-shaped engine_pin values -> NEW (llama.cpp lanes'
+     engine_pin is a llama.cpp build tag and passes through untouched).
 
-It does NOT touch hardware image_digest (content-addressed — capture separately)
-and does NOT edit rollback receipts. After it runs:
+Get the digest from the rig AFTER the candidate image is pulled:
+    docker inspect <image> --format '{{json .RepoDigests}}'
+Without --image-digest the digest artifacts stay STALE and
+audit_pin_consistency (a `make gates` member) FAILS loudly — by design.
+
+It does NOT edit rollback receipts or prose comments. After it runs:
     make rebuild-pin SSH_HOST=... CONTAINER=... IMAGE=...   # anchor manifest
     make audit-pin-consistency                              # verify all in sync
 """
@@ -64,7 +77,75 @@ def _sub_line(text: str, key: str, value: str) -> str:
         text, count=1, flags=re.M)
 
 
-def bump(new: str, dry: bool, sha_full: str | None = None) -> int:
+# vLLM pin shape as it appears in preset engine_pin values. Anything else
+# (e.g. the llama.cpp lane's `server-cuda-b9246`) is a different engine's
+# build tag and must pass through untouched.
+_VLLM_PIN_VALUE_RE = re.compile(r"(engine_pin:\s*)(\d+\.\d+\.\d+\w*\.dev\d+\+g[0-9a-f]+)")
+
+_IMAGE_DIGEST_VALUE_RE = re.compile(
+    r"(image_digest:\s*)(vllm/vllm-openai@sha256:[0-9a-f]{64})")
+
+_IMAGE_TAG_VALUE_RE = re.compile(
+    r"(image:\s*)(vllm/vllm-openai:nightly-[0-9a-f]{40})")
+
+
+def _sub_engine_pin(text: str, pin: str) -> str:
+    """Rewrite every vLLM-shaped ``engine_pin`` value, keeping comments and
+    non-vLLM engine pins (llama.cpp build tags) intact."""
+    return _VLLM_PIN_VALUE_RE.sub(lambda m: f"{m.group(1)}{pin}", text)
+
+
+def _sub_image_digest(text: str, digest_ref: str) -> str:
+    """Rewrite the ``image_digest`` value (full repo@sha256 form), keeping
+    the trailing comment intact."""
+    return _IMAGE_DIGEST_VALUE_RE.sub(lambda m: f"{m.group(1)}{digest_ref}", text)
+
+
+def _normalize_digest(raw: str) -> str | None:
+    """Accept ``sha256:<64hex>`` or ``vllm/vllm-openai@sha256:<64hex>``;
+    return the full repo@sha256 reference, or None if malformed."""
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", raw):
+        return f"vllm/vllm-openai@{raw}"
+    if re.fullmatch(r"vllm/vllm-openai@sha256:[0-9a-f]{64}", raw):
+        return raw
+    return None
+
+
+def _hardware_edits(image_digest: str | None,
+                    sha_full: str | None) -> list[tuple[Path, str]]:
+    """Pending rewrites for the builtin hardware YAMLs: the image_digest
+    value (highest-precedence image ref) and, when the full sha is known,
+    the explicit-hash image: tag. Prose comments are left to the operator."""
+    edits: list[tuple[Path, str]] = []
+    hdir = REPO / "sndr/model_configs/builtin/hardware"
+    for yml in sorted(hdir.glob("*.yaml")):
+        t = yml.read_text(encoding="utf-8")
+        nt = t
+        if image_digest:
+            nt = _sub_image_digest(nt, image_digest)
+        if sha_full:
+            nt = _IMAGE_TAG_VALUE_RE.sub(
+                lambda m: f"{m.group(1)}vllm/vllm-openai:nightly-{sha_full}", nt)
+        if nt != t:
+            edits.append((yml, nt))
+    return edits
+
+
+def _preset_edits(pin: str) -> list[tuple[Path, str]]:
+    """Pending rewrites for builtin preset YAMLs whose engine_pin carries a
+    vLLM-shaped pin (llama.cpp lanes keep their own engine build tag)."""
+    edits: list[tuple[Path, str]] = []
+    pdir = REPO / "sndr/model_configs/builtin/presets"
+    for yml in sorted(pdir.glob("*.yaml")):
+        t = yml.read_text(encoding="utf-8")
+        nt = _sub_engine_pin(t, pin)
+        if nt != t:
+            edits.append((yml, nt))
+    return edits
+
+
+def bump(new: str, dry: bool, sha_full: str | None = None,  # noqa: PLR0915 — linear propagation checklist; splitting would hide the ordered surface list
+         image_digest: str | None = None) -> int:
     info = _parse(new)
     pins_yaml = REPO / "sndr/pins.yaml"
     from sndr import pins as _pins  # current SSOT before edit
@@ -110,7 +191,8 @@ def bump(new: str, dry: bool, sha_full: str | None = None) -> int:
             continue
         nt = re.sub(r"(vllm_pin_required:\s*)([^\s#]+)", rf"\g<1>{info['pin']}", t, count=1)
         if nt != t:
-            yaml_edits.append((yml, nt)); changed_yamls.append(yml.name)
+            yaml_edits.append((yml, nt))
+            changed_yamls.append(yml.name)
 
     # 4. append to allowlists if absent
     def _append_pin(path: Path, anchor: str, comment: str) -> tuple[Path, str] | None:
@@ -121,27 +203,49 @@ def bump(new: str, dry: bool, sha_full: str | None = None) -> int:
         nt = txt.replace(anchor, ins + "    " + anchor.strip(), 1) if anchor in txt else None
         return (path, nt) if nt else None
 
+    # 5. hardware YAMLs: image_digest (audit remediation 2026-07-05 — the
+    # digest WINS over the tag at render, so leaving it stale boots the
+    # rollback engine) + image: tag when the full sha is known.
+    hw_edits = _hardware_edits(image_digest, sha_full)
+    if image_digest:
+        y = _sub_line(y, "current_image_digest", image_digest)
+    else:
+        print("  WARN: --image-digest not given — pins.yaml current_image_digest "
+              "and hardware image_digest NOT updated; audit_pin_consistency WILL "
+              "FAIL until they track the new pin (by design — the digest is the "
+              "highest-precedence image ref). Fetch it via: docker inspect "
+              "<image> --format '{{json .RepoDigests}}'")
+
+    # 6. preset engine_pin (vLLM-shaped values only; llama.cpp lanes keep
+    # their own engine build tag).
+    preset_edits = _preset_edits(info["pin"])
+
     print("=== bump plan ===")
     print(f"  new current : {info['pin']}")
     print(f"  rollback    : {old_current}")
     print(f"  canonical   : {info['canonical']}   anchor_dir: {info['anchor_dir']}")
     print(f"  container   : {info['container']}")
     print(f"  model YAMLs : {len(changed_yamls)} -> {new}")
+    print(f"  hardware YAMLs: {len(hw_edits)} (image_digest"
+          + (" + image: tag" if sha_full else "") + ")"
+          + ("" if image_digest else "  [digest SKIPPED — no --image-digest]"))
+    print(f"  preset engine_pin: {len(preset_edits)} -> {new}")
     if dry:
         print("\n(dry-run — no files written)")
         return 0
 
     pins_yaml.write_text(y, encoding="utf-8")
     av2_path.write_text(av2, encoding="utf-8")
-    for p, t in yaml_edits:
+    for p, t in [*yaml_edits, *hw_edits, *preset_edits]:
         p.write_text(t, encoding="utf-8")
-    print("\n✓ pins.yaml, CANONICAL_PIN_SUBSTRING and model YAMLs updated.")
+    print("\n✓ pins.yaml, CANONICAL_PIN_SUBSTRING, model YAMLs, hardware "
+          "digests and preset engine_pin updated.")
     print("  NOTE: append the new pin to guards.KNOWN_GOOD_VLLM_PINS / "
           "ALLOWED_MODELDEF_PINS / EXPECTED_PINS with its validation receipt "
           "(these carry per-pin comments, kept manual on purpose).")
     print("\nNext (manual, required):")
     print(f"  make rebuild-pin SSH_HOST=<user@host> CONTAINER={info['container']} IMAGE={info['image']}")
-    print("  # commit sndr/engines/vllm/pins/%s/" % info["anchor_dir"])
+    print(f"  # commit sndr/engines/vllm/pins/{info['anchor_dir']}/")
     print("  make audit-pin-consistency   # must PASS before promoting")
     return 0
 
@@ -153,9 +257,22 @@ def main(argv=None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
     ap.add_argument("--sha-full", default=None,
                     help="full 40-hex vLLM commit sha of the new pin "
-                         "(updates current_sha_full; from the image label "
-                         "org.opencontainers.image.revision)")
+                         "(updates current_sha_full + hardware image: tags; "
+                         "from the image label org.opencontainers.image.revision)")
+    ap.add_argument("--image-digest", default=None,
+                    help="rig RepoDigest of the new image: sha256:<64hex> or "
+                         "vllm/vllm-openai@sha256:<64hex> (updates pins.yaml "
+                         "current_image_digest + every hardware image_digest; "
+                         "from docker inspect <image> --format "
+                         "'{{json .RepoDigests}}'). Without it the digest "
+                         "artifacts stay stale and audit_pin_consistency fails.")
     args = ap.parse_args(argv)
+    digest_ref = None
+    if args.image_digest is not None:
+        digest_ref = _normalize_digest(args.image_digest.strip())
+        if digest_ref is None:
+            ap.error(f"--image-digest must be sha256:<64hex> or "
+                     f"vllm/vllm-openai@sha256:<64hex>, got {args.image_digest!r}")
     if args.sha_full is not None:
         import re as _re
         if not _re.fullmatch(r"[0-9a-f]{40}", args.sha_full):
@@ -165,7 +282,8 @@ def main(argv=None) -> int:
             ap.error(f"--sha-full {args.sha_full[:12]}... does not start with "
                      f"the pin's short hash {short!r}")
     sys.path.insert(0, str(REPO))
-    return bump(args.new_pin, args.dry_run, sha_full=args.sha_full)
+    return bump(args.new_pin, args.dry_run, sha_full=args.sha_full,
+                image_digest=digest_ref)
 
 
 if __name__ == "__main__":
