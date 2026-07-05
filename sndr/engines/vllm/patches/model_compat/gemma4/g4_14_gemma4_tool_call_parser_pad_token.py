@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """G4_14 — Gemma 4 tool-call parser pad-token workaround (closes vllm#39392).
 
+RETIRED 2026-07-05 (lifecycle: retired, default_on=False, cap kept <0.23.0):
+Gemma4ToolParser (the class this patch wraps) is DELETED by #45588; the
+surviving Gemma4EngineToolParser decodes skip_special_tokens=False so the
+#39392 raw-token pad-leak mode is gone. Anchor GONE on pristine dev748 ->
+_find_gemma_tool_parser() misses -> graceful no-op. Still applies on a <0.23.0
+rollback pin via explicit gemma YAML enable. #39392 still OPEN.
+
 ================================================================
 WHAT IT FIXES
 ================================================================
@@ -124,7 +131,7 @@ def _find_gemma_tool_parser():
 
 def apply() -> tuple[str, str]:
     """Install pad-token strip wrappers on Gemma4ToolParser methods."""
-    global _APPLIED, _ORIGINAL_STREAMING, _ORIGINAL_BATCH, _PATCHED_CLS
+    global _APPLIED, _ORIGINAL_STREAMING, _ORIGINAL_BATCH, _PATCHED_CLS  # noqa: PLW0603 - module-level idempotency latch, same pattern as sibling patch modules
 
     if not _env_enabled():
         return "skipped", (
@@ -185,7 +192,7 @@ def is_applied() -> bool:
 
 
 def revert() -> bool:
-    global _APPLIED, _ORIGINAL_STREAMING, _ORIGINAL_BATCH, _PATCHED_CLS
+    global _APPLIED, _ORIGINAL_STREAMING, _ORIGINAL_BATCH, _PATCHED_CLS  # noqa: PLW0603 - module-level idempotency latch, same pattern as sibling patch modules
     if not _APPLIED or _PATCHED_CLS is None:
         return False
     if _ORIGINAL_STREAMING is not None:

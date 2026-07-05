@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import pytest
 
-from sndr.dispatcher import decision as D
 from sndr.compat import version_check as vc
-
+from sndr.dispatcher import (
+    decision as D,  # noqa: N812 - module alias used throughout this test
+)
 
 DEV259 = "0.22.1rc1.dev259+g303916e93"
 
@@ -82,11 +83,14 @@ class TestShouldApplyIntegration:
     def test_enforced_version_mismatch_skips_even_when_env_enabled(
         self, engine_is_dev259, monkeypatch
     ):
-        # PN125 is a real registry patch; env-enable it, enforce versions.
-        monkeypatch.setenv("GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE", "1")
+        # P77 is a real registry patch still capped ('>=0.20.0', '<0.22.0'),
+        # which excludes dev259 (0.22.1); env-enable it, enforce versions.
+        # (PN125 was bumped to <0.24.0 on 2026-07-05 after the dev748 reverify,
+        # so it no longer excludes dev259 and can't exercise this path.)
+        monkeypatch.setenv("GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K", "1")
         monkeypatch.setenv("GENESIS_ENFORCE_VERSION_RANGE", "1")
         monkeypatch.delenv("GENESIS_LEGACY_DEFAULT_ON", raising=False)
-        decision, reason = D.should_apply("PN125")
+        decision, reason = D.should_apply("P77")
         assert decision is False
         assert "VERSION-GATE" in reason
 
@@ -95,8 +99,8 @@ class TestShouldApplyIntegration:
     ):
         # Same patch, same pin, but enforcement OFF -> env-override wins
         # (proves the gate ships as a no-op by default).
-        monkeypatch.setenv("GENESIS_ENABLE_PN125_HYBRID_FULL_AND_PIECEWISE", "1")
+        monkeypatch.setenv("GENESIS_ENABLE_P77_ADAPTIVE_NGRAM_K", "1")
         monkeypatch.delenv("GENESIS_ENFORCE_VERSION_RANGE", raising=False)
         monkeypatch.delenv("GENESIS_LEGACY_DEFAULT_ON", raising=False)
-        decision, _ = D.should_apply("PN125")
+        decision, _ = D.should_apply("P77")
         assert decision is True

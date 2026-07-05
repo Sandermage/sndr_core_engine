@@ -76,11 +76,12 @@ DEFAULT_PIN = "0.23.1rc1.dev748+g2dfaae752"  # static last-resort fallback; keep
 #   3. Remove the patch ID from this set + add a one-line "verified
 #      on pin <X> via bench <Y>" note in commit message.
 _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
-    # Default-on (always-skip without env override) — exactly 1 entry:
-    # PN252 (security; see its note at the end of this set — kept default_on
-    # to protect by default on rollback pins, engine-superseded on 0.23.x).
-    # legacy `legacy`/`retired` lifecycles are filtered out by `_audit` so do
-    # not appear here.
+    # Default-on (always-skip without env override) — ZERO entries: PN252,
+    # the sole former default_on member, was formally RETIRED 2026-07-05
+    # (lifecycle=retired) once vllm#45252 (GHSA-33cg-gxv8-3p8g) was verified
+    # engine-native on pristine dev748 — see the breadcrumb at the end of this
+    # set. `legacy`/`retired`/`deprecated` lifecycles are filtered out by
+    # `_audit`, so retired patches never surface here and need no baseline row.
     #
     # v11.3.0 BUG #14 follow-through (commit pending): empirically
     # verified on rig 0.21.1rc1 via direct apply() probe — 17 of the
@@ -109,13 +110,28 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     # enabled in builtin YAMLs — pre-existing debt unrelated to the
     # wave-2 registry integration, queued for per-patch re-verification
     # on 0.22.1 before the range is bumped (audit workflow step 1):
-    "PN90",   # probabilistic-draft MTP; ('>=0.20.2rc1.dev9', '<0.22.0').
-              # Self-skips via drift marker on merged-equivalent upstream
-              # (intentional), so the YAML "enable" is already a no-op by
-              # design — verify on 0.22.1, then bump or retire.
-    "PN125",  # warmup-orchestrator FULL_AND_PIECEWISE; ('>=0.20.0',
-              # '<0.22.0'), Qwen3.5/Next arch-gated. Needs a 0.22.1 boot
-              # probe before the upper bound moves to <0.23.0.
+    # PN90 removed 2026-07-05 (verified by code on pristine dev748): all 4
+    # anchors gone (runner `None,  # draft_probs` literal absent -> apply()
+    # self-retires; proposer _greedy_sample gained a use_heterogeneous_vocab
+    # branch) and upstream #40269 native symbols present -> PN90 self-skips.
+    # All model YAMLs now set the flag '0' and the QA profile disables it, so
+    # PN90 is WARN (not CRITICAL) at dev748 — its CRITICAL-waiver entry was
+    # vestigial. Kept lifecycle=experimental (NOT retired: related_not_
+    # superseding, test-locked in test_audit_upstream_status EXPECTED_SPECIAL;
+    # #40269 is a different-approach landing empirically rejected on our shape).
+    # Dropping it re-arms the guard: re-enabling the flag to '1' now trips
+    # --strict instead of being silently waived.
+    # PN125 CLEARED 2026-07-05 (dev748 reverify): anchor PRESENT+APPLICABLE on
+    # 0.23.1rc1.dev748 — Qwen3_5ForConditionalGenerationConfig + MambaModelConfig
+    # .verify_and_update_config both live in vllm.model_executor.models.config and
+    # MODELS_CONFIG_MAP routes both our arches to the target (verified via
+    # `docker run --rm nightly-2dfaae752`). apply() returns "applied". The
+    # config-class gap PN125 targets is NOT closed natively (class still only sets
+    # mamba_ssm_cache_dtype); the FULL_AND_PIECEWISE effect is redundant with the
+    # v1 resolver but harmless, and the patch is deliberately kept ON in 4 YAMLs as
+    # upstream-bypass insurance. Range bumped <0.22.0 -> <0.24.0 (registry.py) so
+    # the insurance installs on dev748 instead of being version-gate-skipped.
+    # Anchor present => BUMP not RETIRE; no longer stale-debt.
     #
     # 2026-06-14: DELIBERATE cross-pin gates (NOT debt-to-bump). The four
     # entries below are capped '<0.22.1rc1.dev491' ON PURPOSE by the
@@ -136,40 +152,87 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     # would have re-engaged and corrupted the native parser. #45588 DELETED
     # tool_parsers/qwen3coder_tool_parser.py + the gemma4 parser; the engine
     # state machine supersedes. Skip 0.23.x, apply <0.23.0 (dev259 rollback).
-    # P64 formally RETIRED 2026-07-03 (lifecycle=retired) — auto-excluded here.
-    "P61c",   # qwen3_coder deferred-commit streaming wrap — same #45588 parser
-              # deletion; engine state machine supersedes.
-    "PN56",   # qwen3_coder XML-fallback streaming wrap — same #45588 parser
-              # deletion; engine state machine supersedes.
-    "PN347",  # MarlinFP8 N==K corruption fix. dev491 REFACTORED the buggy
-              # `if w_q.shape != (...)` transpose guard out of
-              # kernels/linear/scaled_mm/marlin.py (transpose moved to caller
-              # via the explicit `size_k_first` contract) so the bug cannot
-              # occur and the anchor is correctly absent; the dev259 image
-              # still has the guard at marlin.py:87. vllm#44113 CLOSED-unmerged
-              # (upstream solved it structurally). Skip dev491, apply dev259.
+    # P64/P61c/PN56 formally RETIRED 2026-07-03 (consolidated into the single
+    # registry entry "P64", lifecycle=retired, capped <0.23.0). All three patch
+    # the DELETED tool_parsers/qwen3coder_tool_parser.py (#45413/#45171/#45588,
+    # merged 2026-06-15). PN56 verified by code 2026-07-05 on pristine dev748
+    # (2dfaae752): the file — and the whole entrypoints/openai/tool_parsers/
+    # dir — is GONE; only the engine-native vllm/tool_parsers/
+    # qwen3_engine_tool_parser.py remains, so _make_pn56_patcher() resolves no
+    # target and the wrap is inert. As a retired entry P64 is auto-excluded from
+    # _audit (lifecycle filter), so none of the three can surface as a CRITICAL
+    # row — no baseline waiver is needed (PN30/PN373/P64 retire precedent).
+    # P61c removed 2026-07-05: consolidated into P64 (env_flag_alias, not a
+    # standalone registry id) and P64 is lifecycle=retired + auto-excluded, so
+    # the audit can never emit a P61c CRITICAL — the waiver row was vestigial.
+    # Verified by code on pristine dev748 (2dfaae752): qwen3coder_tool_parser.py
+    # DELETED, P61C_ANCHOR_OLD (is_tool_call_started) 0 matches tree-wide.
+    # PN347 formally RETIRED 2026-07-05 (lifecycle=retired, superseded by the
+    # structural size_k_first caller-contract refactor at dev491+ that DELETED
+    # its `w_q.shape != (...)` anchor — verified by code on pristine dev748) —
+    # now auto-excluded by _audit, so no baseline entry is needed.
     # ── 0.23.1 reverify 2026-06-17 (Workflow + adversarial verify) ──────
     # Intentionally capped <0.23.0 on the 0.23.1 pin — each verified live.
     # (a) Upstream supersedes on 0.23.x (the fix shipped / the bug is gone):
-    "PN30",   # DS conv spec-decode — upstream fused-postprocess kernel rewrote
-              # get_conv_copy_spec (iron-rule #11a). Skip 0.23.1, apply <0.23.0.
-    "PN133",  # MTP scheduler empty-output — pre-fix anchor gone on 0.23.1.
-    "PN362",  # VLLM_TRITON_FORCE_FIRST_CONFIG — merged into 0.23.x.
-    "PN370",  # async accepted-counts race — superseded by our 0.23.1-native PN398.
-    "PN373",  # parallel_tool_calls null — vllm#44955 merged into 0.23.x.
-    "PN378",  # recovered-token vocab mask — complete vllm#45060 ships in 0.23.1.
-    "PN383",  # offload MTP/EAGLE gate — vllm#44784 merged 2026-06-16 (0.23.x).
-    "PN51",   # qwen3 enable_thinking routing — merged into 0.23.x.
-    "P29_HEAL",            # heals the qwen3coder parser DELETED by #45588.
-    "G4_14",  # gemma4 pad-strip wraps Gemma4ToolParser, DELETED by #45588. New
-              # Gemma4EngineToolParser is a skip_special_tokens=False rewrite —
-              # #39392 raw-token pad-leak mode no longer exists. Skip 0.23.1,
-              # apply <0.23.0 (iron-rule #11a). #39392 still OPEN: redesign vs
-              # the new class with a failing repro test before lifting the cap.
-    "SNDR_MTP_DYNAMIC_K_001",  # #26504 DynamicProposer — bench NOT_SIGNIFICANT.
-    # (b) Bug still live on 0.23.1 but the anchor target was refactored away —
-    # capped pending a redesign (cannot byte-exact re-anchor; see registry):
-    "PN374",  # qwen3xml quoted-keys — bug fixed upstream; anchors gone.
+    # PN30 formally RETIRED 2026-07-05 (lifecycle=retired) — the DS conv
+    # spec-decode NotImplementedError anchor is GONE on dev748 (upstream
+    # fused-postprocess kernel; the `assert offset == 0` form re-verified by
+    # code on pristine 2dfaae752, mamba_utils.py:305-310), so PN30 is
+    # auto-excluded from this audit and no longer needs a baseline entry
+    # (P64/P61b/PN287 retire precedent).
+    # PN133 formally RETIRED 2026-07-05 (lifecycle=retired) — vllm#42722's
+    # accounting fix is native on dev748 (scheduler.py:1585-1593); pre-fix
+    # anchor PN133_OLD gone (grep 0). Auto-excluded by _audit, no baseline row.
+    # PN362 formally RETIRED 2026-07-05 (lifecycle=retired) — vllm#42425 merged
+    # 2026-06-16 ships vllm/triton_utils/force_first_config.py natively on
+    # dev748. Auto-excluded by _audit, no baseline row.
+    # PN370 formally RETIRED 2026-07-05 (lifecycle=retired) — vllm#45100 merged;
+    # native `batch_size = m.num_reqs` + `needs_cpu_accepted_counts` guard on
+    # pristine dev748. Auto-excluded by _audit, no baseline row.
+    # PN373 (parallel_tool_calls null, vllm#44955 merged 2026-06-15) formally
+    # RETIRED 2026-07-05 (lifecycle=retired) — `is not False` + the merged
+    # docstring verified native in pristine dev748 tool_calls_utils.py:22-24;
+    # auto-excluded from _audit, so no baseline entry needed (P64/P61b/PN287 class).
+    # PN378 formally RETIRED 2026-07-05 (lifecycle=retired) — the complete
+    # vllm#45060 (mask + OOV clamp) is native in pristine dev748
+    # rejection_sampler.py L945/L952; dev259 splice anchor gone (count 0).
+    # Auto-excluded by _audit, no baseline row.
+    # PN383 formally RETIRED 2026-07-05 (lifecycle=retired) — vllm#44784 merged
+    # 2026-06-16; eagle-group offload gating is native+evolved in pristine
+    # dev748 offloading/scheduler.py. Auto-excluded by _audit, no baseline row.
+    # PN51 (qwen3 enable_thinking=false streaming content routing, vllm#40816,
+    # fixed upstream by #40820) was CONSOLIDATED into P61b on 2026-06-20 (it is
+    # an env_flag_alias, not a standalone registry key) and P61b is
+    # lifecycle=retired — so PN51 never surfaces as an _audit row and this
+    # allowlist line suppressed nothing. Superseded on dev748 by the
+    # #45413/#45588 parser-engine refactor: reasoning/qwen3_reasoning_parser.py
+    # (PN51's target) is DELETED and the anchor text is absent tree-wide on
+    # pristine 2dfaae752 — the engine-native qwen3_engine_reasoning_parser.py
+    # owns thinking-disabled routing. Baseline entry removed 2026-07-05
+    # (P64/P61b/PN287/PN30/PN373 retire precedent).
+    # P29_HEAL formally RETIRED 2026-07-05 (lifecycle=retired, superseded by
+    # #45413/#45171/#45588 — target file + anchors gone on pristine dev748).
+    # Auto-excluded by _audit, no baseline row.
+    # G4_14 formally RETIRED 2026-07-05 (lifecycle=retired, default_on=False):
+    # Gemma4ToolParser is DELETED by #45588; the surviving Gemma4EngineToolParser
+    # is a skip_special_tokens=False rewrite so the #39392 raw-token pad-leak
+    # mode is gone. _find_gemma_tool_parser() misses -> graceful no-op. Cap kept
+    # <0.23.0 (anchor GONE, NOT bumped). Auto-excluded by _audit, no baseline
+    # row. #39392 still OPEN: redesign vs the new class with a failing repro
+    # test before lifting the cap.
+    # SNDR_MTP_DYNAMIC_K_001 formally RETIRED (lifecycle=retired) — superseded by
+    # native Dynamic SD (vllm#32374, MERGED 2026-06-14) verified in-pin on
+    # pristine dev748 (vllm/v1/spec_decode/dynamic/utils.py: "Dynamic SD batch-size
+    # schedule"). The DraftModelProposer monkey-patch target still exists
+    # (draft_model.py:19) but the #26504 port is redundant and bench NOT_SIGNIFICANT.
+    # Auto-excluded from _audit (lifecycle=retired), so no baseline entry needed
+    # (P64/PN30/PN373 retire precedent). default_on=False.
+    # PN374 formally RETIRED 2026-07-05 (lifecycle=retired, superseded by the
+    # #45588 parser-engine refactor that DELETED tool_parsers/
+    # qwen3xml_tool_parser.py; native vllm/parser/qwen3.py json.dumps escapes
+    # keys+values so the quoted-key corruption cannot occur — verified by code
+    # on pristine dev748). Auto-excluded from _audit (WARN-only anyway, never
+    # enabled by a builtin YAML/compose), so no baseline entry is needed.
     # ── 0.23.1 dev148 full-patch audit 2026-06-18 ──────────────────────
     "PN66",   # multiturn </think> leak fix. Re-verified live on dev748
               # 2026-07-05: DelegatingParser is PRESENT (not gone) but the
@@ -183,24 +246,29 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
               # (chat_template.jinja:100-104) STRIPS prior-turn reasoning from
               # history, so no stale </think> enters prompt_token_ids in normal
               # multiturn. #41696 CLOSED-unmerged. Skip 0.23.x, apply <0.23.0.
-    "PN110",  # BlockPool dedup (#42615 OPEN) — SimpleCPUOffload-only path,
-              # dormant on our non-offload PROD; anchor drifted on 0.23.x.
+    # PN110 — RETIRED 2026-07-05 (lifecycle=retired, auto-excluded from this
+    #   audit). By-code verify on pristine dev748 (block_pool.py:614): the
+    #   free_blocks region PN110 anchored on is GONE (LRU-split rewrite) and
+    #   the new per-block `if block.ref_cnt == 0` append-guard structurally
+    #   prevents the double-append symptom. #42615 OPEN but SimpleCPUOffload-
+    #   only; non-offload PROD. See registry superseded_by. Cap <0.23.0 kept.
     # P61b + PN287 formally RETIRED 2026-07-03 (lifecycle=retired, superseded by
     # the #45413/#45588 parser-engine refactor that DELETED their target files —
     # verified live on dev714) — now auto-excluded from this audit, so they no
     # longer need a baseline entry.
-    # The ONE default_on=True allowlist entry (see the "Default-on" note at the
-    # top of this set). PN252 is a SECURITY patch (M-RoPE prompt_embeds-only DoS,
-    # GHSA-33cg-gxv8-3p8g) — kept default_on so it protects by default on every
-    # rollback pin <0.23.0 where the buggy fatal assert still exists. vllm#45252
-    # MERGED at/before b4c80ec0f (dev148): _init_mrope_positions now derives a
-    # non-None input_tokens (range over prompt_embeds for embeds-only) + raises a
-    # per-request ValueError instead of the fatal assert — the DoS is closed by
-    # the engine, so PN252's anchors are correctly absent on 0.23.x and it
-    # version-gate-skips. Cap <0.23.0 + this allowlist entry are the intentional,
-    # verified-2026-06-19 record (engine fix at gpu_model_runner.py:1648/1652).
-    # Skip 0.23.x, apply <0.23.0 (dev259/dev491 rollback).
-    "PN252",
+    # PN252 (M-RoPE prompt_embeds-only DoS, GHSA-33cg-gxv8-3p8g) formally
+    # RETIRED 2026-07-05 (lifecycle=retired, superseded by vllm#45252 MERGED
+    # 2026-06-13). By-code re-verification on pristine dev748 (2dfaae752):
+    # _init_mrope_positions at gpu_model_runner.py:1607-1637 is the engine-
+    # native fix verbatim — NO fatal `assert prompt_token_ids is not None`,
+    # instead `input_tokens` is derived from prompt_token_ids-or-prompt_embeds-
+    # length else a per-request ValueError; the fatal assert survives only in
+    # the sibling _init_xdrope_positions (line 1642), which PN252 never
+    # targeted. Both PN252 required anchors count=0 on pristine dev748, so the
+    # patcher self-skips. lifecycle=retired → auto-excluded from `_audit`, so no
+    # baseline row is needed (P64/P61b/PN287/PN373/PN110 class). The default_on-
+    # enable flag was also removed from the a5000-2x hardware YAML the same day,
+    # closing the "enabled flag on a version-gated no-op" landmine.
 })
 
 

@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for Patch PN110 — BlockPool.free_blocks deduplication.
 
+RETIRED 2026-07-05 (lifecycle: retired, cap kept <0.23.0): the free_blocks
+region PN110 anchored on is GONE on pristine dev748 (LRU-split rewrite; the
+per-block ``if block.ref_cnt == 0`` append-guard structurally prevents the
+double-append symptom). Superseded on the whole >=0.23.0 pin set; still applies
+on a <0.23.0 rollback pin via explicit YAML enable.
+
 Backport of [vllm#42615](https://github.com/vllm-project/vllm/pull/42615)
 by `AkCodes23` (OPEN at the time of backport).
 
@@ -70,12 +76,12 @@ from __future__ import annotations
 import logging
 import os
 
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
 )
-from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.pn110_block_pool_free_dedup")
 
@@ -156,7 +162,7 @@ def _make_patcher() -> TextPatcher | None:
     )
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply PN110 — BlockPool.free_blocks deduplication."""
     from sndr.dispatcher import log_decision, should_apply
 

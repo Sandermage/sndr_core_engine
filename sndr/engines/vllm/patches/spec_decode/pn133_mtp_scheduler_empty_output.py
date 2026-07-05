@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN133 — MTP scheduler empty-output accounting fix (backport vllm#42722).
 
+RETIRED 2026-07-05 (lifecycle: retired, cap kept <0.23.0): vllm#42722's
+accounting fix is native on pristine dev748 (scheduler.py:1585-1593 — the
+``max(len(generated_token_ids) - num_sampled, 0)`` clamp + empty-output
+disjunct); the pre-fix anchor PN133_OLD is GONE (grep 0) so apply() self-skips.
+Still applies on a <0.23.0 rollback pin via explicit YAML enable.
+
 ================================================================
 PROBLEM
 ================================================================
@@ -180,9 +186,9 @@ def _env_enabled() -> bool:
     return val in ("1", "true", "yes", "on")
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Text-patch on scheduler.py — fix empty generated_token_ids accounting."""
-    global _APPLIED
+    global _APPLIED  # noqa: PLW0603 - module-level idempotency latch, same pattern as sibling patch modules
 
     if not _env_enabled():
         return "skipped", (
@@ -196,7 +202,7 @@ def apply() -> tuple[str, str]:
 
     try:
         from sndr.engines.vllm.detection.guards import resolve_vllm_file
-        from sndr.kernel import TextPatcher, TextPatch
+        from sndr.kernel import TextPatch, TextPatcher
     except ImportError as e:
         return "skipped", f"genesis core not importable: {e}"
 

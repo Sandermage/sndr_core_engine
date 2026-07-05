@@ -135,6 +135,37 @@ ALLOWED_RETIRED_PATCHES: dict[str, str] = {
         "fp8kv YAML; capped <0.23.0 + target gone → self-skips on the deployed "
         "pin. Cleaned from YAMLs at next config audit."
     ),
+    # ── 2026-07-05: stale-range baseline drive-to-zero retire batch. Each is
+    # superseded/native on dev748 (anchor GONE, verified by code on pristine
+    # 2dfaae752) but kept enabled in its model YAMLs as <0.23.0 rollback
+    # insurance; lifecycle=retired makes the dispatcher skip it and the target
+    # is gone on the deployed pin, so leaving the env set is doubly harmless.
+    # Cleaned out of YAMLs at next config audit cycle.
+    "PN30": (
+        "Retired 2026-07-05 — superseded by the upstream fused-postprocess "
+        "kernel (get_conv_copy_spec rewritten; NotImplementedError anchor GONE "
+        "on dev748). Enabled in qwen3.6-27b int4-autoround-fp8kv / tq-k8v4 + "
+        "35b-a3b-fp8 YAMLs; capped <0.23.0 → self-skips on the deployed pin."
+    ),
+    "PN110": (
+        "Retired 2026-07-05 — superseded by the free_blocks LRU-split refactor "
+        "(anchor region GONE on dev748; per-block ref_cnt==0 append-guard "
+        "prevents the double-append symptom). Enabled in gemma4 26B/31B + "
+        "qwen3.6 27B/35B YAMLs; capped <0.23.0 → self-skips on the deployed pin."
+    ),
+    "PN133": (
+        "Retired 2026-07-05 — vllm#42722 accounting fix native on dev748 "
+        "(scheduler.py:1585-1593; pre-fix anchor GONE). Enabled in qwen3.6 27B "
+        "dflash / tq-k8v4 + 35B a3b-fp8 / dflash YAMLs; capped <0.23.0 → "
+        "self-skips on the deployed pin."
+    ),
+    "G4_14": (
+        "Retired 2026-07-05 — Gemma4ToolParser DELETED by #45588; the "
+        "surviving Gemma4EngineToolParser is a skip_special_tokens=False "
+        "rewrite so the #39392 pad-leak mode is gone (anchor GONE on dev748). "
+        "Enabled in gemma-4 26B/31B AWQ YAMLs; capped <0.23.0 + finder misses "
+        "the deleted class → graceful no-op on the deployed pin."
+    ),
 }
 
 

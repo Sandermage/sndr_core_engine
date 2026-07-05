@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN347 — vendor of OPEN PR vllm#44113 (shernshiou) MarlinFP8 N==K correctness.
 
+RETIRED 2026-07-05 (lifecycle: retired, cap kept <0.22.1rc1.dev491): superseded
+by vllm#44735's structural size_k_first caller-contract refactor at dev491+,
+which DELETED the buggy ``w_q.shape != (...)`` transpose guard (anchor GONE on
+pristine dev748). Both live pins are >> dev491 so PN347 is inert; still applies
+on a <dev491 rollback pin where the old guard exists.
+
 MarlinFP8 weight transpose silently skipped for square (N==K) matrices on sm_75-88
 =================================================================================
 
@@ -234,7 +240,7 @@ def _make_patcher_for_drift() -> TextPatcher | None:
     )
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply PN347 — MarlinFP8 (N==K) correctness fix."""
     if _env_disabled():
         return "skipped", "PN347 disabled via GENESIS_DISABLE_PN347=1"

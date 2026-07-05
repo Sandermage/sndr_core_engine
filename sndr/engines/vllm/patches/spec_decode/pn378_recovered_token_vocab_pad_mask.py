@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN378 — recovered-token vocab-pad -inf mask (vendor of vllm#45060, kernel half).
 
+RETIRED 2026-07-05 (lifecycle: retired, cap kept <0.23.0): the complete
+vllm#45060 kernel fix (mask + OOV clamp) is native in pristine dev748
+(rejection_sampler.py L945/L952); the dev259 splice anchor PN378_MASK_OLD is
+GONE (count 0). PN378 already Layer-3 self-skips (upstream_merged) on dev491+.
+Still applies on the dev259 rollback base where the pre-fix kernel exists.
+
 Upstream bug class (vllm#45060, root cause of #26372 / #33729 / #42722):
 ``sample_recovered_tokens_kernel`` in ``v1/sample/rejection_sampler.py``
 tiles the vocab in ``BLOCK_SIZE`` chunks; the final tile's padding lanes
