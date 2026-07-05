@@ -46,6 +46,9 @@ os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
 from sndr.engines.vllm.patches.spec_decode import (  # noqa: E402
     pn390_streaming_lse_rejection_sampler as m,
 )
+from tests.unit.anchor_sot._pin_manifest_assert import (  # noqa: E402
+    assert_anchor_recorded,
+)
 
 PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/sample")
 PIN_FILE = PIN_TREE / "rejection_sampler.py"
@@ -279,50 +282,54 @@ class TestDriftMarkerSelfCollision:
         assert any(dm in merged for dm in markers)
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
+# ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
+# Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
+# byte-checked all 13 anchors against ``/private/tmp/candidate_pin_current``
+# (absent on every CI host -> permanently green-by-skip). MIGRATED here to
+# read the COMMITTED per-pin manifest so it RUNS in CI, tying every LIVE
+# patcher anchor CONSTANT to the recorded pristine bytes. Recording all 13
+# subs with merge_status==not_merged subsumes the old class's three checks:
+#   - "anchor unique (count==1)"  -> a manifest entry exists only when the
+#     anchor was unique in pristine at regen;
+#   - "drift markers absent"      -> merge_status==not_merged;
+#   - "replacements/injected symbols absent" -> the recorded anchors are the
+#     pristine OLD text, so the Genesis-injected NEW symbols cannot be there.
 
 
+class TestPn390InCurrentPinManifest:
+    _ANCHORS = (
+        ("pn390_import_has_triton", "PN390_IMPORT_OLD"),
+        ("pn390_body_drop_softmax", "PN390_BODY_OLD"),
+        ("pn390_srt_call_site", "PN390_SRT_CALL_OLD"),
+        ("pn390_rrs_call_site", "PN390_RRS_CALL_OLD"),
+        ("pn390_srt_signature", "PN390_SRT_SIG_OLD"),
+        ("pn390_srt_kernel_launch", "PN390_SRT_KCALL_OLD"),
+        ("pn390_inject_lse_producer", "PN390_INJECT_OLD"),
+        ("pn390_rrs_kernel_signature", "PN390_RRS_SIG_OLD"),
+        ("pn390_rrs_kernel_load", "PN390_RRS_LOAD_OLD"),
+        ("pn390_srtk_signature", "PN390_SRTK_SIG_OLD"),
+        ("pn390_srtk_lse_preload", "PN390_SRTK_PRELOAD_OLD"),
+        ("pn390_srtk_nodraft_load", "PN390_SRTK_NODRAFT_OLD"),
+        ("pn390_srtk_draft_load", "PN390_SRTK_DRAFT_OLD"),
+    )
+
+    def test_all_anchors_recorded_in_current_pin_manifest(self):
+        for sub, const in self._ANCHORS:
+            assert_anchor_recorded("PN390", sub, getattr(m, const))
+
+
+# The upstream-source BLOCK_SIZE=8192 exposure tripwire is NOT an anchor
+# byte-check (the constant is not one of PN390's anchors), so it cannot be
+# reproduced from the md5-only manifest — it genuinely needs the pristine
+# tree. Kept as a labeled rig-only tripwire (audit #14 KEEP-LIVE remainder).
 @pytest.mark.skipif(
     not PIN_FILE.is_file(),
-    reason="pristine pin tree not present on this machine",
+    reason="upstream-source tripwire — needs the pristine pin tree "
+    "(not manifest-reproducible); runs on the rig, skips on CI",
 )
-class TestAnchorsAgainstPristinePin:
-    def test_all_anchors_unique_in_pristine(self):
-        src = PIN_FILE.read_text(encoding="utf-8")
-        anchors = [
-            m.PN390_IMPORT_OLD,
-            m.PN390_BODY_OLD,
-            m.PN390_SRT_CALL_OLD,
-            m.PN390_RRS_CALL_OLD,
-            m.PN390_SRT_SIG_OLD,
-            m.PN390_SRT_KCALL_OLD,
-            m.PN390_INJECT_OLD,
-            m.PN390_RRS_SIG_OLD,
-            m.PN390_RRS_LOAD_OLD,
-            m.PN390_SRTK_SIG_OLD,
-            m.PN390_SRTK_PRELOAD_OLD,
-            m.PN390_SRTK_NODRAFT_OLD,
-            m.PN390_SRTK_DRAFT_OLD,
-        ]
-        for a in anchors:
-            assert src.count(a) == 1, f"anchor not unique (count): {a[:60]!r}"
-
-    def test_drift_markers_absent_in_pristine(self):
-        src = PIN_FILE.read_text(encoding="utf-8")
-        for dm in m._DRIFT_MARKERS:
-            assert dm not in src, f"drift marker present in pristine: {dm!r}"
-
-    def test_replacements_absent_in_pristine(self):
-        """Our marker + injected symbols are not in the pristine tree
-        (idempotency / dup-application guard)."""
-        src = PIN_FILE.read_text(encoding="utf-8")
-        assert m.GENESIS_PN390_MARKER not in src
-        assert "GENESIS_PN390_LSE_BLOCK_SIZE" not in src
-        assert "def compute_target_lse(" not in src
-
-    def test_live_exposure_block_size_8192_in_pin_wrapper(self):
-        """The recovered-token wrapper hardcodes BLOCK_SIZE = 8192 and
-        MTP K=3 runs the rejection path each decode step. If upstream
-        changes the block size, re-derive the transient-MB exposure."""
-        src = PIN_FILE.read_text(encoding="utf-8")
-        assert "BLOCK_SIZE = 8192" in src
+def test_live_exposure_block_size_8192_in_pin_wrapper():
+    """The recovered-token wrapper hardcodes BLOCK_SIZE = 8192 and MTP K=3
+    runs the rejection path each decode step. If upstream changes the block
+    size, re-derive the transient-MB exposure."""
+    src = PIN_FILE.read_text(encoding="utf-8")
+    assert "BLOCK_SIZE = 8192" in src

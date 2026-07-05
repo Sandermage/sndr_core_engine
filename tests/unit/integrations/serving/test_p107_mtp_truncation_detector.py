@@ -2,18 +2,9 @@
 """TDD for P107 — MTP truncation detector (vllm#41467)."""
 from __future__ import annotations
 
-import os
-
-import pytest
-
-# Pristine pin trees for byte-exact anchor verification (skipped when absent).
-PRISTINE_DEV259 = (
-    "/private/tmp/candidate_pin_current/vllm/entrypoints/openai/"
-    "chat_completion/serving.py"
-)
-PRISTINE_DEV491 = (
-    "/tmp/candidate_pin_new/vllm/entrypoints/openai/"
-    "chat_completion/serving.py"
+from tests.unit.anchor_sot._pin_manifest_assert import (
+    assert_anchor_recorded,
+    assert_variant_inactive,
 )
 
 
@@ -149,20 +140,19 @@ def test_dev259_variant_no_self_collision():
     assert M.ANCHOR_DEV491_OLD not in M.ANCHOR_NEW
 
 
-@pytest.mark.skipif(
-    not os.path.isfile(PRISTINE_DEV259) or not os.path.isfile(PRISTINE_DEV491),
-    reason="pristine pin trees not present on this machine",
-)
 def test_anchors_byte_exact_mutually_exclusive_per_pin():
-    """Iron rule #11: each variant's anchor matches count==1 in the pin it
-    targets and count==0 in the other — exactly one fires per pin."""
+    """Iron rule #11: exactly one variant fires per pin. MIGRATED (audit #14)
+    from a byte-check against two stale-pin trees (dev259 + dev491, absent on
+    every CI host -> green-by-skip) to the COMMITTED per-pin manifest. On the
+    current pin the DEV491 variant is recorded active and the DEV259 variant
+    is recorded under no sub — the CI-runnable form of
+    ``dev491.count(DEV491_OLD)==1`` + ``count(DEV259_OLD)==0``. Ties the LIVE
+    variant CONSTANTS to the recorded pristine bytes."""
     M = _wiring()
-    dev259 = open(PRISTINE_DEV259).read()
-    dev491 = open(PRISTINE_DEV491).read()
-    assert dev259.count(M.ANCHOR_OLD) == 1
-    assert dev259.count(M.ANCHOR_DEV491_OLD) == 0
-    assert dev491.count(M.ANCHOR_DEV491_OLD) == 1
-    assert dev491.count(M.ANCHOR_OLD) == 0
+    assert_anchor_recorded(
+        "P107", "p107_mtp_truncation_dev491", M.ANCHOR_DEV491_OLD
+    )
+    assert_variant_inactive("P107", M.ANCHOR_OLD)
 
 
 def test_idempotent_on_synthetic(tmp_path):

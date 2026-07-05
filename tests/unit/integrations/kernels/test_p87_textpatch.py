@@ -33,7 +33,10 @@ from sndr.engines.vllm.patches.kernels.p87_marlin_pad_sub_tile import (
     P87_PWA_OLD,
     _make_patcher,
 )
-
+from tests.unit.anchor_sot._pin_manifest_assert import (
+    assert_anchor_recorded,
+    assert_variant_inactive,
+)
 
 # ─── Marker invariants ───────────────────────────────────────────────────
 
@@ -301,23 +304,6 @@ def test_p87_anchors_have_enough_context():
 # patcher-level drift marker that suppresses the pwa/apply sub-patches on
 # dev491 so they never double-pad over upstream's native padding.
 
-import os  # noqa: E402 — local to the dev491 anchor block below
-
-_PRISTINE_REL = (
-    "model_executor/kernels/linear/mixed_precision/marlin.py"
-)
-_DEV259_TREE = "/private/tmp/candidate_pin_current/vllm"
-_DEV491_TREE = "/tmp/candidate_pin_new/vllm"
-
-
-def _read_pristine(tree_root: str) -> str | None:
-    path = os.path.join(tree_root, _PRISTINE_REL)
-    if not os.path.isfile(path):
-        return None
-    with open(path) as f:
-        return f.read()
-
-
 def test_p87_can_implement_dev491_variant_differs_from_dev259():
     """The dev491 variant must be a genuinely different anchor from the
     dev259 variant — otherwise the dual-anchor is a no-op duplicate.
@@ -373,54 +359,37 @@ def test_p87_patcher_carries_dev491_upstream_drift_marker():
     )
 
 
-def test_p87_can_implement_dev259_anchor_matches_only_dev259_tree():
-    """Byte-exact: the dev259 can_implement anchor must match count==1 in
-    the dev259 pristine tree and count==0 in the dev491 pristine tree.
-    Skips if the pristine trees are not present (e.g. CI runner).
-    """
-    dev259 = _read_pristine(_DEV259_TREE)
-    dev491 = _read_pristine(_DEV491_TREE)
-    if dev259 is None or dev491 is None:
-        pytest.skip("pristine pin trees not present on this host")
-    assert dev259.count(P87_CAN_IMPLEMENT_OLD) == 1, (
-        "dev259 can_implement anchor must match exactly once in dev259 tree"
-    )
-    assert dev491.count(P87_CAN_IMPLEMENT_OLD) == 0, (
-        "dev259 can_implement anchor must be ABSENT in dev491 tree "
-        "(upstream refactored can_implement)"
+# ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gates) ─
+# Audit finding #14: the three tests below byte-checked the can_implement
+# variants against ``/private/tmp/candidate_pin_current`` (dev259) and
+# ``/tmp/candidate_pin_new`` (dev491) — two stale-pin trees absent on every
+# CI host (permanently green-by-skip). MIGRATED to read the COMMITTED per-pin
+# manifest. On the current pin the DEV491 can_implement variant is the one
+# that fires (recorded), the DEV259 variant does not, and P87's whole anchor
+# set is recorded active with merge_status==not_merged — i.e. the dev491
+# ``marlin_padded_nk`` upstream-merge marker is ABSENT in the current pristine
+# (so P87 applies, no double-pad). Ties the LIVE variant CONSTANTS to the
+# recorded bytes; a variant-selection drift at the next regen fails loud.
+
+
+def test_p87_dev491_can_implement_variant_active_on_current_pin():
+    assert_anchor_recorded(
+        "P87", "p87_can_implement_padded_dev491", P87_CAN_IMPLEMENT_DEV491_OLD
     )
 
 
-def test_p87_can_implement_dev491_anchor_matches_only_dev491_tree():
-    """Byte-exact: the dev491 can_implement anchor must match count==1 in
-    the dev491 pristine tree and count==0 in the dev259 pristine tree —
-    proving exactly one variant fires per pin.
-    """
-    dev259 = _read_pristine(_DEV259_TREE)
-    dev491 = _read_pristine(_DEV491_TREE)
-    if dev259 is None or dev491 is None:
-        pytest.skip("pristine pin trees not present on this host")
-    assert dev491.count(P87_CAN_IMPLEMENT_DEV491_OLD) == 1, (
-        "dev491 can_implement anchor must match exactly once in dev491 tree"
-    )
-    assert dev259.count(P87_CAN_IMPLEMENT_DEV491_OLD) == 0, (
-        "dev491 can_implement anchor must be ABSENT in dev259 tree"
-    )
+def test_p87_dev259_can_implement_variant_inactive_on_current_pin():
+    assert_variant_inactive("P87", P87_CAN_IMPLEMENT_OLD)
 
 
-def test_p87_dev491_drift_marker_present_only_in_dev491_tree():
-    """The patcher-level dev491 upstream-merge marker must be present in
-    the dev491 tree (so the patch skips) and absent in dev259 (so the
-    patch applies). This is what guarantees no double-padding on dev491.
-    """
-    dev259 = _read_pristine(_DEV259_TREE)
-    dev491 = _read_pristine(_DEV491_TREE)
-    if dev259 is None or dev491 is None:
-        pytest.skip("pristine pin trees not present on this host")
-    marker = "padded_n, padded_k = marlin_padded_nk(size_n, size_k, c.group_size)"
-    assert dev491.count(marker) == 1, (
-        "dev491 upstream-merge marker must be present in dev491 tree"
-    )
-    assert dev259.count(marker) == 0, (
-        "dev491 upstream-merge marker must be ABSENT in dev259 tree"
-    )
+def test_p87_core_sub_anchors_recorded_active():
+    # The pwa/apply/imports/logger subs are recorded active (merge not_merged)
+    # -> the dev491 upstream-merge drift marker is absent in current pristine,
+    # so P87 applies and does not double-pad.
+    for sub, old in (
+        ("p87_pwa_with_maybe_pad_n", P87_PWA_OLD),
+        ("p87_apply_weights_slice", P87_APPLY_OLD),
+        ("p87_imports", P87_IMPORTS_OLD),
+        ("p87_logger_round_up_imports", P87_LOGGER_OLD),
+    ):
+        assert_anchor_recorded("P87", sub, old)
