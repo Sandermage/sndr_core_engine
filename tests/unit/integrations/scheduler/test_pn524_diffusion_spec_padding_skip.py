@@ -50,9 +50,6 @@ from sndr.engines.vllm.patches.scheduler import (  # noqa: E402
     pn524_diffusion_spec_padding_skip as overlay,
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-
-
 # ── Fixture: pin-form anchor region (byte-faithful, dev748 2dfaae752) ─
 
 PIN_SCHEDULER = (
@@ -310,17 +307,11 @@ class TestWiring:
         assert "GENESIS_ENABLE_PN524_DIFFUSION_SPEC_PADDING_SKIP: '1'" in text
 
 
-@pytest.mark.skipif(
-    not (PIN_TREE / "v1/core/sched/scheduler.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestPristinePinInvariants:
-    def test_anchor_unique_and_markers_absent(self):
-        text = (PIN_TREE / "v1/core/sched/scheduler.py").read_text(
-            encoding="utf-8"
-        )
-        assert text.count(overlay.PN524_PADDING_GUARD_OLD) == 1
-        for dm in overlay._DRIFT_MARKERS:
-            if dm.startswith("[Genesis"):
-                continue
-            assert dm not in text
+# ── Pristine pin invariants: RETIRED (audit #14 full drain, 2026-07-06) ──
+# The former ``TestPristinePinInvariants`` byte-checked the anchor against
+# the macOS-only ``/private/tmp/candidate_pin_current`` path — empty on CI,
+# absent on the Linux rig: executed on NO host, a permanent green-by-skip.
+# PN524 is NOT recorded in the committed anchor_sot manifest (90/329 coverage
+# gap, audit #6/#21), so the byte-check cannot be migrated onto it. Retired;
+# the anchor + ported-upstream-semantics + drift-marker + wiring contracts
+# stay covered in CI by the synthetic classes above.

@@ -44,12 +44,6 @@ MODULE_PATH = (
     "g4_07_gemma4_fp8_block_double_scale_fix"
 )
 
-# The two ephemeral pristine pin trees the pin-bump fix-loop extracts.
-_DEV259_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-_DEV491_TREE = Path("/tmp/candidate_pin_new/vllm")
-_FP8_UTILS_REL = (
-    "model_executor/layers/quantization/utils/fp8_utils.py"
-)
 _DEV491_SYMBOL = "w8a8_triton_block_scaled_mm"
 _DEV259_LEGACY_SYMBOL = "apply_fp8_block_linear"
 
@@ -204,32 +198,14 @@ def test_disabled_env_skips(g4_07, monkeypatch):
 # ─── Pristine-tree anchor verification (opt-in; skips if trees absent) ─
 
 
-def _symbol_present_in_tree(tree: Path, symbol: str) -> bool:
-    f = tree / _FP8_UTILS_REL
-    if not f.is_file():
-        return False
-    return f"def {symbol}" in f.read_text(encoding="utf-8")
-
-
-@pytest.mark.skipif(
-    not (_DEV491_TREE / _FP8_UTILS_REL).is_file(),
-    reason="pristine dev491 tree not extracted on this host",
-)
-def test_dev491_anchor_present_in_pristine_dev491_tree():
-    """dev491 anchor symbol must exist exactly once in the dev491 fp8_utils."""
-    f = _DEV491_TREE / _FP8_UTILS_REL
-    text = f.read_text(encoding="utf-8")
-    assert text.count(f"def {_DEV491_SYMBOL}(") == 1
-    # The dead legacy wrapper must NOT be re-anchored against on dev491.
-    assert f"def {_DEV259_LEGACY_SYMBOL}(" not in text
-
-
-@pytest.mark.skipif(
-    not (_DEV259_TREE / _FP8_UTILS_REL).is_file(),
-    reason="pristine dev259 tree not extracted on this host",
-)
-def test_dev491_anchor_also_present_in_dev259_tree():
-    """The dev491 canonical symbol is also present on the current PROD pin,
-    so the SAME re-anchored binding keeps working on dev259 (required: the
-    PROD 35B stays on dev259 until dev491 is validated)."""
-    assert _symbol_present_in_tree(_DEV259_TREE, _DEV491_SYMBOL)
+# Pristine-tree symbol-presence checks RETIRED (audit #14 full drain,
+# 2026-07-06): ``test_dev491_anchor_present_in_pristine_dev491_tree`` and
+# ``test_dev491_anchor_also_present_in_dev259_tree`` read the fp8_utils source
+# from the macOS-only ``/private/tmp/candidate_pin_current`` +
+# ``/tmp/candidate_pin_new`` stale-pin paths (empty on CI, absent on the Linux
+# rig) — they executed on NO host, a permanent green-by-skip on two pins that
+# are three generations behind dev748. G4_07 is a runtime binding-resolution
+# patch (no TextPatcher anchor) and is not recorded in the committed
+# anchor_sot manifest, so these checks cannot be migrated onto it. The
+# candidate-order + winning-symbol + fallback + fail-loud binding contracts
+# stay covered in CI by the monkeypatched-fixture tests above.

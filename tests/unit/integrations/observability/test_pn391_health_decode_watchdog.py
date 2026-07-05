@@ -55,8 +55,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
-
 # Unit tests patch fresh tmp files; the Layer-0 file cache must never
 # satisfy apply() from a previous run's state.
 os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
@@ -64,8 +62,6 @@ os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
 from sndr.engines.vllm.patches.observability import (  # noqa: E402
     pn391_health_decode_watchdog as wd,
 )
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
 
 # Relative paths of the six target files inside the pin tree.
 REL_ENVS = "envs.py"
@@ -273,7 +269,7 @@ def _install_all(tmp_path, monkeypatch, *, forms=None):
 
     monkeypatch.setattr(wd, "resolve_vllm_file", _resolve)
     monkeypatch.setattr(wd, "vllm_install_root", lambda: str(tmp_path))
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -346,7 +342,7 @@ class TestApply:
         assert "get_decode_liveness" in loggers_out
 
         # All six still parse.
-        for rel, p in written.items():
+        for _rel, p in written.items():
             compile(p.read_text(encoding="utf-8"), str(p), "exec")
 
     def test_second_apply_idempotent(self, tmp_path, monkeypatch):
@@ -359,7 +355,7 @@ class TestApply:
 
     def test_apply_skips_when_gate_closed(self, tmp_path, monkeypatch):
         written = _install_all(tmp_path, monkeypatch)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
         )
@@ -459,33 +455,11 @@ class TestDriftMarkers:
             )
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
-
-
-@pytest.mark.skipif(
-    not (PIN_TREE / REL_HEALTH).is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAgainstPristine:
-    def test_every_anchor_unique_and_drift_absent(self, monkeypatch):
-        # Resolve builders straight against the pristine tree.
-        monkeypatch.setattr(
-            wd, "resolve_vllm_file", lambda rel: str(PIN_TREE / rel)
-        )
-        monkeypatch.setattr(wd, "vllm_install_root", lambda: str(PIN_TREE))
-        for name in dir(wd):
-            if not (name.startswith("_make") and name.endswith("patcher")):
-                continue
-            patcher = getattr(wd, name)()
-            assert patcher is not None, name
-            src = Path(patcher.target_file).read_text(encoding="utf-8")
-            for sp in patcher.sub_patches:
-                assert src.count(sp.anchor) == 1, (
-                    f"{name}/{sp.name}: anchor count != 1"
-                )
-                # The replacement's net-new text must not already be present.
-                assert sp.replacement not in src, f"{name}: already patched?"
-            for dm in patcher.upstream_drift_markers:
-                if dm.startswith("[Genesis"):
-                    continue
-                assert dm not in src, f"{name}: drift marker {dm!r} in pristine"
+# ── Pristine pin invariants: RETIRED (audit #14 full drain, 2026-07-06) ──
+# ``TestAgainstPristine`` byte-checked every builder's anchors against the
+# macOS-only ``/private/tmp/candidate_pin_current`` path (empty on CI, absent
+# on the Linux rig) — executed on NO host. PN391 is not recorded in the
+# committed anchor_sot manifest (90/329 gap, audit #6/#21), so the byte-check
+# cannot be migrated onto it. Retired; the builder-shape + apply +
+# drift-marker contracts stay covered in CI by the synthetic TestBuilderShape
+# / TestApply / TestDriftMarkers classes above.

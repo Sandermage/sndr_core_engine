@@ -28,15 +28,6 @@ convention; ordering-only, PN288 still applies standalone on pristine).
 from __future__ import annotations
 
 import ast
-import os
-
-import pytest
-
-
-PRISTINE_SERVING = (
-    "/private/tmp/candidate_pin_current/vllm/entrypoints/openai/"
-    "chat_completion/serving.py"
-)
 
 # Six nesting levels -> innermost body at 24-space indent, matching the
 # real streaming generator's loop depth around serving.py:821.
@@ -60,14 +51,14 @@ _FULL_HEADER = (
 
 def _pn288():
     from sndr.engines.vllm.patches.serving import (
-        pn288_tool_finish_reason_override as M,
+        pn288_tool_finish_reason_override as M,  # noqa: N812 — module handle, not a class
     )
     return M
 
 
 def _p107():
     from sndr.engines.vllm.patches.serving import (
-        p107_mtp_truncation_detector as M,
+        p107_mtp_truncation_detector as M,  # noqa: N812 — module handle, not a class
     )
     return M
 
@@ -220,16 +211,12 @@ def test_middleware_streaming_accepts_call_without_auto_tools_called():
     assert verdict == "tool_calls"
 
 
-# ─── Pristine-tree byte-exactness (skipped when tree absent) ────────────
-
-
-@pytest.mark.skipif(
-    not os.path.isfile(PRISTINE_SERVING),
-    reason="pristine candidate pin tree not present on this machine",
-)
-def test_anchors_byte_exact_on_pristine_tree():
-    pristine = open(PRISTINE_SERVING).read()
-    pn288, p107 = _pn288(), _p107()
-    assert pristine.count(pn288.PN288_STREAMING_OLD) == 1
-    assert pristine.count(pn288.PN288_NONSTREAMING_OLD) == 1
-    assert pristine.count(p107.ANCHOR_OLD) == 1
+# ─── Pristine-tree byte-exactness: RETIRED (audit #14 full drain) ───────
+# ``test_anchors_byte_exact_on_pristine_tree`` byte-checked the PN288 + P107
+# anchors against the macOS-only ``/private/tmp/candidate_pin_current`` path
+# (empty on CI, absent on the Linux rig) — executed on NO host. PN288 is not
+# recorded in the committed anchor_sot manifest (90/329 gap, audit #6/#21);
+# P107's anchor uniqueness IS now covered in CI by the migrated
+# test_p107_mtp_truncation_detector manifest assertion (PR #57). The PN288
+# streaming/non-streaming anchor prefix + composition + self-collision
+# contracts stay covered in CI by the synthetic tests above.
