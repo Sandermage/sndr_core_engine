@@ -32,7 +32,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 # ─── DO-NOT-VENDOR notes (negative-space provenance) ────────────────────────
 # Decisions to DELIBERATELY NOT vendor an upstream PR, kept next to the
 # affected arch handling so a future agent doing a PR sweep does not "re-find"

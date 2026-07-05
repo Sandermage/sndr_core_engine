@@ -144,7 +144,7 @@ def _preset_edits(pin: str) -> list[tuple[Path, str]]:
     return edits
 
 
-def bump(new: str, dry: bool, sha_full: str | None = None,
+def bump(new: str, dry: bool, sha_full: str | None = None,  # noqa: PLR0915 — linear propagation checklist; splitting would hide the ordered surface list
          image_digest: str | None = None) -> int:
     info = _parse(new)
     pins_yaml = REPO / "sndr/pins.yaml"
@@ -191,7 +191,8 @@ def bump(new: str, dry: bool, sha_full: str | None = None,
             continue
         nt = re.sub(r"(vllm_pin_required:\s*)([^\s#]+)", rf"\g<1>{info['pin']}", t, count=1)
         if nt != t:
-            yaml_edits.append((yml, nt)); changed_yamls.append(yml.name)
+            yaml_edits.append((yml, nt))
+            changed_yamls.append(yml.name)
 
     # 4. append to allowlists if absent
     def _append_pin(path: Path, anchor: str, comment: str) -> tuple[Path, str] | None:
@@ -244,7 +245,7 @@ def bump(new: str, dry: bool, sha_full: str | None = None,
           "(these carry per-pin comments, kept manual on purpose).")
     print("\nNext (manual, required):")
     print(f"  make rebuild-pin SSH_HOST=<user@host> CONTAINER={info['container']} IMAGE={info['image']}")
-    print("  # commit sndr/engines/vllm/pins/%s/" % info["anchor_dir"])
+    print(f"  # commit sndr/engines/vllm/pins/{info['anchor_dir']}/")
     print("  make audit-pin-consistency   # must PASS before promoting")
     return 0
 

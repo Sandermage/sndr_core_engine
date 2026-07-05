@@ -111,9 +111,10 @@ def _model_yaml_pins() -> list[tuple[str, str]]:
 
 def main() -> int:
     sys.path.insert(0, str(REPO))
+    import importlib.util
+
     from sndr import pins
     from sndr.engines.vllm.detection.guards import KNOWN_GOOD_VLLM_PINS
-    import importlib.util
     spec = importlib.util.spec_from_file_location(
         "audit_v2_runtime_pins", REPO / "scripts/audit_v2_runtime_pins.py")
     av2 = importlib.util.module_from_spec(spec)
@@ -136,7 +137,7 @@ def main() -> int:
         errs.append(f"current pin {cur!r} NOT in EXPECTED_PINS (test_pin_gate.py) — add it")
     if canon not in cur:
         errs.append(f"canonical_substring {canon!r} is not a substring of current pin {cur!r}")
-    if av2.CANONICAL_PIN_SUBSTRING != canon:
+    if canon != av2.CANONICAL_PIN_SUBSTRING:
         errs.append(f"audit_v2 CANONICAL_PIN_SUBSTRING={av2.CANONICAL_PIN_SUBSTRING!r} != pins.yaml {canon!r}")
 
     anchor = REPO / "sndr/engines/vllm/pins" / pins.current_anchor_dir() / "anchors.json"
