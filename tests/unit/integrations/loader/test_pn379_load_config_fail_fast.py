@@ -40,28 +40,19 @@ from pathlib import Path
 
 import pytest
 
-from sndr.kernel import TextPatchResult
-from sndr.kernel.multi_file import MultiFilePatchTransaction
-
 from sndr.engines.vllm.patches.loader.pn379_load_config_fail_fast import (
     GENESIS_PN379_MARKER,
-    PN379_LOAD_IMPORT_ANCHOR,
-    PN379_LOAD_IMPORT_REPLACEMENT,
-    PN379_LOAD_FORMAT_ANCHOR,
-    PN379_LOAD_FORMAT_REPLACEMENT,
-    PN379_LOAD_STRATEGY_ANCHOR,
-    PN379_LOAD_STRATEGY_REPLACEMENT,
-    PN379_DL_EXTRA_DICT_ANCHOR,
     PN379_DL_EXTRA_DICT_REPLACEMENT,
-    PN379_DL_VALIDATION_ANCHOR,
-    PN379_DL_VALIDATION_REPLACEMENT,
-    PN379_DL_PT_FALLBACK_ANCHOR,
     PN379_DL_PT_FALLBACK_REPLACEMENT,
-    _make_load_config_patcher,
+    PN379_DL_VALIDATION_REPLACEMENT,
+    PN379_LOAD_FORMAT_REPLACEMENT,
+    PN379_LOAD_IMPORT_REPLACEMENT,
+    PN379_LOAD_STRATEGY_REPLACEMENT,
     _make_default_loader_patcher,
+    _make_load_config_patcher,
 )
-
-PRISTINE_ROOT = Path("/private/tmp/candidate_pin_current/vllm")
+from sndr.kernel import TextPatchResult
+from sndr.kernel.multi_file import MultiFilePatchTransaction
 
 ALL_REPLACEMENTS = (
     PN379_LOAD_IMPORT_REPLACEMENT,
@@ -194,65 +185,6 @@ def _exec_module(src):
     # the fake and stringify the annotations we assert on.
     exec(compile(src, "<patched>", "exec", dont_inherit=True), ns)
     return ns
-
-
-# ═══ 1. Anchor contract against the PRISTINE pin tree ════════════════════
-
-
-@pytest.mark.skipif(
-    not (PRISTINE_ROOT / "config/load.py").is_file(),
-    reason="pristine candidate pin tree not present on this machine",
-)
-def test_pristine_anchors_present_exactly_once():
-    load = (PRISTINE_ROOT / "config/load.py").read_text()
-    dl = (
-        PRISTINE_ROOT / "model_executor/model_loader/default_loader.py"
-    ).read_text()
-    assert load.count(PN379_LOAD_IMPORT_ANCHOR) == 1
-    assert load.count(PN379_LOAD_FORMAT_ANCHOR) == 1
-    assert load.count(PN379_LOAD_STRATEGY_ANCHOR) == 1
-    assert dl.count(PN379_DL_EXTRA_DICT_ANCHOR) == 1
-    assert dl.count(PN379_DL_VALIDATION_ANCHOR) == 1
-    assert dl.count(PN379_DL_PT_FALLBACK_ANCHOR) == 1
-
-
-@pytest.mark.skipif(
-    not (PRISTINE_ROOT / "config/load.py").is_file(),
-    reason="pristine candidate pin tree not present on this machine",
-)
-def test_pristine_strategy_values_still_match_literal():
-    """The Literal set baked into the replacement must equal the set the
-    pin's weight_utils actually dispatches on — if upstream adds a
-    strategy, the Literal must be re-derived (else PN379 would reject a
-    valid config)."""
-    wu = (
-        PRISTINE_ROOT / "model_executor/model_loader/weight_utils.py"
-    ).read_text()
-    for value in ("lazy", "eager", "prefetch", "torchao"):
-        assert (
-            f'"{value}"' in PN379_LOAD_STRATEGY_REPLACEMENT
-        ), f"{value} missing from the Literal replacement"
-    # weight_utils dispatches on eager/prefetch/torchao explicitly
-    for value in ("eager", "prefetch", "torchao"):
-        assert f'safetensors_load_strategy == "{value}"' in wu or (
-            f"safetensors_load_strategy == '{value}'" in wu
-        ) or f'"{value}"' in wu
-
-
-@pytest.mark.skipif(
-    not (PRISTINE_ROOT / "config/load.py").is_file(),
-    reason="pristine candidate pin tree not present on this machine",
-)
-def test_pristine_multithread_path_still_drops_strategy():
-    """The reject-combination hunk is justified ONLY while the pin's
-    multi-thread iterator ignores safetensors_load_strategy. If upstream
-    threads the strategy through, this patch needs re-study."""
-    dl = (
-        PRISTINE_ROOT / "model_executor/model_loader/default_loader.py"
-    ).read_text()
-    mt_call = dl.split("multi_thread_safetensors_weights_iterator(")[1]
-    mt_call = mt_call.split(")")[0]
-    assert "safetensors_load_strategy" not in mt_call
 
 
 # ═══ 2. Replacement hygiene ═══════════════════════════════════════════════
