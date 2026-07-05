@@ -6,7 +6,7 @@ patches that are platform-gated (e.g. Ampere SM 8.0+) are noted.
 
 > **Current PROD baseline (v12.0.0; pin bumped 2026-07-04, doc updated 2026-07-04):**
 >
-> - Genesis v12.0.0 — registry has **325 entries**: 263 full-implementation,
+> - Genesis v12.0.0 — registry has **329 entries**: 267 full-implementation,
 >   25 experimental, 22 marker_only, 7 partial, 6 retired, 2 placeholder
 >   (56 default-on). Counts auto-derived from ``PATCH_REGISTRY``.
 > - vLLM pins (SSOT: [`sndr/pins.yaml`](../sndr/pins.yaml)) — **three-pin

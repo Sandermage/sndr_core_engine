@@ -8,7 +8,7 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 
 > **Current canonical stack (v12.0.0 current registry)**
 >
-> - Genesis `v12.0.0` — 325 PATCH_REGISTRY entries; by lifecycle:
+> - Genesis `v12.0.0` (now 329 PATCH_REGISTRY entries); by lifecycle:
 >   235 experimental, 41 retired, 28 legacy, 14 stable, 4 coordinator,
 >   3 research (regenerated 2026-07-04 from `sndr.dispatcher.PATCH_REGISTRY`).
 > - vLLM **current pin** `0.23.1rc1.dev748+g2dfaae752`
@@ -247,7 +247,7 @@ Genesis vLLM Patcher — boot summary
   vLLM:     0.23.1rc1.dev148+gb4c80ec0f
   GPU:      2× NVIDIA RTX A5000 (sm_86)
 ──────────────────────────────────────────────────────────────────────
-  Patches:  325 total → ~80 APPLY | ~148 SKIP
+  Patches:  329 total → ~80 APPLY | ~148 SKIP
   By family (APPLY only):
     • attention.gdn          ~5
     • attention.turboquant   ~12 (incl. PN116/118/119)
@@ -312,7 +312,7 @@ Older points are kept for regression-detection. Wave 8 (dev93)
 numbers remained the operator-facing baseline until Wave 10 confirmed
 the small uplift above; Wave 7 / v7.72 (dev9) is pre-v11-rename and
 is not directly comparable because the patch registry was much
-smaller (134 entries vs 325 today).
+smaller (134 entries vs 329 today).
 
 ### Wave 7 / v7.72 dev9 snapshot (2026-05-05, pre-v11 rename)
 
