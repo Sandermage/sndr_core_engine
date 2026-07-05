@@ -35,6 +35,14 @@ class AnchorTarget:
     # upstream_merged / genuine drift instead of all lumped as "drift"):
     vllm_version_range: tuple | None = None   # spec.applies_to.vllm_version_range
     upstream_merged_markers: tuple = ()          # sub-patch upstream_merged_markers
+    # PATCHER-level upstream-drift markers (TextPatcher.upstream_drift_markers).
+    # These are whole-patch markers: when one fires in the pristine source the
+    # ENTIRE patch is upstream-merged (Layer-3 semantics), independent of the
+    # per-sub upstream_merged_markers above. 169/174 marker-bearing modules
+    # declare their marker ONLY at patcher level, so without carrying this the
+    # classifier is blind to their merges (finding #6). Same value on every sub
+    # of a patcher (patcher-level, not per-sub).
+    patcher_drift_markers: tuple = ()
     # Patch lifecycle (spec.lifecycle: "retired" / "stable" / "research" / ...).
     # A retired patch's anchor legitimately no longer matches the dev source
     # (its code was superseded / absorbed upstream), so it must NOT be counted
@@ -235,6 +243,14 @@ def iter_anchor_targets() -> Iterator[AnchorTarget]:
         # retired patch's drifted anchor as STATUS_RETIRED, not anchor_drift.
         lifecycle = getattr(spec, "lifecycle", None)
         lifecycle = str(lifecycle).lower() if lifecycle else None
+        # Patcher-level upstream-drift markers (finding #6). Read once per
+        # patcher and stamped onto EVERY sub-target (they are a whole-patch
+        # property). The classifier checks them against the pristine source so a
+        # patch whose fix upstream merged is routed to STATUS_UPSTREAM_MERGED
+        # instead of leaking into the genuine-drift re-anchor backlog.
+        patcher_markers = tuple(
+            getattr(patcher, "upstream_drift_markers", []) or ()
+        )
         for sp in getattr(patcher, "sub_patches", []) or []:
             anchor = getattr(sp, "anchor", None)
             if not anchor:
@@ -251,4 +267,5 @@ def iter_anchor_targets() -> Iterator[AnchorTarget]:
                     getattr(sp, "upstream_merged_markers", []) or []
                 ),
                 lifecycle=lifecycle,
+                patcher_drift_markers=patcher_markers,
             )

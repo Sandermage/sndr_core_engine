@@ -33,6 +33,10 @@ def _mk(d):
     vr = d.get("vllm_version_range")
     d["vllm_version_range"] = tuple(vr) if vr else None
     d["upstream_merged_markers"] = tuple(d.get("upstream_merged_markers") or ())
+    # finding #6: reconstruct the patcher-level markers as a tuple. Without this
+    # the field silently drops at the discover->serialize->reconstruct boundary
+    # (asdict emits a list; an old targets.json lacking the key -> default ()).
+    d["patcher_drift_markers"] = tuple(d.get("patcher_drift_markers") or ())
     return AnchorTarget(**d)
 
 

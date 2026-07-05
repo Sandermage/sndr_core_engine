@@ -58,6 +58,43 @@ def test_anchor_target_carries_lifecycle_field():
     assert t2.lifecycle == "retired"
 
 
+def test_anchor_target_carries_patcher_drift_markers_field():
+    # FINDING #6 plumbing: AnchorTarget exposes a `patcher_drift_markers` field
+    # (defaults ()), carrying the PATCHER-level upstream_drift_markers so the
+    # manifest classifier can detect whole-patch upstream merges (Layer-3
+    # semantics) — not just the per-sub upstream_merged_markers.
+    # Host-runnable (no vLLM): asserts the dataclass shape directly.
+    import dataclasses
+
+    names = {f.name for f in dataclasses.fields(AnchorTarget)}
+    assert "patcher_drift_markers" in names
+    t = AnchorTarget("P", "s", "f.py", "A", "R", True)
+    assert t.patcher_drift_markers == ()  # default when a patcher has no markers
+    t2 = AnchorTarget("P", "s", "f.py", "A", "R", True,
+                      patcher_drift_markers=("def native_guard",))
+    assert t2.patcher_drift_markers == ("def native_guard",)
+
+
+def test_discovery_stamps_patcher_drift_markers():
+    # When vLLM is present, iter_anchor_targets must stamp each target's
+    # patcher_drift_markers from its patcher.upstream_drift_markers (the same
+    # value for every sub of a patcher, since it is patcher-level). Rig-gated.
+    targets = _discovered()
+    if not targets:
+        pytest.skip("vLLM not installed — discovery empty")
+    by_pid = {}
+    for t in targets:
+        by_pid.setdefault(t.patch_id, []).append(t)
+    # every target's patcher_drift_markers is a tuple
+    for t in targets[:50]:
+        assert isinstance(t.patcher_drift_markers, tuple)
+    # PN387 declares two patcher-level _DRIFT_MARKERS; if discovered on this pin
+    # they must be carried on its target(s).
+    if "PN387" in by_pid:
+        for t in by_pid["PN387"]:
+            assert len(t.patcher_drift_markers) >= 1, "PN387 markers not stamped"
+
+
 def test_discovery_populates_lifecycle_from_spec():
     # When vLLM is present, iter_anchor_targets must stamp each target's
     # lifecycle from its spec (retired patches keep being yielded — VISIBLE —

@@ -243,6 +243,11 @@ def build_pin_manifest(
     (range excludes ``pin``) → upstream_merged (a merge marker is present) →
     ok/anchor_drift/ambiguous.
 
+    upstream_merged fires on EITHER a PATCHER-level marker
+    (``patcher_drift_markers`` — whole-patch, so all subs merge together and the
+    patch aggregates to fully_merged) OR a per-SUB ``upstream_merged_markers`` /
+    the caller ``is_upstream_merged`` hook (finding #6).
+
     ``retired`` is checked BEFORE the anchor is even classified: a retired
     patch's anchor legitimately drifted (its code was superseded / absorbed
     upstream), so it is routed to the reject set under STATUS_RETIRED regardless
@@ -305,9 +310,19 @@ def build_pin_manifest(
         _seen_subs.setdefault(t.patch_id, set()).add(t.sub)
         _merge_target_rel.setdefault(t.patch_id, t.target_rel)
 
-        merged = any(m in src for m in (t.upstream_merged_markers or ())) or (
+        # Upstream-merge detection (finding #6): fire on EITHER
+        #   - a PATCHER-level marker (t.patcher_drift_markers) — whole-patch,
+        #     Layer-3 semantics: present for every sub, so every sub routes to
+        #     STATUS_UPSTREAM_MERGED and aggregate_merge_status returns
+        #     FULLY_MERGED (never partial); OR
+        #   - a per-SUB marker (t.upstream_merged_markers) / the caller hook.
+        # Checked against the PRISTINE (never-patched) source, so Genesis
+        # self-banner markers are absent by construction and never false-fire.
+        patcher_merged = any(m in src for m in (t.patcher_drift_markers or ()))
+        sub_merged = any(m in src for m in (t.upstream_merged_markers or ())) or (
             is_upstream_merged is not None and is_upstream_merged(t, src)
         )
+        merged = patcher_merged or sub_merged
         if merged:
             _merged_subs.setdefault(t.patch_id, set()).add(t.sub)
             _rej(key, t, STATUS_UPSTREAM_MERGED)
