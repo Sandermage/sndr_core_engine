@@ -76,12 +76,12 @@ from __future__ import annotations
 import logging
 import os
 
+from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 from sndr.kernel import (
     TextPatch,
     TextPatcher,
     TextPatchResult,
 )
-from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 
 log = logging.getLogger("genesis.wiring.pn110_block_pool_free_dedup")
 
@@ -162,7 +162,7 @@ def _make_patcher() -> TextPatcher | None:
     )
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply PN110 — BlockPool.free_blocks deduplication."""
     from sndr.dispatcher import log_decision, should_apply
 

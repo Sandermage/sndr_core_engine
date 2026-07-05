@@ -186,9 +186,9 @@ def _env_enabled() -> bool:
     return val in ("1", "true", "yes", "on")
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Text-patch on scheduler.py — fix empty generated_token_ids accounting."""
-    global _APPLIED
+    global _APPLIED  # noqa: PLW0603 - module-level idempotency latch, same pattern as sibling patch modules
 
     if not _env_enabled():
         return "skipped", (
@@ -202,7 +202,7 @@ def apply() -> tuple[str, str]:
 
     try:
         from sndr.engines.vllm.detection.guards import resolve_vllm_file
-        from sndr.kernel import TextPatcher, TextPatch
+        from sndr.kernel import TextPatch, TextPatcher
     except ImportError as e:
         return "skipped", f"genesis core not importable: {e}"
 

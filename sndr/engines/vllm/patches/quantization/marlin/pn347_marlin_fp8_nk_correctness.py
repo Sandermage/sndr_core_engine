@@ -240,7 +240,7 @@ def _make_patcher_for_drift() -> TextPatcher | None:
     )
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply PN347 — MarlinFP8 (N==K) correctness fix."""
     if _env_disabled():
         return "skipped", "PN347 disabled via GENESIS_DISABLE_PN347=1"

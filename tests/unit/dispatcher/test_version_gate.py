@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import pytest
 
-from sndr.dispatcher import decision as D
 from sndr.compat import version_check as vc
-
+from sndr.dispatcher import (
+    decision as D,  # noqa: N812 - module alias used throughout this test
+)
 
 DEV259 = "0.22.1rc1.dev259+g303916e93"
 
