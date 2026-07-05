@@ -37,14 +37,19 @@ predicate / lm_head fallthrough / remap_weight_names skip) are all
 OUTSIDE the ``Qwen3_5MultiTokenPredictor.load_weights`` body PN380
 patches. Disjointness + both co-apply orders are asserted below.
 
-These tests verify textually (portable embedded fixture, byte-verified
-against pin 0.22.1rc1.dev259+g303916e93) and opportunistically against
-the real pristine tree at /private/tmp/candidate_pin_current:
-  1. anchors unique (count==1) on fixture + real pin; drift markers
-     absent from pristine
+These tests verify textually against portable embedded fixtures
+(byte-verified against pins 0.22.1rc1.dev259+g303916e93 Variant A and
+0.22.1rc1.dev491+g1033ffac2 Variant B). PN380 is NOT recorded in the
+current-pin (dev748) anchor manifest — all seven anchors ``count == 0``
+in the dev748 pristine ``qwen3_5_mtp.py`` (upstream refactored the
+loader; verified on the rig pristine tree), so there is no manifest
+entry to migrate a byte-check onto and the former stale-pin pristine
+gates are retired (see the retirement notes below). The embedded
+fixtures are the CI-runnable source of truth:
+  1. anchors unique (count==1) on the fixtures; drift markers absent
   2. end-to-end TextPatcher apply on tmp copies — all 6 sub-patches,
      result compiles, idempotent on second apply
-  3. co-apply with PN348 in BOTH orders on the real pin file
+  3. co-apply with PN348 in BOTH orders on the fixtures
   4. replacement contract — faithful #44943 semantics + coverage guard
   5. functional coverage-guard behavior (exec harness, no torch)
   6. self-collision invariants (tools/lint_drift_markers.py contract)
@@ -52,31 +57,22 @@ the real pristine tree at /private/tmp/candidate_pin_current:
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-import pytest
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-PIN_MODEL = PIN_TREE / "model_executor" / "models" / "qwen3_5_mtp.py"
-
-# Pin bump 2026-06-13: dev259 (CURRENT PROD) -> dev491 (CANDIDATE). PN380
-# Sub-1 (mapping) is DUAL-ANCHOR — Variant A targets the dev259 static
-# list, Variant B targets the dev491 loop build. These tests verify
-# Variant B against the dev491 pristine tree when present.
-PIN_TREE_DEV491 = Path("/tmp/candidate_pin_new/vllm")
-PIN_MODEL_DEV491 = PIN_TREE_DEV491 / "model_executor" / "models" / "qwen3_5_mtp.py"
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _pn380():
     from sndr.engines.vllm.patches.spec_decode import (
-        pn380_qwen3_mtp_prefused_expert_loader as M,
+        pn380_qwen3_mtp_prefused_expert_loader as M,  # noqa: N812
     )
     return M
 
 
 def _pn348():
     from sndr.engines.vllm.patches.spec_decode import (
-        pn348_qwen3_mtp_backbone_dedup as M,
+        pn348_qwen3_mtp_backbone_dedup as M,  # noqa: N812
     )
     return M
 
@@ -940,88 +936,30 @@ class TestModuleApply:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# 7. Against the real pristine pin (opportunistic) + PN348 co-apply
+# 7. Real-pin pristine gate — RETIRED (audit finding #14)
 # ─────────────────────────────────────────────────────────────────────
-
-
-@pytest.mark.skipif(
-    not PIN_MODEL.is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_fixture_region_matches_pin(self):
-        """The embedded portable region must stay byte-identical to the
-        pin so the portable tests keep testifying about the real file."""
-        src = PIN_MODEL.read_text(encoding="utf-8")
-        assert src.count(LOAD_WEIGHTS_REGION) == 1
-
-    def test_each_anchor_unique_on_pin(self):
-        src = PIN_MODEL.read_text(encoding="utf-8")
-        for old, new in _all_old_new():
-            assert src.count(old) == 1, old[:60]
-            assert new not in src
-        # The dev491 loop-build mapping anchor must be ABSENT on dev259
-        # (mutually exclusive shapes — the dev491 variant soft-skips here).
-        M = _pn380()
-        assert M.PN380_MAPPING_DEV491_OLD not in src
-
-    def test_drift_markers_absent_on_pin(self):
-        M = _pn380()
-        src = PIN_MODEL.read_text(encoding="utf-8")
-        for dm in M._DRIFT_MARKERS:
-            assert dm not in src
-
-    def test_full_file_apply_and_compile(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
-        from sndr.kernel import TextPatchResult
-
-        patcher, target = _patcher_on(
-            tmp_path, PIN_MODEL.read_text(encoding="utf-8"), monkeypatch
-        )
-        result, failure = patcher.apply()
-        assert result == TextPatchResult.APPLIED, failure
-        assert len(patcher.applied_sub_patches) == 6
-        ast.parse(target.read_text(encoding="utf-8"))
-
-    @pytest.mark.parametrize("order", ["pn348_first", "pn380_first"])
-    def test_co_apply_with_pn348_both_orders(self, tmp_path, monkeypatch, order):
-        monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
-        from sndr.kernel import TextPatchResult
-
-        M = _pn380()
-        target = tmp_path / "qwen3_5_mtp.py"
-        target.write_text(PIN_MODEL.read_text(encoding="utf-8"), encoding="utf-8")
-        monkeypatch.setattr(M, "resolve_vllm_file", lambda rel: str(target))
-
-        def apply_380():
-            p = M._make_mtp_loader_patcher()
-            r, f = p.apply()
-            assert r == TextPatchResult.APPLIED, (order, f)
-            assert len(p.applied_sub_patches) == 6
-
-        def apply_348():
-            r, f = _pn348_patcher(target).apply()
-            assert r == TextPatchResult.APPLIED, (order, f)
-
-        if order == "pn348_first":
-            apply_348()
-            apply_380()
-        else:
-            apply_380()
-            apply_348()
-
-        out = target.read_text(encoding="utf-8")
-        ast.parse(out)
-        # both effects survive
-        assert '"experts.w13_weight", 0, "w1"' in out
-        assert "share_backbone_input_output" in out
-        assert "[Genesis PN380" in out
-        assert "[Genesis PN348" in out
+# The former ``TestAnchorsAgainstPristinePin`` byte-checked the Variant A
+# anchors + full-file apply against a macOS-only dev259 pristine tree
+# (present on no CI host -> permanently green-by-skip). It is RETIRED, not
+# migrated, because:
+#   * PN380 has NO entry in the current-pin (dev748) anchor manifest — all
+#     seven anchors ``count == 0`` in the dev748 pristine ``qwen3_5_mtp.py``
+#     (verified on the rig tree ``/tmp/pristine_dev748_2dfaae752``: upstream
+#     refactored the pre-fused expert loader), so there is nothing to tie a
+#     ``assert_anchor_recorded`` onto, and an installed-vllm container-gate
+#     would fail to apply (asserting the drift as "expected" would be
+#     dishonest). PN380 (opt-in, default_on=False) needs re-anchor or
+#     retirement on dev748 — surfaced as a real finding, owned by the
+#     anchor-SOT drift gate.
+#   * The Variant A anchor-uniqueness (count==1), drift-marker-absence,
+#     apply+compile, and PN348 co-apply coverage all run in CI already via
+#     the portable ``TestAnchors`` / ``TestEndToEndApply`` classes above
+#     against the byte-verified embedded dev259 fixture.
 
 
 # ─────────────────────────────────────────────────────────────────────
-# 8. dev491 mapping Variant B — functional alias-block behavior + real
-#    dev491 pin anchors + PN348 co-apply (pin bump 2026-06-13).
+# 8. dev491 mapping Variant B — functional alias-block behavior
+#    (portable exec harness, no torch; pin bump 2026-06-13).
 # ─────────────────────────────────────────────────────────────────────
 
 
@@ -1069,7 +1007,8 @@ class TestDev491AliasBlockBehavior:
         ]
         out = _run_dev491_alias_block(loop)
         # originals preserved
-        assert loop[0] in out and loop[1] in out
+        assert loop[0] in out
+        assert loop[1] in out
         # pre-fused source aliases onto the SAME target
         assert (
             "experts.routed_experts.w13_weight",
@@ -1110,103 +1049,19 @@ class TestDev491AliasBlockBehavior:
         ) in out
 
 
-@pytest.mark.skipif(
-    not PIN_MODEL_DEV491.is_file(),
-    reason="dev491 candidate pin tree not present on this machine",
-)
-class TestAnchorsAgainstDev491Pin:
-    def test_fixture_region_matches_dev491_pin(self):
-        """The embedded dev491 portable region must stay byte-identical to
-        the dev491 pin so the portable tests keep testifying about the
-        real candidate file."""
-        src = PIN_MODEL_DEV491.read_text(encoding="utf-8")
-        assert src.count(LOAD_WEIGHTS_REGION_DEV491) == 1
-
-    def test_variant_b_anchor_unique_on_dev491_pin(self):
-        """Mapping Variant B + the five shared anchors are count==1 on the
-        dev491 pin; mapping Variant A (dev259 static list) is ABSENT."""
-        M = _pn380()
-        src = PIN_MODEL_DEV491.read_text(encoding="utf-8")
-        for old, new in _dev491_old_new():
-            assert src.count(old) == 1, old[:60]
-            assert new not in src
-        assert M.PN380_MAPPING_OLD not in src
-
-    def test_drift_markers_absent_on_dev491_pin(self):
-        M = _pn380()
-        src = PIN_MODEL_DEV491.read_text(encoding="utf-8")
-        for dm in M._DRIFT_MARKERS:
-            assert dm not in src
-
-    def test_full_file_apply_variant_b_and_compile(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
-        from sndr.kernel import TextPatchResult
-
-        patcher, target = _patcher_on(
-            tmp_path, PIN_MODEL_DEV491.read_text(encoding="utf-8"), monkeypatch
-        )
-        result, failure = patcher.apply()
-        assert result == TextPatchResult.APPLIED, failure
-        assert len(patcher.applied_sub_patches) == 6
-        assert "pn380_prefused_mapping_dev491" in patcher.applied_sub_patches
-        assert "pn380_prefused_mapping" not in patcher.applied_sub_patches
-        ast.parse(target.read_text(encoding="utf-8"))
-
-    def test_apply_reports_dev491_variant_note(self, tmp_path, monkeypatch):
-        """apply() (the module entry-point) reports the dev491 variant and
-        applies cleanly on the real candidate pin."""
-        monkeypatch.setenv(_ENV_FLAG, "1")
-        monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
-        M = _pn380()
-        target = tmp_path / "qwen3_5_mtp.py"
-        target.write_text(
-            PIN_MODEL_DEV491.read_text(encoding="utf-8"), encoding="utf-8"
-        )
-        monkeypatch.setattr(M, "resolve_vllm_file", lambda rel: str(target))
-        status, detail = M.apply()
-        assert status == "applied", detail
-        assert "dev491 loop-build anchor variant" in detail
-        ast.parse(target.read_text(encoding="utf-8"))
-
-    @pytest.mark.parametrize("order", ["pn348_first", "pn380_first"])
-    def test_co_apply_with_pn348_both_orders_dev491(
-        self, tmp_path, monkeypatch, order
-    ):
-        """PN348 patches the same file with anchors that did NOT drift on
-        dev491 — co-apply must still succeed in both orders, mapping
-        Variant B fires, both markers survive."""
-        monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
-        from sndr.kernel import TextPatchResult
-
-        M = _pn380()
-        target = tmp_path / "qwen3_5_mtp.py"
-        target.write_text(
-            PIN_MODEL_DEV491.read_text(encoding="utf-8"), encoding="utf-8"
-        )
-        monkeypatch.setattr(M, "resolve_vllm_file", lambda rel: str(target))
-
-        def apply_380():
-            p = M._make_mtp_loader_patcher()
-            r, f = p.apply()
-            assert r == TextPatchResult.APPLIED, (order, f)
-            assert len(p.applied_sub_patches) == 6
-            assert "pn380_prefused_mapping_dev491" in p.applied_sub_patches
-
-        def apply_348():
-            r, f = _pn348_patcher(target).apply()
-            assert r == TextPatchResult.APPLIED, (order, f)
-
-        if order == "pn348_first":
-            apply_348()
-            apply_380()
-        else:
-            apply_380()
-            apply_348()
-
-        out = target.read_text(encoding="utf-8")
-        ast.parse(out)
-        # both effects survive on dev491
-        assert "_pn380_prefused_aliases" in out
-        assert "share_backbone_input_output" in out
-        assert "[Genesis PN380" in out
-        assert "[Genesis PN348" in out
+# ─────────────────────────────────────────────────────────────────────
+# 9. dev491 real-pin pristine gate — RETIRED (audit finding #14)
+# ─────────────────────────────────────────────────────────────────────
+# The former ``TestAnchorsAgainstDev491Pin`` byte-checked Variant B anchors
+# + full-file apply + PN348 co-apply against a phantom dev491 candidate
+# tree (a macOS-only path present on no CI host, permanently
+# green-by-skip). RETIRED for the same reason as section 7: PN380 is absent
+# from the current-pin (dev748) manifest (all anchors ``count == 0`` on
+# dev748), so neither dev259 Variant A nor dev491 Variant B applies to the
+# live pin; a container-gate against installed dev748 would fail. The
+# Variant B anchor-uniqueness, apply+compile, variant-note, and PN348
+# co-apply coverage all run in CI already via the portable
+# ``TestAnchors.test_each_anchor_unique_in_dev491_fixture`` /
+# ``TestEndToEndApply.test_applies_six_subs_variant_b_dev491_and_compiles``
+# and ``TestDev491AliasBlockBehavior`` classes against the byte-verified
+# embedded dev491 fixture.

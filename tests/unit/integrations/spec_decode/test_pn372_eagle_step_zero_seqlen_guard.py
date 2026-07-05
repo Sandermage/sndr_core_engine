@@ -301,7 +301,7 @@ class TestDriftMarkerSelfCollision:
 
 class TestPn372InCurrentPinManifest:
     # Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
-    # byte-checked the anchors against ``/private/tmp/candidate_pin_current``
+    # byte-checked the anchors against a macOS-only pristine pin tree
     # (absent on every CI host -> permanently green-by-skip). MIGRATED here to
     # read the COMMITTED per-pin manifest so it RUNS in CI, and STRENGTHENED to
     # tie the LIVE patcher anchors + replacements to the recorded pristine
