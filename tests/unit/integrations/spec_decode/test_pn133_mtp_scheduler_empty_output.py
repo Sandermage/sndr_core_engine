@@ -29,9 +29,6 @@ PN378 coordination work, roadmap chunk-3 Theme A):
 from __future__ import annotations
 
 import os
-from pathlib import Path
-
-import pytest
 
 # The lint/preflight tools disable the Layer-0 file cache the same way;
 # unit tests patch fresh tmp files, so the cache must never satisfy
@@ -116,8 +113,6 @@ MERGED_42722_SCHED = PIN_SCHED.replace(
     "                num_draft_tokens = len(scheduled_spec_token_ids)\n"
     "                num_accepted = max(len(generated_token_ids) - 1, 0)\n",
 ).replace("(pin g303916e93 form)", "(post-vllm#42722 merged form)")
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/core/sched")
 
 ASSERT_LINE = "                assert generated_token_ids\n"
 
@@ -274,30 +269,12 @@ class TestApply:
         assert target.read_text(encoding="utf-8") == PIN_SCHED
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
-
-
-@pytest.mark.skipif(
-    not (PIN_TREE / "scheduler.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_anchor_unique_replacement_and_45060_marker_absent(self):
-        src = (PIN_TREE / "scheduler.py").read_text(encoding="utf-8")
-        assert src.count(m.PN133_OLD) == 1
-        assert m.PN133_NEW not in src
-        assert ASSERT_LINE not in src
-        assert "max(len(generated_token_ids) - 1, 0)" not in src
-
-    def test_fixture_anchor_region_byte_matches_pristine(self):
-        src = (PIN_TREE / "scheduler.py").read_text(encoding="utf-8")
-        assert m.PN133_OLD in PIN_SCHED
-        assert m.PN133_OLD in src
-
-    def test_logger_and_req_id_in_scope_at_anchor(self):
-        """The v2 replacement emits ``logger.error(... req_id ...)`` —
-        both names must exist in the pristine file (module-level logger;
-        req_id is the loop variable enclosing the anchor)."""
-        src = (PIN_TREE / "scheduler.py").read_text(encoding="utf-8")
-        assert "logger = init_logger(__name__)" in src
-        assert "for req_id in " in src
+# ── Pristine pin invariants — RETIRED (audit finding #14) ────────────
+# PN133 is a RETIRED-lifecycle patch. Its former ``TestAnchorsAgainstPristinePin``
+# byte-checks (anchor count==1, replacement/marker absent) were gated on the
+# absent ``/private/tmp/candidate_pin_current`` dev259 tree -> permanently
+# green-by-skip, and a retired patch's anchor legitimately no longer matches the
+# live pristine source anyway (the per-pin manifest classifies it STATUS_RETIRED,
+# never the re-anchor backlog). The synthetic apply/idempotent/self-skip tests
+# above (Group A) run in CI and remain the live contract; the pristine byte-check
+# class is retired rather than migrated.
