@@ -165,7 +165,7 @@ md5+diff patches MUST follow this attribute convention.
 
 Plus three tree-wide passes:
 
-- **`UPSTREAM_MARKERS`** (24-entry table in
+- **`UPSTREAM_MARKERS`** (26-entry table in
   `sndr/engines/vllm/upstream_compat.py`) — `newly_merged` hits feed the
   iron-rule-#11 queue and count as actionable.
 - **Version ranges** — every spec's `applies_to.vllm_version_range`
@@ -223,6 +223,27 @@ For every `UPSTREAM_MERGED` / `SUB_UPSTREAM_MERGED` row and every
      `vllm_version_range` + `superseded_by`),
    - ours does MORE → update patch, keep the extras,
    - different approach → keep, verify anchors clean.
+
+**Armed gate for the NEXT bump (recorded 2026-07-05, dev748 current):**
+any candidate pin cut after 2026-07-04 carries vllm#42890 (merged
+2026-07-04T02:29Z, AFTER the dev748 cut), which makes the v1 reshape
+pass `cache_dtype_str="auto"` whenever `kv_quant_mode == NONE` —
+TurboQuant specs (`TQFullAttentionSpec`) map to `NONE` while still
+needing the real dtype string, so `--kv-cache-dtype turboquant_k8v4`
+lanes (BOTH heavy lanes: 27B INT4 TQ and 35B) **HARD-FAIL BOOT** with
+`Unknown TurboQuant cache dtype: 'auto'` unless the fix vllm#47609 is
+also in the candidate (or its Genesis backport is applied first).
+Mechanical detection: `UPSTREAM_MARKERS`
+`PR_42890_kv_skip_layers_cache_dtype_auto` (regression arrival) and
+`PR_47609_tq_cache_dtype_preserved` (fix arrival) fire `newly_merged`
+in this preflight. Full triage + the ready-to-arm backport recipe (two
+`layer_cache_dtype = (` anchor sites in
+`vllm/v1/worker/gpu/attn_utils.py`) live in
+`tools/upstream_watchlist.yaml` rows `pr: 42890` / `pr: 47609`.
+The `pr: 42890` row also binds a re-study of the vendored
+`_reshape_kv_cache` mirror in
+`sndr/engines/vllm/patches/attention/turboquant/g4_60e_kv_cache_utils.py`,
+which goes stale on the pin that carries #42890.
 
 ## 5. Boot smoke on a THROWAWAY container
 
