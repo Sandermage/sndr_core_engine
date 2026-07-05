@@ -201,10 +201,9 @@ def test_disabled_env_skips(g4_07, monkeypatch):
 # Pristine-tree symbol-presence checks RETIRED (audit #14 full drain,
 # 2026-07-06): ``test_dev491_anchor_present_in_pristine_dev491_tree`` and
 # ``test_dev491_anchor_also_present_in_dev259_tree`` read the fp8_utils source
-# from the macOS-only ``/private/tmp/candidate_pin_current`` +
-# ``/tmp/candidate_pin_new`` stale-pin paths (empty on CI, absent on the Linux
-# rig) — they executed on NO host, a permanent green-by-skip on two pins that
-# are three generations behind dev748. G4_07 is a runtime binding-resolution
+# from the macOS-only ephemeral pin-bump scratch trees (empty on CI, absent on
+# the Linux rig) — they executed on NO host, a permanent green-by-skip on two
+# pins that are three generations behind dev748. G4_07 is a runtime binding-resolution
 # patch (no TextPatcher anchor) and is not recorded in the committed
 # anchor_sot manifest, so these checks cannot be migrated onto it. The
 # candidate-order + winning-symbol + fallback + fail-loud binding contracts
