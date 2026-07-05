@@ -306,7 +306,7 @@ def test_spec_only_truly_orphan_baseline():
         # @register_patch hook — same spec-only-by-design class as
         # PN518/PN519/PN520/PN522; applied at legacy boot via
         # _run_spec_only_supplement.
-        "PN523",
+        "PN523", "PN524",
     }
     actual = set(diff["spec_only_truly_orphan_ids"])
     new_orphans = sorted(actual - expected)

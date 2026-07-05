@@ -275,7 +275,7 @@ _KNOWN_REGISTRY_ONLY = frozenset({
     # PN526 (thread-safe structured-output tokenizer, vllm#47509) — all
     # spec-driven from inception (apply_module + own apply(), no
     # apply_patch_* legacy hook, same class as PN518/PN519/PN520/PN522).
-    "PN523",
+    "PN523", "PN524",
 })
 
 _KNOWN_APPLY_ONLY: frozenset[str] = frozenset({

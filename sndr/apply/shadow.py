@@ -360,6 +360,10 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # (vendor of OPEN vllm#47450; serving text patch on
                        # sampling_params.py, PN387/#45346 successor; default-ON
                        # remote-DoS guard, PN252 precedent)
+    "PN524",           # skip uniform spec-decode padding for diffusion lanes
+                       # (vendor of OPEN vllm#47464; scheduler one-guard text
+                       # patch — canvas-overflow engine death on 1-token
+                       # resume/prefix-hit; opt-in on the DiffusionGemma lane)
 })
 
 

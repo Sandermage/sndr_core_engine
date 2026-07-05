@@ -636,6 +636,7 @@ class Flags:
     PN391_HEALTH_DECODE_WATCHDOG = "PN391_HEALTH_DECODE_WATCHDOG"  # PN391: /health/decode forward-progress watchdog
     PN383_OFFLOAD_MTP_EAGLE_GATE = "PN383_OFFLOAD_MTP_EAGLE_GATE"  # PN383: KV-offload + MTP segfault gate
     PN388_MAMBA_BLOCK_ALIGNED_SPLIT = "PN388_MAMBA_BLOCK_ALIGNED_SPLIT"  # PN388: mamba-block-aligned prefill split
+    PN524_DIFFUSION_SPEC_PADDING_SKIP = "PN524_DIFFUSION_SPEC_PADDING_SKIP"  # PN524: skip uniform spec-decode padding on diffusion lanes (vendor of vllm#47464; canvas-overflow engine-death guard, DiffusionGemma lane only)
     P89_REASONING_TOKENS_USAGE = "P89_REASONING_TOKENS_USAGE"  # P89: reasoning_tokens in chat usage
     PN373_PARALLEL_TOOLCALLS_NULL = "PN373_PARALLEL_TOOLCALLS_NULL"  # PN373: parallel_tool_calls explicit null != false
     PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS = "PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS"  # PN387: reject degenerate structured_outputs DoS

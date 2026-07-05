@@ -130,6 +130,14 @@ versions:
 # G4_26 anchor site is byte-absent on every live pin, so the flag was an
 # enabled-flag-on-a-dead-patch landmine (opt-in flags outrank range caps).
 patches:
+  # PN524 — vendor of OPEN vllm#47464 (scheduler spec-padding diffusion
+  # guard). This lane inits num_spec_tokens=canvas_length with
+  # num_sampled_tokens_per_step=0; the scheduler's cudagraph padding block
+  # would pad a 1-token resumed/prefix-hit request to 1+canvas -> canvas
+  # overflow RuntimeError = engine death. Organic shape here: max_num_seqs=2
+  # + 8192-block KV cap + APC default-on under aggregator dual-stream
+  # traffic. Upstream guard line verbatim; inert on AR lanes.
+  GENESIS_ENABLE_PN524_DIFFUSION_SPEC_PADDING_SKIP: '1'
   # PN-FP8MOE-KPAD — FP8-core backport of OPEN vllm#45703. The fused
   # Marlin MoE kernel needs the intermediate dim % 64 == 0; DiffusionGemma's
   # N=352 (352 % 64 == 32) crashes with "Invalid thread config ...

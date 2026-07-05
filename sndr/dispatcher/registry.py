@@ -972,6 +972,54 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
         "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
     },
+    "PN524": {
+        "title": "Skip uniform spec-decode padding for diffusion models (vendor of vllm#47464)",
+        "tier": "community",
+        "family": "scheduler",
+        "env_flag": "GENESIS_ENABLE_PN524_DIFFUSION_SPEC_PADDING_SKIP",
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.scheduler.pn524_diffusion_spec_padding_skip",
+        "credit": (
+            "Batch-triage 47382..47564 STEP 2 (2026-07-05). Vendor of OPEN "
+            "vllm#47464. Diffusion schedulers init num_spec_tokens = "
+            "canvas_length with num_sampled_tokens_per_step = 0 (scheduler "
+            "__init__ L119-122 class, model_config.is_diffusion): diffusion "
+            "'spec tokens' are the fixed-size denoising canvas, not "
+            "rejectable drafts. The schedule() spec-decode padding block "
+            "(812-818 region; guard byte-verified ABSENT in pristine dev748 "
+            "2dfaae752 via gh api 2026-07-05) pads a 1-token resumed/"
+            "prefix-hit decode request to 1 + num_spec_tokens to preserve "
+            "full cudagraph -> on the DiffusionGemma lane that is 1 + "
+            "canvas_length -> canvas overflow RuntimeError -> engine death. "
+            "REACHABLE on prod-diffusiongemma-tp2: max_num_seqs=2, KV pool "
+            "capped 8192 blocks = 131072 tokens = max_model_len, prefix "
+            "caching default-on -> preemption/resume or full-prompt prefix "
+            "hit while a decode runs is organic under aggregator dual-stream "
+            "traffic (boots-clean is NOT proof of absence). Fix: upstream's "
+            "one-line guard VERBATIM ('and self.num_sampled_tokens_per_step "
+            "> 0') — arch/model-neutral, INERT for AR MTP lanes (>= 1), "
+            "preserves all upstream gates exactly. Drift marker = the PR's "
+            "comment line ('Not for diffusion where draft tokens can't be "
+            "padded.'), never emitted by us. Same-file hygiene grep-verified: "
+            "p58/p34/p74/p79c/pn388 anchors disjoint from the padding block "
+            "(p58's num_sampled_tokens_per_step regions are elsewhere). "
+            "Opt-in, enabled on the DiffusionGemma ModelDef only. TDD: "
+            "ported test_spec_decode_padding_skipped_for_diffusion semantics "
+            "as executable-condition tests red-first; full rig reproducer "
+            "(1-token prefix-hit resume during decode) is the on-rig gate."
+        ),
+        "upstream_pr": 47464,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P58", "P34", "P74", "P79c", "PN388"],
+        "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
+        "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
+    },
     "PN398": {
         "title": "Async spec-decode accepted-counts race fix (vllm#45100 backport)",
         "tier": "community",
