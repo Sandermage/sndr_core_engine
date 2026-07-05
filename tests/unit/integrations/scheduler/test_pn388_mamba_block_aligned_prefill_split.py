@@ -59,6 +59,11 @@ os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
 from sndr.engines.vllm.patches.scheduler import (  # noqa: E402
     pn388_mamba_block_aligned_prefill_split as m,
 )
+from tests.unit.anchor_sot._pin_manifest_assert import (  # noqa: E402
+    assert_anchor_recorded,
+    assert_cohabits,
+    assert_replacement_recorded,
+)
 
 # ── Fake targets ─────────────────────────────────────────────────────
 # Pristine pin-form (g303916e93): the _mamba_block_aligned_split body —
@@ -165,8 +170,6 @@ MERGED_SCHEDULER = (
     "        return num_new_tokens\n"
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/core/sched")
-
 MAMBA_BLOCK = 1600
 PROMPT_LEN = 2002
 
@@ -180,7 +183,7 @@ def _install_fake(tmp_path, monkeypatch, scheduler_text):
     monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
     # apply() is dispatcher-gated (opt-in env flag) — force the gate open
     # for unit tests of the patch mechanics.
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
 
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
@@ -383,7 +386,7 @@ class TestApply:
         target = tmp_path / "scheduler.py"
         target.write_text(POST_P34_SCHEDULER, encoding="utf-8")
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
 
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
@@ -397,7 +400,7 @@ class TestApply:
 
     def test_apply_skips_when_target_missing(self, monkeypatch):
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: None)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
 
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (True, "test override")
@@ -487,26 +490,35 @@ class TestPoisonInvariant:
             )
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
+# ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
+# Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
+# byte-checked the anchor against ``/private/tmp/candidate_pin_current``
+# (absent on every CI host -> permanently green-by-skip). MIGRATED here to
+# read the COMMITTED per-pin manifest so it RUNS in CI, and STRENGTHENED to
+# tie the LIVE patcher anchor + replacement to the recorded pristine bytes
+# (``merge_status == not_merged`` == drift markers absent). The old
+# "P34's anchor present in pristine" precondition becomes the CI-runnable
+# cohabitation check; the assembled-anchor equality is pure and always runs.
 
 
-@pytest.mark.skipif(
-    not (PIN_TREE / "scheduler.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_pristine_anchor_unique_and_replacement_absent(self):
-        src = (PIN_TREE / "scheduler.py").read_text(encoding="utf-8")
-        assert src.count(m.PN388_PRISTINE_OLD) == 1
-        assert m.PN388_PRISTINE_NEW not in src
-        for dm in m._DRIFT_MARKERS:
-            assert dm not in src
+class TestPn388InCurrentPinManifest:
+    def test_pristine_anchor_recorded_and_replacement_tied(self):
+        assert_anchor_recorded(
+            "PN388", "pn388_split_pristine", m.PN388_PRISTINE_OLD
+        )
+        assert_replacement_recorded(
+            "PN388", "pn388_split_pristine", m.PN388_PRISTINE_NEW
+        )
+
+    def test_p34_cohabits_scheduler_without_collision(self):
+        # CI form of "P34's anchor is present in pristine scheduler.py":
+        # PN388 and P34 both anchor scheduler.py and round-trip-verified at
+        # regen without colliding.
+        assert_cohabits("v1/core/sched/scheduler.py", "PN388", "P34")
 
     def test_post_p34_anchor_assembled_from_p34_constants(self):
-        """The post-P34 anchor must be exactly the pristine anchor with
-        P34's documented transform applied — so it matches the real boot
-        file once P34 has run."""
-        src = (PIN_TREE / "scheduler.py").read_text(encoding="utf-8")
-        assert _P34_OLD in src  # P34's own anchor is present in pristine
+        """Pure (no pin tree): the post-P34 anchor is exactly the pristine
+        anchor with P34's documented transform applied — so it matches the
+        real boot file once P34 has run."""
         assembled = m.PN388_PRISTINE_OLD.replace(_P34_OLD, _P34_NEW)
         assert assembled == m.PN388_POST_P34_OLD

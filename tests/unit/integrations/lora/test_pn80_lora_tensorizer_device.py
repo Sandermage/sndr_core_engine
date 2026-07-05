@@ -11,11 +11,11 @@ Single anchor patch. Tests verify:
 """
 from __future__ import annotations
 
-import pytest
-
 
 def _wiring():
-    from sndr.engines.vllm._archive import pn80_lora_tensorizer_device as M
+    from sndr.engines.vllm._archive import (
+        pn80_lora_tensorizer_device as M,  # noqa: N812
+    )
     return M
 
 
@@ -56,7 +56,9 @@ class TestPN80RoundTrip:
     def test_anchor_idempotent_apply(self, tmp_path):
         """Apply OLD anchor on a tmp file, second apply must be IDEMPOTENT."""
         from sndr.kernel.text_patch import (
-            TextPatch, TextPatcher, TextPatchResult,
+            TextPatch,
+            TextPatcher,
+            TextPatchResult,
         )
         m = _wiring()
 
@@ -113,25 +115,3 @@ class TestPN80ApplyContract:
         assert status == "skipped"
         assert "off" in reason.lower() or "opt-in" in reason.lower()
 
-
-class TestPN80AgainstPristine:
-    """Verify anchor matches actual main HEAD pristine source."""
-
-    def test_anchor_unique_in_committed_pristine(self):
-        """If we have a committed lora_model.py pristine fixture, verify
-        anchor matches uniquely. Otherwise — skip (fixture not committed
-        for non-PN79 paths yet)."""
-        from pathlib import Path
-        m = _wiring()
-        # Only run if fixture exists
-        fixture = (Path(__file__).resolve().parents[4] / "tests" / "legacy" / "pristine_fixtures"
-                   / "lora_model.py")
-        if not fixture.is_file():
-            pytest.skip("pristine_fixtures/lora_model.py not committed yet")
-        src = fixture.read_text()
-        assert src.count(m.ANCHOR_OLD) == 1, (
-            "PN80 anchor must appear exactly once in pristine"
-        )
-        assert m.ANCHOR_NEW not in src, (
-            "PN80 NEW must not appear in pristine (idempotency guard)"
-        )

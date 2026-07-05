@@ -43,13 +43,16 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from sndr.engines.vllm.patches.compile_safety import (
     pn358_full_cg_context_refresh as m,
+)
+from tests.unit.anchor_sot._pin_manifest_assert import (
+    assert_anchor_recorded,
+    assert_replacement_recorded,
 )
 
 # ── Fake targets ─────────────────────────────────────────────────────
@@ -155,8 +158,6 @@ MERGED_CUDA_GRAPH = (
     "        entry.cudagraph.replay()\n"
     "        return entry.output\n"
 )
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/compilation")
 
 
 # ── Test doubles ─────────────────────────────────────────────────────
@@ -598,25 +599,26 @@ class TestModeResolution:
         assert any("GENESIS_PN358_MODE" in r.message for r in caplog.records)
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
+# ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
+# Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
+# byte-checked the anchors against ``/private/tmp/candidate_pin_current``
+# (absent on every CI host -> permanently green-by-skip). MIGRATED here to
+# read the COMMITTED per-pin manifest so it RUNS in CI, and STRENGTHENED to
+# tie the LIVE patcher anchor+replacement CONSTANTS to the recorded pristine
+# bytes. ``merge_status == not_merged`` is the CI form of "drift markers
+# absent in pristine" (an absorbed patch would flip it). The fixture-mirror
+# test never needed the pin tree and now runs unconditionally.
 
 
-@pytest.mark.skipif(
-    not (PIN_TREE / "cuda_graph.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_anchors_unique_and_markers_absent(self):
-        src = (PIN_TREE / "cuda_graph.py").read_text(encoding="utf-8")
-        for old, new in [
-            (m.PN358_ENTRY_OLD, m.PN358_ENTRY_NEW),
-            (m.PN358_CAPTURE_OLD, m.PN358_CAPTURE_NEW),
-            (m.PN358_REPLAY_OLD, m.PN358_REPLAY_NEW),
+class TestPn358InCurrentPinManifest:
+    def test_anchors_recorded_and_replacements_tied(self):
+        for sub, old, new in [
+            ("pn358_entry_captured_fc_field", m.PN358_ENTRY_OLD, m.PN358_ENTRY_NEW),
+            ("pn358_capture_record", m.PN358_CAPTURE_OLD, m.PN358_CAPTURE_NEW),
+            ("pn358_replay_refresh", m.PN358_REPLAY_OLD, m.PN358_REPLAY_NEW),
         ]:
-            assert src.count(old) == 1
-            assert new not in src
-        for dm in m._DRIFT_MARKERS:
-            assert dm not in src
+            assert_anchor_recorded("PN358", sub, old)
+            assert_replacement_recorded("PN358", sub, new)
 
     def test_fixture_anchors_mirror_pin_form(self):
         # The fake target used above must carry the exact anchor bytes

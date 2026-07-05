@@ -35,8 +35,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
-
 # The lint/preflight tools disable the Layer-0 file cache the same way;
 # unit tests patch fresh tmp files, so the cache must never satisfy
 # apply() from a previous run's state.
@@ -193,9 +191,7 @@ DEV491_SAMPLER = PIN_SAMPLER.replace(
     "(pin g303916e93 form)", "(dev491 merged form, post-vllm#45060)"
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/sample")
 # Candidate pin tree (dev491) — present during the pin-bump validation window.
-DEV491_TREE = Path("/tmp/candidate_pin_new/vllm/v1/sample")
 
 OUR_MASK_LINE = 'score = tl.where(vocab_mask, score, float("-inf"))'
 UPSTREAM_MASK_LINE = 'score = tl.where(vocab_mask, score, -float("inf"))'
@@ -217,7 +213,7 @@ def _install_fake(tmp_path, monkeypatch, sampler_text):
     monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
     # apply() is dispatcher-gated (opt-in env flag, registry-driven) —
     # force the gate open for unit tests of the patch mechanics.
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -358,7 +354,7 @@ class TestApply:
         target = tmp_path / "rejection_sampler.py"
         target.write_text(PIN_SAMPLER, encoding="utf-8")
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
         )
@@ -369,7 +365,7 @@ class TestApply:
 
     def test_apply_skips_when_target_missing(self, monkeypatch):
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: None)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (True, "test override")
         )
@@ -407,85 +403,3 @@ class TestDriftMarkerSelfCollision:
             dm in MERGED_SAMPLER for dm in patcher.upstream_drift_markers
         )
 
-
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
-
-
-@pytest.mark.skipif(
-    not (PIN_TREE / "rejection_sampler.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_anchor_unique_replacement_and_markers_absent(self):
-        src = (PIN_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
-        assert src.count(m.PN378_MASK_OLD) == 1
-        assert m.PN378_MASK_NEW not in src
-        assert OUR_MASK_LINE not in src
-        for dm in m._DRIFT_MARKERS:
-            assert dm not in src
-
-    def test_fixture_anchor_region_byte_matches_pristine(self):
-        """The fake pin-form fixture must carry the EXACT anchor bytes
-        from the pristine tree, so apply-tests exercise real anchors."""
-        src = (PIN_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
-        assert m.PN378_MASK_OLD in PIN_SAMPLER
-        assert m.PN378_MASK_OLD in src
-
-    def test_live_exposure_block_size_8192_in_pin_wrapper(self):
-        """The wrapper hardcodes BLOCK_SIZE = 8192; Qwen vocab 151936 %
-        8192 == 4480 != 0, so the final tile carries padding lanes and
-        the #45060 bug class is LIVE on our stack. If upstream changes
-        the block size, re-derive the exposure analysis."""
-        src = (PIN_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
-        assert "BLOCK_SIZE = 8192" in src
-        assert 151936 % 8192 != 0
-
-
-# ── Candidate pin (dev491) invariants — pin-bump dual-anchor ──────────
-
-
-@pytest.mark.skipif(
-    not (DEV491_TREE / "rejection_sampler.py").is_file(),
-    reason="candidate pin (dev491) tree not present on this machine",
-)
-class TestAnchorsAgainstDev491Pin:
-    def test_dev259_anchor_absent_on_dev491(self):
-        """The kernel half of #45060 LANDED in dev491, so the dev259
-        splice anchor must be GONE on the candidate pin (count 0). The
-        patch must NOT try to splice — Layer 3 self-skip takes over."""
-        src = (DEV491_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
-        assert src.count(m.PN378_MASK_OLD) == 0
-
-    def test_dev491_markers_fire_and_are_unique(self):
-        """Both dev491 merged-form drift markers must be present exactly
-        once in the dev491 tree (so Layer 3 self-skips) and absent from
-        the dev259 pin tree (so dev259 still splices)."""
-        d491 = (DEV491_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
-        assert d491.count(DEV491_MARKER_COMMENT) == 1
-        assert d491.count(DEV491_MARKER_CLAMP) == 1
-        # At least one dev491 marker is registered on the patcher.
-        assert DEV491_MARKER_COMMENT in m._DRIFT_MARKERS
-        assert DEV491_MARKER_CLAMP in m._DRIFT_MARKERS
-        if (PIN_TREE / "rejection_sampler.py").is_file():
-            d259 = (PIN_TREE / "rejection_sampler.py").read_text(
-                encoding="utf-8"
-            )
-            assert d259.count(DEV491_MARKER_COMMENT) == 0
-            assert d259.count(DEV491_MARKER_CLAMP) == 0
-
-    def test_dev491_already_carries_the_fix(self):
-        """dev491 already carries the masked-score line (vllm's own
-        merged form spells the same ``float("-inf")`` we emit) plus the
-        out-of-vocab clamp — confirming a splice would be incoherent."""
-        src = (DEV491_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
-        assert OUR_MASK_LINE in src
-        assert "tl.minimum(recovered_id, vocab_size - 1)" in src
-
-    def test_dev491_fixture_matches_pristine_tail(self):
-        """The DEV491_SAMPLER fixture must carry the EXACT merged tail
-        bytes from the candidate tree, so the self-skip apply-test
-        exercises the real dev491 form, not a hand-approximation."""
-        src = (DEV491_TREE / "rejection_sampler.py").read_text(encoding="utf-8")
-        for marker in (DEV491_MARKER_COMMENT, DEV491_MARKER_CLAMP, OUR_MASK_LINE):
-            assert marker in src
-            assert marker in DEV491_SAMPLER

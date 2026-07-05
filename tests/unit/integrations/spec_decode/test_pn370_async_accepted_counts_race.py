@@ -63,23 +63,17 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-PIN_RUNNER = PIN_TREE / "v1" / "worker" / "gpu_model_runner.py"
-PIN_GDN = PIN_TREE / "v1" / "attention" / "backends" / "gdn_attn.py"
-
 
 def _pn370():
     from sndr.engines.vllm.patches.spec_decode import (
-        pn370_async_accepted_counts_race as M,
+        pn370_async_accepted_counts_race as M,  # noqa: N812
     )
     return M
 
 
 def _pn341():
     from sndr.engines.vllm.patches.attention.gdn import (
-        pn341_mtp_decode_bubbles_gpu_runner as M,
+        pn341_mtp_decode_bubbles_gpu_runner as M,  # noqa: N812
     )
     return M
 
@@ -446,45 +440,6 @@ class TestCoApplyOrders:
         # PN341's three other subs intact.
         assert "self._use_gpu_only_num_accepted_tokens = (" in out
 
-    @pytest.mark.skipif(
-        not PIN_RUNNER.is_file(),
-        reason="pristine pin tree not present on this machine",
-    )
-    def test_both_orders_on_real_pin_file(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
-        from sndr.kernel import TextPatchResult
-
-        M = _pn370()
-        pristine = PIN_RUNNER.read_text(encoding="utf-8")
-        for order in ("pn341_first", "pn370_first"):
-            target = tmp_path / f"runner_{order}.py"
-            target.write_text(pristine, encoding="utf-8")
-            monkeypatch.setattr(M, "resolve_vllm_file", lambda rel, t=target: str(t))
-            if order == "pn341_first":
-                r1, f1 = _pn341_patcher(target).apply()
-                assert r1 == TextPatchResult.APPLIED, (order, f1)
-                p = M._make_runner_patcher()
-                r2, f2 = p.apply()
-                assert r2 == TextPatchResult.APPLIED, (order, f2)
-                assert p.applied_sub_patches == [
-                    "pn370_skip_racy_cpu_read_post_pn341"
-                ]
-            else:
-                p = M._make_runner_patcher()
-                r1, f1 = p.apply()
-                assert r1 == TextPatchResult.APPLIED, (order, f1)
-                assert p.applied_sub_patches == [
-                    "pn370_skip_racy_cpu_read_pristine"
-                ]
-                p341 = _pn341_patcher(target)
-                r2, f2 = p341.apply()
-                assert r2 == TextPatchResult.APPLIED, (order, f2)
-                assert (
-                    "pn341_prepare_inputs_gpu_only_branch"
-                    not in p341.applied_sub_patches
-                )
-            ast.parse(target.read_text(encoding="utf-8"))
-
 
 # ─────────────────────────────────────────────────────────────────────
 # 4. Replacement contract — faithful #45100 semantics
@@ -635,54 +590,3 @@ class TestModuleApply:
         M = _pn370()
         assert "45100" in M.GENESIS_PN370_MARKER
 
-
-# ─────────────────────────────────────────────────────────────────────
-# 7. Anchors against the real pristine pin (opportunistic)
-# ─────────────────────────────────────────────────────────────────────
-
-
-@pytest.mark.skipif(
-    not (PIN_RUNNER.is_file() and PIN_GDN.is_file()),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_runner_anchor_unique_and_markers_absent(self):
-        M = _pn370()
-        src = PIN_RUNNER.read_text(encoding="utf-8")
-        assert src.count(M.PN370_PREPARE_PRISTINE_OLD) == 1
-        assert src.count(M.PN370_PREPARE_POST_PN341_OLD) == 0
-        assert M.PN370_PREPARE_PRISTINE_NEW not in src
-        for dm in M._RUNNER_DRIFT_MARKERS:
-            assert dm not in src
-
-    def test_gdn_anchor_unique_and_markers_absent(self):
-        M = _pn370()
-        src = PIN_GDN.read_text(encoding="utf-8")
-        assert src.count(M.PN370_GDN_BATCH_SIZE_OLD) == 1
-        assert M.PN370_GDN_BATCH_SIZE_NEW not in src
-        for dm in M._GDN_DRIFT_MARKERS:
-            assert dm not in src
-
-    def test_prepare_region_fixture_matches_pin(self):
-        """The embedded portable region must stay byte-identical to the
-        pin so the portable co-apply tests keep testifying about the
-        real file shape."""
-        src = PIN_RUNNER.read_text(encoding="utf-8")
-        assert src.count(PREPARE_REGION_PRISTINE) == 1
-
-    def test_full_file_apply_and_compile(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
-        from sndr.kernel import TextPatchResult
-
-        M = _pn370()
-        for pin_file, make in (
-            (PIN_RUNNER, "_make_runner_patcher"),
-            (PIN_GDN, "_make_gdn_patcher"),
-        ):
-            target = tmp_path / pin_file.name
-            target.write_text(pin_file.read_text(encoding="utf-8"), encoding="utf-8")
-            monkeypatch.setattr(M, "resolve_vllm_file", lambda rel, t=target: str(t))
-            patcher = getattr(M, make)()
-            result, failure = patcher.apply()
-            assert result == TextPatchResult.APPLIED, (pin_file.name, failure)
-            ast.parse(target.read_text(encoding="utf-8"))

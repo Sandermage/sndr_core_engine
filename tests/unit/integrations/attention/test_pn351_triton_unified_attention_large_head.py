@@ -55,9 +55,6 @@ Drift-marker hygiene (lint_drift_markers.py self-collision contract):
 from __future__ import annotations
 
 import os
-from pathlib import Path
-
-import pytest
 
 # Unit tests patch fresh tmp files; the Layer-0 file cache must never
 # satisfy apply() from a previous run's state (same convention as PN378).
@@ -66,10 +63,11 @@ os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
 from sndr.engines.vllm.patches.attention import (  # noqa: E402
     pn351_triton_unified_attention_large_head as m,
 )
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/attention/ops")
-PIN_FILE = PIN_TREE / "triton_unified_attention.py"
-
+from tests.unit.anchor_sot._pin_manifest_assert import (  # noqa: E402
+    assert_anchor_recorded,
+    assert_replacement_recorded,
+    assert_variant_inactive,
+)
 
 # ── Fixtures ─────────────────────────────────────────────────────────
 # Byte-faithful copies of the anchor regions of
@@ -383,31 +381,50 @@ class TestDriftMarkerHygiene:
             assert dm not in marker_line
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
+# ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
+# Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
+# byte-checked the anchors against ``/private/tmp/candidate_pin_current``
+# (a dev259 tree, absent on every CI host -> permanently green-by-skip). It
+# is MIGRATED here to read the COMMITTED per-pin anchor manifest so it RUNS
+# in CI, and STRENGTHENED: it ties the LIVE patcher anchor CONSTANTS to the
+# exact pristine bytes recorded for the current pin (the old byte-check only
+# compared a hand-copied fixture to a tree that never existed on CI).
+#
+# The old class asserted the current-pin launch variant is ``PN351_LAUNCH_OLD``
+# (variant A) — but that was the dev259 shape. On the current pin the MMPREFIX
+# launch variant is the one that matches (recorded as
+# ``pn351_kernel_launch_warps_stages_mmprefix``), so the migrated form checks
+# the variant genuinely active on this pin and asserts the other three are
+# inactive (recorded under no sub).
 
 
-@pytest.mark.skipif(
-    not PIN_FILE.is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_current_pin_launch_anchor_unique(self):
-        src = PIN_FILE.read_text(encoding="utf-8")
-        # Variant A (current pin) matches exactly once.
-        assert src.count(m.PN351_LAUNCH_OLD) == 1
-        # The upstream-main and post-#45151 anchors must NOT match the
-        # current pin (it has no **launch_kwargs and no #45151 kwargs), so
-        # the three variants are mutually exclusive.
-        assert src.count(m.PN351_LAUNCH_MAIN_OLD) == 0
-        assert src.count(m.PN351_LAUNCH_POST45151_OLD) == 0
+class TestPn351InCurrentPinManifest:
+    def test_tile_anchor_recorded(self):
+        assert_anchor_recorded(
+            "PN351", "pn351_get_tile_size_large_head", m.PN351_TILE_OLD
+        )
+        assert_replacement_recorded(
+            "PN351", "pn351_get_tile_size_large_head", m.PN351_TILE_NEW
+        )
 
-    def test_tile_anchor_unique(self):
-        src = PIN_FILE.read_text(encoding="utf-8")
-        assert src.count(m.PN351_TILE_OLD) == 1
+    def test_active_launch_variant_is_mmprefix(self):
+        assert_anchor_recorded(
+            "PN351",
+            "pn351_kernel_launch_warps_stages_mmprefix",
+            m.PN351_LAUNCH_MMPREFIX_OLD,
+        )
+        assert_replacement_recorded(
+            "PN351",
+            "pn351_kernel_launch_warps_stages_mmprefix",
+            m.PN351_LAUNCH_MMPREFIX_NEW,
+        )
 
-    def test_replacements_absent_in_pristine(self):
-        src = PIN_FILE.read_text(encoding="utf-8")
-        assert m.PN351_LAUNCH_NEW not in src
-        assert m.PN351_LAUNCH_MAIN_NEW not in src
-        assert m.PN351_LAUNCH_POST45151_NEW not in src
-        assert m.PN351_TILE_NEW not in src
+    def test_other_launch_variants_inactive_on_current_pin(self):
+        # The three non-mmprefix launch anchors must be recorded under NO sub
+        # (mutual exclusivity: exactly one variant fires per pin).
+        for inactive in (
+            m.PN351_LAUNCH_OLD,
+            m.PN351_LAUNCH_MAIN_OLD,
+            m.PN351_LAUNCH_POST45151_OLD,
+        ):
+            assert_variant_inactive("PN351", inactive)

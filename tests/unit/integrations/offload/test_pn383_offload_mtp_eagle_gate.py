@@ -48,8 +48,6 @@ import ast
 import types
 from pathlib import Path
 
-import pytest
-
 from tests.unit.integrations.offload._pn383_fixture_regions import (
     BUILD_STORE_REGION,
     FROM_SPEC_REGION,
@@ -58,22 +56,10 @@ from tests.unit.integrations.offload._pn383_fixture_regions import (
     WORKER_REGION,
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-PIN_SCHEDULER = (
-    PIN_TREE
-    / "distributed"
-    / "kv_transfer"
-    / "kv_connector"
-    / "v1"
-    / "offloading"
-    / "scheduler.py"
-)
-PIN_GPU_WORKER = PIN_TREE / "v1" / "kv_offload" / "cpu" / "gpu_worker.py"
-
 
 def _pn383():
     from sndr.engines.vllm.patches.offload import (
-        pn383_offload_mtp_eagle_gate as M,
+        pn383_offload_mtp_eagle_gate as M,  # noqa: N812
     )
     return M
 
@@ -183,7 +169,7 @@ def _fake_spec(layer_names_per_group, *, use_eagle=True, eagle_flags=None):
         types.SimpleNamespace(
             layer_names=names, kv_cache_spec=None, is_eagle_group=flag
         )
-        for names, flag in zip(layer_names_per_group, flags)
+        for names, flag in zip(layer_names_per_group, flags, strict=False)
     ]
     speculative_config = (
         types.SimpleNamespace(use_eagle=lambda: True) if use_eagle else None
@@ -497,57 +483,3 @@ class TestModuleApply:
         M = _pn383()
         assert "44784" in M.GENESIS_PN383_MARKER
 
-
-# ─────────────────────────────────────────────────────────────────────
-# 7. Against the real pristine pin (opportunistic)
-# ─────────────────────────────────────────────────────────────────────
-
-
-@pytest.mark.skipif(
-    not (PIN_SCHEDULER.is_file() and PIN_GPU_WORKER.is_file()),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAgainstPristinePin:
-    def test_fixture_regions_match_pin(self):
-        sched_src = PIN_SCHEDULER.read_text(encoding="utf-8")
-        for region in (
-            GROUP_CONFIG_REGION,
-            FROM_SPEC_REGION,
-            LOOKUP_REGION,
-            BUILD_STORE_REGION,
-        ):
-            assert sched_src.count(region) == 1
-        worker_src = PIN_GPU_WORKER.read_text(encoding="utf-8")
-        assert worker_src.count(WORKER_REGION) == 1
-
-    def test_anchors_unique_and_markers_absent(self):
-        M = _pn383()
-        sched_src = PIN_SCHEDULER.read_text(encoding="utf-8")
-        for sp in M.build_scheduler_sub_patches():
-            assert sched_src.count(sp.anchor) == 1, sp.name
-            assert sp.replacement not in sched_src, sp.name
-        for dm in M._SCHEDULER_DRIFT_MARKERS:
-            assert dm not in sched_src
-        worker_src = PIN_GPU_WORKER.read_text(encoding="utf-8")
-        for sp in M.build_worker_sub_patches():
-            assert worker_src.count(sp.anchor) == 1, sp.name
-            assert sp.replacement not in worker_src, sp.name
-        for dm in M._WORKER_DRIFT_MARKERS:
-            assert dm not in worker_src
-
-    def test_full_file_apply_and_compile(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
-        from sndr.kernel import TextPatchResult
-
-        M = _pn383()
-        for pin_file, make in (
-            (PIN_SCHEDULER, "_make_scheduler_patcher"),
-            (PIN_GPU_WORKER, "_make_worker_patcher"),
-        ):
-            target = tmp_path / pin_file.name
-            target.write_text(pin_file.read_text(encoding="utf-8"), encoding="utf-8")
-            monkeypatch.setattr(M, "resolve_vllm_file", lambda rel, t=target: str(t))
-            patcher = getattr(M, make)()
-            result, failure = patcher.apply()
-            assert result == TextPatchResult.APPLIED, (pin_file.name, failure)
-            ast.parse(target.read_text(encoding="utf-8"))

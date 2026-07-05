@@ -56,7 +56,7 @@ PIN_INPUT_BATCH = PIN_TREE / "v1" / "worker" / "gpu_input_batch.py"
 
 def _pn381():
     from sndr.engines.vllm.patches.spec_decode import (
-        pn381_allowed_token_ids_spec_metadata as M,
+        pn381_allowed_token_ids_spec_metadata as M,  # noqa: N812
     )
     return M
 
@@ -228,7 +228,7 @@ class TestEndToEndApply:
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
         from sndr.kernel import TextPatchResult
 
-        M = _pn381()
+        _pn381()
         merged = _fake_pristine_input_batch().replace(
             "            or thinking_budget_tracks_reqs\n",
             "            or thinking_budget_tracks_reqs\n"
@@ -398,19 +398,34 @@ class TestModuleApply:
 # ─────────────────────────────────────────────────────────────────────
 
 
+# ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
+# Audit finding #14: PN381's anchor uniqueness was byte-checked against
+# ``/private/tmp/candidate_pin_current`` (absent on every CI host ->
+# green-by-skip). MIGRATED here to read the COMMITTED per-pin manifest so it
+# RUNS in CI, tying the LIVE anchor + replacement CONSTANTS to the recorded
+# pristine bytes (merge not_merged == drift markers absent). The
+# region-fixture and full-file apply+compile checks below genuinely need the
+# pristine source and stay rig-only.
+def test_pn381_anchor_recorded_in_current_pin_manifest():
+    from tests.unit.anchor_sot._pin_manifest_assert import (
+        assert_anchor_recorded,
+        assert_replacement_recorded,
+    )
+
+    M = _pn381()
+    assert_anchor_recorded(
+        "PN381", "pn381_needs_output_token_ids_allowed_clause", M.PN381_OLD
+    )
+    assert_replacement_recorded(
+        "PN381", "pn381_needs_output_token_ids_allowed_clause", M.PN381_NEW
+    )
+
+
 @pytest.mark.skipif(
     not PIN_INPUT_BATCH.is_file(),
     reason="pristine pin tree not present on this machine",
 )
 class TestAnchorsAgainstPristinePin:
-    def test_anchor_unique_and_markers_absent(self):
-        M = _pn381()
-        src = PIN_INPUT_BATCH.read_text(encoding="utf-8")
-        assert src.count(M.PN381_OLD) == 1
-        assert M.PN381_NEW not in src
-        for dm in M._DRIFT_MARKERS:
-            assert dm not in src, dm
-
     def test_region_fixture_matches_pin(self):
         """The embedded portable region must stay byte-identical to
         the pin so the behavioral exec tests keep testifying about the

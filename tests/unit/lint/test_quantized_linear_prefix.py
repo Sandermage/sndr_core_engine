@@ -121,9 +121,9 @@ def find_quantized_linear_without_prefix(path: Path) -> list[str]:
             self.generic_visit(node)
             self.scope.pop()
 
-        visit_ClassDef = _scoped
-        visit_FunctionDef = _scoped
-        visit_AsyncFunctionDef = _scoped
+        visit_ClassDef = _scoped  # noqa: N815
+        visit_FunctionDef = _scoped  # noqa: N815
+        visit_AsyncFunctionDef = _scoped  # noqa: N815
 
         def visit_Call(self, node: ast.Call) -> None:
             name = None
@@ -242,6 +242,26 @@ class TestSelfCheck:
     reason="pristine pin tree not present on this machine",
 )
 class TestPristineEngagedModelFiles:
+    """INTENTIONALLY CI-skipped (audit #14 KEEP-LIVE).
+
+    This lint walks the AST of the RAW pristine model source files
+    (``PIN_TREE`` = ``/private/tmp/candidate_pin_current/vllm``, a live
+    extracted pin tree present only on the dev box / rig, not on any CI
+    host). Unlike the anchor byte-checks migrated in the #14 drain, it
+    CANNOT resolve against the committed per-pin anchor manifest: the
+    manifest records anchor md5s, not full source bytes, and this scan
+    needs the complete ASTs of MANY model files (dynamically discovered
+    from the patch targets) to flag every quantized parallel-Linear
+    construction missing ``prefix=`` — there is no anchor to key on.
+
+    It therefore correctly skips on CI and runs on a host with the
+    pristine tree (rig / dev box, or after ``make rebuild-pin`` extracts
+    one). The synthetic detector tests above (``TestSelfCheck``) keep the
+    lint LOGIC covered on every CI run; this class is the live-tree
+    application of that logic. Do not migrate it to the manifest — leave
+    the logic intact and run it on the rig.
+    """
+
     def test_engaged_pristine_files_clean(self):
         violations: list[str] = []
         scanned = 0

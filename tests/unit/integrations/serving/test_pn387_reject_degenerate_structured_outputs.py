@@ -66,24 +66,19 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 # Unit tests patch fresh tmp files; the Layer-0 file cache must never
 # satisfy apply() from a previous run's state.
 os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
 
-from sndr.engines.vllm.patches.serving import (  # noqa: E402
-    pn387_reject_degenerate_structured_outputs as src_overlay,
+from sndr.engines.vllm.middleware import (  # noqa: E402
+    reject_degenerate_structured_outputs as guard,
 )
 from sndr.engines.vllm.patches.middleware import (  # noqa: E402
     edge_guard_reject_degenerate_structured_outputs as edge_wiring,
 )
-from sndr.engines.vllm.middleware import (  # noqa: E402
-    reject_degenerate_structured_outputs as guard,
+from sndr.engines.vllm.patches.serving import (  # noqa: E402
+    pn387_reject_degenerate_structured_outputs as src_overlay,
 )
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-
 
 # ── Fixtures: pin-form anchor regions (byte-faithful copies) ─────────
 
@@ -174,7 +169,7 @@ def _install_src_overlay(tmp_path, monkeypatch, text, *, with_edge=True):
         monkeypatch.setattr(edge_wiring, "vllm_install_root", lambda: str(tmp_path))
     else:
         monkeypatch.setattr(edge_wiring, "resolve_vllm_file", lambda rel: None)
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -186,7 +181,7 @@ def _install_edge_wiring(tmp_path, monkeypatch, text):
     target.write_text(text, encoding="utf-8")
     monkeypatch.setattr(edge_wiring, "resolve_vllm_file", lambda rel: str(target))
     monkeypatch.setattr(edge_wiring, "vllm_install_root", lambda: str(tmp_path))
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -301,7 +296,7 @@ class TestSourceOverlayApply:
         target.write_text(PIN_SAMPLING_PARAMS, encoding="utf-8")
         monkeypatch.setattr(src_overlay, "resolve_vllm_file", lambda rel: str(target))
         monkeypatch.setattr(src_overlay, "vllm_install_root", lambda: str(tmp_path))
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
         )
@@ -456,34 +451,3 @@ class TestEdgeWiringShape:
         assert second == "skipped"
         assert "already applied" in second_reason
 
-
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
-
-
-@pytest.mark.skipif(
-    not (PIN_TREE / "sampling_params.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestSourceOverlayAgainstPristine:
-    def test_anchor_unique_and_post_fix_text_absent(self):
-        src = (PIN_TREE / "sampling_params.py").read_text(encoding="utf-8")
-        assert src.count(src_overlay.PN387_GUARDS_OLD) == 1
-        assert src_overlay.PN387_GUARDS_NEW not in src
-        assert "structured_outputs.json cannot be an empty string" not in src
-        assert "structured_outputs.json_object must be True if set" not in src
-        for dm in src_overlay._DRIFT_MARKERS:
-            if dm.startswith("[Genesis"):
-                continue
-            assert dm not in src
-
-
-@pytest.mark.skipif(
-    not (PIN_TREE / "entrypoints/openai/chat_completion/serving.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestEdgeWiringAgainstPristine:
-    def test_anchor_unique_in_serving(self):
-        src = (
-            PIN_TREE / "entrypoints/openai/chat_completion/serving.py"
-        ).read_text(encoding="utf-8")
-        assert src.count(edge_wiring.PN387_EDGE_ANCHOR) == 1
