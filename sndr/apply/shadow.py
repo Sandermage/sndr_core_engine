@@ -364,6 +364,10 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # (vendor of OPEN vllm#47464; scheduler one-guard text
                        # patch — canvas-overflow engine death on 1-token
                        # resume/prefix-hit; opt-in on the DiffusionGemma lane)
+    "PN525",           # drop incomplete tool-call markup in non-streaming
+                       # (vendor of OPEN vllm#47562, fixes #47137; parser/
+                       # abstract_parser.py text patch — stream/non-stream
+                       # parity on the shared tool-call path, default-ON)
 })
 
 

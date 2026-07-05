@@ -1020,6 +1020,58 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
         "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
     },
+    "PN525": {
+        "title": "Drop incomplete tool-call markup in non-streaming to match streaming (vendor of vllm#47562)",
+        "tier": "community",
+        "family": "tool_parsing",
+        "env_flag": "GENESIS_ENABLE_PN525_NONSTREAM_TOOLCALL_MARKUP_DROP",
+        # default_on=True (work-order verdict): stream/non-stream parity is
+        # a correctness property of the shared tool-call path every lane
+        # uses; the flag is an operator OFF switch.
+        "default_on": True,
+        "lifecycle": "experimental",
+        "category": "correctness",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn525_nonstream_truncated_toolcall_markup",
+        "credit": (
+            "Batch-triage 47382..47564 STEP 3 (2026-07-05). Vendor of OPEN "
+            "vllm#47562 (fixes issue #47137). The shared DelegatingParser."
+            "_extract_tool_calls non-streaming auto-tool-choice else-branch "
+            "('# No tool calls.' -> 'return None, content'; byte-verified "
+            "present count==1 in pristine dev748 2dfaae752 via gh api "
+            "2026-07-05) returns the RAW content instead of the engine tool "
+            "parser's cleaned tool_call_info.content. When generation "
+            "truncates inside a <tool_call> opener (max_tokens or stop "
+            "string) the client receives raw incomplete markup while the "
+            "streaming path correctly drops it — client-visible garbage + "
+            "stream/non-stream divergence on the path ALL our engine tool "
+            "parsers share (qwen3_xml on 35B/27B, gemma4 on the G4 lanes; "
+            "tool calls are a 7/7-gated first-class capability per lane). "
+            "Fix: guard tool_call_info is not None and return its cleaned "
+            "content ('' -> None), raw-content fallback preserved. Genesis "
+            "divergence (drift-marker safety): byte-divergent 'cleaned if "
+            "cleaned else None' shape + reworded comments, so the PR's exact "
+            "comment head AND its 'return None, tool_call_info.content or "
+            "None' line are the SELF_COLLISION-safe drift markers. Same-file "
+            "hygiene grep-verified: PN66 + PN392 anchor parse_delta "
+            "(disjoint function). TDD: ported the #47562 matrix red-first "
+            "(4 truncated-opener parity cases + content-before-opener "
+            "preservation + complete-call promotion + raw fallback). "
+            "Fleet-verify gate: rerun tool gates on all lanes (boot "
+            "applied+failed=0 first)."
+        ),
+        "upstream_pr": 47562,
+        "upstream_issue": 47137,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["PN66", "PN392"],
+        # Upper bound capped <0.24.0 pending the #47562 merge; drift
+        # markers self-skip earlier if it lands within the window.
+        "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
+        "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
+    },
     "PN398": {
         "title": "Async spec-decode accepted-counts race fix (vllm#45100 backport)",
         "tier": "community",

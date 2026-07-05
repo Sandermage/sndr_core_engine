@@ -336,6 +336,18 @@
     "apply_module": "sndr.engines.vllm.patches.scheduler.pn524_diffusion_spec_padding_skip"
   },
   {
+    "patch_id": "PN525",
+    "family": "tool_parsing",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": true,
+    "env_flag": "GENESIS_ENABLE_PN525_NONSTREAM_TOOLCALL_MARKUP_DROP",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn525_nonstream_truncated_toolcall_markup"
+  },
+  {
     "patch_id": "PN398",
     "family": "spec_decode",
     "lifecycle": "retired",
