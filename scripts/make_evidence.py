@@ -239,6 +239,11 @@ GATES: tuple[Gate, ...] = (
     Gate("audit-public-docs", "audit-public-docs",
          "§6.10 public/private docs boundary (no _internal links, private IPs, operator paths, retired verbs)",
          "gating"),
+    Gate("audit-claim-provenance", "audit-claim-provenance",
+         "truth-claim provenance: release tag has a CHANGELOG heading (gating) "
+         "+ machine-readable bench evidence off /tmp (gating) + bench rows carry "
+         "(pin,date) (informational baseline)",
+         "gating"),
     # ── Informational gates (warnings only) ────────────────────────────
     Gate("audit-security", "audit-security",
          "Phase 4.6 security scan (warning-only — pre-existing operator paths)",
