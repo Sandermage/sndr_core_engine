@@ -778,7 +778,7 @@ def get_sndr_env(name: str, default: str | None = None,
                     "release.",
                     genesis_var, sndr_var,
                 )
-            except Exception:
+            except Exception:  # noqa: S110 — deprecation notice is best-effort; a logging failure must never break env resolution
                 pass
         return val
     return default

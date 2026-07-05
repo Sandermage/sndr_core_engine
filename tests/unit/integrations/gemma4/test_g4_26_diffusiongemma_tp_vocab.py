@@ -30,7 +30,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ── Synthetic diffusion_gemma.py mirroring the dev491 anchor regions ────
 #
 # Only the three anchor regions (import block, _NO_PENALTIES_STATE →
@@ -103,7 +102,7 @@ def _build_patcher(g4_26_mod, target_path):
 # ─── Anchor resolution + apply mechanics ────────────────────────────────
 
 
-class TestG4_26AnchorsResolve:
+class TestG426AnchorsResolve:
     def test_all_three_anchors_present_and_unique(self, g4_26_mod, synthetic_target):
         patcher = _build_patcher(g4_26_mod, synthetic_target)
         content = synthetic_target.read_text(encoding="utf-8")
@@ -181,7 +180,7 @@ class TestG4_26AnchorsResolve:
         assert first.count("def _get_full_embed_weight(embed_tokens") == 1
 
 
-class TestG4_26UpstreamDriftSelfSkip:
+class TestG426UpstreamDriftSelfSkip:
     def test_skips_when_upstream_helper_already_present(
         self, g4_26_mod, synthetic_target
     ):
@@ -199,7 +198,8 @@ class TestG4_26UpstreamDriftSelfSkip:
         patcher = _build_patcher(g4_26_mod, synthetic_target)
         result, failure = patcher.apply()
         assert result == TextPatchResult.SKIPPED
-        assert failure is not None and failure.reason == "upstream_merged"
+        assert failure is not None
+        assert failure.reason == "upstream_merged"
 
     def test_upstream_drift_marker_is_the_helper_def(self, g4_26_mod, synthetic_target):
         patcher = _build_patcher(g4_26_mod, synthetic_target)
@@ -209,7 +209,7 @@ class TestG4_26UpstreamDriftSelfSkip:
 # ─── Module triad contract (mirror g4_24) ───────────────────────────────
 
 
-class TestG4_26TriadContract:
+class TestG426TriadContract:
     def test_exports_marker_and_triad(self, g4_26_mod):
         assert hasattr(g4_26_mod, "GENESIS_G4_26_MARKER")
         assert callable(g4_26_mod.apply)
@@ -242,7 +242,7 @@ class TestG4_26TriadContract:
 # ─── Registry / env / dispatch wiring ───────────────────────────────────
 
 
-class TestG4_26Wiring:
+class TestG426Wiring:
     def test_registry_entry_present(self):
         from sndr.dispatcher import PATCH_REGISTRY
         assert "G4_26" in PATCH_REGISTRY
@@ -292,7 +292,7 @@ class TestG4_26Wiring:
 # self-skipped even with the env flag ON. These tests pin the fix.
 
 
-class TestG4_26ArchGate:
+class TestG426ArchGate:
     @staticmethod
     def _force_source_scan(monkeypatch):
         # Bind a fake leaf module so the import-probe misses and the static

@@ -33,15 +33,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _import_audit_module():
     if str(_REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(_REPO_ROOT))
-    import scripts.audit_legacy_vs_spec_driven_apply_matrix as A
-    return A
+    import scripts.audit_legacy_vs_spec_driven_apply_matrix as audit_mod
+    return audit_mod
 
 
 def test_legacy_only_drift_zero():
