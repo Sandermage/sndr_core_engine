@@ -939,10 +939,28 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "is_hybrid": [True],
             # 0.23.x regression only (async became MTP-default on 0.23.0).
             # dev491/0.22.1 never hit it -> gate >=0.23.0.
-            "vllm_version_range": (">=0.23.0", "<0.24.0"),
+            # RETIRED cap (2026-07-05): #45100 native from dev714 (see
+            # superseded_by) — window is exactly the broken 0.23.x pins.
+            "vllm_version_range": (">=0.23.0", "<0.23.1rc1.dev714"),
         },
+        "vllm_version_range": (">=0.23.0", "<0.23.1rc1.dev714"),
+        "superseded_by": (
+            "vllm#45100 MERGED 2026-06-22 (merge commit cec2ec1176, ancestor "
+            "of BOTH live pin bases per gh api compare: dev714 09663abde and "
+            "dev748 2dfaae752). Deep-diff outcome (a): pristine dev748 "
+            "gpu_model_runner.py:2057-2062 carries the identical "
+            "needs_cpu_accepted_counts guard and gdn_attn.py:413-416 the "
+            "identical batch_size = m.num_reqs sizing — byte-equal to PN398's "
+            "replacement bodies (2026-07-05 pristine-tree verification on the "
+            "rig, /tmp/pristine_dev748_2dfaae752). PN398's own drift marker "
+            "'needs_cpu_accepted_counts' now matches natively, so the patch "
+            "self-skipped on the live pins; retirement is the formal marking. "
+            "Twin of PN370 (the 0.22.x variant, retired same day)."
+        ),
         "apply_module": "sndr.engines.vllm.patches.spec_decode.pn398_async_accepted_counts_race",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (NEWLY-MERGED triage, audit 2026-07-04 #12):
+        # absorbed by vllm#45100 — see superseded_by for the deep-diff.
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "P72": {
@@ -2927,7 +2945,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "family": "offload",
         "env_flag": "GENESIS_ENABLE_PN383_OFFLOAD_MTP_EAGLE_GATE",
         "default_on": False,
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (NEWLY-MERGED triage, audit 2026-07-04 #12):
+        # vllm#44784 MERGED 2026-06-16 and upstream EVOLVED past both
+        # Genesis extras — see superseded_by. The 0.22.x
+        # offloading_connector.py monolith the anchors target no longer
+        # exists on 0.23.x (split into the offloading/ package).
+        "lifecycle": "retired",
         "category": "stability",
         "apply_module": "sndr.engines.vllm.patches.offload.pn383_offload_mtp_eagle_gate",
         "source": "vllm_pr_backport",
@@ -2949,6 +2972,26 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "until a KV-offload backend is configured."
         ),
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "superseded_by": (
+            "vllm#44784 MERGED 2026-06-16 (merge commit 7ad894c86a, ancestor "
+            "of both live pin bases). Pristine dev748 verification "
+            "(2026-07-05): the eagle/MTP draft-group offload gating is native "
+            "in distributed/kv_transfer/kv_connector/v1/offloading/"
+            "scheduler.py (eagle_groups set + volatile-trailing-block "
+            "exclusion, lines 171-215). Both Genesis extras are superseded "
+            "by BETTER upstream mechanisms: (1) the Qwen3.6 'mtp'-prefix "
+            "narrowing is replaced by is_eagle_group as a first-class "
+            "KVCacheGroup field set by the engine core "
+            "(kv_cache_utils.py:1693) — precise flagging, the all-groups "
+            "fallback only fires when no group is flagged; (2) the pre-DMA "
+            "bounds check re-added by our worker hunk defended against the "
+            "volatile trailing block reaching cuMemcpyBatchAsync — upstream "
+            "now excludes that block at scheduler level, removing the OOB "
+            "source, and the 0.22.x worker code shape our anchor targeted "
+            "is gone (offloading_connector.py split into a package). "
+            "Nothing of current quality lost."
+        ),
         "composes_with": ["PN104", "PN105", "PN102"],
         "requires_patches": [],
         "conflicts_with": [],
@@ -4031,8 +4074,26 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             # parser/worker patches (P61b/PN56/PN287).
             "vllm_version_range": (">=0.20.0", "<0.23.0"),
         },
+        "vllm_version_range": (">=0.20.0", "<0.23.0"),
+        "superseded_by": (
+            "vllm#45252 MERGED 2026-06-13 (merge commit 470229c37e; security "
+            "advisory GHSA-33cg-gxv8-3p8g). The engine-native fix predates "
+            "every live pin (verified at dev148 on 2026-06-19, see the range "
+            "comment above); pristine dev748 re-verification (2026-07-05): "
+            "_init_mrope_positions is the further-EVOLVED form — "
+            "prompt_embeds is handled as a passthrough modality (mm_features "
+            "filtered by modality, dummy positional IDs sized from "
+            "prompt_embeds) with no fatal prompt_token_ids assert. The DoS "
+            "is closed BY THE ENGINE on every pin in rotation; the patch "
+            "only auto-applied on <0.23.0 rollback pins, none of which "
+            "remain. The enabled-'1' flag in the a5000-2x hardware YAML and "
+            "the 4 prod composes was the 'enabled flag on a version-gated "
+            "no-op' landmine class — removed with this retirement."
+        ),
         "apply_module": "sndr.engines.vllm.patches.worker.pn252_mrope_prompt_embeds_dos",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (NEWLY-MERGED triage, audit 2026-07-04 #12):
+        # absorbed by vllm#45252 — see superseded_by for the deep-diff.
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "PN517": {
@@ -5391,7 +5452,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN362",
         "default_on": False,
         "apply_module": "sndr.engines.vllm.patches.kernels.pn362_triton_force_first_config",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (NEWLY-MERGED triage, audit 2026-07-04 #12):
+        # vllm#42425 MERGED 2026-06-16; the patch's own credit names
+        # vllm/triton_utils/force_first_config.py existence as its
+        # retire trigger — that file ships natively in dev748. See
+        # superseded_by.
+        "lifecycle": "retired",
         "category": "bench_methodology",
         "credit": (
             "Genesis vendoring of OPEN upstream PR vllm#42425 "
@@ -5423,6 +5489,19 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "upstream_pr": 42425,
         "upstream_pr_relationship": "backport",
         "applies_to": {"vllm_version_range": (">=0.21.0", "<0.23.0")},
+        "vllm_version_range": (">=0.21.0", "<0.23.0"),
+        "superseded_by": (
+            "vllm#42425 MERGED 2026-06-16 (merge commit ced32bb474, ancestor "
+            "of both live pin bases). Pristine dev748 verification "
+            "(2026-07-05): vllm/triton_utils/force_first_config.py ships "
+            "natively and VLLM_TRITON_FORCE_FIRST_CONFIG is a first-class "
+            "env knob (envs.py:113 + registration at envs.py:1098) — exactly "
+            "the post-merge state the patch's credit declared as its skip/"
+            "retire trigger. Our vendor inlined the same upstream helper "
+            "into env_override.py; the native module supersedes it 1:1 "
+            "(same knob name, same first-valid-config semantics). Was "
+            "already version-gated off on every 0.23.x pin."
+        ),
         "implementation_status": "full",
         "composes_with": ["PN345", "PN340", "PN341"],
     },
@@ -5510,7 +5589,19 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "against live pin 0.22.1rc1.dev259+g303916e93."
         ),
         "upstream_pr": 43195,
-        "upstream_pr_relationship": "backport",
+        # Relationship corrected backport -> related_not_superseding
+        # (2026-07-05 NEWLY-MERGED triage, audit 2026-07-04 #12): #43195
+        # merged 2026-05-21 and was ALREADY in our pin when PN354 was
+        # written — PN354 is not a backport of it but an EXTENSION of its
+        # KDA-only exp2 pattern to the GDN chunked-prefill consumers.
+        # Pristine dev748 verification (2026-07-05): chunk_o.py /
+        # chunk_scaled_dot_kkt.py / wy_fast.py / chunk.py still carry ZERO
+        # USE_EXP2/RCP_LN2 on the GDN path (greps empty; only
+        # chunk_delta_h.py has the upstream KDA dual branches), and the
+        # chunk_o exp-site anchor still matches byte-identical
+        # (chunk_o.py:119-120). Coverage does not overlap -> the merge
+        # cannot supersede PN354; it stays a live opt-in perf patch.
+        "upstream_pr_relationship": "related_not_superseding",
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
         "implementation_status": "full",
         "composes_with": ["PN59", "P103", "PN106", "PN298", "PN299", "PN345", "PN350"],  # PN29 consolidated into PN298 (2026-06-19)
@@ -6736,7 +6827,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN370_ASYNC_ACCEPT_RACE",
         "default_on": False,
         "apply_module": "sndr.engines.vllm.patches.spec_decode.pn370_async_accepted_counts_race",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (NEWLY-MERGED triage, audit 2026-07-04 #12):
+        # vllm#45100 MERGED 2026-06-22 and is native in both live pins;
+        # this 0.22.x vendor variant was already version-gated off on
+        # every 0.23.x pin. Twin PN398 (the 0.23.x variant) retired the
+        # same day — see superseded_by below and on PN398.
+        "lifecycle": "retired",
         "category": "spec_decode",
         "credit": (
             "Genesis vendor of OPEN PR vllm#45100 (2026-06-11). Fixes an "
@@ -6784,6 +6880,17 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "superseded_by": (
+            "vllm#45100 MERGED 2026-06-22 (merge commit cec2ec1176) — native "
+            "in both live pins (deep-diff receipts on PN398, the 0.23.x "
+            "variant retired the same day; pristine dev748 carries the "
+            "identical guard + m.num_reqs sizing). This 0.22.x vendor "
+            "variant targeted pins that left rotation with the dev714/dev748 "
+            "promotions and was version-gated off on every 0.23.x pin. The "
+            "PN341-composition dual-anchor convention it pioneered lives on "
+            "in PN341's own sub-patch chain (unaffected by this retire)."
+        ),
         "implementation_status": "full",
         "composes_with": ["PN341", "PN340", "PN290"],
     },
@@ -6894,7 +7001,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN373_PARALLEL_TOOLCALLS_NULL",
         "default_on": False,
         "apply_module": "sndr.engines.vllm.patches.serving.pn373_parallel_toolcalls_null",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (NEWLY-MERGED triage, audit 2026-07-04 #12):
+        # vllm#44955 MERGED 2026-06-15; the exact `is not False` semantic
+        # fix + the PR post-image docstring (our drift marker) are native
+        # in pristine dev748 tool_calls_utils.py:22-24. See superseded_by.
+        "lifecycle": "retired",
         "category": "stability",
         "credit": (
             "Genesis vendor of OPEN vllm PR #44955 (fixes #44948) — "
@@ -6940,6 +7051,20 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # entrypoints/serve/utils/ helper module is a recent layout) —
         # pin-specific vendor range per the G4_79 checklist.
         "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.0")},
+        "vllm_version_range": (">=0.22.0", "<0.23.0"),
+        "superseded_by": (
+            "vllm#44955 MERGED 2026-06-15 (merge commit 25ee659db0, ancestor "
+            "of both live pin bases). Pristine dev748 verification "
+            "(2026-07-05): maybe_filter_parallel_tool_calls carries the "
+            "merged docstring ('Filter to first tool call only when "
+            "parallel_tool_calls is explicitly False') and the `is not "
+            "False` check natively (tool_calls_utils.py:22-24) — "
+            "byte-identical to PN373's 1-line semantic fix. The Genesis "
+            "extras (streaming-delta regression test, pristine bug repro, "
+            "drift-marker hygiene suite) live in the repo test tree, not in "
+            "the engine, and keep their value as pin-bump retire triggers. "
+            "Was already version-gated off on every 0.23.x pin."
+        ),
         "implementation_status": "full",
         "composes_with": ["PN288", "P107", "PN70"],
     },
@@ -7313,7 +7438,18 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "scratch alloc) with slightly more memory. Combined with "
             "PN293 + PN295 targets full TTFT recovery + beyond baseline."
         ),
-        "upstream_pr": "https://github.com/vllm-project/vllm/pull/43543",
+        # Converted URL-string -> integer + explicit relationship
+        # (2026-07-05 NEWLY-MERGED triage; audit 2026-07-04 findings #12 +
+        # #47 — the URL form dodged relationship routing and surfaced the
+        # patch as a NEWLY-MERGED retire candidate). #43543 MERGED
+        # 2026-05-27 and is in both live pins BY DESIGN: PN294 deliberately
+        # REVERSES its group split for our MTP shape (num_heads_q=0 in the
+        # bucket key), so the merge can never retire it — P98 precedent.
+        # Pristine dev748 verification (2026-07-05): num_heads_q is still
+        # in the AttentionGroupKey (gpu_model_runner.py:6820-6823) and the
+        # PN294 anchor still matches in the dev748 anchor-SOT manifest.
+        "upstream_pr": 43543,
+        "upstream_pr_relationship": "intentional_inverse",
         "applies_to": {},
         "implementation_status": "full",
         # Fixed 2026-06-09: removed PN295 (never landed; was planned follow-up
@@ -7351,7 +7487,19 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "target secondary +4-6ms (PR#43543 attn group split) and "
             "tertiary +3-5ms (PR#41434 _cu_2 slice-assign) respectively."
         ),
-        "upstream_pr": "https://github.com/vllm-project/vllm/pull/42430",
+        # Converted URL-string -> integer + explicit relationship
+        # (2026-07-05 NEWLY-MERGED triage; audit 2026-07-04 findings #12 +
+        # #47). #42430 MERGED 2026-05-18 and is in both live pins BY
+        # DESIGN: PN293 counters the per-build CPU overhead that merged PR
+        # introduced (early-exit guards; upstream logic kept for true
+        # mixed batches), so the merge can never retire it. Pristine
+        # dev748 verification (2026-07-05): the unconditional
+        # torch.diff + bool-tensor + torch.any().item() block is still in
+        # _compute_common_metadata (mamba_attn.py:368-410, evolved
+        # prefill_to_decode form) and the PN293 anchor still matches in
+        # the dev748 anchor-SOT manifest.
+        "upstream_pr": 42430,
+        "upstream_pr_relationship": "counter_regression",
         "applies_to": {},
         "implementation_status": "full",
         "composes_with": [],
@@ -10695,7 +10843,11 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": "sndr.engines.vllm.patches.attention.turboquant.g4_80_fp8e5m2_kv_weight_only",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (NEWLY-MERGED triage, audit 2026-07-04 #12):
+        # arm 1 absorbed by MERGED vllm#45040 (see superseded_by, incl.
+        # the arm-2 re-vendor trigger); anchors are 0.22.x-only and the
+        # sole consumer profile is archived.
+        "lifecycle": "retired",
         "credit": (
             "PR-sweep wave 1 vendoring (2026-06-11, roadmap chunk-3 Theme B; "
             "review fix same day). Upstream vllm#45040 (OPEN; closes #39137): "
@@ -10749,6 +10901,30 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # on dev301. arm 2 (Attention.__init__ query_quant nulling) is
         # Genesis-original (no upstream fix exists). CREDIT: arm 1 will
         # retire when #45040 lands in a future pin; arm 2 stays. Left active.
+        # 2026-07-05: that trigger fired — #45040 is in both live pins;
+        # retired, see superseded_by.
+        "superseded_by": (
+            "vllm#45040 MERGED 2026-06-18 (merge commit 79ca54d221, ancestor "
+            "of both live pin bases) — supersedes ARM 1 ONLY. Pristine "
+            "dev748 verification (2026-07-05): the _init_kv_cache_quant gate "
+            "(now in model_executor/layers/attention/attention.py:168-183) "
+            "natively keeps fp8_e5m2 for weight-only compressed-tensors "
+            "checkpoints and rejects it only when the checkpoint declares a "
+            "kv_cache_scheme — an EVOLVED form of the #45040 predicate our "
+            "rebind masked. ARM 2 (query_quant nulling for e5m2) is NOT "
+            "superseded: dev748 still creates the e4m3-only QuantFP8 for "
+            "any kv_cache_dtype.startswith('fp8') (attention.py:437-454) "
+            "and forward still asserts kv_cache_dtype in {fp8, fp8_e4m3, "
+            "nvfp4} — an fp8_e5m2 boot would still die on first forward. "
+            "Retired anyway because arm 2's anchors target the 0.22.x "
+            "layer.py/triton_attn.py generation (version-gated off on every "
+            "0.23.x pin) and the only consumer profile "
+            "(gemma4-31b-fp8e5m2-fallback) is archived. RE-VENDOR TRIGGER: "
+            "if an fp8_e5m2 KV lane is re-attempted on 0.23.x+, re-derive "
+            "arm 2 as a fresh patch from the live pin's attention.py "
+            "query_quant block (and re-check whether upstream has fixed "
+            "the e5m2 query-quant crash by then)."
+        ),
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": ["G4_31", "G4_79"],
@@ -11000,7 +11176,10 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": "sndr.engines.vllm.patches.loader.pn379_load_config_fail_fast",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (NEWLY-MERGED triage, audit 2026-07-04 #12):
+        # vllm#45196 MERGED 2026-06-17; all three vendored guard classes
+        # are native in pristine dev748 — see superseded_by.
+        "lifecycle": "retired",
         "credit": (
             "PR-sweep wave 2 (2026-06-13). Vendor of OPEN vllm#45196 "
             "(Sunt-ing): three silent-misconfig classes -> loud "
@@ -11026,8 +11205,24 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "requires_patches": [],
         "conflicts_with": [],
         "composes_with": [],
-        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.24.0")},
-        "vllm_version_range": (">=0.22.0", "<0.24.0"),
+        "superseded_by": (
+            "vllm#45196 MERGED 2026-06-17 (merge commit 9d4b87f4f0, ancestor "
+            "of both live pin bases). Pristine dev748 verification "
+            "(2026-07-05), all three vendored guard classes native: (1) "
+            "config/load.py:14 ships SafetensorsLoadStrategy as a Literal "
+            "TypeAlias with a load_format field_validator; (2) "
+            "default_loader.py:75-110 raises the extra-config ValueErrors "
+            "(non-dict extra config, unexpected keys, non-bool "
+            "enable_multithread_load, non-positive num_threads); (3) "
+            "default_loader.py:116-128 rejects multithread + non-lazy "
+            "safetensors_load_strategy with the same rationale our hunk "
+            "carried. The static pre-deploy mirror in "
+            "scripts/audit_config_keys.py is repo-side and keeps working. "
+            "Range capped at <dev714 = earliest pin verified native "
+            "(merge is an ancestor of the dev714 base per gh api compare)."
+        ),
+        "applies_to": {"vllm_version_range": (">=0.22.0", "<0.23.1rc1.dev714")},
+        "vllm_version_range": (">=0.22.0", "<0.23.1rc1.dev714"),
     },
     "PN380": {
         "title": "Qwen3.5/3.6 MTP pre-fused expert loader + load-coverage guard (vendor of vllm#44943)",

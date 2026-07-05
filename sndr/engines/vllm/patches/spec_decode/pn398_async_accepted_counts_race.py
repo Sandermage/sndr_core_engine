@@ -1,6 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN398 — fix the async spec-decode accepted-counts race (vllm#45100 backport).
 
+RETIRED 2026-07-05 (lifecycle: retired, capped <0.23.1rc1.dev714): vllm#45100
+MERGED 2026-06-22 (merge commit cec2ec1176) and both hunks are byte-identical
+NATIVE in the pristine dev748 tree (gpu_model_runner.py:2057-2062 carries the
+same ``needs_cpu_accepted_counts`` guard; gdn_attn.py:413-416 the same
+``batch_size = m.num_reqs`` sizing) — deep-diff outcome (a). The patch had
+already been self-skipping via its own ``needs_cpu_accepted_counts`` drift
+marker. Kept for reference / pins that predate the merge. Twin of PN370
+(the 0.22.x vendor variant, retired the same day).
+
 ================================================================
 PROBLEM (vLLM 0.23.x regression for hybrid GDN/Mamba + MTP)
 ================================================================
@@ -61,9 +70,9 @@ import os
 
 from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 from sndr.kernel import (
+    TextPatch,
     TextPatcher,
     TextPatchResult,
-    TextPatch,
 )
 
 log = logging.getLogger("genesis.wiring.pn398_async_accepted_counts_race")
@@ -160,9 +169,9 @@ def _make_gdn_patcher() -> TextPatcher | None:
     )
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply the vllm#45100 backport (async accepted-counts race). All-or-nothing."""
-    from sndr.dispatcher import should_apply, log_decision
+    from sndr.dispatcher import log_decision, should_apply
     decision, reason = should_apply("PN398")
     log_decision("PN398", decision, reason)
     if not decision:

@@ -1,6 +1,6 @@
 watch:
 - upstream: vllm#39598
-  status: open            # residual unmitigated upstream; enum-mapped
+  status: closed          # network sweep 2026-07-05: PR CLOSED unmerged (was 'open'); the residual stays unmitigated upstream — keep the probe gate
   severity: P1-correctness
   local_patches:
   - P64
@@ -24,14 +24,17 @@ watch:
     as a pin-bump gate: the drop reproduced on club's stack/pins, and the
     fleet_boot_smoke tool-call check is auto/non-streaming so it cannot see it.
 - upstream: vllm#40886
-  status: merged
-  fix_status: absorbed-in-v0.24.0
+  status: open            # network sweep 2026-07-05 (audit 2026-07-04 #27): gh pr view says OPEN, NOT merged — the 'merged / absorbed-in-v0.24.0' claim was a club-3090 CHANGELOG assertion taken on faith (iron-rule-#11 class). Do NOT retire G4_04 until a verified merge (gh pr view) or a verified native equivalent in the target pin.
   severity: P2-cleanup
   local_patches:
   - G4_04
-  action: retire          # retire-audit on v0.24.0 bump (iron-rule #11); enum-mapped
+  action: watch           # was retire; retire is gated on VERIFIED merge (audit #27) — restore action=retire only with gh-pr-view proof
   since: 2026-07-02
   notes: |
+    CORRECTION 2026-07-05: vllm#40886 is OPEN unmerged (gh pr view). The
+    v0.24.0-absorption claim below is club-3090's, unverified — if their
+    v0.24.0 ships the remap it came from another commit/PR; identify it
+    before any G4_04 retire-audit.
     club-3090 shipped vllm-stable v0.24.0 "overlay-free" (their #533, 2026-06-30):
     upstream absorbed the Gemma-4 AWQ MoE keys remap (#40886) that G4_04 vendors.
     We are NOT on v0.24.0 yet (current pin dev672 = 0.23.1). ON A v0.24.0 BUMP,
@@ -65,11 +68,11 @@ watch:
 - upstream: vllm#43409
   status: merged
   fix_upstream: vllm#45656
-  fix_status: merged-NOT-in-pin
+  fix_status: merged-in-pin  # network sweep 2026-07-05: #45656 (merged 06-18) is an ancestor of BOTH live pin bases (dev714/dev748); pristine dev748 auto_gptq.py:761-769 carries the is_sym use_zp guard natively
   severity: P0-correctness
   local_patches:
   - PN400
-  action: drift-check  # reconciled 2026-06-23: PN400 IS the backport of fix_upstream vllm#45656 (port complete); drift-check until #45656 lands in our pin, then retire PN400.
+  action: drift-check  # reconciled 2026-06-23: PN400 IS the backport of fix_upstream vllm#45656 (port complete); drift-check until #45656 lands in our pin, then retire PN400. DONE: PN400 retired 2026-06-24 (dev301 bump); row kept for provenance.
   since: 2026-06-20
   notes: |
     REGRESSION IN dev148 (found by the /loop upstream sweep 2026-06-20).
@@ -277,7 +280,7 @@ watch:
 
     '
 - upstream: vllm#43432
-  status: open
+  status: closed          # network sweep 2026-07-05: PR CLOSED unmerged (was 'open'); the value-MSE quality idea remains un-landed upstream — do-not-auto-adopt guidance below stands
   local_patches:
   - P44
   - P67
@@ -368,7 +371,7 @@ watch:
 
     '
 - upstream: vllm#43887
-  status: open
+  status: closed          # network sweep 2026-07-05: PR CLOSED unmerged (was 'open'); the consciously-declined assessment below stands, drift risk gone with the closure
   local_patches:
   - P67b
   - G4_67
@@ -395,7 +398,7 @@ watch:
 
     '
 - upstream: vllm#43878
-  status: open
+  status: closed          # network sweep 2026-07-05: PR CLOSED unmerged (was 'open'); P101 mitigation remains our path
   local_patches:
   - P101
   - PN116
@@ -419,11 +422,11 @@ watch:
 
     '
 - upstream: vllm#40269
-  status: open
+  status: merged          # network sweep 2026-07-05 (audit 2026-07-04 #28): MERGED 2026-05-14 — sat hidden as 'open' for 7 weeks because the watchlist audit is offline-only
   local_patches:
   - P77
   - PN40
-  action: port
+  action: a-b-test        # was port; nothing left to port — the merge is an ancestor of the live pin bases, so the code is IN dev714/dev748. Remaining task is the enable/verify probe described in the notes
   since: 2026-05-08
   notes: 'Probabilistic draft rejection — passes draft_probs from drafter
 
@@ -431,9 +434,21 @@ watch:
 
     complementary. Port as PN90 when upstream merges.
 
+    UPDATE 2026-07-05: MERGED 2026-05-14 and an ancestor of the live pin
+
+    bases — the draft_probs wiring is IN dev714/dev748 natively. The
+
+    "port" here is now an ENABLE/VERIFY task, not a backport: check
+
+    whether our MTP drafters populate draft_probs on the live pin and
+
+    whether the probabilistic rejection path engages (or needs a config
+
+    knob) before writing any patch. Do NOT vendor a copy of merged code.
+
     '
 - upstream: vllm#26504
-  status: open
+  status: closed          # network sweep 2026-07-05: PR CLOSED unmerged (was 'open'); the MTP-adapt design sketch below remains the reference if we ever revive it (SNDR_MTP_DYNAMIC_K_001, our port, is itself retired)
   local_patches: []
   action: port
   since: 2026-05-31
@@ -471,7 +486,7 @@ watch:
     the K-axis. The chat/structured workload-class semantic split\nstays valid (different compression_plan\
     \ / drafter behavior),\nbut the K choice within each profile becomes self-adapting.\n"
 - upstream: vllm#42006
-  status: open
+  status: closed          # network sweep 2026-07-05: PR CLOSED unmerged (was 'open'); the retire-on-merge trigger can never fire from THIS PR — keep the overlays, superseded locally by the #42237 v2 vendor anyway
   local_patches:
   - G4_T1
   action: retire
@@ -494,7 +509,7 @@ watch:
 
     '
 - upstream: vllm#42237
-  status: open
+  status: closed          # network sweep 2026-07-05: PR CLOSED unmerged (was 'open'); retire-on-merge cannot fire — the G4_T1 v2 overlay stays REQUIRED for gemma4 streaming tool calls until an equivalent lands upstream
   local_patches:
   - G4_T1
   action: retire
@@ -531,7 +546,7 @@ watch:
 
     '
 - upstream: vllm#43074
-  status: open
+  status: closed          # network sweep 2026-07-05: PR CLOSED unmerged (was 'open'); retire-on-merge cannot fire — Q3_T1 v1 stays live; watch the related PR list below for a successor fix
   local_patches:
   - Q3_T1
   action: retire
@@ -603,7 +618,7 @@ watch:
     configuration. Re-evaluate if Genesis later vendors a pure\nMamba model (e.g. nemotron-h-* family)\
     \ where this PR's\narchitecture would actually apply.\n"
 - upstream: vllm#36138
-  status: merged
+  status: open            # network sweep 2026-07-05: gh pr view says OPEN, NOT merged (was 'merged' since 2026-04-25 — same claimed-merged-on-faith class as #40886, audit #27/#28)
   local_patches:
   - P59
   - P62
@@ -615,6 +630,12 @@ watch:
     Already integrated as P62 + structured-output fixes. Verify
 
     anchor md5 not drifted after upstream pin bump.
+
+    CORRECTION 2026-07-05: the PR is OPEN unmerged (gh pr view) — the
+
+    original "merged" status was never verified. P62 remains OUR fix,
+
+    not a backport-of-merged; do not treat it as a retire candidate.
 
     '
 - upstream: vllm#40270
@@ -628,15 +649,27 @@ watch:
 
     '
 - upstream: vllm#37160
-  status: open
+  status: merged          # network sweep 2026-07-05 (audit 2026-07-04 #28): MERGED 2026-04-01 — sat hidden as 'open' for 3 months; the second merged action=port row the offline-only audit missed
   local_patches: []
-  action: port
+  action: watch           # was port; nothing left to port — the live pins ship the native kv-offload stack. Remaining task is an evaluation on non-hybrid lanes (see notes)
   since: 2026-05-08
   notes: 'CPU KV offload connector. Compatibility: NOT compatible with
 
     hybrid Mamba (Qwen3.5/3.6 GDN). Port as PN92 with `applies_to.is_hybrid: [False]`
 
     hard guard.
+
+    UPDATE 2026-07-05: MERGED 2026-04-01; the live pins ship a native
+
+    kv-offload stack (vllm/v1/kv_offload/ package + the offloading
+
+    connector PN383 was written against). Nothing to port — the task is
+
+    now an EVALUATION of native CPU KV offload on the non-hybrid lanes
+
+    (Gemma-4), still with the is_hybrid guard rationale. Note the PN92
+
+    name mentioned below was later used by an unrelated patch.
 
     '
 - upstream: vllm#37190
@@ -756,7 +789,7 @@ watch:
 
     '
 - upstream: vllm#42102
-  status: open
+  status: closed          # network sweep 2026-07-05: PR CLOSED unmerged (was 'open'); the independent-KV-groups backport plan below is not obsoleted by any merge — revisit only if DFlash lanes leave the archive
   local_patches:
   - PN21
   - PN23
@@ -983,8 +1016,12 @@ sweep:
     next bump — review then). Unblocks semantic memory (MTEB ~64-70 via Qwen3-Embedding).'
 - pr: 45100
   genesis_patch: PN370
-  trigger: retire-on-merge
-  note: 'Racy accepted-counts under async+MTP — VENDORED 2026-06-11 as PN370 (spec_decode/pn370_async_accepted_counts_race.py):
+  trigger: review-on-merge
+  note: 'DONE 2026-07-05: the retire-on-merge intent EXECUTED — #45100 MERGED
+    2026-06-22 and is native in both live pins; PN370 AND its 0.23.x twin PN398
+    retired via pristine-dev748 deep-diff (see registry superseded_by). Row kept
+    for provenance (PN400/#45656 precedent). Original entry:
+    Racy accepted-counts under async+MTP — VENDORED 2026-06-11 as PN370 (spec_decode/pn370_async_accepted_counts_race.py):
     live silent-corruption class on Qwen3.6-35B PROD (hybrid GDN + MTP K=3 + async is the exact repro
     config; bonus ~2-5% TPOT from deleting a per-step synchronize). PN341 sub-patch 4 anchors the IDENTICAL
     num_accepted_tokens_event line — dual anchor variants (post-PN341 anchor imported from PN341_PREPARE_NEW,

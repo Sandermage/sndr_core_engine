@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN362 — vendor of OPEN PR vllm#42425 (VLLM_TRITON_FORCE_FIRST_CONFIG).
 
+RETIRED 2026-07-05 (lifecycle: retired): vllm#42425 MERGED 2026-06-16;
+``vllm/triton_utils/force_first_config.py`` and the
+``VLLM_TRITON_FORCE_FIRST_CONFIG`` env knob ship natively in pristine dev748
+(envs.py:113) — exactly the post-merge state this module's own skip logic
+detects. The native module supersedes the inlined vendor 1:1. Kept for
+reference.
+
 Deep-dive understanding of the upstream PR
 ==========================================
 
@@ -273,7 +280,7 @@ def _upstream_already_present(vllm_root: Path) -> bool:
     return (vllm_root / "triton_utils" / "force_first_config.py").exists()
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply PN362 — VLLM_TRITON_FORCE_FIRST_CONFIG into env_override.py."""
     if _env_disabled():
         return "skipped", "PN362 disabled via GENESIS_DISABLE_PN362=1"

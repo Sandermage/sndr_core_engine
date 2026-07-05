@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for Patch N252 — M-RoPE prompt_embeds-only DoS fix.
 
+RETIRED 2026-07-05 (lifecycle: retired): vllm#45252 MERGED 2026-06-13
+(GHSA-33cg-gxv8-3p8g) and the engine-native fix predates every live pin
+(verified at dev148 2026-06-19; pristine dev748 carries the further-evolved
+passthrough-modality form of ``_init_mrope_positions`` with no fatal
+assert). The DoS is closed BY THE ENGINE; the patch only auto-applied on
+<0.23.0 rollback pins, none of which remain. Kept for reference.
+
 ================================================================
 Issue (security — GHSA-33cg-gxv8-3p8g)
 ================================================================
@@ -95,7 +102,6 @@ from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_r
 from sndr.kernel import (
     TextPatch,
     TextPatcher,
-    TextPatchResult,
     result_to_wiring_status,
 )
 
