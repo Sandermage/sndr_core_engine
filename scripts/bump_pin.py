@@ -20,8 +20,13 @@ What it does (idempotent — safe to re-run):
      --image-digest).
   2. audit_v2_runtime_pins.py: CANONICAL_PIN_SUBSTRING -> new devNNN.
   3. Every vLLM model YAML: vllm_pin_required -> NEW (skips llama.cpp null lanes).
-  4. Append NEW to guards.KNOWN_GOOD_VLLM_PINS, ALLOWED_MODELDEF_PINS, and
-     test_pin_gate.EXPECTED_PINS if absent (with a dated 'validate me' comment).
+  4. audit_stale_vllm_version_ranges.py: DEFAULT_PIN last-ditch literal -> NEW
+     (auto-tracks the bump so a degraded resolver never falls back to a stale
+     pin). The 3 receipt allowlists — guards.KNOWN_GOOD_VLLM_PINS,
+     ALLOWED_MODELDEF_PINS, test_pin_gate.EXPECTED_PINS — are NOT auto-edited:
+     they carry cumulative per-pin validation receipts and are appended
+     MANUALLY (audit_pin_consistency fails loudly if one is forgotten, so they
+     are gate-guarded rather than silently written).
   5. Hardware YAMLs: image_digest -> --image-digest value and image: ->
      nightly-<--sha-full> (audit remediation 2026-07-05: the digest is the
      HIGHEST-precedence image ref — effective_image_ref = image_digest or
@@ -144,6 +149,19 @@ def _preset_edits(pin: str) -> list[tuple[Path, str]]:
     return edits
 
 
+def _default_pin_edit(pin: str) -> tuple[Path, str] | None:
+    """Pending rewrite of the DEFAULT_PIN last-ditch literal in
+    scripts/audit_stale_vllm_version_ranges.py so it auto-tracks the bump.
+    DEFAULT_PIN is that audit's 4th-level fallback (reached only if the
+    pins.yaml read AND the sndr package AND guards all fail); leaving it stale
+    silently evaluates version ranges against the previous pin if ever hit.
+    Returns None when the literal already equals the new pin (idempotent)."""
+    path = REPO / "scripts/audit_stale_vllm_version_ranges.py"
+    txt = path.read_text(encoding="utf-8")
+    nt = re.sub(r'(DEFAULT_PIN\s*=\s*)"[^"]*"', rf'\g<1>"{pin}"', txt, count=1)
+    return (path, nt) if nt != txt else None
+
+
 def bump(new: str, dry: bool, sha_full: str | None = None,  # noqa: PLR0915 — linear propagation checklist; splitting would hide the ordered surface list
          image_digest: str | None = None) -> int:
     info = _parse(new)
@@ -194,14 +212,12 @@ def bump(new: str, dry: bool, sha_full: str | None = None,  # noqa: PLR0915 — 
             yaml_edits.append((yml, nt))
             changed_yamls.append(yml.name)
 
-    # 4. append to allowlists if absent
-    def _append_pin(path: Path, anchor: str, comment: str) -> tuple[Path, str] | None:
-        txt = path.read_text(encoding="utf-8")
-        if f'"{info["pin"]}"' in txt:
-            return None
-        ins = f'{comment}\n    "{info["pin"]}",\n'
-        nt = txt.replace(anchor, ins + "    " + anchor.strip(), 1) if anchor in txt else None
-        return (path, nt) if nt else None
+    # 4. DEFAULT_PIN last-ditch literal in the stale-range audit auto-tracks
+    # the bump (the 3 receipt allowlists — guards.KNOWN_GOOD_VLLM_PINS,
+    # ALLOWED_MODELDEF_PINS, test_pin_gate.EXPECTED_PINS — are appended
+    # MANUALLY with per-pin validation receipts; audit_pin_consistency fails
+    # loudly if one is forgotten, so they are gate-guarded, not auto-written).
+    default_pin_edit = _default_pin_edit(info["pin"])
 
     # 5. hardware YAMLs: image_digest (audit remediation 2026-07-05 — the
     # digest WINS over the tag at render, so leaving it stale boots the
@@ -230,19 +246,25 @@ def bump(new: str, dry: bool, sha_full: str | None = None,  # noqa: PLR0915 — 
           + (" + image: tag" if sha_full else "") + ")"
           + ("" if image_digest else "  [digest SKIPPED — no --image-digest]"))
     print(f"  preset engine_pin: {len(preset_edits)} -> {new}")
+    print(f"  DEFAULT_PIN fallback: {'1' if default_pin_edit else '0'} "
+          f"(audit_stale_vllm_version_ranges.py) -> {info['pin']}")
     if dry:
         print("\n(dry-run — no files written)")
         return 0
 
     pins_yaml.write_text(y, encoding="utf-8")
     av2_path.write_text(av2, encoding="utf-8")
-    for p, t in [*yaml_edits, *hw_edits, *preset_edits]:
+    tail_edits = [*yaml_edits, *hw_edits, *preset_edits]
+    if default_pin_edit:
+        tail_edits.append(default_pin_edit)
+    for p, t in tail_edits:
         p.write_text(t, encoding="utf-8")
     print("\n✓ pins.yaml, CANONICAL_PIN_SUBSTRING, model YAMLs, hardware "
-          "digests and preset engine_pin updated.")
+          "digests, preset engine_pin and DEFAULT_PIN fallback updated.")
     print("  NOTE: append the new pin to guards.KNOWN_GOOD_VLLM_PINS / "
           "ALLOWED_MODELDEF_PINS / EXPECTED_PINS with its validation receipt "
-          "(these carry per-pin comments, kept manual on purpose).")
+          "(these carry per-pin comments, kept manual on purpose — "
+          "audit_pin_consistency gate-guards them if forgotten).")
     print("\nNext (manual, required):")
     print(f"  make rebuild-pin SSH_HOST=<user@host> CONTAINER={info['container']} IMAGE={info['image']}")
     print(f"  # commit sndr/engines/vllm/pins/{info['anchor_dir']}/")

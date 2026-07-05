@@ -16,9 +16,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "make_evidence.py"
 
@@ -59,6 +56,20 @@ class TestGateCatalogue:
         names = [g.name for g in mod.GATES]
         assert len(names) == len(set(names)), (
             f"duplicate gate names: {[n for n in names if names.count(n) > 1]}"
+        )
+
+    def test_pin_consistency_gate_present(self):
+        """The SSOT cross-artifact pin-consistency asserter (audit_pin_consistency.py)
+        MUST be part of the aggregate evidence surface, not survive in CI only via
+        one pytest wrapper. Regression 2026-07-05 integrity audit: it was a `make
+        gates` member but ABSENT from make_evidence GATES, so `make evidence` (the
+        gate CI actually runs) could report all-green while the SSOT pin gate
+        silently stopped running if its lone pytest wrapper were renamed/removed."""
+        mod = _import_script()
+        names = {g.name for g in mod.GATES}
+        assert "audit-pin-consistency" in names, (
+            "audit-pin-consistency (the SSOT cross-artifact pin gate) must be a "
+            "make_evidence GATES member, not dependent on a single pytest wrapper"
         )
 
     def test_release_only_filter(self):
@@ -211,7 +222,7 @@ class TestCLIInvocation:
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH),
              "--only", "audit-no-new-v1", "--json"],
-            cwd=REPO_ROOT, capture_output=True, text=True, timeout=60,
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=60, check=False,
         )
         assert result.returncode == 0, result.stderr
         payload = json.loads(result.stdout)
@@ -222,7 +233,7 @@ class TestCLIInvocation:
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH),
              "--only", "does-not-exist"],
-            cwd=REPO_ROOT, capture_output=True, text=True, timeout=10,
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=10, check=False,
         )
         assert result.returncode == 2
         assert "not in known gates" in result.stderr
@@ -233,7 +244,7 @@ class TestCLIInvocation:
             [sys.executable, str(SCRIPT_PATH),
              "--only", "audit-no-new-v1",
              "--emit-md", str(out), "--json"],
-            cwd=REPO_ROOT, capture_output=True, text=True, timeout=60,
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=60, check=False,
         )
         assert result.returncode == 0
         assert out.is_file()
@@ -268,7 +279,7 @@ class TestAllGatingGreenOnRepoRoot:
 
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--json"],
-            cwd=REPO_ROOT, capture_output=True, text=True, timeout=600,
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=600, check=False,
         )
         # rc=0 means no gating gate failed (informational may have).
         payload = json.loads(result.stdout)

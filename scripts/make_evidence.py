@@ -39,7 +39,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -116,6 +115,9 @@ GATES: tuple[Gate, ...] = (
          "gating"),
     Gate("audit-v2-vllm-pin-consistency", "audit-v2-vllm-pin-consistency",
          "§4.2 model.versions.vllm_pin_required matches baseline JSON's vllm_version",
+         "gating"),
+    Gate("audit-pin-consistency", "audit-pin-consistency",
+         "SSOT cross-artifact pin gate — current pin present in every allowlist + anchor dir + model YAMLs (was `make gates`-only; added to the aggregate so it stops depending on a lone pytest wrapper)",
          "gating"),
     Gate("audit-v2-patch-lifecycle", "audit-v2-patch-lifecycle",
          "§4.2 enabled-retired patches in V2 models must be on operator allowlist",
@@ -288,7 +290,7 @@ def _run_gate(gate: Gate, *, timeout_s: int = 180) -> GateResult:
         proc = subprocess.run(
             ["make", "--no-print-directory", gate.make_target],
             cwd=REPO_ROOT,
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
             timeout=timeout_s,
         )
         exit_code = proc.returncode

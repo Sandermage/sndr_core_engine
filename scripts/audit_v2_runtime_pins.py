@@ -31,7 +31,9 @@ the next pin bump:
             catching stale pins or typos). Reconciled 2026-06-24
             (pin bump dev148 -> dev301): the whole fleet is unified on
             the canonical pin
-            (``CANONICAL_PIN_SUBSTRING``, currently dev301). The audit
+            (``CANONICAL_PIN_SUBSTRING``, currently dev748 — the constant
+            below is the live value; this reconciliation note is historical).
+            The audit
             classifies each ModelDef into a ``canonical`` /  ``dev338``
             (legacy baseline) / ``dev371`` (legacy sprint era) /
             ``other`` bucket and reports the migration table as info.
@@ -349,8 +351,7 @@ def _strip_yaml_value(raw: str) -> str:
     # YAML inline comment starts with " #" after the value
     if " #" in raw:
         raw = raw.split(" #", 1)[0]
-    raw = raw.strip().strip('"').strip("'")
-    return raw
+    return raw.strip().strip('"').strip("'")
 
 
 def _rel(path: Path) -> str:
@@ -472,7 +473,9 @@ def check_r_pin_3_render_parity() -> tuple[list[str], list[str]]:
         from sndr.cli.legacy.profile import render_profile_launcher
         from sndr.model_configs.compose import compose
         from sndr.model_configs.registry_v2 import (
-            load_hardware, load_model, load_profile,
+            load_hardware,
+            load_model,
+            load_profile,
         )
     except Exception as e:  # noqa: BLE001
         errors.append(
@@ -562,7 +565,7 @@ def _is_dflash_stem(stem: str) -> bool:
     return DFLASH_STEM_MARKER in stem.lower()
 
 
-def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:
+def check_r_pin_4_modeldef_migration() -> tuple[list[str], list[str]]:  # noqa: PLR0912,PLR0915 — linear per-artifact pin-consistency checker; one branch per artifact surface
     """R-PIN-4: ModelDef pin migration status with DFlash hold gate.
 
     Fails on:

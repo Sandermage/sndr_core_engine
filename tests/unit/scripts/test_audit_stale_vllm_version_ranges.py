@@ -160,6 +160,25 @@ def test_resolve_current_pin_prefers_pins_yaml_ssot():
             sys.modules.pop("vllm", None)
 
 
+def test_default_pin_matches_current_ssot():
+    """DEFAULT_PIN is the last-ditch fallback (reached only if the pins.yaml
+    read AND the sndr package AND guards all fail). It must not lag the SSOT:
+    a stale literal here silently evaluates version ranges against an old pin.
+    bump_pin.py auto-maintains it; this test is the backstop that goes RED on
+    any bump that forgets it (2026-07-05 integrity audit; the literal was the
+    dev714 rollback pin, one bump behind current)."""
+    import importlib.util
+
+    from sndr import pins
+    spec = importlib.util.spec_from_file_location("_stale_audit_dp", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert pins.current() == mod.DEFAULT_PIN, (
+        f"DEFAULT_PIN ({mod.DEFAULT_PIN}) must track pins.yaml current "
+        f"({pins.current()}); run scripts/bump_pin.py so it auto-updates"
+    )
+
+
 def test_resolve_pin_survives_sndr_package_import_failure():
     """CI robustness: even when `from sndr import pins` and the guards module
     fail to import (lean CI env, optional-dep ImportError), the resolver MUST
