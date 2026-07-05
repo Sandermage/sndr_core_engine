@@ -192,7 +192,6 @@ _EMPTY_OBJECT = {"type": "object", "properties": {}}
 # manifest, so tying the live patcher anchor CONSTANTS to the recorded
 # pristine bytes RUNS on every CI host — no vllm install or /tmp tree
 # needed. Replaces the uniqueness half of the old pristine byte-check that
-# green-by-skipped on ``/private/tmp/candidate_pin_current``.
 
 
 def test_pn385_anchors_recorded_in_current_pin_manifest():

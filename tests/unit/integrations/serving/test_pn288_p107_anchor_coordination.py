@@ -213,7 +213,6 @@ def test_middleware_streaming_accepts_call_without_auto_tools_called():
 
 # ─── Pristine-tree byte-exactness: RETIRED (audit #14 full drain) ───────
 # ``test_anchors_byte_exact_on_pristine_tree`` byte-checked the PN288 + P107
-# anchors against the macOS-only ``/private/tmp/candidate_pin_current`` path
 # (empty on CI, absent on the Linux rig) — executed on NO host. PN288 is not
 # recorded in the committed anchor_sot manifest (90/329 gap, audit #6/#21);
 # P107's anchor uniqueness IS now covered in CI by the migrated

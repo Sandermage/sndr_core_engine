@@ -340,7 +340,6 @@ class TestP58AsyncSchedulerPyPatch:
 
     # test_dual_anchor_real_pristine_trees RETIRED (audit #14 full drain,
     # 2026-07-06): it byte-checked the dev259/dev491 variant anchors against
-    # ``/private/tmp/candidate_pin_current`` + ``/tmp/candidate_pin_new`` —
     # macOS-only stale-pin paths, empty on CI and absent on the Linux rig, so
     # it executed on NO host (permanent green-by-skip). P58 is not recorded in
     # the committed anchor_sot manifest (90/329 gap, audit #6/#21), so the

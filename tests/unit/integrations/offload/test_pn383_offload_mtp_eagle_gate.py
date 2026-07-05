@@ -40,7 +40,7 @@ These tests verify textually (byte-verbatim fixture regions generated
 from the pin — see ``_pn383_fixture_regions.py``), BEHAVIORALLY (the
 patched ``from_spec`` is exec'd with fake specs to prove the Qwen3.6
 narrowing), and opportunistically against the real pristine tree at
-/private/tmp/candidate_pin_current.
+the anchor_sot manifest
 """
 from __future__ import annotations
 

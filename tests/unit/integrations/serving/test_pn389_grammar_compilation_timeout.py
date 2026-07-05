@@ -769,7 +769,6 @@ class TestRunWithTimeoutBehaviour:
 # TestAgainstPristine RETIRED (audit #14 full drain, 2026-07-06): its two
 # byte-checks (active-anchor uniqueness + drift-markers-absent) and its
 # copy-the-real-file-and-apply end-to-end test all gated on the macOS-only
-# ``/private/tmp/vllm_pristine_b4c80ec0f`` / ``/private/tmp/candidate_pin_current``
 # paths — empty on CI, absent on the Linux rig (pristine at
 # ``/tmp/pristine_dev748_2dfaae752``), and pinned to dev148 (many pin
 # generations old) — so the class executed on NO host, a permanent

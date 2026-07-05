@@ -601,7 +601,6 @@ class TestModeResolution:
 
 # ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
 # Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
-# byte-checked the anchors against ``/private/tmp/candidate_pin_current``
 # (absent on every CI host -> permanently green-by-skip). MIGRATED here to
 # read the COMMITTED per-pin manifest so it RUNS in CI, and STRENGTHENED to
 # tie the LIVE patcher anchor+replacement CONSTANTS to the recorded pristine

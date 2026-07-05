@@ -223,7 +223,6 @@ def _exec_module(src):
 # ═══ 1. Anchor contract: RETIRED (audit #14 full drain, 2026-07-06) ══════
 # ``test_pristine_anchors_present_exactly_once`` and
 # ``test_pristine_staleness_facts_still_hold`` byte-checked anchors +
-# staleness facts against the macOS-only ``/private/tmp/candidate_pin_current``
 # path (empty on CI, absent on the Linux rig where pristine lives at
 # ``/tmp/pristine_dev748_2dfaae752``) — they executed on NO host, a permanent
 # green-by-skip. P79D is not recorded in the committed anchor_sot manifest

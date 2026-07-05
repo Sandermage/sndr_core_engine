@@ -13,7 +13,7 @@ behave like the default. Fix: ``is not False``.
 
 Test strategy:
   1. Anchor byte-verification against the pristine candidate tree
-     (/private/tmp/candidate_pin_current) — count==1.
+     (the anchor_sot manifest — count==1.
   2. Behavior tests exec'ing the real file content with stub protocol
      classes — including the STREAMING-DELTA case upstream's PR lacks
      (roadmap: a null client value must NOT truncate multi-tool-calls
@@ -32,7 +32,6 @@ from __future__ import annotations
 # absorbed it; version range caps below the current pin). Its anchor
 # byte-verification, pristine bug-reproduction, patched-semantics and
 # TextPatcher-integration classes all gated on the pristine candidate tree
-# (/private/tmp/candidate_pin_current) that exists on no CI host -> they
 # green-by-skipped everywhere. They are removed; the CI-runnable synthetic
 # drift-marker hygiene contract below is retained.
 

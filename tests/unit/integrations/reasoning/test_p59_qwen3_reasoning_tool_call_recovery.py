@@ -14,7 +14,7 @@ Re-anchor batch 2026-06-11 (preflight residual triage §1b):
 
 Validates:
   1. Anchors against a synthetic PRISTINE-shaped file (current pin
-     layout, quoted from /private/tmp/candidate_pin_current/vllm/
+     layout, quoted from the anchor_sot manifest
      reasoning/qwen3_reasoning_parser.py lines 1-16, 53-61, 136-158)
   2. Variant C/D mutual exclusivity + the P27 chain invariant the
      preflight CHAINED_ANCHOR pass relies on
@@ -37,7 +37,6 @@ import pytest
 
 # Synthetic mirror of the PRISTINE current-pin parser. Every P59 anchor
 # site is quoted byte-exactly from the pristine tree (verified count==1
-# against /private/tmp/candidate_pin_current/vllm/reasoning/
 # qwen3_reasoning_parser.py on 2026-06-11). Methods irrelevant to P59
 # anchors are omitted; the file must stay valid Python (ast.parse test).
 SYNTHETIC_PRISTINE_FILE = (

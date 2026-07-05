@@ -234,7 +234,6 @@ class TestDriftMarkerSelfCollision:
 
 # ── Pristine pin invariants: RETIRED (audit #14 full drain, 2026-07-06) ──
 # The former ``TestAnchorsAgainstPristinePin`` byte-checked the anchors
-# against ``/private/tmp/candidate_pin_current`` — a macOS-only path that is
 # empty on every CI host, absent on the Linux rig (pristine lives at
 # ``/tmp/pristine_dev748_2dfaae752``), i.e. it executed on NO host and only
 # inflated the suite with a permanent green-by-skip. PN367 is NOT recorded in

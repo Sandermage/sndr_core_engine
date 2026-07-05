@@ -11,7 +11,6 @@ def _wiring():
 
 
 # Verbatim tail of pristine envs.py (pin 0.22.1rc1.dev259+g303916e93,
-# lines 1997-2013 of /private/tmp/candidate_pin_current/vllm/envs.py,
 # extracted 2026-06-11 for the PN58 envs re-anchor). Documents WHY the
 # old anchor died: the LoRA dual-stream comment grew from 1 line to 3,
 # and 3 new entries (VLLM_USE_SPINLOOP_EXT, VLLM_GPU_NIC_PCIE_MAPPING,

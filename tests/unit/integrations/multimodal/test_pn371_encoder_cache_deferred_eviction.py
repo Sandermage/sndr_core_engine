@@ -580,7 +580,6 @@ class TestDriftMarkerSelfCollision:
 
 # ── Pristine pin invariants: RETIRED (audit #14 full drain, 2026-07-06) ──
 # The former ``TestAnchorsAgainstPristinePin`` byte-checked anchors against
-# the macOS-only ``/private/tmp/candidate_pin_current`` path — empty on CI,
 # absent on the Linux rig (pristine at ``/tmp/pristine_dev748_2dfaae752``):
 # executed on NO host, a permanent green-by-skip. PN371 is NOT recorded in
 # the committed anchor_sot manifest (90/329 coverage gap, audit #6/#21), so

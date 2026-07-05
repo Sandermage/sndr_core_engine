@@ -457,7 +457,6 @@ class TestDriftMarkers:
 
 # ── Pristine pin invariants: RETIRED (audit #14 full drain, 2026-07-06) ──
 # ``TestAgainstPristine`` byte-checked every builder's anchors against the
-# macOS-only ``/private/tmp/candidate_pin_current`` path (empty on CI, absent
 # on the Linux rig) — executed on NO host. PN391 is not recorded in the
 # committed anchor_sot manifest (90/329 gap, audit #6/#21), so the byte-check
 # cannot be migrated onto it. Retired; the builder-shape + apply +

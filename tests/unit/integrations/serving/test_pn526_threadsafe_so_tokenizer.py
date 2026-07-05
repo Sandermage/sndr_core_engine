@@ -329,7 +329,6 @@ class TestWiring:
 
 # TestPristinePinInvariants RETIRED (audit #14 full drain, 2026-07-06): it
 # byte-checked the anchor against the macOS-only
-# ``/private/tmp/candidate_pin_current`` path — empty on CI, absent on the
 # Linux rig — so it executed on NO host (permanent green-by-skip). PN526 is
 # not recorded in the committed anchor_sot manifest (90/329 gap, audit
 # #6/#21), so the byte-check cannot be migrated onto it. The anchor +
