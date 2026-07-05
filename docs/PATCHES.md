@@ -126,10 +126,15 @@ to community and ships in `sndr/engines/vllm/patches/<family>/` under Apache 2.0
   listed here for its July re-anchor). Its launch-variant anchor was
   re-derived dual-variant during the dev714→dev748 preflight; the
   2026-07-04 fleet-sweep exercise of the lane ran on **dev714** (stale
-  image_digest, post-release audit) — so the dual-variant anchor is
-  battle-validated on dev714 and preflight-verified on dev748
-  (fleet sweep, head_dim=512 Gemma4-31B kvauto-chat: window accept
-  0.728 at K=3, ~87 t/s — see [`BENCHMARKS.md`](BENCHMARKS.md)).
+  image_digest, post-release audit), and the 2026-07-05 re-run
+  battle-validated it on dev748: the applied variant
+  (`pn351_kernel_launch_warps_stages_mmprefix`, the dev748 anchor
+  variant with the upstream MM_PREFIX_CLAMP_SW insert) was read back
+  from the LIVE dev748 container's `triton_unified_attention.py`, and
+  the head_dim=512 Gemma4-31B kvauto-chat lane served chat + 7/7
+  tool-calls with window accept 0.744 at K=3 (TPOT 9.42 ms, noisy CV —
+  within CV of dev714, no gain claim; see
+  [`BENCHMARKS.md`](BENCHMARKS.md)).
 
 ### Recent additions (v11.0 sprint — historical, 2026-05)
 

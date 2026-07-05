@@ -27,32 +27,38 @@ GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 >   regressor on dev371+).
 > - Attention: TurboQuant k8v4 KV cache + FlashAttention 2, TP=2.
 
-## Fleet sweep — 2026-07-04 promotion window (per-row pin labels)
+## Fleet sweep — dev748 (2026-07-04 window + 2026-07-05 re-run; per-row pin labels)
 
-Full-fleet validation during the dev748 promotion window: each model
-booted sequentially (2× RTX A5000, TP=2), smoke-tested (chat +
-tool-call) and mini-benched (`--quick --runs 2`, decode-only).
-`failed=0` patch applies across the entire fleet.
+Full-fleet validation of the dev748 pin: each model booted sequentially
+(2× RTX A5000, TP=2), smoke-tested (chat + tool-call) and mini-benched
+(`--quick --runs 2`, decode-only). `failed=0` patch applies across the
+entire fleet.
 
-> **Post-release audit corrections (2026-07-05).** (1) Four lanes
-> (35B FP8, Gemma4 26B/31B, DiffusionGemma) actually booted the **dev714
-> rollback engine**: a stale hardware `image_digest` won over the dev748
-> image tag at render (evidence: per-lane bench-JSON `system_fingerprint`;
-> the digest and its gate are fixed on the remediation branch). Those rows
-> carry a per-row **Pin** label instead of the original blanket "on dev748"
-> claim. (2) Accept rates are bench-WINDOW rates (`accept_rate_window` —
-> the definition the suite's floor check uses); the previously published
+> **Post-release audit corrections (2026-07-05).** (1) In the original
+> 2026-07-04 sweep, four lanes (35B FP8, Gemma4 26B/31B, DiffusionGemma)
+> actually booted the **dev714 rollback engine**: a stale hardware
+> `image_digest` won over the dev748 image tag at render (evidence:
+> per-lane bench-JSON `system_fingerprint`). The digest and its gate were
+> fixed, the four lanes were **re-run 2026-07-05 on verified dev748**
+> (in-container `vllm.__version__` + bench-JSON fingerprint checked per
+> lane; renders re-verified to reference the dev748 RepoDigest before
+> boot), and the table below carries the re-run numbers. The original
+> dev714 rows are kept as a labeled reference table further down.
+> (2) Accept rates are bench-WINDOW rates (`accept_rate_window` — the
+> definition the suite's floor check uses); the previously published
 > 0.933 (31B) and 0.728 (35B FP8) were pre-run scrape snapshots.
+> Evidence archive: the rig's releases store (`evidence-2026-07-04/`;
+> re-run artifacts under `rerun/`).
 
 | Model (preset / launcher) | Pin | Boot | Apply | Chat | Tool-call | decode_TPOT | Note |
 | --- | :-: | ---: | ---: | :-: | :-: | ---: | --- |
-| Qwen3.6-35B-A3B AWQ (PROD launcher) | dev748 | 330 s | 87/0 | ✓ | 7/7 | **3.90 ms** (242.5 t/s) | promotion gate, full canonical suite |
-| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | dev714 | 270 s | 86/0 | ✓ | ✓ | 4.10 ms (231.2 t/s) | canonical `sndr launch` path; window accept 0.627 (floor 0.55 PASS) |
+| Qwen3.6-35B-A3B AWQ (PROD launcher) | dev748 | 330 s | 87/0 | ✓ | 7/7 | **3.90 ms** (242.5 t/s) | promotion gate 2026-07-04, full canonical suite |
+| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | dev748⁴ | 211 s | 86/0 | ✓ | 7/7 | 4.25 ms (CV 0.035; wall 223.9 t/s, CV 0.053) | canonical `sndr launch` path; window accept 0.621 = 6236/10040 (floor 0.55 PASS); ctx 1K→32K LINEAR_OK 0.841; parity within CV vs the dev714 row below |
 | Qwen3.6-27B INT4 TQ k8v4 (+PN520) | n/v³ | 370 s | 84/0 | ✓¹ | ✓ | 7.68 ms (~130 t/s) | PN520 loader fix battle-validated: 96 `in_proj_ba` shards routed, degeneration gone |
-| Qwen3.6-27B INT4 fp8kv (+P100) | dev748 | 320 s | 85/0 | ✓ | — | 9.22 ms (~108 t/s) | P100 FlashInfer spec-decode runtime-validated (coherent gen, 0 errors) |
-| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | dev714 | 170 s | 56/0 | ✓ | ✓ | 7.12 ms (~140 t/s) | |
-| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | dev714 | 230 s | 61/0 | ✓ | ✓ | 11.51 ms (~87 t/s) | PN351 re-anchor applied on head_dim=512; window accept 0.728 (floor 0.55 PASS) |
-| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | dev714 | 140 s | 39/0 | ✓² | n/a | n/a² | diffusion lane — AR decode metrics not applicable |
+| Qwen3.6-27B INT4 fp8kv (+P100) | dev748 | 320 s | 85/0 | ✓ | — | 9.22 ms (~108 t/s) | P100 FlashInfer spec-decode runtime-validated (coherent gen, 0 errors); 2026-07-04 |
+| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | dev748⁴ | 151 s | 56/0 | ✓ | 7/7 | 7.09 ms (CV 0.011, ~141 t/s) | ctx FLAT_OK 0.970; parity vs dev714 7.12 ms; accept n/a (no spec decode on this preset) |
+| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | dev748⁴ | 241 s | 61/0 | ✓ | 7/7 | 9.42 ms (CV 0.233 — noisy)⁵ | PN351 dev748 launch variant verified in the LIVE container file; window accept 0.744 = 687/924 (floor 0.55 PASS) |
+| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | dev748⁴ | 120 s | 39/0 | ✓² | 7/7 | n/a² | diffusion lane — AR decode metrics not applicable; tool-calls confirmed WORKING on dev748 (the 07-04 table said n/a — never exercised) |
 
 ¹ 27B thinking mode loops (known club-3090 #226 model trait, pre-existing);
 chat validated with `enable_thinking:false`, tool-agent workload unaffected.
@@ -60,7 +66,28 @@ chat validated with `enable_thinking:false`, tool-agent workload unaffected.
 meaningless for block-parallel diffusion generation.
 ³ Pin not verifiable for the 27B TQ row: the bench JSON's fingerprint probe
 timed out and the run predates the dev748 gate window — treated as
-unattributed rather than claimed.
+unattributed rather than claimed. Not part of the 2026-07-05 re-run
+(only the four digest-poisoned lanes were re-run).
+⁴ 2026-07-05 re-run on verified dev748 (in-container
+`vllm.__version__ = 0.23.1rc1.dev748+g2dfaae752` + bench-JSON
+`system_fingerprint` per lane), after the `image_digest` fix.
+⁵ 31B dev748 TPOT 9.42 ms (CV 0.233) vs dev714 11.51 ms (CV 0.18): both
+arms are above the 0.12 "A/B unreliable" CV bar — the delta is within CV,
+**no gain claim**. The lane's ctx-scaling stage printed DEGRADED (endpoint
+ratio 0.439) with a cold Triton JIT compile observed mid-sweep — flagged
+for a warm-cache re-check before any regression claim is made.
+
+### Original 2026-07-04 rows for the re-run lanes (dev714, labeled reference)
+
+The digest-poisoned first-pass numbers, kept as the apples-to-apples
+dev714 reference (mini-bench, same rig/method):
+
+| Model (preset) | Pin | decode_TPOT | Accept (window) | Note |
+| --- | :-: | ---: | :-: | --- |
+| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | dev714 | 4.10 ms (231.2 t/s) | 0.627 | parity within CV vs the dev748 re-run |
+| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | dev714 | 7.12 ms (~140 t/s) | n/a | parity vs dev748 7.09 ms |
+| Gemma 4 31B AWQ (kvauto-chat, +PN351) | dev714 | 11.51 ms (CV 0.18) | 0.728 | within CV of the dev748 re-run (both arms noisy) |
+| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | dev714 | n/a | n/a | tool-call never exercised in this pass |
 
 Not swept: the two DFlash lanes (presets archived to
 `presets/_archive/` pending re-validation — restore to reproduce),

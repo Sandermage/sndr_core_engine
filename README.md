@@ -35,7 +35,7 @@
 [How it works](#how-it-works) ·
 [The platform end-to-end](#what-the-platform-does-end-to-end) ·
 [Headline numbers](#headline-numbers-v1200-current-registry) ·
-[Fleet validation](#validated-across-the-fleet--7-models-2026-07-04-window-per-row-pins) ·
+[Fleet validation](#validated-across-the-fleet--7-models-dev748-2026-07-04-window--2026-07-05-re-run) ·
 [Persistent memory](#persistent-memory--neural-graph-new-in-v12) ·
 [Pick your path](#pick-your-path) ·
 [Install & run](#install--run) ·
@@ -223,7 +223,7 @@ CI gates:
 | **Pin lifecycle** | Three tracked slots — **current** / **rollback** / **stable** — with [`sndr/pins.yaml`](sndr/pins.yaml) as the single source of truth. `make bump-pin NEW=<pin>` (now with a `--sha-full` flag for the full commit SHA) propagates the string into every downstream artifact, and `audit_pin_consistency` fails loudly on a half-finished bump. Worked example — the dev714 → dev748 promotion (2026-07-04): preflight re-anchor → boot gate (fleet-wide apply `failed=0`) → bench gate (242.5 t/s — parity within CV vs same-day dev714, no regression) → receipts → tag rotation. |
 | **Bench suite** | `tools/genesis_bench_suite.py` — the tool-call battery (thinking + non-thinking, multi-tool, error-recovery, denial), single-stream decode with CV methodology (n=25, CV reported with every number), an MTP accept-rate floor check (0.55), the **new ctx-scaling linearity stage** (`[5d/8]`, flags `--ctx-scale*`) that catches long-context decode cliffs, and an agentic multi-turn depth bench (12-turn tool-chains to 39K prompt tokens). |
 | **Interfaces** | GUI **Control Center** ([`docs/GUI.md`](docs/GUI.md)) · terminal **TUI** ([`docs/TUI.md`](docs/TUI.md)) · `sndr` **CLI** ([`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md)) — all driving the same product API: launch presets, live patch summary, benches, remote hosts, memory graph. |
-| **Model fleet** | Qwen3.6 **27B** (INT4 hybrid GDN+Mamba) and **35B** (AWQ / FP8 MoE), Gemma 4 **26B** and **31B**, and **DiffusionGemma 26B** (block-diffusion MoE) — all seven launchable lanes validated `failed=0` in the 2026-07-04 sweep (per-lane pin labels in the fleet table below). |
+| **Model fleet** | Qwen3.6 **27B** (INT4 hybrid GDN+Mamba) and **35B** (AWQ / FP8 MoE), Gemma 4 **26B** and **31B**, and **DiffusionGemma 26B** (block-diffusion MoE) — all seven launchable lanes validated `failed=0` in the 2026-07-04 sweep, with the four digest-poisoned lanes re-validated on verified dev748 in the 2026-07-05 re-run (per-lane pin labels in the fleet table below). |
 | **Memory** | The persistent neural-graph memory subsystem — one CPU container that gives any OpenAI-compatible model recall + decay/reinforcement (own section below; full manual in [`docs/memory/MANUAL.md`](docs/memory/MANUAL.md)). |
 
 ## Headline numbers (v12.0.0 current registry)
@@ -281,8 +281,10 @@ historical comparisons, and per-rig reproduction recipes:
 > operators who prefer release pins over nightlies. `sndr/pins.yaml` is the
 > single source of truth for all three. dev748 was promoted 2026-07-04
 > through the full playbook chain — preflight re-anchor → boot gate (apply
-> `failed=0` across the whole 7-model fleet, with the per-lane pin caveat
-> in the fleet table below) → bench gate (242.5 t/s wall — parity within
+> `failed=0` across the whole 7-model fleet; four lanes initially booted
+> the dev714 rollback engine via a stale `image_digest` and were re-run
+> on verified dev748 on 2026-07-05 — see the fleet table below) → bench
+> gate (242.5 t/s wall — parity within
 > CV vs the same-day dev714 run, no regression; tool-call 7/7) → receipts → tag
 > rotation — see [`docs/PIN_BUMP_PLAYBOOK.md`](docs/PIN_BUMP_PLAYBOOK.md)
 > (canonical) and [`docs/ANCHOR_SOT.md`](docs/ANCHOR_SOT.md). The per-model
@@ -290,27 +292,30 @@ historical comparisons, and per-rig reproduction recipes:
 > context and labeled with its pin; the fresh dev748 headline above
 > supersedes it for the 35B PROD stack.
 
-### Validated across the fleet — 7 models (2026-07-04 window; per-row pins)
+### Validated across the fleet — 7 models (dev748; 2026-07-04 window + 2026-07-05 re-run)
 
 The works-everywhere proof the project leans on: during the dev748
 promotion window **every launchable model in the catalog** was booted
 sequentially (2× RTX A5000, TP=2), smoke-tested and mini-benched — and
 **all seven applied their patch sets with `failed=0`**. Post-release
-audit correction (2026-07-05): rows marked * booted the **dev714
+audit (2026-07-05): four lanes had initially booted the **dev714
 rollback engine** (a stale hardware `image_digest` beat the dev748 tag
-at render; digest + gate since fixed), so their numbers are dev714
-numbers. Accept rates are bench-window rates. Condensed from the full
-sweep table in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md):
+at render; digest + gate since fixed) — those four were **re-run on
+verified dev748 on 2026-07-05** (per-lane in-container version + bench
+fingerprint checks), and the table shows the re-run numbers. Accept
+rates are bench-window rates. Condensed from the full sweep table (with
+the labeled dev714 first-pass rows) in
+[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md):
 
-| Model | Decode | Tool-call | Note |
-| --- | ---: | :-: | --- |
-| Qwen3.6-35B-A3B AWQ (PROD) | **242.5 t/s** | 7/7 | promotion gate on dev748, full canonical suite |
-| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | 231.2 t/s | ✓ | canonical `sndr launch` path; window accept 0.627 * |
-| Qwen3.6-27B INT4 TQ k8v4 (+PN520) | ~130 t/s | ✓ | PN520 loader fix — INT4 degeneration cured (pin unattributed: fingerprint probe timed out) |
-| Qwen3.6-27B INT4 fp8kv (+P100) | ~108 t/s | — | P100 FlashInfer spec-decode runtime-validated on dev748 |
-| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | ~140 t/s | ✓ | TPOT 7.12 ms * |
-| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | ~87 t/s | ✓ | PN351 re-anchor on head_dim=512; window accept 0.728 * |
-| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | n/a | n/a | diffusion lane boots + responds; AR decode metrics not applicable * |
+| Model | Pin | Decode | Tool-call | Note |
+| --- | :-: | ---: | :-: | --- |
+| Qwen3.6-35B-A3B AWQ (PROD) | dev748 | **242.5 t/s** | 7/7 | promotion gate 2026-07-04, full canonical suite |
+| Qwen3.6-35B-A3B FP8 (`prod-qwen3.6-35b-balanced`) | dev748 | 223.9 t/s | 7/7 | canonical `sndr launch` path; window accept 0.621; parity within CV vs dev714 (231.2) |
+| Qwen3.6-27B INT4 TQ k8v4 (+PN520) | n/v | ~130 t/s | ✓ | PN520 loader fix — INT4 degeneration cured (pin unattributed: fingerprint probe timed out) |
+| Qwen3.6-27B INT4 fp8kv (+P100) | dev748 | ~108 t/s | — | P100 FlashInfer spec-decode runtime-validated on dev748 |
+| Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | dev748 | ~141 t/s | 7/7 | TPOT 7.09 ms (parity vs dev714 7.12) |
+| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | dev748 | TPOT 9.42 ms | 7/7 | PN351 dev748 launch variant verified in the live container; window accept 0.744; within CV of dev714 (both arms noisy — no gain claim) |
+| DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | dev748 | n/a | 7/7 | diffusion lane boots + responds; AR decode metrics not applicable; tool-calls newly confirmed working on dev748 |
 
 (27B thinking mode loops — a known pre-existing model trait; chat is
 validated with `enable_thinking:false` and the tool-agent workload is
@@ -326,8 +331,10 @@ the PN520 loader revert routes all 96 `in_proj_ba` shards correctly, and
 the degeneration is **cured** (coherent chat + tool calls in the sweep
 above). In the same window, `P100` (FlashInfer FULL-CG spec-decode) was
 runtime-validated on the fp8kv lane — coherent generation, 0 errors — and
-`PN351`'s dev748 anchor variant was applied and validated on the
-head_dim=512 Gemma 4 31B.
+`PN351`'s dev748 anchor variant was battle-validated on the head_dim=512
+Gemma 4 31B in the 2026-07-05 re-run: the applied variant was read back
+from the live dev748 container file, and the lane served chat + 7/7
+tool-calls with window accept 0.744.
 
 ### Validated rig baseline — 2026-06-19 (measured on pin `0.23.1rc1.dev148+gb4c80ec0f`)
 
