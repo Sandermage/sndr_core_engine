@@ -1,6 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """G4_26 — backport the TP-correctness half of OPEN vllm PR #45774.
 
+RETIRED 2026-07-05 (lifecycle: retired, capped <0.23.1rc1.dev672):
+superseded by vllm#46177 (MERGED 2026-06-26, merge commit 701a23d99),
+which added native DiffusionGemma TP support via a DIFFERENT approach
+(local-shard soft-embed + torch.ops.vllm.all_reduce; sampler sc_vocab_
+start/end) — deep-diff outcome (c) supersession. Anchor byte-verified
+GONE in dev672/dev714/dev748. Do NOT re-vendor (the OPEN mega-PR
+#47462 rewrites this territory again — see upstream_watchlist).
+
 ================================================================
 PURPOSE
 ================================================================
