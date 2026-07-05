@@ -88,7 +88,7 @@ def _build_merged_form(pin_src: str) -> str:
     )
     # Inject the upstream store one-liner near the producer insertion point
     # so the second drift marker is present in the merged form too.
-    merged = merged.replace(
+    return merged.replace(
         "    return recovered_token_ids\n",
         "    return recovered_token_ids\n"
         "\n\n"
@@ -101,7 +101,6 @@ def _build_merged_form(pin_src: str) -> str:
         "    tl.store(target_lse_ptr + row, m + tl.log(s))\n",
         1,
     )
-    return merged
 
 
 def _install_fake(tmp_path, monkeypatch, sampler_text):
@@ -110,7 +109,7 @@ def _install_fake(tmp_path, monkeypatch, sampler_text):
     monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
     # apply() is dispatcher-gated (opt-in env flag, registry-driven) —
     # force the gate open for unit tests of the patch mechanics.
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -230,7 +229,7 @@ class TestApply:
         target = tmp_path / "rejection_sampler.py"
         target.write_text(pin_src, encoding="utf-8")
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
         )
@@ -243,7 +242,7 @@ class TestApply:
 
     def test_apply_skips_when_target_missing(self, monkeypatch):
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: None)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (True, "test override")
         )
@@ -275,7 +274,7 @@ class TestDriftMarkerSelfCollision:
     def test_markers_match_45369_merged_form(self, monkeypatch, pin_src):
         """Markers must actually fire on the real merged form."""
         merged = _build_merged_form(pin_src)
-        patcher = m._make_patcher() if PIN_FILE.is_file() else None
+        m._make_patcher() if PIN_FILE.is_file() else None
         # _make_patcher needs a resolvable target; build directly off the
         # pin file so the markers list is real.
         markers = list(m._DRIFT_MARKERS)

@@ -59,7 +59,7 @@ from tests.unit.integrations.offload._pn383_fixture_regions import (
 
 def _pn383():
     from sndr.engines.vllm.patches.offload import (
-        pn383_offload_mtp_eagle_gate as M,
+        pn383_offload_mtp_eagle_gate as M,  # noqa: N812
     )
     return M
 
@@ -169,7 +169,7 @@ def _fake_spec(layer_names_per_group, *, use_eagle=True, eagle_flags=None):
         types.SimpleNamespace(
             layer_names=names, kv_cache_spec=None, is_eagle_group=flag
         )
-        for names, flag in zip(layer_names_per_group, flags)
+        for names, flag in zip(layer_names_per_group, flags, strict=False)
     ]
     speculative_config = (
         types.SimpleNamespace(use_eagle=lambda: True) if use_eagle else None

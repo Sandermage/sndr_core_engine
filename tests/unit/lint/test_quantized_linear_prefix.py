@@ -121,9 +121,9 @@ def find_quantized_linear_without_prefix(path: Path) -> list[str]:
             self.generic_visit(node)
             self.scope.pop()
 
-        visit_ClassDef = _scoped
-        visit_FunctionDef = _scoped
-        visit_AsyncFunctionDef = _scoped
+        visit_ClassDef = _scoped  # noqa: N815
+        visit_FunctionDef = _scoped  # noqa: N815
+        visit_AsyncFunctionDef = _scoped  # noqa: N815
 
         def visit_Call(self, node: ast.Call) -> None:
             name = None

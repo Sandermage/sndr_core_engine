@@ -52,7 +52,7 @@ UPSTREAM_44955_MERGED_CONDITION = (
 
 def _pn373():
     from sndr.engines.vllm.patches.serving import (
-        pn373_parallel_toolcalls_null as M,
+        pn373_parallel_toolcalls_null as M,  # noqa: N812
     )
     return M
 

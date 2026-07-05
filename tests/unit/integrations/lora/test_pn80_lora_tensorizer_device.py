@@ -13,7 +13,9 @@ from __future__ import annotations
 
 
 def _wiring():
-    from sndr.engines.vllm._archive import pn80_lora_tensorizer_device as M
+    from sndr.engines.vllm._archive import (
+        pn80_lora_tensorizer_device as M,  # noqa: N812
+    )
     return M
 
 

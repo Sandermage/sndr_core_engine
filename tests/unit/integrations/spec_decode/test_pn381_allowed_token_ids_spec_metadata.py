@@ -56,7 +56,7 @@ PIN_INPUT_BATCH = PIN_TREE / "v1" / "worker" / "gpu_input_batch.py"
 
 def _pn381():
     from sndr.engines.vllm.patches.spec_decode import (
-        pn381_allowed_token_ids_spec_metadata as M,
+        pn381_allowed_token_ids_spec_metadata as M,  # noqa: N812
     )
     return M
 
@@ -228,7 +228,7 @@ class TestEndToEndApply:
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
         from sndr.kernel import TextPatchResult
 
-        M = _pn381()
+        _pn381()
         merged = _fake_pristine_input_batch().replace(
             "            or thinking_budget_tracks_reqs\n",
             "            or thinking_budget_tracks_reqs\n"

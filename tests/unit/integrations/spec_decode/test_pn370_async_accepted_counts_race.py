@@ -66,14 +66,14 @@ from pathlib import Path
 
 def _pn370():
     from sndr.engines.vllm.patches.spec_decode import (
-        pn370_async_accepted_counts_race as M,
+        pn370_async_accepted_counts_race as M,  # noqa: N812
     )
     return M
 
 
 def _pn341():
     from sndr.engines.vllm.patches.attention.gdn import (
-        pn341_mtp_decode_bubbles_gpu_runner as M,
+        pn341_mtp_decode_bubbles_gpu_runner as M,  # noqa: N812
     )
     return M
 

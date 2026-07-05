@@ -55,7 +55,7 @@ PIN_CONNECTOR = (
 
 def _pn382():
     from sndr.engines.vllm.patches.kv_cache import (
-        pn382_decode_bench_hybrid_fill as M,
+        pn382_decode_bench_hybrid_fill as M,  # noqa: N812
     )
     return M
 
@@ -262,7 +262,7 @@ class FakeIndex:
         return [i < bound for i in self.ids]
 
     def __getitem__(self, mask):
-        return FakeIndex([i for i, m in zip(self.ids, mask) if m])
+        return FakeIndex([i for i, m in zip(self.ids, mask, strict=False) if m])
 
     def __len__(self):
         return len(self.ids)

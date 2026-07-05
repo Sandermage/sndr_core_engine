@@ -150,7 +150,7 @@ def test_p87_sub_patch_names_complete():
 # ─── Anchor / replacement integrity ──────────────────────────────────────
 
 
-@pytest.mark.parametrize("old,new,label", [
+@pytest.mark.parametrize(("old", "new", "label"), [
     (P87_IMPORTS_OLD, P87_IMPORTS_NEW, "imports"),
     (P87_LOGGER_OLD, P87_LOGGER_NEW, "logger_round_up"),
     (P87_CAN_IMPLEMENT_OLD, P87_CAN_IMPLEMENT_NEW, "can_implement_dev259"),
@@ -169,7 +169,7 @@ def test_p87_anchors_nonempty_and_replacements_differ(old, new, label):
     assert old != new, f"{label}: replacement equals anchor (no-op patch)"
 
 
-@pytest.mark.parametrize("new,label", [
+@pytest.mark.parametrize(("new", "label"), [
     (P87_IMPORTS_NEW, "imports"),
     (P87_LOGGER_NEW, "logger_round_up"),
     (P87_CAN_IMPLEMENT_NEW, "can_implement_dev259"),

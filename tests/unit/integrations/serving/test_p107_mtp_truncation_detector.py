@@ -9,7 +9,9 @@ from tests.unit.anchor_sot._pin_manifest_assert import (
 
 
 def _wiring():
-    from sndr.engines.vllm.patches.serving import p107_mtp_truncation_detector as M
+    from sndr.engines.vllm.patches.serving import (
+        p107_mtp_truncation_detector as M,  # noqa: N812
+    )
     return M
 
 
@@ -157,7 +159,9 @@ def test_anchors_byte_exact_mutually_exclusive_per_pin():
 
 def test_idempotent_on_synthetic(tmp_path):
     from sndr.kernel.text_patch import (
-        TextPatch, TextPatcher, TextPatchResult,
+        TextPatch,
+        TextPatcher,
+        TextPatchResult,
     )
     M = _wiring()
     target = tmp_path / "serving.py"
