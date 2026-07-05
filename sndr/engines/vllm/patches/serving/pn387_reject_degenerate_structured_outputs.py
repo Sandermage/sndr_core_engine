@@ -195,7 +195,7 @@ def _make_patcher() -> TextPatcher | None:
     )
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply PN387 — reject degenerate structured_outputs. Never raises.
 
     This is the SINGLE registry entrypoint for both PN387 layers. It

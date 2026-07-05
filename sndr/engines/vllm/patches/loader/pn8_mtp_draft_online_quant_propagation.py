@@ -219,7 +219,7 @@ def _make_patcher() -> TextPatcher | None:
     )
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply PN8 — MTP/draft online-quant propagation (text-patch)."""
     from sndr.dispatcher import log_decision, should_apply
 
