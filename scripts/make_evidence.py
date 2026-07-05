@@ -39,7 +39,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -291,7 +290,7 @@ def _run_gate(gate: Gate, *, timeout_s: int = 180) -> GateResult:
         proc = subprocess.run(
             ["make", "--no-print-directory", gate.make_target],
             cwd=REPO_ROOT,
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
             timeout=timeout_s,
         )
         exit_code = proc.returncode
