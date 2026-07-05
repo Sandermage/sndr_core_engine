@@ -48,6 +48,10 @@ os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
 from sndr.engines.vllm.patches.kv_cache import (  # noqa: E402
     pn346b_mamba_mtp_apc_coordinator_clamp as m,
 )
+from tests.unit.anchor_sot._pin_manifest_assert import (  # noqa: E402
+    assert_anchor_recorded,
+    assert_replacement_recorded,
+)
 
 # ── Fake coordinator targets ─────────────────────────────────────────
 # dev491-form (g1033ffac2): byte-faithful copy of the anchor region in
@@ -123,8 +127,6 @@ MERGED_COORDINATOR = DEV491_COORDINATOR.replace(
     "                curr_hit_length = _new_hit_length\n",
     "                curr_hit_length = min(curr_hit_length, _new_hit_length)\n",
 ).replace("(pin g1033ffac2 / dev491 form)", "(post-vllm#45614 merged form)")
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/core")
 
 # dev424-form (g3f5a1e173): byte-faithful copy of BOTH the clamp anchor
 # region AND the post-loop full-attention truncation block in
@@ -452,27 +454,31 @@ class TestMambaGroupPostTrimBelt:
         assert "MambaSpec" not in out
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
+# ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
+# Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
+# byte-checked the anchor against ``/private/tmp/candidate_pin_current``
+# (absent on every CI host -> permanently green-by-skip). MIGRATED here to
+# read the COMMITTED per-pin manifest so it RUNS in CI, and STRENGTHENED to
+# tie the LIVE patcher anchors AND the clamp replacement to the recorded
+# pristine bytes. Recording the OLD anchor (byte-tied, unique at regen) plus
+# ``replacement_md5 == md5(clamp NEW)`` is the CI form of the old
+# ``count(anchor)==1`` + ``"min(curr_hit_length" not in pristine`` pair. The
+# post-trim sub-anchor (unchecked by the old class) is added here.
 
 
-import pytest  # noqa: E402
-
-
-@pytest.mark.skipif(
-    not (PIN_TREE / "kv_cache_coordinator.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_anchor_unique_and_clamp_absent(self):
-        src = (PIN_TREE / "kv_cache_coordinator.py").read_text(
-            encoding="utf-8"
+class TestPn346bInCurrentPinManifest:
+    def test_clamp_anchor_recorded_and_replacement_tied(self):
+        assert_anchor_recorded(
+            "PN346B", "pn346b_coordinator_curr_hit_length_clamp",
+            m.PN346B_ANCHOR_OLD,
         )
-        assert src.count(m.PN346B_ANCHOR_OLD) == 1
-        assert "min(curr_hit_length" not in src
+        assert_replacement_recorded(
+            "PN346B", "pn346b_coordinator_curr_hit_length_clamp",
+            m.PN346B_ANCHOR_NEW,
+        )
 
-    def test_pn346_sibling_file_untouched(self):
-        sibling = PIN_TREE / "single_type_kv_cache_manager.py"
-        if not sibling.is_file():
-            pytest.skip("sibling file absent in this pin")
-        sib_src = sibling.read_text(encoding="utf-8")
-        assert m.PN346B_ANCHOR_OLD not in sib_src
+    def test_mamba_group_post_trim_anchor_recorded(self):
+        assert_anchor_recorded(
+            "PN346B", "pn346b_mamba_group_post_trim",
+            m.PN346B_MAMBA_TRIM_ANCHOR,
+        )

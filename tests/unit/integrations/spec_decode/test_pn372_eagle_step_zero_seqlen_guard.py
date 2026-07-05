@@ -27,8 +27,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
-
 # The lint/preflight tools disable the Layer-0 file cache the same way;
 # unit tests patch fresh tmp files, so the cache must never satisfy
 # apply() from a previous run's state.
@@ -36,6 +34,10 @@ os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
 
 from sndr.engines.vllm.patches.spec_decode import (  # noqa: E402
     pn372_eagle_step_zero_seqlen_guard as m,
+)
+from tests.unit.anchor_sot._pin_manifest_assert import (  # noqa: E402
+    assert_anchor_recorded,
+    assert_replacement_recorded,
 )
 
 # ── Fake targets ─────────────────────────────────────────────────────
@@ -126,8 +128,6 @@ MERGED_UTILS = PIN_UTILS.replace(
     "(pin g303916e93 form)", "(post-vllm#45005 merged form)"
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/spec_decode")
-
 SEQ_LEN_LOAD = "seq_len = tl.load(seq_lens_ptr + req_idx)"
 
 
@@ -140,7 +140,7 @@ def _install_fake(tmp_path, monkeypatch, utils_text):
     monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
     # apply() is dispatcher-gated (opt-in env flag, registry-driven) —
     # force the gate open for unit tests of the patch mechanics.
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -244,7 +244,7 @@ class TestApply:
         target = tmp_path / "utils.py"
         target.write_text(PIN_UTILS, encoding="utf-8")
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: str(target))
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
         )
@@ -257,7 +257,7 @@ class TestApply:
 
     def test_apply_skips_when_target_missing(self, monkeypatch):
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: None)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (True, "test override")
         )
@@ -299,27 +299,24 @@ class TestDriftMarkerSelfCollision:
 # ── Pristine pin invariants (opportunistic) ──────────────────────────
 
 
-@pytest.mark.skipif(
-    not (PIN_TREE / "utils.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_anchors_unique_replacements_and_markers_absent(self):
-        src = (PIN_TREE / "utils.py").read_text(encoding="utf-8")
-        for old, new in (
-            (m.PN372_GUARD_OLD, m.PN372_GUARD_NEW),
-            (m.PN372_DEDUP_OLD, m.PN372_DEDUP_NEW),
+class TestPn372InCurrentPinManifest:
+    # Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
+    # byte-checked the anchors against ``/private/tmp/candidate_pin_current``
+    # (absent on every CI host -> permanently green-by-skip). MIGRATED here to
+    # read the COMMITTED per-pin manifest so it RUNS in CI, and STRENGTHENED to
+    # tie the LIVE patcher anchors + replacements to the recorded pristine
+    # bytes (``merge_status == not_merged`` == drift markers absent). The
+    # fixture-drift trap never needed the pin tree and now runs unconditionally.
+    def test_anchors_recorded_and_replacements_tied(self):
+        for sub, old, new in (
+            ("pn372_zero_seqlen_guard", m.PN372_GUARD_OLD, m.PN372_GUARD_NEW),
+            ("pn372_seq_len_load_dedup", m.PN372_DEDUP_OLD, m.PN372_DEDUP_NEW),
         ):
-            assert src.count(old) == 1
-            assert new not in src
-        for dm in m._DRIFT_MARKERS:
-            assert dm not in src
+            assert_anchor_recorded("PN372", sub, old)
+            assert_replacement_recorded("PN372", sub, new)
 
-    def test_fixture_anchor_regions_byte_match_pristine(self):
-        """The fake pin-form fixture must carry the EXACT anchor bytes
-        from the pristine tree, so apply-tests exercise real anchors."""
-        src = (PIN_TREE / "utils.py").read_text(encoding="utf-8")
+    def test_fixture_anchor_regions_present(self):
+        """The fake pin-form fixture must carry the EXACT anchor bytes so the
+        apply-tests exercise real anchors (fixture-drift trap)."""
         assert m.PN372_GUARD_OLD in PIN_UTILS
         assert m.PN372_DEDUP_OLD in PIN_UTILS
-        assert m.PN372_GUARD_OLD in src
-        assert m.PN372_DEDUP_OLD in src
