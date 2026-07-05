@@ -1348,4 +1348,74 @@ sweep:
     checklist + rationale: docs/PR45413_QWEN3_PARSER_DEEPDIFF_PREP.md.
     review-on-merge is advisory and intentionally NOT registry-bound, so this prep row records the decision
     inputs the mechanical drift detector cannot infer; it does NOT pre-commit any retire/keep outcome.'
+- pr: 42890
+  genesis_patch: G4_60E
+  trigger: review-on-merge
+  note: 'NEXT-BUMP BOOT-BLOCKER SOURCE (deep-studied 2026-07-05; MERGED 2026-07-04T02:29Z — AFTER the
+    dev748 cut 2026-07-03T04:11Z, so NOT in dev748; verified by pristine-tree grep on the rig:
+    attn_utils.py has no KVQuantMode.NONE conditional, line 308 passes cache_dtype_str=cache_dtype
+    straight through). #42890 (kv_cache_dtype_skip_layers) makes the v1 reshape pass
+    cache_dtype_str="auto" whenever kv_quant_mode == KVQuantMode.NONE; TurboQuant dtypes map to
+    KVQuantMode.NONE while TQFullAttentionSpec still needs the real turboquant_k8v4 string for the
+    backend shape -> engine startup ValueError "Unknown TurboQuant cache dtype: auto" = HARD BOOT FAIL
+    on --kv-cache-dtype turboquant_k8v4. BOTH heavy lanes run TQ k8v4 (27B INT4 TQ k8v4+PN520 ~130 t/s;
+    35B where TQ k8v4 = +11.3% TPS), so ANY pin cut after 2026-07-04 is a boot-blocker unless the fix
+    #47609 (see its own row) is also in the pin. Mechanical detection: UPSTREAM_MARKERS
+    PR_42890_kv_skip_layers_cache_dtype_auto fires newly_merged on the carrying pin. SECONDARY impact
+    bound to G4_60E: sndr/engines/vllm/patches/attention/turboquant/g4_60e_kv_cache_utils.py (vendor of
+    OPEN vllm#45181) runtime-wraps vllm.v1.worker.gpu.attn_utils._reshape_kv_cache and carries a vendored
+    MIRROR of its logic ("Mirror gpu/attn_utils._reshape_kv_cache") — when #42890 (+#47609) enters the
+    pin that mirror is STALE and G4_60E must be re-studied (gemma4 padded-page lanes). No Genesis patch
+    text-anchors attn_utils.py, so no anchor drift; the wrapped function SEMANTICS change.'
+- pr: 47609
+  genesis_patch: 'planned: TQ cache-dtype preservation backport (attention.turboquant) — only if still
+    unmerged at bump time'
+  trigger: review-on-merge
+  note: 'PIN-BUMP PREFLIGHT GATE ITEM (deep-studied 2026-07-05; OPEN, author LucasWilkinson = maintainer,
+    labels bug/ready -> likely merges). Fix for the #42890 TQ boot-blocker (see the #42890 row): adds
+    "and not isinstance(kv_cache_spec, TQFullAttentionSpec)" to the two KVQuantMode.NONE conditionals in
+    vllm/v1/worker/gpu/attn_utils.py (_reshape_kv_cache + _update_hybrid_attention_layout), 6 lines.
+    NOT needed on dev748 (the #42890 region does not exist there — verified on the pristine rig tree).
+    AT BUMP TIME, for any candidate pin cut after 2026-07-04: (1) gh pr view 47609 — if MERGED and in the
+    candidate, nothing to do beyond the G4_60E mirror re-study; (2) if still UNMERGED, the candidate
+    HARD-FAILS BOOT on turboquant_k8v4 lanes — backport as a NEW attention.turboquant patch anchored on
+    the two "layer_cache_dtype = (" sites (BOTH sites needed; anchors structural; dual-variant NOT
+    required since dev748 lacks the region entirely — the patch is next-pin-only with a lower
+    vllm_version_range bound). Mechanical detection: UPSTREAM_MARKERS PR_47609_tq_cache_dtype_preserved
+    fires newly_merged when the fix lands in a candidate tree.'
+- pr: 47611
+  genesis_patch: watch-only
+  trigger: review-on-merge
+  note: 'IRRELEVANT TO GENESIS (deep-studied 2026-07-05; OPEN). Handles older FlashInfer wheels lacking
+    the gemm1_alpha/gemm1_beta/gemm1_clamp_limit kwargs that #45723 (MERGED 2026-07-01, IS in dev748 —
+    verified unconditional gemm1_alpha= at trtllm_fp8_moe.py:234/405 in the pristine tree) passes
+    unconditionally -> TypeError at startup on old FlashInfer (nightly CI: gpt-oss-20b 0.0 accuracy,
+    Qwen3-30B FP8 startup timeouts). Fix = functools.cache-d inspect.signature probe; narrower
+    alternative to the wholesale draft revert #47431 (OPEN). Dormant on our rig despite the regression
+    source being in dev748: the TrtLlmFp8Experts dispatch is gated is_device_capability_family(100) +
+    has_flashinfer_trtllm_fused_moe() (trtllm_fp8_moe.py:98-99) = Blackwell SM100 only; 2x A5000 = SM86
+    never selects it. Our FP8 35B alt lane runs FP8 Marlin MoE (MarlinExpertsBase, PN352B registry
+    evidence); 35B PROD is AWQ Marlin; no Genesis patch touches trtllm_fp8_moe.py (grep clean). No
+    backport, no watch burden unless Blackwell hardware arrives.'
+- pr: 47593
+  genesis_patch: P24
+  trigger: review-on-merge
+  note: 'IRRELEVANT TO CURRENT STACK, ANCHOR-AUDITED (deep-studied 2026-07-05; OPEN). Changes
+    get_default_config fp8_w8a8 block-quant [128,128] BLOCK_SIZE_M rule "M<=64" -> "M<=64 or
+    M*topk<16*E" (keep the 16-row tile while the avg expert sees <1 full tile), CUDA-only; ROCm +
+    batched per-expert-M callers keep the old rule via a new m_is_per_expert plumb. Benched geomean
+    1.295x on H20 / 1.015x on 4090D at M=96-768 for high-E MoEs. NOT in dev748 (fused_moe.py:1285 still
+    has the raw rule). The rewritten branch NEVER EXECUTES on our rig: Ampere FP8 MoE dispatches to FP8
+    Marlin (not the triton fp8_w8a8 block branch); 35B PROD is AWQ/wna16-Marlin; G4 26B WNA16 MoE uses
+    the int4_w4a16 branch (untouched, already keys on M*topk via should_moe_wna16_use_cuda); decode M at
+    max_num_seqs=2 sits under the unchanged M<=64 floor anyway. ANCHOR COLLISION AUDIT: P24 anchor-1
+    (_OLD_FP8_CFG) targets the EXACT line #47593 rewrites, but that anchor is ALREADY dead on dev748
+    (pre-existing #46642-era refactor drift: "BLOCK_SIZE_N: block_shape[0]" -> block_n; anchor is
+    required=False so it soft-skips today); only P24 anchor-2 (general branch) applies and #47593 does
+    NOT touch that region. PN377 (_ensure_block_size_k_divisible, wna16 branch) disjoint. Net: if
+    #47593 merges, ZERO additional drift. HOUSEKEEPING (pre-existing): P24 fp8-branch num_warps overlay
+    is a silent no-op on dev748 — re-anchor only if the fp8 triton MoE branch ever becomes live for us
+    (on Marlin lanes it is dormant by design, P24 docstring). Idea-family overlap with P81 (backport of
+    OPEN vllm#40925 — same small-M-tile-for-decode reasoning but for the DENSE
+    w8a8_triton_block_scaled_mm kernel, different file) = outcome (c) different problem, both keep.'
 __sentinel__: complete
