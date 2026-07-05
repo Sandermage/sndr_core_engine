@@ -2,6 +2,14 @@
 """Wiring for Patch N379 — DefaultModelLoader / LoadConfig fail-fast
 validation (vendor of OPEN vllm#45196).
 
+RETIRED 2026-07-05 (lifecycle: retired, capped <0.23.1rc1.dev714):
+vllm#45196 MERGED 2026-06-17 and all three vendored guard classes are
+native in pristine dev748 (SafetensorsLoadStrategy Literal + load_format
+validator in config/load.py; extra-config ValueErrors and the
+multithread/strategy reject in default_loader.py:75-128). The static
+pre-deploy mirror in scripts/audit_config_keys.py is repo-side and keeps
+working. Kept for reference.
+
 ================================================================
 Source PR
 ================================================================
@@ -341,7 +349,7 @@ def _make_default_loader_patcher(
     )
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply PN379 atomically across config/load.py + default_loader.py.
 
     All six sub-patches or none — a Literal annotation without the

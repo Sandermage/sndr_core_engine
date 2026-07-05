@@ -4,7 +4,7 @@
 > Source of truth: `sndr/dispatcher/registry.py`.
 > Companion to curated [PATCHES.md](PATCHES.md) (which has narrative + tombstones + engine boundary discussion).
 
-Generated: 2026-07-04T22:46:13Z
+Generated: 2026-07-05T01:59:58Z
 Total entries: **325**
 
 ## Statistics
@@ -14,10 +14,10 @@ Total entries: **325**
 
 ### By lifecycle
 - `lifecycle=coordinator`: **4**
-- `lifecycle=experimental`: **233**
+- `lifecycle=experimental`: **225**
 - `lifecycle=legacy`: **28**
 - `lifecycle=research`: **3**
-- `lifecycle=retired`: **43**
+- `lifecycle=retired`: **51**
 - `lifecycle=stable`: **14**
 
 ### Default-on at boot: **56** / 325
@@ -165,7 +165,7 @@ Total entries: **325**
 | **G4_70B** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259B_FAIL_FAST` | — | PN259-B fail-fast guard on mixed-allocator KV layout mismatch |
 | **G4_70C** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_70_PN259C_ROUTE_B` | — | PN259-C Route B split allocator for mixed TQ/native KV layout |
 | **G4_79** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_79_TQ_MM_PREFIX` | — | TQ backend supports_mm_prefix for Gemma 4 MM (0.22.1 validity-gate unblock, m... |
-| **G4_80** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_80_FP8E5M2_KV` | [#45040](https://github.com/vllm-project/vllm/pull/45040) | Allow fp8_e5m2 KV cache for weight-only quantized checkpoints (vllm#45040) |
+| **G4_80** | `community` | `retired` | · | `GENESIS_ENABLE_G4_80_FP8E5M2_KV` | [#45040](https://github.com/vllm-project/vllm/pull/45040) | Allow fp8_e5m2 KV cache for weight-only quantized checkpoints (vllm#45040) |
 | **G4_81** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_81_TQ_MQ_DIRECT_ROUTE` | [#45144](https://github.com/vllm-project/vllm/pull/45144) | TQ multi-query DIRECT decode routing for Gemma-4-31B MTP (vllm#45144 blueprint) |
 | **G4_82** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_82_TQ_PREFILL_SDPA_HEADDIM` | [#38887](https://github.com/vllm-project/vllm/pull/38887) | TQ prefill SDPA fallback for head_dim>256 (Ampere FA2 256-cap, vllm#38887) |
 | **P18B_TEXT** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_P18B_TEXT` | — | TurboQuant decode stage1 kernel-literal tune (TEXT-PATCH) |
@@ -243,7 +243,7 @@ Total entries: **325**
 | **PN25** | `community` | `experimental` | · | `GENESIS_ENABLE_PN25_SILU_INDUCTOR_SAFE` | — | SiluAndMul.forward_native opaque-op pool (Cliff 1 mech B compile path) |
 | **PN28** | `community` | `experimental` | · | `GENESIS_ENABLE_PN28_MERGE_ATTN_NAN_GUARD` | [#39148](https://github.com/vllm-project/vllm/pull/39148) | merge_attn_states NaN guard (vllm#39148 backport) |
 | **PN64** | `community` | `research` | · | `GENESIS_ENABLE_PN64` | — | Marlin MoE per-SM tuning placeholder for SM 12.0 (consumer Blackwell) |
-| **PN362** | `community` | `experimental` | · | `GENESIS_ENABLE_PN362` | [#42425](https://github.com/vllm-project/vllm/pull/42425) | Triton autotune determinism — VLLM_TRITON_FORCE_FIRST_CONFIG (vendor of vllm#... |
+| **PN362** | `community` | `retired` | · | `GENESIS_ENABLE_PN362` | [#42425](https://github.com/vllm-project/vllm/pull/42425) | Triton autotune determinism — VLLM_TRITON_FORCE_FIRST_CONFIG (vendor of vllm#... |
 | **P23_WIRE** | `community` | `experimental` | · | `GENESIS_ENABLE_P23_MARLIN_FP32_REDUCE_WIRE` | — | Marlin FP32_REDUCE env wire (P23 companion, fix-wire 2026-06-04) |
 
 ### `kv_cache` (16)
@@ -273,7 +273,7 @@ Total entries: **325**
 |---|---|---|:---:|---|:---:|---|
 | **PN8** | `community` | `retired` | · | `GENESIS_ENABLE_PN8_MTP_DRAFT_ONLINE_QUANT` | [#40849](https://github.com/vllm-project/vllm/pull/40849) | MTP/draft online-quant propagation (vllm#40849) |
 | **PN61** | `community` | `experimental` | · | `GENESIS_ENABLE_PN61` | — | qwen3_vl loader KeyError → text-only auto-fallback (vllm-loader guard) |
-| **PN379** | `community` | `experimental` | · | `GENESIS_ENABLE_PN379_LOAD_CONFIG_FAIL_FAST` | [#45196](https://github.com/vllm-project/vllm/pull/45196) | LoadConfig / DefaultModelLoader fail-fast validation (vendor of vllm#45196) |
+| **PN379** | `community` | `retired` | · | `GENESIS_ENABLE_PN379_LOAD_CONFIG_FAIL_FAST` | [#45196](https://github.com/vllm-project/vllm/pull/45196) | LoadConfig / DefaultModelLoader fail-fast validation (vendor of vllm#45196) |
 
 ### `lora` (1)
 
@@ -353,7 +353,7 @@ Total entries: **325**
 | **PN102** | `community` | `experimental` | · | `GENESIS_ENABLE_PN102_PARAM_POOL` | — | PrefetchOffloader pinned-allocator prewarm pool |
 | **PN104** | `community` | `experimental` | · | `GENESIS_ENABLE_PN104_OFFLOAD_PREFETCH_REDIRECT` | — | PN104 — redirect --cpu-offload-gb from UVA to Prefetch backend |
 | **PN105** | `community` | `experimental` | · | `GENESIS_ENABLE_PN105_AUTOROUND_OFFLOAD_COMPAT` | — | PN105 — PrefetchOffloader AutoRound INT4 compat (pin-assert relax) |
-| **PN383** | `community` | `experimental` | · | `GENESIS_ENABLE_PN383_OFFLOAD_MTP_EAGLE_GATE` | [#44784](https://github.com/vllm-project/vllm/pull/44784) | PN383 — KV-offload + MTP cuMemcpyBatchAsync segfault gate (vendor of vllm#447... |
+| **PN383** | `community` | `retired` | · | `GENESIS_ENABLE_PN383_OFFLOAD_MTP_EAGLE_GATE` | [#44784](https://github.com/vllm-project/vllm/pull/44784) | PN383 — KV-offload + MTP cuMemcpyBatchAsync segfault gate (vendor of vllm#447... |
 
 ### `quantization` (8)
 
@@ -416,7 +416,7 @@ Total entries: **325**
 | **PN91** | `community` | `experimental` | · | `GENESIS_ENABLE_PN91_DEVELOPER_ROLE` | — | PN91 — `developer` role pre-render normalizer (OpenAI Responses API compat) |
 | **PN127** | `community` | `experimental` | · | `GENESIS_ENABLE_PN127_AUTO_CHAT_TEMPLATE` | — | Qwen 3.5/3.6 enhanced chat-template auto-install (closes club-3090#53/#72) |
 | **PN288** | `community` | `experimental` | · | `GENESIS_ENABLE_PN288_TOOL_FINISH_REASON_OVERRIDE` | — | qwen3_coder tool_call finish_reason override — Phase B+C with length-band saf... |
-| **PN373** | `community` | `experimental` | · | `GENESIS_ENABLE_PN373_PARALLEL_TOOLCALLS_NULL` | [#44955](https://github.com/vllm-project/vllm/pull/44955) | parallel_tool_calls explicit null != false (vendor of OPEN vllm#44955) |
+| **PN373** | `community` | `retired` | · | `GENESIS_ENABLE_PN373_PARALLEL_TOOLCALLS_NULL` | [#44955](https://github.com/vllm-project/vllm/pull/44955) | parallel_tool_calls explicit null != false (vendor of OPEN vllm#44955) |
 | **PN387** | `community` | `retired` | · | `GENESIS_ENABLE_PN387_REJECT_DEGENERATE_STRUCTURED_OUTPUTS` | [#45346](https://github.com/vllm-project/vllm/pull/45346) | Reject degenerate structured_outputs (DoS guard, vendor of vllm#45346) |
 | **PN389** | `community` | `experimental` | · | `GENESIS_ENABLE_PN389_GRAMMAR_TIMEOUTS` | [#45390](https://github.com/vllm-project/vllm/pull/45390) | XGrammar input-validation + grammar-compilation timeouts (vendor of vllm#45390) |
 
@@ -452,13 +452,13 @@ Total entries: **325**
 | **PN357** | `community` | `experimental` | · | `GENESIS_ENABLE_PN357` | [#43349](https://github.com/vllm-project/vllm/pull/43349) | Optimize remapped greedy draft token selection (vendor of OPEN vllm#43349) |
 | **PN361** | `community` | `experimental` | · | `GENESIS_ENABLE_PN361` | [#44869](https://github.com/vllm-project/vllm/pull/44869) | Spec-decode fail-closed on missing draft probs (vendor of OPEN vllm#44869) |
 | **PN363** | `community` | `experimental` | · | `GENESIS_ENABLE_PN363` | [#43114](https://github.com/vllm-project/vllm/pull/43114) | force_max_spec_tokens for suffix decoding — FULL CG dispatch (vendor of OPEN ... |
-| **PN370** | `community` | `experimental` | · | `GENESIS_ENABLE_PN370_ASYNC_ACCEPT_RACE` | [#45100](https://github.com/vllm-project/vllm/pull/45100) | Async spec-decode accepted-counts race fix (vendor of OPEN vllm#45100) |
+| **PN370** | `community` | `retired` | · | `GENESIS_ENABLE_PN370_ASYNC_ACCEPT_RACE` | [#45100](https://github.com/vllm-project/vllm/pull/45100) | Async spec-decode accepted-counts race fix (vendor of OPEN vllm#45100) |
 | **PN372** | `community` | `experimental` | · | `GENESIS_ENABLE_PN372_EAGLE_ZERO_SEQLEN_GUARD` | [#45005](https://github.com/vllm-project/vllm/pull/45005) | eagle_step zero/negative-seqlen slot-mapping guard (vendor of OPEN vllm#45005) |
 | **PN378** | `community` | `experimental` | · | `GENESIS_ENABLE_PN378_VOCAB_PAD_MASK` | [#45060](https://github.com/vllm-project/vllm/pull/45060) | Recovered-token vocab-pad -inf mask (vendor of vllm#45060, kernel half) |
 | **PN380** | `community` | `experimental` | · | `GENESIS_ENABLE_PN380_MTP_PREFUSED_LOADER` | [#44943](https://github.com/vllm-project/vllm/pull/44943) | Qwen3.5/3.6 MTP pre-fused expert loader + load-coverage guard (vendor of vllm... |
 | **PN381** | `community` | `experimental` | · | `GENESIS_ENABLE_PN381_ALLOWED_TOKEN_IDS_METADATA` | [#44742](https://github.com/vllm-project/vllm/pull/44742) | allowed_token_ids spec-decode metadata hardening (vendor of vllm#44742) |
 | **PN390** | `community` | `experimental` | · | `GENESIS_ENABLE_PN390_STREAMING_LSE_SAMPLER` | [#45369](https://github.com/vllm-project/vllm/pull/45369) | Streaming-LSE rejection sampler — no full-vocab target_probs materialize (ven... |
-| **PN398** | `community` | `experimental` | · | `GENESIS_ENABLE_PN398_ASYNC_ACCEPTED_RACE` | [#45100](https://github.com/vllm-project/vllm/pull/45100) | Async spec-decode accepted-counts race fix (vllm#45100 backport) |
+| **PN398** | `community` | `retired` | · | `GENESIS_ENABLE_PN398_ASYNC_ACCEPTED_RACE` | [#45100](https://github.com/vllm-project/vllm/pull/45100) | Async spec-decode accepted-counts race fix (vllm#45100 backport) |
 | **PN402** | `community` | `experimental` | · | `GENESIS_ENABLE_PN402_SANITIZE_INVALID_DRAFT_TOKENS` | [#46574](https://github.com/vllm-project/vllm/pull/46574) | Sanitize invalid (-1 / over-vocab) MTP draft token ids before batch prep on t... |
 | **G4_05** | `community` | `retired` | · | `GENESIS_ENABLE_G4_05_GEMMA4_DFLASH_BACKEND_AUTOSELECT` | [#39930](https://github.com/vllm-project/vllm/pull/39930) | DFlash drafter backend autoselect (retired — superseded by vllm#39930) |
 | **G4_71** | `community` | `experimental` | · | `GENESIS_ENABLE_G4_71_DRAFTER_NATIVE_BACKEND` | — | Force FlashAttn backend for Gemma 4 MTP drafter Attention layers |
@@ -512,7 +512,7 @@ Total entries: **325**
 | **PN67** | `community` | `retired` | · | `GENESIS_ENABLE_PN67` | [#41674](https://github.com/vllm-project/vllm/pull/41674) | thinking_token_budget inverted-bool fix (vllm#41674 backport, 1-line) |
 | **PN82** | `community` | `retired` | · | `GENESIS_ENABLE_PN82_MAMBA_CUDAGRAPH_PREFILL_ZERO` | [#41873](https://github.com/vllm-project/vllm/pull/41873) | Mamba CUDA-graph stale `is_prefilling` padded rows — vllm#41873 backport (RET... |
 | **PN92** | `community` | `experimental` | · | `GENESIS_ENABLE_PN92_NIXL_EP_TRIAL_IMPORT` | — | "PN92 — nixl_ep/deep_ep/mori trial-import guard (vllm PR |
-| **PN252** | `community` | `experimental` | ✓ | `GENESIS_ENABLE_PN252_MROPE_PROMPT_EMBEDS_DOS` | [#45252](https://github.com/vllm-project/vllm/pull/45252) | M-RoPE prompt_embeds-only DoS fix (vllm#45252 / GHSA-33cg-gxv8-3p8g) |
+| **PN252** | `community` | `retired` | ✓ | `GENESIS_ENABLE_PN252_MROPE_PROMPT_EMBEDS_DOS` | [#45252](https://github.com/vllm-project/vllm/pull/45252) | M-RoPE prompt_embeds-only DoS fix (vllm#45252 / GHSA-33cg-gxv8-3p8g) |
 | **PN292** | `community` | `experimental` | · | `GENESIS_ENABLE_PN292_REVERT_FUSED_MAMBA_POSTPROCESS` | — | Revert PR#40172 fused Triton Mamba postprocess (A11 -18% root cause) |
 | **PN294** | `community` | `experimental` | · | `GENESIS_ENABLE_PN294_UNSPLIT_MTP_ATTN_GROUPS` | [#43543](https://github.com/vllm-project/vllm/pull/43543) | Unsplit MTP draft+target attention groups (vllm#43543 cold-path skip) |
 | **PN517** | `community` | `experimental` | · | `GENESIS_ENABLE_PN517_INIT_SNAPSHOT_BEFORE_NCCL` | [#45517](https://github.com/vllm-project/vllm/pull/45517) | Take init MemorySnapshot before NCCL — asymmetric TP+PP OOM guard + startup_f... |

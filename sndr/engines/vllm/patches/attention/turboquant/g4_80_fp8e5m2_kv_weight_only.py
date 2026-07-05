@@ -1,6 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """G4_80 — allow fp8_e5m2 KV cache for weight-only checkpoints (vllm#45040).
 
+RETIRED 2026-07-05 (lifecycle: retired): vllm#45040 MERGED 2026-06-18 and
+ARM 1 (the weight-only fp8_e5m2 gate) is native-evolved in pristine dev748
+(model_executor/layers/attention/attention.py:168-183). ARM 2 (query_quant
+nulling for e5m2) is NOT superseded — dev748 still creates the e4m3-only
+QuantFP8 for any fp8* kv_cache_dtype and would die on first forward — but
+its anchors target the 0.22.x layer generation (version-gated off on every
+live pin) and the only consumer profile (gemma4-31b-fp8e5m2-fallback) is
+archived. RE-VENDOR arm 2 as a fresh patch from the live pin if an
+fp8_e5m2 KV lane is re-attempted on 0.23.x+. Kept for reference.
+
 ================================================================
 PROBLEM (vllm#45040 / issue #39137, OPEN upstream as of 2026-06-11)
 ================================================================
@@ -174,6 +184,7 @@ Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 """
 from __future__ import annotations
 
+import contextlib
 import inspect
 import logging
 import os
@@ -416,9 +427,9 @@ def revert_query_quant_guard(attention_cls) -> bool:
     return False
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911, PLR0912 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply G4_80. Never raises."""
-    global _APPLIED
+    global _APPLIED  # noqa: PLW0603 - module-level idempotency latch, same pattern as sibling patch modules
 
     decision: bool | None = None
     reason = ""
@@ -458,12 +469,11 @@ def apply() -> tuple[str, str]:
         return "failed", f"vllm attention module import failed: {e}"
 
     mla_mod = None
-    try:
+    # MLA module optional — Attention path is the one we serve.
+    with contextlib.suppress(ImportError):
         from vllm.model_executor.layers.attention import (
             mla_attention as mla_mod,  # noqa: F811
         )
-    except ImportError:
-        pass  # MLA module optional — Attention path is the one we serve.
 
     if not install_fp8e5m2_weight_only_gate(attention_mod, mla_mod):
         if getattr(

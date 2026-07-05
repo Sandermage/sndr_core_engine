@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN370 — vendor OPEN PR vllm#45100 (async spec-decode accepted-counts race).
 
+RETIRED 2026-07-05 (lifecycle: retired): vllm#45100 MERGED 2026-06-22 and is
+native in both live pins (deep-diff receipts on the PN398 twin, retired the
+same day). This 0.22.x vendor variant was already version-gated off on every
+0.23.x pin (range <0.23.0). Kept for reference.
+
 Two sub-fixes from the same upstream PR, vendored against pin
 0.22.1rc1.dev259+g303916e93 (anchors byte-verified count==1 on the
 pristine tree):
@@ -120,7 +125,6 @@ import os
 from sndr.engines.vllm.detection.guards import resolve_vllm_file, vllm_install_root
 from sndr.engines.vllm.patches.attention.gdn.pn341_mtp_decode_bubbles_gpu_runner import (
     PN341_PREPARE_NEW,
-    PN341_PREPARE_OLD,
 )
 from sndr.kernel import TextPatch, TextPatcher, TextPatchResult
 
@@ -356,7 +360,7 @@ def _wiring_status(
     return "skipped", f"{what}: {reason}{detail}"
 
 
-def apply() -> tuple[str, str]:
+def apply() -> tuple[str, str]:  # noqa: PLR0911 - dispatcher early-return cascade: distinct skip/self-retire reasons per gate
     """Apply PN370 — vendor vllm#45100. Never raises."""
     if not _enabled():
         return "skipped", (
@@ -415,10 +419,9 @@ def is_applied() -> bool:
         if target is None:
             continue
         try:
-            if GENESIS_PN370_MARKER in open(
-                str(target), encoding="utf-8"
-            ).read():
-                return True
+            with open(str(target), encoding="utf-8") as fh:
+                if GENESIS_PN370_MARKER in fh.read():
+                    return True
         except (OSError, UnicodeDecodeError):
             continue
     return False

@@ -3,6 +3,13 @@
 # Role: dev — UNVALIDATED fp8_e5m2 KV fallback for gemma-4-31b-it-awq on
 # the 0.22.1 pin (303916e93), escaping the TQ block WITHOUT TurboQuant.
 #
+# ARCHIVE NOTE 2026-07-05: G4_80 is RETIRED — vllm#45040 MERGED 2026-06-18
+# and arm 1 is native-evolved in the 0.23.x pins, so the G4_80 flag below
+# is a no-op there. Arm 2 (query_quant nulling) is NOT native (an
+# fp8_e5m2 boot still dies on the first forward on dev748) — restoring
+# this profile on 0.23.x+ requires RE-VENDORING arm 2 from the live pin
+# first (see the G4_80 registry superseded_by for the trigger).
+#
 # ── Basis: upstream PR pair #45040 + #45038 (both OPEN 2026-06-11) ──
 #
 #   #45040 (G4_80, GENESIS_ENABLE_G4_80_FP8E5M2_KV): the pristine

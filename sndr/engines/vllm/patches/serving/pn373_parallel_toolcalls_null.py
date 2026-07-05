@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN373 — parallel_tool_calls null != false (vendor of OPEN vllm#44955).
 
+RETIRED 2026-07-05 (lifecycle: retired): vllm#44955 MERGED 2026-06-15; the
+``is not False`` semantic fix and the merged docstring are native in
+pristine dev748 ``tool_calls_utils.py:22-24`` — byte-identical to this
+patch's 1-line fix (deep-diff outcome (a)). The Genesis extras (streaming
+regression test, pristine bug repro, drift-marker hygiene suite) are
+repo-side tests and keep their value. Kept for reference.
+
 Upstream bug (vllm#44948): ``ChatCompletionRequest.parallel_tool_calls``
 is declared ``bool | None = True`` (pristine
 ``entrypoints/openai/chat_completion/protocol.py:233`` on pin

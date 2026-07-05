@@ -2,6 +2,15 @@
 """PN383 — KV-offload + MTP cuMemcpyBatchAsync segfault gate (vendor of
 OPEN PR vllm#44784) plus two Genesis extensions.
 
+RETIRED 2026-07-05 (lifecycle: retired): vllm#44784 MERGED 2026-06-16 and
+pristine dev748 ships the eagle-group offload gating natively — EVOLVED past
+both Genesis extensions (``is_eagle_group`` is a first-class KVCacheGroup
+field set by the engine core, superseding the 'mtp'-prefix narrowing; the
+volatile trailing block is excluded at scheduler level, removing the OOB
+source the pre-DMA bounds check defended against). The 0.22.x
+``offloading_connector.py`` monolith these anchors target no longer exists
+(split into the ``offloading/`` package). Kept for reference.
+
 Upstream #44784 (issue #44780): ``OffloadingConnectorScheduler`` schedules
 EAGLE/MTP draft-attention groups into the store/load paths. The draft
 group's trailing block is rewritten by the drafter every decode step (no

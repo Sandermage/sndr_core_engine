@@ -314,7 +314,7 @@
   {
     "patch_id": "PN398",
     "family": "spec_decode",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN398_ASYNC_ACCEPTED_RACE",
@@ -938,7 +938,7 @@
   {
     "patch_id": "PN383",
     "family": "offload",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN383_OFFLOAD_MTP_EAGLE_GATE",
@@ -1202,7 +1202,7 @@
   {
     "patch_id": "PN252",
     "family": "worker",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": true,
     "env_flag": "GENESIS_ENABLE_PN252_MROPE_PROMPT_EMBEDS_DOS",
@@ -1586,7 +1586,7 @@
   {
     "patch_id": "PN362",
     "family": "kernels",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN362",
@@ -1615,7 +1615,7 @@
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN354_GDN_USE_EXP2",
     "has_upstream_pr": true,
-    "upstream_pr_relationship": "backport",
+    "upstream_pr_relationship": "related_not_superseding",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn354_gdn_use_exp2"
   },
@@ -1898,7 +1898,7 @@
   {
     "patch_id": "PN370",
     "family": "spec_decode",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN370_ASYNC_ACCEPT_RACE",
@@ -1934,7 +1934,7 @@
   {
     "patch_id": "PN373",
     "family": "serving",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN373_PARALLEL_TOOLCALLS_NULL",
@@ -2059,7 +2059,7 @@
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN294_UNSPLIT_MTP_ATTN_GROUPS",
     "has_upstream_pr": true,
-    "upstream_pr_relationship": "backport",
+    "upstream_pr_relationship": "intentional_inverse",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.worker.pn294_unsplit_attn_groups_mtp"
   },
@@ -2071,7 +2071,7 @@
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN293_MAMBA_ATTN_PREFILL_FASTPATH",
     "has_upstream_pr": true,
-    "upstream_pr_relationship": "backport",
+    "upstream_pr_relationship": "counter_regression",
     "has_apply_module": true,
     "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn293_mamba_attn_prefill_fastpath"
   },
@@ -3578,7 +3578,7 @@
   {
     "patch_id": "G4_80",
     "family": "attention.turboquant",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_80_FP8E5M2_KV",
@@ -3650,7 +3650,7 @@
   {
     "patch_id": "PN379",
     "family": "loader",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN379_LOAD_CONFIG_FAIL_FAST",
