@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN133 — MTP scheduler empty-output accounting fix (backport vllm#42722).
 
+RETIRED 2026-07-05 (lifecycle: retired, cap kept <0.23.0): vllm#42722's
+accounting fix is native on pristine dev748 (scheduler.py:1585-1593 — the
+``max(len(generated_token_ids) - num_sampled, 0)`` clamp + empty-output
+disjunct); the pre-fix anchor PN133_OLD is GONE (grep 0) so apply() self-skips.
+Still applies on a <0.23.0 rollback pin via explicit YAML enable.
+
 ================================================================
 PROBLEM
 ================================================================

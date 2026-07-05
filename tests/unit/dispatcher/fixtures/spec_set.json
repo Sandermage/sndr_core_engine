@@ -734,7 +734,7 @@
   {
     "patch_id": "PN133",
     "family": "spec_decode",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN133_MTP_EMPTY_OUTPUT_FIX",
@@ -1370,7 +1370,7 @@
   {
     "patch_id": "PN30",
     "family": "attention.gdn",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN30_DS_LAYOUT_SPEC_DECODE",
@@ -1874,7 +1874,7 @@
   {
     "patch_id": "PN347",
     "family": "quantization.marlin",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN347",
@@ -1994,7 +1994,7 @@
   {
     "patch_id": "PN374",
     "family": "tool_parsing",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN374_QWEN3XML_QUOTED_KEYS",
@@ -2246,9 +2246,9 @@
   {
     "patch_id": "PN110",
     "family": "kv_cache",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
-    "default_on": true,
+    "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN110",
     "has_upstream_pr": true,
     "upstream_pr_relationship": "backport",
@@ -2786,7 +2786,7 @@
   {
     "patch_id": "P29_HEAL",
     "family": "tool_parsing",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_P29_QWEN3CODER_INDEX_HEAL",
@@ -3206,9 +3206,9 @@
   {
     "patch_id": "G4_14",
     "family": "gemma4",
-    "lifecycle": "stable",
+    "lifecycle": "retired",
     "tier": "community",
-    "default_on": true,
+    "default_on": false,
     "env_flag": "GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD",
     "has_upstream_pr": false,
     "upstream_pr_relationship": "backport",
@@ -3686,7 +3686,7 @@
   {
     "patch_id": "PN378",
     "family": "spec_decode",
-    "lifecycle": "experimental",
+    "lifecycle": "retired",
     "tier": "community",
     "default_on": false,
     "env_flag": "GENESIS_ENABLE_PN378_VOCAB_PAD_MASK",

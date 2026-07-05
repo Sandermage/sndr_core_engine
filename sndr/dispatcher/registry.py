@@ -2152,7 +2152,29 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "sndr.engines.vllm.patches.spec_decode."
             "pn133_mtp_scheduler_empty_output"
         ),
-        "lifecycle": "experimental",
+        "vllm_version_range": "<0.23.0",  # top-level cap for retired_provenance
+        # RETIRED 2026-07-05 (baseline-waiver drive-to-zero, by-code verify).
+        # vllm#42722's accounting fix is NATIVE in pristine dev748
+        # (scheduler.py:1585-1593): the `max(len(generated_token_ids) -
+        # num_sampled, 0)` clamp + the `or self.num_sampled_tokens_per_step
+        # == 0` empty-output disjunct make the len([])-1=-1 Prometheus crash
+        # and the permanently-stuck request both structurally impossible. The
+        # pre-fix anchor PN133_OLD is GONE (grep count 0); apply() already
+        # self-retires via the `max(len(generated_token_ids) - ` drift marker.
+        # Anchor GONE -> cap kept <0.23.0, NOT bumped. The env flag stays set
+        # in the 27B/35B YAMLs as a self-retiring no-op for <0.23.0 rollback.
+        "lifecycle": "retired",
+        "superseded_by": (
+            "vllm#42722 accounting fix native on dev748 "
+            "(0.23.1rc1.dev748+g2dfaae752): pristine scheduler.py:1585-1593 = "
+            "`if scheduled_spec_token_ids and (generated_token_ids or "
+            "self.num_sampled_tokens_per_step == 0):` with "
+            "`num_accepted = max(len(generated_token_ids) - num_sampled, 0)`. "
+            "Empty-output stuck-request bug and len([])-1 Prometheus crash "
+            "both impossible. PN133_OLD anchor absent (grep 0); apply() "
+            "self-retires via the `max(len(generated_token_ids) - ` drift "
+            "marker. Verified by code on pristine dev748 2026-07-05."
+        ),
         "experimental_note": (
             "Backport vllm#42722 (OPEN). Fixes permanently-stuck request "
             "in MTP/spec-decode when model_runner returns empty "
@@ -2498,7 +2520,21 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
                 "Qwen3MoeForCausalLM",
             ],
             # Valid for pins where MambaModelConfig.verify_and_update_config exists.
-            "vllm_version_range": (">=0.20.0", "<0.22.0"),
+            # 2026-07-05 dev748 reverify: anchor PRESENT+APPLICABLE on
+            # 0.23.1rc1.dev748+g2dfaae752 — Qwen3_5ForConditionalGenerationConfig
+            # (config.py:736) still ONLY sets mamba_ssm_cache_dtype (does NOT call
+            # MambaModelConfig natively), MambaModelConfig.verify_and_update_config
+            # (config.py:537) exists, and MODELS_CONFIG_MAP routes both our arches
+            # to it (config.py:837-838) — all confirmed live via
+            # `docker run --rm nightly-2dfaae752`. apply() both guards pass ->
+            # returns "applied". The FULL_AND_PIECEWISE effect stays redundant with
+            # the v1 resolver (compilation.py:1355-1357 still sets it under
+            # splitting_ops_contain_attention), so PN125 is a harmless upstream-
+            # bypass safety net — deliberately kept ON in 4 builtin YAMLs. Bumped
+            # <0.22.0 -> <0.24.0 so the insurance actually INSTALLS on dev748
+            # instead of being version-gate-skipped. Anchor present => BUMP, not
+            # RETIRE.
+            "vllm_version_range": (">=0.20.0", "<0.24.0"),
         },
     },
     "PN96b": {
@@ -4729,7 +4765,24 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "conflicts_with": [],
         "requires_patches": [],
         "apply_module": "sndr.engines.vllm.patches.attention.gdn.pn30_ds_layout_spec_decode_align",
-        "lifecycle": "experimental",
+        "vllm_version_range": "<0.23.0",
+        "superseded_by": (
+            "upstream fused-postprocess kernel — get_conv_copy_spec was "
+            "rewritten so the NotImplementedError this patch anchored on is "
+            "GONE, replaced by `assert offset == 0, \"...must be handled by "
+            "the fused postprocess kernel, not get_conv_copy_spec\"`. Native "
+            "handling of DS conv state + num_accepted_tokens > 1 is a superset "
+            "of PN30's memcpy workaround. Re-verified live on pristine dev748 "
+            "(2dfaae752) 2026-07-05: part1 anchor absent — "
+            "mamba_utils.py:305-310 carries the assert form, not the raise."
+        ),
+        # RETIRED 2026-07-05: superseded on the whole >=0.23.0 pin set (part1
+        # anchor GONE on dev748, re-verified by code). The cap <0.23.0 keeps
+        # PN30 correct on any <0.23.0 rollback (dev259/dev491 still raise the
+        # NotImplementedError). retired lifecycle auto-excludes PN30 from the
+        # stale-range audit, so its _BASELINE_CRITICAL_STALE waiver is removed
+        # in the same change (P64/P61b/PN287 retire precedent, 2026-07-03).
+        "lifecycle": "retired",
         "implementation_status": "full",
     },
     "P67c": {
@@ -6748,7 +6801,27 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_PN347",
         "default_on": False,
         "apply_module": "sndr.engines.vllm.patches.quantization.marlin.pn347_marlin_fp8_nk_correctness",
-        "lifecycle": "experimental",
+        "vllm_version_range": "<0.22.1rc1.dev491",  # top-level cap for retired_provenance
+        # RETIRED 2026-07-05: native/superseded on dev491+. Verified BY CODE on
+        # pristine dev748 (2dfaae752): kernels/linear/scaled_mm/marlin.py
+        # process_weights_after_loading was refactored to the size_k_first
+        # caller contract ("Non-block: callers must pass weight in (K,N)
+        # layout"); the buggy `if w_q.shape != (in,out)` transpose guard AND
+        # `_get_layer_params` are GONE (grep count 0), so the anchor is
+        # correctly absent and the N==K corruption cannot occur. Both live pins
+        # (current dev748, rollback dev714) are >> dev491, so PN347 is inert on
+        # every live pin. Anchor GONE -> cap kept <0.22.1rc1.dev491, NOT bumped.
+        "lifecycle": "retired",
+        "superseded_by": (
+            "vllm#44735 (structural size_k_first caller-contract refactor "
+            "landed 0.22.1rc1.dev491+): process_weights_after_loading moves the "
+            "transpose decision to the caller and DELETES the buggy "
+            "`w_q.shape != (...)` guard, so the square-matrix (N==K) corruption "
+            "PN347 fixes cannot occur. Verified by code on pristine dev748 "
+            "2026-07-05 (guard + _get_layer_params absent). The vendored PR "
+            "vllm#44113 was CLOSED-unmerged because upstream solved it "
+            "structurally."
+        ),
         "category": "correctness",
         "credit": (
             "Genesis vendoring of OPEN upstream PR vllm#44113 (shernshiou, "
@@ -7290,7 +7363,26 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "genesis_original",
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn374_qwen3xml_quoted_keys",
-        "lifecycle": "experimental",
+        "vllm_version_range": "<0.23.0",  # top-level cap for retired_provenance
+        # RETIRED 2026-07-05 (lifecycle=retired): #45588 engine rewrite DELETED
+        # tool_parsers/qwen3xml_tool_parser.py; both PN374 anchors are GONE on
+        # pristine dev748 (verified by code, 2dfaae752) and the native
+        # vllm/parser/qwen3.py json.dumps(params, ensure_ascii=False) path
+        # escapes BOTH keys and values, so the quoted-key corruption is
+        # structurally impossible. Anchor GONE -> cap kept <0.23.0, NOT bumped
+        # (still applies on the dev259 rollback pin where the old file exists).
+        "lifecycle": "retired",
+        "superseded_by": (
+            "vllm#45588 (streaming parser-engine refactor) DELETED "
+            "tool_parsers/qwen3xml_tool_parser.py; qwen3_xml now routes to "
+            "Qwen3EngineToolParser -> Qwen3ParserToolAdapter and the native "
+            "vllm/parser/qwen3.py serializes tool-call arguments via "
+            "json.dumps(params, ensure_ascii=False), escaping keys AND values. "
+            "A model-emitted quoted key yields valid JSON with the parameter "
+            "PRESENT, so neither PN374 harm mode (expat parse failure -> param "
+            "dropped; unescaped key interpolation -> invalid JSON) can occur. "
+            "Both anchors GONE on pristine dev748 (verified by code 2026-07-05)."
+        ),
         "credit": (
             "Genesis-original 2026-06-11 (50-PR sweep chunk-4 Theme 1 "
             "audit mandate). qwen3xml has the same key/value asymmetry "
@@ -7319,10 +7411,12 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
             "tool_call_parser": ["qwen3_xml"],
             # Registry-integration 2026-06-11: pin-specific text-patch
             # vendor — anchors byte-verified on the 0.22.1 pin only.
-        # 2026-06-17 (0.23.1 reverify): kept capped <0.23.0. The qwen3xml
-        # quoted-keys bug is GONE on 0.23.x (fixed upstream); anchors no
-        # longer exist. Do NOT bump (would re-arm a superseded patch).
-        # Patch + 15 tests retained for rollback contingency.
+        # 2026-07-05 RETIRED (lifecycle=retired): #45588 engine rewrite DELETED
+        # qwen3xml_tool_parser.py; both PN374 anchors are GONE on pristine
+        # dev748 and the native vllm/parser/qwen3.py json.dumps path makes the
+        # quoted-key corruption structurally impossible (see superseded_by).
+        # Cap kept <0.23.0 so the patch still applies on the dev259 rollback
+        # pin (old file present). Do NOT bump. Patch + 15 tests retained.
             "vllm_version_range": (">=0.22.0", "<0.23.0"),
         },
     },
@@ -8152,7 +8246,7 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "tier": "community",
         "family": "kv_cache",
         "env_flag": "GENESIS_ENABLE_PN110",
-        "default_on": True,
+        "default_on": False,
         "category": "stability",
         "credit": (
             "Backport of vllm#42615 (AkCodes23, OPEN 2026-05-14). "
@@ -8173,10 +8267,38 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         # honest registry (not silently drift-skipped); re-anchor only if
         # KV-offloading is ever adopted.
         "applies_to": {"vllm_version_range": (">=0.20.0", "<0.23.0")},
+        "superseded_by": (
+            "vllm free_blocks LRU-split refactor (block_pool.py) — the "
+            "target region PN110 anchored on (`blocks_list = "
+            "list(ordered_blocks)` + the `for block in blocks_list: "
+            "block.ref_cnt -= 1` loop, preceded by the `# Materialize the "
+            "iterable` comment) is GONE on 0.23.1 dev748+g2dfaae752. "
+            "free_blocks now iterates ordered_blocks once, decrements "
+            "inline, and splits into blocks_with_hash / blocks_without_hash "
+            "guarded per-block by `if block.ref_cnt == 0 and not "
+            "block.is_null` before prepend_n/append_n. That guard "
+            "STRUCTURALLY prevents the double-APPEND PN110 defends against: "
+            "a duplicate block decrements 1->0 (appended once) then 0->-1 "
+            "(guard False, not re-appended), so the same KVCacheBlock can "
+            "no longer land in the free queue twice and the "
+            "fake_free_list_tail trip cannot occur. Verified live in the "
+            "pristine dev748 tree (block_pool.py:614 free_blocks; anchor "
+            "strings 0 matches) 2026-07-05."
+        ),
         "implementation_status": "full",
         "apply_module": "sndr.engines.vllm.patches.kv_cache.pn110_block_pool_free_dedup",
+        "vllm_version_range": "<0.23.0",  # top-level cap for retired_provenance
         "source": "vllm_pr_backport",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (baseline-waiver drive-to-zero, by-code verify):
+        # anchor GONE on the whole deployable >=0.23.x pin set and the
+        # double-append symptom is natively guarded (see superseded_by).
+        # #42615 still OPEN and only reachable via SimpleCPUOffload, which
+        # Genesis PROD does not run. Cap <0.23.0 retained so a rollback pin
+        # (<0.23.0, where the old shape + anchor still exist) keeps the
+        # defensive guard via explicit YAML enable; on 0.23.x it is inert.
+        # Removed from _BASELINE_CRITICAL_STALE — retired lifecycle is
+        # auto-excluded from the stale-range audit.
+        "lifecycle": "retired",
     },
     "PN111": {
         "title": "Skip-mamba-postprocess GPU->CPU sync (align-mode; vllm#42574)",
@@ -9518,7 +9640,23 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "env_flag": "GENESIS_ENABLE_P29_QWEN3CODER_INDEX_HEAL",
         "default_on": False,
         "apply_module": "sndr.engines.vllm.patches.tool_parsing.p29_qwen3coder_index_heal",
-        "lifecycle": "experimental",
+        "vllm_version_range": "<0.22.1rc1.dev491",  # top-level cap for retired_provenance
+        # RETIRED 2026-07-05: anchor GONE on dev748. #45588 parser-engine
+        # refactor DELETED tool_parsers/qwen3coder_tool_parser.py (the P29_HEAL
+        # target); the engine-native Qwen3EngineToolParser adapter has no
+        # streamed_args_for_tool/current_tool_index list state, so the
+        # IndexError class P29_HEAL healed is structurally absent. Same
+        # retirement as siblings P64/P61c/PN56. Cap kept <0.22.1rc1.dev491
+        # (still excludes dev748) — do NOT bump a range whose anchor is gone.
+        "lifecycle": "retired",
+        "superseded_by": (
+            "vllm#45413/#45171/#45588 (streaming parser-engine refactor) — "
+            "tool_parsers/qwen3coder_tool_parser.py DELETED; "
+            "Qwen3EngineToolParser (vllm.parser.engine) owns streaming with no "
+            "list-indexed tool-arg state. Target file + both anchor sites "
+            "(287/442) absent on pristine dev748 (verified by code 2026-07-05, "
+            "2dfaae752)."
+        ),
         "category": "structured_output",
         "credit": (
             "Genesis-original 2026-06-04 — extends P29's coverage. "
@@ -9823,14 +9961,28 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "credit": "Backport of vllm#41696 (panpan0000, OPEN as of 2026-05-05). Removes the buggy `prompt_reasoning_checked` short-circuit in `vllm.parser.abstract_parser.DelegatingParser.parse_delta` that walked the FULL prompt looking for `</think>` and prematurely set `reasoning_ended=True` from a previous turn's `</think>`. Defensive backport for multi-turn DSML/Hermes/Qwen3 chat clients sending full history. Original report: DeepSeek V3.2 reasoning users.",
         "upstream_pr": 41696,
         "upstream_pr_relationship": "backport",
-        # 2026-06-18 (dev148 full-patch audit): #45588 reorganized the parser
-        # into vllm/parser/abstract_parser.py — PN66's DelegatingParser anchor
-        # is gone (DRIFT skip on 0.23.x). A LIVE multiturn-reasoning probe on
-        # dev148 showed NO </think> leak (the new engine parser handles the
-        # reasoning+tool compose), and #41696 is CLOSED-unmerged. Capped
-        # <0.23.0 so the registry is honest (correctly inert, not silently
-        # drift-skipped). Re-anchor to the new parser only if a </think> leak
-        # is ever observed live on 0.23.x+.
+        # 2026-06-18 (dev148) / re-verified BY CODE on dev748 2026-07-05
+        # (pristine /tmp/pristine_dev748_2dfaae752): the #45413/#45588
+        # parser-engine refactor did NOT delete abstract_parser.py.
+        # DelegatingParser (line 371), the `prompt_reasoning_checked` field
+        # (line 50) and PN66's FIELD anchor are all PRESENT — so the earlier
+        # "DelegatingParser anchor is gone" note was inaccurate. What actually
+        # happened: PN66's BLOCK anchor DRIFTED — upstream KEPT the prompt-scan
+        # block (lines 805-816) but added an `else:` branch calling
+        # `adjust_initial_state_from_prompt` and switched to `state.advance(...)`,
+        # so the required block sub-patch no longer byte-matches → PN66 cannot
+        # apply on 0.23.x. The multiturn </think> leak is NATIVE-FIXED:
+        # parser_engine.is_reasoning_end (engine/parser_engine.py:581) now scans
+        # backward and returns False on hitting `<think>` (start_id) before
+        # `</think>` (end_id) — exactly the guard the old buggy prompt-scan
+        # lacked. #41696 is CLOSED-unmerged (upstream solved it structurally, not
+        # by removing the block, so a byte-exact re-anchor of PN66 would DELETE
+        # correct upstream behavior — do NOT bump the bound). Capped <0.23.0
+        # because PN66 still applies+fixes the leak on rollback pins <0.23.0
+        # (whose is_reasoning_end had no start_id guard) and stays enabled in the
+        # qwen3.6 27B/35B builtin YAMLs for exactly that rollback protection — a
+        # DELIBERATE cross-pin gate (same class as PN30/PN51/PN133), not
+        # debt-to-bump. Re-anchor only if a </think> leak is ever seen on 0.23.x+.
         "applies_to": {"vllm_version_range": (">=0.20.0", "<0.23.0")},
         "apply_module": "sndr.engines.vllm.patches.reasoning.pn66_multiturn_think_leak",
         "lifecycle": "experimental",
@@ -10242,13 +10394,36 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "tier": "community",
         "family": "gemma4",
         "env_flag": "GENESIS_ENABLE_G4_14_GEMMA4_TOOL_CALL_PARSER_PAD",
-        "default_on": True,
+        "default_on": False,
         "category": "stability",
         "implementation_status": "full",
         "source": "genesis_original",
         "apply_module": "sndr.engines.vllm.patches.model_compat.gemma4.g4_14_gemma4_tool_call_parser_pad_token",
-        "lifecycle": "stable",
-        "stable_kind": "runtime-hook",
+        "vllm_version_range": "<0.23.0",  # top-level cap for retired_provenance
+        # RETIRED 2026-07-05 (lifecycle=retired, default_on=False): verified BY
+        # CODE on pristine dev748 (2dfaae752) — the class G4_14 wraps,
+        # Gemma4ToolParser, is DELETED by the #45588 tool-parser reorg. The only
+        # surviving class is Gemma4EngineToolParser
+        # (vllm/tool_parsers/gemma4_engine_tool_parser.py:14) which decodes with
+        # skip_special_tokens=False (line 34) and extracts via the structured
+        # vllm/parser/gemma4.py:392 pass, so the #39392 raw-token pad-leak mode
+        # no longer exists. G4_14._find_gemma_tool_parser() targets only the
+        # deleted names -> returns None -> apply() graceful-skips even with the
+        # flag forced on. Anchor GONE -> cap kept <0.23.0, NOT bumped. #39392
+        # still OPEN: redesign vs Gemma4EngineToolParser with a failing repro
+        # test before lifting the cap. Cap retained so a <0.23.0 rollback pin
+        # keeps the pad-strip via explicit gemma YAML enable.
+        "lifecycle": "retired",
+        "superseded_by": (
+            "vllm#45588 tool-parser reorg DELETED Gemma4ToolParser (the class "
+            "G4_14 wraps). The replacement Gemma4EngineToolParser "
+            "(vllm/tool_parsers/gemma4_engine_tool_parser.py) decodes with "
+            "skip_special_tokens=False and parses fully-decoded text via "
+            "vllm/parser/gemma4.py, so the #39392 raw-token pad-leak mode is "
+            "structurally gone. Verified by code on pristine dev748 "
+            "(2dfaae752) 2026-07-05: _find_gemma_tool_parser() targets only the "
+            "deleted names -> None -> apply() graceful-skips. #39392 still OPEN."
+        ),
         "production_validated_pins": [
             ("v12.0.0", "0.20.2rc1.dev338+gbf0d2dc6d"),
             ("v12.0.0", "0.20.2rc1.dev371+gbf610c2f5"),
@@ -11345,7 +11520,24 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "implementation_status": "full",
         "source": "vllm_pr_backport",
         "apply_module": "sndr.engines.vllm.patches.spec_decode.pn378_recovered_token_vocab_pad_mask",
-        "lifecycle": "experimental",
+        # RETIRED 2026-07-05 (lifecycle=retired): the complete vllm#45060
+        # (mask + OOV clamp) is native in pristine dev748 (2dfaae752)
+        # rejection_sampler.py L945/L952; the dev259 splice anchor
+        # PN378_MASK_OLD is GONE (count 0). Anchor GONE -> cap kept <0.23.0,
+        # NOT bumped (still valid on the dev259 rollback base). PN378 already
+        # Layer-3 self-skips (upstream_merged) on dev491+ via its drift markers.
+        "lifecycle": "retired",
+        "superseded_by": (
+            "vllm#45060 (kernel mask half + OOV clamp) MERGED upstream by "
+            "0.22.1rc1.dev491+g1033ffac2 and ships COMPLETE in the live 0.23.1 "
+            "pins. Pristine dev748 (2dfaae752) verification 2026-07-05 — "
+            "v1/sample/rejection_sampler.py native: L945 "
+            "`score = tl.where(vocab_mask, score, float(\"-inf\"))` (the mask "
+            "half PN378 vendored) + L952 "
+            "`recovered_id = tl.minimum(recovered_id, vocab_size - 1)` (OOV "
+            "clamp). The dev259 splice anchor PN378_MASK_OLD is GONE (count 0). "
+            "Cap kept <0.23.0: still valid on the dev259 rollback base."
+        ),
         "credit": (
             "PR-sweep wave 2 (2026-06-13). Vendor of OPEN vllm#45060 "
             "(KERNEL HALF only; root cause of #26372/#33729/#42722): "

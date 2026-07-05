@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """PN374 — qwen3xml quoted parameter-name (key) sanitization.
 
+RETIRED 2026-07-05 (lifecycle: retired, cap kept <0.23.0): #45588 DELETED
+tool_parsers/qwen3xml_tool_parser.py; both PN374 anchors are GONE on pristine
+dev748 and the native vllm/parser/qwen3.py json.dumps(..., ensure_ascii=False)
+path escapes keys AND values, so the quoted-key corruption is structurally
+impossible. Still applies on the dev259 rollback pin where the old file exists.
+
 Problem
 -------
 Roadmap 2026-06-11 (50-PR sweep, chunk 4 Theme 1) mandated an audit of

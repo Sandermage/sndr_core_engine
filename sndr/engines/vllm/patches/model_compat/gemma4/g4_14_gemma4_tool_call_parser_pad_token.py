@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """G4_14 — Gemma 4 tool-call parser pad-token workaround (closes vllm#39392).
 
+RETIRED 2026-07-05 (lifecycle: retired, default_on=False, cap kept <0.23.0):
+Gemma4ToolParser (the class this patch wraps) is DELETED by #45588; the
+surviving Gemma4EngineToolParser decodes skip_special_tokens=False so the
+#39392 raw-token pad-leak mode is gone. Anchor GONE on pristine dev748 ->
+_find_gemma_tool_parser() misses -> graceful no-op. Still applies on a <0.23.0
+rollback pin via explicit gemma YAML enable. #39392 still OPEN.
+
 ================================================================
 WHAT IT FIXES
 ================================================================

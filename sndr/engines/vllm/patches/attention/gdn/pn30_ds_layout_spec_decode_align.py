@@ -1,6 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for Patch N30 — DS conv state layout + spec-decode AL>1 fix.
 
+RETIRED 2026-07-05 (lifecycle: retired, capped <0.23.0): superseded by the
+upstream fused-postprocess kernel. `get_conv_copy_spec` was rewritten so the
+part1 anchor — the `NotImplementedError` raise for DS + num_accepted_tokens>1
+— is GONE; the current form is `assert offset == 0, "...must be handled by the
+fused postprocess kernel, not get_conv_copy_spec"` (re-verified by code on
+pristine dev748 / 2dfaae752, mamba_utils.py:305-310). Native DS-conv +
+spec-decode AL>1 handling is a superset of this memcpy workaround. The module
+is kept (not deleted) because the <0.23.0 cap still applies it on a dev259 /
+dev491 rollback where the NotImplementedError path is live. On the deployed
+>=0.23.0 pin set the version gate skips all three parts.
+
 ================================================================
 Issue
 ================================================================

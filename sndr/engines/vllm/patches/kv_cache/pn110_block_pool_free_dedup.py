@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Wiring for Patch PN110 — BlockPool.free_blocks deduplication.
 
+RETIRED 2026-07-05 (lifecycle: retired, cap kept <0.23.0): the free_blocks
+region PN110 anchored on is GONE on pristine dev748 (LRU-split rewrite; the
+per-block ``if block.ref_cnt == 0`` append-guard structurally prevents the
+double-append symptom). Superseded on the whole >=0.23.0 pin set; still applies
+on a <0.23.0 rollback pin via explicit YAML enable.
+
 Backport of [vllm#42615](https://github.com/vllm-project/vllm/pull/42615)
 by `AkCodes23` (OPEN at the time of backport).
 
