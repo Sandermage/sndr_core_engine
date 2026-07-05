@@ -348,6 +348,18 @@
     "apply_module": "sndr.engines.vllm.patches.tool_parsing.pn525_nonstream_truncated_toolcall_markup"
   },
   {
+    "patch_id": "PN526",
+    "family": "serving",
+    "lifecycle": "experimental",
+    "tier": "community",
+    "default_on": false,
+    "env_flag": "GENESIS_ENABLE_PN526_THREADSAFE_SO_TOKENIZER",
+    "has_upstream_pr": true,
+    "upstream_pr_relationship": "backport",
+    "has_apply_module": true,
+    "apply_module": "sndr.engines.vllm.patches.serving.pn526_threadsafe_so_tokenizer"
+  },
+  {
     "patch_id": "PN398",
     "family": "spec_decode",
     "lifecycle": "retired",

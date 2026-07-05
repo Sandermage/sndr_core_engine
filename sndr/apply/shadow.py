@@ -368,6 +368,10 @@ KNOWN_SPEC_ONLY_PATCHES: frozenset[str] = frozenset({
                        # (vendor of OPEN vllm#47562, fixes #47137; parser/
                        # abstract_parser.py text patch — stream/non-stream
                        # parity on the shared tool-call path, default-ON)
+    "PN526",           # thread-safe StructuredOutputManager tokenizer
+                       # (vendor of OPEN vllm#47509; v1/structured_output
+                       # __init__ text patch — opt-in 'Already borrowed'
+                       # race guard, copy + deep-copied call pool)
 })
 
 

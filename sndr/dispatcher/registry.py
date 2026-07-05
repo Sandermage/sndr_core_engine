@@ -1072,6 +1072,60 @@ PATCH_REGISTRY: dict[str, dict[str, Any]] = {
         "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
         "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
     },
+    "PN526": {
+        "title": "Thread-safe StructuredOutputManager tokenizer — 'Already borrowed' race guard (vendor of vllm#47509)",
+        "tier": "community",
+        "family": "serving",
+        "env_flag": "GENESIS_ENABLE_PN526_THREADSAFE_SO_TOKENIZER",
+        # Opt-in (P3): the race is real but never observed in incident
+        # memory; flip on for structured-output soaks or on the first
+        # 'Already borrowed' log line.
+        "default_on": False,
+        "lifecycle": "experimental",
+        "category": "stability",
+        "implementation_status": "full",
+        "source": "vllm_pr_backport",
+        "apply_module": "sndr.engines.vllm.patches.serving.pn526_threadsafe_so_tokenizer",
+        "credit": (
+            "Batch-triage 47382..47564 STEP 4 (2026-07-05, lowest priority — "
+            "real but unobserved). Vendor of OPEN vllm#47509. "
+            "StructuredOutputManager.__init__ (pristine dev748 L79-81, "
+            "byte-verified via gh api at 2dfaae752) hands the process-global "
+            "cached_tokenizer_from_config instance to concurrent "
+            "self.executor threads (grammar compile) + the request-scoped "
+            "reasoner; HF fast tokenizers mutate shared Rust state inside "
+            "encode (set_truncation_and_padding) -> RuntimeError 'Already "
+            "borrowed' under concurrency. Reachable on 35B PROD: "
+            "reasoning_parser qwen3 + GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_"
+            "TIMING=1 + structured outputs live. Fix deps IN-pin "
+            "(vllm/tokenizers/hf.py ThreadSafeHFTokenizerMixin L19 + "
+            "maybe_make_thread_pool L25, re-exported by the package "
+            "__init__). Vendors the PR's __init__ hunk with upstream-"
+            "identical semantics (assert -> copy.copy -> maybe_make_thread_"
+            "pool(tokenizer, max_workers + 1); the copy is load-bearing — "
+            "the wrap swaps __class__ IN PLACE and must never mutate the "
+            "shared cache entry) as one function-local insertion with "
+            "ALIASED imports, so upstream's literal rewritten import line "
+            "('cached_tokenizer_from_config, maybe_make_thread_pool') is the "
+            "SELF_COLLISION-safe drift marker. VERDICT CORRECTION from the "
+            "triage cross-check: disjointness declared+test-pinned against "
+            "BOTH same-file patches — P62 (grammar_bitmask/update-from-"
+            "output regions) AND PN58 Sub-D (module-level logger anchor "
+            "before the class; MISSED in the first pass) — same-file "
+            "preflight must cover both. TDD: cache-isolation semantics "
+            "ported red-first (wraps a copy, pool = max_workers + 1); the "
+            "PR's transformers concurrency hammer (32 threads x 200 "
+            "truncation-toggling encodes) is the blue/green container gate. "
+            "Expected retire outcome (a) byte-similar when #47509 merges."
+        ),
+        "upstream_pr": 47509,
+        "upstream_pr_relationship": "backport",
+        "requires_patches": [],
+        "conflicts_with": [],
+        "composes_with": ["P62", "PN58"],
+        "applies_to": {"vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0")},
+        "vllm_version_range": (">=0.23.1rc1.dev748", "<0.24.0"),
+    },
     "PN398": {
         "title": "Async spec-decode accepted-counts race fix (vllm#45100 backport)",
         "tier": "community",

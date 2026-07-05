@@ -643,6 +643,7 @@ class Flags:
     PN389_GRAMMAR_TIMEOUTS = "PN389_GRAMMAR_TIMEOUTS"  # PN389: XGrammar grammar-compilation timeouts
     PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX = "PN523_REJECT_EMPTY_STRUCTURAL_TAG_REGEX"  # PN523: reject empty structural_tag/regex (vendor of vllm#47450, PN387 successor; default-ON DoS guard)
     PN525_NONSTREAM_TOOLCALL_MARKUP_DROP = "PN525_NONSTREAM_TOOLCALL_MARKUP_DROP"  # PN525: drop incomplete tool-call markup in non-streaming (vendor of vllm#47562 / issue #47137; stream parity on the shared DelegatingParser path, default-ON)
+    PN526_THREADSAFE_SO_TOKENIZER = "PN526_THREADSAFE_SO_TOKENIZER"  # PN526: thread-safe StructuredOutputManager tokenizer (vendor of vllm#47509; opt-in 'Already borrowed' race guard — copy.copy + maybe_make_thread_pool(max_workers + 1))
     PN370_ASYNC_ACCEPT_RACE = "PN370_ASYNC_ACCEPT_RACE"  # PN370: async accept race
     PN398_ASYNC_ACCEPTED_RACE = "PN398_ASYNC_ACCEPTED_RACE"  # PN398: 0.23.x async spec-decode accepted-counts race (vllm#45100); pre-existing registry<->Flags gap closed 2026-06-19
     PN372_EAGLE_ZERO_SEQLEN_GUARD = "PN372_EAGLE_ZERO_SEQLEN_GUARD"  # PN372: Eagle zero-seqlen guard
