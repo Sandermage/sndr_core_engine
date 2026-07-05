@@ -154,7 +154,6 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     "PN378",  # recovered-token vocab mask — complete vllm#45060 ships in 0.23.1.
     "PN383",  # offload MTP/EAGLE gate — vllm#44784 merged 2026-06-16 (0.23.x).
     "PN51",   # qwen3 enable_thinking routing — merged into 0.23.x.
-    "PN125",  # FULL_AND_PIECEWISE redundant (v1 default engages it on hybrid).
     "P29_HEAL",            # heals the qwen3coder parser DELETED by #45588.
     "G4_14",  # gemma4 pad-strip wraps Gemma4ToolParser, DELETED by #45588. New
               # Gemma4EngineToolParser is a skip_special_tokens=False rewrite —
@@ -207,12 +206,25 @@ def _canonical_pin_from_guards() -> str | None:
 def _resolve_current_pin(override: str | None = None) -> str:
     if override:
         return override
+    # pins.yaml is the SSOT for "the pin we target" — prefer it over whatever
+    # vllm happens to be installed in the venv. CI installs an older vllm than
+    # the declared current pin, and trusting the package made forward-dated
+    # patches (lower bound == current pin) falsely flag as stale on CI while
+    # passing locally (regression 2026-07-05). Fall back to the installed
+    # package, then guards, then the static default.
+    try:
+        from sndr import pins
+        cur = pins.current()
+        if cur:
+            return cur
+    except Exception:  # noqa: BLE001,S110 — SSOT best-effort; degrade to package/guards
+        pass
     try:
         import vllm
         ver = getattr(vllm, "__version__", None)
         if ver:
             return ver
-    except Exception:
+    except Exception:  # noqa: BLE001,S110 — installed-package fallback is best-effort
         pass
     return _canonical_pin_from_guards() or DEFAULT_PIN
 
@@ -228,7 +240,7 @@ def _parse_pep440(spec: str) -> tuple[str | None, str | None]:
     return m.group(1), m.group(2)
 
 
-def _excludes_pin(constraint: str, pin: str) -> bool:
+def _excludes_pin(constraint: str, pin: str) -> bool:  # noqa: PLR0911 — one early-return per PEP440 operator; flat is clearer than nested
     """Does this single PEP 440 specifier EXCLUDE the current pin?
 
     Returns True iff the constraint is well-formed AND it deterministically

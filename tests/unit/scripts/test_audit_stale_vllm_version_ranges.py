@@ -25,7 +25,7 @@ def test_script_exists():
 def test_audit_runs_and_exits_zero():
     proc = subprocess.run(
         [sys.executable, str(SCRIPT)],
-        capture_output=True, text=True, cwd=REPO_ROOT,
+        capture_output=True, text=True, cwd=REPO_ROOT, check=False,
     )
     assert proc.returncode == 0
     assert "Stale vllm_version_range audit" in proc.stdout
@@ -34,7 +34,7 @@ def test_audit_runs_and_exits_zero():
 def test_audit_json_mode_structured():
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--json"],
-        capture_output=True, text=True, cwd=REPO_ROOT,
+        capture_output=True, text=True, cwd=REPO_ROOT, check=False,
     )
     assert proc.returncode == 0
     data = json.loads(proc.stdout)
@@ -57,7 +57,7 @@ def test_no_new_critical_beyond_baseline():
     """
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--json"],
-        capture_output=True, text=True, cwd=REPO_ROOT,
+        capture_output=True, text=True, cwd=REPO_ROOT, check=False,
     )
     data = json.loads(proc.stdout)
     # Import baseline directly so this test breaks atomically with
@@ -75,8 +75,8 @@ def test_no_new_critical_beyond_baseline():
     assert not new, (
         f"{len(new)} NEW CRITICAL stale-range entries beyond v11.3.0 "
         f"baseline:\n" + "\n".join(f"  - {p}" for p in new) +
-        f"\n\nFix the range in registry.py OR add to baseline "
-        f"_BASELINE_CRITICAL_STALE in scripts/audit_stale_vllm_version_ranges.py"
+        "\n\nFix the range in registry.py OR add to baseline "
+        "_BASELINE_CRITICAL_STALE in scripts/audit_stale_vllm_version_ranges.py"
     )
 
 
@@ -87,7 +87,7 @@ def test_strict_mode_respects_baseline():
     """
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--strict"],
-        capture_output=True, text=True, cwd=REPO_ROOT,
+        capture_output=True, text=True, cwd=REPO_ROOT, check=False,
     )
     # Currently 19 CRITICAL all in baseline → --strict should pass
     assert proc.returncode == 0, (
@@ -101,7 +101,7 @@ def test_pin_override_works():
     useful for "what if we bumped to X" experiments."""
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--pin", "0.99.0", "--json"],
-        capture_output=True, text=True, cwd=REPO_ROOT,
+        capture_output=True, text=True, cwd=REPO_ROOT, check=False,
     )
     assert proc.returncode == 0
     data = json.loads(proc.stdout)
@@ -120,7 +120,7 @@ def test_warn_count_within_documented_range():
     bumping ranges) doesn't break CI."""
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--json"],
-        capture_output=True, text=True, cwd=REPO_ROOT,
+        capture_output=True, text=True, cwd=REPO_ROOT, check=False,
     )
     data = json.loads(proc.stdout)
     warn = data["warn_count"]
@@ -130,3 +130,31 @@ def test_warn_count_within_documented_range():
         f"ranges were just fixed (GOOD — lower the bound) or many "
         f"patches were added with stale ranges (BAD — investigate)."
     )
+
+
+def test_resolve_current_pin_prefers_pins_yaml_ssot():
+    """The 'current pin' MUST come from the pins.yaml SSOT, not from
+    whatever vllm happens to be installed in the venv. CI installs an
+    older vllm (dev714) than our declared current pin (dev748); trusting
+    the package made PN523-526 (lower bound >=dev748) falsely flag as
+    range-excludes-current CRITICAL on CI while passing locally
+    (regression 2026-07-05)."""
+    import importlib.util
+    import sys
+    import types
+    spec = importlib.util.spec_from_file_location("_stale_audit", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    from sndr import pins
+    # Reproduce the CI condition: an OLDER vllm installed in the venv.
+    fake = types.ModuleType("vllm")
+    fake.__version__ = "0.23.1rc1.dev714+g09663abde"
+    saved = sys.modules.get("vllm")
+    sys.modules["vllm"] = fake
+    try:
+        assert mod._resolve_current_pin(None) == pins.current()
+    finally:
+        if saved is not None:
+            sys.modules["vllm"] = saved
+        else:
+            sys.modules.pop("vllm", None)
