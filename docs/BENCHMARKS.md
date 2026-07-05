@@ -57,7 +57,7 @@ entire fleet.
 | Qwen3.6-27B INT4 TQ k8v4 (+PN520) | n/v³ | 370 s | 84/0 | ✓¹ | ✓ | 7.68 ms (~130 t/s) | PN520 loader fix battle-validated: 96 `in_proj_ba` shards routed, degeneration gone |
 | Qwen3.6-27B INT4 fp8kv (+P100) | dev748 | 320 s | 85/0 | ✓ | — | 9.22 ms (~108 t/s) | P100 FlashInfer spec-decode runtime-validated (coherent gen, 0 errors); 2026-07-04 |
 | Gemma 4 26B-A4B AWQ (`prod-gemma4-26b-default`) | dev748⁴ | 151 s | 56/0 | ✓ | 7/7 | 7.09 ms (CV 0.011, ~141 t/s) | ctx FLAT_OK 0.970; parity vs dev714 7.12 ms; accept n/a (no spec decode on this preset) |
-| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | dev748⁴ | 241 s | 61/0 | ✓ | 7/7 | 9.42 ms (CV 0.233 — noisy)⁵ | PN351 dev748 launch variant verified in the LIVE container file; window accept 0.744 = 687/924 (floor 0.55 PASS) |
+| Gemma 4 31B AWQ (`prod-gemma4-31b-kvauto-chat`, +PN351) | dev748⁴ | 241 s | 61/0 | ✓ | 7/7 | 9.42 ms (CV 0.233 — noisy)⁵ | PN351 dev748 launch variant verified in the LIVE container file; window accept 0.744 = 687/924 (floor 0.55 PASS); ctx 1K→32K **LINEAR_OK 0.534 warm** (2026-07-05 warm re-run⁵) |
 | DiffusionGemma 26B-A4B FP8 (`prod-diffusiongemma-tp2`) | dev748⁴ | 120 s | 39/0 | ✓² | 7/7 | n/a² | diffusion lane — AR decode metrics not applicable; tool-calls confirmed WORKING on dev748 (the 07-04 table said n/a — never exercised) |
 
 ¹ 27B thinking mode loops (known club-3090 #226 model trait, pre-existing);
@@ -74,8 +74,14 @@ unattributed rather than claimed. Not part of the 2026-07-05 re-run
 ⁵ 31B dev748 TPOT 9.42 ms (CV 0.233) vs dev714 11.51 ms (CV 0.18): both
 arms are above the 0.12 "A/B unreliable" CV bar — the delta is within CV,
 **no gain claim**. The lane's ctx-scaling stage printed DEGRADED (endpoint
-ratio 0.439) with a cold Triton JIT compile observed mid-sweep — flagged
-for a warm-cache re-check before any regression claim is made.
+ratio 0.439) with a cold Triton JIT compile observed mid-sweep — re-checked
+warm 2026-07-05 (dev748, fresh render, ladder run twice, run 1 discarded as
+JIT warm-up): verdict **LINEAR_OK** (endpoint ratio 0.534, slope
+−1.575 t/s per 1K tok, r² 0.824, max step drop 18.5%; ladder 114.8 / 101.3 /
+82.5 / 72.7 / 61.3 decode t/s at 1K/4K/8K/16K/32K; window accept 0.726
+PASS). The cold DEGRADED/CLIFF readings were JIT artifacts — no regression.
+Evidence: rig `evidence-2026-07-04/rerun/warm/` (fingerprint
+`…dev748+g2dfaae752-tp2-1b9397ea`).
 
 ### Original 2026-07-04 rows for the re-run lanes (dev714, labeled reference)
 

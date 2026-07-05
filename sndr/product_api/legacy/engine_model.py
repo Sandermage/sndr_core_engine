@@ -12,8 +12,9 @@ catalog hiccup never breaks model detection.
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
-from typing import Any, Optional
+from typing import Any
 
 from . import engine_client
 
@@ -37,7 +38,7 @@ def _candidate_keys(md: Any) -> list[tuple[int, str]]:
     return keys
 
 
-def match_catalog_model(served_id: str) -> Optional[dict[str, Any]]:
+def match_catalog_model(served_id: str) -> dict[str, Any] | None:
     """Resolve a live served-model id to its catalog ModelDef + the presets that
     run it. Returns ``None`` when nothing in the V2 catalog serves that id."""
     sid = (served_id or "").strip().lower()
@@ -51,9 +52,9 @@ def match_catalog_model(served_id: str) -> Optional[dict[str, Any]]:
     for model_id in registry_v2.list_models():
         try:
             md = registry_v2.load_model(model_id)
-        except Exception:  # noqa: BLE001 - a single bad model must not break detection
+        except Exception:  # noqa: BLE001, S112 - a single bad model must not break detection
             continue
-        best: Optional[int] = None
+        best: int | None = None
         for prio, key in _candidate_keys(md):
             if key == sid and (best is None or prio < best):
                 best = prio
@@ -109,7 +110,7 @@ def match_catalog_model(served_id: str) -> Optional[dict[str, Any]]:
     }
 
 
-def _vllm_model_meta(base_url: str, *, timeout: float, api_key: Optional[str]) -> dict[str, dict[str, Any]]:
+def _vllm_model_meta(base_url: str, *, timeout: float, api_key: str | None) -> dict[str, dict[str, Any]]:
     """Per-served-id ``max_model_len`` / ``root`` from the engine's ``/v1/models``."""
     out: dict[str, dict[str, Any]] = {}
     try:
@@ -125,7 +126,7 @@ def _vllm_model_meta(base_url: str, *, timeout: float, api_key: Optional[str]) -
     return out
 
 
-def _port_from_base_url(base_url: Optional[str]) -> Optional[int]:
+def _port_from_base_url(base_url: str | None) -> int | None:
     """The port from an engine base_url (``http://host:8102/v1`` → 8102), or None."""
     if not base_url:
         return None
@@ -136,22 +137,49 @@ def _port_from_base_url(base_url: Optional[str]) -> Optional[int]:
         return None
 
 
+# Known local lane ports to scan when neither the configured engine nor any
+# registered host profile answers: 8000 (rendered presets/composes default),
+# 8101 (27B lane), 8102 (35B PROD). Overridable per install via the
+# SNDR_ENGINE_PROBE_PORTS env (comma-separated; set to an empty-of-valid-ports
+# value to disable the scan).
+_DEFAULT_PROBE_PORTS: tuple[int, ...] = (8000, 8101, 8102)
+
+
+def _local_probe_ports() -> tuple[int, ...]:
+    raw = (os.environ.get("SNDR_ENGINE_PROBE_PORTS") or "").strip()
+    if not raw:
+        return _DEFAULT_PROBE_PORTS
+    ports: list[int] = []
+    for token in raw.split(","):
+        try:
+            port = int(token.strip())
+        except ValueError:
+            continue
+        if 1 <= port <= 65535 and port not in ports:
+            ports.append(port)
+    return tuple(ports)
+
+
 def discover_engine(
     *,
     timeout: float = 2.5,
-    profiles: Optional[list[Any]] = None,
-    key_for: Optional[Any] = None,
+    profiles: list[Any] | None = None,
+    key_for: Any | None = None,
 ) -> dict[str, Any]:
     """Find a running engine that actually serves models, so the GUI auto-connects
     instead of blindly probing the daemon's localhost:8000.
 
     Order: the configured/local engine first, then each registered host's declared
-    engine endpoint (``host`` + ``engine_port`` + its stored key via ``key_for``).
-    Returns the enriched detail of the first hit with ``host`` / ``port`` /
-    ``host_id`` set so the caller knows where to connect; falls back to the local
-    (unreachable) result. ``profiles`` / ``key_for`` are injected by the route
-    (they own the host-profile + key plumbing) — kept as params so this stays
-    pure and unit-testable."""
+    engine endpoint (``host`` + ``engine_port`` + its stored key via ``key_for``),
+    then a scan of the known LOCAL lane ports (:func:`_local_probe_ports`) — so a
+    co-located engine on a non-default port (e.g. the 35B PROD on :8102) is found
+    even with no ``SNDR_OPENAI_BASE_URL`` and no registered profile. The loopback
+    scan needs no stored key: ``engine_client`` auto-discovers a local engine's
+    own key per port. Returns the enriched detail of the first hit with ``host`` /
+    ``port`` / ``host_id`` set so the caller knows where to connect; falls back to
+    the local (unreachable) result. ``profiles`` / ``key_for`` are injected by the
+    route (they own the host-profile + key plumbing) — kept as params so this
+    stays pure and unit-testable."""
     local = engine_model_detail(timeout=timeout)
     if local.get("reachable") and local.get("models"):
         # The configured engine may be on a non-default port (SNDR_OPENAI_BASE_URL,
@@ -169,15 +197,26 @@ def discover_engine(
         if detail.get("reachable") and detail.get("models"):
             return {**detail, "port": prof.engine_port, "host_id": prof.id}
 
+    # Last resort: known local lane ports, skipping the one the configured/local
+    # attempt above already probed (audit 2026-07-04 finding 34: PROD on :8102
+    # invisible to a daemon configured for :8000).
+    already_probed = _port_from_base_url(local.get("base_url"))
+    for port in _local_probe_ports():
+        if port == already_probed:
+            continue
+        detail = engine_model_detail("127.0.0.1", port=port, timeout=timeout)
+        if detail.get("reachable") and detail.get("models"):
+            return {**detail, "port": port, "host_id": None}
+
     return {**local, "port": None, "host_id": None}
 
 
 def engine_model_detail(
-    host: Optional[str] = None,
+    host: str | None = None,
     *,
-    port: Optional[int] = None,
+    port: int | None = None,
     timeout: float = 3.0,
-    api_key: Optional[str] = None,
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     """Detect the running engine's served model(s) and bridge each to the catalog.
 

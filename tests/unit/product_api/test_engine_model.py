@@ -53,9 +53,11 @@ def test_recommended_sampling_surfaced_for_override_model():
         pytest.skip("no catalog model carries override_generation_config")
 
     matched = match_catalog_model(over)  # match by id (unique)
-    assert matched is not None and matched["model_id"] == over
+    assert matched is not None
+    assert matched["model_id"] == over
     rec = matched["recommended_sampling"]
-    assert isinstance(rec, dict) and any(k in rec for k in ("temperature", "top_p", "top_k"))
+    assert isinstance(rec, dict)
+    assert any(k in rec for k in ("temperature", "top_p", "top_k"))
     # only sampling keys are surfaced (no leaking of unrelated generation config)
     assert set(rec).issubset({"temperature", "top_p", "top_k", "min_p", "repetition_penalty"})
 
@@ -70,7 +72,8 @@ def test_recommended_sampling_none_when_absent():
         import pytest
         pytest.skip("every catalog model carries override_generation_config")
     matched = match_catalog_model(plain)
-    assert matched is not None and "recommended_sampling" in matched
+    assert matched is not None
+    assert "recommended_sampling" in matched
     assert matched["recommended_sampling"] is None
 
 
@@ -90,6 +93,7 @@ def test_discover_engine_prefers_local_then_registered_host(monkeypatch):
     """When the local/configured engine is unreachable, discovery falls back to a
     registered host's declared engine endpoint (host + engine_port + stored key)."""
     import types
+
     from sndr.product_api.legacy import engine_model
 
     seen = []
@@ -106,14 +110,17 @@ def test_discover_engine_prefers_local_then_registered_host(monkeypatch):
     prof = types.SimpleNamespace(id="prod-a5000", host="192.0.2.10", engine_port=8102)
     out = engine_model.discover_engine(timeout=0.2, profiles=[prof], key_for=lambda p: "stored-key")
 
-    assert out["reachable"] is True and out["host"] == "192.0.2.10"
-    assert out["host_id"] == "prod-a5000" and out["port"] == 8102
+    assert out["reachable"] is True
+    assert out["host"] == "192.0.2.10"
+    assert out["host_id"] == "prod-a5000"
+    assert out["port"] == 8102
     assert out["models"][0]["id"] == "qwen3.6-35b-a3b"
     assert ("192.0.2.10", 8102, "stored-key") in seen  # probed with the host's key
 
 
 def test_discover_engine_returns_local_when_it_already_serves_models(monkeypatch):
     import types
+
     from sndr.product_api.legacy import engine_model
 
     monkeypatch.setattr(engine_model, "engine_model_detail",
@@ -124,7 +131,91 @@ def test_discover_engine_returns_local_when_it_already_serves_models(monkeypatch
         timeout=0.2, profiles=[types.SimpleNamespace(id="p", host="h", engine_port=1)], key_for=lambda p: None)
     # The configured engine's real port (8102 from base_url) is surfaced so a chat
     # stuck on :8000 can adopt it — host_id stays None (it's the local/configured one).
-    assert out["host"] == "127.0.0.1" and out["host_id"] is None and out["port"] == 8102
+    assert out["host"] == "127.0.0.1"
+    assert out["host_id"] is None
+    assert out["port"] == 8102
+
+
+def test_discover_engine_scans_known_local_ports_when_local_and_profiles_down(monkeypatch):
+    """Rig reality (audit 2026-07-04 finding 34): the daemon's configured engine
+    is :8000 but PROD serves :8102 — with no SNDR_OPENAI_BASE_URL and no host
+    profile the Overview showed 'engine down' while the engine was fine. The
+    discovery must fall back to scanning the known local lane ports."""
+    from sndr.product_api.legacy import engine_model
+
+    seen = []
+
+    def fake_detail(host=None, *, port=None, timeout=3.0, api_key=None):
+        seen.append((host, port))
+        if host is None:  # local / configured (:8000) — nothing running
+            return {"reachable": False, "host": "127.0.0.1",
+                    "base_url": "http://127.0.0.1:8000/v1", "models": [], "error": "refused"}
+        if port == 8102:  # PROD lane answers
+            return {"reachable": True, "host": host, "base_url": f"http://{host}:{port}/v1",
+                    "version": "0.23", "models": [{"id": "qwen3.6-35b-a3b", "max_model_len": None,
+                                                   "root": None, "catalog": None}], "error": None}
+        return {"reachable": False, "host": host, "models": [], "error": "refused"}
+
+    monkeypatch.delenv("SNDR_ENGINE_PROBE_PORTS", raising=False)
+    monkeypatch.setattr(engine_model, "engine_model_detail", fake_detail)
+    out = engine_model.discover_engine(timeout=0.2, profiles=[], key_for=lambda p: None)
+
+    assert out["reachable"] is True
+    assert out["port"] == 8102
+    assert out["host_id"] is None
+    assert out["models"][0]["id"] == "qwen3.6-35b-a3b"
+    # the scan walked the known lane ports on loopback, skipping the already
+    # probed configured port (:8000 from the local attempt's base_url)
+    assert ("127.0.0.1", 8101) in seen
+    assert ("127.0.0.1", 8102) in seen
+    assert ("127.0.0.1", 8000) not in seen
+
+
+def test_discover_engine_port_scan_honours_env_override(monkeypatch):
+    from sndr.product_api.legacy import engine_model
+
+    seen = []
+
+    def fake_detail(host=None, *, port=None, timeout=3.0, api_key=None):
+        seen.append((host, port))
+        return {"reachable": False, "host": host or "127.0.0.1",
+                "base_url": "http://127.0.0.1:8000/v1", "models": [], "error": "refused"}
+
+    monkeypatch.setenv("SNDR_ENGINE_PROBE_PORTS", "9000, 9100, bogus, 70000")
+    monkeypatch.setattr(engine_model, "engine_model_detail", fake_detail)
+    out = engine_model.discover_engine(timeout=0.2, profiles=[], key_for=lambda p: None)
+
+    assert out["reachable"] is False
+    scanned = [p for (h, p) in seen if h == "127.0.0.1"]
+    assert scanned == [9000, 9100]  # invalid entries dropped, order preserved
+
+
+def test_discover_engine_profiles_still_win_over_the_local_port_scan(monkeypatch):
+    """A registered host profile is explicit operator intent — it must be adopted
+    before any blind loopback scan fires."""
+    import types
+
+    from sndr.product_api.legacy import engine_model
+
+    seen = []
+
+    def fake_detail(host=None, *, port=None, timeout=3.0, api_key=None):
+        seen.append((host, port))
+        if host == "192.0.2.10":
+            return {"reachable": True, "host": host, "base_url": f"http://{host}:{port}/v1",
+                    "models": [{"id": "m", "max_model_len": None, "root": None, "catalog": None}],
+                    "error": None}
+        return {"reachable": False, "host": host or "127.0.0.1",
+                "base_url": "http://127.0.0.1:8000/v1", "models": [], "error": "refused"}
+
+    monkeypatch.delenv("SNDR_ENGINE_PROBE_PORTS", raising=False)
+    monkeypatch.setattr(engine_model, "engine_model_detail", fake_detail)
+    prof = types.SimpleNamespace(id="prod", host="192.0.2.10", engine_port=8102)
+    out = engine_model.discover_engine(timeout=0.2, profiles=[prof], key_for=lambda p: None)
+
+    assert out["host_id"] == "prod"
+    assert out["port"] == 8102
+    assert all(h != "127.0.0.1" for (h, p) in seen)  # scan never fired
 
 
 def test_engine_model_detail_unreachable_is_graceful():
@@ -133,7 +224,8 @@ def test_engine_model_detail_unreachable_is_graceful():
     detail = engine_model_detail(host="127.0.0.1", port=59999, timeout=0.5)
     assert detail["reachable"] is False
     assert detail["models"] == []
-    assert "host" in detail and "error" in detail
+    assert "host" in detail
+    assert "error" in detail
 
 
 def test_engine_model_detail_bridges_reachable_engine(monkeypatch):
@@ -153,8 +245,12 @@ def test_engine_model_detail_bridges_reachable_engine(monkeypatch):
                         lambda *a, **k: {served: {"max_model_len": 131072, "root": "/models/x"}})
 
     detail = engine_model.engine_model_detail(host="gpu-01")
-    assert detail["reachable"] is True and detail["version"] == "0.22.0"
+    assert detail["reachable"] is True
+    assert detail["version"] == "0.22.0"
     assert len(detail["models"]) == 1
     info = detail["models"][0]
-    assert info["id"] == served and info["max_model_len"] == 131072 and info["root"] == "/models/x"
-    assert info["catalog"] is not None and info["catalog"]["model_id"] == md.id
+    assert info["id"] == served
+    assert info["max_model_len"] == 131072
+    assert info["root"] == "/models/x"
+    assert info["catalog"] is not None
+    assert info["catalog"]["model_id"] == md.id
