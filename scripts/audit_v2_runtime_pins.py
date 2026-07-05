@@ -31,7 +31,9 @@ the next pin bump:
             catching stale pins or typos). Reconciled 2026-06-24
             (pin bump dev148 -> dev301): the whole fleet is unified on
             the canonical pin
-            (``CANONICAL_PIN_SUBSTRING``, currently dev301). The audit
+            (``CANONICAL_PIN_SUBSTRING``, currently dev748 — the constant
+            below is the live value; this reconciliation note is historical).
+            The audit
             classifies each ModelDef into a ``canonical`` /  ``dev338``
             (legacy baseline) / ``dev371`` (legacy sprint era) /
             ``other`` bucket and reports the migration table as info.

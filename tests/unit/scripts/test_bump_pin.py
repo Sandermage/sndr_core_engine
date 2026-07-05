@@ -122,6 +122,31 @@ def test_dry_run_plan_covers_digest_and_presets(capsys):
     assert "preset" in out.lower()
 
 
+def test_default_pin_edit_rewrites_stale_audit_literal():
+    """bump_pin must auto-maintain the DEFAULT_PIN last-ditch literal in
+    scripts/audit_stale_vllm_version_ranges.py so 'auto-adapts to the fresh
+    pin' is uniform (2026-07-05 integrity audit). Idempotent: a bump to the
+    already-current pin yields no edit."""
+    bp = _load()
+    edit = bp._default_pin_edit("0.99.9rc1.dev999+gdeadbeef")
+    assert edit is not None, "a new pin must produce a DEFAULT_PIN rewrite"
+    path, txt = edit
+    assert path.name == "audit_stale_vllm_version_ranges.py"
+    assert 'DEFAULT_PIN = "0.99.9rc1.dev999+gdeadbeef"' in txt
+    # idempotent — bumping to the value already in the file is a no-op
+    from sndr import pins
+    assert bp._default_pin_edit(pins.current()) is None
+
+
+def test_dry_run_plan_mentions_default_pin(capsys):
+    """The bump plan must surface the DEFAULT_PIN fallback update so the
+    operator sees every propagated surface in DRY mode."""
+    bp = _load()
+    bp.main(["0.99.9rc1.dev999+gdeadbeef", "--dry-run"])
+    out = capsys.readouterr().out.lower()
+    assert "default_pin" in out or "default pin" in out
+
+
 def test_main_accepts_sha_full_flag():
     """CLI contract: bump_pin.py <pin> --sha-full <40-hex> parses; a
     malformed value is rejected before any file writes."""

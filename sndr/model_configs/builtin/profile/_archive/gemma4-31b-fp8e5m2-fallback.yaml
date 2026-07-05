@@ -123,7 +123,16 @@ backend_plan:
 # explicit attempt to serve on the rig-current 0.22.1 pin, so it
 # overrides the pin requirement.
 versions_override:
-  vllm_pin_required: 0.23.1rc1.dev148+gb4c80ec0f  # PROMOTED 2026-06-19 (K=5 + PN394/PN399 + Gemma kv-auto validated on dev148); dev101 = previous/rollback. Engine + patch set fleet-validated on dev148 (35B/27B/Gemma4-31B/26B-MoE/DiffusionGemma boot apply failed=0); this variant boot-validates on next launch.
+  # NEUTRALIZED 2026-07-05 (integrity audit): this is an _archive/ snapshot,
+  # unreachable by registry_v2.load_profile (top-level profile/<id>.yaml only)
+  # and unscanned by any pin-consistency gate, so its pin was a stale landmine
+  # (dev148, 600+ revs behind current). Set to null so that IF un-archived it
+  # composes its pin from parent model + hardware like every live profile
+  # (which carry no vllm_pin_required), instead of pinning a dead engine.
+  # Historical validation receipt (do not act on it): PROMOTED 2026-06-19 on
+  # 0.23.1rc1.dev148+gb4c80ec0f (K=5 + PN394/PN399 + Gemma kv-auto; fleet boot
+  # apply failed=0 across 35B/27B/Gemma4-31B/26B-MoE/DiffusionGemma).
+  vllm_pin_required: null
 
 # ─── Sizing override — restore toward the 256K published context ──────
 # Estimate basis (gemma4-31b-tq-default sizing history, bf16 KV):

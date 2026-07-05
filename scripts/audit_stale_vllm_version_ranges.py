@@ -20,8 +20,14 @@ The audit examines every PATCH_REGISTRY entry's
 `applies_to.vllm_version_range` and reports cases where the upper
 bound looks stale (would exclude the current operational pin).
 
-Operational pin: read from `vllm.__version__` when available; else from
-the `--pin` flag; else assumes `0.21.1rc1+` (current as of v11.3.0).
+Operational pin ("the pin we target"): resolved SSOT-first — the `--pin`
+override wins; else the `sndr/pins.yaml` `current` field (read directly,
+package-import-free, so CI and local agree); else the `sndr.pins` accessor;
+else the guards KNOWN_GOOD freshest promotion; else the static `DEFAULT_PIN`.
+The installed `vllm.__version__` is deliberately NOT consulted — the target
+pin is a repo fact, not whatever wheel happens to be in the venv (that trust
+was the 2026-07-05 CI-only divergence: CI's older vllm mis-flagged
+forward-dated patches whose lower bound == the current pin).
 
 Severity classification:
 
@@ -165,9 +171,18 @@ _BASELINE_CRITICAL_STALE: frozenset[str] = frozenset({
     # capped pending a redesign (cannot byte-exact re-anchor; see registry):
     "PN374",  # qwen3xml quoted-keys — bug fixed upstream; anchors gone.
     # ── 0.23.1 dev148 full-patch audit 2026-06-18 ──────────────────────
-    "PN66",   # multiturn </think> leak fix — #45588 reorganized the parser
-              # (DelegatingParser gone); live dev148 probe showed NO leak;
-              # #41696 CLOSED-unmerged. Skip 0.23.x, apply <0.23.0.
+    "PN66",   # multiturn </think> leak fix. Re-verified live on dev748
+              # 2026-07-05: DelegatingParser is PRESENT (not gone) but the
+              # reasoning stack was rewritten to an engine-based incremental
+              # adapter (Qwen3ParserReasoningAdapter). The leak is ABSENT on
+              # dev748 for two independent reasons: (1) parser_engine.is_reasoning_end
+              # now returns False when a <think> start precedes any </think> on
+              # the backward scan — the guard the original buggy prompt-scan
+              # lacked — and parse_delta's else-branch calls
+              # adjust_initial_state_from_prompt; (2) the Qwen3.6 chat template
+              # (chat_template.jinja:100-104) STRIPS prior-turn reasoning from
+              # history, so no stale </think> enters prompt_token_ids in normal
+              # multiturn. #41696 CLOSED-unmerged. Skip 0.23.x, apply <0.23.0.
     "PN110",  # BlockPool dedup (#42615 OPEN) — SimpleCPUOffload-only path,
               # dormant on our non-offload PROD; anchor drifted on 0.23.x.
     # P61b + PN287 formally RETIRED 2026-07-03 (lifecycle=retired, superseded by
@@ -459,7 +474,8 @@ def _print_human(result: dict) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument(
-        "--pin", help="override current pin (defaults to vllm.__version__)",
+        "--pin", help="override current pin (default: pins.yaml SSOT current; "
+                      "then sndr.pins, guards KNOWN_GOOD, DEFAULT_PIN)",
     )
     parser.add_argument(
         "--json", action="store_true",

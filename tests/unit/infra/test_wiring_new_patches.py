@@ -401,19 +401,13 @@ class TestPatch12:
         p12.apply()
         ast.parse(Path(fake_qwen3_reasoning_p12).read_text())
 
-    @pytest.mark.skip(
-        reason="P12 drift-marker auto-skip removed 2026-05-15 — patch now "
-               "self-skips via anchor-absence detection on upstream-merged "
-               "checkouts rather than a textual marker. See P12 module "
-               "head comment (lines 64-70) and UPSTREAM_DRIFT_MARKERS=[]."
-    )
-    def test_upstream_drift_skip(self, fake_qwen3_reasoning_p12):
-        from sndr.engines.vllm.patches.reasoning import p12_tool_call_reasoning as p12
-        with open(fake_qwen3_reasoning_p12, "a") as _fh:
-            _fh.write("\n# _tool_call_token_id upstream merged\n")
-        status, reason = p12.apply()
-        assert status == "skipped"
-        assert "upstream" in reason.lower()
+    # (Removed 2026-07-05) test_upstream_drift_skip deleted — it exercised the
+    # P12 drift-marker auto-skip mechanism that was itself removed 2026-05-15
+    # (patch now self-skips via anchor-absence on upstream-merged checkouts;
+    # UPSTREAM_DRIFT_MARKERS=[]). The test appended a textual marker and asserted
+    # status=='skipped', behaviour that no longer exists — it was skipped forever
+    # (the only permaskip in the suite) rather than testing anything. Anchor-
+    # absence self-skip is covered elsewhere in this module.
 
     def test_coexists_with_p27(self, fake_qwen3_reasoning_p12):
         """P12 applied first; P27's non-conflicting anchors still apply."""
