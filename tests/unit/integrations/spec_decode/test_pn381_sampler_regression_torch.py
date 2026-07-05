@@ -29,8 +29,14 @@ CUDA NOT required):
   python3 -m pytest \
       tests/unit/integrations/spec_decode/test_pn381_sampler_regression_torch.py -v
 
-Requires the pristine pin tree at /private/tmp/candidate_pin_current
-(same contract as tools/pin_preflight.py) — skipped when absent.
+Documented container-gate (no phantom pristine /tmp tree): the pristine
+``rejection_sampler.py`` is sourced from the INSTALLED vllm via the same
+``resolve_vllm_file`` the patch modules use — so the installed pin IS the
+pristine source. The two ``importorskip`` guards above (torch + vllm) are
+the honest gate: on a torch-less/vllm-less CI host the module skips because
+the dependency is genuinely absent, and it EXECUTES wherever torch + a
+matching vllm are installed (the container). No filesystem tree that exists
+on no host is consulted.
 """
 from __future__ import annotations
 
@@ -50,14 +56,6 @@ torch = pytest.importorskip(
 
 pytest.importorskip(
     "vllm", reason="requires an installed vllm matching the candidate pin"
-)
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-PIN_REJECTION_SAMPLER = PIN_TREE / "v1" / "sample" / "rejection_sampler.py"
-
-pytestmark = pytest.mark.skipif(
-    not PIN_REJECTION_SAMPLER.is_file(),
-    reason="pristine pin tree not present on this machine",
 )
 
 DEVICE = torch.device("cpu")
@@ -80,12 +78,20 @@ def genesis_sampler_module(tmp_path_factory):
     from sndr.engines.vllm.patches.spec_decode import (
         pn369_relaxed_acceptance as PN369,
     )
+    from sndr.engines.vllm.detection.guards import resolve_vllm_file
     from sndr.kernel import TextPatchResult
+
+    pristine = resolve_vllm_file("v1/sample/rejection_sampler.py")
+    if pristine is None:
+        pytest.skip(
+            "installed vllm has no v1/sample/rejection_sampler.py — the "
+            "container-gate needs a matching vllm on the import path"
+        )
 
     tmp_dir = tmp_path_factory.mktemp("pn381_sampler")
     target = tmp_dir / "rejection_sampler.py"
     target.write_text(
-        PIN_REJECTION_SAMPLER.read_text(encoding="utf-8"), encoding="utf-8"
+        Path(pristine).read_text(encoding="utf-8"), encoding="utf-8"
     )
 
     for module in (PN369, P71):

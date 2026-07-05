@@ -50,9 +50,6 @@ from tests.unit.anchor_sot._pin_manifest_assert import (  # noqa: E402
     assert_anchor_recorded,
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/sample")
-PIN_FILE = PIN_TREE / "rejection_sampler.py"
-
 EXPECTED_SUB_NAMES = {
     "pn390_import_has_triton",
     "pn390_body_drop_softmax",
@@ -320,15 +317,20 @@ class TestPn390InCurrentPinManifest:
 # The upstream-source BLOCK_SIZE=8192 exposure tripwire is NOT an anchor
 # byte-check (the constant is not one of PN390's anchors), so it cannot be
 # reproduced from the md5-only manifest — it genuinely needs the pristine
-# tree. Kept as a labeled rig-only tripwire (audit #14 KEEP-LIVE remainder).
-@pytest.mark.skipif(
-    not PIN_FILE.is_file(),
-    reason="upstream-source tripwire — needs the pristine pin tree "
-    "(not manifest-reproducible); runs on the rig, skips on CI",
-)
+# source. Converted from a phantom ``/tmp`` gate to a documented container-gate
+# against the INSTALLED vllm (audit #14 KEEP-LIVE remainder): runs wherever a
+# matching vllm is importable (rig/container), skips honestly when it is not.
 def test_live_exposure_block_size_8192_in_pin_wrapper():
     """The recovered-token wrapper hardcodes BLOCK_SIZE = 8192 and MTP K=3
     runs the rejection path each decode step. If upstream changes the block
     size, re-derive the transient-MB exposure."""
-    src = PIN_FILE.read_text(encoding="utf-8")
+    pytest.importorskip(
+        "vllm", reason="container-gate needs a matching installed vllm"
+    )
+    from sndr.engines.vllm.detection.guards import resolve_vllm_file
+
+    resolved = resolve_vllm_file("v1/sample/rejection_sampler.py")
+    if resolved is None:
+        pytest.skip("installed vllm lacks v1/sample/rejection_sampler.py")
+    src = Path(resolved).read_text(encoding="utf-8")
     assert "BLOCK_SIZE = 8192" in src

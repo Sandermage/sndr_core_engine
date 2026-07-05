@@ -56,9 +56,6 @@ from sndr.engines.vllm.patches.serving import (  # noqa: E402
     pn526_threadsafe_so_tokenizer as overlay,
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-
-
 # ── Fixture: pin-form anchor region (byte-faithful, dev748 2dfaae752) ─
 
 PIN_STRUCT_OUT = (
@@ -330,17 +327,11 @@ class TestWiring:
         )
 
 
-@pytest.mark.skipif(
-    not (PIN_TREE / "v1/structured_output/__init__.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestPristinePinInvariants:
-    def test_anchor_unique_and_markers_absent(self):
-        text = (PIN_TREE / "v1/structured_output/__init__.py").read_text(
-            encoding="utf-8"
-        )
-        assert text.count(overlay.PN526_TOKENIZER_OLD) == 1
-        for dm in overlay._DRIFT_MARKERS:
-            if dm.startswith("[Genesis"):
-                continue
-            assert dm not in text
+# TestPristinePinInvariants RETIRED (audit #14 full drain, 2026-07-06): it
+# byte-checked the anchor against the macOS-only
+# ``/private/tmp/candidate_pin_current`` path — empty on CI, absent on the
+# Linux rig — so it executed on NO host (permanent green-by-skip). PN526 is
+# not recorded in the committed anchor_sot manifest (90/329 gap, audit
+# #6/#21), so the byte-check cannot be migrated onto it. The anchor +
+# ported-upstream-semantics + drift-marker + neighbor-disjointness + wiring
+# contracts stay covered in CI by the synthetic classes above.
