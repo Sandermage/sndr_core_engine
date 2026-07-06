@@ -5,7 +5,7 @@
 ## Type of change
 
 - [ ] Bug fix (non-breaking, fixes a reported issue)
-- [ ] New patch (adds `vllm/sndr_core/integrations/<family>/<file>.py` + registry entry)
+- [ ] New patch (adds `sndr/engines/vllm/patches/<family>/<file>.py` + registry entry)
 - [ ] Patch retire (per iron-rule-#11 deep-diff — see provenance section below)
 - [ ] Documentation
 - [ ] Community model config (lifecycle: community-test on submission)
@@ -38,8 +38,8 @@ Per Sander's 2026-05-11 strategic mandate: never blindly retire on PR-title matc
 - [ ] New unit test in `tests/unit/integrations/<family>/test_p<NN>_<name>.py` (for new patches)
 - [ ] Family contract auto-covers new patch (no manual change if family already has contract — just add to `<family>_PATCHES` list)
 - [ ] Manual boot test on rig: <hardware>
-- [ ] `python3 -m vllm.sndr_core.compat.cli self-test` succeeds
-- [ ] (If config) `python3 -m vllm.sndr_core.compat.cli model-config verify <key>` succeeds
+- [ ] `python3 -m sndr.compat.cli self-test` succeeds
+- [ ] (If config) `python3 -m sndr.compat.cli model-config verify <key>` succeeds
 
 ## Pin-gate (new patches only — recommended)
 
@@ -53,7 +53,7 @@ See [docs/CONTRIBUTING.md "Pin-bump playbook"](../docs/CONTRIBUTING.md#pin-bump-
 
 ## Compose / patch interaction
 
-- [ ] No conflict with existing patches (run `python3 -m vllm.sndr_core.compat.cli lifecycle-audit`)
+- [ ] No conflict with existing patches (run `python3 -m sndr.compat.cli lifecycle-audit`)
 - [ ] PATCH_REGISTRY entry has correct `applies_to.<model_class|is_*>` matrix
 - [ ] PATCH_REGISTRY `family` field matches the actual `integrations/<family>/` directory
 - [ ] If text-patch: anchor is verbatim upstream, unique, marker constant declared + injected into replacement
@@ -71,8 +71,8 @@ See [docs/CONTRIBUTING.md "Pin-bump playbook"](../docs/CONTRIBUTING.md#pin-bump-
 
 - [ ] No automated-tool co-author trailers in commits
 - [ ] No paths to `~/Genesis_internal_docs/` or other operator-specific dirs hardcoded in source
-- [ ] No hardcoded paths in active scripts — use `vllm.sndr_core.locations.project_paths` helpers + bash env vars
-- [ ] Renames respect back-compat aliases (e.g., `from vllm.sndr_core.patches` still resolves via `__getattr__`)
+- [ ] No hardcoded paths in active scripts — use `sndr.engines.vllm.locations.project_paths` helpers + bash env vars
+- [ ] Renames respect back-compat aliases (e.g., `from sndr.engines.vllm.patches.<family>` still resolves via `__getattr__`)
 
 ## CI gates (will run automatically)
 

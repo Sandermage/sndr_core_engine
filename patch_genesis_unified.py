@@ -1,32 +1,34 @@
 # SPDX-License-Identifier: Apache-2.0
-"""patch_genesis_unified.py — v7.14+ backward-compatibility shim.
+"""patch_genesis_unified.py — root-level backward-compatibility shim.
 
-Genesis migrated from a monolithic `patch_genesis_unified.py` (≤ v7.13)
-to a modular `vllm/_genesis/` Python package + `python3 -m
-vllm._genesis.patches.apply_all` invocation (v7.14+).
-
-This file is a thin shim that invokes the new modular `apply_all` so old
-compose files / launch scripts that mount this path keep working with a
-deprecation warning. New deployments should call the module directly:
+The Genesis overlay started as a monolithic `patch_genesis_unified.py`
+(v7.13 and older). It then moved through a modular package layout and,
+as of v12, ships as the top-level `sndr` package. The canonical boot-time
+invocation today is:
 
     python3 -m sndr.apply
+
+This file is a thin shim that delegates to `sndr.apply` so old compose
+files / launch scripts that mount this path keep working, while emitting
+a deprecation warning that points at the modern invocation.
 
 Why we keep this shim
 ---------------------
 Several downstream repos (noonghunna/qwen36-27b-single-3090,
 noonghunna/qwen36-dual-3090, tedivm/qwen36-27b-docker, etc.) have
 docker-compose files that volume-mount `patch_genesis_unified.py` into
-the vLLM container's entrypoint. Without this shim, fresh `git clone` of
-the Genesis repo breaks those launches with `can't find '__main__' module`.
+the vLLM container's entrypoint. Without this shim, a fresh `git clone`
+of the Genesis repo breaks those launches with `can't find '__main__'
+module`.
 
-The shim is also useful for users who pinned to a v7.13 tag or older and
-upgrade incrementally — the deprecation warning gives them a clear path
-to update their launch invocation.
+The shim is also useful for users who pinned to an old tag and upgrade
+incrementally — the deprecation warning gives them a clear path to update
+their launch invocation.
 
 Status: shipped 2026-04-27 (v7.53.x compat layer) per
-noonghunna/qwen36-27b-single-3090#2 community ask. Removable once all
-known downstream repos migrate to the `python3 -m` invocation; will be
-deprecated for removal in Genesis v8.0.
+noonghunna/qwen36-27b-single-3090#2 community ask. Retained while known
+downstream repos still mount this path; remove only once they have all
+migrated to the `python3 -m sndr.apply` invocation.
 
 Author: Sandermage(Sander) Barzov Aleksandr, Ukraine, Odessa.
 """

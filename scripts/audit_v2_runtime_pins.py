@@ -117,8 +117,8 @@ ALLOWED_MODELDEF_PINS = frozenset({
     "0.23.1rc1.dev101+g4c626633159",
     # ── dev148 DROPPED 2026-07-03 (pin policy ≤2 pins) — reconciled with
     # guards.KNOWN_GOOD_VLLM_PINS, which dropped it 2026-06-25. It was the
-    # 2-back pin after dev301->dev424; with the live set now current=dev714 +
-    # rollback=dev672, dev148 is no older-than-rollback and no model YAML
+    # 2-back pin after dev301->dev424; with the live set now current=dev748 +
+    # rollback=dev714, dev148 is no older-than-rollback and no model YAML
     # declares it, so it is removed from ALLOWED_MODELDEF_PINS too. Keeping it
     # here while guards dropped it is exactly the cross-artifact drift
     # audit_pin_consistency.py now gates (ALLOWED ⊆ KNOWN_GOOD).
@@ -154,7 +154,7 @@ ALLOWED_MODELDEF_PINS = frozenset({
     # accept 0.679. Matches guards.py KNOWN_GOOD + test_pin_gate EXPECTED_PINS
     # (both already list it). dev424 retained one window then dropped ≤2-pin.
     "0.23.1rc1.dev672+g93d8f834d",
-    # ── Canonical PROD pin 0.23.1 dev714 (PROMOTED 2026-07-02) — CURRENT ──
+    # ── Canonical PROD pin 0.23.1 dev714 (PROMOTED 2026-07-02) — PREVIOUS/ROLLBACK ──
     # Image vllm/vllm-openai:nightly (0.23.1rc1.dev714+g09663abde, +42 commits
     # over dev672 touching no patch anchor/binding). Operator-authorized bump
     # dev672 -> dev714. 35B-A3B live-window validated: boot apply applied=87/
