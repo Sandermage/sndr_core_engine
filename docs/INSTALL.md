@@ -214,19 +214,22 @@ sndr_core_engine/
 
 - `vllm/_genesis/` — directory deleted entirely (235 files; tests
   migrated, code consolidated into `sndr_core`).
-- `patch_genesis_unified.py` — back-compat shim, no longer needed.
 - `vllm/sndr_core/wiring/patch_*.py` — replaced by canonical
   `vllm/sndr_core/integrations/<family>/<patch>.py` layout.
 
+> `patch_genesis_unified.py` is **kept** at the repo root as a thin
+> back-compat shim (it delegates to `python3 -m sndr.apply`) so downstream
+> compose files that volume-mount it keep working. It is not removed.
+
 ### 2. Container architecture
 
-The Genesis approach: **bind-mount our `sndr_core/` package into a stock vLLM image**, runtime dispatcher applies registered integrations at container start, then `exec vllm serve`.
+The Genesis approach: **bind-mount our `sndr` package into a stock vLLM image**, runtime dispatcher applies registered integrations at container start, then `exec vllm serve`.
 
 This means:
 - No need to fork or rebuild vLLM
 - Patches apply transparently — visible to operator via boot logs
 - New vLLM nightly versions can be tried without recompiling — pull image, restart container, observe drift markers
-- `sndr_core/` is the only thing under version control we ship. Pre-v11 `vllm/_genesis/` is fully removed — no back-compat alias is provided; update any pre-v11 scripts to import from `vllm.sndr_core.*`.
+- `sndr` is the only thing under version control we ship. The pre-v12 `vllm/sndr_core/` layout (and the pre-v11 `vllm/_genesis/` package before it) are fully removed — update any old scripts to import from `sndr.*`.
 
 ### 3. Pre-flight checks
 
