@@ -12,7 +12,9 @@ set -euo pipefail
 ENGINE_URL="${SNDR_OPENAI_BASE_URL:-http://127.0.0.1:8102/v1}"
 ENGINE_KEY="${SNDR_ENGINE_API_KEY:-genesis-local}"
 MEM_DSN="${GENESIS_MEMORY_DSN:-postgresql://genesis:genesis_mem_dev@127.0.0.1:55432/genesis_memory}"
-SNDR_SRC="${SNDR_SRC_DIR:-/home/sander/gvp-mainsync/sndr}"
+# Path to the canonical sndr/ package dir (e.g. <your-repo>/sndr or the
+# rig sync tree). Required — no operator-specific default is baked in.
+SNDR_SRC="${SNDR_SRC_DIR:?set SNDR_SRC_DIR to the sndr package directory}"
 IMAGE="${SNDR_DAEMON_IMAGE:-vllm/vllm-openai:nightly}"
 docker rm -f sndr-daemon >/dev/null 2>&1 || true
 docker run -d --name sndr-daemon --network host --restart unless-stopped \
