@@ -77,6 +77,7 @@ services:
     restart: unless-stopped
     depends_on:
       - vllm-engine
+      - memory-db
     ports:
       # One port serves the bundled web UI AND the Product API (8765).
       - "8765:8765"
@@ -87,25 +88,56 @@ services:
       SNDR_ENABLE_APPLY: "${SNDR_ENABLE_APPLY:-}"
       # Point the daemon's engine client at the engine service on the shared net.
       SNDR_RUNTIME_HOST: vllm-engine
+      # Engine detect needs the URL AND the key — the engine rejects keyless
+      # /v1/models with 401, which the daemon reads as "no engine" and falls
+      # back to an empty :8000 (root-caused 2026-07-06). Default matches the
+      # engine service's api-key below.
+      SNDR_OPENAI_BASE_URL: "http://vllm-engine:8000/v1"
+      SNDR_ENGINE_API_KEY: "${SNDR_ENGINE_API_KEY:-genesis-local}"
+      # Persistent neural-graph memory -> the pgvector service below. Unset ->
+      # ephemeral in-memory store (empties on every restart -> GUI "Memory:
+      # Error Not Found"). dim 256 matches the default hash embedder + schema.
+      GENESIS_MEMORY_DSN: "postgresql://genesis:genesis_mem_dev@memory-db:5432/genesis_memory"
+      GENESIS_MEMORY_EMBEDDER: "${GENESIS_MEMORY_EMBEDDER:-hash}"
+      GENESIS_MEMORY_DIM: "${GENESIS_MEMORY_DIM:-256}"
+    # `psycopg` is NOT in the vLLM base image, so PostgresStore would fail its
+    # import and silently fall back to in-memory. Install it at boot, then run
+    # the SAME run_server the CLI path uses (so compose + CLI cannot drift).
     entrypoint:
-      - python3
+      - sh
       - -c
-      # Launch the Product API server directly — the SAME run_server the
-      # `gui-api` CLI path calls (sndr.product_api.legacy.http_app), so the CLI
-      # and the compose bring-up cannot drift.
       - >-
-        import os;
+        pip install --quiet "psycopg[binary]>=3.1" 2>&1 | tail -1;
+        exec python3 -c "import os;
         from sndr.product_api.legacy.http_app import run_server;
         run_server(host=os.environ.get('SNDR_BIND', '0.0.0.0'),
         port=int(os.environ.get('SNDR_GUI_PORT') or 8765),
         enable_apply=os.environ.get('SNDR_ENABLE_APPLY', '').strip().lower()
-        in ('1', 'true', 'yes', 'on'))
+        in ('1', 'true', 'yes', 'on'))"
     volumes:
       # Re-mount the canonical sndr/ package so the daemon resolves `import sndr`.
       - "${SNDR_SRC_DIR:-../sndr}:/usr/local/lib/python3.12/dist-packages/sndr:ro"
     networks:
       - sndr-net
 
+  # Persistent memory backend (pgvector). Without it the GUI Memory tab shows
+  # data only for the current daemon lifetime.
+  memory-db:
+    image: "pgvector/pgvector:0.8.0-pg15"
+    container_name: genesis-memory-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: genesis
+      POSTGRES_PASSWORD: genesis_mem_dev
+      POSTGRES_DB: genesis_memory
+    volumes:
+      - "sndr-memory-data:/var/lib/postgresql/data"
+    networks:
+      - sndr-net
+
 networks:
   sndr-net:
     driver: bridge
+
+volumes:
+  sndr-memory-data:

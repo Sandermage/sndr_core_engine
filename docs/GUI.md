@@ -444,3 +444,25 @@ all in this repo:
 - `docs/GUI_SECURITY.md` — bind, auth (accounts/2FA/OAuth/PAM), persistence,
   redaction, and dangerous-action policy.
 - `gui/web/README.md` — frontend architecture (tech stack, layout, i18n, dev/build).
+
+## Daemon configuration — engine detection & persistent memory
+
+The GUI daemon (`sndr-daemon`, port **8765**) needs two pieces of config or it
+silently degrades:
+
+1. **Engine detection.** The daemon probes the engine's `/v1/models`; the engine
+   rejects keyless requests with `401`, which the daemon reads as "no engine"
+   and falls back to an empty `:8000`. Pass the engine URL **and** key:
+   `SNDR_OPENAI_BASE_URL` + `SNDR_ENGINE_API_KEY` (matching the engine's
+   `--api-key`).
+2. **Persistent memory.** Memory uses `GENESIS_MEMORY_DSN` → a pgvector Postgres
+   (`genesis-memory-db`, dim 256 = default hash embedder). Unset → an ephemeral
+   in-memory store that empties on every restart (surfaces as **Memory: Error
+   Not Found**). `psycopg` is **not** in the vLLM base image, so the daemon
+   pip-installs `psycopg[binary]>=3.1` at boot before starting.
+
+`compose/docker-compose.full.yml` wires all of this (engine key, memory DSN,
+`memory-db` service, psycopg install). For a single-host / rig deployment use
+`scripts/start_sndr_daemon.sh`. A guard test
+(`tests/unit/compose/test_daemon_engine_memory_wiring.py`) keeps the compose
+from regressing.
