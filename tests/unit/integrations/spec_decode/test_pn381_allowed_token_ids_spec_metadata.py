@@ -24,8 +24,9 @@ the PR's merged form (``or not self.no_allowed_token_ids``) can never
 match our own output (tools/lint_drift_markers.py contract).
 
 These tests verify textually (portable embedded fixtures shaped like
-pin 0.22.1rc1.dev259+g303916e93) and opportunistically against the
-real pristine tree at /private/tmp/candidate_pin_current:
+pin 0.22.1rc1.dev259+g303916e93), against the committed per-pin anchor
+manifest (CI-runnable), and — as a documented container-gate — against
+the pristine source from the INSTALLED vllm:
   1. anchor unique on the embedded fixture AND the real pin file
   2. end-to-end TextPatcher apply on tmp copies — APPLIED, ast-valid,
      idempotent on second apply
@@ -49,9 +50,6 @@ import ast
 from pathlib import Path
 
 import pytest
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-PIN_INPUT_BATCH = PIN_TREE / "v1" / "worker" / "gpu_input_batch.py"
 
 
 def _pn381():
@@ -394,18 +392,20 @@ class TestModuleApply:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# 6. Anchors against the real pristine pin (opportunistic)
+# 6. Anchors against the current-pin manifest + the installed pristine pin
 # ─────────────────────────────────────────────────────────────────────
 
 
 # ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
-# Audit finding #14: PN381's anchor uniqueness was byte-checked against
-# ``/private/tmp/candidate_pin_current`` (absent on every CI host ->
+# Audit finding #14: PN381's anchor uniqueness was byte-checked against a
+# macOS-only pristine pin tree (absent on every CI host ->
 # green-by-skip). MIGRATED here to read the COMMITTED per-pin manifest so it
 # RUNS in CI, tying the LIVE anchor + replacement CONSTANTS to the recorded
 # pristine bytes (merge not_merged == drift markers absent). The
 # region-fixture and full-file apply+compile checks below genuinely need the
-# pristine source and stay rig-only.
+# whole pristine file (a full-file TextPatcher apply + ast.parse the manifest
+# cannot reproduce), so they run as a documented container-gate against the
+# INSTALLED vllm.
 def test_pn381_anchor_recorded_in_current_pin_manifest():
     from tests.unit.anchor_sot._pin_manifest_assert import (
         assert_anchor_recorded,
@@ -421,26 +421,45 @@ def test_pn381_anchor_recorded_in_current_pin_manifest():
     )
 
 
-@pytest.mark.skipif(
-    not PIN_INPUT_BATCH.is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
+class TestAnchorsAgainstInstalledPin:
+    """Full-file apply + compile against the pristine ``gpu_input_batch.py``
+    sourced from the INSTALLED vllm (documented container-gate — runs
+    wherever a matching vllm is importable, e.g. the rig/container; skips
+    honestly when vllm is absent, NOT on a phantom /tmp tree). Anchor
+    uniqueness + byte-exactness itself is covered CI-wide by
+    ``test_pn381_anchor_recorded_in_current_pin_manifest`` above."""
+
+    @staticmethod
+    def _pin_input_batch() -> Path:
+        pytest.importorskip(
+            "vllm", reason="container-gate needs a matching installed vllm"
+        )
+        from sndr.engines.vllm.detection.guards import resolve_vllm_file
+
+        resolved = resolve_vllm_file("v1/worker/gpu_input_batch.py")
+        if resolved is None:
+            pytest.skip(
+                "installed vllm lacks v1/worker/gpu_input_batch.py — no "
+                "pristine source to apply the full-file patch against"
+            )
+        return Path(resolved)
+
     def test_region_fixture_matches_pin(self):
         """The embedded portable region must stay byte-identical to
         the pin so the behavioral exec tests keep testifying about the
         real file shape."""
-        src = PIN_INPUT_BATCH.read_text(encoding="utf-8")
+        src = self._pin_input_batch().read_text(encoding="utf-8")
         assert src.count(NEEDS_OUTPUT_REGION_PRISTINE) == 1
 
     def test_full_file_apply_and_compile(self, tmp_path, monkeypatch):
         monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
         from sndr.kernel import TextPatchResult
 
+        pin_input_batch = self._pin_input_batch()
         M = _pn381()
         target = tmp_path / "gpu_input_batch.py"
         target.write_text(
-            PIN_INPUT_BATCH.read_text(encoding="utf-8"), encoding="utf-8"
+            pin_input_batch.read_text(encoding="utf-8"), encoding="utf-8"
         )
         monkeypatch.setattr(M, "resolve_vllm_file", lambda rel: str(target))
         patcher = M._make_patcher()

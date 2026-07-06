@@ -45,8 +45,16 @@ from pathlib import Path
 
 import pytest
 
+from sndr.engines.vllm.detection.guards import vllm_install_root
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
+# The pristine model-file scan targets the INSTALLED vllm tree (the same root
+# the patchers resolve against) — NOT a fixed /tmp pristine path that exists on
+# no CI host (nor on the rig). Falls back to a non-existent sentinel so the scan
+# self-skips (documented container-gate) when vllm is absent, while the rel-name
+# discovery used by the CI-runnable tests below still works regardless.
+_VLLM_ROOT = vllm_install_root()
+PIN_TREE = Path(_VLLM_ROOT) if _VLLM_ROOT else Path("/__vllm_not_installed__")
 PATCHES_ROOT = REPO_ROOT / "sndr" / "engines" / "vllm" / "patches"
 
 # Parallel-Linear family + LM head — every constructor that takes
@@ -239,16 +247,19 @@ class TestSelfCheck:
 
 @pytest.mark.skipif(
     not PIN_TREE.is_dir(),
-    reason="pristine pin tree not present on this machine",
+    reason=(
+        "container-gate: installed vllm tree not resolvable (needs a vllm host "
+        "such as the rig / container)"
+    ),
 )
 class TestPristineEngagedModelFiles:
-    """INTENTIONALLY CI-skipped (audit #14 KEEP-LIVE).
+    """Documented container-gate (audit #14 KEEP-LIVE).
 
-    This lint walks the AST of the RAW pristine model source files
-    (``PIN_TREE`` = ``/private/tmp/candidate_pin_current/vllm``, a live
-    extracted pin tree present only on the dev box / rig, not on any CI
-    host). Unlike the anchor byte-checks migrated in the #14 drain, it
-    CANNOT resolve against the committed per-pin anchor manifest: the
+    This lint walks the AST of the RAW model source files in the INSTALLED
+    vllm tree (``PIN_TREE`` resolved via ``vllm_install_root()`` — present on
+    any vllm host such as the rig / container, absent on CI/Mac). Unlike the
+    anchor byte-checks migrated in the #14 drain, it CANNOT resolve against
+    the committed per-pin anchor manifest: the
     manifest records anchor md5s, not full source bytes, and this scan
     needs the complete ASTs of MANY model files (dynamically discovered
     from the patch targets) to flag every quantized parallel-Linear

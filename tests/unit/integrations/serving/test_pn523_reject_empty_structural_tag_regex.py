@@ -53,9 +53,6 @@ from sndr.engines.vllm.patches.serving import (  # noqa: E402
     pn523_reject_empty_structural_tag_regex as overlay,
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-
-
 # ── Fixture: pin-form anchor region (byte-faithful, dev748 2dfaae752) ─
 
 PIN_SAMPLING_PARAMS = (
@@ -348,15 +345,10 @@ class TestWiring:
 # ── Opportunistic pristine-tree invariants ───────────────────────────
 
 
-@pytest.mark.skipif(
-    not (PIN_TREE / "sampling_params.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestPristinePinInvariants:
-    def test_anchor_unique_and_markers_absent(self):
-        text = (PIN_TREE / "sampling_params.py").read_text(encoding="utf-8")
-        assert text.count(overlay.PN523_GUARDS_OLD) == 1
-        for dm in overlay._DRIFT_MARKERS:
-            if dm.startswith("[Genesis"):
-                continue
-            assert dm not in text
+# TestPristinePinInvariants RETIRED (audit #14 full drain, 2026-07-06): it
+# byte-checked the anchor against the macOS-only
+# Linux rig — so it executed on NO host (permanent green-by-skip). PN523 is
+# not recorded in the committed anchor_sot manifest (90/329 gap, audit
+# #6/#21), so the byte-check cannot be migrated onto it. The anchor +
+# vendored-guard + drift-marker + wiring contracts stay covered in CI by the
+# synthetic classes above.

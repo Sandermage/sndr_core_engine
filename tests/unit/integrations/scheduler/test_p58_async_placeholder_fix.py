@@ -192,18 +192,23 @@ class TestP58RequestPyPatch:
     def test_anchors_present_in_synthetic_file(self, fake_request_py):
         content = Path(fake_request_py).read_text()
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
-            REQUEST_FIELD_OLD, REQUEST_NUM_TOKENS_OLD,
+            REQUEST_FIELD_OLD,
+            REQUEST_NUM_TOKENS_OLD,
         )
         assert REQUEST_FIELD_OLD in content
         assert REQUEST_NUM_TOKENS_OLD in content
 
     def test_apply_succeeds_and_adds_counter_field(self, fake_request_py):
-        from sndr.kernel.text_patch import (
-            TextPatcher, TextPatch, TextPatchResult,
-        )
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
-            REQUEST_FIELD_OLD, REQUEST_FIELD_NEW,
-            REQUEST_NUM_TOKENS_OLD, REQUEST_NUM_TOKENS_NEW,
+            REQUEST_FIELD_NEW,
+            REQUEST_FIELD_OLD,
+            REQUEST_NUM_TOKENS_NEW,
+            REQUEST_NUM_TOKENS_OLD,
+        )
+        from sndr.kernel.text_patch import (
+            TextPatch,
+            TextPatcher,
+            TextPatchResult,
         )
 
         patcher = TextPatcher(
@@ -239,11 +244,14 @@ class TestP58AsyncSchedulerPyPatch:
         assert "request.spec_token_ids = self._spec_token_placeholders" in content
 
     def test_apply_replaces_list_assignment_with_counter(self, fake_async_sched_py):
-        from sndr.kernel.text_patch import (
-            TextPatcher, TextPatch, TextPatchResult,
-        )
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
-            ASYNC_SCHED_OLD, ASYNC_SCHED_NEW,
+            ASYNC_SCHED_NEW,
+            ASYNC_SCHED_OLD,
+        )
+        from sndr.kernel.text_patch import (
+            TextPatch,
+            TextPatcher,
+            TextPatchResult,
         )
         patcher = TextPatcher(
             patch_name="P58 async_sched test",
@@ -268,7 +276,8 @@ class TestP58AsyncSchedulerPyPatch:
         """Dual-anchor mutual exclusivity: each pin's layout contains exactly
         ONE of the two variant anchors, never both."""
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
-            ASYNC_SCHED_OLD, ASYNC_SCHED_OLD_DEV491,
+            ASYNC_SCHED_OLD,
+            ASYNC_SCHED_OLD_DEV491,
         )
         dev259 = Path(fake_async_sched_py).read_text()
         dev491 = Path(fake_async_sched_py_dev491).read_text()
@@ -285,12 +294,16 @@ class TestP58AsyncSchedulerPyPatch:
         """On the dev491 layout the dev259 Variant A soft-skips (required=False)
         and the dev491 Variant B fires, producing the same counter-based fix.
         This is the re-anchor case for the dev259→dev491 pin bump."""
-        from sndr.kernel.text_patch import (
-            TextPatcher, TextPatch, TextPatchResult,
-        )
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
-            ASYNC_SCHED_OLD, ASYNC_SCHED_NEW,
-            ASYNC_SCHED_OLD_DEV491, ASYNC_SCHED_NEW_DEV491,
+            ASYNC_SCHED_NEW,
+            ASYNC_SCHED_NEW_DEV491,
+            ASYNC_SCHED_OLD,
+            ASYNC_SCHED_OLD_DEV491,
+        )
+        from sndr.kernel.text_patch import (
+            TextPatch,
+            TextPatcher,
+            TextPatchResult,
         )
         patcher = TextPatcher(
             patch_name="P58 async_sched dev491 test",
@@ -325,38 +338,24 @@ class TestP58AsyncSchedulerPyPatch:
             "            )"
         ) in modified
 
-    def test_dual_anchor_real_pristine_trees(self):
-        """Re-anchor verification against the ACTUAL pristine pin trees:
-        Variant A matches dev259 only, Variant B matches dev491 only, each
-        with count==1 in its own tree and count==0 in the other (iron rule
-        #11). Skips if the pristine trees are not present on this host."""
-        from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
-            ASYNC_SCHED_OLD, ASYNC_SCHED_OLD_DEV491,
-        )
-        dev259_path = Path(
-            "/private/tmp/candidate_pin_current/vllm/v1/core/sched/async_scheduler.py"
-        )
-        dev491_path = Path(
-            "/tmp/candidate_pin_new/vllm/v1/core/sched/async_scheduler.py"
-        )
-        if not (dev259_path.is_file() and dev491_path.is_file()):
-            pytest.skip("pristine pin trees not present on this host")
-        dev259 = dev259_path.read_text()
-        dev491 = dev491_path.read_text()
-        # Variant A anchors uniquely in dev259, absent from dev491.
-        assert dev259.count(ASYNC_SCHED_OLD) == 1
-        assert dev491.count(ASYNC_SCHED_OLD) == 0
-        # Variant B anchors uniquely in dev491, absent from dev259.
-        assert dev491.count(ASYNC_SCHED_OLD_DEV491) == 1
-        assert dev259.count(ASYNC_SCHED_OLD_DEV491) == 0
+    # test_dual_anchor_real_pristine_trees RETIRED (audit #14 full drain,
+    # 2026-07-06): it byte-checked the dev259/dev491 variant anchors against
+    # macOS-only stale-pin paths, empty on CI and absent on the Linux rig, so
+    # it executed on NO host (permanent green-by-skip). P58 is not recorded in
+    # the committed anchor_sot manifest (90/329 gap, audit #6/#21), so the
+    # dual-variant byte-check cannot be migrated onto it. The variant
+    # mutual-exclusion + apply + idempotency + drift contracts stay covered in
+    # CI by the synthetic fake-tree tests in this class.
 
 
 class TestP58SchedulerPyPatch:
     def test_all_four_anchors_present(self, fake_scheduler_py):
         content = Path(fake_scheduler_py).read_text()
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
-            SCHED_SPEC_BLOCK_OLD, SCHED_NEW_METHOD_OLD,
-            SCHED_PREEMPT_OLD, SCHED_DRAFT_SITE_A_OLD,
+            SCHED_DRAFT_SITE_A_OLD,
+            SCHED_NEW_METHOD_OLD,
+            SCHED_PREEMPT_OLD,
+            SCHED_SPEC_BLOCK_OLD,
         )
         assert SCHED_SPEC_BLOCK_OLD in content
         assert SCHED_NEW_METHOD_OLD in content
@@ -367,14 +366,20 @@ class TestP58SchedulerPyPatch:
         assert SCHED_DRAFT_SITE_A_OLD in content
 
     def test_apply_inserts_new_method_and_gates(self, fake_scheduler_py):
-        from sndr.kernel.text_patch import (
-            TextPatcher, TextPatch, TextPatchResult,
-        )
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
-            SCHED_SPEC_BLOCK_OLD, SCHED_SPEC_BLOCK_NEW,
-            SCHED_NEW_METHOD_OLD, SCHED_NEW_METHOD_NEW,
-            SCHED_PREEMPT_OLD, SCHED_PREEMPT_NEW,
-            SCHED_DRAFT_SITE_A_OLD, SCHED_DRAFT_SITE_A_NEW,
+            SCHED_DRAFT_SITE_A_NEW,
+            SCHED_DRAFT_SITE_A_OLD,
+            SCHED_NEW_METHOD_NEW,
+            SCHED_NEW_METHOD_OLD,
+            SCHED_PREEMPT_NEW,
+            SCHED_PREEMPT_OLD,
+            SCHED_SPEC_BLOCK_NEW,
+            SCHED_SPEC_BLOCK_OLD,
+        )
+        from sndr.kernel.text_patch import (
+            TextPatch,
+            TextPatcher,
+            TextPatchResult,
         )
         patcher = TextPatcher(
             patch_name="P58 scheduler test",
@@ -404,12 +409,16 @@ class TestP58SchedulerPyPatch:
 
 class TestP58Idempotency:
     def test_second_apply_is_noop(self, fake_request_py):
-        from sndr.kernel.text_patch import (
-            TextPatcher, TextPatch, TextPatchResult,
-        )
         from sndr.engines.vllm.patches.scheduler.p58_async_scheduler_placeholder_fix import (
-            REQUEST_FIELD_OLD, REQUEST_FIELD_NEW,
-            REQUEST_NUM_TOKENS_OLD, REQUEST_NUM_TOKENS_NEW,
+            REQUEST_FIELD_NEW,
+            REQUEST_FIELD_OLD,
+            REQUEST_NUM_TOKENS_NEW,
+            REQUEST_NUM_TOKENS_OLD,
+        )
+        from sndr.kernel.text_patch import (
+            TextPatch,
+            TextPatcher,
+            TextPatchResult,
         )
         patcher = TextPatcher(
             patch_name="P58 idempotency test",
@@ -433,7 +442,9 @@ class TestP58UpstreamDriftDetection:
         """If `num_pending_async_spec_placeholders` is already in the file,
         we treat it as upstream-merged and skip without touching."""
         from sndr.kernel.text_patch import (
-            TextPatcher, TextPatch, TextPatchResult,
+            TextPatch,
+            TextPatcher,
+            TextPatchResult,
         )
 
         post_fix_file = tmp_path / "request_post_fix.py"

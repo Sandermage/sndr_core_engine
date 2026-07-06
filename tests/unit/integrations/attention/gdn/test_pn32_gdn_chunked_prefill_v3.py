@@ -27,7 +27,7 @@ no longer match) — asserted textually below.
 
 These tests verify, textually on the committed pristine fixture
 (`tests/legacy/pristine_fixtures/qwen_gdn_linear_attn.py`, md5-identical
-to /private/tmp/candidate_pin_current on the extraction host):
+to the pin's pristine source on the extraction host):
   1. pristine variant matches pristine exactly once; post-PN79 variant
      matches zero times (mutual exclusion, direction 1)
   2. after applying PN79's 3C replacement to a pristine copy, the
@@ -57,12 +57,18 @@ PRISTINE_FIXTURE = (
 
 
 def _pn32():
-    from sndr.engines.vllm.patches.attention.gdn import pn32_gdn_chunked_prefill as M
+    from sndr.engines.vllm.patches.attention.gdn import (  # noqa: N812
+        pn32_gdn_chunked_prefill as M,
+    )
+
     return M
 
 
 def _pn79():
-    from sndr.engines.vllm.patches.attention.gdn import pn79_inplace_ssm_state as M
+    from sndr.engines.vllm.patches.attention.gdn import (  # noqa: N812
+        pn79_inplace_ssm_state as M,
+    )
+
     return M
 
 

@@ -40,9 +40,11 @@ pristine variant fires, then PN341's sub-patch 4 soft-skips
 per the roadmap (under async the PN370 gate routes to the
 device-authoritative default anyway).
 
-These tests verify textually (portable embedded fixtures shaped like
-pin 0.22.1rc1.dev259+g303916e93) and opportunistically against the
-real pristine tree at /private/tmp/candidate_pin_current:
+These tests verify textually against portable embedded fixtures shaped
+like pin 0.22.1rc1.dev259+g303916e93 (PN370 vendors an OPEN upstream PR
+and shares its ``_prepare_inputs`` anchor with PN341, so it is not
+recorded in the current-pin anchor manifest — the embedded fixtures are
+the CI-runnable source of truth):
   1. anchor variants: required-at-least-one, mutual exclusion, chain
      derivation from PN341's constant
   2. end-to-end TextPatcher apply on tmp copies of both shapes +
@@ -56,7 +58,8 @@ real pristine tree at /private/tmp/candidate_pin_current:
      text (tools/lint_drift_markers.py contract) + cross-module:
      PN370's pristine replacement must not contain PN341's drift
      markers (or PN341-after-PN370 would false-skip entirely)
-  6. anchors unique and drift markers absent on the real pristine pin
+  6. anchors unique and drift markers absent in the embedded
+     pristine-shaped fixtures
 """
 from __future__ import annotations
 

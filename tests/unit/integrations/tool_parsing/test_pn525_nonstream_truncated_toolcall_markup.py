@@ -39,7 +39,6 @@ Sub-contracts:
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -49,9 +48,6 @@ os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
 from sndr.engines.vllm.patches.tool_parsing import (  # noqa: E402
     pn525_nonstream_truncated_toolcall_markup as overlay,
 )
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm")
-
 
 # ── Fixture: pin-form anchor region (byte-faithful, dev748 2dfaae752) ─
 
@@ -298,17 +294,11 @@ class TestWiring:
         )
 
 
-@pytest.mark.skipif(
-    not (PIN_TREE / "parser/abstract_parser.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestPristinePinInvariants:
-    def test_anchor_unique_and_markers_absent(self):
-        text = (PIN_TREE / "parser/abstract_parser.py").read_text(
-            encoding="utf-8"
-        )
-        assert text.count(overlay.PN525_NO_TOOLCALL_OLD) == 1
-        for dm in overlay._DRIFT_MARKERS:
-            if dm.startswith("[Genesis"):
-                continue
-            assert dm not in text
+# TestPristinePinInvariants RETIRED (audit #14 full drain, 2026-07-06): it
+# byte-checked the anchor against the macOS-only pristine candidate-pin
+# tree — empty on CI, absent on the Linux rig — so it executed on NO host
+# (permanent green-by-skip). PN525 is
+# not recorded in the committed anchor_sot manifest (90/329 gap, audit
+# #6/#21), so the byte-check cannot be migrated onto it. The anchor +
+# ported-upstream-matrix + drift-marker + wiring contracts stay covered in CI
+# by the synthetic classes above.

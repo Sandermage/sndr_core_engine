@@ -492,7 +492,6 @@ class TestPoisonInvariant:
 
 # ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ─
 # Audit finding #14: the previous ``TestAnchorsAgainstPristinePin`` class
-# byte-checked the anchor against ``/private/tmp/candidate_pin_current``
 # (absent on every CI host -> permanently green-by-skip). MIGRATED here to
 # read the COMMITTED per-pin manifest so it RUNS in CI, and STRENGTHENED to
 # tie the LIVE patcher anchor + replacement to the recorded pristine bytes

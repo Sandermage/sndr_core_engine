@@ -359,11 +359,11 @@ def test_p87_patcher_carries_dev491_upstream_drift_marker():
     )
 
 
-# ── Current-pin anchor manifest (MIGRATED from the /tmp pristine gates) ─
+# ── Current-pin anchor manifest (MIGRATED from the stale-pin /tmp gates) ─
 # Audit finding #14: the three tests below byte-checked the can_implement
-# variants against ``/private/tmp/candidate_pin_current`` (dev259) and
-# ``/tmp/candidate_pin_new`` (dev491) — two stale-pin trees absent on every
-# CI host (permanently green-by-skip). MIGRATED to read the COMMITTED per-pin
+# variants against two macOS-only stale-pin pristine trees (a dev259 tree and
+# a dev491 tree) — absent on every CI host (permanently green-by-skip).
+# MIGRATED to read the COMMITTED per-pin
 # manifest. On the current pin the DEV491 can_implement variant is the one
 # that fires (recorded), the DEV259 variant does not, and P87's whole anchor
 # set is recorded active with merge_status==not_merged — i.e. the dev491

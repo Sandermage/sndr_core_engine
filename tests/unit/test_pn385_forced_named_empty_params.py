@@ -34,18 +34,25 @@ from pathlib import Path
 
 import pytest
 
-# Pristine pin source of the target file. The patch's anchors are
-# byte-verified (count==1) against exactly this tree.
-_PRISTINE_UTILS = Path(
-    "/private/tmp/candidate_pin_current/vllm/tool_parsers/utils.py"
-)
+from sndr.engines.vllm.detection.guards import resolve_vllm_file
+from tests.unit.anchor_sot._pin_manifest_assert import assert_anchor_recorded
 
-# Skip cleanly off-server (the pristine pin only exists on the dev box /
-# in the pin-prep tmpdir). The patch's correctness is otherwise locked by
-# the byte-exact anchor verification in the wiring module.
-pytestmark = pytest.mark.skipif(
-    not _PRISTINE_UTILS.is_file(),
-    reason="pristine pin tool_parsers/utils.py not present on this host",
+# Target file resolved from the INSTALLED vllm tree (the same call
+# ``PN385.apply()`` makes) — NOT a fixed ``/tmp`` pristine path that exists on
+# no CI host. The behavioral RED/GREEN tests exec this real upstream source,
+# so they run as a documented container-gate (rig / vllm container) and skip
+# honestly when vllm is absent. The anchor byte-exactness itself runs in CI
+# against the committed per-pin anchor manifest (see the manifest test below).
+_TARGET_REL = "tool_parsers/utils.py"
+_resolved = resolve_vllm_file(_TARGET_REL)
+_PRISTINE_UTILS = Path(_resolved) if _resolved else None
+
+requires_vllm_source = pytest.mark.skipif(
+    _PRISTINE_UTILS is None or not _PRISTINE_UTILS.is_file(),
+    reason=(
+        "container-gate: tool_parsers/utils.py not resolvable in the installed "
+        "vllm tree (needs a vllm host such as the rig / container)"
+    ),
 )
 
 
@@ -180,9 +187,30 @@ def _patched_copy(tmp_path: Path) -> Path:
 _EMPTY_OBJECT = {"type": "object", "properties": {}}
 
 
+# ─── Anchor byte-exactness: current-pin manifest (runs in CI) ─────────
+# Both forced-named anchors are recorded in the committed per-pin anchor
+# manifest, so tying the live patcher anchor CONSTANTS to the recorded
+# pristine bytes RUNS on every CI host — no vllm install or /tmp tree
+# needed. Replaces the uniqueness half of the old pristine byte-check that
+
+
+def test_pn385_anchors_recorded_in_current_pin_manifest():
+    from sndr.engines.vllm.patches.tool_parsing import (
+        pn385_forced_named_empty_params as pn385,
+    )
+
+    assert_anchor_recorded(
+        "PN385", "pn385_responses_forced_named", pn385.PN385_RESPONSES_OLD
+    )
+    assert_anchor_recorded(
+        "PN385", "pn385_chatcompletion_forced_named", pn385.PN385_CHAT_OLD
+    )
+
+
 # ─── RED baseline: pristine source must FAIL the contract ─────────────
 
 
+@requires_vllm_source
 @pytest.mark.parametrize("params", [None, {}])
 def test_pristine_responses_branch_is_unconstrained(params):
     """Pre-patch, the Responses forced-named branch returns the raw
@@ -195,6 +223,7 @@ def test_pristine_responses_branch_is_unconstrained(params):
     assert schema != _EMPTY_OBJECT
 
 
+@requires_vllm_source
 @pytest.mark.parametrize("params", [None, {}])
 def test_pristine_chat_branch_is_unconstrained(params):
     fn = _load_get_json_schema_from_tools(_PRISTINE_UTILS)
@@ -207,6 +236,7 @@ def test_pristine_chat_branch_is_unconstrained(params):
 # ─── GREEN: after PN385 both branches constrain to a JSON object ──────
 
 
+@requires_vllm_source
 @pytest.mark.parametrize("params", [None, {}])
 def test_patched_responses_branch_constrains_object(tmp_path, params):
     patched = _patched_copy(tmp_path)
@@ -217,6 +247,7 @@ def test_patched_responses_branch_constrains_object(tmp_path, params):
     assert schema == _EMPTY_OBJECT
 
 
+@requires_vllm_source
 @pytest.mark.parametrize("params", [None, {}])
 def test_patched_chat_branch_constrains_object(tmp_path, params):
     patched = _patched_copy(tmp_path)
@@ -227,6 +258,7 @@ def test_patched_chat_branch_constrains_object(tmp_path, params):
     assert schema == _EMPTY_OBJECT
 
 
+@requires_vllm_source
 def test_patched_non_empty_params_preserved(tmp_path):
     """A real (non-falsey) parameters schema must pass through unchanged
     on both forced-named branches — PN385 only touches the falsey case."""
@@ -249,6 +281,7 @@ def test_patched_non_empty_params_preserved(tmp_path):
 # ─── Idempotency + drift-marker self-collision contract ───────────────
 
 
+@requires_vllm_source
 def test_apply_is_idempotent(tmp_path):
     """Second apply() on an already-patched file returns IDEMPOTENT,
     never a double-edit."""
@@ -271,7 +304,10 @@ def test_drift_markers_do_not_self_collide():
         pn385_forced_named_empty_params as pn385,
     )
 
-    patcher = pn385.build_patcher_for_target(str(_PRISTINE_UTILS))
+    # Marker / drift-marker / sub-patch inspection needs only the patcher's
+    # own metadata (not the target file contents), so build against the rel
+    # path — this test runs in CI without a resolvable vllm source.
+    patcher = pn385.build_patcher_for_target(_TARGET_REL)
     assert patcher is not None
     marker_line = f"# [Genesis wiring marker: {patcher.marker}]\n"
     for dm in patcher.upstream_drift_markers:

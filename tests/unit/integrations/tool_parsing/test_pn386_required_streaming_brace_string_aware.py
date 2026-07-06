@@ -321,8 +321,8 @@ class TestDriftMarkerSelfCollision:
 
 # ── Pristine pin invariants — RETIRED (audit finding #14) ────────────
 # PN386 is a RETIRED-lifecycle patch. Its former ``TestAnchorsAgainstPristinePin``
-# byte-checks were gated on the absent ``/private/tmp/candidate_pin_current``
-# dev259 tree (permanently green-by-skip), and a retired patch's anchor
+# byte-checks were gated on the absent macOS-only pristine candidate-pin
+# (dev259) tree (permanently green-by-skip), and a retired patch's anchor
 # legitimately no longer matches the live pristine source (the per-pin manifest
 # classifies it STATUS_RETIRED). The synthetic patcher/apply/drift tests above
 # (Group A) run in CI and remain the live contract.

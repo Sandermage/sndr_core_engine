@@ -30,27 +30,16 @@ dev301 pristine tree):
      ``kv_cache_config.kv_cache_groups``.
 
 These tests verify textually (portable embedded fixtures shaped like the
-merged dev301 source), BEHAVIORALLY (the patched fixture is exec'd with a
-fake torch to prove the no-clobber contract), and opportunistically
-against a real pristine tree if one is dumped to PIN_TREE.
+merged dev301 source) and BEHAVIORALLY (the patched fixture is exec'd with
+a fake torch to prove the no-clobber contract). Anchor byte-parity against
+the CURRENT pin is enforced in CI by
+``test_pn382_all_anchors_recorded_in_current_pin_manifest`` (reads the
+committed per-pin anchor manifest).
 """
 from __future__ import annotations
 
 import ast
 import types
-from pathlib import Path
-
-import pytest
-
-PIN_TREE = Path("/tmp/dev301_pristine_tree/vllm")
-PIN_CONNECTOR = (
-    PIN_TREE
-    / "distributed"
-    / "kv_transfer"
-    / "kv_connector"
-    / "v1"
-    / "decode_bench_connector.py"
-)
 
 
 def _pn382():
@@ -680,38 +669,22 @@ class TestModuleApply:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# 7. Against the real pristine pin (opportunistic)
+# 7. Against the real pristine pin: RETIRED (audit #14 full drain, 2026-07-06)
 # ─────────────────────────────────────────────────────────────────────
-
-
-@pytest.mark.skipif(
-    not PIN_CONNECTOR.is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAgainstPristinePin:
-    def test_fixture_regions_match_pin(self):
-        """Embedded portable regions stay byte-identical to the pin."""
-        src = PIN_CONNECTOR.read_text(encoding="utf-8")
-        for region in (
-            CTOR_REGION,
-            SCHEDULER_INIT_REGION,
-            WORKER_INIT_REGION,
-            GROUP_MAP_REGION,
-            FILL_REGION,
-        ):
-            assert src.count(region) == 1
-
-    def test_full_file_apply_and_compile(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("GENESIS_NO_PATCH_CACHE", "1")
-        from sndr.kernel import TextPatchResult
-
-        M = _pn382()
-        target = tmp_path / "decode_bench_connector.py"
-        target.write_text(
-            PIN_CONNECTOR.read_text(encoding="utf-8"), encoding="utf-8"
-        )
-        monkeypatch.setattr(M, "resolve_vllm_file", lambda rel: str(target))
-        patcher = M._make_patcher()
-        result, failure = patcher.apply()
-        assert result == TextPatchResult.APPLIED, failure
-        ast.parse(target.read_text(encoding="utf-8"))
+# The former ``TestAgainstPristinePin`` byte-checked the embedded fixture
+# regions and ran a full-file apply+compile against a pristine tree at
+# ``/tmp/dev301_pristine_tree/vllm`` — a phantom path present on NO CI host
+# and absent on the Linux rig (whose pristine lives at
+# ``/tmp/pristine_dev748_2dfaae752``, and for a DIFFERENT pin): it executed
+# on no host, a permanent green-by-skip. It is now fully superseded:
+#   * anchor byte-parity against the CURRENT pin is enforced in CI by
+#     ``test_pn382_all_anchors_recorded_in_current_pin_manifest`` (ties each
+#     live sub-patch anchor to the committed dev748 anchor-manifest md5 —
+#     STRONGER than the dev301-shaped fixture-region parity, which was frozen
+#     to a stale pin);
+#   * end-to-end apply + ``ast.parse`` compile runs on every CI host in
+#     ``TestEndToEndApply`` against the embedded pristine-shaped fixture.
+# Retired rather than re-pointed at the rig tree: the embedded regions are
+# dev301-shaped and would not byte-match the dev748 source, so a live-tree
+# gate would be a stale-fixture landmine, not coverage. Re-add a live-tree
+# integration check only alongside dev748-shaped fixtures.

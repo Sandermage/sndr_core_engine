@@ -38,24 +38,17 @@ from pathlib import Path
 
 import pytest
 
-from sndr.kernel import TextPatchResult
-from sndr.kernel.multi_file import MultiFilePatchTransaction
-
 from sndr.engines.vllm.patches.scheduler.p79d_preempt_async_discard import (
     GENESIS_P79D_MARKER,
-    P79D_DRAIN_ANCHOR,
     P79D_DRAIN_REPLACEMENT,
-    P79D_PREEMPT_ANCHOR,
     P79D_PREEMPT_REPLACEMENT,
-    P79D_RESET_CREDIT_ANCHOR,
     P79D_RESET_CREDIT_REPLACEMENT,
-    P79D_SPEC_REJECT_ANCHOR,
     P79D_SPEC_REJECT_REPLACEMENT,
     _make_async_scheduler_patcher,
     _make_scheduler_patcher,
 )
-
-PRISTINE_ROOT = Path("/private/tmp/candidate_pin_current/vllm")
+from sndr.kernel import TextPatchResult
+from sndr.kernel.multi_file import MultiFilePatchTransaction
 
 ALL_REPLACEMENTS = (
     P79D_PREEMPT_REPLACEMENT,
@@ -227,38 +220,15 @@ def _exec_module(src):
     return ns
 
 
-# ═══ 1. Anchor contract against the PRISTINE pin tree ════════════════════
-
-
-@pytest.mark.skipif(
-    not (PRISTINE_ROOT / "v1/core/sched/scheduler.py").is_file(),
-    reason="pristine candidate pin tree not present on this machine",
-)
-def test_pristine_anchors_present_exactly_once():
-    sched = (PRISTINE_ROOT / "v1/core/sched/scheduler.py").read_text()
-    async_sched = (PRISTINE_ROOT / "v1/core/sched/async_scheduler.py").read_text()
-    assert sched.count(P79D_PREEMPT_ANCHOR) == 1
-    assert sched.count(P79D_RESET_CREDIT_ANCHOR) == 1
-    assert sched.count(P79D_SPEC_REJECT_ANCHOR) == 1
-    assert async_sched.count(P79D_DRAIN_ANCHOR) == 1
-
-
-@pytest.mark.skipif(
-    not (PRISTINE_ROOT / "v1/core/sched/scheduler.py").is_file(),
-    reason="pristine candidate pin tree not present on this machine",
-)
-def test_pristine_staleness_facts_still_hold():
-    """The staleness facts that triggered this rewrite (roadmap chunk 2).
-
-    If either fact changes on a future pin, the rewrite needs re-study.
-    """
-    sched = (PRISTINE_ROOT / "v1/core/sched/scheduler.py").read_text()
-    async_sched = (PRISTINE_ROOT / "v1/core/sched/async_scheduler.py").read_text()
-    # The v1 boolean is dead upstream.
-    assert "discard_latest_async_tokens" not in sched
-    assert "discard_latest_async_tokens" not in async_sched
-    # The assert that v1 would have tripped is still live.
-    assert "assert request.num_output_placeholders >= 0" in async_sched
+# ═══ 1. Anchor contract: RETIRED (audit #14 full drain, 2026-07-06) ══════
+# ``test_pristine_anchors_present_exactly_once`` and
+# ``test_pristine_staleness_facts_still_hold`` byte-checked anchors +
+# path (empty on CI, absent on the Linux rig where pristine lives at
+# ``/tmp/pristine_dev748_2dfaae752``) — they executed on NO host, a permanent
+# green-by-skip. P79D is not recorded in the committed anchor_sot manifest
+# (90/329 gap, audit #6/#21), so the byte-check cannot be migrated onto it.
+# Retired; the replacement hygiene + credit-math behavior + idempotency +
+# atomic-withhold contracts stay covered in CI by the synthetic tests below.
 
 
 # ═══ 2. Replacement hygiene ═══════════════════════════════════════════════

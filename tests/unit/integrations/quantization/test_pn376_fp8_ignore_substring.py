@@ -13,8 +13,8 @@ and rewrites the quant_utils experts branch so the legacy MoE
 parent-in-child containment convention survives substring mode.
 
 Test strategy (PN373 convention):
-  1. Anchor byte-verification against the pristine candidate tree
-     (/private/tmp/candidate_pin_current) — count==1 per anchor.
+  1. Anchor byte-verification against the installed vllm quantization
+     sources (resolved via resolve_vllm_file) — count==1 per anchor.
   2. Pristine bug reproduction — exact-match short-pattern miss
      (#21669) AND substr-mode experts-containment loss (the regression
      the PR's review caught). If these start FAILING after a pin bump,
@@ -42,23 +42,31 @@ from types import MappingProxyType
 
 import pytest
 
+from sndr.engines.vllm.detection.guards import resolve_vllm_file
 
-_PRISTINE_QUANT_DIR = (
-    "/private/tmp/candidate_pin_current/vllm/model_executor/layers/"
-    "quantization"
-)
+# The pristine quantization sources are resolved from the INSTALLED vllm tree
+# (the same call PN376.apply() makes) — NOT a fixed /tmp pristine path that
+# exists on no CI host. These classes exec / ast-parse / replay against the
+# real upstream source, so they run as a documented container-gate (rig / vllm
+# container) and skip honestly when vllm is absent.
+_QUANT_RELS = {
+    "fp8": "model_executor/layers/quantization/fp8.py",
+    "quant_utils": "model_executor/layers/quantization/utils/quant_utils.py",
+    "fbgemm": "model_executor/layers/quantization/fbgemm_fp8.py",
+    "mxfp4": "model_executor/layers/quantization/mxfp4.py",
+    "modelopt": "model_executor/layers/quantization/modelopt.py",
+}
 
 PRISTINE_FILES = {
-    "fp8": f"{_PRISTINE_QUANT_DIR}/fp8.py",
-    "quant_utils": f"{_PRISTINE_QUANT_DIR}/utils/quant_utils.py",
-    "fbgemm": f"{_PRISTINE_QUANT_DIR}/fbgemm_fp8.py",
-    "mxfp4": f"{_PRISTINE_QUANT_DIR}/mxfp4.py",
-    "modelopt": f"{_PRISTINE_QUANT_DIR}/modelopt.py",
+    key: (resolve_vllm_file(rel) or "") for key, rel in _QUANT_RELS.items()
 }
 
 requires_pristine = pytest.mark.skipif(
-    not all(os.path.isfile(p) for p in PRISTINE_FILES.values()),
-    reason="pristine candidate pin tree not extracted on this host",
+    not all(p and os.path.isfile(p) for p in PRISTINE_FILES.values()),
+    reason=(
+        "container-gate: vllm quantization sources not resolvable in the "
+        "installed tree (needs a vllm host such as the rig / container)"
+    ),
 )
 
 # ─── #44628 post-image constants (gh pr diff 44628, fetched 2026-06-11) ──
@@ -94,7 +102,7 @@ UPSTREAM_44628_MODELOPT_POST_COMMENT = (
 
 def _pn376():
     from sndr.engines.vllm.patches.quantization import (
-        pn376_fp8_ignore_substring as M,
+        pn376_fp8_ignore_substring as M,  # noqa: N812 — module handle, not a class
     )
     return M
 
@@ -236,7 +244,7 @@ class TestPristineBugReproduction:
 
 @requires_pristine
 class TestPatchedQuantUtilsSemantics:
-    @pytest.fixture()
+    @pytest.fixture
     def fn(self):
         return _extract_is_layer_skipped(_patched_src("quant_utils"))
 
@@ -386,7 +394,7 @@ class TestTextPatcherIntegration:
         "modelopt": "model_executor/layers/quantization/modelopt.py",
     }
 
-    @pytest.fixture()
+    @pytest.fixture
     def temp_tree(self, tmp_path, monkeypatch):
         """Writable copies of all five pristine targets inside a
         synthetic vllm root; guards.vllm_install_root redirected."""
@@ -395,7 +403,7 @@ class TestTextPatcherIntegration:
             dst = tmp_path / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_text(_pristine_src(key))
-        import sndr.engines.vllm.detection.guards as guards
+        from sndr.engines.vllm.detection import guards
         monkeypatch.setattr(guards, "vllm_install_root", lambda: str(tmp_path))
         return tmp_path
 

@@ -161,7 +161,7 @@ MERGED_SAMPLER = PIN_SAMPLER.replace(
 # from MERGED_SAMPLER (which models the PR DIFF form, `-float("inf")`):
 # vllm spells the constant `float("-inf")`, reworded the comment, and added
 # a `recovered_id = tl.minimum(...)` clamp. Byte-faithful copy of the tail
-# block from /tmp/candidate_pin_new/vllm (verified 2026-06-13). PN378 must
+# block from the dev491 pristine tree (verified 2026-06-13). PN378 must
 # self-skip on this form via the dev491 drift markers (Layer 3).
 DEV491_SAMPLER = PIN_SAMPLER.replace(
     "        # Local tile reduction\n"

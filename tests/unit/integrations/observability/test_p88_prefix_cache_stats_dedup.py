@@ -38,27 +38,18 @@ from pathlib import Path
 
 import pytest
 
-from sndr.kernel import TextPatchResult
-
 from sndr.engines.vllm.patches.observability.p88_prefix_cache_stats_dedup import (
+    _COMMIT_VARIANT_NAMES,
     GENESIS_P88_MARKER,
-    P88_LOOKUP_ANCHOR,
-    P88_LOOKUP_REPLACEMENT,
     P88_ALLOC_COMMIT_ANCHOR,
     P88_ALLOC_COMMIT_DEV491_ANCHOR,
-    P88_ALLOC_COMMIT_REPLACEMENT,
     P88_ALLOC_COMMIT_DEV491_REPLACEMENT,
-    _COMMIT_VARIANT_NAMES,
+    P88_ALLOC_COMMIT_REPLACEMENT,
+    P88_LOOKUP_REPLACEMENT,
     _connector_configured,
     _make_kv_cache_manager_patcher,
 )
-
-# Current pin PROD 35B runs (0.22.1rc1.dev259) and the candidate it is being
-# bumped to (0.22.1rc1.dev491). P88 must keep working on dev259 AND start
-# working on dev491, so the anchor contract is asserted against BOTH trees.
-PRISTINE_ROOT = Path("/private/tmp/candidate_pin_current/vllm")
-PRISTINE_DEV491_ROOT = Path("/tmp/candidate_pin_new/vllm")
-
+from sndr.kernel import TextPatchResult
 
 # ─── synthetic-but-compilable fake carrying the byte-exact anchors ───────
 #
@@ -254,74 +245,24 @@ def _patched_manager(fake_kv_cache_manager_py, **kwargs):
     return ns["KVCacheManager"](**kwargs)
 
 
-# ═══ 1. Anchor contract against the PRISTINE pin tree ════════════════════
-
-
-@pytest.mark.skipif(
-    not (PRISTINE_ROOT / "v1/core/kv_cache_manager.py").is_file(),
-    reason="pristine dev259 pin tree not present on this machine",
-)
-def test_pristine_dev259_anchors_present_exactly_once():
-    """Current pin: LOOKUP + the dev259 commit variant match exactly once;
-    the dev491 commit variant must NOT match (mutually exclusive shapes)."""
-    kvm = (PRISTINE_ROOT / "v1/core/kv_cache_manager.py").read_text()
-    assert kvm.count(P88_LOOKUP_ANCHOR) == 1
-    assert kvm.count(P88_ALLOC_COMMIT_ANCHOR) == 1
-    assert kvm.count(P88_ALLOC_COMMIT_DEV491_ANCHOR) == 0
-
-
-@pytest.mark.skipif(
-    not (PRISTINE_DEV491_ROOT / "v1/core/kv_cache_manager.py").is_file(),
-    reason="pristine dev491 candidate pin tree not present on this machine",
-)
-def test_pristine_dev491_anchors_present_exactly_once():
-    """Candidate pin: LOOKUP is byte-identical (still count==1) and the
-    dev491 commit variant matches exactly once; the dev259 commit variant
-    must NOT match (the available-blocks gate moved under the watermark
-    headroom term)."""
-    kvm = (PRISTINE_DEV491_ROOT / "v1/core/kv_cache_manager.py").read_text()
-    assert kvm.count(P88_LOOKUP_ANCHOR) == 1
-    assert kvm.count(P88_ALLOC_COMMIT_DEV491_ANCHOR) == 1
-    assert kvm.count(P88_ALLOC_COMMIT_ANCHOR) == 0
-
-
-def _assert_commit_is_last_failure_return(kvm: str, gate_predicate: str):
-    """The commit anchor (available-blocks gate) must be the LAST
-    `return None` in allocate_slots — recording after it is recording on
-    success. If a pin adds a later failure return, the commit point must
-    move."""
-    body = kvm.split("def allocate_slots(")[1].split("\n    def ")[0]
-    anchor_pos = body.find(gate_predicate)
-    assert anchor_pos != -1, f"gate predicate {gate_predicate!r} not in body"
-    after_anchor = body[anchor_pos:]
-    # Skip the anchor's own `return None`.
-    remainder = after_anchor.split("return None", 1)[1]
-    assert "return None" not in remainder, (
-        "a failure return exists AFTER the P88 commit point — "
-        "re-derive the anchor before applying"
-    )
-
-
-@pytest.mark.skipif(
-    not (PRISTINE_ROOT / "v1/core/kv_cache_manager.py").is_file(),
-    reason="pristine dev259 pin tree not present on this machine",
-)
-def test_pristine_dev259_commit_point_is_past_last_failure_return():
-    kvm = (PRISTINE_ROOT / "v1/core/kv_cache_manager.py").read_text()
-    _assert_commit_is_last_failure_return(
-        kvm, "if num_blocks_to_allocate > available_blocks:"
-    )
-
-
-@pytest.mark.skipif(
-    not (PRISTINE_DEV491_ROOT / "v1/core/kv_cache_manager.py").is_file(),
-    reason="pristine dev491 candidate pin tree not present on this machine",
-)
-def test_pristine_dev491_commit_point_is_past_last_failure_return():
-    kvm = (PRISTINE_DEV491_ROOT / "v1/core/kv_cache_manager.py").read_text()
-    _assert_commit_is_last_failure_return(
-        kvm, "if required_blocks > available_blocks:"
-    )
+# ═══ 1. Anchor contract — RETIRED (audit #14 full drain, 2026-07-06) ══════
+#
+# Four byte-checks (LOOKUP + dev259/dev491 commit-variant uniqueness, plus the
+# commit-point-past-last-failure-return position guard for each pin shape) and
+# their ``_assert_commit_is_last_failure_return`` helper all gated on macOS-only
+# stale-pin dump paths (dev259 + dev491 candidate snapshots) — empty on CI,
+# absent on the Linux rig (pristine at ``/tmp/pristine_dev748_2dfaae752``) — so
+# they executed on NO host, a permanent green-by-skip. They cannot be migrated onto the committed
+# per-pin anchor manifest: P88's only builder is ``_make_kv_cache_manager_patcher``
+# (not a canonical ``_make_patcher``/``_make_patcher_for_drift``), and
+# ``iter_anchor_targets`` builds each module through the SINGULAR
+# ``_build_patcher_for_module`` — which recognizes only those two names — so P88
+# yields zero anchor targets and is absent from the manifest (90/329 gap, audit
+# #6/#21; the plural ``discover_patchers`` that would find it is defined but
+# unwired). Retired. Both anchor variants firing exactly once on their pin-shaped
+# fakes (§3/§3b), replacement hygiene (§2), full de-dup semantics (§3),
+# commit-variant-name sync, drift-marker self-collision, and idempotency (§5) all
+# stay covered in CI by the synthetic classes below.
 
 
 # ═══ 2. Replacement hygiene ═══════════════════════════════════════════════

@@ -2,16 +2,13 @@
 """TDD for PN58 — spec-decode reasoning boundary validation (vllm#40962)."""
 from __future__ import annotations
 
-import pytest
-
 
 def _wiring():
-    from sndr.engines.vllm.patches.reasoning import pn58_spec_reasoning_boundary as M
-    return M
+    from sndr.engines.vllm.patches.reasoning import pn58_spec_reasoning_boundary as mod
+    return mod
 
 
 # Verbatim tail of pristine envs.py (pin 0.22.1rc1.dev259+g303916e93,
-# lines 1997-2013 of /private/tmp/candidate_pin_current/vllm/envs.py,
 # extracted 2026-06-11 for the PN58 envs re-anchor). Documents WHY the
 # old anchor died: the LoRA dual-stream comment grew from 1 line to 3,
 # and 3 new entries (VLLM_USE_SPINLOOP_EXT, VLLM_GPU_NIC_PCIE_MAPPING,
@@ -118,7 +115,9 @@ def test_replacements_carry_pn58_marker():
 
 def test_idempotent_envs(tmp_path):
     from sndr.kernel.text_patch import (
-        TextPatch, TextPatcher, TextPatchResult,
+        TextPatch,
+        TextPatcher,
+        TextPatchResult,
     )
     M = _wiring()
     target = tmp_path / "envs.py"
@@ -141,7 +140,9 @@ def test_idempotent_envs(tmp_path):
 
 def test_idempotent_sched_validate_block(tmp_path):
     from sndr.kernel.text_patch import (
-        TextPatch, TextPatcher, TextPatchResult,
+        TextPatch,
+        TextPatcher,
+        TextPatchResult,
     )
     M = _wiring()
     target = tmp_path / "scheduler.py"
@@ -164,8 +165,8 @@ def test_mutex_with_p62_skips_when_p62_active(monkeypatch):
     """Apply check must SKIP cleanly when P62 active."""
     monkeypatch.setenv("GENESIS_ENABLE_PN58_SPEC_REASONING_BOUNDARY", "1")
     monkeypatch.setenv("GENESIS_ENABLE_P62_STRUCT_OUT_SPEC_TIMING", "1")
-    from sndr.engines.vllm.patches.reasoning import pn58_spec_reasoning_boundary as M
-    status, reason = M.apply()
+    from sndr.engines.vllm.patches.reasoning import pn58_spec_reasoning_boundary as mod
+    status, reason = mod.apply()
     assert status == "skipped"
     assert "P62" in reason
     assert "MUTUAL" in reason.upper() or "mutual" in reason.lower() or "exclusive" in reason.lower()

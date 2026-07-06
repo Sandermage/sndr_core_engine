@@ -36,7 +36,6 @@ the 35B intermediate) passes through unchanged.
 from __future__ import annotations
 
 import math
-import os
 
 import pytest
 
@@ -133,7 +132,7 @@ def test_marker_versioned_and_cites_pr():
     assert "PN-FP8MOE-KPAD" in GENESIS_PN_FP8MOE_KPAD_MARKER
 
 
-@pytest.mark.parametrize("anchor,label", [
+@pytest.mark.parametrize(("anchor", "label"), [
     (MARLIN_UTILS_ADD_FUNC_OLD, "marlin_utils_add_func"),
     (MARLIN_UTILS_SUPPORTS_SHAPE_OLD, "marlin_utils_supports_shape"),
     (FP8_PADDED_N_PAD_OLD, "fp8_padded_n_pad"),
@@ -359,148 +358,14 @@ def test_anchors_apply_to_synthetic_source():
 
 
 # ─── 6. Byte-exact anchors against the pristine dev491 tree ──────────────
-#
-# The P87 convention exports the pristine candidate pin tree under
-# /tmp/candidate_pin_new/vllm. When present, assert every anchor matches
-# byte-exactly count==1 and every upstream-merge drift marker is ABSENT
-# (so the patch APPLIES, not self-skips, on dev491). Skips gracefully when
-# the pristine tree is not on the host (e.g. CI runner without the pin).
-
-_DEV491_TREE = "/tmp/candidate_pin_new/vllm"
-_F1_REL = "model_executor/layers/quantization/utils/marlin_utils.py"
-_F2_REL = "model_executor/layers/quantization/utils/marlin_utils_fp8.py"
-_F3_REL = (
-    "model_executor/layers/quantization/compressed_tensors/"
-    "compressed_tensors_moe/compressed_tensors_moe.py"
-)
-
-
-def _read_pristine(rel: str) -> str | None:
-    path = os.path.join(_DEV491_TREE, rel)
-    if not os.path.isfile(path):
-        return None
-    with open(path) as f:
-        return f.read()
-
-
-def test_all_anchors_match_pristine_dev491_exactly_once():
-    """Every sub-patch anchor must match count==1 in the pristine dev491
-    source — proves the anchors are unambiguous on the target pin.
-    """
-    from sndr.engines.vllm.patches.quantization.marlin.pn_fp8moe_kpad_marlin_moe import (
-        FP8_IMPORT_OLD,
-        FP8_INTERMEDIATE_OLD,
-        FP8_PADDED_N_PAD_OLD,
-        FP8_PADDED_N_PAD_SCALES_OLD,
-        FP8_REPACK_OLD,
-        FP8_SCALES_GROUP_OLD,
-    )
-
-    u = _read_pristine(_F1_REL)
-    f = _read_pristine(_F2_REL)
-    c = _read_pristine(_F3_REL)
-    if u is None or f is None or c is None:
-        pytest.skip("pristine dev491 tree not present on this host")
-
-    for txt, anchor, label in [
-        (u, MARLIN_UTILS_ADD_FUNC_OLD, "F1 add_func"),
-        (u, MARLIN_UTILS_SUPPORTS_SHAPE_OLD, "F1 supports_shape"),
-        (f, FP8_IMPORT_OLD, "F2 import"),
-        (f, FP8_PADDED_N_PAD_OLD, "F2 def"),
-        (f, FP8_INTERMEDIATE_OLD, "F2 intermediate"),
-        (f, FP8_REPACK_OLD, "F2 repack"),
-        (f, FP8_SCALES_GROUP_OLD, "F2 scales_group"),
-        (f, FP8_PADDED_N_PAD_SCALES_OLD, "F2 scale_pad"),
-        (c, MOE_METHOD_OLD, "F3 moe_method"),
-    ]:
-        assert txt.count(anchor) == 1, (
-            f"{label}: anchor must match exactly once in pristine dev491 "
-            f"(got {txt.count(anchor)})"
-        )
-
-
-def test_drift_markers_absent_in_pristine_dev491():
-    """The three upstream-merge drift markers must be ABSENT in pristine
-    dev491 so the patch APPLIES (not self-skips). They appear only once
-    #45703 (or an equivalent) merges upstream.
-    """
-    u = _read_pristine(_F1_REL)
-    f = _read_pristine(_F2_REL)
-    c = _read_pristine(_F3_REL)
-    if u is None or f is None or c is None:
-        pytest.skip("pristine dev491 tree not present on this host")
-
-    assert u.count("def marlin_moe_padded_intermediate") == 0, (
-        "marlin_utils drift marker must be absent in pristine dev491 "
-        "(else the patch would wrongly self-skip)"
-    )
-    assert f.count("def _moe_pad_shard_rows") == 0
-    assert c.count("allow_tile_padding=not is_actorder") == 0
-
-
-def test_patch_applies_cleanly_and_compiles_on_pristine_dev491():
-    """End-to-end: apply every sub-patch to the pristine dev491 source and
-    confirm the result is valid Python (compiles) and the new function
-    computes the load-bearing pads. This is the strongest anchor guard.
-    """
-    import py_compile
-    import tempfile
-
-    from sndr.engines.vllm.patches.quantization.marlin.pn_fp8moe_kpad_marlin_moe import (
-        FP8_IMPORT_NEW,
-        FP8_IMPORT_OLD,
-        FP8_INTERMEDIATE_NEW,
-        FP8_INTERMEDIATE_OLD,
-        FP8_PADDED_N_PAD_NEW,
-        FP8_PADDED_N_PAD_OLD,
-        FP8_PADDED_N_PAD_SCALES_NEW,
-        FP8_PADDED_N_PAD_SCALES_OLD,
-        FP8_REPACK_NEW,
-        FP8_REPACK_OLD,
-        FP8_SCALES_GROUP_NEW,
-        FP8_SCALES_GROUP_OLD,
-        MARLIN_UTILS_ADD_FUNC_NEW,
-        MARLIN_UTILS_SUPPORTS_SHAPE_NEW,
-        MOE_METHOD_NEW,
-    )
-
-    u = _read_pristine(_F1_REL)
-    f = _read_pristine(_F2_REL)
-    c = _read_pristine(_F3_REL)
-    if u is None or f is None or c is None:
-        pytest.skip("pristine dev491 tree not present on this host")
-
-    out1 = u.replace(MARLIN_UTILS_ADD_FUNC_OLD, MARLIN_UTILS_ADD_FUNC_NEW, 1)
-    out1 = out1.replace(
-        MARLIN_UTILS_SUPPORTS_SHAPE_OLD, MARLIN_UTILS_SUPPORTS_SHAPE_NEW, 1
-    )
-    out2 = f
-    for old, new in [
-        (FP8_IMPORT_OLD, FP8_IMPORT_NEW),
-        (FP8_PADDED_N_PAD_OLD, FP8_PADDED_N_PAD_NEW),
-        (FP8_INTERMEDIATE_OLD, FP8_INTERMEDIATE_NEW),
-        (FP8_REPACK_OLD, FP8_REPACK_NEW),
-        (FP8_SCALES_GROUP_OLD, FP8_SCALES_GROUP_NEW),
-        (FP8_PADDED_N_PAD_SCALES_OLD, FP8_PADDED_N_PAD_SCALES_NEW),
-    ]:
-        assert out2.count(old) == 1
-        out2 = out2.replace(old, new, 1)
-    out3 = c.replace(MOE_METHOD_OLD, MOE_METHOD_NEW, 1)
-
-    # group_size must be MOVED (not duplicated) inside the MoE prep function.
-    moe_body = out2[
-        out2.find("def prepare_fp8_moe_layer_for_marlin") :
-        out2.find("def pack_fp8_to_int32")
-    ]
-    assert moe_body.count(
-        "group_size = -1 if weight_block_size is None else weight_block_size[1]"
-    ) == 1, "group_size must be moved, not duplicated, in the MoE prep function"
-
-    for name, out in [("u", out1), ("f", out2), ("c", out3)]:
-        fd, path = tempfile.mkstemp(suffix=f"_{name}.py")
-        with os.fdopen(fd, "w") as fh:
-            fh.write(out)
-        try:
-            py_compile.compile(path, doraise=True)
-        finally:
-            os.unlink(path)
+# RETIRED (audit #14 full drain, 2026-07-06). This section read the pristine
+# source from ``/tmp/candidate_pin_new/vllm`` (dev491) — a macOS-only stale
+# path, empty on CI and absent on the Linux rig (three pin generations behind
+# dev748), so ``test_all_anchors_match_pristine_dev491_exactly_once`` /
+# ``test_drift_markers_absent_in_pristine_dev491`` /
+# ``test_patch_applies_cleanly_and_compiles_on_pristine_dev491`` executed on
+# NO host (permanent green-by-skip). PN_FP8MOE_KPAD is not recorded in the
+# committed anchor_sot manifest (90/329 gap, audit #6/#21), so the byte-checks
+# cannot be migrated onto it. Their content is already covered in CI by the
+# synthetic-source tests in section 3 (anchor count==1 on crafted sources +
+# apply + compile) and the drift-marker-self-collision tests in section 4.

@@ -41,8 +41,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
-
 # Unit tests patch fresh tmp files; the Layer-0 file cache must never
 # satisfy apply() from a previous run's state.
 os.environ.setdefault("GENESIS_NO_PATCH_CACHE", "1")
@@ -212,8 +210,6 @@ MERGED_MANAGER = (
     ).replace("(pin g303916e93 form)", "(post-vllm#44986 merged form)")
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/core")
-
 # Our emitted forms (chosen to differ from the PR's exact lines so they
 # never collide with our own drift markers — PN369 self-collision rule).
 OUR_UNITARY_DROP = (
@@ -253,7 +249,7 @@ def _install_fakes(tmp_path, monkeypatch, coord_text, mgr_text):
 
     monkeypatch.setattr(m, "resolve_vllm_file", _resolve)
     # apply() is dispatcher-gated (opt-in env flag) — force gate open.
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -328,7 +324,8 @@ class TestPatcherShape:
     def test_module_documents_supersession_and_coordination(self):
         doc = m.__doc__ or ""
         assert "44986" in doc
-        assert "P83" in doc and "P84" in doc
+        assert "P83" in doc
+        assert "P84" in doc
         assert "PN346" in doc
         # Live exposure: Qwen3.6-27B block_size=1536.
         assert "1536" in doc
@@ -394,7 +391,7 @@ class TestApply:
         coord, mgr = _install_fakes(
             tmp_path, monkeypatch, PIN_COORDINATOR, PIN_MANAGER
         )
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
         )
@@ -408,7 +405,7 @@ class TestApply:
 
     def test_apply_skips_when_target_missing(self, monkeypatch):
         monkeypatch.setattr(m, "resolve_vllm_file", lambda rel: None)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (True, "test override")
         )
@@ -455,66 +452,15 @@ class TestDriftMarkerSelfCollision:
         )
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
-
-
-@pytest.mark.skipif(
-    not (PIN_TREE / "kv_cache_coordinator.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_coordinator_anchors_unique_and_markers_absent(self):
-        src = (PIN_TREE / "kv_cache_coordinator.py").read_text(
-            encoding="utf-8"
-        )
-        for sp in m.coordinator_sub_patches():
-            assert src.count(sp.anchor) == 1, (
-                f"coordinator anchor for {sp.name} not unique "
-                f"(count={src.count(sp.anchor)})"
-            )
-            assert sp.replacement not in src
-        coord_patcher = m._make_coordinator_patcher_from(str(PIN_TREE / "x"))
-        for dm in coord_patcher.upstream_drift_markers:
-            if dm.startswith("[Genesis"):
-                continue
-            assert dm not in src
-
-    def test_manager_anchor_unique_and_markers_absent(self):
-        src = (PIN_TREE / "kv_cache_manager.py").read_text(encoding="utf-8")
-        for sp in m.manager_sub_patches():
-            assert src.count(sp.anchor) == 1, (
-                f"manager anchor for {sp.name} not unique "
-                f"(count={src.count(sp.anchor)})"
-            )
-            assert sp.replacement not in src
-
-    def test_fixture_anchor_regions_byte_match_pristine(self):
-        """Fake pin-form fixtures must carry the EXACT anchor bytes from
-        the pristine tree, so apply-tests exercise real anchors."""
-        coord_src = (PIN_TREE / "kv_cache_coordinator.py").read_text(
-            encoding="utf-8"
-        )
-        mgr_src = (PIN_TREE / "kv_cache_manager.py").read_text(
-            encoding="utf-8"
-        )
-        for sp in m.coordinator_sub_patches():
-            assert sp.anchor in PIN_COORDINATOR, (
-                f"fixture missing anchor for {sp.name}"
-            )
-            assert sp.anchor in coord_src, (
-                f"pristine pin missing anchor for {sp.name}"
-            )
-        for sp in m.manager_sub_patches():
-            assert sp.anchor in PIN_MANAGER
-            assert sp.anchor in mgr_src
-
-    def test_pn346_sibling_file_untouched(self):
-        """PN384 must not target single_type_kv_cache_manager.py (PN346's
-        file). Confirm the file exists in the pin and PN384 has no anchor
-        that resolves into it."""
-        sibling = PIN_TREE / "single_type_kv_cache_manager.py"
-        assert sibling.is_file(), "pin sibling file expected"
-        sib_src = sibling.read_text(encoding="utf-8")
-        # None of PN384's coordinator/manager anchors appear in PN346's file.
-        for sp in m.coordinator_sub_patches() + m.manager_sub_patches():
-            assert sp.anchor not in sib_src
+# ── Pristine pin invariants: RETIRED (audit #14 full drain, 2026-07-06) ──
+# The former ``TestAnchorsAgainstPristinePin`` byte-checked anchor
+# uniqueness / replacement-absence / fixture-byte-match against
+# CI host and absent on the Linux rig (pristine lives at
+# ``/tmp/pristine_dev748_2dfaae752``): it executed on NO host, a permanent
+# green-by-skip. PN384 is NOT recorded in the committed anchor_sot manifest
+# (the 90/329 coverage gap, audit #6/#21), so the byte-check cannot be
+# migrated onto the manifest as the recorded patches were. Retired; the
+# coordinator/manager anchor + idempotency + self-collision + fixture-driven
+# apply contracts stay covered in CI by the synthetic TestPatcherShape /
+# TestApply / TestDriftMarkerSelfCollision classes above. Re-add a manifest
+# assertion once a pin rebuild records PN384.

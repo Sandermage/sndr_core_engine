@@ -2,7 +2,7 @@
 """G4_60E reconciliation tests — fold of OPEN vllm#45207 + vllm#45181.
 
 Upstream context (both PRs OPEN, NOT in pin 0.22.1rc1.dev259+g303916e93;
-verified against /private/tmp/candidate_pin_current/vllm):
+verified against the pin's pristine vllm source):
 
   * vllm#45207 "[Bugfix] Pad Mamba page size instead of scaling block_size
     in unify_kv_cache_spec_page_size" — MambaSpec page size is determined
@@ -61,7 +61,7 @@ from __future__ import annotations
 import importlib
 import sys
 import types
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import pytest
 
@@ -196,7 +196,7 @@ class FakeAttentionGroup:
     kv_cache_group_id: int = 0
 
 
-def _install_fake_vllm(monkeypatch, with_workers: bool = True):
+def _install_fake_vllm(monkeypatch, with_workers: bool = True):  # noqa: PLR0915 — one cohesive fake vllm.v1 module-graph builder; splitting it would scatter the stub wiring
     """Install fake vllm.v1 submodules into sys.modules.
 
     Returns a namespace with the stub modules so tests can poke at the
@@ -634,7 +634,7 @@ def test_strides_kv_first_layout_detects_num_blocks_at_dim_1():
 
 def test_strides_num_blocks_absent_raises():
     fn = _strides_fn()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"num_blocks=3 not present"):
         fn(
             unpermuted_kv_cache_shape=(7, 16, 1, 8),
             kv_cache_stride_order=(0, 1, 2, 3),

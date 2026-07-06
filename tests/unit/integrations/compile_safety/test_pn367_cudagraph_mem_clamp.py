@@ -26,8 +26,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from sndr.engines.vllm.patches.compile_safety import (
     pn367_cudagraph_mem_estimate_clamp as m,
 )
@@ -109,9 +107,6 @@ MERGED_WORKER = (
     "\n"
     "        return 0\n"
 )
-
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/worker")
-
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -237,29 +232,16 @@ class TestDriftMarkerSelfCollision:
                 assert dm not in marker_line
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
-
-
-@pytest.mark.skipif(
-    not (PIN_TREE / "gpu_model_runner.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def test_runner_anchors_unique_and_markers_absent(self):
-        src = (PIN_TREE / "gpu_model_runner.py").read_text(encoding="utf-8")
-        patcher_subs = [
-            (m.PN367_RUNNER_OLD, m.PN367_RUNNER_NEW),
-            (m.PN367_FLOOR_OLD, m.PN367_FLOOR_NEW),
-        ]
-        for old, new in patcher_subs:
-            assert src.count(old) == 1
-            assert new not in src
-        for dm in m._RUNNER_DRIFT_MARKERS:
-            assert dm not in src
-
-    def test_worker_anchor_unique_and_markers_absent(self):
-        src = (PIN_TREE / "gpu_worker.py").read_text(encoding="utf-8")
-        assert src.count(m.PN367_WORKER_OLD) == 1
-        assert m.PN367_WORKER_NEW not in src
-        for dm in m._WORKER_DRIFT_MARKERS:
-            assert dm not in src
+# ── Pristine pin invariants: RETIRED (audit #14 full drain, 2026-07-06) ──
+# The former ``TestAnchorsAgainstPristinePin`` byte-checked the anchors
+# empty on every CI host, absent on the Linux rig (pristine lives at
+# ``/tmp/pristine_dev748_2dfaae752``), i.e. it executed on NO host and only
+# inflated the suite with a permanent green-by-skip. PN367 is NOT recorded in
+# the committed anchor_sot manifest (its ``_make_runner_patcher`` /
+# ``_make_worker_patcher`` builders emit no anchor target at manifest-gen
+# time — the 90/329 coverage gap, audit #6/#21), so the byte-check cannot be
+# migrated onto the manifest the way the recorded patches were. Retired here;
+# the anchor uniqueness/idempotency/self-collision contract stays covered in
+# CI by TestPatcherShape + TestApply (synthetic sources) +
+# TestDriftMarkerSelfCollision above. Re-add a manifest assertion once a pin
+# rebuild records PN367.

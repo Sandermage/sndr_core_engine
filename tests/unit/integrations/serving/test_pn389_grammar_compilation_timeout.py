@@ -74,25 +74,6 @@ from sndr.engines.vllm.patches.serving import (  # noqa: E402
     pn389_grammar_compilation_timeout as pn389,
 )
 
-# Real pristine dev148 (0.23.1rc1.dev148+gb4c80ec0f) tree if dumped on
-# this host — the opportunistic invariants below run only when it is
-# present (and carries the structured_output subtree). The partial
-# candidate_pin_current tree on some hosts lacks v1/structured_output, so
-# we prefer the full pristine dump and fall back to candidate_pin_current.
-_PIN_TREE_CANDIDATES = (
-    Path("/private/tmp/vllm_pristine_b4c80ec0f/vllm"),
-    Path("/private/tmp/candidate_pin_current/vllm"),
-)
-PIN_TREE = next(
-    (
-        p
-        for p in _PIN_TREE_CANDIDATES
-        if (p / "v1/structured_output/backend_xgrammar.py").is_file()
-    ),
-    _PIN_TREE_CANDIDATES[0],
-)
-
-
 # ── Fixtures: pin-form anchor regions (byte-faithful copies) ─────────
 
 # Pin g303916e93 form of v1/structured_output/utils.py — enough of the
@@ -303,7 +284,7 @@ def _install(tmp_path, monkeypatch, *, utils=PIN_UTILS, xgr=PIN_XGRAMMAR, envs=P
 
     monkeypatch.setattr(pn389, "resolve_vllm_file", _resolve)
     monkeypatch.setattr(pn389, "vllm_install_root", lambda: str(tmp_path))
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
     )
@@ -591,7 +572,7 @@ class TestApply:
         assert second == "skipped"
 
     def test_is_applied_true_only_after_all_three(self, tmp_path, monkeypatch):
-        paths = _install(tmp_path, monkeypatch)
+        _install(tmp_path, monkeypatch)
         assert pn389.is_applied() is False
         status, reason = pn389.apply()
         assert status == "applied", reason
@@ -653,7 +634,7 @@ class TestDriftMarkers:
 class TestGate:
     def test_apply_skips_when_gate_closed(self, tmp_path, monkeypatch):
         paths = _install(tmp_path, monkeypatch)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
         )
@@ -785,74 +766,14 @@ class TestRunWithTimeoutBehaviour:
 # ── Pristine pin invariants (opportunistic) ──────────────────────────
 
 
-@pytest.mark.skipif(
-    not (PIN_TREE / "v1/structured_output/backend_xgrammar.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAgainstPristine:
-    def test_xgrammar_active_anchor_unique(self):
-        # 0.23.1 REDESIGN: the single ACTIVE anchor (the compile_grammar
-        # method) must resolve count==1 against the live dev148 tree, and
-        # the upstream helper PN389 reuses must already be present.
-        src = (
-            PIN_TREE / "v1/structured_output/backend_xgrammar.py"
-        ).read_text("utf-8")
-        assert src.count(pn389.PN389_XGR_COMPILE_GRAMMAR_OLD) == 1
-        # The Genesis marker (idempotency guard) must be absent on pristine.
-        assert pn389.GENESIS_PN389_MARKER not in src
-        # Upstream 0.23.1 already ships + imports compile_regex_with_timeout
-        # (the helper the redesign reuses); our own run_with_timeout is NOT
-        # present (it would be the original 3-file design, now collapsed).
-        assert "compile_regex_with_timeout" in src
-        assert "def run_with_timeout(" not in src
-
-    def test_drift_markers_absent_in_pristine(self):
-        # Scan the active target plus the historical utils/envs files (when
-        # present) — none of the PR-form drift markers may appear pristine.
-        for rel in (
-            "v1/structured_output/backend_xgrammar.py",
-            "v1/structured_output/utils.py",
-            "envs.py",
-        ):
-            path = PIN_TREE / rel
-            if not path.is_file():
-                continue
-            src = path.read_text("utf-8")
-            for dm in pn389._DRIFT_MARKERS:
-                if dm.startswith("[Genesis"):
-                    continue
-                assert dm not in src, f"drift marker {dm!r} present in {rel}"
-
-    def test_apply_against_real_pin_copy(self, tmp_path, monkeypatch):
-        """End-to-end: copy the real pristine backend_xgrammar.py, apply
-        PN389, assert it compiles and every EngineCore DFA-build arm now
-        flows through the upstream compile_regex_with_timeout helper.
-        Exercises the byte-exact active anchor against the live pin tree
-        (not just the hand fixture)."""
-        import shutil
-
-        dst = tmp_path / "backend_xgrammar.py"
-        shutil.copyfile(
-            PIN_TREE / "v1/structured_output/backend_xgrammar.py", dst
-        )
-
-        def _resolve(rel):
-            if rel == "v1/structured_output/backend_xgrammar.py":
-                return str(dst)
-            return None
-
-        monkeypatch.setattr(pn389, "resolve_vllm_file", _resolve)
-        monkeypatch.setattr(pn389, "vllm_install_root", lambda: str(tmp_path))
-        import sndr.dispatcher as dispatcher
-        monkeypatch.setattr(
-            dispatcher, "should_apply", lambda pid: (True, "test override")
-        )
-
-        status, reason = pn389.apply()
-        assert status == "applied", reason
-        out = dst.read_text("utf-8")
-        compile(out, str(dst), "exec")
-        assert pn389.GENESIS_PN389_MARKER in out
-        # All five request-type arms now route through the upstream helper.
-        assert out.count("compile_regex_with_timeout(") >= 6
-        assert "lambda spec: self.compiler.compile_json_schema(" in out
+# TestAgainstPristine RETIRED (audit #14 full drain, 2026-07-06): its two
+# byte-checks (active-anchor uniqueness + drift-markers-absent) and its
+# copy-the-real-file-and-apply end-to-end test all gated on the macOS-only
+# paths — empty on CI, absent on the Linux rig (pristine at
+# ``/tmp/pristine_dev748_2dfaae752``), and pinned to dev148 (many pin
+# generations old) — so the class executed on NO host, a permanent
+# green-by-skip. PN389 is not recorded in the committed anchor_sot manifest
+# (90/329 gap, audit #6/#21). The active-anchor + apply + timeout-behavior +
+# drift-marker + gate + no-false-positive contracts stay covered in CI by the
+# synthetic-fixture classes above (TestApply exercises the same anchor + the
+# >=6 helper-routing assertion against the hand fixture).

@@ -49,7 +49,7 @@ when the special tokens never appear, which is the opposite trade-off.
 
 Stub fidelity: ``find_common_prefix`` and ``partial_tag_overlap`` are
 logic-equivalent ports of the pin's ``vllm/tool_parsers/utils.py``
-(read from /private/tmp/candidate_pin_current/vllm 2026-06-11); the
+(read from the pristine candidate-pin tree, 2026-06-11); the
 ``ToolParser`` stub mirrors the pin's ``abstract_tool_parser.ToolParser``
 attribute contract. ``_simulate_streaming`` is a faithful port of the
 upstream test helper from ``tests/tool_parsers/test_gemma4_tool_parser
@@ -173,7 +173,7 @@ class _ToolParser:
 def _find_common_prefix(s1: str, s2: str) -> str:
     """Logic-equivalent port of the pin's tool_parsers.utils helper."""
     prefix = ""
-    for a, b in zip(s1, s2):
+    for a, b in zip(s1, s2, strict=False):
         if a != b:
             break
         prefix += a

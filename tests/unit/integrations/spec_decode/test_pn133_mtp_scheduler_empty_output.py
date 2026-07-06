@@ -271,8 +271,8 @@ class TestApply:
 
 # ── Pristine pin invariants — RETIRED (audit finding #14) ────────────
 # PN133 is a RETIRED-lifecycle patch. Its former ``TestAnchorsAgainstPristinePin``
-# byte-checks (anchor count==1, replacement/marker absent) were gated on the
-# absent ``/private/tmp/candidate_pin_current`` dev259 tree -> permanently
+# byte-checks (anchor count==1, replacement/marker absent) were gated on an
+# absent macOS-only dev259 pristine tree (present on no CI host) -> permanently
 # green-by-skip, and a retired patch's anchor legitimately no longer matches the
 # live pristine source anyway (the per-pin manifest classifies it STATUS_RETIRED,
 # never the re-anchor backlog). The synthetic apply/idempotent/self-skip tests

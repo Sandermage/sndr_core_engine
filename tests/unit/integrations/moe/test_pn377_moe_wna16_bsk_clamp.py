@@ -506,7 +506,6 @@ class TestDriftMarkerSelfCollision:
 
 # ── 6. Current-pin anchor manifest (MIGRATED from the /tmp pristine gate) ──
 # Audit finding #14: the previous ``TestAgainstPristinePin`` class byte-checked
-# the anchor against ``/private/tmp/candidate_pin_current`` (dev259 tree, absent
 # on every host -> permanently green-by-skip). It is MIGRATED here to read the
 # COMMITTED per-pin anchor manifest (sndr/engines/vllm/pins/<pin>/anchors.json),
 # so it RUNS in CI. The manifest is regenerated + round-trip-verified on every

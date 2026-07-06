@@ -4,7 +4,7 @@ committed per-pin anchor manifest instead of a live /tmp pristine tree.
 
 Audit finding #14 (2026-07-04): ~200 patch anchor/behavioral tests gate a
 ``@pytest.mark.skipif`` on a filesystem pristine-vllm tree that exists on NO
-CI host (``/private/tmp/candidate_pin_current/vllm``, ``/tmp/dev301_pristine``,
+CI host (``the anchor_sot manifest ``/tmp/dev301_pristine``,
 hardcoded dev148/dev259/dev491 roots). They green-by-skip everywhere, inflating
 the suite with dead coverage.
 

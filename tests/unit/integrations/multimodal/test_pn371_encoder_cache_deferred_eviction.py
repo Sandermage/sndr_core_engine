@@ -45,9 +45,6 @@ from sndr.engines.vllm.patches.multimodal import (
     pn371_encoder_cache_deferred_eviction as m,
 )
 
-PIN_TREE = Path("/private/tmp/candidate_pin_current/vllm/v1/worker")
-
-
 # ── Fake targets (pin g303916e93 form) ───────────────────────────────
 # Anchor regions are byte-exact copies from the pristine pin tree,
 # embedded in minimal-but-compilable scaffolding.
@@ -232,7 +229,7 @@ def _install_fakes(
 
     # PN371's registry entry is owned by the registry agent — force the
     # dispatcher gate open for apply-semantics tests.
-    import sndr.dispatcher as dispatcher
+    from sndr import dispatcher
 
     monkeypatch.setattr(
         dispatcher, "should_apply", lambda pid: (True, "test override")
@@ -340,7 +337,7 @@ class TestPatcherShape:
 
 
 class TestVendoredClassBehavior:
-    @pytest.fixture()
+    @pytest.fixture
     def cache_cls(self, tmp_path, monkeypatch):
         return _load_patched_encoder_cache_class(tmp_path, monkeypatch)
 
@@ -542,7 +539,7 @@ class TestApply:
 
     def test_apply_respects_dispatcher_gate(self, tmp_path, monkeypatch):
         targets = _install_fakes(tmp_path, monkeypatch)
-        import sndr.dispatcher as dispatcher
+        from sndr import dispatcher
 
         monkeypatch.setattr(
             dispatcher, "should_apply", lambda pid: (False, "opt-in: env unset")
@@ -581,42 +578,12 @@ class TestDriftMarkerSelfCollision:
                 assert dm not in marker_line
 
 
-# ── Pristine pin invariants (opportunistic) ──────────────────────────
-
-
-@pytest.mark.skipif(
-    not (PIN_TREE / "gpu_model_runner.py").is_file(),
-    reason="pristine pin tree not present on this machine",
-)
-class TestAnchorsAgainstPristinePin:
-    def _check(self, src: str, patcher) -> None:
-        for sp in patcher.sub_patches:
-            assert src.count(sp.anchor) == 1, sp.name
-            assert sp.replacement not in src, sp.name
-        for dm in patcher.upstream_drift_markers:
-            assert dm not in src
-
-    def test_encoder_cache_anchors(self, tmp_path, monkeypatch):
-        _install_fakes(tmp_path, monkeypatch)
-        src = (PIN_TREE / "gpu" / "mm" / "encoder_cache.py").read_text(
-            encoding="utf-8"
-        )
-        self._check(src, m._make_encoder_cache_patcher())
-
-    def test_modular_runner_anchors(self, tmp_path, monkeypatch):
-        _install_fakes(tmp_path, monkeypatch)
-        src = (PIN_TREE / "gpu" / "model_runner.py").read_text(encoding="utf-8")
-        self._check(src, m._make_modular_runner_patcher())
-
-    def test_legacy_runner_anchors(self, tmp_path, monkeypatch):
-        _install_fakes(tmp_path, monkeypatch)
-        src = (PIN_TREE / "gpu_model_runner.py").read_text(encoding="utf-8")
-        self._check(src, m._make_legacy_runner_patcher())
-
-    def test_pin_fixtures_match_pristine_tree(self):
-        """The embedded pin-form fixtures' anchor regions must be
-        byte-identical to the real pin tree (fixture drift detector)."""
-        real_ec = (PIN_TREE / "gpu" / "mm" / "encoder_cache.py").read_text(
-            encoding="utf-8"
-        )
-        assert PIN_ENCODER_CACHE == real_ec
+# ── Pristine pin invariants: RETIRED (audit #14 full drain, 2026-07-06) ──
+# The former ``TestAnchorsAgainstPristinePin`` byte-checked anchors against
+# absent on the Linux rig (pristine at ``/tmp/pristine_dev748_2dfaae752``):
+# executed on NO host, a permanent green-by-skip. PN371 is NOT recorded in
+# the committed anchor_sot manifest (90/329 coverage gap, audit #6/#21), so
+# the byte-check cannot be migrated onto the manifest. Retired; anchor +
+# idempotency + self-collision + fixture-driven apply contracts stay covered
+# in CI by the synthetic TestPatcherShape / TestVendoredClassBehavior /
+# TestApply / TestDriftMarkerSelfCollision classes above.
