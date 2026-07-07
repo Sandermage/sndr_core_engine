@@ -19,7 +19,8 @@ _DOCS = [_ROOT / "README.md", *sorted((_ROOT / "docs").glob("*.md"))]
 
 # "current"-context lines that pin a version as the live one.
 _CURRENT = re.compile(
-    r"(current[^\n]*?|SNDR Core |Genesis )v?(\d+\.\d+\.\d+)", re.I
+    r"(current[^\n]*?|SNDR[ %]20?Core[- ]|SNDR Core |Genesis )v?(\d+\.\d+\.\d+)",
+    re.I,
 )
 _HISTORY = re.compile(
     r"v\d+\.\d+\.\d+\.md|CHANGELOG|→|->|\bsince\b|\bwas\b|\bprevious\b"

@@ -10,12 +10,18 @@
 > that works, **MTP speculative decoding**, and a **280K-token context** —
 > no fork, no rebuild.
 
+> 🎮 **Own a different card?** The 24 GiB envelope is class-wide, and `sndr up`
+> auto-projects VRAM for *your* GPU. **[RTX 4090](docs/FAQ.md#q-can-i-use-an-rtx-4090-instead-of-a-3090)** ·
+> **[RTX 5090 (32 GiB)](docs/FAQ.md#q-can-i-use-an-rtx-5090)** ·
+> **[dual RTX 3090](docs/FAQ.md#q-dual-rtx-3090--is-that-the-same-as-the-reference-rig)** —
+> honest per-class gotchas (Ampere-calibrated tuning, no-NVLink P2P, idle-VRAM headroom) in the FAQ.
+
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Tests](https://github.com/Sandermage/sndr_core_engine/actions/workflows/test.yml/badge.svg)](https://github.com/Sandermage/sndr_core_engine/actions/workflows/test.yml)
 [![CodeQL](https://github.com/Sandermage/sndr_core_engine/actions/workflows/codeql.yml/badge.svg)](https://github.com/Sandermage/sndr_core_engine/actions/workflows/codeql.yml)
 [![vLLM pin](https://img.shields.io/badge/vllm-0.23.1rc1.dev748+g2dfaae752-orange.svg)](https://github.com/vllm-project/vllm)
 [![Patches](https://img.shields.io/badge/registry-329%20patches-green.svg)](docs/PATCHES.md)
-[![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.0.0-blue.svg)](CHANGELOG.md)
+[![SNDR Core](https://img.shields.io/badge/SNDR%20Core-v12.1.0-blue.svg)](CHANGELOG.md)
 [![Memory](https://img.shields.io/badge/memory-neural--graph-ff69b4.svg)](docs/memory/MANUAL.md)
 [![GPU](https://img.shields.io/badge/GPU-A5000%20%7C%20RTX%204090%20%7C%205090%20%7C%203090%20%7C%20H20%20%7C%20R6000-purple.svg)](docs/HARDWARE.md)
 

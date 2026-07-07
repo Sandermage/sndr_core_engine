@@ -84,6 +84,38 @@ TurboQuant k8v4 KV cache). Run `sndr preset list` or
 `sndr preset explain qa-qwen3.6-27b-tq-1x` to see the full card;
 [`SINGLE_CARD.md`](SINGLE_CARD.md) has the deep-dive.
 
+### Q: Can I use an RTX 4090 instead of a 3090?
+
+Yes. The 4090 (Ada, SM 8.9) clears the `compute_capability >= (8, 6)`
+kernel gate, so every Genesis patch that runs on the reference Ampere
+rig runs on a 4090 too — same 24 GiB envelope, same presets. Two
+honest caveats: (1) our numbers and VRAM budgets are **calibrated on
+Ampere (A5000/3090)** — a 4090 is faster on raw compute, so expect
+equal-or-better TPS, but verify the fit with `sndr quickstart` (it
+auto-projects VRAM for *your* card). (2) Consumer Ada has **no
+NVLink** — dual-4090 uses PCIe P2P like dual-3090, already the
+reference topology. Idle VRAM on the 4090 runs a touch tighter; if a
+280K-context preset sits at ~100% VRAM, drop to a `-balanced` preset
+or trim `--max-model-len`.
+
+### Q: Can I use an RTX 5090?
+
+Yes, with a bonus: the 5090 (Blackwell, SM 12.0) has a **32 GiB**
+envelope — more headroom than the 24 GiB reference, so long-context
+and multi-conc presets fit more comfortably. It clears the kernel gate
+and adds native FP8 paths. Caveat: SM 12.0 is **newer than the tuning
+target** — a few Triton autotune configs are Ampere-optimal, so treat
+the reference TPS as a floor and re-verify on your rig. A single 5090
+can run configs that need 2× 24 GiB cards on Ampere.
+
+### Q: Dual RTX 3090 — is that the same as the reference rig?
+
+Effectively yes. 2× 3090 (Ampere SM 8.6, 24 GiB each, PCIe P2P, no
+NVLink) is the **same class** as the 2× A5000 reference — the presets,
+patches, and VRAM budgets transfer directly. The 3090 draws more power
+(cap it with `nvidia-smi -pl` for a quieter homelab); otherwise
+`sndr up` auto-picks the same 2×24 GiB preset it would on the rig.
+
 ### Q: I have 2× 24 GiB cards — should I run 27B or 35B?
 
 Depends on workload. 35B-A3B (MoE) wins on prose quality and
