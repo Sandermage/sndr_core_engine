@@ -22,13 +22,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
-
-import pytest
-
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "security_scan.py"
@@ -242,11 +238,22 @@ class TestEnvFiles:
         # ".envrc-example".startswith(".env.") = False. So it should pass.
         assert result == []
 
-    def test_env_example_flagged(self):
-        """`.env.example` IS flagged as a `.env.*` file."""
+    def test_env_example_allowed(self):
+        """`.env.example` is a secret-free TEMPLATE — it is meant to be
+        committed, so it must NOT be flagged (regression: the root
+        `.env.example` scaffold shipped 2026-07-06)."""
         mod = _import_script()
-        result = mod.check_no_env_files([".env.example"])
-        assert len(result) == 1
+        assert mod.check_no_env_files([".env.example"]) == []
+        # Other conventional template suffixes are waived too.
+        assert mod.check_no_env_files(["dir/.env.sample"]) == []
+        assert mod.check_no_env_files([".env.template"]) == []
+        assert mod.check_no_env_files([".env.dist"]) == []
+
+    def test_real_env_variants_still_flagged(self):
+        """Real, secret-bearing env files stay forbidden."""
+        mod = _import_script()
+        assert mod.check_no_env_files([".env.production"]) == [".env.production"]
+        assert mod.check_no_env_files(["svc/.env.staging"]) == ["svc/.env.staging"]
 
 
 # ─── AWS keys ──────────────────────────────────────────────────────────
@@ -301,6 +308,7 @@ class TestLive:
             capture_output=True,
             text=True,
             timeout=15,
+            check=False,
         )
         assert result.returncode == 0, (
             f"security_scan failed on live repo:\n{result.stdout}"
@@ -313,6 +321,7 @@ class TestLive:
             capture_output=True,
             text=True,
             timeout=15,
+            check=False,
         )
         assert result.returncode == 0
         payload = json.loads(result.stdout)
