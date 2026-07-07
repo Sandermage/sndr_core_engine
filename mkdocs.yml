@@ -60,6 +60,10 @@ nav:
   - Getting started:
       - Get started (2-min orientation): GETTING_STARTED.md
       - Quickstart (clone to chat): QUICKSTART.md
+      - Run on Linux (full stack): RUN_ON_LINUX.md
+      - Run on a Mac (client mode): RUN_ON_MAC.md
+      - Run on Windows / WSL2: RUN_ON_WINDOWS_WSL.md
+      - Remote engine (client mode): REMOTE_ENGINE.md
       - Install: INSTALL.md
       - Host setup (host.yaml): HOST_SETUP.md
       - Local AI primer: LOCAL_AI_PRIMER.md

@@ -49,11 +49,41 @@ Then **three commands** take you from install to a chat prompt — they are laid
 out, with expected output, in [`QUICKSTART.md`](QUICKSTART.md). Prefer a manual
 clone instead of the installer? That path is in [`INSTALL.md`](INSTALL.md).
 
+**Zero-decision default:** on a Linux + CUDA box, one command does the whole
+arc — `sndr quickstart` auto-detects your GPU, fits a preset, downloads the
+weights, boots the engine, and opens the GUI. (`sndr up` does the same;
+`sndr run` ends at a terminal chat instead.) The full-stack front door with the
+workload → preset table is [`RUN_ON_LINUX.md`](RUN_ON_LINUX.md).
+
+## No Linux GPU? Drive a rig instead
+
+The engine needs **Linux + CUDA + Docker** — a Mac or a GPU-less Windows
+laptop can't run it locally. That is **not** a dead end: the same `sndr` CLI
+and GUI run in **client mode** and drive a Linux rig over the network. Three
+commands:
+
+```bash
+sndr remote setup http://<rig>:8102/v1   # point at the rig's engine (key: genesis-local)
+sndr up --no-engine                      # start the local GUI daemon, no local engine
+sndr chat                                # chat against the remote engine
+```
+
+`<rig>` is your rig's hostname or LAN IP; `:8102` is the PROD engine port; the
+engine is keyed (`genesis-local` by default). Per-OS walk-throughs:
+[`RUN_ON_MAC.md`](RUN_ON_MAC.md) · [`RUN_ON_WINDOWS_WSL.md`](RUN_ON_WINDOWS_WSL.md).
+The canonical client-mode reference (the env triplet, memory DSN, ports, the
+`401` cause) is [`REMOTE_ENGINE.md`](REMOTE_ENGINE.md). No rig yet? Stand one up
+with [`RUN_ON_LINUX.md`](RUN_ON_LINUX.md).
+
 ## Where to go next
 
 | If you want to... | Read |
 | --- | --- |
 | Clone → first token, with the actual commands | [`QUICKSTART.md`](QUICKSTART.md) |
+| Run the full stack locally on **Linux + CUDA** | [`RUN_ON_LINUX.md`](RUN_ON_LINUX.md) |
+| Drive a rig from a **Mac** | [`RUN_ON_MAC.md`](RUN_ON_MAC.md) |
+| Run on **Windows / WSL2** (GPU passthrough or client) | [`RUN_ON_WINDOWS_WSL.md`](RUN_ON_WINDOWS_WSL.md) |
+| Point the GUI / CLI at a **remote engine** | [`REMOTE_ENGINE.md`](REMOTE_ENGINE.md) |
 | Use the browser GUI (`sndr up` / `sndr open`, port 8765) | [`GUI.md`](GUI.md) |
 | Drive everything from one keyboard screen (no commands to memorise) | [`TUI.md`](TUI.md) |
 | Understand local AI from scratch (hardware / engines / quants) | [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) |
