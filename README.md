@@ -4,11 +4,17 @@
 
 # SNDR Core Engine
 
-> **Genesis vLLM Patches** — runtime vLLM patches that run a frontier-class
-> **35B** model on **consumer NVIDIA GPUs with 24 GB** (RTX 3090 / 4090 /
+> **Genesis vLLM Patches** — runtime vLLM patches that run frontier-class open
+> LLMs — **Qwen3.6** (7B · 27B · 35B-A3B) and **Gemma 4** (26B · 31B ·
+> DiffusionGemma) — on **consumer NVIDIA GPUs with 24 GB** (RTX 3090 / 4090 /
 > 5090, RTX A5000 / A6000): ~1.5× faster inference, **quantized tool calling**
-> that works, **MTP speculative decoding**, and a **280K-token context** —
+> that works, **MTP speculative decoding**, and up to **280K-token context** —
 > no fork, no rebuild.
+>
+> Built on vLLM, so it serves the models the engine supports; the deep
+> optimizations (TurboQuant KV, hybrid GDN, spec-decode, tuned kernels) are
+> **family-tuned for Qwen3.6 and Gemma 4** — the two families we validate on
+> every pin.
 
 > 🎮 **Own a different card?** The 24 GiB envelope is class-wide, and `sndr up`
 > auto-projects VRAM for *your* GPU. **[RTX 4090](docs/FAQ.md#q-can-i-use-an-rtx-4090-instead-of-a-3090)** ·
@@ -40,7 +46,7 @@
 [What it is](#what-it-is) ·
 [How it works](#how-it-works) ·
 [The platform end-to-end](#what-the-platform-does-end-to-end) ·
-[Headline numbers](#headline-numbers-v1200-current-registry) ·
+[Headline numbers](#headline-numbers-v1210-current-registry) ·
 [Fleet validation](#validated-across-the-fleet--7-models-dev748-2026-07-04-window--2026-07-05-re-run) ·
 [Persistent memory](#persistent-memory--neural-graph-new-in-v12) ·
 [Pick your path](#pick-your-path) ·
@@ -52,10 +58,11 @@
 
 **Turn a consumer NVIDIA card into a production local-AI server.** SNDR Core
 transforms the open-source [vLLM](https://github.com/vllm-project/vllm) engine
-*in memory at boot* — no fork, no rebuild — so a frontier-class **35B** model
-runs **~1.5× faster than stock vLLM** with a **280K-token served context**, on
-hardware you can actually buy (A5000, RTX 4090 / 5090, A6000 — and yes, the
-3090). One paste installs it; a real **GUI Control Center** drives it.
+*in memory at boot* — no fork, no rebuild — so frontier-class open models
+(Qwen3.6 up to **35B-A3B**, Gemma 4 up to **31B**) run **~1.5× faster than
+stock vLLM** with up to a **280K-token served context**, on hardware you can
+actually buy (A5000, RTX 4090 / 5090, A6000 — and yes, the 3090). One paste
+installs it; a real **GUI Control Center** drives it.
 
 **Two products, one engine:** ⚙️ the runtime **vLLM patch-overlay** (faster
 inference) **+** 🧠 a **persistent neural-graph memory** that makes every model —
@@ -121,7 +128,7 @@ Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
 
 | You get | How |
 | --- | --- |
-| **A frontier-class 35B model with 280K served context on a card you can buy** | No A100/H100 needed — TurboQuant k8v4 KV-cache quant makes 280K fit (above the model's published 256K limit); consumer Ampere / Ada / Blackwell are first-class targets, not an afterthought. |
+| **Frontier-class models (up to 35B-A3B) with 280K served context on a card you can buy** | No A100/H100 needed — TurboQuant k8v4 KV-cache quant makes 280K fit (above the model's published 256K limit); Qwen3.6 and Gemma 4 are family-tuned, and consumer Ampere / Ada / Blackwell are first-class targets, not an afterthought. |
 | **~1.5× the tokens/sec of stock vLLM — measured, not projected** | MTP speculative decode + surgical kernel/scheduler patches. Same wheel, transformed at boot. The numbers below are reproduced on a 2× A5000 rig. |
 | **Tool-calling and agent workflows that don't break** | The speed patches keep function-call output clean — 7/7 PASS on the dev748 promotion gate and 8/8 on the extended same-day canonical suite (thinking + non-thinking, multi-tool, error-recovery, denial; dev714, 2026-07-04), via the native `qwen3_xml` streaming parser. |
 | **A long-term memory for every model — local *and* cloud** | A brain-like neural-graph memory in one CPU container: recall by meaning, self-organizing "clouds", human-like decay/reinforcement. Zero GPU on the hot path. |
@@ -154,7 +161,7 @@ The longer self-host vs cloud (and engine-alternative) discussion lives in
 A **drop-in runtime patcher** for vLLM. It pins to a specific vLLM nightly
 commit and applies 329 small, surgical changes — text edits at known anchors,
 class-rebind wrappers, and FastAPI middleware — that together turn an
-out-of-the-box vLLM into a production-grade Qwen3.6 inference server on
+out-of-the-box vLLM into a production-grade Qwen3.6 / Gemma 4 inference server on
 *consumer* NVIDIA hardware (A5000, RTX 4090 / 5090, A6000, 3090, …) where vLLM
 upstream mostly targets datacenter SKUs.
 
@@ -200,7 +207,8 @@ old 2-back pin is dropped. Current: `dev748` (`2dfaae752`); rollback:
 | --- | --- | --- | --- | --- |
 | Qwen3.6-35B-A3B | AWQ (live PROD checkpoint; an FP8 model preset also ships) | TurboQuant k8v4 | MTP K=5 | ✅ PROD (default) |
 | Qwen3.6-27B-int4-AutoRound | INT4 AutoRound (hybrid GDN+Mamba) | TurboQuant k8v4 | MTP K=4 | ✅ PROD |
-| Gemma-4-31B | INT4 / kv-auto | TurboQuant or uniform fp16 | MTP K=3 (separate drafter) | ⚙️ boots + patches apply; serving needs MM-budget config |
+| Gemma-4-26B-A4B | AWQ 4/8-bit | uniform fp16 / kv-auto | — | ✅ boots + tool-calls (fleet-validated) |
+| Gemma-4-31B | INT4 / kv-auto | TurboQuant or uniform fp16 | MTP K=3 (separate drafter) | ✅ boots + tool-calls; serving needs MM-budget config |
 | DiffusionGemma-26B-A4B-FP8 | FP8-dynamic block-diffusion MoE | TP=2 | — | ✅ serving at TP=2 |
 
 Per-model deep-dives + the V2 layered config system:
