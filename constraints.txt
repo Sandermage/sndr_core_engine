@@ -25,7 +25,7 @@
 
 # ─── Core direct deps (mirrors pyproject.toml) ────────────────────────
 pyyaml>=6.0,<7.0
-packaging>=23.0,<26.0
+packaging>=23.0,<27.0
 
 # ─── HTTP optional (extras=http) ──────────────────────────────────────
 # Pinned because requests had subtle behavior changes around timeout
