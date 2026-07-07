@@ -64,6 +64,14 @@ GENESIS_NO_VERIFY="${GENESIS_NO_VERIFY:-0}"
 GENESIS_NO_PLUGIN_INSTALL="${GENESIS_NO_PLUGIN_INSTALL:-0}"
 GENESIS_BARE_METAL="${GENESIS_BARE_METAL:-0}"      # 1 = skip Docker hints, point operator at native vllm serve
 GENESIS_UNINSTALL=0
+# Client profile (Mac / Windows / no-GPU): install the CLI + GUI only and set
+# the operator up to DRIVE a remote rig — the engine cannot run here. Auto-
+# detected when no CUDA GPU is present; force with --client / --no-engine.
+GENESIS_CLIENT_PROFILE="${GENESIS_CLIENT_PROFILE:-0}"
+# Dry-run: exercise detection + the zero-config seams (.env scaffold, host.yaml
+# auto-init) WITHOUT any live clone / pip / engine launch. Used by the installer
+# test harness and for a safe preview.
+GENESIS_DRY_RUN="${GENESIS_DRY_RUN:-0}"
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 # Pip flag overrides — accept both new SNDR_PIP_FLAGS and legacy
@@ -119,6 +127,8 @@ while [[ $# -gt 0 ]]; do
     --bare-metal) GENESIS_BARE_METAL=1; shift ;;
     --system) PIP_INSTALL_FLAGS=""; shift ;;
     --uninstall) GENESIS_UNINSTALL=1; shift ;;
+    --client|--no-engine) GENESIS_CLIENT_PROFILE=1; shift ;;
+    --dry-run) GENESIS_DRY_RUN=1; shift ;;
     -y|--yes) GENESIS_NON_INTERACTIVE=1; shift ;;
     -h|--help)
       cat <<'HELP_EOF'
@@ -155,6 +165,14 @@ Flags:
                        uvloop crash on PVE 8.x kernel 6.17.x — see
                        noonghunna/club-3090#49).
   --system             Use system pip (default: --user)
+  --client, --no-engine
+                       CLIENT PROFILE: install the CLI + GUI only and write a
+                       prefilled .env (Section B) so you can DRIVE a remote
+                       rig. The engine cannot run on a Mac / Windows / no-GPU
+                       host — auto-selected when no CUDA GPU is detected. See
+                       docs/RUN_ON_MAC.md.
+  --dry-run            Detect + exercise the zero-config seams (.env scaffold,
+                       host.yaml auto-init) with NO live clone / pip / launch.
   --uninstall          Remove Genesis and the entry-point plugin
   -y, --yes            Non-interactive (use defaults)
   -h, --help           Show this help
@@ -167,7 +185,9 @@ Examples:
 Env overrides (alternative to flags):
   GENESIS_REPO, GENESIS_HOME, GENESIS_PIN, GENESIS_WORKLOAD,
   GENESIS_MODELS_DIR, GENESIS_NON_INTERACTIVE, GENESIS_NO_VERIFY,
-  GENESIS_NO_PLUGIN_INSTALL, PYTHON_BIN, PIP_INSTALL_FLAGS
+  GENESIS_NO_PLUGIN_INSTALL, GENESIS_CLIENT_PROFILE, GENESIS_DRY_RUN,
+  SNDR_OPENAI_BASE_URL, SNDR_ENGINE_API_KEY, GENESIS_MEMORY_DSN,
+  PYTHON_BIN, PIP_INSTALL_FLAGS
 
 Author: Sandermage (Sander) Barzov Aleksandr, Ukraine, Odessa.
 HELP_EOF
@@ -444,8 +464,10 @@ pick_models_dir() {
 
   # Auto-detect candidate locations (only those that exist), de-duplicated.
   local candidates=() seen="" c
+  # ${HF_HOME:+...} yields "" when HF_HOME is unset/empty so `set -u` never
+  # trips and the empty candidate is skipped by the `[ -n "$c" ]` guard below.
   for c in \
-    "$HF_HOME/hub" \
+    "${HF_HOME:+$HF_HOME/hub}" \
     "$HOME/.cache/huggingface/hub" \
     "$HOME/models" \
     "/models" \
@@ -935,6 +957,156 @@ uninstall() {
   hint "To revert text-patches: pip uninstall vllm && pip install vllm  (re-install clean)"
 }
 
+# ─── Zero-config seams: client profile, .env scaffold, host auto-init ──
+#
+# These are ADDITIVE. The expert paths (pick_pin / pick_workload /
+# pick_models_dir / explicit --pin) are untouched — this layer only adds
+# sensible auto-defaults so the common case needs zero manual config.
+
+# Directory this script lives in (best-effort; curl|bash has no source file).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd 2>/dev/null || echo "$PWD")"
+
+# Decide whether this host is a CLIENT (no engine) or a full stack. A CUDA
+# GPU is required for the engine; without one we drive a remote rig instead.
+# Honors an explicit --client / GENESIS_CLIENT_PROFILE. Relies on detect_gpu
+# having already run (N_GPUS / GPU_CLASS_HINT populated).
+detect_client_profile() {
+  step "Install profile"
+
+  if [ "$GENESIS_CLIENT_PROFILE" = "1" ]; then
+    ok "client profile (forced via --client / --no-engine)"
+    return
+  fi
+  # No nvidia-smi, or nvidia-smi saw zero GPUs → the engine cannot run here.
+  if ! command -v nvidia-smi >/dev/null 2>&1 || [ "${N_GPUS:-0}" = "0" ]; then
+    GENESIS_CLIENT_PROFILE=1
+    ok "client profile auto-selected (no CUDA GPU on this host)"
+    return
+  fi
+  ok "local full-stack profile (CUDA GPU present)"
+}
+
+# BREAK #4 — documented preflight reachability guard. Warn (never fatal) when
+# the clone URL is unreachable so the operator learns before a confusing
+# `git clone` failure. Skipped in dry-run.
+check_repo_reachable() {
+  [ "$GENESIS_DRY_RUN" = "1" ] && return 0
+  command -v git >/dev/null 2>&1 || return 0
+  if ! git ls-remote --exit-code --heads "$GENESIS_REPO" HEAD >/dev/null 2>&1; then
+    warn "clone URL may be unreachable: $GENESIS_REPO"
+    hint "check network / GENESIS_REPO; a 404 here means the clone step will fail"
+  fi
+}
+
+# Auto-copy the tracked .env.example → .env (Section A defaults) if the
+# operator has no .env yet. Idempotent (never overwrites an existing .env),
+# so a re-run is safe (DOWNLOAD-2). Writes .env NEXT TO the found template.
+ensure_local_env() {
+  local repo_dir="${1:-$GENESIS_HOME}"
+  local src="" cand
+  for cand in "$repo_dir/.env.example" "$SCRIPT_DIR/.env.example" "$PWD/.env.example"; do
+    if [ -f "$cand" ]; then src="$cand"; break; fi
+  done
+  if [ -z "$src" ]; then
+    warn ".env.example not found — skipping local .env scaffold"
+    return
+  fi
+  local dst
+  dst="$(cd "$(dirname "$src")" && pwd)/.env"
+  if [ -f "$dst" ]; then
+    ok ".env already present ($dst) — left untouched"
+    return
+  fi
+  cp "$src" "$dst"
+  ok "wrote $dst from .env.example (Section A auto-defaults — edit only to override)"
+}
+
+# First-run host.yaml auto-init (BREAK #2). Delegates to the CONFIG-owned
+# host_autoinit.ensure_host_yaml() so `sndr up` never resolves a launch mount
+# to a literal ${models_dir}. Non-fatal, non-TTY safe, idempotent.
+run_host_autoinit() {
+  step "Host paths auto-init (host.yaml)"
+  local out
+  if out=$(PYTHONPATH="${GENESIS_HOME}:${SCRIPT_DIR}:${PYTHONPATH:-}" \
+      "$PYTHON_BIN" -c 'from sndr.model_configs.host_autoinit import ensure_host_yaml; p = ensure_host_yaml(); print(p if p else "no-op (host.yaml present or nothing to detect)")' 2>/dev/null); then
+    ok "host.yaml auto-init: $out"
+  else
+    warn "host.yaml auto-init skipped (sndr not importable yet) — runs again on first launch"
+  fi
+}
+
+# Write a prefilled CLIENT .env (Section B triplet) so a Mac / Windows user
+# can drive a remote rig with zero further edits. Prompts for the rig URL
+# (default key genesis-local). Idempotent — never clobbers an existing .env.
+emit_client_env() {
+  local dst="${GENESIS_ENV_DIR:-$PWD}/.env"
+  if [ -f "$dst" ]; then
+    ok ".env already present ($dst) — left untouched (edit it to change the rig)"
+    return
+  fi
+
+  local rig_url="${SNDR_OPENAI_BASE_URL:-}"
+  if [ -z "$rig_url" ]; then
+    if [ "$GENESIS_NON_INTERACTIVE" = "1" ] || [ "$GENESIS_DRY_RUN" = "1" ] || [ ! -t 0 ]; then
+      rig_url="http://YOUR_RIG_HOST:8102/v1"
+    else
+      read -rp "  Rig engine URL [http://YOUR_RIG_HOST:8102/v1]: " rig_url
+      rig_url="${rig_url:-http://YOUR_RIG_HOST:8102/v1}"
+    fi
+  fi
+  local rig_key="${SNDR_ENGINE_API_KEY:-genesis-local}"
+  local mem_dsn="${GENESIS_MEMORY_DSN:-postgresql://genesis:genesis_mem_dev@YOUR_RIG_HOST:55432/genesis_memory}"
+
+  cat > "$dst" <<CLIENT_ENV_EOF
+# Genesis client .env — generated by install.sh (client profile).
+# This host has no CUDA GPU: the engine runs on a remote rig; the CLI + GUI
+# here drive it. Edit the three values below to point at your rig.
+# Read literally as KEY=VALUE (docker-compose semantics) — not sourced.
+SNDR_OPENAI_BASE_URL=${rig_url}
+SNDR_ENGINE_API_KEY=${rig_key}
+GENESIS_MEMORY_DSN=${mem_dsn}
+CLIENT_ENV_EOF
+  ok "wrote $dst (client Section B — rig=$rig_url, key=$rig_key)"
+}
+
+print_client_next_steps() {
+  step "Next steps (client)"
+  echo
+  ok "engine cannot run here; you are set up to drive a remote rig — see docs/RUN_ON_MAC.md"
+  echo
+  echo "  1) edit .env  → point SNDR_OPENAI_BASE_URL / key / DSN at your rig"
+  echo "  2) sndr up --no-engine     # start the CLI + Control Center GUI (:8765)"
+  echo "  3) curl \$SNDR_OPENAI_BASE_URL/models -H \"Authorization: Bearer \$SNDR_ENGINE_API_KEY\""
+  echo
+  echo "Docs: docs/RUN_ON_MAC.md"
+}
+
+# Full client-profile flow: emit .env(B), install CLI + GUI only (skip the
+# engine/plugin bits that cannot work without CUDA), print next steps.
+run_client_profile() {
+  step "Client install (CLI + GUI only — no engine)"
+  warn "no CUDA GPU on this host — installing the CLI + Control Center GUI to drive a remote rig"
+
+  emit_client_env
+
+  if [ "$GENESIS_DRY_RUN" = "1" ]; then
+    ok "dry-run: client CLI+GUI install skipped (clone/pip not run)"
+    print_client_next_steps
+    return
+  fi
+
+  # Real client install: the sndr package powers the CLI + GUI. We skip the
+  # engine bits (workload/models-dir pickers, launch-script generation, smoke
+  # verify) that require a local GPU + vLLM. The editable install still writes
+  # the vllm.general_plugins entry-point metadata, which is simply inert here.
+  check_repo_reachable
+  resolve_pin
+  clone_genesis
+  install_plugin      # editable install → `sndr` CLI + GUI importable
+  setup_pythonpath
+  print_client_next_steps
+}
+
 # ─── Main flow ────────────────────────────────────────────────────────
 
 main() {
@@ -950,16 +1122,41 @@ main() {
 
   preflight
   detect_gpu
+  detect_client_profile
+
+  # CLIENT PROFILE (Mac / Windows / no-GPU): CLI + GUI only, drive a remote rig.
+  if [ "$GENESIS_CLIENT_PROFILE" = "1" ]; then
+    run_client_profile
+    exit 0
+  fi
+
+  # LOCAL FULL STACK (Linux + CUDA).
   detect_vllm
   detect_proxmox_runtime
   pick_workload
   pick_models_dir
   resolve_pin
+
+  # DRY-RUN: exercise the zero-config seams without any live clone / pip /
+  # launch, then stop. Keeps the new flow test-harness-safe (HARD RULE 3).
+  if [ "$GENESIS_DRY_RUN" = "1" ]; then
+    check_repo_reachable
+    ensure_local_env "$GENESIS_HOME"
+    run_host_autoinit
+    ok "dry-run: local full-stack seams exercised (clone / pip / verify skipped)"
+    exit 0
+  fi
+
+  check_repo_reachable
   clone_genesis
   install_plugin
   setup_pythonpath
   generate_launch_script
   run_verify
+  # Zero-config close-out: auto-copy Section A .env + first-run host.yaml so
+  # `sndr up` needs no manual host.yaml / pin / port / key edits (BREAK #2).
+  ensure_local_env "$GENESIS_HOME"
+  run_host_autoinit
   print_next_steps
 }
 

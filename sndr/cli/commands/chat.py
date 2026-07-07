@@ -19,7 +19,7 @@ Examples::
 """
 from __future__ import annotations
 
-import argparse
+import argparse  # noqa: TC003 — Namespace typing on the public execute() seam
 
 from sndr.cli._messages import Emitter
 
@@ -41,6 +41,10 @@ class ChatCommand:
             "--host", default="127.0.0.1",
             help="Engine host (default: 127.0.0.1).",
         )
+        parser.add_argument(
+            "--api-key", default=None,
+            help="Engine API key (else $SNDR_ENGINE_API_KEY when a remote is set).",
+        )
 
     def execute(self, args: argparse.Namespace) -> int:
         em = Emitter()  # advisory output → stderr
@@ -48,6 +52,19 @@ class ChatCommand:
         host = args.host
         port = args.port
         preset_id = args.preset
+        api_key = getattr(args, "api_key", None)
+
+        # Remote client mode (GAP 2): with no explicit host/port/preset, honor a
+        # configured remote engine (SNDR_OPENAI_BASE_URL) so a Mac/Windows client
+        # chats against the rig instead of the localhost:8000 default. Explicit
+        # --host / --port / preset still WIN (this branch is skipped for them).
+        if host == "127.0.0.1" and port is None and preset_id is None:
+            remote = _remote_from_env()
+            if remote is not None:
+                host, port, env_key = remote
+                if api_key is None:
+                    api_key = env_key
+
         if port is None:
             port = _port_for_preset(preset_id)
 
@@ -55,7 +72,7 @@ class ChatCommand:
         # of failing on the first turn.
         from sndr.product_api.legacy import engine_client
 
-        status = engine_client.engine_status(host, port=port, timeout=3.0)
+        status = engine_client.engine_status(host, port=port, timeout=3.0, api_key=api_key)
         if not status.get("reachable"):
             detail = status.get("error") or "no /health response"
             em.line(f"sndr chat: no engine reachable at {host}:{port} ({detail}).")
@@ -68,6 +85,28 @@ class ChatCommand:
         from sndr.cli.chat_repl import chat_loop
 
         return chat_loop(host, port, preset_id=preset_id)
+
+
+def _remote_from_env() -> tuple[str, int, str | None] | None:
+    """Parse (host, port, api_key) from the remote-engine env, or None.
+
+    Reads ``SNDR_OPENAI_BASE_URL`` (host/port) and ``SNDR_ENGINE_API_KEY``
+    (key). Returns None when no remote is configured or the URL is unparseable
+    (the caller then keeps the localhost default path)."""
+    import os
+    from urllib.parse import urlparse
+
+    base = os.environ.get("SNDR_OPENAI_BASE_URL", "").strip()
+    if not base:
+        return None
+    try:
+        parsed = urlparse(base)
+    except (ValueError, AttributeError):
+        return None
+    if not parsed.hostname or parsed.port is None:
+        return None
+    key = os.environ.get("SNDR_ENGINE_API_KEY", "").strip() or None
+    return parsed.hostname, int(parsed.port), key
 
 
 def _port_for_preset(preset_id: str | None) -> int:

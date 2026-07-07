@@ -40,7 +40,6 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from sndr.model_configs.schema import SchemaError
 
@@ -50,7 +49,7 @@ class HostConfig:
     """Per-host resolved paths for symbolic mount references."""
     paths: dict[str, str] = field(default_factory=dict)
 
-    def get(self, name: str) -> Optional[str]:
+    def get(self, name: str) -> str | None:
         return self.paths.get(name)
 
 
@@ -167,7 +166,7 @@ _ENV_OVERRIDES: dict[str, tuple[str, ...]] = {
 }
 
 
-def _env_lookup(var: str) -> Optional[str]:
+def _env_lookup(var: str) -> str | None:
     """Return an absolute, existing-directory env override for `var`,
     or None when no recognised env is set or the value points at a
     non-existent path.
@@ -186,14 +185,14 @@ def _env_lookup(var: str) -> Optional[str]:
     return None
 
 
-def detect_paths(
-    models_candidates: Optional[list[str]] = None,
-    hf_cache_candidates: Optional[list[str]] = None,
-    triton_cache_candidates: Optional[list[str]] = None,
-    compile_cache_candidates: Optional[list[str]] = None,
-    sndr_src_candidates: Optional[list[str]] = None,
-    plugin_src_candidates: Optional[list[str]] = None,
-    cache_root_candidates: Optional[list[str]] = None,
+def detect_paths(  # noqa: PLR0912, PLR0915 — flat per-variable probe ladder; the branch/statement count mirrors the recognized-variable set and its precedence (env → candidates → optional-create) is frozen (host_autoinit contract) — splitting it would obscure that 1:1 mapping.
+    models_candidates: list[str] | None = None,
+    hf_cache_candidates: list[str] | None = None,
+    triton_cache_candidates: list[str] | None = None,
+    compile_cache_candidates: list[str] | None = None,
+    sndr_src_candidates: list[str] | None = None,
+    plugin_src_candidates: list[str] | None = None,
+    cache_root_candidates: list[str] | None = None,
     create_missing_caches: bool = False,
 ) -> dict[str, str]:
     """Auto-detect per-host paths by probing common locations.
@@ -348,17 +347,27 @@ def _default_host_yaml_path() -> Path:
     return sndr_default
 
 
-def load_host_config(path: Optional[Path] = None) -> HostConfig:
+def load_host_config(path: Path | None = None) -> HostConfig:
     """Load host config from YAML. Returns empty HostConfig if file absent."""
     p = path if path is not None else _default_host_yaml_path()
     if not p.is_file():
-        return HostConfig()
+        # BREAK #2 (2026-07-06): first-run auto-init. Only for the DEFAULT
+        # resolution (path is None — the real operator launch flow); explicit-
+        # path callers (tests/audits) keep the legacy "empty on absent"
+        # contract untouched. ensure_host_yaml is idempotent, non-TTY safe,
+        # and no-ops on a bare host, so nothing is written unless a real path
+        # is detectable. Opt out with SNDR_HOST_AUTOINIT=0.
+        if path is None and os.environ.get("SNDR_HOST_AUTOINIT", "1") != "0":
+            from sndr.model_configs.host_autoinit import ensure_host_yaml
+            ensure_host_yaml(path=p)
+        if not p.is_file():
+            return HostConfig()
     try:
         import yaml
     except ImportError:
         raise SchemaError(
             "host.py requires PyYAML to load host.yaml. Install pyyaml."
-        )
+        ) from None
     data = yaml.safe_load(p.read_text()) or {}
     if not isinstance(data, dict):
         raise SchemaError(
@@ -407,7 +416,7 @@ def _normalize_legacy_keys(paths: dict[str, str]) -> dict[str, str]:
     return paths
 
 
-def save_host_config(hc: HostConfig, path: Optional[Path] = None) -> Path:
+def save_host_config(hc: HostConfig, path: Path | None = None) -> Path:
     """Write host config as YAML. Creates parent dir if needed."""
     p = path if path is not None else _default_host_yaml_path()
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -428,7 +437,7 @@ def save_host_config(hc: HostConfig, path: Optional[Path] = None) -> Path:
 
 
 def detect_and_save(
-    path: Optional[Path] = None,
+    path: Path | None = None,
     create_missing_caches: bool = False,
 ) -> tuple[HostConfig, Path]:
     """Detect paths + save to host.yaml. Convenience for install/first-run."""
