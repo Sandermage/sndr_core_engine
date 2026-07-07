@@ -42,9 +42,12 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import (
+    Callable,  # noqa: TC003 — on_progress callback type, kept importable
+)
 from typing import Any
 
+from sndr.cli import user_prefs
 from sndr.cli._messages import Emitter, heartbeat
 
 _DEFAULT_TIMEOUT_S = 300
@@ -90,17 +93,29 @@ class RunCommand:
 
     # ── dispatch ─────────────────────────────────────────────────────────────
 
-    def execute(self, args: argparse.Namespace) -> int:
+    def execute(self, args: argparse.Namespace) -> int:  # noqa: PLR0911, PLR0915 — linear cold-start ladder: one early-return per stage (resolve/pull/launch/wait/chat)
         em = Emitter()  # advisory output → stderr (stdout stays scriptable)
 
-        # 1) Resolve the preset (explicit, else top-fit for the rig).
+        # 1) Resolve the preset (explicit > pinned default > top-fit for the rig).
+        preset_arg = args.preset
+        if preset_arg is None:
+            pinned = user_prefs.get_default_preset()
+            if pinned:
+                preset_arg = pinned
         try:
             preset_id, port = _resolve_preset_and_port(
-                args.preset, rig_id=args.rig, fake_gpus=args.fake_gpus,
+                preset_arg, rig_id=args.rig, fake_gpus=args.fake_gpus,
                 port_override=args.port,
             )
         except _ResolveError as exc:
             em.line(f"sndr run: {exc}")
+            # Remote pivot pointer: an empty local rig with a configured remote
+            # engine chats against the remote — point there instead of dead-ending.
+            import os as _os
+
+            if _os.environ.get("SNDR_OPENAI_BASE_URL", "").strip():
+                em.line("  local rig empty but SNDR_OPENAI_BASE_URL set — "
+                        "chat against the remote with: sndr chat")
             em.line("  list presets: sndr preset list   |   pick interactively: sndr")
             return 2
 
@@ -291,7 +306,7 @@ def _launch_detached(
         argv.append("--dry-run")
     redirect = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL} if quiet else {}
     try:
-        completed = subprocess.run(argv, **redirect)
+        completed = subprocess.run(argv, check=False, **redirect)
         return completed.returncode
     except FileNotFoundError:
         # `python -m sndr` unavailable (no console entry on PATH) — fall back to
