@@ -691,7 +691,7 @@ sudo systemctl restart genesis-vllm
 | `vllm serve` boots but runtime monkey-patches never fire (text-patches OK) | The `vllm.general_plugins` entry-point isn't registered — you bind-mounted/symlinked `sndr/` instead of pip-installing it | Re-run the editable install in step 3, then verify with the `importlib.metadata` entry-point check there. |
 | `ImportError: No module named 'vllm.sndr_core'` / `vllm._genesis` (pre-v12 scripts) | Both namespaces removed by v12.0.0; no alias is provided | Update the script: rewrite imports `vllm._genesis.*` / `vllm.sndr_core.*` → `sndr.*`. |
 | Boot hangs on `Capturing CUDA graphs` | Driver mismatch (570 instead of 580) or stale Triton cache | `apt install nvidia-driver-580-server`, reboot. `rm -rf ~/.triton/cache/*` |
-| `sndr.apply` reports `required_anchor_missing` for many patches | vLLM nightly drifted from Genesis pin | Pin to the SHA in [`Production baseline`](#quick-start-canonical-v1200), or accept that some patches will skip (read each SKIP reason) |
+| `sndr.apply` reports `required_anchor_missing` for many patches | vLLM nightly drifted from Genesis pin | Pin to the SHA in [`Production baseline`](#quick-start-canonical-v1210), or accept that some patches will skip (read each SKIP reason) |
 | Patches re-apply on every restart and accumulate | You're running `python3 -m sndr.apply` from multiple processes simultaneously | Add a lockfile, or run `sndr.apply` once at boot before launching workers |
 | `pip install --upgrade vllm` silently undid Genesis | Expected — `pip` reinstalls vLLM's own files cleanly | Re-run step 6 (`python3 -m sndr.apply`) after upgrade |
 
