@@ -48,12 +48,15 @@ Examples::
 """
 from __future__ import annotations
 
-import argparse
+import argparse  # noqa: TC003 — used at runtime for Namespace typing on public seams
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import (
+    Callable,  # noqa: TC003 — on_progress callback type, kept importable
+)
 from typing import Any
 
+from sndr.cli import user_prefs
 from sndr.cli._messages import Emitter, heartbeat
 
 _DEFAULT_GUI_PORT = 8765
@@ -116,7 +119,7 @@ class UpCommand:
                  "'name:vram_mib:cc;...' (offline).",
         )
 
-    def execute(self, args: argparse.Namespace) -> int:
+    def execute(self, args: argparse.Namespace) -> int:  # noqa: PLR0911, PLR0912, PLR0915 — linear bring-up ladder: one early-return per failure stage (weights/launch/ready/daemon) reads clearer than extraction
         em = Emitter()  # advisory output → stderr (stdout stays scriptable)
 
         gui_port = int(getattr(args, "gui_port", _DEFAULT_GUI_PORT))
@@ -129,15 +132,35 @@ class UpCommand:
         if not no_engine:
             from sndr.cli.commands.run import _resolve_preset_and_port, _ResolveError
 
+            # Preset ladder (additive): a pinned default wins over the top-fit
+            # when no preset was named (validated; falls through to top-fit on a
+            # miss). The existing top-fit stays the fallback.
+            preset_arg = args.preset
+            if preset_arg is None:
+                pinned = user_prefs.get_default_preset()
+                if pinned:
+                    preset_arg = pinned
+
             try:
                 preset_id, engine_port = _resolve_preset_and_port(
-                    args.preset, rig_id=args.rig, fake_gpus=args.fake_gpus,
+                    preset_arg, rig_id=args.rig, fake_gpus=args.fake_gpus,
                     port_override=args.port,
                 )
             except _ResolveError as exc:
-                em.line(f"sndr up: {exc}")
-                em.line("  list presets: sndr preset list   |   pick interactively: sndr")
-                return 2
+                # Remote pivot (GAP 3): an empty local rig with a configured
+                # remote engine is client mode — bring up the daemon-only path
+                # instead of failing. Only when no remote is set do we keep the
+                # existing return-2 + hint.
+                if _remote_configured():
+                    em.line("  no fitting local rig — client mode against "
+                            f"{_remote_url()}")
+                    no_engine = True
+                    preset_id = None
+                    engine_port = None
+                else:
+                    em.line(f"sndr up: {exc}")
+                    em.line("  list presets: sndr preset list   |   pick interactively: sndr")
+                    return 2
 
         em.blank()
         if no_engine:
@@ -170,7 +193,7 @@ class UpCommand:
 
         # ── 1) engine: ensure weights → launch + wait (skipped with --no-engine) ──
         if not no_engine:
-            assert preset_id is not None and engine_port is not None
+            assert preset_id is not None and engine_port is not None  # noqa: PT018 — one invariant on the resolved pair, not a test assertion
             # Download the model first (no-op when already complete) so the GUI
             # path is as turnkey as `sndr run` — otherwise the container would
             # block on a slow in-container HF pull with no CLI progress.
@@ -226,6 +249,12 @@ class UpCommand:
             em.hint(f"chat from the terminal instead:  sndr chat {preset_id}")
         em.hint("stop everything:                 sndr down"
                 + (f" {preset_id}" if not no_engine and preset_id and not str(preset_id).startswith("prod-") else ""))
+
+        # Post-boot default offer (DEFAULT-1, opt-in). Guarded by --no-input at
+        # the call site; the seam itself no-ops on a non-TTY / already-pinned
+        # preset, so scripted callers and existing tests are unaffected.
+        if not no_engine and preset_id and not bool(getattr(args, "no_input", False)):
+            _maybe_offer_set_default(preset_id)
         return 0
 
 
@@ -328,6 +357,48 @@ class DownCommand:
         return 0
 
 
+# ── remote / default seams (mocked in tests) ─────────────────────────────────
+
+
+def _remote_url() -> str:
+    """The configured remote engine URL (``SNDR_OPENAI_BASE_URL``), or ""."""
+    import os
+
+    return os.environ.get("SNDR_OPENAI_BASE_URL", "").strip()
+
+
+def _remote_configured() -> bool:
+    """True when this machine is pointed at a remote engine (client mode)."""
+    return bool(_remote_url())
+
+
+def _maybe_offer_set_default(preset_id: str) -> None:
+    """After a green boot, offer to pin ``preset_id`` as the default (DEFAULT-1,
+    opt-IN). No-op on a non-TTY or when already pinned to this preset — safe to
+    call unconditionally from the success path."""
+    import sys
+
+    try:
+        interactive = bool(sys.stdin.isatty() and sys.stdout.isatty())
+    except Exception:  # noqa: BLE001 — a detached stream is simply not a TTY
+        interactive = False
+    if not interactive:
+        return
+    if user_prefs.get_default_preset() == preset_id:
+        return
+    em = Emitter()
+    try:
+        answer = input(f"  Make {preset_id} your default? [y/N] ").strip().lower()
+    except EOFError:
+        return
+    if answer in ("y", "yes"):
+        try:
+            user_prefs.set_default_preset(preset_id)
+            em.ok(f"default set — future `sndr up` will boot {preset_id}")
+        except ValueError:
+            pass
+
+
 # ── engine seams (each mocked in tests) — reuse the R1 run path ──────────────
 
 
@@ -395,7 +466,7 @@ def _docker_stop(name: str) -> bool:
     try:
         completed = subprocess.run(
             ["docker", "stop", name],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
         )
         return completed.returncode == 0
     except Exception:  # noqa: BLE001 — never raise out of a teardown
@@ -491,13 +562,13 @@ def _find_daemon_pids() -> list[int]:
     try:
         completed = subprocess.run(
             ["pgrep", "-f", "sndr.cli.legacy gui-api"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
         )
     except Exception:  # noqa: BLE001 — never raise out of a teardown
         return []
     pids: list[int] = []
-    for line in completed.stdout.splitlines():
-        line = line.strip()
+    for raw_line in completed.stdout.splitlines():
+        line = raw_line.strip()
         if line.isdigit():
             pids.append(int(line))
     return pids

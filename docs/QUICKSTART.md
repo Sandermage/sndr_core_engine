@@ -80,6 +80,24 @@ When you are done:
 sndr down      # stop the engine + GUI started by `sndr up`
 ```
 
+### No local GPU? Drive a rig instead
+
+The steps above assume a **Linux + CUDA + Docker** box — that is what runs the
+engine. On a Mac, or a GPU-less Windows laptop, you can't run the engine
+locally, but the same `sndr` CLI + GUI drive a Linux rig over the network.
+Three commands:
+
+```bash
+sndr remote setup http://<rig>:8102/v1   # point at the rig's engine (key: genesis-local)
+sndr up --no-engine                      # start the local GUI daemon, no local engine
+sndr chat                                # chat against the remote engine
+```
+
+`<rig>` is the rig's hostname or LAN IP; `:8102` is the PROD engine port; the
+engine is keyed (`genesis-local` by default). Full per-OS walk-throughs:
+[`RUN_ON_MAC.md`](RUN_ON_MAC.md) · [`RUN_ON_WINDOWS_WSL.md`](RUN_ON_WINDOWS_WSL.md);
+canonical client-mode reference: [`REMOTE_ENGINE.md`](REMOTE_ENGINE.md).
+
 ---
 
 ## More — when you outgrow the defaults
@@ -101,8 +119,8 @@ Pick by hardware shape:
 
 | Hardware | Preset | Notes |
 | --- | --- | --- |
-| 2× RTX A5000 24 GB | `prod-qwen3.6-35b-balanced` | Flagship — Qwen3.6-35B-A3B (MoE), ~242 TPS single-stream (MTP K=5; measured 2026-07-04 on pin `dev748`, AWQ checkpoint). |
-| 2× RTX A5000 multi-conc | `prod-qwen3.6-35b-multiconc` | `max_num_seqs=8`, aggregate ~672 TPS (K=3 multi-conc measurement, 2026-05-23 — see [`BENCHMARKS.md`](BENCHMARKS.md)). |
+| 2× RTX A5000 24 GB (**single user**) | `prod-qwen3.6-35b-balanced` | Flagship lone-user default — Qwen3.6-35B-A3B (MoE), latency-tuned (`max_num_seqs=2`), ~242 TPS single-stream (MTP K=5; measured 2026-07-04 on pin `dev748`, AWQ checkpoint). This is what `sndr up` / `sndr quickstart` auto-picks. |
+| 2× RTX A5000 (**many concurrent requests**) | `prod-qwen3.6-35b-multiconc` | Throughput-tuned `max_num_seqs=8`, aggregate ~672 TPS (K=3 multi-conc measurement, 2026-05-23 — see [`BENCHMARKS.md`](BENCHMARKS.md)). Picks up aggregate at the cost of single-stream latency — choose it only when you actually run concurrent load, not for solo chat. |
 | 2× 24 GB (3090 / 4090 / A5000) | `prod-qwen3.6-27b-tq-k8v4` | Lorbus 27B int4 + TurboQuant k8v4 (long context). |
 | 1× RTX A5000 / 3090 | `qa-qwen3.6-27b-tq-1x` | TP=1, 78K context. |
 
@@ -160,14 +178,28 @@ curl -s -X POST http://localhost:8000/v1/chat/completions \
     }'
 ```
 
+> **The engine is keyed.** That `Authorization: Bearer genesis-local` header is
+> **not** optional — `genesis-local` is the shipped default key. Omit it and
+> every request comes back `401 Unauthorized` (and the GUI reports "no
+> engine"). If the operator launched with a different `--api-key`, use that
+> string instead. This one missing header is the most common first-curl
+> stumble — see [`REMOTE_ENGINE.md`](REMOTE_ENGINE.md) and
+> [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
+
 ### Stopping cleanly
 
-Use `sndr down` to stop the stack `sndr up` started. Avoid a plain
-`docker stop` + `docker start`: that recycles the same writable layer, and
-Genesis text-patches applied to that layer fail to re-apply on the next boot
-(anchors don't match). The recovery for a stuck container is a full
-`docker compose down` → `docker compose up -d`. The "R/W layer trap" and
-other cliffs are catalogued in [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
+> **Safe stop = `sndr down`.** Do **not** stop the stack with a plain
+> `docker stop` + `docker start`. That recycles the same writable layer, and
+> the Genesis text-patches applied to that layer **fail to re-apply** on the
+> next boot (the anchors no longer match a patched file) — the container comes
+> back subtly broken. Always `sndr down`. The recovery for a container already
+> stuck this way is a full `docker compose down` → `docker compose up -d` (a
+> fresh layer). This "R/W layer trap" and the other named cliffs are
+> catalogued in [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
+
+```bash
+sndr down      # stop the engine + GUI cleanly (re-applies patches correctly next boot)
+```
 
 ## What's next
 
