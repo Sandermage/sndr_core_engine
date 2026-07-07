@@ -52,6 +52,8 @@ CLAUDE.md
 # Environment/secrets
 .env
 .env.*
+# ...but the committed, secret-free scaffold IS tracked (copy it to .env).
+!.env.example
 *.key
 *.pem
 
