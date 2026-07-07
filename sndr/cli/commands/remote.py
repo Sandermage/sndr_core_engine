@@ -7,7 +7,7 @@ THIS machine to do that in one line: it validates the base URL, probes the
 remote (best-effort), remembers the choice, and prints the three canonical
 exports the rest of the stack reads.
 
-  sndr remote setup http://192.168.1.10:8102/v1 --key genesis-local
+  sndr remote setup http://<your-host>:8102/v1 --key genesis-local
 
   * URL is validated to the ``http(s)://host:port/v1`` form — a bad URL is a
     loud typed refusal (GUARD-1, exit 64 / ``EX_USAGE``), never a silent
@@ -45,7 +45,7 @@ class RemoteSetupCommand:
             "setup", help="Point this machine at a remote rig engine URL.",
         )
         setup.add_argument(
-            "url", help="Remote engine base URL, e.g. http://192.168.1.10:8102/v1",
+            "url", help="Remote engine base URL, e.g. http://<your-host>:8102/v1",
         )
         setup.add_argument(
             "--key", default=_DEFAULT_KEY, metavar="API_KEY",
@@ -72,7 +72,7 @@ class RemoteSetupCommand:
         if parsed is None:
             em.err(f"not a valid engine URL: {url!r}")
             em.hint("expected form:  http(s)://<host>:<port>/v1")
-            em.hint("example:        sndr remote setup http://192.168.1.10:8102/v1")
+            em.hint("example:        sndr remote setup http://<your-host>:8102/v1")
             return _EX_USAGE
 
         host, port = parsed
