@@ -18,6 +18,18 @@ If your card is not listed and your workload is unusual, run `python3 -m sndr.co
 
 Most Genesis kernels gate on `compute_capability >= (8, 6)`. The dispatcher will print `[SKIP — pre-Ampere]` and fall back to upstream paths if you boot on Turing or earlier.
 
+**Per-class notes** (the FAQ has the full "can I use an X?" answers):
+- **RTX 3090 / A5000 (Ampere 8.6)** — the reference class. Presets, VRAM
+  budgets, and TPS numbers are calibrated here. Dual = PCIe P2P, no NVLink.
+- **RTX 4090 (Ada 8.9)** — same 24 GiB envelope, clears the kernel gate;
+  faster raw compute so expect ≥ reference TPS. No NVLink; idle VRAM a touch
+  tighter — verify long-context fit with `sndr quickstart`.
+  [→ FAQ](FAQ.md#q-can-i-use-an-rtx-4090-instead-of-a-3090)
+- **RTX 5090 (Blackwell 12.0)** — 32 GiB (more headroom), native FP8; a few
+  Triton autotune configs are Ampere-optimal, so treat reference TPS as a
+  floor. [→ FAQ](FAQ.md#q-can-i-use-an-rtx-5090)
+- **H100/H200, A100** — supported; data-center envelopes, not the tuning target.
+
 **Driver requirement:** NVIDIA driver **≥ 580.126.09 is REQUIRED** on the current CUDA 13 stack — the 570 series causes a ~3× slowdown (see [`CONFIGURATION.md`](CONFIGURATION.md) header).
 
 ## Will it fit? — builtin HardwareDefs + offline projection
