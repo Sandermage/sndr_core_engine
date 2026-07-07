@@ -21,6 +21,8 @@ from sndr.cli.commands.mem import (
 from sndr.cli.commands.pins import PinsListCommand
 from sndr.cli.commands.preflight import PreflightCommand
 from sndr.cli.commands.promoted import PROMOTED_COMMANDS
+from sndr.cli.commands.quickstart import QuickstartCommand
+from sndr.cli.commands.remote import RemoteSetupCommand
 from sndr.cli.commands.run import RunCommand
 from sndr.cli.commands.tui import TuiCommand
 from sndr.cli.commands.up import DownCommand, OpenCommand, UpCommand
@@ -65,6 +67,9 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     register(UpCommand())
     register(OpenCommand())
     register(DownCommand())
+    # UX GROUP-CLI: wizard-first zero-config front door + remote client mode.
+    register(QuickstartCommand())
+    register(RemoteSetupCommand())
     register(PinsListCommand())
     register(HealthCommand())
     register(PreflightCommand())
