@@ -41,7 +41,7 @@ generated from it (`gui/web` → `npm run gen:api`), and a contract guard
 ## Route map
 
 > **Partial map — `/openapi.json` is canonical.** The daemon registers ~185
-> distinct `/api/v1/*` paths (v12.0.0, counted 2026-07); this section documents
+> distinct `/api/v1/*` paths (v12.1.0, counted 2026-07); this section documents
 > the most-used groups only. Whole groups are intentionally left to the OpenAPI
 > document: alerts, baselines, `bench/run`, `calc/*` (the KV-projector API),
 > caveats, chat-RAG, config-keys, container lifecycle (local + per-host),

@@ -6,7 +6,7 @@ verified on 1×/2× RTX 3090, RTX 5090, and consumer-grade Blackwell.
 
 ---
 
-## Quick start (canonical, v12.0.0+)
+## Quick start (canonical, v12.1.0+)
 
 The fastest path is the bootstrap one-liner. It installs Python deps,
 clones the repo into `~/.sndr`, registers the `vllm.general_plugins`
@@ -113,7 +113,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 | Hardware | Validation status | Notes |
 |---|---|---|
-| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.0.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.23.1rc1.dev748+g2dfaae752`) | Default config targets this |
+| 2× RTX A5000 24GB (Ampere SM 8.6) | **Primary** — full v12.1.0 stack tested (driver ≥ 580.126 / CUDA 13.0 / vLLM `0.23.1rc1.dev748+g2dfaae752`) | Default config targets this |
 | 1× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-27b-single-3090) | Same SM 8.6 family |
 | 2× RTX 3090 24GB | Cross-validated by [@noonghunna](https://github.com/noonghunna/qwen36-dual-3090) | TP=2 PCIe Gen4 (no NVLink) |
 
@@ -136,7 +136,7 @@ curl http://localhost:8000/health -H "Authorization: Bearer genesis-local"
 
 ## Step-by-step setup
 
-### 1. Repository layout (v12.0.0)
+### 1. Repository layout (v12.1.0)
 
 ```
 sndr_core_engine/
@@ -165,7 +165,7 @@ sndr_core_engine/
 │   ├── license.py                     # Ed25519-signed token gate
 │   ├── plugin.py                      # vllm.general_plugins entry point
 │   ├── pins.py / pins.yaml            # vLLM pin SSOT (current / rollback / stable)
-│   └── version.py                     # 12.0.0
+│   └── version.py                     # 12.1.0
 │
 ├── gui/web/                           # React GUI source (served by the product_api daemon)
 │
@@ -383,7 +383,7 @@ print(f'cuda devices: {torch.cuda.device_count()}')
 
 ### 3. Install the Genesis (`sndr`) package into the vLLM environment
 
-In v12.0.0 Genesis ships as the top-level **`sndr`** package (wheel name
+In v12.1.0 Genesis ships as the top-level **`sndr`** package (wheel name
 `sndr-platform`). It is **no longer dropped into vLLM's own `vllm/`
 package directory** — the retired v11 "compat-mount" model (symlink /
 copy of `vllm/sndr_core/` into vLLM's `site-packages/vllm/`) is gone.
@@ -441,7 +441,7 @@ assert any('sndr.plugin' in n for n in names), 'entry-point NOT registered'
 > baking the wheel into the image; see `sndr/model_configs/emitters/docker_cmd.py`.)
 >
 > Pre-v11 layout used `vllm/_genesis/`, then v11 used `vllm/sndr_core/`.
-> Both are removed in v12.0.0 — the canonical package is top-level
+> Both are removed in v12.1.0 — the canonical package is top-level
 > `sndr`. Older guides or scripts that import from `vllm._genesis.*` or
 > `vllm.sndr_core.*` must be updated to `sndr.*`.
 

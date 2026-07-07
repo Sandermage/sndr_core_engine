@@ -39,7 +39,7 @@ Tool results are returned as JSON text content.
 
 ## Tool catalog
 
-The 18 tools mirrored from `copilot.tool_specs()` (as of v12.0.0, 2026-07 —
+The 18 tools mirrored from `copilot.tool_specs()` (as of v12.1.0, 2026-07 —
 `tools/list` is always the live source):
 
 | Tool | What it returns |
