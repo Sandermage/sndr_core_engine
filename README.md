@@ -78,6 +78,13 @@ at the Control Center (`http://127.0.0.1:8765`). Prefer the terminal?
 `sndr run` does the same and drops you straight into a chat prompt. New here?
 Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md).
 
+> **The engine needs Linux + CUDA + Docker.** On a Mac or Windows laptop you
+> can't run the engine locally — but you *can* drive a Linux rig remotely with
+> the same `sndr` CLI and GUI. See [`docs/RUN_ON_MAC.md`](docs/RUN_ON_MAC.md)
+> (Mac), [`docs/RUN_ON_WINDOWS_WSL.md`](docs/RUN_ON_WINDOWS_WSL.md) (Windows),
+> [`docs/RUN_ON_LINUX.md`](docs/RUN_ON_LINUX.md) (full local stack), and
+> [`docs/REMOTE_ENGINE.md`](docs/REMOTE_ENGINE.md) (client-mode reference).
+
 ![SNDR Control Center — system map with 329-patch registry, 15 presets, 12 models and live launch-readiness gates](docs/assets/screenshots/control-center.png)
 
 ## Who is this for
@@ -203,10 +210,15 @@ sndr launch prod-qwen3.6-35b-balanced            # boot a preset
 sndr launch prod-qwen3.6-35b-balanced --dry-run  # inspect the rendered command, no boot
 ```
 
-> Note: `prod-qwen3.6-35b-balanced` is the shipped **K=3** balanced default.
-> The headline numbers below come from the live PROD stack at **MTP K=5**
-> (re-tuned 2026-06-19, +15.8 % single-stream vs K=3) — expect the K=3 preset
-> to land correspondingly below the K=5 figures.
+> Note: `prod-qwen3.6-35b-balanced` is the shipped **K=3** balanced default —
+> and the right pick for a **single user** at a keyboard (latency-tuned,
+> `max_num_seqs=2`). It is what the zero-decision `sndr up` / `sndr quickstart`
+> auto-picks for a lone-user rig. Reach for `prod-qwen3.6-35b-multiconc` **only**
+> when serving many concurrent requests — it is throughput-tuned
+> (`max_num_seqs=8`, ~672 t/s aggregate) and trades single-stream latency for
+> that aggregate. The headline numbers below come from the live PROD stack at
+> **MTP K=5** (re-tuned 2026-06-19, +15.8 % single-stream vs K=3) — expect the
+> K=3 preset to land correspondingly below the K=5 figures.
 
 Full operator manual: [`docs/USAGE.md`](docs/USAGE.md).
 
@@ -426,6 +438,15 @@ endpoint, config, security, and troubleshooting:
 | **2× cards** (TP=2 — the reference topology) | [`docs/HARDWARE.md`](docs/HARDWARE.md) + [`docs/MODELS.md`](docs/MODELS.md) |
 | **A model not in the catalog** | [`docs/MODELS.md`](docs/MODELS.md) (add-a-model + the V2 config system) |
 | **Brand-new / weighing self-host vs cloud** | [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) · [`docs/COMPARISONS.md`](docs/COMPARISONS.md) |
+
+**I want to… (by machine):**
+
+| I want to… | Read |
+| --- | --- |
+| Run the full stack locally on a **Linux + CUDA** box | [`docs/RUN_ON_LINUX.md`](docs/RUN_ON_LINUX.md) |
+| Drive a rig from a **Mac** (client mode) | [`docs/RUN_ON_MAC.md`](docs/RUN_ON_MAC.md) |
+| Run on **Windows / WSL2** (GPU passthrough or client) | [`docs/RUN_ON_WINDOWS_WSL.md`](docs/RUN_ON_WINDOWS_WSL.md) |
+| Point the GUI / CLI at a **remote engine** | [`docs/REMOTE_ENGINE.md`](docs/REMOTE_ENGINE.md) |
 
 ## Install & run
 
