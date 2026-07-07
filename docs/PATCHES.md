@@ -14,7 +14,7 @@ env flag to toggle, upstream PR (if backported), and credit.
 > (`require-bench`, `require-baseline`) are available for operators
 > preparing a hardened deploy.
 
-## Current state (v12.0.0, 2026-06-01)
+## Current state (v12.1.0, 2026-06-01)
 
 **Total PATCH_REGISTRY entries:** 329 — range covers `P1`–`P109` legacy +
 `PN8`–`PN522` modern (through the July 2026 PN517–PN522 wave) +

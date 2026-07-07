@@ -25,7 +25,7 @@ variables.
 
 ### Q: Which vLLM pin does Genesis target today?
 
-`0.23.1rc1.dev748+g2dfaae752` (current pin, v12.0.0, promoted 2026-07-04;
+`0.23.1rc1.dev748+g2dfaae752` (current pin, v12.1.0, promoted 2026-07-04;
 `dev714` = `0.23.1rc1.dev714+g09663abde` is the retained previous /
 rollback pin). The pin policy is **two rolling nightly pins (current +
 rollback) plus one stable release pin** (`v0.24.0`); the single source of

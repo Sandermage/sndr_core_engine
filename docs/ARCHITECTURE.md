@@ -1,6 +1,6 @@
 # Architecture — how the platform fits together
 
-Last updated: 2026-07-04 (v12.0.0, pin `dev748`). This is the
+Last updated: 2026-07-04 (v12.1.0, pin `dev748`). This is the
 structural map of the codebase: what each tree does, how a patch
 travels from registry entry to a byte-level edit inside the serving
 container, and how the pin / config / bench machinery keeps the whole

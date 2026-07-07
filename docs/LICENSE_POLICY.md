@@ -62,7 +62,7 @@ link, no external credit, no `upstream_pr` field, not byte-equivalent
 with upstream) required to qualify as engine-tier. See
 [`PATCHES.md`](PATCHES.md#engine-tier-the-strict-and-boundary).
 
-> **Naming note (v12.0.0).** Unlike the community tier — whose package
+> **Naming note (v12.1.0).** Unlike the community tier — whose package
 > was renamed from `vllm.sndr_core` to top-level `sndr` and whose wheel
 > is now `sndr-platform` — the commercial overlay still registers under
 > the **import name** `vllm.sndr_engine`. That is the current runtime

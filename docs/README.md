@@ -125,7 +125,7 @@ never ship publicly.
 
 | Doc | Purpose |
 | --- | --- |
-| [`BENCHMARKS.md`](BENCHMARKS.md) | Canonical PROD numbers (v12.0.0 current registry) + methodology + 5 scenarios + bench command reference + result-sharing rules + interpretation of every metric. |
+| [`BENCHMARKS.md`](BENCHMARKS.md) | Canonical PROD numbers (v12.1.0 current registry) + methodology + 5 scenarios + bench command reference + result-sharing rules + interpretation of every metric. |
 | [`QUALITY_GATE.md`](QUALITY_GATE.md) | The boundary/stress + soak quality gate (`verify_stress`, `soak_continuous`) and the KL-tail probe. |
 | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) | Quick triage → named cliffs (1–8) → OOM recipes → operational cookbook (10 named scenarios) → rollback playbook (R-001…R-008). |
 

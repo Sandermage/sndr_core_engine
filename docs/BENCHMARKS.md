@@ -6,9 +6,9 @@ Reproducible from any host that runs the same vLLM pin against
 the listed Genesis preset. See [`HARDWARE.md`](HARDWARE.md) for the
 GPU envelope and [`MODELS.md`](MODELS.md) for the model lineup.
 
-> **Current canonical stack (v12.0.0 current registry)**
+> **Current canonical stack (v12.1.0 current registry)**
 >
-> - Genesis `v12.0.0` (now 329 PATCH_REGISTRY entries); by lifecycle:
+> - Genesis `v12.1.0` (now 329 PATCH_REGISTRY entries); by lifecycle:
 >   235 experimental, 41 retired, 28 legacy, 14 stable, 4 coordinator,
 >   3 research (regenerated 2026-07-04 from `sndr.dispatcher.PATCH_REGISTRY`).
 > - vLLM **current pin** `0.23.1rc1.dev748+g2dfaae752`
@@ -243,7 +243,7 @@ breakdown below is the dev148 shape:
 ══════════════════════════════════════════════════════════════════════
 Genesis vLLM Patcher — boot summary
 ══════════════════════════════════════════════════════════════════════
-  Genesis:  v12.0.0
+  Genesis:  v12.1.0
   vLLM:     0.23.1rc1.dev148+gb4c80ec0f
   GPU:      2× NVIDIA RTX A5000 (sm_86)
 ──────────────────────────────────────────────────────────────────────
@@ -331,7 +331,7 @@ smaller (134 entries vs 329 today).
 The 35B Sprint-1 number (241 TPS) was a single-prompt cherry-pick
 captured before the methodology shift to sustained sweeps — the
 **239.7 TPS** single-stream K=5 figure (MTP K=3→K=5 re-tune, dev148) in
-the v12.0.0 PROD-numbers table above is the correct apples-to-apples
+the v12.1.0 PROD-numbers table above is the correct apples-to-apples
 comparison (K=3 single-stream was 207).
 
 ## Cross-rig validators (call for replication)
@@ -467,7 +467,7 @@ git clone https://github.com/Sandermage/sndr_core_engine.git
 cd sndr_core_engine
 python3 -m pip install --user requests        # bench dep
 
-# Boot vLLM via the unified launcher (v12.0.0 canonical):
+# Boot vLLM via the unified launcher (v12.1.0 canonical):
 sndr launch prod-qwen3.6-35b-balanced              # 35B FP8 + MTP K=5 + TQ k8v4, latency
 # OR inspect resolved args:
 sndr launch prod-qwen3.6-35b-balanced --dry-run

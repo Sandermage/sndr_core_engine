@@ -238,7 +238,7 @@ CI gates:
 | **Model fleet** | Qwen3.6 **27B** (INT4 hybrid GDN+Mamba) and **35B** (AWQ / FP8 MoE), Gemma 4 **26B** and **31B**, and **DiffusionGemma 26B** (block-diffusion MoE) — all seven launchable lanes validated `failed=0` in the 2026-07-04 sweep, with the four digest-poisoned lanes re-validated on verified dev748 in the 2026-07-05 re-run (per-lane pin labels in the fleet table below). |
 | **Memory** | The persistent neural-graph memory subsystem — one CPU container that gives any OpenAI-compatible model recall + decay/reinforcement (own section below; full manual in [`docs/memory/MANUAL.md`](docs/memory/MANUAL.md)). |
 
-## Headline numbers (v12.0.0 current registry)
+## Headline numbers (v12.1.0 current registry)
 
 Reference rig: **2× RTX A5000 24 GB** (Ampere SM 8.6), driver 580.142,
 CUDA 13.0.2, TurboQuant k8v4, TP=2. Live PROD stack: Qwen3.6-35B-A3B (AWQ

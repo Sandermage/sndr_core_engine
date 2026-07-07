@@ -120,6 +120,7 @@ patches:
   GENESIS_ENABLE_P64_QWEN3CODER_MTP_STREAMING: '1'   # vllm#39598 — composes with DFlash via dispatcher
   GENESIS_ENABLE_P66_CUDAGRAPH_SIZE_FILTER: '1'      # cudagraph capture size filter — OOM protection
   GENESIS_ENABLE_P68_AUTO_FORCE_TOOL: '1'            # auto tool_choice on tool-mention
+  GENESIS_P68_FORCE_ON_ALL_TOOLS: '1'               # force tool_choice=auto->required on EVERY tool request. REQUIRED on this INT4 27B (same /models/Qwen3.6-27B-int4-AutoRound checkpoint as the TQ/fp8kv sisters): auto builds NO grammar -> garbage tool-call structure; 'required' -> valid. Audit #16 (2026-07-04): drifted here + on fp8kv; added for parity.
   GENESIS_ENABLE_P69_LONG_CTX_TOOL_REMINDER: '1'     # long-ctx tool-format reminder
   GENESIS_P68_P69_LONG_CTX_THRESHOLD_CHARS: '50000'  # threshold in chars (≈12K tokens)
   GENESIS_ENABLE_P72_PROFILE_RUN_CAP: '1'            # caps profile_run M dim

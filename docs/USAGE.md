@@ -11,7 +11,7 @@ to get unstuck without context-switching, but not a replacement for
 the per-topic deep-dives.
 
 > Stack as of 2026-07-04:
-> Genesis `v12.0.0` (now 329 PATCH_REGISTRY entries) ·
+> Genesis `v12.1.0` (now 329 PATCH_REGISTRY entries) ·
 > vLLM `0.23.1rc1.dev748+g2dfaae752` (previous / rollback: `dev714` =
 > `0.23.1rc1.dev714+g09663abde`; stable track: `v0.24.0` — SSOT:
 > `sndr/pins.yaml`) · Reference rig: 2× RTX A5000 24 GB ·
