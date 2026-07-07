@@ -35,7 +35,7 @@ requests>=2.28,<3.0
 # ─── Cryptography for license tokens (optional engine extra) ──────────
 # cryptography ≥41 introduced the rust-backend default; bump triggers
 # a system openssl recompile on some distros. Hold to known-good band.
-cryptography>=41.0,<46.0
+cryptography>=41.0,<50.0
 
 # ─── Test-only deps (extras=dev) ──────────────────────────────────────
 pytest>=7.0,<10.0
