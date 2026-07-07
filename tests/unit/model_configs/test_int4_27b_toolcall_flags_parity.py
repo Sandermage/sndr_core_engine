@@ -19,10 +19,21 @@ _MODEL_DIR = (
     Path(__file__).resolve().parents[3]
     / "sndr" / "model_configs" / "builtin" / "model"
 )
-_INT4_27B = [
-    "qwen3.6-27b-int4-autoround-tq-k8v4.yaml",
-    "qwen3.6-27b-int4-autoround-fp8kv.yaml",
-]
+_CHECKPOINT = "/models/Qwen3.6-27B-int4-AutoRound"
+
+
+def _int4_27b_yamls() -> list[str]:
+    """Every builtin model YAML serving the INT4-27B checkpoint — they ALL
+    share its garbage-tool-call-under-auto failure mode, so they ALL need the
+    P68 force flags (audit #16: fp8kv + dflash drifted without them)."""
+    out = []
+    for y in sorted(_MODEL_DIR.glob("*.yaml")):
+        if _CHECKPOINT in y.read_text(encoding="utf-8"):
+            out.append(y.name)
+    return out
+
+
+_INT4_27B = _int4_27b_yamls()
 _TOOLCALL_CRITICAL_FLAGS = [
     "GENESIS_ENABLE_P68_AUTO_FORCE_TOOL",
     "GENESIS_P68_FORCE_ON_ALL_TOOLS",
