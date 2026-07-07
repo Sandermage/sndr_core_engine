@@ -75,3 +75,23 @@ def test_last_remote_roundtrip(home_dir):
     assert r["url"] == "http://192.168.1.10:8102/v1"
     assert r["key"] == "genesis-local"
     assert "genesis_memory" in r["dsn"]
+
+
+def test_read_without_tomllib_uses_builtin_reader(home_dir, monkeypatch):
+    """Python 3.10 has no stdlib ``tomllib``; with no ``tomli`` backport either,
+    reads must fall back to the built-in flat parser and still round-trip what
+    ``_write`` emits. Regression guard for the 3.10 CI-collection break."""
+    # Write with the normal path, then read back as if tomllib/tomli were absent.
+    user_prefs.set_last_remote(
+        "http://<your-host>:8102/v1",
+        key="genesis-local",
+        dsn="postgresql://u:p@127.0.0.1:55432/genesis_memory",
+    )
+    user_prefs.set_default_preset(_a_real_preset())
+    monkeypatch.setattr(user_prefs, "tomllib", None)
+    r = user_prefs.get_last_remote()
+    assert r is not None
+    assert r["url"] == "http://<your-host>:8102/v1"
+    assert r["key"] == "genesis-local"
+    assert "genesis_memory" in r["dsn"]
+    assert user_prefs.get_default_preset() == _a_real_preset()

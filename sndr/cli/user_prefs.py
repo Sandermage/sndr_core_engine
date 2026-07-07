@@ -16,9 +16,12 @@ Two disciplines are baked in:
     (``SNDR_DEFAULT_PRESET``) WINS over the file; :func:`resolve_default_preset`
     surfaces which source won so a caller can tell the operator.
 
-Reads use stdlib ``tomllib``; writes use a tiny hand-rolled serializer (the
-values are preset slugs / URLs / DSNs — no nested structures), so this module
-adds no new dependency.
+Reads prefer stdlib ``tomllib`` (Python 3.11+), fall back to ``tomli`` if it
+happens to be installed, and otherwise use a tiny built-in reader that
+understands exactly the flat ``[section] key = "value"`` subset :func:`_dumps`
+emits (Python 3.10 has no ``tomllib``, and the project supports ``>=3.10``).
+Writes use a tiny hand-rolled serializer (the values are preset slugs / URLs /
+DSNs — no nested structures), so this module adds no new dependency.
 """
 from __future__ import annotations
 
@@ -26,7 +29,13 @@ import os
 from pathlib import Path
 from typing import Any
 
-import tomllib
+try:  # Python 3.11+ ships tomllib in the stdlib.
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 — try the tomli backport if present.
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ModuleNotFoundError:  # neither available → built-in flat reader below.
+        tomllib = None  # type: ignore[assignment]
 
 ENV_DEFAULT_PRESET = "SNDR_DEFAULT_PRESET"
 
@@ -56,13 +65,57 @@ def _read() -> dict[str, Any]:
     path = _prefs_path()
     if not path.is_file():
         return {}
+    # A corrupt/unreadable prefs file must never crash the CLI — treat it as
+    # empty (the caller falls through to auto-detected defaults).
+    # ``tomllib.TOMLDecodeError`` subclasses ``ValueError`` in both stdlib and
+    # the tomli backport, so ``(OSError, ValueError)`` covers every reader path
+    # without referencing the class when ``tomllib`` is None on bare 3.10.
     try:
-        with path.open("rb") as handle:
-            return tomllib.load(handle)
-    except (OSError, tomllib.TOMLDecodeError):
-        # A corrupt/unreadable prefs file must never crash the CLI — treat it as
-        # empty (the caller falls through to auto-detected defaults).
+        if tomllib is not None:
+            with path.open("rb") as handle:
+                return tomllib.load(handle)
+        return _parse_flat_toml(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
         return {}
+
+
+def _unquote(token: str) -> str:
+    """Reverse :func:`_quote` for a TOML basic string; pass bare tokens through."""
+    if len(token) < 2 or token[0] != '"' or token[-1] != '"':
+        return token
+    inner = token[1:-1]
+    out: list[str] = []
+    i = 0
+    while i < len(inner):
+        ch = inner[i]
+        if ch == "\\" and i + 1 < len(inner) and inner[i + 1] in ('"', "\\"):
+            out.append(inner[i + 1])
+            i += 2
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _parse_flat_toml(text: str) -> dict[str, Any]:
+    """Built-in reader for the flat ``[section] key = "value"`` files this module
+    writes — the Python 3.10 fallback when neither ``tomllib`` nor ``tomli`` is
+    installed. Only the subset :func:`_dumps` emits is understood; anything else
+    is ignored so a hand-edited file degrades to empty rather than crashing."""
+    result: dict[str, dict[str, Any]] = {}
+    section: dict[str, Any] | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = result.setdefault(line[1:-1].strip(), {})
+            continue
+        if section is None or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        section[_unquote(key.strip())] = _unquote(value.strip())
+    return result
 
 
 def _quote(value: str) -> str:
