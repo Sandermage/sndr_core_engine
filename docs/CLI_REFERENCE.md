@@ -195,9 +195,9 @@ chat`, `sndr up --no-engine` and the GUI daemon all target the remote
 engine instead of `localhost`.
 
 ```bash
-sndr remote setup http://192.168.1.10:8102/v1               # point at the rig
-sndr remote setup http://192.168.1.10:8102/v1 --write-env   # persist to ./.env
-sndr remote setup http://192.168.1.10:8102/v1 --key mykey --dsn postgresql://…
+sndr remote setup http://<rig>:8102/v1               # point at the rig
+sndr remote setup http://<rig>:8102/v1 --write-env   # persist to ./.env
+sndr remote setup http://<rig>:8102/v1 --key mykey --dsn postgresql://…
 ```
 
 | Flag | Default | Purpose |
