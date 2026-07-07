@@ -11,6 +11,10 @@ never ship publicly.
 | If you want to... | Read |
 | --- | --- |
 | **Brand-new** — orient, then clone to first token | [`GETTING_STARTED.md`](GETTING_STARTED.md) |
+| Run the full stack locally on **Linux + CUDA** | [`RUN_ON_LINUX.md`](RUN_ON_LINUX.md) |
+| Drive a rig from a **Mac** (client mode) | [`RUN_ON_MAC.md`](RUN_ON_MAC.md) |
+| Run on **Windows / WSL2** (GPU passthrough or client) | [`RUN_ON_WINDOWS_WSL.md`](RUN_ON_WINDOWS_WSL.md) |
+| Point the GUI / CLI at a **remote engine** | [`REMOTE_ENGINE.md`](REMOTE_ENGINE.md) |
 | Understand how the whole platform is put together (structure + data flows) | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | New to local AI itself (hardware / engines / quants, plain English) | [`LOCAL_AI_PRIMER.md`](LOCAL_AI_PRIMER.md) |
 | Weigh self-host vs a cloud API, or vs other local engines | [`COMPARISONS.md`](COMPARISONS.md) |
@@ -35,7 +39,7 @@ never ship publicly.
 | Browse the patch catalogue + compatibility matrix | [`PATCHES.md`](PATCHES.md) |
 | Read the technical design appendices (PN95, GDN, ...) | [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) |
 
-## File catalogue (45 markdown files)
+## File catalogue (49 markdown files)
 
 ### Onboarding & concepts
 
@@ -56,6 +60,15 @@ never ship publicly.
 | [`TUI.md`](TUI.md) | The terminal cockpit (`sndr tui`) — panes, keys, beginner mode, offline rig planning. |
 | [`PRODUCT_API.md`](PRODUCT_API.md) | The typed read-only Product API behind CLI/GUI/SDK + the `:8765` HTTP daemon route map. |
 | [`MCP.md`](MCP.md) | The MCP server (stdio JSON-RPC) exposing the Ops Copilot tool catalog to Claude Desktop / Cursor / IDE agents. |
+
+### Run it — per machine (situation docs)
+
+| Doc | Purpose |
+| --- | --- |
+| [`RUN_ON_LINUX.md`](RUN_ON_LINUX.md) | Full-stack front door for the Linux + CUDA + Docker box that runs the engine — warning-first, workload → preset → ctx → TPS → VRAM table, zero-decision `sndr quickstart`, expert paths preserved. |
+| [`RUN_ON_MAC.md`](RUN_ON_MAC.md) | Honest Mac page — the engine can't run on a Mac; drive a Linux rig in client mode (CLI + GUI + memory) with the three-command remote path. |
+| [`RUN_ON_WINDOWS_WSL.md`](RUN_ON_WINDOWS_WSL.md) | Windows, two honest lanes — WSL2 + NVIDIA passthrough (follow RUN_ON_LINUX) or client mode (no GPU); never a native-Windows engine. |
+| [`REMOTE_ENGINE.md`](REMOTE_ENGINE.md) | Canonical client-mode reference — the `SNDR_OPENAI_BASE_URL` triplet, where each value comes from, CLI/GUI consumption, memory-DSN persistence, the `:8000` vs `:8102` port story, the `401` cause. |
 
 ### Installation & quickstart
 
