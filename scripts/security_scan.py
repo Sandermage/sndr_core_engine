@@ -31,7 +31,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Allowlist: paths whose content is acceptable to contain "sensitive-looking"
@@ -127,12 +126,22 @@ def check_no_private_keys(files: list[str]) -> list[str]:
     return [f"{h[0]}:{h[1]}: {h[2]}" for h in hits]
 
 
+# Secret-free `.env` *templates* are meant to be committed (they document the
+# knobs; the real `.env` stays ignored). Only these template suffixes are
+# waived — `.env`, `.env.local`, `.env.production`, etc. remain forbidden.
+_ENV_TEMPLATE_SUFFIXES: tuple[str, ...] = (
+    ".example", ".sample", ".template", ".dist",
+)
+
+
 def check_no_env_files(files: list[str]) -> list[str]:
-    """No .env or .env.* files committed."""
+    """No real .env / .env.* files committed (templates are allowed)."""
     bad = []
     for f in files:
         name = Path(f).name
-        if name == ".env" or name.startswith(".env."):
+        is_env = name == ".env" or name.startswith(".env.")
+        is_template = name.endswith(_ENV_TEMPLATE_SUFFIXES)
+        if is_env and not is_template:
             bad.append(f)
     return bad
 
