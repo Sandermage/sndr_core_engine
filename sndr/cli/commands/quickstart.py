@@ -162,6 +162,32 @@ class _NoFitError(Exception):
     """No preset fits the rig and none was named."""
 
 
+def _lone_user_first(fitting: list[str]) -> list[str]:
+    """If the top auto-pick is a peak-throughput ``-multiconc`` preset, promote
+    its SAME-MODEL single-stream sibling to the front instead.
+
+    The fit ranking sorts by measured metric desc, which floats ``-multiconc``
+    (max_num_seqs=8, ~100% per-card VRAM) above its balanced sibling. A
+    zero-decision newcomer gets no benefit from multiconc but takes its OOM
+    risk, so for the auto-default we prefer the same model's single-stream
+    variant when it also fits. Surgical by design: only swaps a multiconc leader
+    for its own sibling — the model choice and cross-model order are untouched,
+    and nothing is dropped (if only the multiconc variant fits, it stays). The
+    interactive full menu (different code path) is unaffected.
+    """
+    if not fitting:
+        return fitting
+    top = fitting[0]
+    if "multiconc" not in top.lower():
+        return fitting
+    stem = top.lower().replace("-multiconc", "")
+    for pid in fitting[1:]:
+        low = pid.lower()
+        if low.startswith(stem) and "multiconc" not in low:
+            return [pid] + [x for x in fitting if x != pid]
+    return fitting
+
+
 def _resolve_preset(
     args: argparse.Namespace, rig, em: Emitter, *, no_input: bool,
 ) -> tuple[str, str]:
@@ -176,7 +202,7 @@ def _resolve_preset(
     if pinned:
         return pinned, "your pinned default"
 
-    fitting = _fitting_presets(rig)
+    fitting = _lone_user_first(_fitting_presets(rig))
     if not fitting:
         raise _NoFitError("no preset fits this rig")
     if len(fitting) == 1:
