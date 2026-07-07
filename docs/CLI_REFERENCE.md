@@ -95,6 +95,37 @@ monolithic preset tier (flat `builtin/<key>.yaml`) was fully retired
 
 ## 1. Run the stack
 
+### `sndr quickstart` — **stable**
+
+The zero-decision front door — the one command to run if you have never
+used SNDR before. It detects your GPU(s) and OS, projects VRAM fit,
+auto-picks the top-ranked preset for your rig, boots engine **plus** the
+GUI daemon, then offers to remember your choice as the default. Everything
+else (`sndr run`, `sndr up <preset>`, explicit pins) is still available —
+`quickstart` just removes every decision from the first launch.
+
+```bash
+sndr quickstart                                 # detect rig → pick + boot → GUI URL
+sndr quickstart prod-qwen3.6-35b-balanced       # skip the pick, boot this preset
+sndr quickstart --dry-run                        # resolve + project + plan, start nothing
+sndr quickstart --no-input                       # headless: auto-pick, no prompts
+sndr quickstart --rig single-3090-24gbvram       # project against a builtin rig (offline)
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `preset` (positional) | auto-pick | Preset to boot. Omit to auto-pick (pinned default, else the top-ranked fitting preset for the detected rig). |
+| `--no-input` | off | Headless: never prompt on stdin (auto-pick, skip the make-default offer). |
+| `--force` | off | Boot even when the VRAM projection says the preset will not fit (override the FAIL gate). |
+| `--gui-port <int>` | 8765 | Port for the product-API + GUI daemon. |
+| `--dry-run` | off | Resolve + project + plan without starting anything. |
+| `--rig <hardware-id>` | live rig | Resolve the fit against a builtin hardware def (offline). |
+| `--fake-gpus <spec>` | live rig | Resolve the fit against a synthetic rig `'name:vram_mib:cc;...'` (offline). |
+
+> First time on any machine? See [QUICKSTART.md](QUICKSTART.md) and your OS
+> guide — [RUN_ON_LINUX.md](RUN_ON_LINUX.md), [RUN_ON_MAC.md](RUN_ON_MAC.md),
+> or [RUN_ON_WINDOWS_WSL.md](RUN_ON_WINDOWS_WSL.md).
+
 ### `sndr run` — **stable**
 
 One command from zero to chat: resolve the top-fit preset for the
@@ -154,6 +185,30 @@ sndr chat                                       # default port 8000
 sndr chat prod-qwen3.6-35b-balanced             # use the preset's port
 sndr chat --port 8102 --host 127.0.0.1
 ```
+
+### `sndr remote setup` — **stable**
+
+Client mode: point this machine at an engine running on **another** host —
+e.g. a Mac laptop or Windows client talking to your Linux rig. Writes the
+remote engine URL, API key and (optional) persistent-memory DSN so `sndr
+chat`, `sndr up --no-engine` and the GUI daemon all target the remote
+engine instead of `localhost`.
+
+```bash
+sndr remote setup http://192.168.1.10:8102/v1               # point at the rig
+sndr remote setup http://192.168.1.10:8102/v1 --write-env   # persist to ./.env
+sndr remote setup http://192.168.1.10:8102/v1 --key mykey --dsn postgresql://…
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `url` (positional) | — | Remote engine base URL, e.g. `http://<your-host>:8102/v1`. |
+| `--key <api-key>` | `genesis-local` | Engine API key for the remote. |
+| `--dsn <pgvector-dsn>` | none | Postgres+pgvector DSN for persistent neural-graph memory. |
+| `--write-env` | off | Also write the remote block to `./.env` (save-my-choice). |
+
+> Full client-mode walkthrough (Mac / Windows): [REMOTE_ENGINE.md](REMOTE_ENGINE.md),
+> [RUN_ON_MAC.md](RUN_ON_MAC.md), [RUN_ON_WINDOWS_WSL.md](RUN_ON_WINDOWS_WSL.md).
 
 ### `sndr health` — **stable**
 

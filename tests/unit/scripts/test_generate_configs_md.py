@@ -19,9 +19,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "generate_configs_md.py"
 
@@ -237,6 +234,7 @@ class TestLive:
             capture_output=True,
             text=True,
             timeout=15,
+            check=False,
         )
         assert result.returncode == 0, (
             f"--check failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
@@ -249,7 +247,65 @@ class TestLive:
             capture_output=True,
             text=True,
             timeout=15,
+            check=False,
         )
         assert result.returncode == 0
         assert "Genesis vLLM Patches" in result.stdout
         assert "Total configs:" in result.stdout
+
+
+# ─── V2 layered inventory: the generator MUST discover the tier subdirs ──
+
+
+class TestLiveInventoryNonEmpty:
+    """After the V2 reorg the builtin YAMLs moved into tier subdirs
+    (`model/`, `presets/`, `profile/`, `hardware/`). The generator globbed
+    the top level non-recursively and produced ``Total configs: 0`` — a doc
+    that reads as "there are no configs" while 68 exist. The inventory MUST
+    reflect the real, current config surface.
+    """
+
+    def _stdout(self):
+        return subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--stdout"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        ).stdout
+
+    def test_inventory_is_not_empty(self):
+        out = self._stdout()
+        assert "Total configs: **0**" not in out, (
+            "CONFIGS_AUTO reports 0 configs, but builtin/ holds real V2 YAMLs. "
+            "The generator is not recursing into the tier subdirs."
+        )
+
+    def test_discovers_model_tier(self):
+        """A known model-tier config id must appear in the inventory."""
+        out = self._stdout()
+        assert "qwen3.6-35b-balanced" in out
+
+    def test_discovers_preset_tier(self):
+        """A known operator-facing preset alias must appear."""
+        out = self._stdout()
+        assert "prod-qwen3.6-35b-balanced" in out
+
+    def test_counts_match_disk(self):
+        """The reported total must equal the real YAML count on disk."""
+        import re
+
+        builtin = REPO_ROOT / "sndr" / "model_configs" / "builtin"
+        # Exclude any _archive/ trees — those are retired, not part of the
+        # advertised surface.
+        real = [
+            p for p in builtin.rglob("*.yaml")
+            if "_archive" not in p.parts
+        ]
+        out = self._stdout()
+        m = re.search(r"Total configs: \*\*(\d+)\*\*", out)
+        assert m, "no Total configs marker in output"
+        assert int(m.group(1)) == len(real), (
+            f"inventory reports {m.group(1)} but {len(real)} live YAMLs on disk"
+        )

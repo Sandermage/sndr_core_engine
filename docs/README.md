@@ -39,7 +39,7 @@ never ship publicly.
 | Browse the patch catalogue + compatibility matrix | [`PATCHES.md`](PATCHES.md) |
 | Read the technical design appendices (PN95, GDN, ...) | [`PATCH_DESIGNS.md`](PATCH_DESIGNS.md) |
 
-## File catalogue (49 markdown files)
+## File catalogue (50 markdown files)
 
 ### Onboarding & concepts
 
