@@ -26,6 +26,7 @@ from sndr.cli.commands.remote import RemoteSetupCommand
 from sndr.cli.commands.run import RunCommand
 from sndr.cli.commands.tui import TuiCommand
 from sndr.cli.commands.up import DownCommand, OpenCommand, UpCommand
+from sndr.cli.commands.update import UpdateCommand
 
 
 class Command(Protocol):
@@ -70,6 +71,8 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     # UX GROUP-CLI: wizard-first zero-config front door + remote client mode.
     register(QuickstartCommand())
     register(RemoteSetupCommand())
+    # One-command "keep me current + healthy" (product-only; engine pin gated).
+    register(UpdateCommand())
     register(PinsListCommand())
     register(HealthCommand())
     register(PreflightCommand())

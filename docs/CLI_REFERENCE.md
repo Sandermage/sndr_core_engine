@@ -219,6 +219,35 @@ Show sndr-platform version and basic health info.
 sndr health
 ```
 
+### `sndr update` — **stable**
+
+One command to keep your install current and healthy. By default it is
+**read-only**: it reports your version, the engine pin, and whether the
+local repo is behind upstream, then tells you the single command to apply
+it. Pass `--apply` to actually fast-forward the product code and reinstall.
+
+It deliberately **never upgrades the engine pin** — the vLLM pin is
+content-addressed and changing it is an operator decision (bench + patch
+re-validation, see [`PIN_BUMP_PLAYBOOK.md`](PIN_BUMP_PLAYBOOK.md)). `sndr
+update` moves only the *product* (CLI + GUI + configs).
+
+```bash
+sndr update                     # report: version, pin, commits-behind (read-only)
+sndr update --apply             # fast-forward the repo + reinstall the package
+sndr update --no-fetch          # report from local refs only (offline)
+sndr update --json              # machine-readable status
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--apply` | off | Actually pull the update + reinstall (default: just report). |
+| `-y`, `--yes` | off | Non-interactive: assume yes to prompts. |
+| `--no-fetch` | off | Skip the network fetch; report from local refs only. |
+| `--json` | off | Machine-readable status. |
+
+> Checking health specifically? `sndr doctor` runs the full
+> hardware + software + patches + drift diagnostic.
+
 ### `sndr tui` — **stable**
 
 Interactive terminal cockpit: one keyboard-driven screen showing the live engine
