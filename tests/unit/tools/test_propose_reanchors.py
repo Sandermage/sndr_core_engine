@@ -36,9 +36,9 @@ def test_unchanged_anchor_is_recognized():
     assert p["status"] == "unchanged"
 
 
-def test_renamed_line_reanchors(the_case="PN367-like"):
-    """A line inside the anchor was renamed (cuda -> accelerator); the
-    surrounding lines survive, so the region is re-derivable."""
+def test_renamed_line_reanchors():
+    """PN367-like: a line inside the anchor was renamed (cuda -> accelerator);
+    the surrounding lines survive, so the region is re-derivable."""
     m = _mod()
     old = (
         "                        torch.accelerator.synchronize()\n"
@@ -64,9 +64,9 @@ def test_renamed_line_reanchors(the_case="PN367-like"):
     assert p["confidence"] in ("high", "medium")
 
 
-def test_inserted_line_extends_the_anchor(the_case="PN12-like"):
-    """Upstream inserted a new method between the anchor's first and last lines;
-    the corrected anchor must span the inserted region."""
+def test_inserted_line_extends_the_anchor():
+    """PN12-like: upstream inserted a new method between the anchor's first and
+    last lines; the corrected anchor must span the inserted region."""
     m = _mod()
     old = (
         "    def forward_xpu(self, x):\n"
