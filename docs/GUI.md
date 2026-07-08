@@ -166,15 +166,15 @@ launch → chat" path, nothing else:
 | **Doctor** | One-click health check — is everything wired up correctly? |
 | **Advanced** | Appearance, account & security (password + 2FA), API tokens, and the escape hatch to everything else. |
 
-**Expert mode** reveals the full ~24-section workbench (Fleet, Containers,
-Virtualization, Models, Configs, Presets, Planner, Routing, Patches, Flags,
+**Expert mode** reveals the full workbench (Fleet, Containers, Virtualization,
+Hardware, Models, Configs, Presets, Planner, Routing, Memory, Patches, Flags,
 Benchmarks, Evidence, Operations, …) documented in the table below. Flip to
 Expert when you want the operator surface; flip back to Simple for the guided
 essentials. Your choice is remembered per browser.
 
-> The **Screens** table below is the **complete Expert catalog**. In Simple
-> mode you see only the five sections above (the "Setup" first-run bootstrap is
-> reached from Overview / Choose & Launch).
+> The **Screens** table below covers the Expert sections. In Simple mode you
+> see only the five sections above (the "Setup" first-run bootstrap is reached
+> from Overview / Choose & Launch).
 
 ## Screens
 

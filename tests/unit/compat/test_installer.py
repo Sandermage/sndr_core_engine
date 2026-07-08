@@ -417,3 +417,23 @@ def test_classify_failure_buckets(reason, expected):
         f"_classify_failure({reason!r}) = {_classify_failure(reason)!r}, "
         f"expected {expected!r}"
     )
+
+
+# ─────────────────────────────────────────────────────────────────
+# install.sh: post-install PATH guard (novice "command not found" trap)
+# ─────────────────────────────────────────────────────────────────
+
+
+def test_next_steps_has_path_guard():
+    """After a --user install the `sndr` console script lands in the Python
+    user-scripts dir (~/.local/bin / ~/Library/Python/X.Y/bin), often off PATH.
+    print_next_steps MUST detect that and print a remediation, or a beginner's
+    first `sndr` command dies with 'command not found'."""
+    content = INSTALL_SH.read_text()
+    assert "command -v sndr" in content, (
+        "install.sh does not check whether `sndr` is on PATH after install"
+    )
+    # The remediation must name the fix: exporting PATH and/or the module form.
+    assert "-m sndr.cli" in content or "export PATH" in content, (
+        "install.sh's PATH guard offers no remediation (export PATH / module form)"
+    )

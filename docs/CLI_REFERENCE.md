@@ -50,7 +50,7 @@ sndr patches doctor                             # registry validator
 
 # Bench
 sndr bench --mode quick                         # smoke bench against a running engine
-sndr bench --mode full --ctx-scale 1K,4K,8K,16K,32K   # + context-scaling section
+sndr bench --mode full --ctx-scale 32K   # + context-scaling (ceiling label)
 
 # Reporting
 sndr report bundle                              # tarball for issues
@@ -184,6 +184,7 @@ Thin OpenAI-compatible REPL against an already-running engine.
 sndr chat                                       # default port 8000
 sndr chat prod-qwen3.6-35b-balanced             # use the preset's port
 sndr chat --port 8102 --host 127.0.0.1
+sndr chat --port 8102 --api-key "$SNDR_ENGINE_API_KEY"   # key-protected engine
 ```
 
 ### `sndr remote setup` — **stable**
@@ -318,9 +319,9 @@ is dry-run; pass `--yes` to actually run `nvidia-smi`.
 ```bash
 sndr tune plan prod-qwen3.6-35b-balanced          # print planned nvidia-smi commands
 sndr tune apply prod-qwen3.6-35b-balanced --yes   # apply Y8 gpu_tuning settings
-sndr tune revert                                  # best-effort restore to defaults
+sndr tune revert prod-qwen3.6-35b-balanced        # best-effort restore to defaults (config required)
 sndr tune report prod-qwen3.6-35b-balanced        # current state vs Y8 declared
-sndr tune sweep prod-qwen3.6-35b-balanced --bench-cmd '...'   # power-limit sweep
+sndr tune sweep prod-qwen3.6-35b-balanced --low 200 --high 300 --bench-cmd '...'   # power-limit sweep
 ```
 
 ---
@@ -587,7 +588,7 @@ writer).
 ```bash
 sndr patches prove --all
 sndr patches prove --all --no-write
-sndr patches prove --filter PN95
+sndr patches prove PN95                                 # prove a single patch (positional)
 ```
 
 ### `sndr patches release-check` — **stable**
@@ -597,17 +598,19 @@ Decide release-readiness from proof artefacts.
 ```bash
 sndr patches release-check                              # default (report mode)
 sndr patches release-check --mode require-static       # CI gate
-sndr patches release-check --mode require-bench-attached
+sndr patches release-check --mode require-bench        # require an attached bench
 sndr patches release-check --mode require-baseline     # strict
 sndr patches release-check --show-passing
 ```
 
 ### `sndr patches bench-attach` — **stable**
 
-Attach bench output to a patch's proof artifact.
+Attach bench output to a patch's proof artifact. `bench_path` is a
+positional; the vLLM pin is auto-derived into the artefact filename.
 
 ```bash
-sndr patches bench-attach PN119 --bench out/bench.json --pin <vllm_pin>
+sndr patches bench-attach PN119 out/bench.json                      # attach a bench run
+sndr patches bench-attach PN119 out/bench.json --baseline base.json # + a baseline to diff
 ```
 
 ### `sndr patches proof-status` — **stable**
@@ -716,7 +719,7 @@ sndr bench --mode standard --port 8102
 sndr bench --mode full --out bench.json --md bench.md
 sndr bench --compare A.json B.json --compare-out delta.json
 sndr bench --ablate-against baseline.json --ablate-tag pn521-off
-sndr bench --mode full --ctx-scale 1K,4K,8K,16K,32K   # context-scaling section
+sndr bench --mode full --ctx-scale 32K                # context-scaling up to a 32K ceiling
 ```
 
 | Flag | Default | Purpose |
@@ -732,7 +735,7 @@ sndr bench --mode full --ctx-scale 1K,4K,8K,16K,32K   # context-scaling section
 | `--ttft-turns N` / `--ctx-timeout N` | — | TTFT multi-turn count / ctx probe timeout. |
 | `--out PATH` / `--md PATH` / `--name NAME` | derived | Output JSON / Markdown / arm name. |
 | `--skip-toolcall` / `--skip-stress` / `--skip-ctx-probe` / `--skip-multi-turn` / `--skip-ctx-scaling` | off | Skip individual suite sections. |
-| `--ctx-scale LIST` | suite default | Context-scaling ladder, e.g. `1K,4K,8K,16K,32K` — measures decode TPS at each prompt size and issues a LINEAR_OK / cliff verdict. |
+| `--ctx-scale CEIL` | by mode (quick=16K, standard=32K, full=64K) | Ceiling label for the context-scaling sweep (`1K`..`512K`, a single value). The suite auto-generates the ladder of tiers up to the ceiling, measures decode TPS at each, and issues a LINEAR_OK / cliff verdict. |
 | `--ctx-scale-gen-tokens N` | suite default | Tokens generated per ctx-scaling step. |
 | `--ctx-scale-step-drop X` / `--ctx-scale-endpoint-floor X` | suite default | Cliff-detection thresholds (max per-step drop / min endpoint ratio). |
 | `--accept-rate-floor RATE` | — | Fail the MTP acceptance-rate gate below RATE. |
