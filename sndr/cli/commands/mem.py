@@ -173,7 +173,96 @@ class MemStatsCommand:
         return _run(args, _do)
 
 
+class MemConsolidateCommand:
+    name = "mem.consolidate"
+    help = "Run brain maintenance: semantic auto-link + communities + importance."
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--tau", type=float, default=0.8,
+                            help="semantic-link cosine threshold (default: 0.8)")
+        parser.add_argument("--k", type=int, default=10,
+                            help="kNN neighbours per node for linking (default: 10)")
+        _add_connection_args(parser)
+
+    def execute(self, args: argparse.Namespace) -> int:
+        def _do(client) -> int:
+            rep = client.consolidate(owner_id=_owner(args), tau=args.tau, k=args.k)
+            if getattr(args, "output", "text") == "json":
+                print(json.dumps(rep))
+            else:
+                print(f"consolidated: {rep.get('linked', 0)} links, "
+                      f"{rep.get('communities', 0)} communities over "
+                      f"{rep.get('nodes', 0)} nodes")
+            return 0
+        return _run(args, _do)
+
+
+class MemNeighborsCommand:
+    name = "mem.neighbors"
+    help = "List the nodes adjacent to a memory node (its graph connections)."
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("node_id", type=int, help="node id to inspect")
+        _add_connection_args(parser)
+
+    def execute(self, args: argparse.Namespace) -> int:
+        def _do(client) -> int:
+            rows = client.neighbors(owner_id=_owner(args), node_id=args.node_id)
+            if getattr(args, "output", "text") == "json":
+                print(json.dumps(rows))
+            elif not rows:
+                print(f"node {args.node_id}: no neighbours")
+            else:
+                for r in rows:
+                    print(f"  {r.get('id')}  {r.get('rel'):<12} w={r.get('weight'):.3f}")
+            return 0
+        return _run(args, _do)
+
+
+class MemForgetCommand:
+    name = "mem.forget"
+    help = "Forget (delete) a memory node and its edges via the running daemon."
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("node_id", type=int, help="node id to forget")
+        _add_connection_args(parser)
+
+    def execute(self, args: argparse.Namespace) -> int:
+        def _do(client) -> int:
+            out = client.forget(owner_id=_owner(args), node_id=args.node_id)
+            if getattr(args, "output", "text") == "json":
+                print(json.dumps(out))
+            else:
+                print(f"forgot node {out.get('id', args.node_id)}")
+            return 0
+        return _run(args, _do)
+
+
+class MemImportCommand:
+    name = "mem.import"
+    help = "Import an Obsidian vault (notes+wikilinks) into memory via the daemon."
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("path", help="vault directory, relative to the daemon's "
+                                         "allowed vault root (GENESIS_MEMORY_VAULT_ROOT)")
+        _add_connection_args(parser)
+
+    def execute(self, args: argparse.Namespace) -> int:
+        def _do(client) -> int:
+            rep = client.import_obsidian(owner_id=_owner(args), path=args.path)
+            if getattr(args, "output", "text") == "json":
+                print(json.dumps(rep))
+            else:
+                print(f"imported: {rep.get('notes', 0)} notes, {rep.get('links', 0)} links")
+            return 0
+        return _run(args, _do)
+
+
 __all__ = [
+    "MemConsolidateCommand",
+    "MemForgetCommand",
+    "MemImportCommand",
+    "MemNeighborsCommand",
     "MemRecallCommand",
     "MemRememberCommand",
     "MemSearchCommand",

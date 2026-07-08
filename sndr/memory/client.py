@@ -110,3 +110,32 @@ class MemoryHTTPClient:
     def stats(self, *, owner_id: int) -> dict[str, int]:
         """Owner memory counts: ``{"nodes": int, "edges": int}``."""
         return self._call("GET", "/api/v1/memory/stats", owner=owner_id)
+
+    # ── brain-tier verbs (were GUI/API-only before) ──────────────────────────
+    def consolidate(
+        self, *, owner_id: int, tau: float = 0.8, k: int = 10
+    ) -> dict[str, int]:
+        """Run the batch brain maintenance: semantic auto-link + community
+        detection + importance recompute. Returns ``{linked, communities, nodes}``."""
+        return self._call(
+            "POST", "/api/v1/memory/consolidate", {"tau": tau, "k": k}, owner=owner_id
+        )
+
+    def neighbors(self, *, owner_id: int, node_id: int) -> list[dict[str, Any]]:
+        """Adjacent nodes of ``node_id``: ``[{id, rel, weight}, ...]``."""
+        return self._call(
+            "GET", f"/api/v1/memory/neighbors/{node_id}", owner=owner_id
+        )
+
+    def forget(self, *, owner_id: int, node_id: int) -> dict[str, Any]:
+        """Delete a memory node (and its edges). Returns ``{deleted, id}``."""
+        return self._call(
+            "DELETE", f"/api/v1/memory/node/{node_id}", owner=owner_id
+        )
+
+    def import_obsidian(self, *, owner_id: int, path: str) -> dict[str, int]:
+        """Import an Obsidian vault (relative to the daemon's allowed root) into
+        memory: notes -> nodes, [[wikilinks]] -> edges. Returns ``{notes, links}``."""
+        return self._call(
+            "POST", "/api/v1/memory/import/obsidian", {"path": path}, owner=owner_id
+        )
