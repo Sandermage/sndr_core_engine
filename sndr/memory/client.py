@@ -139,3 +139,10 @@ class MemoryHTTPClient:
         return self._call(
             "POST", "/api/v1/memory/import/obsidian", {"path": path}, owner=owner_id
         )
+
+    def export_obsidian(self, *, owner_id: int, path: str) -> dict[str, int]:
+        """Export memory back OUT as an Obsidian vault (one note per node, edges
+        as [[wikilinks]]) under the daemon's allowed root. Returns ``{notes, links}``."""
+        return self._call(
+            "POST", "/api/v1/memory/export/obsidian", {"path": path}, owner=owner_id
+        )

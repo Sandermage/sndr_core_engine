@@ -65,6 +65,15 @@ class ObsidianImportOut(BaseModel):
     missing: int
 
 
+class ObsidianExportIn(BaseModel):
+    path: str = Field(min_length=1, description="target vault dir, relative to the allowed root")
+
+
+class ObsidianExportOut(BaseModel):
+    notes: int
+    links: int
+
+
 class HitOut(BaseModel):
     id: int
     content: str

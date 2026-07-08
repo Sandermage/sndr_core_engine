@@ -258,8 +258,29 @@ class MemImportCommand:
         return _run(args, _do)
 
 
+class MemExportCommand:
+    name = "mem.export"
+    help = "Export memory back out as an Obsidian vault (notes + wikilinks)."
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("path", help="target vault directory, relative to the "
+                                         "daemon's allowed vault root (GENESIS_MEMORY_VAULT_ROOT)")
+        _add_connection_args(parser)
+
+    def execute(self, args: argparse.Namespace) -> int:
+        def _do(client) -> int:
+            rep = client.export_obsidian(owner_id=_owner(args), path=args.path)
+            if getattr(args, "output", "text") == "json":
+                print(json.dumps(rep))
+            else:
+                print(f"exported: {rep.get('notes', 0)} notes, {rep.get('links', 0)} links")
+            return 0
+        return _run(args, _do)
+
+
 __all__ = [
     "MemConsolidateCommand",
+    "MemExportCommand",
     "MemForgetCommand",
     "MemImportCommand",
     "MemNeighborsCommand",

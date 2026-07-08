@@ -771,6 +771,7 @@ sndr mem.consolidate                            # auto-link + detect communities
 sndr mem.neighbors 42                           # graph connections of node 42
 sndr mem.forget 42                              # delete a memory + its edges
 sndr mem.import MyVault                          # import an Obsidian vault (notes+wikilinks)
+sndr mem.export MyVaultOut                        # export memory back out as an Obsidian vault
 ```
 
 `--kind` selects the cognitive memory type — `working` (~30 min), `episodic`
