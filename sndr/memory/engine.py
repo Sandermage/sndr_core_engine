@@ -42,18 +42,29 @@ def _reflection_prompt(contents: list[str]) -> str:
 
 
 def run_maintenance(
-    engine: MemoryEngine, *, max_nodes: int, tau: float = SEMANTIC_EDGE_TAU
+    engine: MemoryEngine,
+    *,
+    max_nodes: int,
+    tau: float = SEMANTIC_EDGE_TAU,
+    working_capacity: int = 50,
+    working_promote_access: int = 2,
 ) -> dict[str, Any]:
-    """One maintenance pass over every owner: consolidate (auto-link + communities
-    + importance) then prune to `max_nodes` (the wired leak-bound). This is what
-    the background scheduler calls on a timer — the design's "nightly batch".
-    Returns a small report."""
+    """One maintenance pass over every owner — the design's "nightly batch":
+    promote proven working memories to long-term, bound the working scratchpad
+    to `working_capacity`, consolidate (auto-link + communities + importance),
+    then prune to `max_nodes` (the wired leak-bound). This is what the background
+    scheduler calls on a timer. Returns a small report."""
     owners = engine.store.owner_ids()
     pruned = 0
+    promoted = 0
     for owner_id in owners:
+        promoted += engine.promote_working(
+            owner_id=owner_id, min_access=working_promote_access
+        )
+        engine.prune_working(owner_id=owner_id, capacity=working_capacity)
         engine.consolidate(owner_id=owner_id, tau=tau)
         pruned += engine.store.prune(owner_id=owner_id, max_nodes=max_nodes)
-    return {"owners": owners, "pruned": pruned}
+    return {"owners": owners, "pruned": pruned, "promoted": promoted}
 
 
 class MemoryEngine:
@@ -214,6 +225,47 @@ class MemoryEngine:
             "communities": len(set(communities.values())),
             "nodes": len(communities),
         }
+
+    # ── working-memory tier (capacity-bounded short-term + promotion) ───────
+    def prune_working(self, *, owner_id: int, capacity: int) -> int:
+        """Keep only the ``capacity`` most-recent ``working`` memories for this
+        owner; evict the rest. Working memory is a scratchpad, not an
+        ever-growing log — this is its capacity bound. Returns how many were
+        evicted. Non-working memories are never touched."""
+        working = [
+            n for n in self.store.iter_nodes(owner_id) if n.kind == "working"
+        ]
+        # newest first (created_at, id as tiebreak) — evict the tail.
+        working.sort(key=lambda n: (n.created_at, n.id), reverse=True)
+        evicted = 0
+        for node in working[capacity:]:
+            self.store.delete_node(node.id, owner_id=owner_id)
+            evicted += 1
+        return evicted
+
+    def promote_working(
+        self, *, owner_id: int, min_access: int = 2, to_kind: str = "episodic"
+    ) -> int:
+        """Graduate ``working`` memories that proved useful (recalled at least
+        ``min_access`` times) into a durable ``to_kind`` memory — the STM->LTM
+        promotion. The graduated content is re-stored under the new type (so it
+        gets that type's slow decay) and the transient working original is
+        dropped. Returns how many were promoted."""
+        promoted = 0
+        for node in list(self.store.iter_nodes(owner_id)):
+            if node.kind != "working" or node.access_count < min_access:
+                continue
+            self.remember(
+                owner_id=owner_id,
+                text=node.content,
+                kind=to_kind,
+                importance=node.importance,
+                properties={**node.properties, "promoted_from": "working"},
+                dedup=False,
+            )
+            self.store.delete_node(node.id, owner_id=owner_id)
+            promoted += 1
+        return promoted
 
     # ── reflection: the generative step (CREATES new knowledge) ─────────────
     def reflect(
