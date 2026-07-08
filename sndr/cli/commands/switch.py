@@ -49,10 +49,19 @@ def _set_default(preset: str) -> None:
 
 
 def _down(preset: str | None, *, gui_port: int, dry_run: bool) -> int:
-    """Stop the current stack via the canonical DownCommand."""
+    """Stop the current stack via the canonical DownCommand.
+
+    The Namespace must carry EVERY attribute DownCommand.execute reads
+    (``preset``, ``gui_port``, ``dry_run``, ``rig``, ``fake_gpus``) — its
+    engine-preset resolution reads ``args.rig``/``args.fake_gpus`` directly and
+    swallows an AttributeError as "could not resolve", which would silently skip
+    stopping the engine container. See test_switch_namespace_contract.
+    """
     from sndr.cli.commands.up import DownCommand
 
-    ns = argparse.Namespace(preset=preset, gui_port=gui_port, dry_run=dry_run)
+    ns = argparse.Namespace(
+        preset=preset, gui_port=gui_port, dry_run=dry_run, rig=None, fake_gpus=None
+    )
     return DownCommand().execute(ns)
 
 

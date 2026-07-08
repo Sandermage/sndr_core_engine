@@ -22,6 +22,8 @@ sndr up                                         # whole stack: engine + Control 
 sndr tui                                        # interactive cockpit — serve/stop/chat from one screen
 sndr launch prod-qwen3.6-35b-balanced           # launch a named preset
 sndr launch prod-qwen3.6-35b-balanced --dry-run # render only, no exec
+sndr switch prod-gemma4-31b-tq-default          # swap the running model (stop → boot another)
+sndr switch                                     # list presets you can switch to
 
 # Will it fit?
 sndr kv-calc prod-qwen3.6-35b-balanced          # per-card VRAM/KV projection (PASS/TIGHT/FAIL)
@@ -54,6 +56,10 @@ sndr bench --mode full --ctx-scale 32K   # + context-scaling (ceiling label)
 
 # Reporting
 sndr report bundle                              # tarball for issues
+
+# Keep current (product only — engine pin stays operator-gated)
+sndr update                                     # report: version, pin, commits-behind
+sndr update --apply                             # fast-forward + reinstall, then `sndr doctor`
 
 # Shut down + uninstall
 sndr down                                       # stop engine + GUI daemon

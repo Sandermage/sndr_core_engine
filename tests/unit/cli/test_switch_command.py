@@ -159,3 +159,63 @@ def test_dry_run_forwarded(monkeypatch):
     COMMAND_REGISTRY["switch"].execute(_a(preset="prod-b", dry_run=True))
     assert seen["down_dry"] is True
     assert seen["up_dry"] is True
+
+
+# ── Namespace contract: switch must satisfy the REAL up/down execute() ─────────
+# (the unit tests above mock _down/_up, so they cannot catch a missing arg that
+# only the real DownCommand/UpCommand.execute reads — that surfaced as a silent
+# "engine not stopped" half-switch when _down omitted rig/fake_gpus).
+
+
+def _attrs_read_by(class_name: str) -> set[str]:
+    import ast
+    import pathlib
+    import re
+
+    src = pathlib.Path(
+        pathlib.Path(switch_mod.__file__).parent / "up.py"
+    ).read_text()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            for fn in node.body:
+                if isinstance(fn, ast.FunctionDef) and fn.name == "execute":
+                    seg = ast.get_source_segment(src, fn)
+                    attrs = set(re.findall(r"args\.([a-z_]+)", seg))
+                    attrs |= set(re.findall(r'getattr\(args,\s*["\']([a-z_]+)', seg))
+                    return attrs
+    return set()
+
+
+def _capture_namespace(monkeypatch, seam_command: str) -> argparse.Namespace:
+    """Run switch._down/_up but intercept the Namespace handed to the real
+    command, so we can compare its attrs to what execute() reads."""
+    captured = {}
+
+    class _Spy:
+        def execute(self, ns):
+            captured["ns"] = ns
+            return 0
+
+    import sndr.cli.commands.up as up_mod
+
+    monkeypatch.setattr(up_mod, seam_command, _Spy)
+    return captured
+
+
+def test_down_namespace_satisfies_downcommand(monkeypatch):
+    cap = _capture_namespace(monkeypatch, "DownCommand")
+    switch_mod._down("prod-x", gui_port=8765, dry_run=True)
+    provided = set(vars(cap["ns"]))
+    required = _attrs_read_by("DownCommand")
+    missing = required - provided
+    assert not missing, f"_down Namespace missing {missing} that DownCommand.execute reads"
+
+
+def test_up_namespace_satisfies_upcommand(monkeypatch):
+    cap = _capture_namespace(monkeypatch, "UpCommand")
+    switch_mod._up("prod-x", gui_port=8765, dry_run=True, no_input=True, timeout=300)
+    provided = set(vars(cap["ns"]))
+    required = _attrs_read_by("UpCommand")
+    missing = required - provided
+    assert not missing, f"_up Namespace missing {missing} that UpCommand.execute reads"
