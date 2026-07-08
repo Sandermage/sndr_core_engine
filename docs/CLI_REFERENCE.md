@@ -22,6 +22,8 @@ sndr up                                         # whole stack: engine + Control 
 sndr tui                                        # interactive cockpit — serve/stop/chat from one screen
 sndr launch prod-qwen3.6-35b-balanced           # launch a named preset
 sndr launch prod-qwen3.6-35b-balanced --dry-run # render only, no exec
+sndr switch prod-gemma4-31b-tq-default          # swap the running model (stop → boot another)
+sndr switch                                     # list presets you can switch to
 
 # Will it fit?
 sndr kv-calc prod-qwen3.6-35b-balanced          # per-card VRAM/KV projection (PASS/TIGHT/FAIL)
@@ -54,6 +56,10 @@ sndr bench --mode full --ctx-scale 32K   # + context-scaling (ceiling label)
 
 # Reporting
 sndr report bundle                              # tarball for issues
+
+# Keep current (product only — engine pin stays operator-gated)
+sndr update                                     # report: version, pin, commits-behind
+sndr update --apply                             # fast-forward + reinstall, then `sndr doctor`
 
 # Shut down + uninstall
 sndr down                                       # stop engine + GUI daemon
@@ -167,6 +173,33 @@ sndr down --dry-run                             # report what would be stopped
 `sndr down` accepts `preset` (default: the same top-fit resolution as
 `sndr up`), `--gui-port`, `--dry-run`, `--rig`, `--fake-gpus`.
 
+### `sndr switch` — **stable**
+
+Change which model is running in one stateless step: stop the current
+stack and boot another preset. The rig runs one heavy model at a time, so
+this is the everyday "give me a different model now" verb. It is a thin
+composition over `sndr down` + `sndr up`, so it inherits their weight
+checks, readiness wait and GUI-daemon handling. The target preset is
+validated **before** anything is stopped — a typo never leaves the rig
+with nothing running.
+
+```bash
+sndr switch                                     # list the presets you can switch to
+sndr switch prod-gemma4-31b-tq-default          # stop current → boot this one
+sndr switch prod-qwen3.6-35b-balanced --set-default   # ...and pin it as the default
+sndr switch prod-gemma4-26b-default --dry-run   # show the down/up plan, do nothing
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `preset` (positional) | — | Preset to switch to. Omit (or `--list`) to list switchable presets. |
+| `--list` | off | List the presets you can switch to and exit. |
+| `--set-default` | off | Also pin this preset as the default (so a later bare `sndr up` boots it). |
+| `--gui-port <int>` | 8765 | Product-API + GUI daemon port. |
+| `--dry-run` | off | Report the down/up plan without stopping or starting anything. |
+| `--no-input` | off | Headless: never prompt on stdin. |
+| `--timeout <sec>` | 300 | Seconds to wait for the new engine to become ready. |
+
 ### `sndr open` — **stable**
 
 Open the local product-API + GUI in your browser.
@@ -218,6 +251,35 @@ Show sndr-platform version and basic health info.
 ```bash
 sndr health
 ```
+
+### `sndr update` — **stable**
+
+One command to keep your install current and healthy. By default it is
+**read-only**: it reports your version, the engine pin, and whether the
+local repo is behind upstream, then tells you the single command to apply
+it. Pass `--apply` to actually fast-forward the product code and reinstall.
+
+It deliberately **never upgrades the engine pin** — the vLLM pin is
+content-addressed and changing it is an operator decision (bench + patch
+re-validation, see [`PIN_BUMP_PLAYBOOK.md`](PIN_BUMP_PLAYBOOK.md)). `sndr
+update` moves only the *product* (CLI + GUI + configs).
+
+```bash
+sndr update                     # report: version, pin, commits-behind (read-only)
+sndr update --apply             # fast-forward the repo + reinstall the package
+sndr update --no-fetch          # report from local refs only (offline)
+sndr update --json              # machine-readable status
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--apply` | off | Actually pull the update + reinstall (default: just report). |
+| `-y`, `--yes` | off | Non-interactive: assume yes to prompts. |
+| `--no-fetch` | off | Skip the network fetch; report from local refs only. |
+| `--json` | off | Machine-readable status. |
+
+> Checking health specifically? `sndr doctor` runs the full
+> hardware + software + patches + drift diagnostic.
 
 ### `sndr tui` — **stable**
 
