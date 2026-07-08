@@ -167,6 +167,33 @@ sndr down --dry-run                             # report what would be stopped
 `sndr down` accepts `preset` (default: the same top-fit resolution as
 `sndr up`), `--gui-port`, `--dry-run`, `--rig`, `--fake-gpus`.
 
+### `sndr switch` — **stable**
+
+Change which model is running in one stateless step: stop the current
+stack and boot another preset. The rig runs one heavy model at a time, so
+this is the everyday "give me a different model now" verb. It is a thin
+composition over `sndr down` + `sndr up`, so it inherits their weight
+checks, readiness wait and GUI-daemon handling. The target preset is
+validated **before** anything is stopped — a typo never leaves the rig
+with nothing running.
+
+```bash
+sndr switch                                     # list the presets you can switch to
+sndr switch prod-gemma4-31b-tq-default          # stop current → boot this one
+sndr switch prod-qwen3.6-35b-balanced --set-default   # ...and pin it as the default
+sndr switch prod-gemma4-26b-default --dry-run   # show the down/up plan, do nothing
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `preset` (positional) | — | Preset to switch to. Omit (or `--list`) to list switchable presets. |
+| `--list` | off | List the presets you can switch to and exit. |
+| `--set-default` | off | Also pin this preset as the default (so a later bare `sndr up` boots it). |
+| `--gui-port <int>` | 8765 | Product-API + GUI daemon port. |
+| `--dry-run` | off | Report the down/up plan without stopping or starting anything. |
+| `--no-input` | off | Headless: never prompt on stdin. |
+| `--timeout <sec>` | 300 | Seconds to wait for the new engine to become ready. |
+
 ### `sndr open` — **stable**
 
 Open the local product-API + GUI in your browser.
