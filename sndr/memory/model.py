@@ -21,6 +21,40 @@ HEBBIAN_LAMBDA: float = 0.995  # retention (1 - decay) per co-access step
 # S is the base memory-strength time-constant in seconds; importance scales it.
 EBBINGHAUS_S: float = 86_400.0  # 1 day base half-life scale
 
+# ── Cognitive memory taxonomy (working / episodic / semantic / procedural).
+# The brain forgets different kinds of memory at very different rates: a
+# working-memory scratchpad fades in minutes, an episode over a day or two, a
+# learned fact over weeks, a skill barely at all. Each type scales the base
+# Ebbinghaus time-constant `S` by its factor (applied once in store._retention,
+# so both backends stay identical). ANY other/legacy kind ("note",
+# "conversation", …) maps to 1.0 — exactly the pre-taxonomy behaviour, so
+# nothing already stored changes.
+MEMORY_TYPES: tuple[str, ...] = ("working", "episodic", "semantic", "procedural")
+DEFAULT_MEMORY_TYPE: str = "episodic"  # a captured experience is episodic by default
+
+TYPE_DECAY_FACTOR: dict[str, float] = {
+    "working": 0.02,      # ~30 min half-life — the current-context scratchpad
+    "episodic": 1.0,      # ~1 day — an experience/event (the historical baseline)
+    "semantic": 8.0,      # ~1 week — a consolidated fact/concept
+    "procedural": 30.0,   # ~1 month — a learned skill / how-to (persists longest)
+}
+
+
+def type_decay_factor(kind: str) -> float:
+    """Ebbinghaus time-constant multiplier for a memory kind. Unknown/legacy
+    kinds return 1.0 (neutral — the pre-taxonomy behaviour)."""
+    return TYPE_DECAY_FACTOR.get(kind, 1.0)
+
+
+def normalize_memory_type(value: str | None) -> str:
+    """Coerce a user-supplied type to a canonical one, defaulting to episodic.
+    Never raises — a bad value degrades to the default rather than blocking a
+    write."""
+    if not value:
+        return DEFAULT_MEMORY_TYPE
+    v = str(value).strip().lower()
+    return v if v in MEMORY_TYPES else DEFAULT_MEMORY_TYPE
+
 # ── Spreading activation along the graph during expand (design section 3).
 SPREAD_DAMPING: float = 0.5   # beta: score multiplier per hop
 MAX_EXPAND_DEPTH: int = 3     # bounded traversal (cycle-safe)

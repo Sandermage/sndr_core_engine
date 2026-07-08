@@ -22,7 +22,12 @@ import time
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from sndr.memory.model import EBBINGHAUS_S, SPREAD_DAMPING, SearchHit
+from sndr.memory.model import (
+    EBBINGHAUS_S,
+    SPREAD_DAMPING,
+    SearchHit,
+    type_decay_factor,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -127,14 +132,23 @@ class MemoryStore(ABC):
         """
 
     def _retention(self, node: MemoryNode, now: float) -> float:
-        """Ebbinghaus retention R = exp(-age / (S * strength * (1 + importance))).
+        """Ebbinghaus retention
+        R = exp(-age / (S * type_factor * strength * (1 + importance))).
 
-        `strength` is the reinforcement base (grows with retrieval, see _touch),
-        so frequently-recalled memories decay slower — the spacing effect.
+        `type_factor` is the cognitive-taxonomy multiplier (working forgets fast,
+        procedural slow; unknown/legacy kinds = 1.0, so decay is unchanged for
+        anything already stored). `strength` is the reinforcement base (grows
+        with retrieval, see _touch), so frequently-recalled memories decay
+        slower — the spacing effect.
         """
         age = max(0.0, now - node.accessed_at)
         strength = node.strength if node.strength and node.strength > 0 else 1.0
-        scale = EBBINGHAUS_S * strength * (1.0 + max(0.0, node.importance))
+        scale = (
+            EBBINGHAUS_S
+            * type_decay_factor(node.kind)
+            * strength
+            * (1.0 + max(0.0, node.importance))
+        )
         return math.exp(-age / scale)
 
     def recall(

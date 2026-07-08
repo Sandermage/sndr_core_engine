@@ -13,6 +13,11 @@ from sndr.cli.commands.health import HealthCommand
 from sndr.cli.commands.kv_calc import KvCalcCommand
 from sndr.cli.commands.launch import LaunchCommand
 from sndr.cli.commands.mem import (
+    MemConsolidateCommand,
+    MemExportCommand,
+    MemForgetCommand,
+    MemImportCommand,
+    MemNeighborsCommand,
     MemRecallCommand,
     MemRememberCommand,
     MemSearchCommand,
@@ -85,6 +90,12 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     register(MemRecallCommand())
     register(MemSearchCommand())
     register(MemStatsCommand())
+    # Brain-tier verbs — reachable from the terminal, not just GUI/API.
+    register(MemConsolidateCommand())
+    register(MemNeighborsCommand())
+    register(MemForgetCommand())
+    register(MemImportCommand())
+    register(MemExportCommand())
     # TUI cockpit (read-only Phase 1) — the command gates on the optional [tui]
     # extra (textual) with a friendly install hint when it's absent.
     register(TuiCommand())

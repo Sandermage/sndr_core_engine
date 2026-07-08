@@ -39,6 +39,8 @@ from sndr.product_api.schemas.memory import (
     LinkOut,
     NeighborOut,
     NodeOut,
+    ObsidianExportIn,
+    ObsidianExportOut,
     ObsidianImportIn,
     ObsidianImportOut,
     RecallIn,
@@ -245,6 +247,18 @@ def import_obsidian(
         raise HTTPException(status_code=404, detail="vault not found")
     report = import_vault(engine=eng, owner_id=owner_from_request(request), vault_path=str(vault))
     return Envelope(data=ObsidianImportOut(**report), meta=_meta())
+
+
+@router.post("/export/obsidian", summary="Export memory back out as an Obsidian vault")
+def export_obsidian(
+    body: ObsidianExportIn, request: Request
+) -> Envelope[ObsidianExportOut]:
+    from sndr.memory.obsidian import export_vault
+
+    eng = _engine(request)
+    vault = _confined_vault(body.path)  # export creates the dir; no is_dir gate
+    report = export_vault(engine=eng, owner_id=owner_from_request(request), vault_path=str(vault))
+    return Envelope(data=ObsidianExportOut(**report), meta=_meta())
 
 
 __all__ = ["router"]

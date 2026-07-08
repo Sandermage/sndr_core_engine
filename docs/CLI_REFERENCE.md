@@ -752,18 +752,32 @@ python3 scripts/bump_pin.py 0.23.1rc1.devNNN+g<sha> \
 ## 7. Memory daemon (`mem.*`)
 
 Persistent memory (graph + vector) served by the running product-API
-daemon (`sndr up`, port 8765). All four verbs share `--url` (else
+daemon (`sndr up`, port 8765). Every verb shares `--url` (else
 `$SNDR_MEMORY_URL` / `$SNDR_GUI_URL`, default `http://127.0.0.1:8765`),
 `--owner` (else `$SNDR_MEMORY_OWNER`, default 1) and `--token` (else
 `$GENESIS_MEMORY_API_KEY`, sent as Bearer).
 
 ```bash
+# store / retrieve
 sndr mem.remember "the 27B rig uses TP=2"       # store a memory
+sndr mem.remember "Paris is the capital of France" --kind semantic   # typed (slow-decay) fact
 sndr mem.recall "27B rig"                       # graph expand + reinforce
 sndr mem.search "TP settings"                   # vector/hybrid search, no side effects
-sndr mem.stats                                  # node/edge counts for this owner
+sndr mem.stats                                  # node/edge/community counts
 sndr mem                                        # bare group → mem.stats
+
+# brain tier (was GUI/API-only before)
+sndr mem.consolidate                            # auto-link + detect communities + rank importance
+sndr mem.neighbors 42                           # graph connections of node 42
+sndr mem.forget 42                              # delete a memory + its edges
+sndr mem.import MyVault                          # import an Obsidian vault (notes+wikilinks)
+sndr mem.export MyVaultOut                        # export memory back out as an Obsidian vault
 ```
+
+`--kind` selects the cognitive memory type — `working` (~30 min), `episodic`
+(~1 day), `semantic` (~1 week), `procedural` (~1 month) — which sets how fast
+the memory decays. `mem.import` reads a vault under the daemon's
+`GENESIS_MEMORY_VAULT_ROOT`.
 
 ---
 
