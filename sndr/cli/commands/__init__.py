@@ -19,6 +19,7 @@ from sndr.cli.commands.mem import (
     MemImportCommand,
     MemNeighborsCommand,
     MemRecallCommand,
+    MemReflectCommand,
     MemRememberCommand,
     MemSearchCommand,
     MemStatsCommand,
@@ -96,6 +97,7 @@ def build_subparsers(subparsers: argparse._SubParsersAction) -> None:
     register(MemForgetCommand())
     register(MemImportCommand())
     register(MemExportCommand())
+    register(MemReflectCommand())
     # TUI cockpit (read-only Phase 1) — the command gates on the optional [tui]
     # extra (textual) with a friendly install hint when it's absent.
     register(TuiCommand())

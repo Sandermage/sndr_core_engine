@@ -146,3 +146,14 @@ class MemoryHTTPClient:
         return self._call(
             "POST", "/api/v1/memory/export/obsidian", {"path": path}, owner=owner_id
         )
+
+    def reflect(
+        self, *, owner_id: int, min_cluster: int = 3, max_reflections: int = 5
+    ) -> dict[str, int]:
+        """Generative reflection: the daemon clusters memories and has the engine
+        synthesize higher-level insight nodes. Returns ``{reflections}``."""
+        return self._call(
+            "POST", "/api/v1/memory/reflect",
+            {"min_cluster": min_cluster, "max_reflections": max_reflections},
+            owner=owner_id,
+        )

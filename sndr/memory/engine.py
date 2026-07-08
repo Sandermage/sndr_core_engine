@@ -17,10 +17,28 @@ from typing import TYPE_CHECKING, Any
 from sndr.memory.model import SEMANTIC_EDGE_TAU, SearchHit
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from sndr.memory.embedder import Embedder
     from sndr.memory.store import MemoryStore
 
 _SIMILAR_REL = "similar_to"
+
+# Cap the observations quoted into a reflection prompt (context budget).
+_REFLECT_MAX_OBS = 20
+
+
+def _reflection_prompt(contents: list[str]) -> str:
+    """Build the Generative-Agents-style reflection prompt from a cluster of
+    observation texts."""
+    obs = "\n".join(f"- {c.strip()}" for c in contents[:_REFLECT_MAX_OBS] if c.strip())
+    return (
+        "You are the reflective memory of an assistant. Given these related "
+        "observations, state ONE concise higher-level insight they imply "
+        "(one sentence, no preamble). If they imply nothing, answer with an "
+        "empty line.\n\n"
+        f"Observations:\n{obs}\n\nInsight:"
+    )
 
 
 def run_maintenance(
@@ -196,6 +214,60 @@ class MemoryEngine:
             "communities": len(set(communities.values())),
             "nodes": len(communities),
         }
+
+    # ── reflection: the generative step (CREATES new knowledge) ─────────────
+    def reflect(
+        self,
+        *,
+        owner_id: int,
+        llm: Callable[[str], str],
+        min_cluster: int = 3,
+        max_reflections: int = 5,
+    ) -> dict[str, int]:
+        """Generative-Agents reflection: cluster related memories, ask the LLM
+        to synthesise a higher-level insight per cluster, and store each insight
+        as a NEW ``semantic`` node linked back to the observations it came from
+        (``derived_from`` edges). This is the only op that creates knowledge that
+        was not written verbatim; everything else only connects/ranks/decays.
+
+        ``llm`` is an injected ``(prompt) -> text`` callable so the engine stays
+        model-agnostic (the product wires it to the running vLLM engine). Derived
+        nodes are never fed back as source observations, so repeated passes do
+        not runaway into reflections-of-reflections. Returns ``{reflections: N}``.
+        """
+        communities = self.detect_communities(owner_id=owner_id)
+        by_comm: dict[int, list[int]] = {}
+        for nid, comm in communities.items():
+            by_comm.setdefault(comm, []).append(nid)
+
+        created = 0
+        for _comm, nids in sorted(by_comm.items()):
+            if created >= max_reflections:
+                break
+            nodes = [self.store.get_node(nid) for nid in nids]
+            # Only reflect over raw observations — skip prior insights.
+            observations = [
+                n for n in nodes if n and not n.properties.get("derived")
+            ]
+            if len(observations) < min_cluster:
+                continue
+            prompt = _reflection_prompt([n.content for n in observations])
+            insight = (llm(prompt) or "").strip()
+            if not insight:
+                continue
+            source_ids = [n.id for n in observations]
+            new_id = self.remember(
+                owner_id=owner_id,
+                text=insight,
+                kind="semantic",
+                importance=0.5,  # a derived insight is more salient than a raw turn
+                properties={"derived": True, "sources": source_ids},
+                dedup=False,
+            )
+            for sid in source_ids:
+                self.store.add_edge(new_id, sid, "derived_from", weight=1.0)
+            created += 1
+        return {"reflections": created}
 
     # ── graph view ───────────────────────────────────────────────────────
     def graph(

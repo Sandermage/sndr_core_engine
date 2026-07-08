@@ -768,11 +768,16 @@ sndr mem                                        # bare group → mem.stats
 
 # brain tier (was GUI/API-only before)
 sndr mem.consolidate                            # auto-link + detect communities + rank importance
+sndr mem.reflect                                # generative: synthesize insight nodes from clusters
 sndr mem.neighbors 42                           # graph connections of node 42
 sndr mem.forget 42                              # delete a memory + its edges
 sndr mem.import MyVault                          # import an Obsidian vault (notes+wikilinks)
 sndr mem.export MyVaultOut                        # export memory back out as an Obsidian vault
 ```
+
+`mem.reflect` clusters related memories and has the running engine synthesize a
+higher-level insight per cluster, stored as a new `semantic` node linked to its
+sources (needs `SNDR_OPENAI_BASE_URL` pointed at the engine).
 
 `--kind` selects the cognitive memory type — `working` (~30 min), `episodic`
 (~1 day), `semantic` (~1 week), `procedural` (~1 month) — which sets how fast

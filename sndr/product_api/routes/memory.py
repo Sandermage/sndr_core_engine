@@ -44,6 +44,8 @@ from sndr.product_api.schemas.memory import (
     ObsidianImportIn,
     ObsidianImportOut,
     RecallIn,
+    ReflectIn,
+    ReflectOut,
     RememberIn,
     RememberOut,
     StatsOut,
@@ -259,6 +261,31 @@ def export_obsidian(
     vault = _confined_vault(body.path)  # export creates the dir; no is_dir gate
     report = export_vault(engine=eng, owner_id=owner_from_request(request), vault_path=str(vault))
     return Envelope(data=ObsidianExportOut(**report), meta=_meta())
+
+
+@router.post("/reflect", summary="Generative reflection: synthesize insight nodes from clusters")
+def reflect(body: ReflectIn, request: Request) -> Envelope[ReflectOut]:
+    from sndr.memory.llm import make_openai_llm
+
+    base = (
+        os.environ.get("SNDR_OPENAI_BASE_URL")
+        or os.environ.get("GATEWAY_UPSTREAM_URL", "")
+    ).strip()
+    if not base:
+        raise HTTPException(
+            status_code=503,
+            detail="reflection needs an engine endpoint (set SNDR_OPENAI_BASE_URL)",
+        )
+    key = os.environ.get("SNDR_ENGINE_API_KEY") or os.environ.get("GATEWAY_UPSTREAM_KEY")
+    model = os.environ.get("GENESIS_MEMORY_REFLECT_MODEL", "local")
+    eng = _engine(request)
+    report = eng.reflect(
+        owner_id=owner_from_request(request),
+        llm=make_openai_llm(base, api_key=key, model=model),
+        min_cluster=body.min_cluster,
+        max_reflections=body.max_reflections,
+    )
+    return Envelope(data=ReflectOut(**report), meta=_meta())
 
 
 __all__ = ["router"]
