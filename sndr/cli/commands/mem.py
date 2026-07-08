@@ -89,7 +89,12 @@ class MemRememberCommand:
 
     def configure_parser(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("text", help="the text to remember")
-        parser.add_argument("--kind", default="note", help="node kind (default: note)")
+        parser.add_argument(
+            "--kind", default="note",
+            help="memory type — working (fades in ~30 min), episodic (~1 day), "
+                 "semantic (~1 week), procedural (~1 month); drives how fast it "
+                 "decays. Any other value keeps the neutral 1-day rate (default: note).",
+        )
         parser.add_argument("--importance", type=float, default=0.0,
                             help="seed importance in [0,1] (default: 0.0)")
         _add_connection_args(parser)

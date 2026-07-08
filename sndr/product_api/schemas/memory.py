@@ -9,7 +9,12 @@ from pydantic import BaseModel, Field
 
 class RememberIn(BaseModel):
     text: str = Field(min_length=1)
-    kind: str = "note"
+    kind: str = Field(
+        default="note",
+        description="Memory type driving decay rate: working (~30 min), "
+        "episodic (~1 day), semantic (~1 week), procedural (~1 month). "
+        "Any other value keeps the neutral 1-day rate.",
+    )
     importance: float = 0.0
     properties: dict[str, Any] = Field(default_factory=dict)
 
