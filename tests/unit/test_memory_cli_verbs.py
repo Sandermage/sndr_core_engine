@@ -41,6 +41,8 @@ def _spy_client():
             return {"linked": 2, "communities": 1, "nodes": 5}
         if "neighbors" in path:
             return [{"id": 2, "rel": "similar_to", "weight": 0.9}]
+        if "reflect" in path:
+            return {"reflections": 2}
         if "export" in path:
             return {"notes": 5, "links": 6}
         if "import" in path:
@@ -89,6 +91,16 @@ def test_client_import_obsidian_posts_path():
     assert body == {"path": "MyVault"}
 
 
+def test_client_reflect_posts():
+    c, calls = _spy_client()
+    out = c.reflect(owner_id=1, min_cluster=3, max_reflections=4)
+    assert out["reflections"] == 2
+    method, path, body, _o = calls[0]
+    assert method == "POST"
+    assert path.endswith("/memory/reflect")
+    assert body == {"min_cluster": 3, "max_reflections": 4}
+
+
 def test_client_export_obsidian_posts_path():
     c, calls = _spy_client()
     out = c.export_obsidian(owner_id=1, path="OutVault")
@@ -102,7 +114,7 @@ def test_client_export_obsidian_posts_path():
 # ── CLI verbs registered + wired to the client ────────────────────────────────
 
 
-@pytest.mark.parametrize("verb", ["mem.consolidate", "mem.neighbors", "mem.forget", "mem.import", "mem.export"])
+@pytest.mark.parametrize("verb", ["mem.consolidate", "mem.neighbors", "mem.forget", "mem.import", "mem.export", "mem.reflect"])
 def test_verb_registered(verb):
     assert verb in COMMAND_REGISTRY
 
@@ -145,6 +157,10 @@ class _Fake:
         self.seen.append(("export_obsidian", k))
         return {"notes": 5, "links": 6}
 
+    def reflect(self, **k):
+        self.seen.append(("reflect", k))
+        return {"reflections": 2}
+
 
 def test_cli_consolidate_invokes_client():
     f = _Fake()
@@ -179,3 +195,10 @@ def test_cli_export_invokes_client():
     rc = _run_cli("mem.export", {"path": "OutVault"}, f)
     assert rc == 0
     assert f.seen[0][0] == "export_obsidian"
+
+
+def test_cli_reflect_invokes_client():
+    f = _Fake()
+    rc = _run_cli("mem.reflect", {"min_cluster": 3, "max_reflections": 5}, f)
+    assert rc == 0
+    assert f.seen[0][0] == "reflect"

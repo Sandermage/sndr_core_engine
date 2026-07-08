@@ -74,6 +74,15 @@ class ObsidianExportOut(BaseModel):
     links: int
 
 
+class ReflectIn(BaseModel):
+    min_cluster: int = Field(default=3, ge=2, le=50, description="min cluster size to reflect on")
+    max_reflections: int = Field(default=5, ge=1, le=50, description="cap on new insight nodes")
+
+
+class ReflectOut(BaseModel):
+    reflections: int
+
+
 class HitOut(BaseModel):
     id: int
     content: str

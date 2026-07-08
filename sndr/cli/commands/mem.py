@@ -258,6 +258,29 @@ class MemImportCommand:
         return _run(args, _do)
 
 
+class MemReflectCommand:
+    name = "mem.reflect"
+    help = "Generative reflection: synthesize higher-level insight nodes from clusters."
+
+    def configure_parser(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--min-cluster", type=int, default=3,
+                            help="min related memories to reflect on (default: 3)")
+        parser.add_argument("--max", type=int, default=5, dest="max_reflections",
+                            help="cap on new insight nodes (default: 5)")
+        _add_connection_args(parser)
+
+    def execute(self, args: argparse.Namespace) -> int:
+        def _do(client) -> int:
+            rep = client.reflect(owner_id=_owner(args), min_cluster=args.min_cluster,
+                                 max_reflections=args.max_reflections)
+            if getattr(args, "output", "text") == "json":
+                print(json.dumps(rep))
+            else:
+                print(f"reflected: {rep.get('reflections', 0)} new insight node(s)")
+            return 0
+        return _run(args, _do)
+
+
 class MemExportCommand:
     name = "mem.export"
     help = "Export memory back out as an Obsidian vault (notes + wikilinks)."
@@ -285,6 +308,7 @@ __all__ = [
     "MemImportCommand",
     "MemNeighborsCommand",
     "MemRecallCommand",
+    "MemReflectCommand",
     "MemRememberCommand",
     "MemSearchCommand",
     "MemStatsCommand",
