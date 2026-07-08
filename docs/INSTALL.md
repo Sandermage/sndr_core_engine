@@ -45,6 +45,7 @@ recommended first command — it matches [`QUICKSTART.md`](QUICKSTART.md).
 | `--workload <name>` | `balanced` / `long_context` / `high_throughput` / `tool_agent`. |
 | `--models-dir <path>` | Host directory holding model weights / HF cache; exported as `GENESIS_MODELS_DIR` so the launcher can bind-mount it. |
 | `--home <path>` | Override `$SNDR_HOME` (default `~/.sndr`). |
+| `--client` / `--no-engine` | Client-only install (Mac / GPU-less box): skip the engine, wire the CLI + GUI to a remote rig. Writes a client `.env`; pair with `sndr remote setup <url>`. |
 | `--python <bin>` | Override `python3`. |
 | `--no-verify` | Skip post-install smoke test. |
 | `--no-plugin` | Skip the editable `pip install --no-deps -e <repo>` (PYTHONPATH-only mode). |

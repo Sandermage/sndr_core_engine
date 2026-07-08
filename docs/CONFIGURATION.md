@@ -161,8 +161,8 @@ the YAML comment). The representative subset:
 
 | Env var | Patch | Note |
 |---|---|---|
-| `GENESIS_ENABLE_P56_SPEC_DECODE_GUARD` | P56 | Spec-decode safe-path guard. **Empirically deprecated**, kept for diagnostics only |
-| `GENESIS_ENABLE_P57_SPEC_DECODE_CAPTURE_SAFE` | P57 | Capture-safe buffer expansion (experimental, fixes vllm#40831 root) |
+| ~~`GENESIS_ENABLE_P56_SPEC_DECODE_GUARD`~~ | P56 | **REMOVED (archived 2026-05-05)** — no longer in `PATCH_REGISTRY`; the flag has no effect if set |
+| ~~`GENESIS_ENABLE_P57_SPEC_DECODE_CAPTURE_SAFE`~~ | P57 | **REMOVED (archived 2026-05-05)** — no longer in `PATCH_REGISTRY`; the flag has no effect if set |
 | `GENESIS_ENABLE_P59_QWEN3_TOOL_RECOVERY` | P59 | Backport of vllm#39055. **Currently superseded by upstream PR #35687 in our pin — keep disabled** |
 | `GENESIS_ENABLE_P63_MTP_GDN_STATE_RECOVERY` | P63 | **DEPRECATED** — wrong layer, hypothesis disproven. Kept for archival diagnostics only |
 | `GENESIS_ENABLE_P65_TURBOQUANT_SPEC_CG_DOWNGRADE` | P65 | Cudagraph downgrade for spec-decode (workaround; replaced by P67/P67b) |

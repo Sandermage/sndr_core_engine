@@ -33,6 +33,13 @@ match). Always use `sndr down`. Recovery for a stuck container is a full
 
 ## The zero-decision path
 
+**Before you start** (one-time host setup): you need **Docker + the
+nvidia-container-toolkit** and an **NVIDIA driver ≥ 580.126.09** (an older
+driver hangs on CUDA-graph capture or runs ~3× slower). Check with
+`nvidia-smi` (driver version, top-right) and `docker run --rm --gpus all
+nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi`. Install commands are in
+[`INSTALL.md`](INSTALL.md#hardware-requirements); `sndr doctor` re-checks them any time.
+
 If you don't want to think about presets at all:
 
 ```bash

@@ -263,10 +263,11 @@ sndr model-config list                # all configs the registry sees
 sndr config diff prod-qwen3.6-35b-balanced prod-qwen3.6-27b-tq-k8v4 # field-by-field diff
 sndr config explain prod-qwen3.6-35b-balanced          # plain-English walkthrough
 sndr model-config show prod-qwen3.6-35b-balanced       # the resolved full YAML
-sndr patches plan prod-qwen3.6-35b-balanced            # preview which patches will apply
+sndr patches plan --preset prod-qwen3.6-35b-balanced   # preview which patches will apply
 ```
 
-The 12 builtin configs and their reference metrics are
+The builtin configs (12 model defs · 15 presets · 15 profiles ·
+3 hardware = 45 active) and their reference metrics are
 auto-inventoried in [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md). The
 narrative recipe for adding your own (V2 layered) is in
 [`MODELS.md`](MODELS.md).
@@ -351,7 +352,7 @@ sndr patches list --lifecycle stable             # only stable-promoted
 sndr patches list --family attention.turboquant  # one family
 
 sndr patches explain P67                         # per-patch deep-dive
-sndr patches plan prod-qwen3.6-35b-balanced                       # which patches the preset enables
+sndr patches plan --preset prod-qwen3.6-35b-balanced             # which patches the preset enables
 sndr patches doctor                              # registry contract sanity
 ```
 
@@ -476,7 +477,7 @@ Six checks, ~15 minutes total. Each has a clear pass signal.
 sndr doctor                   # hardware + software + plugin + patches
 sndr verify --quick           # 10-inference smoke
 sndr model-config list        # browse what is available
-sndr launch <preset> --preflight-only      # config-vs-host coherence
+sndr preflight <preset>       # config-vs-host coherence (dedicated verb)
 sndr launch <preset>          # actually boot
 sndr model-config verify <preset>          # bench vs reference_metrics
 ```

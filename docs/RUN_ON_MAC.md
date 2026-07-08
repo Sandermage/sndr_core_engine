@@ -36,11 +36,13 @@ starts only the GUI daemon and never tries to boot a local engine.
 
 ## The `.env` alternative
 
-Prefer a file over `sndr remote setup`? Copy the example and fill in the three
-values (the **remote-client triplet**):
+Prefer a file over `sndr remote setup`? A `--client` install already wrote a
+`.env` in the directory you ran it from — just edit that file. Or create one
+with the three values (the **remote-client triplet**):
 
 ```bash
-cp .env.example .env      # then edit .env
+# edit the .env the --client install wrote (in your current directory), or:
+printf 'SNDR_OPENAI_BASE_URL=http://<rig>:8102/v1\n' > .env   # then add the keys below
 ```
 
 ```bash

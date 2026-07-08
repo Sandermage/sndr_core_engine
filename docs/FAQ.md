@@ -62,7 +62,7 @@ There is no global "enable all" switch — by design.
 
 ### Q: Which patches are ON by default?
 
-56 of 325 entries are marked `default_on=True` in the
+56 of 329 entries are marked `default_on=True` in the
 registry — production-eligible Wave 10 backports + legacy
 pre-dispatcher overlays that have been validated against the
 v11 baselines. Note that `default_on` is informational: the launcher

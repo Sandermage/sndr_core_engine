@@ -881,6 +881,18 @@ print_next_steps() {
     echo "  Launch:    $LAUNCH_SCRIPT"
   fi
   echo
+  # PATH guard: the `sndr` console script lands in the Python user-scripts dir
+  # (~/.local/bin on Linux, ~/Library/Python/X.Y/bin on macOS) under the default
+  # --user install. If that dir is not on PATH, the very first `sndr` command a
+  # newcomer copy-pastes fails with "command not found". Warn with the exact fix
+  # instead of letting it die silently.
+  if ! command -v sndr >/dev/null 2>&1; then
+    _sndr_user_bin="$("$PYTHON_BIN" -c 'import site; print(site.getuserbase())' 2>/dev/null)/bin"
+    printf '%b\n' "${C_YELLOW}${C_BOLD}⚠ \`sndr\` is not on your PATH yet${C_RESET} — add its bin dir or use the module form:"
+    echo "      export PATH=\"${_sndr_user_bin}:\$PATH\"        # this shell (add to ~/.bashrc or ~/.zshrc to persist)"
+    echo "      $PYTHON_BIN -m sndr.cli <command>         # always works, no PATH change"
+    echo
+  fi
   echo "Next:"
   if [ "$GENESIS_BARE_METAL" = "1" ]; then
     echo "  Bare-metal mode (--bare-metal or auto-enabled by Proxmox detect):"

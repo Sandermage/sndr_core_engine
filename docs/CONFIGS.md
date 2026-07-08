@@ -13,7 +13,8 @@ If you're new to Genesis, read [../docs/QUICKSTART.md](../docs/QUICKSTART.md) fi
 > `_archive/`). Discover via
 > `sndr preset list` / `sndr preset recommend`; per-preset narrative
 > tables in [`PRESETS.md`](PRESETS.md). [`CONFIGS_AUTO.md`](CONFIGS_AUTO.md)
-> remains as a placeholder stub pending a V2 inventory generator.
+> is the machine-generated inventory of all 45 active configs, grouped by
+> tier (model · presets · profile · hardware).
 >
 > **Scope split vs [`MODELS.md`](MODELS.md):** MODELS.md is the
 > model-side catalog (what ships, per-ModelDef facts); this guide is
