@@ -52,7 +52,7 @@ msgpack==1.2.1
 networkx==3.4.2
 numpy==2.4.4
 packaging==26.2
-pbs-installer==2025.3.17
+pbs-installer==2026.6.10
 pillow==12.3.0
 pkginfo==1.12.1.2
 platformdirs==4.10.0
